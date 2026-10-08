@@ -14,7 +14,7 @@ use super::bind::{Binding, BindingError, EditRefusal, edit_literal, kind};
 use super::component::{
     Component, ComponentCatalog, ComponentRef, Hole, Release, Unresolved, pinned,
 };
-use super::instance::{ExpandError, expand, instantiate};
+use super::instance::{ExpandError, adopt, expand, instantiate};
 use super::witness::{reuse, reuse_of, revise, witness};
 use super::{trace, traced};
 
@@ -598,4 +598,69 @@ fn the_qualification_record_states_reuse_from_receipts_and_never_instantiation_f
     assert_eq!(record["reuse"]["expanded"], 0);
     assert_eq!(record["lexical_overlap"]["most_lines"], 1);
     assert!(!record.to_string().contains("instantiated"), "{record:#}");
+}
+
+#[test]
+fn an_editor_inserting_the_exact_entries_gets_the_same_node_receipt() {
+    let stale = component(STALE);
+    let instance = instantiate(&stale, &bound(48)).unwrap();
+    let entries = instance.entries().unwrap();
+    let text = |section: &str, name: &str| {
+        let entry = entries
+            .iter()
+            .find(|e| e.section == section && e.name == name);
+        entry.map(|e| e.text.clone()).unwrap()
+    };
+    assert_eq!(
+        text("const", "max_age_hours"),
+        "{ type: integer, value: 48 }"
+    );
+    assert_eq!(text("const", "records_path"), "\"./in/tickets.json\"");
+    assert_eq!(text("outputs", "stale"), "${{ tasks.stale.output }}");
+    assert!(text("tasks", "stale").starts_with("with: { rows:"));
+    assert!(text("tasks", "stale").contains("\ninvoke:\n  tool: \"nika:jq\"\n  args:\n"));
+    assert_eq!(entries.iter().filter(|e| e.section == "tasks").count(), 5);
+    // Another editor writes the same entries under the person's keys, its own way.
+    let mut doc = String::from("nika: stale-tickets-report\nconst:\n");
+    let mut tasks = String::from("tasks:\n");
+    let mut outputs = String::from("outputs:\n");
+    for entry in &entries {
+        use std::fmt::Write as _;
+        let _ = match entry.section.as_str() {
+            "tasks" => {
+                let _ = writeln!(tasks, "    {}:", entry.name);
+                for line in entry.text.lines() {
+                    let _ = writeln!(tasks, "        {line}");
+                }
+                Ok(())
+            }
+            "const" => writeln!(doc, "    {}: {}", entry.name, entry.text),
+            _ => writeln!(outputs, "    {}: {}", entry.name, entry.text),
+        };
+    }
+    let permits = PARENT
+        .split("permits:\n")
+        .nth(1)
+        .unwrap()
+        .replace("tasks: {}\n", "");
+    let candidate = format!("{doc}permits:\n{permits}{tasks}{outputs}");
+    let adopted = adopt(&candidate, &instance).unwrap();
+    assert!(adopted.ready, "{:#}", adopted.receipt["check"]);
+    let expanded = expand(PARENT, &instance).unwrap();
+    assert_eq!(adopted.receipt["nodes"], expanded.receipt["nodes"]);
+    assert_ne!(adopted.candidate, expanded.candidate);
+    assert_eq!(
+        witness(&expanded.receipt, &candidate)["verdict"],
+        "expanded"
+    );
+    // What the bound component does not write is no adoption of it.
+    let changed = expanded.candidate.replace("value: 48", "value: 49");
+    assert!(matches!(
+        adopt(&changed, &instance),
+        Err(ExpandError::Unproven(_))
+    ));
+    assert!(matches!(
+        adopt(PARENT, &instance),
+        Err(ExpandError::Unproven(_))
+    ));
 }

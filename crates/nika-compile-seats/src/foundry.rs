@@ -30,7 +30,7 @@ pub mod witness;
 
 pub use bind::{Binding, BindingError, EditRefusal, edit_literal};
 pub use component::{Component, ComponentCatalog, ComponentRef, Hole, Release, Unresolved};
-pub use instance::{ExpandError, Expansion, Instance, expand, instantiate};
+pub use instance::{Entry, ExpandError, Expansion, Instance, adopt, expand, instantiate};
 pub use witness::{reuse, reuse_of, revise};
 
 use nika_compile::{

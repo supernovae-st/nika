@@ -213,6 +213,104 @@ pub fn expand(parent: &str, instance: &Instance) -> Result<Expansion, ExpandErro
     Ok(checked(candidate, instance, &bound))
 }
 
+/// One entry an expansion adds: its section, its name, and its value as the component writes it
+/// (its lines without their indentation), for a document editor that inserts exact text.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Entry {
+    /// `inputs` · `const` · `tasks` · `outputs`.
+    pub section: String,
+    /// The entry's key.
+    pub name: String,
+    /// Its value's exact text: an inline value, or the block under the key, re-indented to zero.
+    pub text: String,
+}
+
+impl Instance {
+    /// The entries an expansion of this instance adds, in the envelope's section order and the
+    /// component's own order, each value as the bound bytes write it. A comment line between two
+    /// entries is not carried here ([`expand`] keeps it).
+    ///
+    /// # Errors
+    /// [`ExpandError::Unproven`] when a section is not written in block form.
+    pub fn entries(&self) -> Result<Vec<Entry>, ExpandError> {
+        let mut entries = Vec::new();
+        for key in MERGED {
+            if section(&self.source, key).is_none() {
+                continue;
+            }
+            let body = section_body(&self.source, key)?;
+            let mut lines = body.iter().peekable();
+            while let Some(line) = lines.next() {
+                let Some((name, inline)) = line.split_once(':') else {
+                    continue;
+                };
+                if line.starts_with([' ', '#']) || line.is_empty() {
+                    continue;
+                }
+                let mut value: Vec<&str> = Vec::new();
+                while let Some(next) =
+                    lines.next_if(|next| next.is_empty() || next.starts_with(' '))
+                {
+                    value.push(next);
+                }
+                let indent = (value.iter())
+                    .filter(|l| !l.trim().is_empty())
+                    .map(|l| l.len() - l.trim_start().len())
+                    .min()
+                    .unwrap_or(0);
+                let block: Vec<&str> = value
+                    .iter()
+                    .map(|l| l.get(indent..).unwrap_or(""))
+                    .collect();
+                let text = match inline.trim() {
+                    "" => block.join("\n").trim_end().to_owned(),
+                    inline => inline.to_owned(),
+                };
+                entries.push(Entry {
+                    section: key.to_owned(),
+                    name: name.to_owned(),
+                    text,
+                });
+            }
+        }
+        Ok(entries)
+    }
+}
+
+/// The receipt of an expansion another editor applied (the document owner's exact-text insert of
+/// [`Instance::entries`]): `candidate` must hold every entry of the bound instance exactly as
+/// bound, and no hole may stay open; it is then checked as a whole and receipted as [`expand`]
+/// receipts its own.
+///
+/// # Errors
+/// [`ExpandError`]: open holes, or an entry the candidate does not hold as bound.
+pub fn adopt(candidate: &str, instance: &Instance) -> Result<Expansion, ExpandError> {
+    if !instance.open.is_empty() {
+        return Err(ExpandError::Binding(BindingError::Unbound(
+            instance.open.clone(),
+        )));
+    }
+    let document = literal_projection(candidate).ok_or(ExpandError::Parent)?;
+    let bound = literal_projection(&instance.source)
+        .ok_or_else(|| ExpandError::Unproven("the bound component cannot be read".to_owned()))?;
+    for section in MERGED {
+        for (name, value) in bound
+            .get(section)
+            .and_then(Value::as_object)
+            .into_iter()
+            .flatten()
+        {
+            if document.get(section).and_then(|s| s.get(name)) != Some(value) {
+                return Err(ExpandError::Unproven(format!(
+                    "the candidate does not hold `{section}.{name}` as the bound component writes it"
+                )));
+            }
+        }
+    }
+    Ok(checked(candidate.to_owned(), instance, &bound))
+}
+
 /// A whole document through the compiler's finish (strict parse, pure Check preview, open
 /// questions): whether it is ready, the record of what was found, and the boundary its body
 /// needs as Check derives it.
