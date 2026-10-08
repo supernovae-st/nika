@@ -1358,6 +1358,8 @@ pub nika_session_change::work::Waiting::Question::id: nika_session_change::outco
 pub nika_session_change::work::Waiting::Question::key: alloc::string::String
 pub nika_session_change::work::Waiting::RunReview
 pub nika_session_change::work::Waiting::RunReview::review: nika_session_change::outcome::ReviewId
+impl nika_session_change::work::Waiting
+pub fn nika_session_change::work::Waiting::requires_fresh_input(&self) -> bool
 impl core::clone::Clone for nika_session_change::work::Waiting
 pub fn nika_session_change::work::Waiting::clone(&self) -> nika_session_change::work::Waiting
 impl core::cmp::Eq for nika_session_change::work::Waiting
