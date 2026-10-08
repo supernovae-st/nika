@@ -62,6 +62,7 @@ fn request() -> RunRequest {
         vars: vec!["city=Paris".to_owned()],
         max_cost_usd: 0.5,
         access_pin: Some("api".to_owned()),
+        bytes: None,
     }
 }
 

@@ -712,3 +712,21 @@ fn a_harness_session_names_its_seat_and_transport_as_the_session_holds_them() {
         "no model is invented for a seat that cannot author"
     );
 }
+
+#[test]
+fn a_run_request_names_the_bytes_its_check_judged_and_admits_no_others() {
+    let dir = tree();
+    std::fs::write(dir.path().join("draft.md"), "the draft\n").expect("draft");
+    std::fs::write(dir.path().join("gate.nika"), GATE).expect("gate");
+    let mut s = ready_with(dir.path(), vec![]);
+    let TurnOutcome::RunRequested { run, .. } = s.turn("run gate.nika") else {
+        panic!("a clean workflow's run is requested");
+    };
+    assert_eq!(run.bytes.as_deref(), Some(&Witness::of(GATE.as_bytes())));
+    assert!(run.admits(GATE));
+    // Replaced by another valid workflow after its check: the request still names the checked
+    // bytes, so a door that captures the new ones refuses them.
+    let replaced = GATE.replace("Write final.md?", "Write the final file?");
+    std::fs::write(dir.path().join("gate.nika"), &replaced).expect("replaced");
+    assert!(!run.admits(&replaced));
+}
