@@ -804,8 +804,9 @@ const DRAFT: &str = include_str!("../../../tests/fixtures/edit_trial/draft.nika"
 const TICKETS: &str = r#"[{"id":"fresh-10","age_hours":10},{"id":"stale-60","age_hours":60},{"id":"boundary-72","age_hours":72},{"id":"stale-90","age_hours":90}]"#;
 const REPORT: &str = r#"{"count":1,"ids":["stale-90"]}"#;
 
-/// A room that runs each candidate it is shown to completion (the tickets copied in, the
-/// report written) and keeps every candidate it ran.
+/// A synthetic room (a `Rehearse` double): it records every candidate it is asked to rehearse and
+/// answers each with the same fixed receipt of a completed run ([`ran`]). It executes nothing and
+/// copies no real file; it tests how the doors route a trial's receipt, never a run.
 #[derive(Default)]
 struct Room {
     shown: std::sync::Mutex<Vec<String>>,
@@ -831,8 +832,9 @@ impl Rehearse for Room {
     }
 }
 
-/// The room's report of one completed run of `candidate`, every receipt agreeing with the bytes
-/// it spent.
+/// The synthetic receipt of one completed run of `candidate`: fixed bytes (the tickets copied in,
+/// the report written), bound to the candidate's digest, every receipt agreeing with the bytes it
+/// spent. No candidate is executed to produce it.
 fn ran(candidate: &str) -> RehearsalReport {
     let (source, target) = ("./in/tickets.json", "./out/report.json");
     let input = Digest::of(TICKETS.as_bytes());
@@ -870,10 +872,12 @@ fn ran(candidate: &str) -> RehearsalReport {
 /// created from (whose stated paths the room's copy answers to), answered whole by the author's
 /// exact draft; the judge doubts the whole request, carries every part and finds
 /// nothing extra. With no room, nothing decides the doubt: held after one authoring call. That
-/// rejection carried to an unchanged round asks the judge nothing. With a room, the revision's
-/// exact bytes run once (the session's own world untouched: only the room's copy is read) and
-/// the judge, shown that run, finds it consistent: READY on the same draft, with no second
-/// authoring call, the carried round resuming with the one question over the run.
+/// rejection carried to an unchanged round asks the judge nothing. With a room, exactly one
+/// trial is asked, of exactly the revision's bytes, and the judge, shown its receipt, finds it
+/// consistent: READY on the same draft, with no second authoring call, the carried round
+/// resuming with the one question over the run. The room is synthetic ([`Room`]): this tests
+/// the production routing and doubt law over a fixed receipt; a run of the candidate by the
+/// common binary is witnessed elsewhere.
 #[tokio::test]
 async fn a_revision_doubt_is_settled_by_one_trial_of_its_exact_bytes() {
     let change = "Keep the tickets whose age_hours is strictly greater than 72 instead of 48.";
@@ -937,9 +941,10 @@ async fn a_revision_doubt_is_settled_by_one_trial_of_its_exact_bytes() {
             (whole, 1)
         );
         let shown = room.shown.lock().expect("shown").clone();
-        assert!(
-            shown.iter().all(|ran| ran == DRAFT) && !shown.is_empty(),
-            "{shown:?}"
+        assert_eq!(
+            shown,
+            vec![DRAFT.to_owned()],
+            "exactly one trial, of the draft"
         );
     }
 }
