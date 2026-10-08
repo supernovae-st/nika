@@ -22,14 +22,16 @@ use super::component::Component;
 use super::instance::{MERGED, nodes};
 
 /// The law the reuse record states.
-pub const REUSE: &str = "reuse: a component is expanded when every node its receipt names is re-derived, digest for digest, from the candidate's own bytes, and every bound literal holds; a shown reference no receipt names is consulted; lexical overlap never decides";
+pub const REUSE: &str = "reuse: a component is expanded (or invoked) when every node its receipt names is re-derived, digest for digest, from the candidate's own bytes, and every bound literal holds; a shown reference no receipt names is consulted; lexical overlap never decides";
 
-/// What one candidate holds of one expansion receipt: `expanded` (every node and bound literal as
-/// receipted), `revised` (every node present, some changed since), `absent` (a node missing), or
-/// `unreadable` (the candidate's literals cannot be read).
+/// What one candidate holds of one receipt: `expanded` (every node and bound literal as
+/// receipted), `invoked` (an invocation receipt: its calling task as receipted; the child file is
+/// witnessed apart, [`witness_child`]), `revised` (every node present, some changed since),
+/// `absent` (a node missing), or `unreadable` (the candidate's literals cannot be read).
 #[must_use]
 pub fn witness(receipt: &Value, candidate: &str) -> Value {
     let id = receipt["component"]["id"].clone();
+    let invoked = receipt.get("invocation").is_some();
     let Some(mut document) = literal_projection(candidate) else {
         return json!({"component": id, "verdict": "unreadable"});
     };
@@ -47,8 +49,10 @@ pub fn witness(receipt: &Value, candidate: &str) -> Value {
             }
         }
     }
+    // An invocation's bindings live in its child program, witnessed with it.
+    let bindings = (!invoked).then(|| receipt["bindings"].as_array()).flatten();
     let mut unbound = Vec::new();
-    for binding in receipt["bindings"].as_array().into_iter().flatten() {
+    for binding in bindings.into_iter().flatten() {
         let path = binding["path"].as_str().unwrap_or_default();
         if literal_at(&mut document, path).is_none_or(|held| *held != binding["bound"]) {
             unbound.push(path.to_owned());
@@ -57,7 +61,7 @@ pub fn witness(receipt: &Value, candidate: &str) -> Value {
     let verdict = if !missing.is_empty() || kept.is_empty() && changed.is_empty() {
         "absent"
     } else if changed.is_empty() && unbound.is_empty() {
-        "expanded"
+        if invoked { "invoked" } else { "expanded" }
     } else {
         "revised"
     };
@@ -65,11 +69,19 @@ pub fn witness(receipt: &Value, candidate: &str) -> Value {
         "component": id,
         "release": receipt["component"]["release"],
         "verdict": verdict,
+        "workflow": receipt["invocation"]["workflow"],
         "candidate_sha256": sha256(candidate),
         "receipt_candidate_sha256": receipt["candidate_sha256"],
         "nodes": {"kept": kept, "changed": changed, "missing": missing},
         "bindings_not_held": unbound,
     })
+}
+
+/// What a child program holds of an invocation receipt's component: the child's nodes and bound
+/// literals re-derived from its own bytes (`expanded` when it holds the bound component).
+#[must_use]
+pub fn witness_child(receipt: &Value, child: &str) -> Value {
+    witness(&receipt["child"], child)
 }
 
 /// The reuse record of a candidate: each shown reference, `consulted` unless an expansion receipt
@@ -96,6 +108,7 @@ pub fn reuse(shown: &[KnowledgeReference], receipts: &[Value], candidate: Option
     json!({
         "law": REUSE,
         "expanded": count("expanded"),
+        "invoked": count("invoked"),
         "revised": count("revised"),
         "absent": count("absent"),
         "consulted": count("consulted"),

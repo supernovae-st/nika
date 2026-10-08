@@ -24,6 +24,7 @@
 pub mod bind;
 pub mod component;
 pub mod instance;
+pub mod invoke;
 pub mod reach;
 pub mod recall;
 pub mod witness;
@@ -31,7 +32,8 @@ pub mod witness;
 pub use bind::{Binding, BindingError, EditRefusal, edit_literal};
 pub use component::{Component, ComponentCatalog, ComponentRef, Hole, Release, Unresolved};
 pub use instance::{Entry, ExpandError, Expansion, Instance, adopt, expand, instantiate};
-pub use witness::{reuse, reuse_of, revise};
+pub use invoke::{Invocation, invoke};
+pub use witness::{reuse, reuse_of, revise, witness_child};
 
 use nika_compile::{
     AuthoringKnowledge, CompileOutcome, CompileRequest, KnowledgeReference, surface::sha256,

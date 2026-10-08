@@ -15,7 +15,8 @@ use super::component::{
     Component, ComponentCatalog, ComponentRef, Hole, Release, Unresolved, pinned,
 };
 use super::instance::{ExpandError, adopt, expand, instantiate};
-use super::witness::{reuse, reuse_of, revise, witness};
+use super::invoke::invoke;
+use super::witness::{reuse, reuse_of, revise, witness, witness_child};
 use super::{trace, traced};
 
 /// A filter-then-report component: records older than a threshold, counted and written.
@@ -724,5 +725,91 @@ fn value_like(value: &Value) -> String {
         "[\"./data/x.json\"]".to_owned()
     } else {
         "{ type: string }".to_owned()
+    }
+}
+
+#[test]
+fn a_component_kept_behind_a_child_boundary_never_meets_the_parents_names() {
+    let stale = component(STALE);
+    let instance = instantiate(&stale, &bound(48)).unwrap();
+    // The person's document already names a task like the component's: an expansion refuses,
+    // an invocation keeps both.
+    let taken = PARENT.replace(
+        "tasks: {}\n",
+        "tasks:\n  stale:\n    invoke: { tool: \"nika:read\", args: { path: \"./in/tickets.json\" } }\n",
+    );
+    assert!(matches!(
+        expand(&taken, &instance),
+        Err(ExpandError::Collision { .. })
+    ));
+    let child_path = "./components/stale-filter-report.nika";
+    let invocation = invoke(&taken, &instance, "stale_report", child_path).unwrap();
+    // The child: its own name, the person's boundary, no model of the probe.
+    let child = literal_projection(&invocation.child).unwrap();
+    assert_eq!(child["nika"], "stale-filter-report");
+    assert!(child.get("model").is_none(), "{}", invocation.child);
+    assert_eq!(
+        child["permits"],
+        literal_projection(PARENT).unwrap()["permits"]
+    );
+    assert_eq!(
+        child["const"]["max_age_hours"],
+        json!({"type": "integer", "value": 48})
+    );
+    assert!(!invocation.child.contains("./data/tickets.json"));
+    let receipt = &invocation.receipt;
+    assert_eq!(
+        receipt["child"]["check"]["ready"], true,
+        "{:#}",
+        receipt["child"]
+    );
+    assert_eq!(receipt["authority"]["inherited"], false);
+    assert_eq!(receipt["invocation"]["workflow"], child_path);
+    // The parent: its own task untouched, one calling task added.
+    let parent = literal_projection(&invocation.candidate).unwrap();
+    assert_eq!(
+        parent["tasks"]["stale_report"],
+        json!({"invoke": {"workflow": child_path}})
+    );
+    assert_eq!(
+        parent["tasks"]["stale"],
+        literal_projection(&taken).unwrap()["tasks"]["stale"]
+    );
+    // The parent holds the call, the child the bound component; a parent without the call holds
+    // no reuse.
+    assert_eq!(
+        witness(receipt, &invocation.candidate)["verdict"],
+        "invoked"
+    );
+    assert_eq!(
+        witness_child(receipt, &invocation.child)["verdict"],
+        "expanded"
+    );
+    assert_eq!(witness(receipt, &taken)["verdict"], "absent");
+    let counted = reuse(
+        &[],
+        std::slice::from_ref(receipt),
+        Some(&invocation.candidate),
+    );
+    assert_eq!(counted["invoked"], 1);
+    // A taken task name, or a child path outside the person's project, is refused.
+    assert!(matches!(
+        invoke(&taken, &instance, "stale", child_path),
+        Err(ExpandError::Collision { .. })
+    ));
+    for path in [
+        "../x.nika",
+        "/abs/x.nika",
+        "./x.yaml",
+        "./${{ inputs.x }}.nika",
+        "./Up.nika",
+    ] {
+        assert!(
+            matches!(
+                invoke(PARENT, &instance, "call", path),
+                Err(ExpandError::Unproven(_))
+            ),
+            "{path}"
+        );
     }
 }

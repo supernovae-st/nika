@@ -416,15 +416,15 @@ fn lines(source: &str) -> Vec<(usize, &str)> {
 
 /// One top-level section as written: where its key line starts and ends, what follows its
 /// colon on that line, and where its block body ends (before the next top-level line).
-struct Section<'a> {
-    start: usize,
-    header_end: usize,
-    inline: &'a str,
-    body_end: usize,
+pub(super) struct Section<'a> {
+    pub(super) start: usize,
+    pub(super) header_end: usize,
+    pub(super) inline: &'a str,
+    pub(super) body_end: usize,
 }
 
 /// The top-level section `key` of `source`, when it holds one.
-fn section<'a>(source: &'a str, key: &str) -> Option<Section<'a>> {
+pub(super) fn section<'a>(source: &'a str, key: &str) -> Option<Section<'a>> {
     let all = lines(source);
     let at = all
         .iter()
@@ -481,9 +481,40 @@ fn section_body(source: &str, key: &str) -> Result<Vec<String>, ExpandError> {
     Ok(kept)
 }
 
+/// `source` with the whole section `text` (its key line included) placed where the envelope's
+/// order puts `key`: before the first later key (and the comment lines right above it, which stay
+/// with their key), or at the end.
+pub(super) fn place_section(source: &str, key: &str, text: &str) -> String {
+    let later = &ENVELOPE[ENVELOPE
+        .iter()
+        .position(|k| *k == key)
+        .map_or(0, |at| at + 1)..];
+    let all = lines(source);
+    let at = all
+        .iter()
+        .position(|(_, line)| top_level_key(line).is_some_and(|k| later.contains(&k)))
+        .map_or(source.len(), |mut at| {
+            while at > 0 && all[at - 1].1.starts_with('#') {
+                at -= 1;
+            }
+            all[at].0
+        });
+    let head = &source[..at];
+    let separator = if head.is_empty() || head.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    format!("{head}{separator}{text}{}", &source[at..])
+}
+
 /// `source` with `body` (entries without indentation) added to its top-level section `key`: after
 /// its last entry, into its `{}`, or as a new section placed in the envelope's order.
-fn merge_section(source: &str, key: &str, body: &[String]) -> Result<String, ExpandError> {
+pub(super) fn merge_section(
+    source: &str,
+    key: &str,
+    body: &[String],
+) -> Result<String, ExpandError> {
     let indented = |indent: usize| -> String {
         (body.iter())
             .map(|line| {
@@ -496,32 +527,10 @@ fn merge_section(source: &str, key: &str, body: &[String]) -> Result<String, Exp
             .collect()
     };
     let Some(found) = section(source, key) else {
-        // A new section, before the first later key of the envelope (and the comment lines
-        // right above it, which stay with their key), or at the end.
-        let later = &ENVELOPE[ENVELOPE
-            .iter()
-            .position(|k| *k == key)
-            .map_or(0, |at| at + 1)..];
-        let all = lines(source);
-        let at = all
-            .iter()
-            .position(|(_, line)| top_level_key(line).is_some_and(|k| later.contains(&k)))
-            .map_or(source.len(), |mut at| {
-                while at > 0 && all[at - 1].1.starts_with('#') {
-                    at -= 1;
-                }
-                all[at].0
-            });
-        let head = &source[..at];
-        let separator = if head.is_empty() || head.ends_with('\n') {
-            ""
-        } else {
-            "\n"
-        };
-        return Ok(format!(
-            "{head}{separator}{key}:\n{}{}",
-            indented(2),
-            &source[at..]
+        return Ok(place_section(
+            source,
+            key,
+            &format!("{key}:\n{}", indented(2)),
         ));
     };
     if found.inline == "{}" {
