@@ -19,7 +19,7 @@ inv: []
 shadow_zones: []
 nika_codes: []
 timeline: "v0.123"
-follow_ups: ["a paused job's resume over HTTP once the resident has a resume route (its gate's answer is run_not_started until then)", "the native door's child run bound to the checked bytes once `nika run` takes the expected source (the child reads the workflow by name until then)", "an exact candidate source projection in the work snapshot", "several live conversations per project once the history names a conversation"]
+follow_ups: ["a paused job's resume over HTTP once the resident has a resume route (its gate's answer is run_not_started until then)", "a run admitted only on the whole closure its check judged (the root and every child workflow it reaches), at the HTTP job door and through the native child's line", "several live conversations per project once the history names a conversation"]
 ---
 
 # ADR-148: the Session over a wire — nika-session-host
@@ -79,7 +79,22 @@ The owners that would naturally host this adapter stand at the 15,000 prod-LOC w
    over the world the door admitted, with the run's ceiling as the invocation default the human's
    one approval overrides once, as `nika run` does; that approval admits the reviewed job once (a
    decline admits none). The resident has no resume route, so a paused job's gate answer is
-   `run_not_started`. A door that cannot start a run says so and observes nothing.
+   `run_not_started`. A door that cannot start a run says so and observes nothing. The native
+   door's child line carries the witness of the checked bytes (`RunRequest::args`), and `nika run`
+   refuses other bytes before anything starts.
+7. **A run is named by what it observed of itself, never invented.** Each door hands its
+   Session the run's identity with its observation, folded once (`RunIdentity`): the native door
+   from the child's frames, the HTTP door from the job's receipt and journal. Over HTTP the run
+   names the receipt's execution and its opaque trace identity, which the resident's own trace
+   door resolves, and the source hash only of this execution's own journal start. Every Session
+   text names a trace relative to the project root, or `<journal>` when the project does not hold
+   it; the trace is still read on its real path.
+8. **A conversation may name its intelligence.** An opener may name the census's own
+   first-screen words (`intelligence` on the HTTP open, `--intelligence` on the native door).
+   The choice holds for that conversation only: it is recorded in its history, resumes with it,
+   and is never written as the operator's default; words the census does not read open nothing.
+   A choice made inside the conversation holds the same way. Both doors advertise
+   `sessionIntelligence`.
 
 ## Consequences
 
@@ -88,6 +103,7 @@ The owners that would naturally host this adapter stand at the 15,000 prod-LOC w
   live once, beside the Session. The pure remote compile request law moved to
   `nika-compile-seats::remote::{input, bounds}` to keep `nika-serve` under its wall.
 - The work snapshot travels verbatim (`nika/session-work@0`); additive Session projections reach
-  every door without a second wire.
+  every door without a second wire: the candidate's exact bytes, the selection's scope
+  (`conversation` or `operator_default`) and the waiting question as the compiler asks it.
 - The public surface of the new member is reviewed with its unit; admission evidence is pending
   with the WIP unit.

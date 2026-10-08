@@ -76,7 +76,7 @@ impl SessionRuntime {
             let _ = write!(
                 text,
                 "\n  last run: trace `{}` (`/proof` judges it)",
-                trace.display()
+                super::shown_trace(&self.snapshot.root, trace)
             );
         }
         text.push_str(

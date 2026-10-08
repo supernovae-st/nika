@@ -463,13 +463,17 @@ async fn a_seated_session_saves_then_runs_exactly_the_saved_bytes_once_as_a_job(
 }
 
 /// The acceptance the Session's saved copy workflow owes, run for real by the resident's runtime:
-/// the copied file holds the brief's exact bytes. Not yet qualified: the resident's file builtins
-/// resolve `./notes/brief.md` against the server process cwd, not the served project, so the run
-/// fails NIKA-BUILTIN-READ-001 unless the server was started in the project.
+/// its file builtins resolve `./notes/brief.md` and `./out/copy.md` against the served project,
+/// whatever the server process cwd, and the copied file holds the brief's exact bytes.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[ignore = "resident defect: relative file paths resolve against the server cwd, not the served project (NIKA-BUILTIN-READ-001); un-ignore with the runtime root-path fix"]
 async fn a_session_runs_its_saved_copy_workflow_in_the_residents_runtime() {
     let world = briefed();
+    let cwd = std::env::current_dir().expect("the test process cwd");
+    assert_ne!(
+        cwd,
+        world.root.path(),
+        "the server does not run in the project"
+    );
     let backend = Arc::new(Witnessed::producing(world.root.path()));
     let served = serve(&world, (true, Registry::Project), Some(1.0), backend).await;
     let (session, _path, _bytes, current) = saved(&served, &world).await;
@@ -511,6 +515,10 @@ async fn a_session_run_executes_in_the_residents_runtime_and_reads_its_journal()
     assert_eq!(kinds(&ran), ["run_requested", "facts"], "{ran}");
     let observed = ran["outcomes"][1]["text"].as_str().expect("observation");
     assert!(observed.contains("run observed · exit 0"), "{observed}");
+    // The journal is named as the served project holds it, never by the resident's layout.
+    let root = world.root.path().to_str().expect("a UTF-8 root");
+    assert!(observed.contains("· trace `.nika/traces/"), "{observed}");
+    assert!(!observed.contains(root), "{observed}");
     let source = WORKFLOW.to_owned();
     assert_eq!(served.backend.runs(), [(source, Some(0.25))]);
     let run = &ran["snapshot"]["work"]["run"];
