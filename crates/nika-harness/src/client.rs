@@ -438,8 +438,10 @@ where
         // The complete configuration the session last reported: a model change may change
         // the offered efforts, so the effort is judged on the answer to the selection.
         let mut config = session.config_options.clone();
-        if let Some(wanted) = seats::wanted(request.requested_model.as_deref()) {
-            if let Some((config_id, value)) = seats::offered_option(model_option, &wanted) {
+        let requested = request.requested_model.as_deref();
+        if let Some(wanted) = seats::wanted(requested) {
+            let option = |name: &str| seats::offered_option(model_option, name);
+            if let Some((config_id, value)) = seats::exact_first(requested, &wanted, option) {
                 self.selection.model_option = Some(config_id.clone());
                 self.selection.transmitted_model = value.as_str().map(str::to_owned);
                 self.send_request(
@@ -475,7 +477,9 @@ where
                     });
                 }
                 config = answered.get("configOptions").cloned();
-            } else if let Some(model_id) = seats::offered_model(session.models.as_ref(), &wanted) {
+            } else if let Some(model_id) = seats::exact_first(requested, &wanted, |name| {
+                seats::offered_model(session.models.as_ref(), name)
+            }) {
                 // A legacy selection answers no configuration: its efforts cannot be re-read.
                 if let Some(effort) = &request.requested_effort {
                     return Err(HarnessError::Selection {

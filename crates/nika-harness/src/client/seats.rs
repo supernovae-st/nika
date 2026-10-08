@@ -32,6 +32,20 @@ fn same(a: &str, b: &str) -> bool {
     a.trim().eq_ignore_ascii_case(b.trim())
 }
 
+/// A match by the exact requested id first, since a session may advertise the qualified
+/// `provider/name` verbatim; then by the provider-less name `wanted` keeps, the compatibility
+/// mapping. Either way only an id or a name the peer offered matches: nothing is guessed.
+pub(super) fn exact_first<T>(
+    requested: Option<&str>,
+    wanted: &str,
+    find: impl Fn(&str) -> Option<T>,
+) -> Option<T> {
+    (requested.map(str::trim))
+        .filter(|id| !same(id, wanted))
+        .and_then(&find)
+        .or_else(|| find(wanted))
+}
+
 /// Match only a value or display name the live peer offered. Model identifiers
 /// are opaque: a family substring cannot authorize dropping a requested suffix.
 /// Exact config choices remain preferred by the caller; otherwise an exact
@@ -190,4 +204,56 @@ pub(super) fn mode_door(session: &super::wire::NewSessionResult, intent: &str) -
                 mode_id: id.to_owned(),
             })
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    /// A session advertising the qualified id verbatim (as value and display name, or as a legacy
+    /// `modelId`) is matched by the exact request before the provider prefix is dropped; a session
+    /// offering only the bare name still matches through the compatibility mapping; and a near
+    /// name is never taken for the requested one.
+    #[test]
+    fn the_exact_advertised_id_is_matched_before_the_provider_prefix_is_dropped() {
+        let qualified = json!({"id": "model", "currentValue": "openai/gpt-5.4",
+            "options": [{"value": "openai/gpt-5.4", "name": "openai/gpt-5.4"},
+                        {"value": "openai/gpt-5.5", "name": "openai/gpt-5.5"}]});
+        let requested = Some("openai/gpt-5.5");
+        let wanted = wanted(requested).expect("a model is asked");
+        assert_eq!(wanted, "gpt-5.5");
+        let option = |name: &str| offered_option(Some(&qualified), name);
+        assert_eq!(
+            exact_first(requested, &wanted, option).map(|(_, value)| value),
+            Some(json!("openai/gpt-5.5"))
+        );
+        assert_eq!(
+            option(&wanted),
+            None,
+            "the stripped name alone finds nothing here"
+        );
+        let legacy = json!({"currentModelId": "openai/gpt-5.4",
+            "availableModels": [{"modelId": "openai/gpt-5.5", "name": "openai/gpt-5.5"}]});
+        let model = |name: &str| offered_model(Some(&legacy), name);
+        assert_eq!(
+            exact_first(requested, &wanted, model).as_deref(),
+            Some("openai/gpt-5.5")
+        );
+        let bare = json!({"id": "model", "options": [{"value": "gpt-5.5", "name": "GPT-5.5"}]});
+        let bare_option = |name: &str| offered_option(Some(&bare), name);
+        assert_eq!(
+            exact_first(requested, &wanted, bare_option).map(|(_, value)| value),
+            Some(json!("gpt-5.5")),
+            "the compatibility mapping still holds"
+        );
+        let near = json!({"id": "model", "options": [{"value": "openai/gpt-5.5-mini"}]});
+        let near_option = |name: &str| offered_option(Some(&near), name);
+        assert_eq!(
+            exact_first(requested, &wanted, near_option),
+            None,
+            "no guess"
+        );
+    }
 }
