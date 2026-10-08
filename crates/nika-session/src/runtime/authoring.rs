@@ -1199,6 +1199,7 @@ impl SessionRuntime {
             access_pin,
             needed,
             given,
+            world: audit.world,
         };
         self.remember(input, "(run requested)");
         self.request_or_ask(inputs)
@@ -1230,6 +1231,11 @@ impl SessionRuntime {
         if let Some(pin) = &inputs.access_pin {
             let _ = write!(report, " · access {pin} (explicit)");
         }
+        self.requested_run = Some(crate::work::RequestedRun::new(
+            inputs.workflow.clone(),
+            &inputs.given,
+            std::mem::take(&mut inputs.world),
+        ));
         TurnOutcome::RunRequested {
             report,
             run: RunRequest {
@@ -1305,6 +1311,8 @@ pub(super) struct RunInputs {
     access_pin: Option<String>,
     needed: Vec<String>,
     given: Vec<String>,
+    /// Where the bytes the check cleared for this request reach (`work().requested`).
+    world: crate::world::World,
 }
 
 impl RunInputs {

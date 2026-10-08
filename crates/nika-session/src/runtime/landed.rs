@@ -8,9 +8,10 @@
 use std::fmt::Write as _;
 
 use super::{SessionRuntime, TurnOutcome};
-use crate::change::{Applied, ProjectChangeSet, check_on_disk};
+use crate::change::{Applied, ProjectChangeSet, WorkflowAudit, check_on_disk};
 use crate::outcome::ProposalId;
 use crate::snapshot::ProjectSnapshot;
+use crate::work::RequestedRun;
 
 impl SessionRuntime {
     /// After a yes lands the set: mark decided, check every workflow,
@@ -40,7 +41,15 @@ impl SessionRuntime {
         if let Some(basis) = basis {
             let _ = write!(report, "\n  {basis}");
         }
-        let all_clean = checked(&set, &mut report);
+        let audits = checked(&set, &mut report);
+        let all_clean = audits.iter().all(|a| a.clean);
+        // Where each landed workflow reaches, from the same on-disk check the report states.
+        let world_of = |workflow: &std::path::Path| {
+            audits
+                .iter()
+                .find(|a| a.path == workflow)
+                .map(|a| a.world.clone())
+        };
         self.snapshot = ProjectSnapshot::observe(&self.snapshot.cwd);
         self.remember("(consent)", &report);
         // The workflow just accepted is the one « run it » names next —
@@ -64,6 +73,7 @@ impl SessionRuntime {
                     &|text| crate::broker::redact(text).0,
                 );
             }
+            self.saved_reach = world_of(&first).map(|world| (first.clone(), world));
             self.last_workflow = Some(first);
             self.last_check_clean = Some(all_clean);
             self.last_trigger = self.pending_trigger.take();
@@ -76,6 +86,8 @@ impl SessionRuntime {
         match set.run {
             Some(run) if all_clean => {
                 self.last_workflow = Some(run.workflow.clone());
+                self.requested_run = world_of(&run.workflow)
+                    .map(|world| RequestedRun::new(run.workflow.clone(), &run.vars, world));
                 TurnOutcome::RunRequested { report, run }
             }
             Some(_) => {
@@ -108,11 +120,12 @@ impl SessionRuntime {
     }
 }
 
-fn checked(set: &ProjectChangeSet, report: &mut String) -> bool {
-    let mut all_clean = true;
+/// Check every landed workflow on disk, append each verdict to the report, and return the
+/// audits so the reach of the saved and requested bytes comes from this same check.
+fn checked(set: &ProjectChangeSet, report: &mut String) -> Vec<WorkflowAudit> {
+    let mut audits = Vec::new();
     for wf in set.workflows() {
         let audit = check_on_disk(&set.root, &wf);
-        all_clean &= audit.clean;
         let _ = write!(
             report,
             "\n  check · `{}` · {}",
@@ -129,6 +142,7 @@ fn checked(set: &ProjectChangeSet, report: &mut String) -> bool {
         if let Some(line) = crate::change::compact_hints(&audit.hints, &wf.display().to_string()) {
             let _ = write!(report, "\n    · {line}");
         }
+        audits.push(audit);
     }
-    all_clean
+    audits
 }

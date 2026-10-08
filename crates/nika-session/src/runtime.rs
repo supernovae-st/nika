@@ -245,6 +245,10 @@ pub struct SessionRuntime {
     /// The check at the consent that saved the last workflow: clean, or
     /// findings (the rail's Checked field says which).
     last_check_clean: Option<bool>,
+    /// The workflow the last consent saved and where its bytes reach, from its check at landing.
+    saved_reach: Option<(PathBuf, crate::world::World)>,
+    /// The run this session requested last, with the reach of the bytes it asked to run.
+    requested_run: Option<crate::work::RequestedRun>,
     /// The trace the last observed run left (`/proof` reads it).
     last_trace: Option<PathBuf>,
     /// The last observed run HOME history keeps (`KeptRun`): evidence, never authority.
@@ -355,6 +359,8 @@ impl SessionRuntime {
             last_run: None,
             last_workflow: None,
             last_check_clean: None,
+            saved_reach: None,
+            requested_run: None,
             last_trace: None,
             kept_run: None,
             authoring: None,

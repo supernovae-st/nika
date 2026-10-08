@@ -118,17 +118,21 @@ impl SessionRuntime {
     }
 
     /// The work as every host reads it: the request, what waits, the candidate under review
-    /// with its audits and reach, the workflow saved last, the last observed run and the rail.
+    /// with its audits and reach, the workflow saved last, the run requested last with the reach
+    /// of its bytes, the last observed run and the rail.
     /// Reading it audits nothing, reads no file and decides nothing.
     #[must_use]
     pub fn work(&self) -> Work {
         let candidate = self
             .candidate()
             .map(|c| Candidate::of(c.id, c.set, c.aside, c.rehearsed.is_some()));
-        let saved = self
-            .last_workflow
-            .clone()
-            .map(|workflow| Saved::new(workflow, self.last_check_clean));
+        let saved = self.last_workflow.clone().map(|workflow| {
+            // The reach belongs to the bytes the last consent saved, not to a workflow only run.
+            let world = (self.saved_reach.as_ref())
+                .filter(|(path, _)| *path == workflow)
+                .map(|(_, world)| world.clone());
+            Saved::new(workflow, self.last_check_clean, world)
+        });
         let run = self.kept_run().and_then(Result::ok).map(|kept| {
             Run::new(
                 self.last_run.is_some(),
@@ -151,6 +155,7 @@ impl SessionRuntime {
             self.waiting(),
             candidate,
             saved,
+            self.requested_run.clone(),
             run,
             (&self.lifecycle()).into(),
         )

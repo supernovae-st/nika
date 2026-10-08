@@ -1495,6 +1495,60 @@ pub type nika_session_change::work::Request::Output = T
 impl<T> zvariant::optional::NoneValue for nika_session_change::work::Request where T: core::default::Default
 pub type nika_session_change::work::Request::NoneType = T
 pub fn nika_session_change::work::Request::null_value() -> T
+#[non_exhaustive] pub struct nika_session_change::work::RequestedRun
+pub nika_session_change::work::RequestedRun::inputs: alloc::vec::Vec<alloc::string::String>
+pub nika_session_change::work::RequestedRun::workflow: std::path::PathBuf
+pub nika_session_change::work::RequestedRun::world: nika_session_change::world::World
+impl nika_session_change::work::RequestedRun
+pub fn nika_session_change::work::RequestedRun::new(workflow: std::path::PathBuf, vars: &[alloc::string::String], world: nika_session_change::world::World) -> Self
+impl core::clone::Clone for nika_session_change::work::RequestedRun
+pub fn nika_session_change::work::RequestedRun::clone(&self) -> nika_session_change::work::RequestedRun
+impl core::cmp::Eq for nika_session_change::work::RequestedRun
+impl core::cmp::PartialEq for nika_session_change::work::RequestedRun
+pub fn nika_session_change::work::RequestedRun::eq(&self, other: &nika_session_change::work::RequestedRun) -> bool
+impl core::fmt::Debug for nika_session_change::work::RequestedRun
+pub fn nika_session_change::work::RequestedRun::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_change::work::RequestedRun
+impl serde_core::ser::Serialize for nika_session_change::work::RequestedRun
+pub fn nika_session_change::work::RequestedRun::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_session_change::work::RequestedRun
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::RequestedRun where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::RequestedRun::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::RequestedRun where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::RequestedRun::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::RequestedRun where U: core::convert::From<T>
+pub fn nika_session_change::work::RequestedRun::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::RequestedRun where U: core::convert::Into<T>
+pub type nika_session_change::work::RequestedRun::Error = core::convert::Infallible
+pub fn nika_session_change::work::RequestedRun::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::RequestedRun where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::RequestedRun::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::RequestedRun::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::RequestedRun where T: core::clone::Clone
+pub type nika_session_change::work::RequestedRun::Owned = T
+pub fn nika_session_change::work::RequestedRun::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::RequestedRun::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::RequestedRun where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::RequestedRun::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::RequestedRun where T: ?core::marker::Sized
+pub fn nika_session_change::work::RequestedRun::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::RequestedRun where T: ?core::marker::Sized
+pub fn nika_session_change::work::RequestedRun::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::RequestedRun where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::RequestedRun::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::RequestedRun
+pub fn nika_session_change::work::RequestedRun::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::RequestedRun where T: core::clone::Clone
+pub fn nika_session_change::work::RequestedRun::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::RequestedRun where T: 'static
+pub fn nika_session_change::work::RequestedRun::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::RequestedRun where T: ?core::marker::Sized
+pub fn nika_session_change::work::RequestedRun::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::RequestedRun::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::RequestedRun
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::RequestedRun
+impl<T> typenum::type_operators::Same for nika_session_change::work::RequestedRun
+pub type nika_session_change::work::RequestedRun::Output = T
 #[non_exhaustive] pub struct nika_session_change::work::Run
 pub nika_session_change::work::Run::chain_head: core::option::Option<alloc::string::String>
 pub nika_session_change::work::Run::chain_len: core::option::Option<u64>
@@ -1557,8 +1611,9 @@ pub type nika_session_change::work::Run::Output = T
 #[non_exhaustive] pub struct nika_session_change::work::Saved
 pub nika_session_change::work::Saved::check_clean: core::option::Option<bool>
 pub nika_session_change::work::Saved::workflow: std::path::PathBuf
+pub nika_session_change::work::Saved::world: core::option::Option<nika_session_change::world::World>
 impl nika_session_change::work::Saved
-pub fn nika_session_change::work::Saved::new(workflow: std::path::PathBuf, check_clean: core::option::Option<bool>) -> Self
+pub fn nika_session_change::work::Saved::new(workflow: std::path::PathBuf, check_clean: core::option::Option<bool>, world: core::option::Option<nika_session_change::world::World>) -> Self
 impl core::clone::Clone for nika_session_change::work::Saved
 pub fn nika_session_change::work::Saved::clone(&self) -> nika_session_change::work::Saved
 impl core::cmp::Eq for nika_session_change::work::Saved
@@ -1612,12 +1667,13 @@ pub nika_session_change::work::Work::candidate: core::option::Option<nika_sessio
 pub nika_session_change::work::Work::contract: &'static str
 pub nika_session_change::work::Work::rail: nika_session_change::work::Rail
 pub nika_session_change::work::Work::request: nika_session_change::work::Request
+pub nika_session_change::work::Work::requested: core::option::Option<nika_session_change::work::RequestedRun>
 pub nika_session_change::work::Work::root: std::path::PathBuf
 pub nika_session_change::work::Work::run: core::option::Option<nika_session_change::work::Run>
 pub nika_session_change::work::Work::saved: core::option::Option<nika_session_change::work::Saved>
 pub nika_session_change::work::Work::waiting: nika_session_change::work::Waiting
 impl nika_session_change::work::Work
-pub fn nika_session_change::work::Work::new(root: std::path::PathBuf, request: nika_session_change::work::Request, waiting: nika_session_change::work::Waiting, candidate: core::option::Option<nika_session_change::work::Candidate>, saved: core::option::Option<nika_session_change::work::Saved>, run: core::option::Option<nika_session_change::work::Run>, rail: nika_session_change::work::Rail) -> Self
+pub fn nika_session_change::work::Work::new(root: std::path::PathBuf, request: nika_session_change::work::Request, waiting: nika_session_change::work::Waiting, candidate: core::option::Option<nika_session_change::work::Candidate>, saved: core::option::Option<nika_session_change::work::Saved>, requested: core::option::Option<nika_session_change::work::RequestedRun>, run: core::option::Option<nika_session_change::work::Run>, rail: nika_session_change::work::Rail) -> Self
 impl core::clone::Clone for nika_session_change::work::Work
 pub fn nika_session_change::work::Work::clone(&self) -> nika_session_change::work::Work
 impl core::cmp::PartialEq for nika_session_change::work::Work

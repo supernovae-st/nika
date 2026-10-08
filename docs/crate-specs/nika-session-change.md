@@ -67,6 +67,10 @@ Two typed readings joined these modules on 2026-10-08, so every host reads the s
   identity an answer names (a proposal, a gate); `Work` is one snapshot of the request, the
   candidate's files with their witnesses, audits and reach, the saved workflow, the last observed
   run (`current` only for the run of the workflow saved last in this session) and the rail.
+  Since the same day it also names the run requested last (`RequestedRun`: the workflow, the
+  names of the inputs it binds, never their values, and the reach of the bytes the check cleared
+  for it) and, on `Saved`, the reach of the bytes the last consent saved; a workflow only run
+  carries no saved reach.
   `RunEnd` is the one reading of the run door's exit codes. It grants nothing: consents,
   answers and runs still go through the session's own doors.
 

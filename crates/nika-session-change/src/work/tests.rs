@@ -4,7 +4,8 @@
 use std::path::{Path, PathBuf};
 
 use super::{
-    Audit, CONTRACT, Candidate, Landing, Rail, Request, Run, RunEnd, Saved, Stage, Waiting, Work,
+    Audit, CONTRACT, Candidate, Landing, Rail, Request, RequestedRun, Run, RunEnd, Saved, Stage,
+    Waiting, Work,
 };
 use crate::change::{
     ProjectChange, ProjectChangeSet, RunRequest, Witness, WorkflowAudit, check_on_disk,
@@ -186,7 +187,12 @@ fn a_snapshot_carries_its_contract_and_every_part() {
         ),
         Waiting::Free,
         None,
-        Some(Saved::new(PathBuf::from("stock.nika"), Some(false))),
+        Some(Saved::new(PathBuf::from("stock.nika"), Some(false), None)),
+        Some(RequestedRun::new(
+            PathBuf::from("stock.nika"),
+            &["base=http://127.0.0.1:8787".to_owned()],
+            World::default(),
+        )),
         Some(Run::new(true, None, Some(1), None, None, None, None, None)),
         rail,
     );
@@ -197,6 +203,9 @@ fn a_snapshot_carries_its_contract_and_every_part() {
         serde_json::json!(["threshold 6"])
     );
     assert_eq!(json["saved"]["check_clean"], false);
+    assert_eq!(json["saved"]["world"], serde_json::Value::Null);
+    assert_eq!(json["requested"]["inputs"], serde_json::json!(["base"]));
+    assert_eq!(json["requested"]["world"]["basis"], "not_audited");
     assert_eq!(json["run"]["end"], serde_json::json!({"end": "failed"}));
     assert_eq!(json["rail"]["checked"], "attention");
     assert_eq!(json["candidate"], serde_json::Value::Null);
@@ -235,4 +244,23 @@ fn an_unaudited_workflow_keeps_no_reach() {
     });
     assert!(!audit.clean);
     assert_eq!(audit.world.basis, Basis::NotAudited);
+}
+
+#[test]
+fn a_requested_run_keeps_input_names_and_never_their_values() {
+    let requested = RequestedRun::new(
+        PathBuf::from("stock.nika"),
+        &[
+            "base=http://127.0.0.1:8787".to_owned(),
+            "token=secret-value".to_owned(),
+            "flag".to_owned(),
+        ],
+        World::default(),
+    );
+    assert_eq!(requested.inputs, ["base", "token", "flag"]);
+    let json = serde_json::to_string(&requested).expect("serializes");
+    assert!(
+        !json.contains("secret-value") && !json.contains("8787"),
+        "values stay with the run request: {json}"
+    );
 }

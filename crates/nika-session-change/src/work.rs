@@ -3,7 +3,8 @@
 
 //! The work a session holds, typed once for every host (ADR-133 · the portable session): what
 //! the next line answers, with the identity an answer names, and one snapshot of the request,
-//! the candidate under review, the saved workflow and the last observed run. The session builds
+//! the candidate under review, the saved workflow, the run requested last and the last observed
+//! run, each workflow with the reach its exact bytes declare. The session builds
 //! it from its own state; a terminal, the plain loop or a remote door renders it and decides
 //! nothing from it. It serializes so a remote door can carry the same facts, and it grants
 //! nothing: a consent, an answer or a run still goes through the session's own doors.
@@ -92,6 +93,9 @@ pub struct Work {
     pub candidate: Option<Candidate>,
     /// The workflow saved by the last consent of this session, when one was.
     pub saved: Option<Saved>,
+    /// The run this session requested last, when one was: its workflow, the inputs it binds and
+    /// where its bytes reach. A requested run is not an observed one ([`Work::run`]).
+    pub requested: Option<RequestedRun>,
     /// The last observed run, from this session or kept from an earlier one ([`Run::current`]).
     pub run: Option<Run>,
     /// The automation rail, each field at its own stage.
@@ -245,15 +249,52 @@ pub struct Saved {
     pub workflow: PathBuf,
     /// The check at that consent: clean or findings; `None` when no check ran.
     pub check_clean: Option<bool>,
+    /// Where the bytes that consent saved reach, from that same check. `None` when the workflow
+    /// named here is not the one the consent saved (a workflow only run) or no check ran.
+    pub world: Option<World>,
 }
 
 impl Saved {
-    /// The saved workflow and the check its consent ran.
+    /// The saved workflow, the check its consent ran and the reach that check declared.
     #[must_use]
-    pub fn new(workflow: PathBuf, check_clean: Option<bool>) -> Self {
+    pub fn new(workflow: PathBuf, check_clean: Option<bool>, world: Option<World>) -> Self {
         Self {
             workflow,
             check_clean,
+            world,
+        }
+    }
+}
+
+/// The run this session requested last: a request handed to the host, never an observation of
+/// what ran. It keeps the reach of the bytes the check cleared for it, so a host can say before
+/// and after the run whether those bytes contact a local service or a connected one.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct RequestedRun {
+    /// The workflow, relative to the root.
+    pub workflow: PathBuf,
+    /// The names of the inputs the request binds. Their values stay with the run request: an
+    /// address, an account or a token is never copied into the snapshot.
+    pub inputs: Vec<String>,
+    /// Where the requested bytes reach, from the check that cleared the request.
+    pub world: World,
+}
+
+impl RequestedRun {
+    /// A request over `workflow` binding `vars` (`name=value`, as the run door takes them); only
+    /// the names are kept.
+    #[must_use]
+    pub fn new(workflow: PathBuf, vars: &[String], world: World) -> Self {
+        let inputs = vars
+            .iter()
+            .map(|var| var.split_once('=').map_or(var.as_str(), |(name, _)| name))
+            .map(str::to_owned)
+            .collect();
+        Self {
+            workflow,
+            inputs,
+            world,
         }
     }
 }
@@ -442,6 +483,7 @@ impl Work {
         waiting: Waiting,
         candidate: Option<Candidate>,
         saved: Option<Saved>,
+        requested: Option<RequestedRun>,
         run: Option<Run>,
         rail: Rail,
     ) -> Self {
@@ -452,6 +494,7 @@ impl Work {
             waiting,
             candidate,
             saved,
+            requested,
             run,
             rail,
         }

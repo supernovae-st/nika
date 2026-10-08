@@ -181,7 +181,8 @@ proposal shown (`consent_to`), a gate answer names the gate shown (`answer_gate_
 proposal shown, a declining or leaving line still declines and any other line is refused with
 `NOTHING_SHOWN`: nothing is consented that was not seen. `work()` builds the typed snapshot
 (`nika_session_change::work`) from the session's own state; it audits nothing, reads no file and
-decides nothing. The CLI plain loop routes through these since 2026-10-08; the terminal
+decides nothing. The reach it shows for the requested run and the saved workflow comes from the
+check that cleared the run request or landed the consent, kept beside them when they happen. The CLI plain loop routes through these since 2026-10-08; the terminal
 renderer keeps its own copy of the precedence until its host adapter switches (the Run cost
 review it holds is still outside the session).
 

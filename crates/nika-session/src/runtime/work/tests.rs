@@ -350,3 +350,85 @@ fn the_question_identity_rides_the_wire_as_its_witness() {
     assert_eq!(json["waiting"]["key"], key);
     assert_eq!(json["waiting"]["id"], id.as_str());
 }
+
+/// A check-clean workflow that needs one declared input and posts to an exact loopback host:
+/// the contract-server level of a journey, a service on this machine and never the real one.
+const LOCAL_SINK: &str = "nika: stock-sink\ninputs:\n  base:\n    type: string\n    required: true\npermits: { tools: [\"nika:fetch\"], net: { http: [\"127.0.0.1\"] } }\ntasks:\n  notify:\n    invoke:\n      tool: \"nika:fetch\"\n      args:\n        url: \"http://127.0.0.1:8787/notifications/stock\"\n        method: POST\n        headers: { idempotency-key: \"stock-${{ inputs.base }}\" }\n        body: { channel: \"stock\" }\n";
+
+#[test]
+fn a_requested_run_keeps_the_reach_of_its_bytes_and_only_the_names_of_its_inputs() {
+    let dir = tree();
+    std::fs::write(dir.path().join("sink.nika"), LOCAL_SINK).expect("workflow");
+    let mut s = ready_with(dir.path(), vec![]);
+    assert!(s.work().requested.is_none(), "nothing was requested yet");
+    let TurnOutcome::Question { key, .. } = s.turn("run sink.nika") else {
+        panic!("the declared input is asked first");
+    };
+    assert_eq!(key, "input.base");
+    assert!(
+        s.work().requested.is_none(),
+        "a run that waits on its input is not requested yet"
+    );
+    let shown = s.waiting();
+    let TurnOutcome::RunRequested { run, .. } = s.submit("http://127.0.0.1:8787", &shown) else {
+        panic!("the answer binds the input and requests the run");
+    };
+    assert_eq!(run.vars, ["base=http://127.0.0.1:8787"]);
+    let work = s.work();
+    let requested = work.requested.expect("the run just requested");
+    assert_eq!(requested.workflow, PathBuf::from("sink.nika"));
+    assert_eq!(requested.inputs, ["base"]);
+    assert_eq!(
+        requested.world.reach,
+        Reach::LocalServices,
+        "an exact loopback host is a local service: {:?}",
+        requested.world
+    );
+    let json = serde_json::to_string(&s.work()).expect("serializes");
+    assert!(json.contains("\"inputs\":[\"base\"]"), "{json}");
+    assert!(
+        !json.contains("http://127.0.0.1:8787\"]"),
+        "an input value never rides the snapshot: {json}"
+    );
+}
+
+#[test]
+fn the_saved_reach_belongs_to_the_bytes_a_consent_saved_never_to_a_workflow_only_run() {
+    let dir = tree();
+    std::fs::write(dir.path().join("sink.nika"), LOCAL_SINK).expect("workflow");
+    let mut s = ready_with(dir.path(), vec![]);
+    let id = proposal(s.turn(COPY));
+    assert!(matches!(
+        s.submit("yes", &Waiting::Consent { proposal: id }),
+        TurnOutcome::Facts(_)
+    ));
+    let saved = s.work().saved.expect("saved by the consent");
+    assert_eq!(saved.workflow, PathBuf::from(COPY_DEST));
+    assert_eq!(
+        saved.world.map(|w| w.reach),
+        Some(Reach::Local),
+        "a copy between project files reaches no service"
+    );
+    assert!(s.work().requested.is_none(), "saving is not a run request");
+
+    assert!(matches!(
+        s.turn("run sink.nika"),
+        TurnOutcome::Question { .. }
+    ));
+    let shown = s.waiting();
+    assert!(matches!(
+        s.submit("http://127.0.0.1:8787", &shown),
+        TurnOutcome::RunRequested { .. }
+    ));
+    let work = s.work();
+    let saved = work.saved.expect("the workflow named last");
+    assert_eq!(saved.workflow, PathBuf::from("sink.nika"));
+    assert_eq!(
+        saved.world, None,
+        "a workflow only run carries no saved reach, never the earlier consent's"
+    );
+    assert_eq!(
+        work.requested.map(|r| r.world.reach),
+        Some(Reach::LocalServices)
+    );
+}
