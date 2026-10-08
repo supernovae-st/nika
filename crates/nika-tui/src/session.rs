@@ -413,15 +413,7 @@ impl Live {
         let mut handoff = None;
         let reply = footer::reply_label(&outcome);
         match outcome {
-            TurnOutcome::Quit => {
-                // Leaving at a cost review: the held child is dropped, nothing is sent.
-                let mut beats = match self.pending_run.take() {
-                    Some(_) => self.declined_run("Run cost decision cancelled; nothing sent."),
-                    None => Vec::new(),
-                };
-                beats.push(Beat::Quit);
-                return (beats, None);
-            }
+            TurnOutcome::Quit => return (self.quit_beats(), None),
             TurnOutcome::RunReviewed { review, approve } => {
                 return (self.reviewed(&review, approve), None);
             }
@@ -514,6 +506,16 @@ impl Live {
             beats.push(self.wait());
         }
         (beats, handoff)
+    }
+
+    /// Leaving at a cost review drops the held child and sends nothing.
+    fn quit_beats(&mut self) -> Vec<Beat> {
+        let mut beats = match self.pending_run.take() {
+            Some(_) => self.declined_run("Run cost decision cancelled; nothing sent."),
+            None => Vec::new(),
+        };
+        beats.push(Beat::Quit);
+        beats
     }
 
     fn keep(&mut self, work: Work, label: String) -> Handoff {
