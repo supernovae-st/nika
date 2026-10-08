@@ -1004,3 +1004,60 @@ fn an_unreadable_kept_choice_stays_unavailable_never_the_default() {
     let kept = History::open(home.path(), dir.path()).expect("history");
     assert_eq!(kept.state.selection, Some(unread), "kept unchanged");
 }
+
+/// A kept choice present but null is refused like a kept run, never read as an absence that
+/// would let the operator's default answer in its place, even under the digest of the absent
+/// form; the journal stays as it was.
+#[test]
+fn a_present_null_kept_choice_is_refused_and_the_journal_kept() {
+    use super::history::{AuthorityState, EffectState, History, Operation, RunState, Saved};
+    let dir = tree();
+    let home = tempfile::tempdir().expect("home");
+    let mut history = History::open(home.path(), dir.path()).expect("history");
+    history.begin(Operation::Turn, "kept").expect("begin");
+    let ends = (
+        RunState::Idle,
+        AuthorityState::None,
+        EffectState::NoUncertaintyReported,
+    );
+    let facts = "facts".to_owned();
+    (history.complete(Saved::default(), ends.0, ends.1, facts, ends.2)).expect("complete");
+    drop(history);
+    let sessions = std::fs::read_dir(home.path().join(".nika/sessions")).expect("sessions");
+    let journal = (sessions.flatten().next())
+        .map(|conversation| conversation.path().join("events.ndjson"))
+        .expect("the conversation's journal");
+    let text = std::fs::read_to_string(&journal).expect("journal");
+    let last = text.lines().last().expect("a record");
+    let mut record: serde_json::Value = serde_json::from_str(last).expect("record");
+    assert!(
+        record["event"]["state"].get("selection").is_none(),
+        "{record}"
+    );
+    record["event"]["state"]["selection"] = serde_json::Value::Null;
+    let edited = text.replacen(last, &record.to_string(), 1);
+    std::fs::write(&journal, &edited).expect("edit");
+    let local = IntelligenceKind::Local {
+        provider: "ollama".to_owned(),
+    };
+    let operator = UserIntelligencePreference::new(local, None);
+    let census = IntelligenceCensus {
+        seats: vec![],
+        api_keys: vec![],
+        locals: vec!["ollama".to_owned()],
+        provider_context: Vec::new(),
+    };
+    let factory: ReasonerFactory = Box::new(|_| Box::new(NoReasoner));
+    let mut s =
+        SessionRuntime::open_with(dir.path(), census, &operator, Some(home.path()), factory);
+    let refused = s.enable_history(home.path()).expect_err("refused");
+    assert!(
+        refused.text.contains("a kept value is present but null"),
+        "{refused:?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&journal).expect("journal"),
+        edited,
+        "kept as it was"
+    );
+}

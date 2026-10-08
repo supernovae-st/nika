@@ -2,7 +2,8 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The work a session holds, typed once for every host (ADR-133 · the portable session): what
-//! the next line answers, with the identity an answer names, and one snapshot of the request,
+//! the next line answers, with the identity an answer names (and the compiler's question as it
+//! asks it, when one waits), and one snapshot of the request,
 //! the compiler's last word on it (its draft and its calls' receipt included), the intelligence
 //! selected to prepare it, the candidate under review with its exact bytes, the saved workflow,
 //! the run requested last and the last observed run, each workflow with the reach its exact
@@ -20,7 +21,8 @@ use std::path::PathBuf;
 use serde::Serialize;
 
 use nika_onboard::compile::{
-    AuthoringReceipt, CompileDiagnostic, CompileOutcome, CompileStatus, DiagnosticKind,
+    AuthoringReceipt, CompileDiagnostic, CompileOutcome, CompileQuestion, CompileStatus,
+    DiagnosticKind, QuestionType,
 };
 
 use crate::change::{ProjectChange, ProjectChangeSet, Witness, WorkflowAudit};
@@ -98,6 +100,66 @@ impl Waiting {
     }
 }
 
+/// The question [`Waiting::Question`] names, as the compiler asks it: what a host shows and the
+/// shape an answer takes. Its wire is the compiler's own question document (`key`, `label`,
+/// `type`, `why`, `mandatory`, and `options` for a choice), field for field and in its order;
+/// nothing is read from its prose. It grants nothing: an answer still names the waiting
+/// identity.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct Question {
+    /// The semantic hole the answer fills: the waiting question's own key.
+    pub key: String,
+    /// The compiler's wording of the missing value.
+    pub label: String,
+    /// The shape an answer takes, in the compiler's spelling: `text`, `literal` or `choice`
+    /// (`other` for a shape this engine does not name).
+    #[serde(rename = "type")]
+    pub answer_type: &'static str,
+    /// Why the compiler cannot complete without it.
+    pub why: String,
+    /// Whether the candidate cannot be Ready without it.
+    pub mandatory: bool,
+    /// A choice's admissible answers, in the compiler's order; none for any other shape.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<QuestionOption>,
+}
+
+/// One admissible answer of a `choice` question: its key, written as the answer, and its label.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct QuestionOption {
+    /// The answer, verbatim.
+    pub key: String,
+    /// What choosing it means.
+    pub label: String,
+}
+
+impl Question {
+    /// The compiler's question, field for field.
+    #[must_use]
+    pub fn of(question: &CompileQuestion) -> Self {
+        Self {
+            key: question.key.clone(),
+            label: question.label.clone(),
+            answer_type: match question.answer_type {
+                QuestionType::Text => "text",
+                QuestionType::Literal => "literal",
+                QuestionType::Choice => "choice",
+                _ => "other",
+            },
+            why: question.why.clone(),
+            mandatory: question.mandatory,
+            options: (question.options.iter())
+                .map(|offer| QuestionOption {
+                    key: offer.key.clone(),
+                    label: offer.label.clone(),
+                })
+                .collect(),
+        }
+    }
+}
+
 /// One snapshot of the work, for every host.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[non_exhaustive]
@@ -115,6 +177,10 @@ pub struct Work {
     pub intelligence: Option<Intelligence>,
     /// What the next line answers.
     pub waiting: Waiting,
+    /// The question [`Waiting::Question`] names, while it waits ([`Work::with_question`]);
+    /// absent from the wire otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub question: Option<Question>,
     /// The candidate under review, when one is.
     pub candidate: Option<Candidate>,
     /// The workflow saved by the last consent of this session, when one was.
@@ -933,6 +999,7 @@ impl Work {
             authoring: None,
             intelligence: None,
             waiting,
+            question: None,
             candidate,
             saved,
             requested,
@@ -952,6 +1019,16 @@ impl Work {
     #[must_use]
     pub fn with_intelligence(mut self, intelligence: Option<Intelligence>) -> Self {
         self.intelligence = intelligence;
+        self
+    }
+
+    /// The same snapshot with the question the compiler asks, kept only while
+    /// [`Waiting::Question`] names that very key: a question that does not take the next line
+    /// (another prompt owns it, or none waits) is never shown as the one that does.
+    #[must_use]
+    pub fn with_question(mut self, question: Option<&CompileQuestion>) -> Self {
+        let waits = |q: &&CompileQuestion| matches!(&self.waiting, Waiting::Question { key, .. } if *key == q.key);
+        self.question = question.filter(waits).map(Question::of);
         self
     }
 }
