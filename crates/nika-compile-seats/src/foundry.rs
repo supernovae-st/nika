@@ -298,6 +298,11 @@ pub async fn qualified_with(
         Some(_) => reach::widen(&mut folded, &templates),
         None => (Vec::new(), 0),
     };
+    // With a seat, a recalled entry the catalogue lists is asked by its descriptor too.
+    let recalled = match (seat, catalog) {
+        (Some(_), Some(catalog)) => reach::describe_recalled(&mut folded, catalog),
+        _ => std::collections::BTreeMap::new(),
+    };
     let mut record = match seat {
         Some(seat) => {
             let qualified = qualify(intent, &folded, seat, "decision_seat");
@@ -313,13 +318,21 @@ pub async fn qualified_with(
             "why": "no decision seat was selected: the recall is shown unqualified",
         }),
     };
+    let restored = reach::restore(&mut folded, &recalled);
     let resolved = catalog.map_or(0, |c| {
         reach::resolve_applicable(&mut folded, &record, &widened, c)
     });
     let shelf_resolved = reach::resolve_applicable(&mut folded, &record, &shelved, &templates);
-    let asked: Vec<String> = widened.iter().chain(&shelved).cloned().collect();
+    let asked: Vec<String> = (widened.iter().chain(&shelved))
+        .chain(recalled.keys())
+        .cloned()
+        .collect();
     reach::annotate(&folded, &mut record, &asked);
     record["coverage"] = reach::coverage(catalog, listed, widened.len(), resolved);
+    if catalog.is_some() {
+        record["coverage"]["recalled_asked_by_descriptor"] = json!(recalled.len());
+        record["coverage"]["recalled_shown_in_full"] = json!(restored);
+    }
     if catalog.is_some() {
         let account = reach::account(&templates, shelf_listed, shelved.len(), shelf_resolved);
         record["coverage"]["embedded_templates"] = account;
