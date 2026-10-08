@@ -52,6 +52,8 @@ mod admission;
 pub(crate) mod bundled;
 /// The byte contract a release shares with its producer: strict JSON and the canonical digest.
 mod canonical;
+/// The admitted release as a catalogue: executable components and whole-catalog entries.
+mod catalog;
 /// A synthetic release the strict door admits (tests, and doors with `test-support`).
 #[cfg(any(test, feature = "test-support"))]
 pub mod fixture;
@@ -424,17 +426,7 @@ impl Snapshot {
         let available = self.rows("patterns").len();
         composition.count("patterns", available, patterns.len());
         for (pattern, why) in &patterns {
-            let text = self
-                .row(pattern)
-                .map(|row| {
-                    format!(
-                        "- {} — {} {}",
-                        pattern,
-                        text_of(row, &["purpose"]),
-                        text_of(row, &["notes"])
-                    )
-                })
-                .ok_or_else(|| "no row in the snapshot".to_owned());
+            let text = self.pattern_text(pattern);
             composition.offer("patterns", "pattern", pattern, why, text);
         }
         let covering: Vec<Vec<(String, String)>> = sources
@@ -488,6 +480,15 @@ impl Snapshot {
                 (block, why)
             })
             .collect()
+    }
+
+    /// A pattern as the seat reads it: its id, purpose and notes on one line.
+    fn pattern_text(&self, id: &str) -> Result<String, String> {
+        let row = self
+            .row(id)
+            .ok_or_else(|| "no row in the snapshot".to_owned())?;
+        let (purpose, notes) = (text_of(row, &["purpose"]), text_of(row, &["notes"]));
+        Ok(format!("- {id} — {purpose} {notes}"))
     }
 
     /// A block as the seat reads it — title and purpose, the metadata that keeps it from being
