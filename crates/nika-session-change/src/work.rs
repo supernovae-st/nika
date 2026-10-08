@@ -275,6 +275,9 @@ pub struct AuthoringCalls {
     /// The backend that answered as its transport reported it (`direct_api`, or `acp_harness`
     /// with the model it observed); `None` when the transport said nothing.
     pub backend: Option<serde_json::Value>,
+    /// Each call as the receipt recorded it, in call order ([`AuthoringCall`]); never summed
+    /// into the totals above, which stay the receipt's own.
+    pub per_call: Vec<AuthoringCall>,
 }
 
 impl AuthoringCalls {
@@ -286,8 +289,96 @@ impl AuthoringCalls {
             output_tokens: receipt.output_tokens,
             elapsed_ms: receipt.elapsed_ms,
             backend: receipt.backend.clone(),
+            per_call: receipt.context.iter().map(AuthoringCall::of).collect(),
         }
     }
+}
+
+/// One authoring call as the compile's receipt recorded it, through an allowlist of safe facts:
+/// its role, the digests of its instruction and answer schema, the bytes it sent and how many
+/// references rode with them, its bounds and wall time, how it ended (the provider's stop
+/// reason, or the failure kind the engine recorded) and the reasoning and usage the provider
+/// reported. A fact the receipt does not hold, or holds in another shape, is `None`, never
+/// guessed: unreported usage stays unknown, never zero. Its prompt, its answer, the object it
+/// proposed, the model's own name for itself and any error text never pass.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct AuthoringCall {
+    /// The call's role in the compile (`document` · `plan` · `repair` · …).
+    pub call: Option<String>,
+    /// The sha256 of the call's instruction (its system message).
+    pub instruction_sha256: Option<String>,
+    /// The sha256 of the answer schema the call asked.
+    pub schema_sha256: Option<String>,
+    /// The bytes of the call's messages.
+    pub message_bytes: Option<u64>,
+    /// How many knowledge references rode with the call.
+    pub references: Option<u64>,
+    /// The output limit the call asked.
+    pub max_output_tokens: Option<u64>,
+    /// The time the call was allowed.
+    pub timeout_ms: Option<u64>,
+    /// The wall time the call took.
+    pub elapsed_ms: Option<u64>,
+    /// How the provider said the answer ended, when it answered.
+    pub stop_reason: Option<String>,
+    /// How the call failed, as the engine recorded it (`admission_refused` · `provider_error` ·
+    /// `timeout`), when it failed.
+    pub failure_kind: Option<String>,
+    /// Whether the provider reported usage; `None` when the receipt does not say.
+    pub usage_reported: Option<bool>,
+    /// Reported input tokens.
+    pub input_tokens: Option<u64>,
+    /// Reported output tokens.
+    pub output_tokens: Option<u64>,
+    /// The reasoning effort the call asked.
+    pub reasoning_effort: Option<String>,
+    /// Reported reasoning tokens.
+    pub reasoning_tokens: Option<u64>,
+}
+
+impl AuthoringCall {
+    /// The allowlisted facts of one receipt context entry.
+    fn of(entry: &serde_json::Value) -> Self {
+        let result = &entry["result"];
+        Self {
+            call: name(&entry["call"]),
+            instruction_sha256: digest(&entry["instruction_sha256"]),
+            schema_sha256: digest(&entry["schema_sha256"]),
+            message_bytes: entry["message_bytes"].as_u64(),
+            references: (entry["references"].as_array()).and_then(|r| u64::try_from(r.len()).ok()),
+            max_output_tokens: entry["max_output_tokens"].as_u64(),
+            timeout_ms: entry["timeout_ms"].as_u64(),
+            elapsed_ms: entry["elapsed_ms"].as_u64(),
+            stop_reason: name(&result["stop_reason"]),
+            failure_kind: name(&result["failure_kind"]),
+            usage_reported: result["usage_reported"].as_bool(),
+            input_tokens: result["input_tokens"].as_u64(),
+            output_tokens: result["output_tokens"].as_u64(),
+            reasoning_effort: name(&entry["reasoning"]["configured"]),
+            reasoning_tokens: entry["reasoning"]["reasoning_tokens"].as_u64(),
+        }
+    }
+}
+
+/// An engine-written identifier (a role, a stop reason, a failure kind, an effort word): ASCII
+/// letters and underscores only, at most 40 of them. Anything else is not projected.
+fn name(value: &serde_json::Value) -> Option<String> {
+    value
+        .as_str()
+        .filter(|s| {
+            (1..=40).contains(&s.len()) && s.chars().all(|c| c.is_ascii_alphabetic() || c == '_')
+        })
+        .map(str::to_owned)
+}
+
+/// A sha256 as the receipt writes it: 64 lowercase hexadecimal digits. Anything else is not
+/// projected.
+fn digest(value: &serde_json::Value) -> Option<String> {
+    value
+        .as_str()
+        .filter(|s| s.len() == 64 && s.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f')))
+        .map(str::to_owned)
 }
 
 /// The intelligence a session prepares with, as the human selected it and this machine resolved

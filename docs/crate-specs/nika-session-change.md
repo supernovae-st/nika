@@ -83,7 +83,13 @@ Two typed readings joined these modules on 2026-10-08, so every host reads the s
   carries no saved reach. `Authoring` is the compiler's last word on the request: its status,
   the keys of the questions it asks, each diagnostic as written (kind, target, message) and the
   witness of the candidate bytes it built, proposed or not, so a host can say why nothing is
-  ready. Ready there is a compiler status, never a consent or a run.
+  ready. Ready there is a compiler status, never a consent or a run. Its `calls` carry the
+  receipt's totals and, in call order, each call through an allowlist (`AuthoringCall`): the
+  role, the instruction and schema digests, message bytes, the count of references, the output
+  and time bounds, the wall time, the stop reason or the engine's failure kind, and the
+  reasoning and usage the provider reported. A fact the receipt does not hold is null, never
+  guessed or summed; prompts, answers, proposed objects, served model names and error text never
+  pass.
   `RunEnd` is the one reading of the run door's exit codes. It grants nothing: consents,
   answers and runs still go through the session's own doors.
 

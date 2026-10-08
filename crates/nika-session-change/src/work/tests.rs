@@ -389,6 +389,107 @@ fn the_calls_receipt_is_carried_as_reported_and_unknown_usage_stays_unknown() {
     assert_eq!(json["backend"]["observed_model"], "author-model-served");
 }
 
+/// Each call's receipt passes through the allowlist: exact recorded facts, unknown usage kept
+/// unknown, a failed call's engine kind, and nothing of its prompt, answer, proposed object,
+/// served model name or error text, even when the receipt holds them.
+#[test]
+fn each_call_is_projected_through_the_allowlist_and_never_its_text() {
+    let mut outcome = compile(&CompileRequest::create(
+        "Read ./notes/brief.md and write it to ./out/copy.md",
+    ))
+    .expect("compiles");
+    let mut receipt = AuthoringReceipt::new("acme/author-model");
+    receipt.calls = 2;
+    receipt.elapsed_ms = 900;
+    receipt.input_tokens = Some(1_000);
+    let instruction = "a".repeat(64);
+    let schema = "0123456789abcdef".repeat(4);
+    receipt.context = vec![
+        serde_json::json!({
+            "call": "document", "instruction_sha256": instruction, "schema_sha256": schema,
+            "message_bytes": 4_096, "references": [{"id": "block:x"}, {"id": "skill:y"}],
+            "max_output_tokens": 16_384, "timeout_ms": 600_000, "elapsed_ms": 700,
+            "result": {"stop_reason": "EndTurn", "usage_reported": true,
+                       "input_tokens": 1_000, "output_tokens": 250},
+            "reasoning": {"configured": "high", "transmitted": "unobserved", "served": "unknown",
+                          "reasoning_tokens": null, "response_model": "served-name-x"},
+            "response": {"sha256": "b".repeat(64), "bytes": 812, "blocks": 1},
+            "proposed": {"decoded": true, "object": {"tasks": "SECRET-PLAN-TEXT"}},
+        }),
+        serde_json::json!({
+            "call": "repair", "instruction_sha256": "NOT A DIGEST", "schema_sha256": schema,
+            "message_bytes": 512, "max_output_tokens": 4_096, "timeout_ms": 600_000,
+            "elapsed_ms": 200, "result": {"failure_kind": "timeout"},
+            "reasoning": {"configured": "high; drop table", "reasoning_tokens": null},
+            "error": "provider said: SECRET-ERROR-TEXT",
+        }),
+    ];
+    outcome.provenance.authoring = Some(receipt);
+    let calls = Authoring::of(&outcome).calls.expect("the receipt rides");
+    let [answered, failed] = calls.per_call.as_slice() else {
+        panic!("one projection per recorded call: {:?}", calls.per_call);
+    };
+    assert_eq!(answered.call.as_deref(), Some("document"));
+    assert_eq!(
+        answered.instruction_sha256.as_deref(),
+        Some(instruction.as_str())
+    );
+    assert_eq!(answered.schema_sha256.as_deref(), Some(schema.as_str()));
+    assert_eq!(
+        (answered.message_bytes, answered.references),
+        (Some(4_096), Some(2))
+    );
+    assert_eq!(
+        (
+            answered.max_output_tokens,
+            answered.timeout_ms,
+            answered.elapsed_ms
+        ),
+        (Some(16_384), Some(600_000), Some(700))
+    );
+    assert_eq!(answered.stop_reason.as_deref(), Some("EndTurn"));
+    assert_eq!(answered.failure_kind, None);
+    assert_eq!(answered.usage_reported, Some(true));
+    assert_eq!(
+        (answered.input_tokens, answered.output_tokens),
+        (Some(1_000), Some(250))
+    );
+    assert_eq!(answered.reasoning_effort.as_deref(), Some("high"));
+    assert_eq!(answered.reasoning_tokens, None, "unreported, never zero");
+
+    assert_eq!(failed.call.as_deref(), Some("repair"));
+    assert_eq!(
+        failed.instruction_sha256, None,
+        "a malformed digest is not projected"
+    );
+    assert_eq!(failed.references, None, "the receipt recorded none");
+    assert_eq!(failed.failure_kind.as_deref(), Some("timeout"));
+    assert_eq!(failed.stop_reason, None);
+    assert_eq!(failed.usage_reported, None, "the receipt does not say");
+    assert_eq!((failed.input_tokens, failed.output_tokens), (None, None));
+    assert_eq!(failed.reasoning_effort, None, "only an identifier passes");
+
+    // The totals stay the receipt's own: nothing is summed from the calls.
+    assert_eq!((calls.calls, calls.elapsed_ms), (2, 900));
+    assert_eq!(
+        (calls.input_tokens, calls.output_tokens),
+        (Some(1_000), None)
+    );
+    let json = serde_json::to_string(&calls).expect("serializes");
+    for secret in [
+        "SECRET-PLAN-TEXT",
+        "SECRET-ERROR-TEXT",
+        "served-name-x",
+        "block:x",
+        "drop table",
+    ] {
+        assert!(!json.contains(secret), "{secret} leaked: {json}");
+    }
+    let wire = serde_json::to_value(&calls).expect("serializes");
+    assert_eq!(wire["per_call"][1]["input_tokens"], serde_json::Value::Null);
+    assert_eq!(wire["per_call"][0]["references"], 2);
+}
+
 /// A selection is the operator's kept default until this conversation names its own.
 #[test]
 fn a_selection_names_whose_choice_it_is() {

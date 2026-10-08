@@ -1971,12 +1971,77 @@ impl<T> tracing::instrument::Instrument for nika_session_change::work::Authoring
 impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::Authoring
 impl<T> typenum::type_operators::Same for nika_session_change::work::Authoring
 pub type nika_session_change::work::Authoring::Output = T
+#[non_exhaustive] pub struct nika_session_change::work::AuthoringCall
+pub nika_session_change::work::AuthoringCall::call: core::option::Option<alloc::string::String>
+pub nika_session_change::work::AuthoringCall::elapsed_ms: core::option::Option<u64>
+pub nika_session_change::work::AuthoringCall::failure_kind: core::option::Option<alloc::string::String>
+pub nika_session_change::work::AuthoringCall::input_tokens: core::option::Option<u64>
+pub nika_session_change::work::AuthoringCall::instruction_sha256: core::option::Option<alloc::string::String>
+pub nika_session_change::work::AuthoringCall::max_output_tokens: core::option::Option<u64>
+pub nika_session_change::work::AuthoringCall::message_bytes: core::option::Option<u64>
+pub nika_session_change::work::AuthoringCall::output_tokens: core::option::Option<u64>
+pub nika_session_change::work::AuthoringCall::reasoning_effort: core::option::Option<alloc::string::String>
+pub nika_session_change::work::AuthoringCall::reasoning_tokens: core::option::Option<u64>
+pub nika_session_change::work::AuthoringCall::references: core::option::Option<u64>
+pub nika_session_change::work::AuthoringCall::schema_sha256: core::option::Option<alloc::string::String>
+pub nika_session_change::work::AuthoringCall::stop_reason: core::option::Option<alloc::string::String>
+pub nika_session_change::work::AuthoringCall::timeout_ms: core::option::Option<u64>
+pub nika_session_change::work::AuthoringCall::usage_reported: core::option::Option<bool>
+impl core::clone::Clone for nika_session_change::work::AuthoringCall
+pub fn nika_session_change::work::AuthoringCall::clone(&self) -> nika_session_change::work::AuthoringCall
+impl core::cmp::Eq for nika_session_change::work::AuthoringCall
+impl core::cmp::PartialEq for nika_session_change::work::AuthoringCall
+pub fn nika_session_change::work::AuthoringCall::eq(&self, other: &nika_session_change::work::AuthoringCall) -> bool
+impl core::fmt::Debug for nika_session_change::work::AuthoringCall
+pub fn nika_session_change::work::AuthoringCall::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_change::work::AuthoringCall
+impl serde_core::ser::Serialize for nika_session_change::work::AuthoringCall
+pub fn nika_session_change::work::AuthoringCall::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_session_change::work::AuthoringCall
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::AuthoringCall where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringCall::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::AuthoringCall where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringCall::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::AuthoringCall where U: core::convert::From<T>
+pub fn nika_session_change::work::AuthoringCall::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::AuthoringCall where U: core::convert::Into<T>
+pub type nika_session_change::work::AuthoringCall::Error = core::convert::Infallible
+pub fn nika_session_change::work::AuthoringCall::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::AuthoringCall where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::AuthoringCall::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::AuthoringCall::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::AuthoringCall where T: core::clone::Clone
+pub type nika_session_change::work::AuthoringCall::Owned = T
+pub fn nika_session_change::work::AuthoringCall::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::AuthoringCall::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::AuthoringCall where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringCall::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::AuthoringCall where T: ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringCall::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::AuthoringCall where T: ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringCall::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::AuthoringCall where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::AuthoringCall::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::AuthoringCall
+pub fn nika_session_change::work::AuthoringCall::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::AuthoringCall where T: core::clone::Clone
+pub fn nika_session_change::work::AuthoringCall::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::AuthoringCall where T: 'static
+pub fn nika_session_change::work::AuthoringCall::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::AuthoringCall where T: ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringCall::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::AuthoringCall::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::AuthoringCall
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::AuthoringCall
+impl<T> typenum::type_operators::Same for nika_session_change::work::AuthoringCall
+pub type nika_session_change::work::AuthoringCall::Output = T
 #[non_exhaustive] pub struct nika_session_change::work::AuthoringCalls
 pub nika_session_change::work::AuthoringCalls::backend: core::option::Option<serde_json::value::Value>
 pub nika_session_change::work::AuthoringCalls::calls: u32
 pub nika_session_change::work::AuthoringCalls::elapsed_ms: u64
 pub nika_session_change::work::AuthoringCalls::input_tokens: core::option::Option<u64>
 pub nika_session_change::work::AuthoringCalls::output_tokens: core::option::Option<u64>
+pub nika_session_change::work::AuthoringCalls::per_call: alloc::vec::Vec<nika_session_change::work::AuthoringCall>
 pub nika_session_change::work::AuthoringCalls::requested_model: alloc::string::String
 impl core::clone::Clone for nika_session_change::work::AuthoringCalls
 pub fn nika_session_change::work::AuthoringCalls::clone(&self) -> nika_session_change::work::AuthoringCalls
