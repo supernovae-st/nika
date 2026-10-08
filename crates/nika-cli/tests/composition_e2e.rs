@@ -531,3 +531,209 @@ tasks:
         "the child cannot finish its sleep after the parent times out: {child_events:?}"
     );
 }
+
+// ─── the depth bound on ONE native stack ─────────────────────────────────
+//
+// Every child run is polled inside its parent's dispatch on the run's own
+// thread. The depth law (eight child edges · the ninth refused) is the only
+// nesting limit: no build profile may exhaust the main thread first.
+
+/// Every level's grant: the leaf's effects, so each parent contains its child.
+const DEEP_PERMITS: &str = "permits:\n  exec: [\"echo\"]\n  fs: { write: [\"./out/leaf.txt\"] }\n  tools: [\"nika:write\"]\n";
+
+/// `f0 → … → f{edges}`: each level re-exports the value below it; the leaf
+/// echoes `bottom` and writes it to `./out/leaf.txt` (its observable effect).
+fn deep_chain(dir: &std::path::Path, edges: usize) -> std::path::PathBuf {
+    for i in 0..=edges {
+        let body = if i == edges {
+            format!(
+                "nika: f{i}\n{DEEP_PERMITS}tasks:\n  say:\n    exec: {{ command: [\"echo\", \"bottom\"] }}\n  keep:\n    with: {{ said: \"${{{{ tasks.say.output }}}}\" }}\n    invoke: {{ tool: \"nika:write\", args: {{ path: \"./out/leaf.txt\", content: \"${{{{ with.said }}}}\" }} }}\noutputs:\n  value: ${{{{ tasks.say.output }}}}\n"
+            )
+        } else {
+            format!(
+                "nika: f{i}\n{DEEP_PERMITS}tasks:\n  descend:\n    invoke: {{ workflow: \"./f{next}.nika\" }}\noutputs:\n  value: ${{{{ tasks.descend.output.value }}}}\n",
+                next = i + 1
+            )
+        };
+        write_fixture(dir, &format!("f{i}.nika"), &body);
+    }
+    dir.join("f0.nika")
+}
+
+/// The run's journals (`.ndjson`), each walked independently, keyed by workflow.
+fn forest(dir: &std::path::Path) -> Vec<(String, String, Vec<serde_json::Value>)> {
+    std::fs::read_dir(dir.join(".nika").join("traces"))
+        .expect("trace forest exists")
+        .map(|entry| entry.expect("journal entry").path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "ndjson"))
+        .map(|path| walk(&path))
+        .collect()
+}
+
+fn journal_of<'a>(
+    forest: &'a [(String, String, Vec<serde_json::Value>)],
+    workflow: &str,
+) -> &'a (String, String, Vec<serde_json::Value>) {
+    forest
+        .iter()
+        .find(|(_, id, _)| id == workflow)
+        .unwrap_or_else(|| panic!("journal of {workflow}"))
+}
+
+/// Seven and eight child edges through the REAL composer: the root returns the
+/// leaf's exact value, the leaf's one write lands, every level keeps its own
+/// intact chain, and each parent frame commits to its child's chain head.
+#[test]
+fn seven_and_eight_child_edges_return_the_leaf_value_and_the_forest() {
+    for edges in [7, 8] {
+        let dir = tmp_dir(&format!("comp-deep-{edges}"));
+        let root = deep_chain(&dir, edges);
+        let (code, text) = run_in(&dir, &["check", root.to_str().expect("utf8")]);
+        assert_eq!(code, 0, "an acyclic chain checks clean:\n{text}");
+        let (code, text) = run_in(
+            &dir,
+            &["run", root.to_str().expect("utf8"), "--output", "json"],
+        );
+        assert_eq!(code, 0, "{edges} child edges settle green:\n{text}");
+        let outputs = text
+            .lines()
+            .find(|l| l.trim_start().starts_with('{'))
+            .expect("--output json emits the outputs object");
+        let outputs: serde_json::Value = serde_json::from_str(outputs.trim()).expect("JSON");
+        assert_eq!(outputs, serde_json::json!({ "value": "bottom" }), "{text}");
+        assert_eq!(
+            std::fs::read_to_string(dir.join("out").join("leaf.txt")).expect("the leaf wrote"),
+            "bottom"
+        );
+        let forest = forest(&dir);
+        assert_eq!(forest.len(), edges + 1, "one journal per level: {forest:?}");
+        for parent in 0..edges {
+            let row = journal_of(&forest, &format!("f{parent}"))
+                .2
+                .iter()
+                .find_map(|e| wire_field(e, "child"))
+                .expect("the parent frame records its child");
+            let row: serde_json::Value = serde_json::from_str(&row).expect("child row");
+            assert_eq!(row["target"], format!("./f{}.nika", parent + 1));
+            assert_eq!(row["outcome"], "success");
+            let child = journal_of(&forest, &format!("f{}", parent + 1));
+            let head = row["chain_head"].as_str().expect("chain_head");
+            assert!(
+                child.2.iter().any(|e| e["chain"] == head) || child.0 == head,
+                "f{parent} commits to a real point of its child's chain (law 9)"
+            );
+        }
+        let leaf = &journal_of(&forest, &format!("f{edges}")).2;
+        for task in ["say", "keep"] {
+            assert!(
+                leaf.iter().any(|e| e["kind"] == "task_completed"
+                    && wire_field(e, "task").as_deref() == Some(task)),
+                "the leaf's {task} completed"
+            );
+        }
+    }
+}
+
+/// The ninth edge, through the REAL composer: the deepest admitted run refuses
+/// its call (`NIKA-SEC-003`) before the leaf exists, so the leaf never writes;
+/// the run fails as a workflow, not as a crash.
+#[test]
+fn a_ninth_child_edge_is_refused_before_the_leaf_writes() {
+    let dir = tmp_dir("comp-deep-9");
+    let root = deep_chain(&dir, 9);
+    let (code, text) = run_in(&dir, &["check", root.to_str().expect("utf8")]);
+    assert_eq!(code, 0, "an acyclic chain checks clean:\n{text}");
+    let (code, text) = run_in(&dir, &["run", root.to_str().expect("utf8")]);
+    assert_eq!(code, 1, "a workflow failure, not a crash:\n{text}");
+    assert!(text.contains("NIKA-SEC-003"), "{text}");
+    assert!(
+        !dir.join("out").join("leaf.txt").exists(),
+        "the leaf never wrote"
+    );
+    let forest = forest(&dir);
+    assert_eq!(forest.len(), 9, "f0..f8 ran, f9 never started: {forest:?}");
+    assert!(forest.iter().all(|(_, id, _)| id != "f9"));
+    let refused = journal_of(&forest, "f8")
+        .2
+        .iter()
+        .find(|e| e["kind"] == "task_failed")
+        .expect("the deepest admitted run fails its call");
+    assert!(
+        wire_field(refused, "detail").is_some_and(|d| d.contains("NIKA-SEC-003")),
+        "{refused}"
+    );
+}
+
+/// The root's `timeout:` destroys a leaf process eight levels down: the call
+/// fails with `NIKA-TIMEOUT-001` within its bound, no level completes, and the
+/// running leaf's delayed write never lands, even after its own delay passed.
+#[test]
+fn a_root_timeout_destroys_a_pending_leaf_eight_levels_down() {
+    let dir = tmp_dir("comp-deep-timeout");
+    let permits = "permits:\n  exec: [\"sh\"]\n  fs: { read: [\"./late.sh\"], write: [\"./out/started.txt\", \"./out/late.txt\"] }\n";
+    std::fs::create_dir_all(dir.join("out")).expect("out dir");
+    write_fixture(
+        &dir,
+        "late.sh",
+        "echo started > ./out/started.txt\nsleep 5\necho late > ./out/late.txt\n",
+    );
+    for i in 0..=8 {
+        let body = if i == 8 {
+            format!(
+                "nika: f8\n{permits}tasks:\n  leaf:\n    exec: {{ command: [\"sh\", \"./late.sh\"] }}\n"
+            )
+        } else {
+            let timeout = if i == 0 { "    timeout: 3s\n" } else { "" };
+            format!(
+                "nika: f{i}\n{permits}tasks:\n  descend:\n    invoke: {{ workflow: \"./f{next}.nika\" }}\n{timeout}",
+                next = i + 1
+            )
+        };
+        write_fixture(&dir, &format!("f{i}.nika"), &body);
+    }
+    let started = std::time::Instant::now();
+    let (code, text) = run_in(&dir, &["run", dir.join("f0.nika").to_str().expect("utf8")]);
+    assert_eq!(code, 1, "the root settles a task failure:\n{text}");
+    let forest = forest(&dir);
+    let failure = journal_of(&forest, "f0")
+        .2
+        .iter()
+        .find(|e| e["kind"] == "task_failed" && wire_field(e, "task").as_deref() == Some("descend"))
+        .expect("the root call has a failure receipt");
+    assert!(
+        wire_field(failure, "detail").is_some_and(|d| d.contains("NIKA-TIMEOUT-001")),
+        "a timeout: {failure}"
+    );
+    let duration_ms: u64 = wire_field(failure, "duration_ms")
+        .expect("task duration")
+        .parse()
+        .expect("milliseconds");
+    assert!(
+        duration_ms < 6_000,
+        "the 3s bound holds eight levels down: {duration_ms}ms"
+    );
+    assert!(
+        journal_of(&forest, "f8")
+            .2
+            .iter()
+            .any(|e| e["kind"] == "task_scheduled"
+                && wire_field(e, "task").as_deref() == Some("leaf")),
+        "the deepest run dispatched its leaf"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.join("out").join("started.txt")).expect("the leaf ran"),
+        "started\n",
+        "the leaf process was running before the deadline"
+    );
+    assert!(
+        forest
+            .iter()
+            .all(|(_, _, events)| !events.iter().any(|e| e["kind"] == "task_completed")),
+        "no level completed after the deadline"
+    );
+    std::thread::sleep(std::time::Duration::from_millis(6_500).saturating_sub(started.elapsed()));
+    assert!(
+        !dir.join("out").join("late.txt").exists(),
+        "the destroyed leaf never wrote, past its own 5s delay"
+    );
+}

@@ -45,6 +45,10 @@ where
     ///   returned child summary rides the parent's terminal frame, which
     ///   is itself hash-chained: the parent's receipt commits to the
     ///   child's chain head.
+    /// - **stack** — the child run is created, polled and destroyed on
+    ///   this same thread with a guaranteed stack
+    ///   ([`nika_runtime_laws::stack::grown`]): the depth law, not the
+    ///   caller's native stack, bounds nesting.
     pub(crate) async fn dispatch_workflow_call(
         &self,
         target: &nika_schema::source::Spanned<String>,
@@ -106,7 +110,7 @@ where
             deadline,
             parent_permits: scope.permits().cloned(),
         };
-        match runner.run_child(call).await {
+        match nika_runtime_laws::stack::grown(|| runner.run_child(call)).await {
             Ok(out) => Self::settle_child_outcome(&note, &target.value, out, contract),
             Err(refusal) => Dispatched::comp_refusal(&note, &refusal.code, refusal.message),
         }
