@@ -199,6 +199,25 @@ pub const SLASH_COMMANDS: &[&str] = &[
     "/quit",
 ];
 
+/// This conversation's own explicit intelligence choice, as its history keeps it.
+#[derive(Clone, Debug)]
+pub(super) enum ConversationChoice {
+    /// The choice, held here only.
+    Held(UserIntelligencePreference),
+    /// A kept choice the history could not read, kept unchanged until chosen again.
+    Unreadable(serde_json::Value),
+}
+
+impl ConversationChoice {
+    /// The value its history keeps: the choice, or the unread one unchanged.
+    pub(super) fn value(&self) -> Option<serde_json::Value> {
+        match self {
+            Self::Held(pref) => serde_json::to_value(pref).ok(),
+            Self::Unreadable(raw) => Some(raw.clone()),
+        }
+    }
+}
+
 /// How many recent turns ride the next prompt.
 const RECENT_TURNS: usize = 8;
 
@@ -301,7 +320,7 @@ pub struct SessionRuntime {
     pending_choice: bool,
     /// This conversation's own explicit choice (named by its opener, chosen in it or kept by
     /// its history): it holds here only, never written as the operator's default.
-    conversation: Option<UserIntelligencePreference>,
+    conversation: Option<ConversationChoice>,
     /// The last recovery card (a turn that could not be finished), kept so
     /// « what happened? » repeats it without a call.
     last_recovery: Option<String>,
@@ -663,7 +682,29 @@ impl SessionRuntime {
     /// holds here only, is recorded in the conversation's history and replaces a choice that
     /// history kept. Nothing is written as the operator's default.
     pub fn hold_for_conversation(&mut self, pref: UserIntelligencePreference) {
-        self.conversation = Some(pref);
+        self.conversation = Some(ConversationChoice::Held(pref));
+    }
+
+    /// A kept choice its history could not read stays this conversation's: unavailable with its
+    /// reason until chosen again, kept unchanged; never the operator's default in its place.
+    fn unreadable_choice(&mut self, raw: serde_json::Value, error: &str) {
+        let why = format!(
+            "this conversation's kept intelligence choice is unreadable ({error}) · `/intelligence` chooses again"
+        );
+        let resolved = ResolvedSessionIntelligence {
+            kind: IntelligenceKind::None,
+            model: None,
+            locus: crate::intelligence::DataLocus::None,
+            ready: false,
+            why: Some(why),
+        };
+        if let Some(factory) = &self.factory {
+            self.reasoner = factory(&resolved);
+        }
+        self.intelligence = resolved;
+        self.refresh_seat();
+        self.chosen = true;
+        self.conversation = Some(ConversationChoice::Unreadable(raw));
     }
 
     /// Hold `pref` as this conversation's intelligence: resolved against the census, servable or
@@ -677,7 +718,7 @@ impl SessionRuntime {
         self.intelligence = resolved;
         self.refresh_seat();
         self.chosen = true;
-        self.conversation = Some(pref);
+        self.conversation = Some(ConversationChoice::Held(pref));
     }
 
     /// The answer to the first screen asked in-session (`/intelligence`, or `/intelligence

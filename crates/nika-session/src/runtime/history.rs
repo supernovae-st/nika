@@ -270,6 +270,10 @@ impl History {
     }
 
     fn append(&mut self, event: Event) -> io::Result<()> {
+        #[cfg(test)]
+        if REFUSE_APPEND.with(std::cell::Cell::get) {
+            return Err(io::Error::other("an append this test refuses"));
+        }
         let line = self.encode(event)?;
         // Do not recreate a removed journal or append to a truncated one.
         let file = self.dir.open_relative(Path::new(LOG))?;
@@ -389,6 +393,12 @@ impl History {
             effect,
         })
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A test's injected append failure, on its own thread only.
+    pub(super) static REFUSE_APPEND: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 fn invalid(message: &str) -> io::Error {

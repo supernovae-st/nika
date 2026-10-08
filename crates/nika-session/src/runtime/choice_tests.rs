@@ -924,3 +924,83 @@ fn a_choice_holds_for_this_conversation_and_resumes_with_it() {
     );
     assert_eq!(std::fs::read(&kept).expect("the operator's bytes"), before);
 }
+
+/// An opener's selection its history cannot record opens nothing: the open says why, and no
+/// conversation goes on as if its choice were kept.
+#[test]
+fn an_opener_selection_its_history_cannot_record_opens_nothing() {
+    let dir = tree();
+    let home = tempfile::tempdir().expect("home");
+    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let factory: ReasonerFactory = Box::new(|_| Box::new(NoReasoner));
+    let census = IntelligenceCensus::empty();
+    let mut s = SessionRuntime::open_with(dir.path(), census, &none, Some(home.path()), factory);
+    s.hold_for_conversation(none);
+    super::history::REFUSE_APPEND.with(|refuse| refuse.set(true));
+    let opened = s.enable_history(home.path());
+    super::history::REFUSE_APPEND.with(|refuse| refuse.set(false));
+    assert!(
+        opened.is_err(),
+        "an unrecorded opener's choice opened: {:?}",
+        opened.ok()
+    );
+}
+
+/// A kept choice its history can no longer read stays this conversation's: unavailable with its
+/// reason, never the operator's default in its place, and kept unchanged until chosen again.
+#[test]
+fn an_unreadable_kept_choice_stays_unavailable_never_the_default() {
+    use super::history::{AuthorityState, EffectState, History, Operation, RunState, Saved};
+    let dir = tree();
+    let home = tempfile::tempdir().expect("home");
+    let unread = serde_json::json!({
+        "kind": {"kind": "telepathy"}, "model": null, "chosen_at": "2026-10-08T00:00:00Z"
+    });
+    let mut history = History::open(home.path(), dir.path()).expect("history");
+    let state = Saved {
+        selection: Some(unread.clone()),
+        ..Saved::default()
+    };
+    history.begin(Operation::Turn, "kept").expect("begin");
+    let ends = (
+        RunState::Idle,
+        AuthorityState::None,
+        EffectState::NoUncertaintyReported,
+    );
+    (history.complete(state, ends.0, ends.1, "facts".to_owned(), ends.2)).expect("complete");
+    drop(history);
+    let local = IntelligenceKind::Local {
+        provider: "ollama".to_owned(),
+    };
+    let operator = UserIntelligencePreference::new(local, None);
+    let census = IntelligenceCensus {
+        seats: vec![],
+        api_keys: vec![],
+        locals: vec!["ollama".to_owned()],
+        provider_context: Vec::new(),
+    };
+    let factory: ReasonerFactory = Box::new(|resolved| match &resolved.kind {
+        IntelligenceKind::None => Box::new(NoReasoner),
+        _ => Box::new(ScriptedReasoner::new(vec!["seated".to_owned()])),
+    });
+    let mut s =
+        SessionRuntime::open_with(dir.path(), census, &operator, Some(home.path()), factory);
+    s.enable_history(home.path()).expect("history");
+    let selected = (s.work().intelligence.and_then(|i| i.selected)).expect("selected");
+    assert_eq!(
+        (selected.kind.as_str(), selected.scope, selected.ready),
+        ("none", "conversation", false)
+    );
+    assert!(
+        selected
+            .refusal
+            .is_some_and(|why| why.contains("unreadable"))
+    );
+    assert!(
+        !matches!(s.turn(SMALL_TALK), TurnOutcome::Reply(_)),
+        "never the operator's default"
+    );
+    drop(s);
+    let kept = History::open(home.path(), dir.path()).expect("history");
+    assert_eq!(kept.state.selection, Some(unread), "kept unchanged");
+}
