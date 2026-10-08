@@ -155,12 +155,15 @@ async fn a_repair_that_returns_the_declined_bytes_asks_the_judge_nothing_and_hol
     assert_eq!(findings(&document), held_findings(1), "{document:#}");
     assert_eq!(document["questions"], json!([]));
     assert_eq!(document["check_preview"]["scope"], "sourceOnly");
-    assert_eq!(document["provenance"]["plan"], Value::Null);
-    assert!(
-        response.header("nika-compile-replay").is_none(),
-        "nothing kept"
-    );
+    // The record is kept with the judge's rejection (A3) and a token offered: replayed, that
+    // judge is asked nothing and the bytes are held again, the verdict carried.
+    let declined = document["provenance"]["plan"]["declined"].as_array();
+    assert!(declined.is_some_and(|d| !d.is_empty()), "{document:#}");
+    let token = (response.header("nika-compile-replay"))
+        .expect("the kept record's token")
+        .to_owned();
     assert_published(&published, &document);
+    replay_asks_nothing(&server, &seat, &token).await;
     server.stop().await.expect("clean stop");
 }
 
@@ -274,4 +277,24 @@ async fn a_candidate_no_admitted_judgment_was_made_of_is_withdrawn_and_its_round
     assert_eq!(open, [&json!(GATED)], "{replayed:#}");
     assert_eq!(seat.calls(), 2, "the replay called no one");
     server.stop().await.expect("clean stop");
+}
+
+/// Replay the record `token` keeps (A3): the same judge is asked nothing, and the bytes are held
+/// again with the verdict carried.
+pub(super) async fn replay_asks_nothing(server: &TestServer, seat: &Seat, token: &str) {
+    let calls = seat.calls();
+    let mut body: Value = serde_json::from_str(&replay(token, &json!({}))).expect("a replay");
+    body["cognition"] = json!("explicitProvider");
+    let again = server.request(&compile_request(&body.to_string())).await;
+    assert_eq!(again.status, 200, "{}", again.body);
+    let replayed = again.json();
+    assert_eq!(replayed["status"], "incomplete", "{replayed:#}");
+    assert_eq!(seat.calls(), calls, "the judge is asked nothing");
+    let attempts = replayed["provenance"]["decision"]["semantic_verification"].as_array();
+    let last = attempts.and_then(|attempts| attempts.last());
+    assert_eq!(
+        last.map(|a| &a["carried"]),
+        Some(&json!(true)),
+        "{replayed:#}"
+    );
 }

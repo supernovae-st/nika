@@ -60,8 +60,9 @@ async fn a_judged_answer_round_replays_the_kept_document_and_asks_the_seat_only_
 }
 
 /// A judged answer round whose judge does not accept the replayed bytes holds them: INCOMPLETE
-/// with the `verify_held` finding, no new token, and the kept round's token forgotten, so the
-/// same bytes are never put to the same judge again through it.
+/// with the `verify_held` finding and the kept round's token forgotten. The held record is kept
+/// with the judge's rejection (A3) under a token of its own, whose replay asks that judge nothing
+/// and holds the same bytes again, the verdict carried.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_judged_answer_round_the_judge_declines_holds_and_forgets_its_token() {
     let world = TestWorld::new();
@@ -78,7 +79,9 @@ async fn a_judged_answer_round_the_judge_declines_holds_and_forgets_its_token() 
         .request(&compile_request(&judged_replay(&token, &closing())))
         .await;
     assert_eq!(judged.status, 200, "{}", judged.body);
-    assert!(judged.header("nika-compile-replay").is_none(), "no token");
+    let kept = (judged.header("nika-compile-replay"))
+        .expect("a token for the kept record")
+        .to_owned();
     let document = judged.json();
     assert_eq!(document["status"], "incomplete", "{document:#}");
     let held = (document["diagnostics"].as_array().into_iter().flatten())
@@ -98,5 +101,23 @@ async fn a_judged_answer_round_the_judge_declines_holds_and_forgets_its_token() 
     assert_eq!(again.status, 409, "{}", again.body);
     assert_eq!(again.json()["error"]["code"], "compile_replay_unavailable");
     assert_eq!(seat.calls(), calls, "the judge is not asked again");
+    let replayed = server
+        .request(&compile_request(&judged_replay(&kept, &closing())))
+        .await;
+    assert_eq!(replayed.status, 200, "{}", replayed.body);
+    let document = replayed.json();
+    assert_eq!(document["status"], "incomplete", "{document:#}");
+    assert_eq!(
+        seat.calls(),
+        calls,
+        "the kept record asks the judge nothing"
+    );
+    let attempts = document["provenance"]["decision"]["semantic_verification"].as_array();
+    let last = attempts.and_then(|attempts| attempts.last());
+    assert_eq!(
+        last.map(|a| &a["carried"]),
+        Some(&json!(true)),
+        "{document:#}"
+    );
     server.stop().await.expect("clean stop");
 }

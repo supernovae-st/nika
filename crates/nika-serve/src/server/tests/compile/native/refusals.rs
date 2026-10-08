@@ -10,6 +10,7 @@
 use clap::Parser as _;
 use nika_kernel::secret::Secret;
 
+use super::judged::replay_asks_nothing;
 use super::*;
 use crate::{NativeAuthoringArgs, NativeAuthoringError, seat_native_authoring};
 
@@ -455,8 +456,8 @@ async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narro
     server.stop().await.expect("clean stop");
     // The caller narrows to zero repairs: the document and the judge's four questions. The defect
     // the judge locates stays unrepaired, named with its reason, and the declined bytes are
-    // held: still the document's candidate, never proposed, with no record a later round would
-    // replay to the same judge.
+    // held: still the document's candidate, never proposed, their record kept with the judge's
+    // rejection, so a later round that replays it asks that judge nothing.
     let world = TestWorld::new();
     let seat = Seat::start(judged_repair());
     let (server, _backend) = start_native(&world, compile_limits(), one_repair(&seat)).await;
@@ -482,11 +483,12 @@ async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narro
         verify_steps(&document),
         ["verify: not ready", "verify: doubted, not replayable"]
     );
-    assert_eq!(document["provenance"]["plan"], Value::Null, "{document:#}");
-    assert!(
-        response.header("nika-compile-replay").is_none(),
-        "nothing kept"
-    );
+    let declined = document["provenance"]["plan"]["declined"].as_array();
+    assert!(declined.is_some_and(|d| !d.is_empty()), "{document:#}");
+    let token = (response.header("nika-compile-replay"))
+        .expect("the kept record's token")
+        .to_owned();
+    replay_asks_nothing(&server, &seat, &token).await;
     server.stop().await.expect("clean stop");
 }
 
