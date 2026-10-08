@@ -90,6 +90,12 @@ fn a_named_workflow_is_revised_in_place_shown_and_saved_with_every_other_byte() 
         panic!("a proposal over stale.nika: {out:?}")
     };
     assert!(preview.contains("stale.nika"), "{preview}");
+    assert!(
+        preview.contains(
+            "revised in place · const.max_age_hours.value · every other byte verified as the base's"
+        ),
+        "the prompt says what the revision changed and proved: {preview}"
+    );
     let first = peer.bodies()[0].to_string();
     assert!(
         first.contains("operations") && first.contains("max_age_hours"),

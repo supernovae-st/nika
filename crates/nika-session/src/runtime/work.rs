@@ -6,6 +6,8 @@
 //! ([`crate::work`]). The terminal renderer, the plain loop and a remote door call these instead
 //! of keeping a routing bit of their own; what a line may decide stays the session's.
 
+use std::fmt::Write as _;
+
 use super::{SessionRuntime, TurnOutcome};
 use crate::change::{ProjectChange, ProjectChangeSet};
 use crate::outcome::{Refusal, RefusalClass};
@@ -189,6 +191,49 @@ impl SessionRuntime {
     #[must_use]
     pub fn pending_revision(&self) -> Option<DocumentRevision> {
         self.candidate().and_then(|c| self.document_revision(c.set))
+    }
+
+    /// The pending proposal's document revision in the consent prompt's words, under the change
+    /// line it describes: what changed in place and what its record claims of every other byte;
+    /// nothing when no record binds the pending bytes. The proposal's identity is unchanged.
+    pub(super) fn revision_words(&self, preview: &mut String) {
+        let Some(revision) = self.pending_revision() else {
+            return;
+        };
+        let mut words = if revision.mode == "replaced" {
+            "  rewritten whole · no preservation of the earlier bytes is claimed".to_owned()
+        } else {
+            let claim = match revision.preservation.as_str() {
+                p if p.starts_with("verified") => "every other byte verified as the base's",
+                p if p.starts_with("by construction") => {
+                    "component entries inserted by construction, not re-verified byte by byte"
+                }
+                p if p.starts_with("edits verified") => {
+                    "edits verified byte by byte, component entries by construction"
+                }
+                p => p,
+            };
+            format!(
+                "  revised in place · {} · {claim}",
+                revision.changed.join(", ")
+            )
+        };
+        for component in &revision.components {
+            let version = component.version.as_deref().unwrap_or("unversioned");
+            let _ = write!(
+                words,
+                "\n  component · {} {version} · {}",
+                component.id, component.witness
+            );
+        }
+        let after = (preview.find("  replaces `"))
+            .and_then(|at| preview[at..].find('\n').map(|end| at + end + 1));
+        if let Some(at) = after {
+            preview.insert_str(at, &format!("{words}\n"));
+        } else {
+            preview.push('\n');
+            preview.push_str(&words);
+        }
     }
 
     /// How the proposing compile revised the candidate's workflow over its complete document,

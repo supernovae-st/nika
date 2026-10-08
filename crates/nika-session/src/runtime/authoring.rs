@@ -913,6 +913,7 @@ impl SessionRuntime {
                     .and_then(|decision| decision.get("document_revision"))
                     .cloned();
                 self.pending = Some(set);
+                self.revision_words(&mut preview);
                 TurnOutcome::Proposal { id, preview }
             }
             // The saved file moved since the revision read it: nothing proposed, nothing written.
