@@ -904,7 +904,7 @@ impl Conversation for Live {
             let mut legs = self.legs.lock().ok()?;
             (legs.find_mut(execution)).map(|leg| {
                 leg.forget_history();
-                (leg.trace.clone(), leg.proof_expectation())
+                (leg.trace(), leg.proof_expectation())
             })
         };
         let proven = match asked {

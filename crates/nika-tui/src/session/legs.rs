@@ -27,7 +27,9 @@
 
 use std::collections::BTreeSet;
 
-use nika_display::run_story::{ChildRun, Event, EventKind, ExecutionId, RunFrame, Settled};
+use nika_display::run_story::{
+    ChildRun, Event, EventKind, ExecutionId, RunFrame, RunIdentity, Settled,
+};
 use nika_session::KeptRun;
 
 use super::acquire::{Expect, Proven};
@@ -39,21 +41,18 @@ pub(crate) const FILES_KEPT: usize = 64;
 /// The most child relations one leg keeps (one per task).
 pub(crate) const CHILDREN_KEPT: usize = 64;
 
-/// One leg, as the host relayed it.
+/// One leg, as the host relayed it: its identity is the shared fold every host folds a run's
+/// frames with ([`RunIdentity`]), its files and child relations this shell's own.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Leg {
     pub execution: ExecutionId,
-    starts: Vec<Option<String>>,
+    identity: RunIdentity,
     writing: BTreeSet<String>,
     pub written: Vec<String>,
     pub unlisted: usize,
-    pub trace: Option<String>,
-    chain_head: Option<String>,
-    chain_len: Option<u64>,
     children: Vec<(String, ChildRun)>,
     /// The witness of the last journal captured for this leg.
     capture: Option<String>,
-    pub settled: bool,
     pub kept: bool,
 }
 
@@ -61,18 +60,24 @@ impl Leg {
     fn new(execution: ExecutionId) -> Self {
         Self {
             execution,
-            starts: Vec::new(),
+            identity: RunIdentity::of_execution(execution),
             writing: BTreeSet::new(),
             written: Vec::new(),
             unlisted: 0,
-            trace: None,
-            chain_head: None,
-            chain_len: None,
             children: Vec::new(),
             capture: None,
-            settled: false,
             kept: false,
         }
+    }
+
+    /// The journal the leg's settlement named.
+    pub(crate) fn trace(&self) -> Option<String> {
+        (self.identity.trace()).map(|trace| trace.display().to_string())
+    }
+
+    /// Whether the leg's settlement was relayed (or kept).
+    pub(crate) const fn settled(&self) -> bool {
+        self.identity.settled()
     }
 
     /// The child relation task `task` holds: its settle frame's row, set,
@@ -108,10 +113,7 @@ impl Leg {
     }
 
     fn event(&mut self, event: &Event) {
-        if event.kind == EventKind::WorkflowStarted {
-            self.starts
-                .push(event.str_field("workflow_sha256").map(str::to_owned));
-        }
+        self.identity.event(event);
         self.relate(event);
         self.writes(event);
     }
@@ -143,10 +145,7 @@ impl Leg {
     }
 
     fn settle(&mut self, settled: &Settled) {
-        self.trace = settled.trace.as_ref().map(|t| t.display().to_string());
-        self.chain_head.clone_from(&settled.chain_head);
-        self.chain_len = settled.chain_len;
-        self.settled = true;
+        self.identity.settle(settled);
     }
 
     /// A new capture of a kept leg's journal: what an earlier reading lent
@@ -191,10 +190,7 @@ impl Leg {
 
     /// The source hash the leg's start named, when it saw exactly one start.
     pub(crate) fn workflow_sha256(&self) -> Option<&str> {
-        match self.starts.as_slice() {
-            [Some(hash)] => Some(hash),
-            _ => None,
-        }
+        self.identity.workflow_sha256()
     }
 
     /// What a captured journal must name to be this leg's.
@@ -202,8 +198,8 @@ impl Leg {
         Expect {
             execution: self.execution,
             workflow_sha256: self.workflow_sha256().map(str::to_owned),
-            chain_head: self.chain_head.clone(),
-            chain_len: self.chain_len,
+            chain_head: self.identity.chain_head().map(str::to_owned),
+            chain_len: self.identity.chain_len(),
         }
     }
 
@@ -213,8 +209,8 @@ impl Leg {
         let mut run = KeptRun::new();
         run.execution = Some(self.execution.uuid.to_string());
         run.workflow_sha256 = self.workflow_sha256().map(str::to_owned);
-        run.chain_head.clone_from(&self.chain_head);
-        run.chain_len = self.chain_len;
+        run.chain_head = self.identity.chain_head().map(str::to_owned);
+        run.chain_len = self.identity.chain_len();
         run
     }
 }
@@ -248,7 +244,7 @@ impl Legs {
         let Some(leg) = self
             .relayed
             .first_mut()
-            .filter(|l| l.execution == execution && !l.settled)
+            .filter(|l| l.execution == execution && !l.settled())
         else {
             return;
         };
@@ -280,11 +276,10 @@ impl Legs {
     pub(crate) fn kept(&mut self, run: &KeptRun) -> Option<ExecutionId> {
         let execution = execution_of(run)?;
         let mut leg = Leg::new(execution);
-        leg.starts = vec![run.workflow_sha256.clone()];
-        leg.trace.clone_from(&run.trace);
-        leg.chain_head.clone_from(&run.chain_head);
-        leg.chain_len = run.chain_len;
-        leg.settled = true;
+        let trace = run.trace.as_deref().map(std::path::PathBuf::from);
+        let receipt = (run.chain_head.clone(), run.chain_len);
+        leg.identity =
+            RunIdentity::restored(execution, run.workflow_sha256.clone(), trace, receipt);
         leg.kept = true;
         self.relayed.retain(|known| known.execution != execution);
         self.relayed.push(leg);

@@ -72,7 +72,7 @@ fn a_leg_keeps_what_the_host_relayed_and_nothing_else() {
         (expect.chain_head.as_deref(), expect.chain_len),
         (Some("cd"), Some(7))
     );
-    assert_eq!(leg.trace.as_deref(), Some(".nika/traces/t.ndjson"));
+    assert_eq!(leg.trace().as_deref(), Some(".nika/traces/t.ndjson"));
 }
 
 #[test]
@@ -216,10 +216,10 @@ fn a_resumed_leg_is_its_own_execution_and_journal() {
     legs.frame(&start(OTHER, 2, "aa"));
     legs.frame(&settled(OTHER));
     let first = legs.find(&id(EXEC)).expect("the paused leg");
-    assert_eq!(first.trace.as_deref(), Some(".nika/traces/first.ndjson"));
+    assert_eq!(first.trace().as_deref(), Some(".nika/traces/first.ndjson"));
     let resumed = legs.newest().expect("the resumed leg");
     assert_eq!(resumed.execution, id(OTHER));
-    assert_eq!(resumed.trace.as_deref(), Some(".nika/traces/t.ndjson"));
+    assert_eq!(resumed.trace().as_deref(), Some(".nika/traces/t.ndjson"));
 }
 
 /// A reasoner that counts every call it is asked to make.
