@@ -389,7 +389,9 @@ impl HarnessAdapter {
 #[derive(Debug, Clone)]
 pub struct SpawnedHarness {
     adapter: HarnessAdapter,
-    authoring: bool,
+    /// The audited one-shot completion profile this seat serves, if any:
+    /// isolated scratch cwd, admitted identity, strict options, judged beats.
+    completion: Option<crate::authoring::acp::Completion>,
 }
 
 impl SpawnedHarness {
@@ -491,12 +493,12 @@ impl SpawnedHarness {
     pub fn new(adapter: HarnessAdapter) -> Self {
         Self {
             adapter,
-            authoring: false,
+            completion: None,
         }
     }
 
-    pub(crate) fn for_authoring(mut self) -> Self {
-        self.authoring = true;
+    pub(crate) fn for_completion(mut self, completion: crate::authoring::acp::Completion) -> Self {
+        self.completion = Some(completion);
         self
     }
 
@@ -757,7 +759,7 @@ impl AgentBackendDyn for SpawnedHarness {
         // refuses HERE, with the version named — never as a protocol
         // confusion three frames into a session.
         self.probe_version().await?;
-        let mut child = self.spawn_child(self.authoring.then_some(request.cwd.as_path()))?;
+        let mut child = self.spawn_child(self.completion.map(|_| request.cwd.as_path()))?;
         let stdout = child.stdout.take().ok_or_else(|| HarnessError::Session {
             reason: "the child's stdout was not piped".to_owned(),
         })?;
@@ -772,7 +774,7 @@ impl AgentBackendDyn for SpawnedHarness {
             stdin,
             request,
             child,
-            self.authoring,
+            self.completion,
         ))
     }
 }
@@ -785,21 +787,21 @@ fn drive_with_child(
     stdin: tokio::process::ChildStdin,
     request: HarnessRequest,
     child: tokio::process::Child,
-    authoring: bool,
+    completion: Option<crate::authoring::acp::Completion>,
 ) -> HarnessEventStream {
-    let inner = if authoring {
+    let inner = if completion.is_some() {
         crate::client::drive_profile(
             stdout,
             stdin,
             request,
             std::time::Duration::from_secs(crate::IDLE_TIMEOUT_SECS),
-            true,
+            completion,
         )
     } else {
         drive(stdout, stdin, request)
     };
     #[cfg(unix)]
-    let group = authoring.then(|| child.id()).flatten();
+    let group = completion.and_then(|_| child.id());
     Box::pin(ChildStream {
         inner,
         _child: child,

@@ -29,25 +29,26 @@ fn the_profile_disables_builtins_disk_settings_and_other_mcp_before_query() {
     assert_eq!(options["maxTurns"], 1);
     assert_eq!(options["allowDangerouslySkipPermissions"], false);
     assert_eq!(options["persistSession"], false);
-    assert!(admit(&identity()).is_ok());
+    assert!(admit(&identity(), Completion::Authoring).is_ok());
     for value in [
         json!({}),
         json!({"protocolVersion":1,"agentInfo":{"name":NAME,"version":"0.23.1"}}),
         json!({"protocolVersion":1,"agentInfo":{"name":"Codex","version":VERSION}}),
     ] {
-        assert!(admit(&value).is_err());
+        assert!(admit(&value, Completion::Authoring).is_err());
     }
 }
 
 #[test]
 fn text_only_and_configured_identity_never_become_served_or_free() {
     for tag in ["tool_call", "tool_call_update", "unexpected"] {
-        assert!(judge_update(&json!({"sessionUpdate":tag})).is_err());
+        assert!(judge_update(&json!({"sessionUpdate":tag}), Completion::Authoring).is_err());
     }
-    assert!(judge_update(&json!({"sessionUpdate":"agent_message_chunk","content":{"type":"image","data":"ignored"}})).is_err());
+    assert!(judge_update(&json!({"sessionUpdate":"agent_message_chunk","content":{"type":"image","data":"ignored"}}), Completion::Authoring).is_err());
     assert!(
         judge_update(
-            &json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"whole"}})
+            &json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"whole"}}),
+            Completion::Authoring
         )
         .is_ok()
     );
@@ -83,7 +84,7 @@ async fn unsupported_identity_stops_before_session_or_prompt() {
         w,
         HarnessRequest::new("private prompt", "/tmp"),
         Duration::from_secs(1),
-        true,
+        Some(Completion::Authoring),
     );
     let first = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
     assert!(matches!(first, Some(Err(HarnessError::Refused { .. }))));
@@ -127,7 +128,7 @@ async fn admitted_wire_carries_strict_options_and_keeps_the_whole_answer() {
         w,
         HarnessRequest::new("private prompt", "/tmp"),
         Duration::from_secs(1),
-        true,
+        Some(Completion::Authoring),
     );
     let mut answer = None;
     while let Some(event) = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await {
@@ -191,7 +192,7 @@ async fn refuses_after_prompt(mode: &str) {
         w,
         HarnessRequest::new("private prompt", "/tmp"),
         Duration::from_secs(1),
-        true,
+        Some(Completion::Authoring),
     );
     let first = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
     assert!(

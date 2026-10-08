@@ -387,7 +387,9 @@ fn catalog_effort_refusal(model: &str, effort: &str) -> Option<String> {
 
 #[cfg(feature = "access-harness")]
 fn acp_one_shot(seat: &str) -> Result<(), String> {
-    nika_harness::meet_acp_one_shot(seat).map_err(|e| e.to_string())
+    nika_harness::meet_acp_one_shot(seat)
+        .map(drop)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(not(feature = "access-harness"))]

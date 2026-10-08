@@ -101,7 +101,7 @@ impl InferGradeAttestation {
         }
     }
 
-    fn failed(self, need: StructuredOutputGrade) -> Vec<&'static str> {
+    pub(crate) fn failed(self, need: StructuredOutputGrade) -> Vec<&'static str> {
         let mut failed = Vec::new();
         if !self.single_turn {
             failed.push("single_turn");
