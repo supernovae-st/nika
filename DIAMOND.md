@@ -15,7 +15,7 @@ the authoritative architectural decision, see
 For the project's landing page, see [`README.md`](README.md). For
 the real-semver plan toward a 1.0 launch (amended D-2026-06-20-N1 · was
 "forever-v0.x") — the CHANGELOG top names the latest tagged release, `main` on the next
-dev version → 1.0.0 → 1.x adds the remaining crates → 2.0 the Connectome era — see [`ROADMAP.md`](ROADMAP.md). For the
+dev version → 1.0.0 → 1.x adds the remaining crates — see [`ROADMAP.md`](ROADMAP.md). For the
 **10-year architectural horizon
 (2026 → 2036)** with the ADR-037 count horizon (50-90 · cap 100 ·
 projected, never a gate · ruled D-2026-07-21-N1), 4-verb stress test
@@ -163,7 +163,7 @@ Version ladder (no per-tag dates · quality > speed):
 - **1.0.0-rc.N** — design-partner hardening, 7 shadow zones green.
 - **1.0.0** — **first public launch**: language + installable binary, validated.
 - **1.x minors** — add the remaining crates additively under the ADR-037 count horizon (50-90 · cap 100 · projected, never a gate) (pck, native API adapters, WASM plugins, full observability, full LSP, keys subsystem).
-- **2.0** — **the Connectome era**: memory + cognition (1 L2 orchestrator + 10 L1 satellites, agent-v2). The next epoch.
+- **next major** — reserved, un-numbered and unnamed, its content the operator's to declare (D-2026-07-10-N4). Memory, retrieval and cognition capabilities meet their own release acceptance under explicit owners, with no Connectome umbrella or era (D-2026-10-08-N1).
 
 Full breakdown: [`ROADMAP.md`](ROADMAP.md).
 

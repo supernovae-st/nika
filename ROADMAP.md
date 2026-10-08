@@ -10,11 +10,13 @@ remain separate from accepting that direction.
 > tagged public release lives on the
 > [releases page](https://github.com/supernovae-st/nika/releases)
 > (release-candidate grade); `main` advances to the
-> next `-dev` version immediately after release → the contract system, the
-> **whole Connectome** (memory + cognition) and the hundred-year machinery
-> (NEP door · conformance tiers · archives · the compatibility promise ·
-> the deterministic checker · succession) land BEFORE the launch, declared
-> pre-conditions of the official 1.0 (D-2026-07-22-N1) → design-partner
+> next `-dev` version immediately after release → the contract system and
+> the hundred-year machinery (NEP door · conformance tiers · archives · the
+> compatibility promise · the deterministic checker · succession) land BEFORE
+> the launch, declared pre-conditions of the official 1.0 (D-2026-07-22-N1);
+> memory, retrieval and cognition capabilities each meet their own release
+> acceptance under explicit owners, with no Connectome umbrella and no
+> whole-before-1.0 gate (D-2026-10-08-N1) → design-partner
 > `1.0.0-rc.N` → first public launch **1.0.0**, the culmination → 1.x minors
 > add the remaining crates additively → the next major stays **un-numbered and
 > unnamed**, its content the operator's to declare (D-2026-07-10-N4). The nine-key LANGUAGE
@@ -267,7 +269,7 @@ Real semver toward a 1.0 launch, then `MAJOR.MINOR.PATCH`:
 | `1.0.0-rc.N` | design-partner hardening                                            |
 | `1.0.0`    | **first public launch** — language + installable binary, validated   |
 | `1.1 · 1.2 · …` | additive minors — new builtins, new providers, polish            |
-| pre-1.0    | **the contract system + the whole Connectome + the hundred-year machinery** land before the launch — declared pre-conditions of the official 1.0 (D-2026-07-22-N1 · ADR-004) |
+| pre-1.0    | **the contract system + the hundred-year machinery** land before the launch — declared pre-conditions of the official 1.0 (D-2026-07-22-N1); memory and cognition capabilities meet capability-specific acceptance, never a whole-Connectome gate (D-2026-10-08-N1) |
 | next major | reserved · un-numbered and unnamed · content the operator's to declare (D-2026-07-10-N4) |
 
 > **Superseded `v0.8X.Y` layer-tag scheme (kept for history).** Before
@@ -817,9 +819,11 @@ the allowed I/O axes per layer, and the enforcement anti-patterns.
 
 ## L1 memory phase (1e + 1f) — Hybrid ontology + auto-descriptive memory
 
-**Theme**: build the memory subsystem as dedicated L1 satellites, exposed
-through the `nika-connectome` L2 orchestrator (10 satellites · ADR-004). Each satellite is admitted through the 12 gates and
-composable through a pluggable trait set in `nika-kernel`.
+**Theme**: build the memory subsystem as dedicated L1 satellites (10 satellites · ADR-004).
+Each satellite is admitted through the 12 gates and composable through a
+pluggable trait set in `nika-kernel`; the planned `nika-connectome` L2
+orchestrator is retired, and no other branded orchestrator replaces it
+(D-2026-10-08-N1).
 
 See the §Memory subsystem detail table above for the satellite
 list, the 4 shipped storage backends, the hybrid trust model, and the
