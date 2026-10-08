@@ -74,6 +74,7 @@ impl SessionRuntime {
                 );
             }
             self.saved_reach = world_of(&first).map(|world| (first.clone(), world));
+            self.consented = Some(first.clone());
             self.last_workflow = Some(first);
             self.last_check_clean = Some(all_clean);
             self.last_trigger = self.pending_trigger.take();

@@ -247,6 +247,9 @@ pub struct SessionRuntime {
     last_check_clean: Option<bool>,
     /// The workflow the last consent saved and where its bytes reach, from its check at landing.
     saved_reach: Option<(PathBuf, crate::world::World)>,
+    /// The workflow the last consent saved, or the one reopened from its program record: the
+    /// rail's « Saved » is this fact, never a workflow only named for a run.
+    consented: Option<PathBuf>,
     /// The run this session requested last, with the reach of the bytes it asked to run.
     requested_run: Option<crate::work::RequestedRun>,
     /// The trace the last observed run left (`/proof` reads it).
@@ -360,6 +363,7 @@ impl SessionRuntime {
             last_workflow: None,
             last_check_clean: None,
             saved_reach: None,
+            consented: None,
             requested_run: None,
             last_trace: None,
             kept_run: None,
@@ -447,8 +451,13 @@ impl SessionRuntime {
         facts.composing = self.pending_question().is_some()
             || self.pending_input().is_some()
             || self.pending_activation().is_some();
-        facts.saved = self.last_workflow.is_some();
-        facts.check_clean = self.last_check_clean;
+        // Saved at consent, and still the workflow worked on: one only named for a run (or a
+        // paused run reopened) was never saved here, and the check is that consent's.
+        let root = &self.snapshot.root;
+        facts.saved = (self.last_workflow.as_ref())
+            .zip(self.consented.as_ref())
+            .is_some_and(|(worked, saved)| root.join(worked) == root.join(saved));
+        facts.check_clean = self.last_check_clean.filter(|_| facts.saved);
         facts.declared_active = declared_active;
         facts.run = if self.pending_gate.is_some() {
             crate::lifecycle::RunFact::GateWaits

@@ -1276,9 +1276,7 @@ fn the_lifecycle_rail_follows_the_sessions_facts() {
         s.lifecycle().rail(),
         "Draft ✓ · Saved ○ · Checked ○ · Active ○ · Run ○"
     );
-    s.pending = None;
-    s.last_workflow = Some(std::path::PathBuf::from("copy.nika"));
-    s.last_check_clean = Some(true);
+    assert!(matches!(s.consent("yes"), TurnOutcome::Facts(_)));
     assert_eq!(
         s.lifecycle().rail(),
         "Draft ✓ · Saved ✓ · Checked ✓ · Active ○ · Run ○"

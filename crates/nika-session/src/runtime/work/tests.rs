@@ -432,3 +432,41 @@ fn the_saved_reach_belongs_to_the_bytes_a_consent_saved_never_to_a_workflow_only
         Some(Reach::LocalServices)
     );
 }
+
+/// The rail's « Saved » is the consent's fact: a workflow only named for a run is not saved here
+/// and shows no check, while naming the saved one again keeps that consent's facts.
+#[test]
+fn a_workflow_only_run_is_never_shown_saved_on_the_rail() {
+    let dir = tree();
+    std::fs::write(dir.path().join("sink.nika"), LOCAL_SINK).expect("workflow");
+    let mut s = ready_with(dir.path(), vec![]);
+    let id = proposal(s.turn(COPY));
+    assert!(matches!(
+        s.submit("yes", &Waiting::Consent { proposal: id }),
+        TurnOutcome::Facts(_)
+    ));
+    let rail = s.lifecycle().rail();
+    assert!(rail.starts_with("Draft ✓ · Saved ✓ · Checked ✓"), "{rail}");
+
+    assert!(matches!(
+        s.turn("run sink.nika"),
+        TurnOutcome::Question { .. }
+    ));
+    let shown = s.waiting();
+    assert!(matches!(
+        s.submit("http://127.0.0.1:8787", &shown),
+        TurnOutcome::RunRequested { .. }
+    ));
+    assert_eq!(
+        s.lifecycle().rail(),
+        "Draft ○ · Saved ○ · Checked ○ · Active ○ · Run ○",
+        "only named for a run: neither saved here nor checked at a consent"
+    );
+
+    assert!(matches!(
+        s.turn(&format!("run {COPY_DEST}")),
+        TurnOutcome::RunRequested { .. }
+    ));
+    let rail = s.lifecycle().rail();
+    assert!(rail.starts_with("Draft ✓ · Saved ✓ · Checked ✓"), "{rail}");
+}

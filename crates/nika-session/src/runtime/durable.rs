@@ -79,6 +79,8 @@ impl SessionRuntime {
         self.last_workflow =
             nika_onboard::compile::program_records::last_saved(self.programs.as_ref())
                 .map(PathBuf::from);
+        // Its program record says a consent saved it.
+        self.consented.clone_from(&self.last_workflow);
         self.recent.clone_from(&history.state.recent);
         self.kept_run.clone_from(&history.state.last_run);
         self.restored_draft = history.state.pending.clone().map(Restored::from_raw);
