@@ -157,3 +157,36 @@ fn the_first_preview_uses_only_an_observed_graph_and_keeps_the_faces_visible() {
     );
     assert_eq!(unseen.initial_face(), Face::Source);
 }
+
+/// A revision over the complete document is stated above every face with its components, and a
+/// component no longer witnessed as bound is a warning row.
+#[test]
+fn a_document_revision_is_stated_with_each_component_and_its_witness() {
+    let candidate = fold("preview R", false, None).revising(vec![
+        ("revised in place · const.max_age_hours".to_owned(), false),
+        (
+            "component · block:stale-filter-report r1 · revised · const.max_age_hours = 72"
+                .to_owned(),
+            true,
+        ),
+    ]);
+    for face in Face::ALL {
+        let (_, body) = candidate.face_lines(face, 120, false, false);
+        let text = rows(&body).join("\n");
+        assert!(
+            text.contains("revised in place · const.max_age_hours"),
+            "{text}"
+        );
+        assert!(
+            text.contains("component · block:stale-filter-report r1 · revised"),
+            "{text}"
+        );
+    }
+    let (_, ascii) = candidate.face_lines(Face::Source, 120, true, false);
+    assert!(
+        rows(&ascii)
+            .join("\n")
+            .contains("revised in place - const.max_age_hours"),
+        "the ASCII column twins the separator"
+    );
+}

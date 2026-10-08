@@ -72,10 +72,50 @@ pub(crate) fn take(runtime: &SessionRuntime, kept: Option<&Proposed>) -> Option<
     let fold = Proposed::new(candidate.id.clone(), candidate.aside, look)
         .changing(set.changes.iter().map(words).collect())
         .reaching(effects)
+        .revising(
+            runtime
+                .pending_revision()
+                .map_or_else(Vec::new, |r| revised(&r)),
+        )
         .declaring(world)
         .unshown(set.changes.len().saturating_sub(1))
         .rehearsed(candidate.rehearsed.map(str::to_owned));
     Some(fold)
+}
+
+/// How the pending workflow was revised over its complete document, as the compile record states
+/// it: what changed, never that it is what was meant. A whole replacement claims no preservation
+/// and each component not witnessed as bound on these bytes needs attention.
+fn revised(revision: &nika_session::work::DocumentRevision) -> Vec<(String, bool)> {
+    let mut rows = vec![match revision.mode.as_str() {
+        "operations" if revision.changed.is_empty() => {
+            ("revised in place · no node changed".to_owned(), false)
+        }
+        "operations" => (
+            format!("revised in place · {}", revision.changed.join(", ")),
+            false,
+        ),
+        _ => (
+            "rewritten whole · no preservation of the earlier bytes is claimed".to_owned(),
+            true,
+        ),
+    }];
+    rows.extend(revision.components.iter().map(|component| {
+        let bound: Vec<String> = (component.bindings.iter())
+            .map(|b| format!("{} = {}", b.path, b.value))
+            .collect();
+        let version = component.version.as_deref().unwrap_or("unversioned");
+        let mut words = format!(
+            "component · {} {version} · {}",
+            component.id, component.witness
+        );
+        if !bound.is_empty() {
+            words.push_str(" · ");
+            words.push_str(&bound.join(", "));
+        }
+        (words, component.witness != "expanded")
+    }));
+    rows
 }
 
 /// Whether a reach leaves this machine or cannot say where it leads: a connected service, a

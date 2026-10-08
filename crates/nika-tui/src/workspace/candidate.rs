@@ -37,6 +37,9 @@ pub struct Proposed {
     aside: bool,
     changes: Vec<String>,
     effects: Option<Vec<String>>,
+    /// How its workflow was revised over the complete document and which components it holds,
+    /// each with whether it needs attention: `(words, warn)`.
+    revision: Vec<(String, bool)>,
     /// Where each audited workflow reaches as declared, and whether that leaves this machine
     /// (or cannot be told): `(words, outside)`.
     world: Vec<(String, bool)>,
@@ -54,6 +57,7 @@ impl PartialEq for Proposed {
             && self.aside == other.aside
             && self.changes == other.changes
             && self.effects == other.effects
+            && self.revision == other.revision
             && self.world == other.world
             && self.rehearsed == other.rehearsed
             && self.unshown == other.unshown
@@ -72,6 +76,7 @@ impl Proposed {
             aside,
             changes: Vec::new(),
             effects: None,
+            revision: Vec::new(),
             world: Vec::new(),
             rehearsed: None,
             unshown: 0,
@@ -89,6 +94,13 @@ impl Proposed {
     /// `None` when the Session audited no workflow of it (a project file).
     pub(crate) fn reaching(mut self, effects: Option<Vec<String>>) -> Self {
         self.effects = effects;
+        self
+    }
+
+    /// With how its workflow was revised over the complete document, as the compile record
+    /// states it, and whether each row needs attention.
+    pub(crate) fn revising(mut self, revision: Vec<(String, bool)>) -> Self {
+        self.revision = revision;
         self
     }
 
@@ -176,6 +188,11 @@ impl Proposed {
                 Role::Warn,
             ));
         }
+        rows.extend(
+            self.revision
+                .iter()
+                .map(|(words, warn)| (words.clone(), if *warn { Role::Warn } else { Role::Dim })),
+        );
         match self.effects.as_deref() {
             None => rows.push((
                 format!("when it runs{sep}not a workflow the Session audited: it runs nothing"),

@@ -253,3 +253,43 @@ fn the_face_states_where_the_pending_bytes_reach_as_declared() {
         .unwrap_or_else(|| panic!("a reach row: {rows:?}"));
     assert!(reach.contains("local only"), "{reach}");
 }
+
+/// What the compiler did to the document is said as it is: the changed paths, each component
+/// with its version, witness and bindings; a whole rewrite and a component no longer as bound
+/// are warnings.
+#[test]
+fn a_revision_names_what_changed_and_warns_on_a_rewrite_or_a_moved_component() {
+    use nika_session::work::DocumentRevision;
+    let record = serde_json::json!({"mode": "operations", "candidate_sha256": "c",
+        "changed": ["const.max_age_hours", "component block:stale-filter-report"],
+        "components": [{"component": {"id": "block:stale-filter-report",
+            "release": {"version": "r1"}},
+            "bindings": [{"path": "const.max_age_hours", "bound": 72}]}]});
+    let expanded = DocumentRevision::of(&record, &["expanded".to_owned()]).expect("revision");
+    assert_eq!(
+        super::revised(&expanded),
+        vec![
+            (
+                "revised in place · const.max_age_hours, component block:stale-filter-report"
+                    .to_owned(),
+                false
+            ),
+            (
+                "component · block:stale-filter-report r1 · expanded · const.max_age_hours = 72"
+                    .to_owned(),
+                false
+            ),
+        ]
+    );
+    let moved = DocumentRevision::of(&record, &["revised".to_owned()]).expect("revision");
+    assert!(super::revised(&moved)[1].1, "no longer as bound: a warning");
+    let whole = serde_json::json!({"mode": "replaced", "candidate_sha256": "c"});
+    let whole = DocumentRevision::of(&whole, &[]).expect("revision");
+    assert_eq!(
+        super::revised(&whole),
+        vec![(
+            "rewritten whole · no preservation of the earlier bytes is claimed".to_owned(),
+            true
+        )]
+    );
+}
