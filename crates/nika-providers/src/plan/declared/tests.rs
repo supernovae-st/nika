@@ -292,8 +292,9 @@ mod seats {
         );
     }
 
-    /// Spec fixture 014 · an `infer:` task over codex ACP has no attested
-    /// one-shot: refused before task 1, the role named, no seat spawned.
+    /// Spec fixture 014 · an `infer:` task over codex ACP has no qualified
+    /// one-shot: refused before task 1, the role and the open gap named, no
+    /// seat spawned.
     #[test]
     fn an_infer_task_over_an_acp_route_without_a_one_shot_refuses() {
         let probes = vec![
@@ -306,7 +307,8 @@ mod seats {
         assert_eq!(code, "1800");
         assert!(
             message.contains("`infer:` tasks cannot ride `codex`")
-                && message.contains("codex exec")
+                && message.contains("no qualified tool-free ACP one-shot profile yet")
+                && message.contains("CODEX_CONFIG")
                 && message.contains("run.access.protocol: acp"),
             "{message}"
         );
