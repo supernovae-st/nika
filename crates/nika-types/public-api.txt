@@ -52,6 +52,99 @@ pub unsafe fn nika_types::access::AccessClass::clone_to_uninit(&self, dest: *mut
 impl<T> core::convert::From<T> for nika_types::access::AccessClass
 pub fn nika_types::access::AccessClass::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessClass where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::access::AccessFallback
+pub nika_types::access::AccessFallback::None
+impl nika_types::access::AccessFallback
+pub const fn nika_types::access::AccessFallback::as_str(self) -> &'static str
+pub fn nika_types::access::AccessFallback::parse(word: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_types::access::AccessFallback
+pub fn nika_types::access::AccessFallback::clone(&self) -> nika_types::access::AccessFallback
+impl core::cmp::Eq for nika_types::access::AccessFallback
+impl core::cmp::PartialEq for nika_types::access::AccessFallback
+pub fn nika_types::access::AccessFallback::eq(&self, other: &nika_types::access::AccessFallback) -> bool
+impl core::fmt::Debug for nika_types::access::AccessFallback
+pub fn nika_types::access::AccessFallback::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::AccessFallback
+pub fn nika_types::access::AccessFallback::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::access::AccessFallback
+impl core::marker::StructuralPartialEq for nika_types::access::AccessFallback
+impl serde_core::ser::Serialize for nika_types::access::AccessFallback
+pub fn nika_types::access::AccessFallback::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::AccessFallback
+pub fn nika_types::access::AccessFallback::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::AccessFallback where U: core::convert::From<T>
+pub fn nika_types::access::AccessFallback::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::AccessFallback where U: core::convert::Into<T>
+pub type nika_types::access::AccessFallback::Error = core::convert::Infallible
+pub fn nika_types::access::AccessFallback::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::AccessFallback where U: core::convert::TryFrom<T>
+pub type nika_types::access::AccessFallback::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::AccessFallback::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::AccessFallback where T: core::clone::Clone
+pub type nika_types::access::AccessFallback::Owned = T
+pub fn nika_types::access::AccessFallback::clone_into(&self, target: &mut T)
+pub fn nika_types::access::AccessFallback::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::access::AccessFallback where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::AccessFallback::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::AccessFallback where T: ?core::marker::Sized
+pub fn nika_types::access::AccessFallback::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::AccessFallback where T: ?core::marker::Sized
+pub fn nika_types::access::AccessFallback::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::AccessFallback where T: core::clone::Clone
+pub unsafe fn nika_types::access::AccessFallback::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::AccessFallback
+pub fn nika_types::access::AccessFallback::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessFallback where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::access::AccessProtocol
+pub nika_types::access::AccessProtocol::Acp
+pub nika_types::access::AccessProtocol::Api
+impl nika_types::access::AccessProtocol
+pub const nika_types::access::AccessProtocol::ALL: [Self; 2]
+pub const fn nika_types::access::AccessProtocol::admits(self, class: nika_types::access::AccessClass) -> bool
+pub const fn nika_types::access::AccessProtocol::as_str(self) -> &'static str
+pub fn nika_types::access::AccessProtocol::parse(word: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_types::access::AccessProtocol
+pub fn nika_types::access::AccessProtocol::clone(&self) -> nika_types::access::AccessProtocol
+impl core::cmp::Eq for nika_types::access::AccessProtocol
+impl core::cmp::PartialEq for nika_types::access::AccessProtocol
+pub fn nika_types::access::AccessProtocol::eq(&self, other: &nika_types::access::AccessProtocol) -> bool
+impl core::fmt::Debug for nika_types::access::AccessProtocol
+pub fn nika_types::access::AccessProtocol::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::access::AccessProtocol
+pub fn nika_types::access::AccessProtocol::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::AccessProtocol
+pub fn nika_types::access::AccessProtocol::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::access::AccessProtocol
+impl core::marker::StructuralPartialEq for nika_types::access::AccessProtocol
+impl serde_core::ser::Serialize for nika_types::access::AccessProtocol
+pub fn nika_types::access::AccessProtocol::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::AccessProtocol
+pub fn nika_types::access::AccessProtocol::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::AccessProtocol where U: core::convert::From<T>
+pub fn nika_types::access::AccessProtocol::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::AccessProtocol where U: core::convert::Into<T>
+pub type nika_types::access::AccessProtocol::Error = core::convert::Infallible
+pub fn nika_types::access::AccessProtocol::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::AccessProtocol where U: core::convert::TryFrom<T>
+pub type nika_types::access::AccessProtocol::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::AccessProtocol::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::AccessProtocol where T: core::clone::Clone
+pub type nika_types::access::AccessProtocol::Owned = T
+pub fn nika_types::access::AccessProtocol::clone_into(&self, target: &mut T)
+pub fn nika_types::access::AccessProtocol::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::access::AccessProtocol where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::access::AccessProtocol::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::access::AccessProtocol where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::AccessProtocol::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::AccessProtocol where T: ?core::marker::Sized
+pub fn nika_types::access::AccessProtocol::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::AccessProtocol where T: ?core::marker::Sized
+pub fn nika_types::access::AccessProtocol::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::AccessProtocol where T: core::clone::Clone
+pub unsafe fn nika_types::access::AccessProtocol::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::AccessProtocol
+pub fn nika_types::access::AccessProtocol::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessProtocol where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_types::access::BillingClass
 pub nika_types::access::BillingClass::ApiMetered
 pub nika_types::access::BillingClass::CreditMetered
@@ -360,10 +453,14 @@ pub nika_types::access::AccessPlan::outranked: alloc::vec::Vec<nika_types::acces
 pub nika_types::access::AccessPlan::pinned: bool
 pub nika_types::access::AccessPlan::provider: alloc::string::String
 pub nika_types::access::AccessPlan::rejected: alloc::vec::Vec<nika_types::access::AccessRejection>
+pub nika_types::access::AccessPlan::requirement: core::option::Option<alloc::boxed::Box<nika_types::access::AccessRequirement>>
+pub nika_types::access::AccessPlan::selection: core::option::Option<alloc::boxed::Box<nika_types::access::SelectionEvidence>>
 pub nika_types::access::AccessPlan::trust: nika_types::access::Trust
 impl nika_types::access::AccessPlan
 pub fn nika_types::access::AccessPlan::new(model: impl core::convert::Into<alloc::string::String>, provider: impl core::convert::Into<alloc::string::String>, access: impl core::convert::Into<alloc::string::String>, chosen: nika_types::access::AccessClass, billing: nika_types::access::BillingClass, pinned: bool, rejected: alloc::vec::Vec<nika_types::access::AccessRejection>) -> Self
 pub fn nika_types::access::AccessPlan::with_outranked(self, outranked: alloc::vec::Vec<nika_types::access::AccessRejection>) -> Self
+pub fn nika_types::access::AccessPlan::with_requirement(self, requirement: core::option::Option<nika_types::access::AccessRequirement>) -> Self
+pub fn nika_types::access::AccessPlan::with_selection(self, selection: core::option::Option<nika_types::access::SelectionEvidence>) -> Self
 pub const fn nika_types::access::AccessPlan::with_trust(self, trust: nika_types::access::Trust) -> Self
 impl core::clone::Clone for nika_types::access::AccessPlan
 pub fn nika_types::access::AccessPlan::clone(&self) -> nika_types::access::AccessPlan
@@ -487,6 +584,59 @@ pub unsafe fn nika_types::access::AccessRejection::clone_to_uninit(&self, dest: 
 impl<T> core::convert::From<T> for nika_types::access::AccessRejection
 pub fn nika_types::access::AccessRejection::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessRejection where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::access::AccessRequirement
+pub nika_types::access::AccessRequirement::effort: core::option::Option<alloc::string::String>
+pub nika_types::access::AccessRequirement::fallback: core::option::Option<nika_types::access::AccessFallback>
+pub nika_types::access::AccessRequirement::protocol: core::option::Option<nika_types::access::AccessProtocol>
+pub nika_types::access::AccessRequirement::via: core::option::Option<alloc::string::String>
+impl nika_types::access::AccessRequirement
+pub fn nika_types::access::AccessRequirement::identity(&self) -> alloc::string::String
+pub fn nika_types::access::AccessRequirement::new() -> Self
+pub const fn nika_types::access::AccessRequirement::selects_path(&self) -> bool
+pub fn nika_types::access::AccessRequirement::to_json(&self) -> serde_json::value::Value
+pub fn nika_types::access::AccessRequirement::with_effort(self, effort: core::option::Option<alloc::string::String>) -> Self
+pub const fn nika_types::access::AccessRequirement::with_fallback(self, fallback: core::option::Option<nika_types::access::AccessFallback>) -> Self
+pub const fn nika_types::access::AccessRequirement::with_protocol(self, protocol: core::option::Option<nika_types::access::AccessProtocol>) -> Self
+pub fn nika_types::access::AccessRequirement::with_via(self, via: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_types::access::AccessRequirement
+pub fn nika_types::access::AccessRequirement::clone(&self) -> nika_types::access::AccessRequirement
+impl core::cmp::Eq for nika_types::access::AccessRequirement
+impl core::cmp::PartialEq for nika_types::access::AccessRequirement
+pub fn nika_types::access::AccessRequirement::eq(&self, other: &nika_types::access::AccessRequirement) -> bool
+impl core::default::Default for nika_types::access::AccessRequirement
+pub fn nika_types::access::AccessRequirement::default() -> nika_types::access::AccessRequirement
+impl core::fmt::Debug for nika_types::access::AccessRequirement
+pub fn nika_types::access::AccessRequirement::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::AccessRequirement
+pub fn nika_types::access::AccessRequirement::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_types::access::AccessRequirement
+impl serde_core::ser::Serialize for nika_types::access::AccessRequirement
+pub fn nika_types::access::AccessRequirement::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::AccessRequirement
+pub fn nika_types::access::AccessRequirement::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::AccessRequirement where U: core::convert::From<T>
+pub fn nika_types::access::AccessRequirement::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::AccessRequirement where U: core::convert::Into<T>
+pub type nika_types::access::AccessRequirement::Error = core::convert::Infallible
+pub fn nika_types::access::AccessRequirement::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::AccessRequirement where U: core::convert::TryFrom<T>
+pub type nika_types::access::AccessRequirement::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::AccessRequirement::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::AccessRequirement where T: core::clone::Clone
+pub type nika_types::access::AccessRequirement::Owned = T
+pub fn nika_types::access::AccessRequirement::clone_into(&self, target: &mut T)
+pub fn nika_types::access::AccessRequirement::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::access::AccessRequirement where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::AccessRequirement::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::AccessRequirement where T: ?core::marker::Sized
+pub fn nika_types::access::AccessRequirement::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::AccessRequirement where T: ?core::marker::Sized
+pub fn nika_types::access::AccessRequirement::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::AccessRequirement where T: core::clone::Clone
+pub unsafe fn nika_types::access::AccessRequirement::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::AccessRequirement
+pub fn nika_types::access::AccessRequirement::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessRequirement where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::access::HarnessRuntime
 pub nika_types::access::HarnessRuntime::acp_bin: &'static str
 pub nika_types::access::HarnessRuntime::detect_bin: &'static str
@@ -541,6 +691,110 @@ impl<T> core::clone::CloneToUninit for nika_types::access::HarnessRuntime where 
 pub unsafe fn nika_types::access::HarnessRuntime::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::access::HarnessRuntime
 pub fn nika_types::access::HarnessRuntime::from(t: T) -> T
+#[non_exhaustive] pub struct nika_types::access::SelectedValue
+pub nika_types::access::SelectedValue::configured: core::option::Option<alloc::string::String>
+pub nika_types::access::SelectedValue::configured_source: core::option::Option<alloc::string::String>
+pub nika_types::access::SelectedValue::option: core::option::Option<alloc::string::String>
+pub nika_types::access::SelectedValue::requested: core::option::Option<alloc::string::String>
+pub nika_types::access::SelectedValue::transmitted: core::option::Option<alloc::string::String>
+impl nika_types::access::SelectedValue
+pub fn nika_types::access::SelectedValue::configured(self, value: core::option::Option<alloc::string::String>, source: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_types::access::SelectedValue::new() -> Self
+pub fn nika_types::access::SelectedValue::requested(self, value: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_types::access::SelectedValue::transmitted(self, option: core::option::Option<alloc::string::String>, value: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_types::access::SelectedValue
+pub fn nika_types::access::SelectedValue::clone(&self) -> nika_types::access::SelectedValue
+impl core::cmp::Eq for nika_types::access::SelectedValue
+impl core::cmp::PartialEq for nika_types::access::SelectedValue
+pub fn nika_types::access::SelectedValue::eq(&self, other: &nika_types::access::SelectedValue) -> bool
+impl core::default::Default for nika_types::access::SelectedValue
+pub fn nika_types::access::SelectedValue::default() -> nika_types::access::SelectedValue
+impl core::fmt::Debug for nika_types::access::SelectedValue
+pub fn nika_types::access::SelectedValue::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::SelectedValue
+pub fn nika_types::access::SelectedValue::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_types::access::SelectedValue
+impl serde_core::ser::Serialize for nika_types::access::SelectedValue
+pub fn nika_types::access::SelectedValue::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::SelectedValue
+pub fn nika_types::access::SelectedValue::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::SelectedValue where U: core::convert::From<T>
+pub fn nika_types::access::SelectedValue::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::SelectedValue where U: core::convert::Into<T>
+pub type nika_types::access::SelectedValue::Error = core::convert::Infallible
+pub fn nika_types::access::SelectedValue::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::SelectedValue where U: core::convert::TryFrom<T>
+pub type nika_types::access::SelectedValue::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::SelectedValue::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::SelectedValue where T: core::clone::Clone
+pub type nika_types::access::SelectedValue::Owned = T
+pub fn nika_types::access::SelectedValue::clone_into(&self, target: &mut T)
+pub fn nika_types::access::SelectedValue::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::access::SelectedValue where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::SelectedValue::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::SelectedValue where T: ?core::marker::Sized
+pub fn nika_types::access::SelectedValue::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::SelectedValue where T: ?core::marker::Sized
+pub fn nika_types::access::SelectedValue::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::SelectedValue where T: core::clone::Clone
+pub unsafe fn nika_types::access::SelectedValue::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::SelectedValue
+pub fn nika_types::access::SelectedValue::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::SelectedValue where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::access::SelectionEvidence
+pub nika_types::access::SelectionEvidence::changed_mid_turn: alloc::vec::Vec<alloc::string::String>
+pub nika_types::access::SelectionEvidence::effort: nika_types::access::SelectedValue
+pub nika_types::access::SelectionEvidence::model: nika_types::access::SelectedValue
+pub nika_types::access::SelectionEvidence::protocol: core::option::Option<nika_types::access::AccessProtocol>
+pub nika_types::access::SelectionEvidence::responder: core::option::Option<alloc::string::String>
+pub nika_types::access::SelectionEvidence::responder_source: core::option::Option<alloc::string::String>
+impl nika_types::access::SelectionEvidence
+pub const nika_types::access::SelectionEvidence::SCHEMA: &'static str
+pub fn nika_types::access::SelectionEvidence::new(protocol: core::option::Option<nika_types::access::AccessProtocol>) -> Self
+pub fn nika_types::access::SelectionEvidence::to_json(&self) -> serde_json::value::Value
+pub fn nika_types::access::SelectionEvidence::with_changes(self, changes: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_types::access::SelectionEvidence::with_effort(self, effort: nika_types::access::SelectedValue) -> Self
+pub fn nika_types::access::SelectionEvidence::with_model(self, model: nika_types::access::SelectedValue) -> Self
+pub fn nika_types::access::SelectionEvidence::with_responder(self, model: core::option::Option<alloc::string::String>, source: &'static str) -> Self
+impl core::clone::Clone for nika_types::access::SelectionEvidence
+pub fn nika_types::access::SelectionEvidence::clone(&self) -> nika_types::access::SelectionEvidence
+impl core::cmp::Eq for nika_types::access::SelectionEvidence
+impl core::cmp::PartialEq for nika_types::access::SelectionEvidence
+pub fn nika_types::access::SelectionEvidence::eq(&self, other: &nika_types::access::SelectionEvidence) -> bool
+impl core::default::Default for nika_types::access::SelectionEvidence
+pub fn nika_types::access::SelectionEvidence::default() -> nika_types::access::SelectionEvidence
+impl core::fmt::Debug for nika_types::access::SelectionEvidence
+pub fn nika_types::access::SelectionEvidence::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::SelectionEvidence
+pub fn nika_types::access::SelectionEvidence::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_types::access::SelectionEvidence
+impl serde_core::ser::Serialize for nika_types::access::SelectionEvidence
+pub fn nika_types::access::SelectionEvidence::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::SelectionEvidence
+pub fn nika_types::access::SelectionEvidence::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::SelectionEvidence where U: core::convert::From<T>
+pub fn nika_types::access::SelectionEvidence::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::SelectionEvidence where U: core::convert::Into<T>
+pub type nika_types::access::SelectionEvidence::Error = core::convert::Infallible
+pub fn nika_types::access::SelectionEvidence::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::SelectionEvidence where U: core::convert::TryFrom<T>
+pub type nika_types::access::SelectionEvidence::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::SelectionEvidence::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::SelectionEvidence where T: core::clone::Clone
+pub type nika_types::access::SelectionEvidence::Owned = T
+pub fn nika_types::access::SelectionEvidence::clone_into(&self, target: &mut T)
+pub fn nika_types::access::SelectionEvidence::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::access::SelectionEvidence where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::SelectionEvidence::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::SelectionEvidence where T: ?core::marker::Sized
+pub fn nika_types::access::SelectionEvidence::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::SelectionEvidence where T: ?core::marker::Sized
+pub fn nika_types::access::SelectionEvidence::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::SelectionEvidence where T: core::clone::Clone
+pub unsafe fn nika_types::access::SelectionEvidence::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::SelectionEvidence
+pub fn nika_types::access::SelectionEvidence::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::SelectionEvidence where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_types::baggage
 #[non_exhaustive] pub struct nika_types::baggage::Baggage
 pub nika_types::baggage::Baggage::entries: alloc::vec::Vec<nika_types::baggage::BaggageEntry>

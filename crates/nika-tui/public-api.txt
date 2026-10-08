@@ -1717,6 +1717,7 @@ pub mod nika_tui::workspace::candidate
 #[non_exhaustive] pub struct nika_tui::workspace::candidate::Proposed
 impl nika_tui::workspace::candidate::Proposed
 pub fn nika_tui::workspace::candidate::Proposed::aside(&self) -> bool
+pub fn nika_tui::workspace::candidate::Proposed::draft(&self) -> bool
 pub fn nika_tui::workspace::candidate::Proposed::face_lines(&self, face: nika_tui_view::workflow::Face, width: u16, ascii: bool, color: bool) -> (ratatui_core::text::line::Line<'static>, alloc::vec::Vec<ratatui_core::text::line::Line<'static>>)
 pub fn nika_tui::workspace::candidate::Proposed::id(&self) -> &nika_session_change::outcome::ProposalId
 pub fn nika_tui::workspace::candidate::Proposed::label(&self) -> alloc::string::String

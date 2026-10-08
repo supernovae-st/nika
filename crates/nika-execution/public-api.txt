@@ -614,6 +614,7 @@ pub type nika_execution::WireLimits::Output = T
 pub const nika_execution::SNAPSHOT_FORMAT_VERSION: u32
 pub const nika_execution::WIRE_UNIT_CEILING: usize
 pub fn nika_execution::check_wire(encoded: &str, limits: nika_execution::WireLimits) -> core::result::Result<(), nika_execution::WireRefusal>
+pub fn nika_execution::check_world(snapshot: &nika_execution::ExecutionSnapshot) -> core::result::Result<(), nika_execution::ExecutionError>
 pub fn nika_execution::model_admission_findings(workflow: &nika_schema::raw::workflow::RawWorkflow, model_override: core::option::Option<&str>) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_execution::model_admission_findings_for_plan(workflow: &nika_schema::raw::workflow::RawWorkflow, model_override: core::option::Option<&str>, probes: &[nika_providers::probe::ProviderProbe], plan: core::option::Option<&nika_providers::plan::ExecutionAccessPlan>) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_execution::model_admission_findings_over(workflow: &nika_schema::raw::workflow::RawWorkflow, model_override: core::option::Option<&str>, probes: &[nika_providers::probe::ProviderProbe]) -> alloc::vec::Vec<alloc::string::String>

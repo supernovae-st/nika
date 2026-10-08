@@ -34,6 +34,7 @@ impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_h
 pub async fn nika_harness::authoring::HarnessAuthoring::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
 pub fn nika_harness::authoring::model_argument(adapter: &str, model: core::option::Option<&str>) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub async fn nika_harness::authoring::reason(adapter: &str, model: core::option::Option<&str>, transport: nika_types::access::HarnessTransport, prompt: &str) -> core::result::Result<(alloc::string::String, bool), alloc::string::String>
+pub async fn nika_harness::authoring::reason_with_effort(adapter: &str, model: core::option::Option<&str>, transport: nika_types::access::HarnessTransport, prompt: &str, effort: core::option::Option<nika_kernel_ai::provider::ReasoningEffort>) -> core::result::Result<(alloc::string::String, bool), alloc::string::String>
 pub fn nika_harness::authoring::validate_selection(adapter: &str, model: core::option::Option<&str>, transport: nika_types::access::HarnessTransport) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub mod nika_harness::client
 pub const nika_harness::client::IDLE_TIMEOUT_SECS: u64
@@ -205,6 +206,7 @@ pub fn nika_harness::infer::HarnessInferOutcome::as_any(&self) -> &(dyn core::an
 impl<T> typenum::type_operators::Same for nika_harness::infer::HarnessInferOutcome
 pub type nika_harness::infer::HarnessInferOutcome::Output = T
 #[non_exhaustive] pub struct nika_harness::infer::HarnessInferRequest
+pub nika_harness::infer::HarnessInferRequest::effort: core::option::Option<alloc::string::String>
 pub nika_harness::infer::HarnessInferRequest::prompt: alloc::string::String
 pub nika_harness::infer::HarnessInferRequest::requested_model: alloc::string::String
 pub nika_harness::infer::HarnessInferRequest::schema: core::option::Option<serde_json::value::Value>
@@ -212,6 +214,7 @@ pub nika_harness::infer::HarnessInferRequest::system: core::option::Option<alloc
 pub nika_harness::infer::HarnessInferRequest::timeout: core::option::Option<core::time::Duration>
 impl nika_harness::infer::HarnessInferRequest
 pub fn nika_harness::infer::HarnessInferRequest::new(prompt: impl core::convert::Into<alloc::string::String>, requested_model: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_harness::infer::HarnessInferRequest::with_effort(self, effort: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_harness::infer::HarnessInferRequest::with_schema(self, schema: core::option::Option<serde_json::value::Value>) -> Self
 pub fn nika_harness::infer::HarnessInferRequest::with_system(self, system: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_harness::infer::HarnessInferRequest::with_timeout(self, timeout: core::option::Option<core::time::Duration>) -> Self
@@ -537,6 +540,94 @@ pub type nika_harness::registry::AdapterRow::Output = T
 pub const nika_harness::registry::DISABLE_ENV: &str
 pub fn nika_harness::registry::registry() -> core::result::Result<alloc::vec::Vec<nika_harness::registry::AdapterRow>, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::registry::registry_with(env: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<alloc::vec::Vec<nika_harness::registry::AdapterRow>, nika_kernel_ai::harness::HarnessError>
+pub mod nika_harness::run_acp
+#[non_exhaustive] pub struct nika_harness::run_acp::AcpOneShot
+pub nika_harness::run_acp::AcpOneShot::attestation: nika_harness::infer::InferGradeAttestation
+pub nika_harness::run_acp::AcpOneShot::seat: &'static str
+impl nika_harness::run_acp::AcpOneShot
+pub fn nika_harness::run_acp::AcpOneShot::drive<R, W>(self, reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
+pub fn nika_harness::run_acp::AcpOneShot::grade(self, need: nika_harness::infer::StructuredOutputGrade) -> core::result::Result<Self, nika_harness::run_acp::AcpOneShotRefused>
+pub async fn nika_harness::run_acp::AcpOneShot::run(self, request: nika_kernel_ai::harness::HarnessRequest, timeout: core::option::Option<core::time::Duration>) -> core::result::Result<nika_kernel_ai::harness::HarnessOutcome, nika_kernel_ai::harness::HarnessError>
+pub async fn nika_harness::run_acp::AcpOneShot::run_over(self, transport: &(dyn nika_kernel_ai::harness::DynAgentBackend + '_), request: nika_kernel_ai::harness::HarnessRequest, timeout: core::option::Option<core::time::Duration>) -> core::result::Result<nika_kernel_ai::harness::HarnessOutcome, nika_kernel_ai::harness::HarnessError>
+impl core::clone::Clone for nika_harness::run_acp::AcpOneShot
+pub fn nika_harness::run_acp::AcpOneShot::clone(&self) -> nika_harness::run_acp::AcpOneShot
+impl core::cmp::Eq for nika_harness::run_acp::AcpOneShot
+impl core::cmp::PartialEq for nika_harness::run_acp::AcpOneShot
+pub fn nika_harness::run_acp::AcpOneShot::eq(&self, other: &nika_harness::run_acp::AcpOneShot) -> bool
+impl core::fmt::Debug for nika_harness::run_acp::AcpOneShot
+pub fn nika_harness::run_acp::AcpOneShot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::run_acp::AcpOneShot
+impl core::marker::StructuralPartialEq for nika_harness::run_acp::AcpOneShot
+impl<D> owo_colors::OwoColorize for nika_harness::run_acp::AcpOneShot
+impl<T, U> core::convert::Into<U> for nika_harness::run_acp::AcpOneShot where U: core::convert::From<T>
+pub fn nika_harness::run_acp::AcpOneShot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::run_acp::AcpOneShot where U: core::convert::Into<T>
+pub type nika_harness::run_acp::AcpOneShot::Error = core::convert::Infallible
+pub fn nika_harness::run_acp::AcpOneShot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::run_acp::AcpOneShot where U: core::convert::TryFrom<T>
+pub type nika_harness::run_acp::AcpOneShot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::run_acp::AcpOneShot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::run_acp::AcpOneShot where T: core::clone::Clone
+pub type nika_harness::run_acp::AcpOneShot::Owned = T
+pub fn nika_harness::run_acp::AcpOneShot::clone_into(&self, target: &mut T)
+pub fn nika_harness::run_acp::AcpOneShot::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::run_acp::AcpOneShot where T: 'static + ?core::marker::Sized
+pub fn nika_harness::run_acp::AcpOneShot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::run_acp::AcpOneShot where T: ?core::marker::Sized
+pub fn nika_harness::run_acp::AcpOneShot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::run_acp::AcpOneShot where T: ?core::marker::Sized
+pub fn nika_harness::run_acp::AcpOneShot::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::run_acp::AcpOneShot where T: core::clone::Clone
+pub unsafe fn nika_harness::run_acp::AcpOneShot::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::run_acp::AcpOneShot
+pub fn nika_harness::run_acp::AcpOneShot::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::run_acp::AcpOneShot where T: 'static
+pub fn nika_harness::run_acp::AcpOneShot::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::run_acp::AcpOneShot
+pub type nika_harness::run_acp::AcpOneShot::Output = T
+#[non_exhaustive] pub struct nika_harness::run_acp::AcpOneShotRefused
+pub nika_harness::run_acp::AcpOneShotRefused::witness: alloc::string::String
+impl core::clone::Clone for nika_harness::run_acp::AcpOneShotRefused
+pub fn nika_harness::run_acp::AcpOneShotRefused::clone(&self) -> nika_harness::run_acp::AcpOneShotRefused
+impl core::cmp::Eq for nika_harness::run_acp::AcpOneShotRefused
+impl core::cmp::PartialEq for nika_harness::run_acp::AcpOneShotRefused
+pub fn nika_harness::run_acp::AcpOneShotRefused::eq(&self, other: &nika_harness::run_acp::AcpOneShotRefused) -> bool
+impl core::error::Error for nika_harness::run_acp::AcpOneShotRefused
+impl core::fmt::Debug for nika_harness::run_acp::AcpOneShotRefused
+pub fn nika_harness::run_acp::AcpOneShotRefused::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_harness::run_acp::AcpOneShotRefused
+pub fn nika_harness::run_acp::AcpOneShotRefused::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::run_acp::AcpOneShotRefused
+impl<D> owo_colors::OwoColorize for nika_harness::run_acp::AcpOneShotRefused
+impl<T, U> core::convert::Into<U> for nika_harness::run_acp::AcpOneShotRefused where U: core::convert::From<T>
+pub fn nika_harness::run_acp::AcpOneShotRefused::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::run_acp::AcpOneShotRefused where U: core::convert::Into<T>
+pub type nika_harness::run_acp::AcpOneShotRefused::Error = core::convert::Infallible
+pub fn nika_harness::run_acp::AcpOneShotRefused::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::run_acp::AcpOneShotRefused where U: core::convert::TryFrom<T>
+pub type nika_harness::run_acp::AcpOneShotRefused::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::run_acp::AcpOneShotRefused::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::run_acp::AcpOneShotRefused where T: core::clone::Clone
+pub type nika_harness::run_acp::AcpOneShotRefused::Owned = T
+pub fn nika_harness::run_acp::AcpOneShotRefused::clone_into(&self, target: &mut T)
+pub fn nika_harness::run_acp::AcpOneShotRefused::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_harness::run_acp::AcpOneShotRefused where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_harness::run_acp::AcpOneShotRefused::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_harness::run_acp::AcpOneShotRefused where T: 'static + ?core::marker::Sized
+pub fn nika_harness::run_acp::AcpOneShotRefused::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::run_acp::AcpOneShotRefused where T: ?core::marker::Sized
+pub fn nika_harness::run_acp::AcpOneShotRefused::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::run_acp::AcpOneShotRefused where T: ?core::marker::Sized
+pub fn nika_harness::run_acp::AcpOneShotRefused::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::run_acp::AcpOneShotRefused where T: core::clone::Clone
+pub unsafe fn nika_harness::run_acp::AcpOneShotRefused::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::run_acp::AcpOneShotRefused
+pub fn nika_harness::run_acp::AcpOneShotRefused::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::run_acp::AcpOneShotRefused where T: 'static
+pub fn nika_harness::run_acp::AcpOneShotRefused::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::run_acp::AcpOneShotRefused
+pub type nika_harness::run_acp::AcpOneShotRefused::Output = T
+pub fn nika_harness::run_acp::meet_acp_one_shot(seat: &str) -> core::result::Result<nika_harness::run_acp::AcpOneShot, nika_harness::run_acp::AcpOneShotRefused>
 pub mod nika_harness::spawn
 #[non_exhaustive] pub struct nika_harness::spawn::HarnessAdapter
 pub nika_harness::spawn::HarnessAdapter::args: alloc::vec::Vec<alloc::string::String>
@@ -1213,6 +1304,92 @@ impl<T> nika_error::traits::AsAny for nika_harness::infer::StructuredOutputGrade
 pub fn nika_harness::infer::StructuredOutputGrade::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_harness::infer::StructuredOutputGrade
 pub type nika_harness::infer::StructuredOutputGrade::Output = T
+#[non_exhaustive] pub struct nika_harness::AcpOneShot
+pub nika_harness::AcpOneShot::attestation: nika_harness::infer::InferGradeAttestation
+pub nika_harness::AcpOneShot::seat: &'static str
+impl nika_harness::run_acp::AcpOneShot
+pub fn nika_harness::run_acp::AcpOneShot::drive<R, W>(self, reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
+pub fn nika_harness::run_acp::AcpOneShot::grade(self, need: nika_harness::infer::StructuredOutputGrade) -> core::result::Result<Self, nika_harness::run_acp::AcpOneShotRefused>
+pub async fn nika_harness::run_acp::AcpOneShot::run(self, request: nika_kernel_ai::harness::HarnessRequest, timeout: core::option::Option<core::time::Duration>) -> core::result::Result<nika_kernel_ai::harness::HarnessOutcome, nika_kernel_ai::harness::HarnessError>
+pub async fn nika_harness::run_acp::AcpOneShot::run_over(self, transport: &(dyn nika_kernel_ai::harness::DynAgentBackend + '_), request: nika_kernel_ai::harness::HarnessRequest, timeout: core::option::Option<core::time::Duration>) -> core::result::Result<nika_kernel_ai::harness::HarnessOutcome, nika_kernel_ai::harness::HarnessError>
+impl core::clone::Clone for nika_harness::run_acp::AcpOneShot
+pub fn nika_harness::run_acp::AcpOneShot::clone(&self) -> nika_harness::run_acp::AcpOneShot
+impl core::cmp::Eq for nika_harness::run_acp::AcpOneShot
+impl core::cmp::PartialEq for nika_harness::run_acp::AcpOneShot
+pub fn nika_harness::run_acp::AcpOneShot::eq(&self, other: &nika_harness::run_acp::AcpOneShot) -> bool
+impl core::fmt::Debug for nika_harness::run_acp::AcpOneShot
+pub fn nika_harness::run_acp::AcpOneShot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::run_acp::AcpOneShot
+impl core::marker::StructuralPartialEq for nika_harness::run_acp::AcpOneShot
+impl<D> owo_colors::OwoColorize for nika_harness::run_acp::AcpOneShot
+impl<T, U> core::convert::Into<U> for nika_harness::run_acp::AcpOneShot where U: core::convert::From<T>
+pub fn nika_harness::run_acp::AcpOneShot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::run_acp::AcpOneShot where U: core::convert::Into<T>
+pub type nika_harness::run_acp::AcpOneShot::Error = core::convert::Infallible
+pub fn nika_harness::run_acp::AcpOneShot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::run_acp::AcpOneShot where U: core::convert::TryFrom<T>
+pub type nika_harness::run_acp::AcpOneShot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::run_acp::AcpOneShot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::run_acp::AcpOneShot where T: core::clone::Clone
+pub type nika_harness::run_acp::AcpOneShot::Owned = T
+pub fn nika_harness::run_acp::AcpOneShot::clone_into(&self, target: &mut T)
+pub fn nika_harness::run_acp::AcpOneShot::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::run_acp::AcpOneShot where T: 'static + ?core::marker::Sized
+pub fn nika_harness::run_acp::AcpOneShot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::run_acp::AcpOneShot where T: ?core::marker::Sized
+pub fn nika_harness::run_acp::AcpOneShot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::run_acp::AcpOneShot where T: ?core::marker::Sized
+pub fn nika_harness::run_acp::AcpOneShot::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::run_acp::AcpOneShot where T: core::clone::Clone
+pub unsafe fn nika_harness::run_acp::AcpOneShot::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::run_acp::AcpOneShot
+pub fn nika_harness::run_acp::AcpOneShot::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::run_acp::AcpOneShot where T: 'static
+pub fn nika_harness::run_acp::AcpOneShot::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::run_acp::AcpOneShot
+pub type nika_harness::run_acp::AcpOneShot::Output = T
+#[non_exhaustive] pub struct nika_harness::AcpOneShotRefused
+pub nika_harness::AcpOneShotRefused::witness: alloc::string::String
+impl core::clone::Clone for nika_harness::run_acp::AcpOneShotRefused
+pub fn nika_harness::run_acp::AcpOneShotRefused::clone(&self) -> nika_harness::run_acp::AcpOneShotRefused
+impl core::cmp::Eq for nika_harness::run_acp::AcpOneShotRefused
+impl core::cmp::PartialEq for nika_harness::run_acp::AcpOneShotRefused
+pub fn nika_harness::run_acp::AcpOneShotRefused::eq(&self, other: &nika_harness::run_acp::AcpOneShotRefused) -> bool
+impl core::error::Error for nika_harness::run_acp::AcpOneShotRefused
+impl core::fmt::Debug for nika_harness::run_acp::AcpOneShotRefused
+pub fn nika_harness::run_acp::AcpOneShotRefused::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_harness::run_acp::AcpOneShotRefused
+pub fn nika_harness::run_acp::AcpOneShotRefused::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::run_acp::AcpOneShotRefused
+impl<D> owo_colors::OwoColorize for nika_harness::run_acp::AcpOneShotRefused
+impl<T, U> core::convert::Into<U> for nika_harness::run_acp::AcpOneShotRefused where U: core::convert::From<T>
+pub fn nika_harness::run_acp::AcpOneShotRefused::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::run_acp::AcpOneShotRefused where U: core::convert::Into<T>
+pub type nika_harness::run_acp::AcpOneShotRefused::Error = core::convert::Infallible
+pub fn nika_harness::run_acp::AcpOneShotRefused::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::run_acp::AcpOneShotRefused where U: core::convert::TryFrom<T>
+pub type nika_harness::run_acp::AcpOneShotRefused::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::run_acp::AcpOneShotRefused::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::run_acp::AcpOneShotRefused where T: core::clone::Clone
+pub type nika_harness::run_acp::AcpOneShotRefused::Owned = T
+pub fn nika_harness::run_acp::AcpOneShotRefused::clone_into(&self, target: &mut T)
+pub fn nika_harness::run_acp::AcpOneShotRefused::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_harness::run_acp::AcpOneShotRefused where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_harness::run_acp::AcpOneShotRefused::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_harness::run_acp::AcpOneShotRefused where T: 'static + ?core::marker::Sized
+pub fn nika_harness::run_acp::AcpOneShotRefused::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::run_acp::AcpOneShotRefused where T: ?core::marker::Sized
+pub fn nika_harness::run_acp::AcpOneShotRefused::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::run_acp::AcpOneShotRefused where T: ?core::marker::Sized
+pub fn nika_harness::run_acp::AcpOneShotRefused::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::run_acp::AcpOneShotRefused where T: core::clone::Clone
+pub unsafe fn nika_harness::run_acp::AcpOneShotRefused::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::run_acp::AcpOneShotRefused
+pub fn nika_harness::run_acp::AcpOneShotRefused::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::run_acp::AcpOneShotRefused where T: 'static
+pub fn nika_harness::run_acp::AcpOneShotRefused::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::run_acp::AcpOneShotRefused
+pub type nika_harness::run_acp::AcpOneShotRefused::Output = T
 #[non_exhaustive] pub struct nika_harness::AdapterProbeRow
 pub nika_harness::AdapterProbeRow::authenticated: core::option::Option<bool>
 pub nika_harness::AdapterProbeRow::id: alloc::string::String
@@ -1388,6 +1565,7 @@ pub fn nika_harness::infer::HarnessInferOutcome::as_any(&self) -> &(dyn core::an
 impl<T> typenum::type_operators::Same for nika_harness::infer::HarnessInferOutcome
 pub type nika_harness::infer::HarnessInferOutcome::Output = T
 #[non_exhaustive] pub struct nika_harness::HarnessInferRequest
+pub nika_harness::HarnessInferRequest::effort: core::option::Option<alloc::string::String>
 pub nika_harness::HarnessInferRequest::prompt: alloc::string::String
 pub nika_harness::HarnessInferRequest::requested_model: alloc::string::String
 pub nika_harness::HarnessInferRequest::schema: core::option::Option<serde_json::value::Value>
@@ -1395,6 +1573,7 @@ pub nika_harness::HarnessInferRequest::system: core::option::Option<alloc::strin
 pub nika_harness::HarnessInferRequest::timeout: core::option::Option<core::time::Duration>
 impl nika_harness::infer::HarnessInferRequest
 pub fn nika_harness::infer::HarnessInferRequest::new(prompt: impl core::convert::Into<alloc::string::String>, requested_model: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_harness::infer::HarnessInferRequest::with_effort(self, effort: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_harness::infer::HarnessInferRequest::with_schema(self, schema: core::option::Option<serde_json::value::Value>) -> Self
 pub fn nika_harness::infer::HarnessInferRequest::with_system(self, system: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_harness::infer::HarnessInferRequest::with_timeout(self, timeout: core::option::Option<core::time::Duration>) -> Self
@@ -1638,6 +1817,7 @@ pub fn nika_harness::declared_adapter_id() -> core::option::Option<alloc::string
 pub fn nika_harness::drive<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub fn nika_harness::drive_with_idle<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest, idle: core::time::Duration) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub fn nika_harness::judge_version(adapter_id: &str, output: &str, pin: &nika_harness::probe::VersionPin) -> core::result::Result<(u32, u32), nika_kernel_ai::harness::HarnessError>
+pub fn nika_harness::meet_acp_one_shot(seat: &str) -> core::result::Result<nika_harness::run_acp::AcpOneShot, nika_harness::run_acp::AcpOneShotRefused>
 pub fn nika_harness::meet_infer_grade(seat: &str, need: nika_harness::infer::StructuredOutputGrade) -> core::result::Result<nika_harness::infer::InferGradeSeat, nika_harness::infer::InferGradeError>
 pub fn nika_harness::parse_version(line: &str) -> core::option::Option<(u32, u32)>
 pub fn nika_harness::presence_facts(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::PresenceFact>

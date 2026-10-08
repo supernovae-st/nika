@@ -121,6 +121,9 @@ impl<T> nika_error::traits::AsAny for nika_verb_agent::config::RouterConfig wher
 pub fn nika_verb_agent::config::RouterConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_verb_agent::errors
 #[non_exhaustive] pub enum nika_verb_agent::errors::VerbAgentError
+pub nika_verb_agent::errors::VerbAgentError::Harness
+pub nika_verb_agent::errors::VerbAgentError::Harness::source: nika_kernel_ai::harness::HarnessError
+pub nika_verb_agent::errors::VerbAgentError::Harness::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::HarnessGate
 pub nika_verb_agent::errors::VerbAgentError::HarnessGate::detail: alloc::string::String
 pub nika_verb_agent::errors::VerbAgentError::HarnessGate::question: alloc::string::String
@@ -737,6 +740,9 @@ pub fn nika_verb_agent::observe::ToolSource::as_any(&self) -> &(dyn core::any::A
 impl<T> outref::AsOut<T> for nika_verb_agent::observe::ToolSource where T: core::marker::Copy
 pub fn nika_verb_agent::observe::ToolSource::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub enum nika_verb_agent::VerbAgentError
+pub nika_verb_agent::VerbAgentError::Harness
+pub nika_verb_agent::VerbAgentError::Harness::source: nika_kernel_ai::harness::HarnessError
+pub nika_verb_agent::VerbAgentError::Harness::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::HarnessGate
 pub nika_verb_agent::VerbAgentError::HarnessGate::detail: alloc::string::String
 pub nika_verb_agent::VerbAgentError::HarnessGate::question: alloc::string::String
@@ -860,6 +866,7 @@ pub nika_verb_agent::AgentInput::model: core::option::Option<alloc::string::Stri
 pub nika_verb_agent::AgentInput::native_only: bool
 pub nika_verb_agent::AgentInput::permits: core::option::Option<nika_cap::permits::Permits>
 pub nika_verb_agent::AgentInput::prompt: alloc::string::String
+pub nika_verb_agent::AgentInput::requirement: core::option::Option<nika_types::access::selection::AccessRequirement>
 pub nika_verb_agent::AgentInput::schema: core::option::Option<serde_json::value::Value>
 pub nika_verb_agent::AgentInput::system: core::option::Option<alloc::string::String>
 pub nika_verb_agent::AgentInput::temperature: core::option::Option<f32>
@@ -867,6 +874,7 @@ pub nika_verb_agent::AgentInput::timeout: core::option::Option<core::time::Durat
 pub nika_verb_agent::AgentInput::tools: alloc::vec::Vec<alloc::string::String>
 impl nika_verb_agent::AgentInput
 pub fn nika_verb_agent::AgentInput::new(prompt: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_verb_agent::AgentInput::with_requirement(self, requirement: core::option::Option<&nika_types::access::selection::AccessRequirement>) -> Self
 impl core::clone::Clone for nika_verb_agent::AgentInput
 pub fn nika_verb_agent::AgentInput::clone(&self) -> nika_verb_agent::AgentInput
 impl core::fmt::Debug for nika_verb_agent::AgentInput
@@ -904,6 +912,7 @@ pub nika_verb_agent::AgentOutput::model_reported: core::option::Option<alloc::st
 pub nika_verb_agent::AgentOutput::model_reported_source: core::option::Option<nika_kernel_ai::harness::ModelProvenance>
 pub nika_verb_agent::AgentOutput::model_resolved: core::option::Option<alloc::string::String>
 pub nika_verb_agent::AgentOutput::output: nika_verb_agent::AgentValue
+pub nika_verb_agent::AgentOutput::selection: core::option::Option<nika_types::access::selection::SelectionEvidence>
 pub nika_verb_agent::AgentOutput::stop_reason: nika_kernel_runtime::agent::AgentStopReason
 pub nika_verb_agent::AgentOutput::tools_cost_usd: core::option::Option<f64>
 pub nika_verb_agent::AgentOutput::total_tokens: u64
@@ -912,6 +921,7 @@ pub nika_verb_agent::AgentOutput::usage: nika_types::token_usage::TokenUsage
 impl nika_verb_agent::AgentOutput
 pub fn nika_verb_agent::AgentOutput::new(output: nika_verb_agent::AgentValue, stop_reason: nika_kernel_runtime::agent::AgentStopReason, turns: u32, total_tokens: u64) -> Self
 pub fn nika_verb_agent::AgentOutput::with_inference_calls(self, calls: alloc::vec::Vec<nika_types::cost::inference::InferenceCall>) -> Self
+pub fn nika_verb_agent::AgentOutput::with_selection(self, selection: core::option::Option<nika_types::access::selection::SelectionEvidence>) -> Self
 pub fn nika_verb_agent::AgentOutput::with_spend_identity(self, usage: nika_types::token_usage::TokenUsage, model_resolved: alloc::string::String) -> Self
 pub fn nika_verb_agent::AgentOutput::with_tools_cost_usd(self, cost: core::option::Option<f64>) -> Self
 impl core::fmt::Debug for nika_verb_agent::AgentOutput

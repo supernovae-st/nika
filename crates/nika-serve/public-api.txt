@@ -2040,6 +2040,7 @@ pub const fn nika_serve::ServerConfig::with_allow_remote(self, allow: bool) -> S
 pub const fn nika_serve::ServerConfig::with_cost_review(self, seat: bool) -> Self
 pub fn nika_serve::ServerConfig::with_native_authoring(self, native: nika_serve::NativeAuthoring) -> Self
 pub fn nika_serve::ServerConfig::with_run_cost_ceiling(self, ceiling: core::option::Option<f64>) -> Self
+pub const fn nika_serve::ServerConfig::with_sessions(self, sessions: bool) -> Self
 impl core::clone::Clone for nika_serve::ServerConfig
 pub fn nika_serve::ServerConfig::clone(&self) -> nika_serve::ServerConfig
 impl core::fmt::Debug for nika_serve::ServerConfig
@@ -4221,6 +4222,7 @@ pub const fn nika_serve::ServerConfig::with_allow_remote(self, allow: bool) -> S
 pub const fn nika_serve::ServerConfig::with_cost_review(self, seat: bool) -> Self
 pub fn nika_serve::ServerConfig::with_native_authoring(self, native: nika_serve::NativeAuthoring) -> Self
 pub fn nika_serve::ServerConfig::with_run_cost_ceiling(self, ceiling: core::option::Option<f64>) -> Self
+pub const fn nika_serve::ServerConfig::with_sessions(self, sessions: bool) -> Self
 impl core::clone::Clone for nika_serve::ServerConfig
 pub fn nika_serve::ServerConfig::clone(&self) -> nika_serve::ServerConfig
 impl core::fmt::Debug for nika_serve::ServerConfig

@@ -942,6 +942,7 @@ pub nika_trace::run_view::KeptRun::chain_len: core::option::Option<u64>
 pub nika_trace::run_view::KeptRun::execution: core::option::Option<alloc::string::String>
 pub nika_trace::run_view::KeptRun::exit: core::option::Option<u8>
 pub nika_trace::run_view::KeptRun::trace: core::option::Option<alloc::string::String>
+pub nika_trace::run_view::KeptRun::trace_opaque: bool
 pub nika_trace::run_view::KeptRun::workflow: core::option::Option<alloc::string::String>
 pub nika_trace::run_view::KeptRun::workflow_sha256: core::option::Option<alloc::string::String>
 impl nika_trace::run_view::KeptRun

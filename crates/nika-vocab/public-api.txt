@@ -371,8 +371,10 @@ pub const nika_vocab::keys::PERMITS_FS_KEYS: &[&str]
 pub const nika_vocab::keys::PERMITS_KEYS: &[&str]
 pub const nika_vocab::keys::PERMITS_NET_KEYS: &[&str]
 pub const nika_vocab::keys::RETRY_KEYS: &[&str]
+pub const nika_vocab::keys::RUN_ACCESS_KEYS: &[&str]
 pub const nika_vocab::keys::RUN_ENTROPY_MAP_KEYS: &[&str]
 pub const nika_vocab::keys::RUN_KEYS: &[&str]
+pub const nika_vocab::keys::RUN_REASONING_KEYS: &[&str]
 pub const nika_vocab::keys::SECRET_KEYS: &[&str]
 pub const nika_vocab::keys::TASK_KEYS: &[&str]
 pub const nika_vocab::keys::THINKING_KEYS: &[&str]
@@ -1197,15 +1199,62 @@ impl<T> core::clone::CloneToUninit for nika_vocab::run::RunEntropy where T: core
 pub unsafe fn nika_vocab::run::RunEntropy::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_vocab::run::RunEntropy
 pub fn nika_vocab::run::RunEntropy::from(t: T) -> T
+#[non_exhaustive] pub struct nika_vocab::run::RunAccess
+pub nika_vocab::run::RunAccess::fallback: core::option::Option<nika_types::access::selection::AccessFallback>
+pub nika_vocab::run::RunAccess::protocol: core::option::Option<nika_types::access::selection::AccessProtocol>
+pub nika_vocab::run::RunAccess::via: core::option::Option<alloc::string::String>
+impl nika_vocab::run::RunAccess
+pub const fn nika_vocab::run::RunAccess::new(via: core::option::Option<alloc::string::String>, protocol: core::option::Option<nika_types::access::selection::AccessProtocol>, fallback: core::option::Option<nika_types::access::selection::AccessFallback>) -> Self
+impl core::clone::Clone for nika_vocab::run::RunAccess
+pub fn nika_vocab::run::RunAccess::clone(&self) -> nika_vocab::run::RunAccess
+impl core::cmp::Eq for nika_vocab::run::RunAccess
+impl core::cmp::PartialEq for nika_vocab::run::RunAccess
+pub fn nika_vocab::run::RunAccess::eq(&self, other: &nika_vocab::run::RunAccess) -> bool
+impl core::default::Default for nika_vocab::run::RunAccess
+pub fn nika_vocab::run::RunAccess::default() -> nika_vocab::run::RunAccess
+impl core::fmt::Debug for nika_vocab::run::RunAccess
+pub fn nika_vocab::run::RunAccess::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_vocab::run::RunAccess
+pub fn nika_vocab::run::RunAccess::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_vocab::run::RunAccess
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::run::RunAccess where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::run::RunAccess::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_vocab::run::RunAccess where U: core::convert::From<T>
+pub fn nika_vocab::run::RunAccess::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunAccess where U: core::convert::Into<T>
+pub type nika_vocab::run::RunAccess::Error = core::convert::Infallible
+pub fn nika_vocab::run::RunAccess::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::run::RunAccess where U: core::convert::TryFrom<T>
+pub type nika_vocab::run::RunAccess::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::run::RunAccess::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::run::RunAccess where T: core::clone::Clone
+pub type nika_vocab::run::RunAccess::Owned = T
+pub fn nika_vocab::run::RunAccess::clone_into(&self, target: &mut T)
+pub fn nika_vocab::run::RunAccess::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::run::RunAccess where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::run::RunAccess::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::run::RunAccess where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunAccess::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::run::RunAccess where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunAccess::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::run::RunAccess where T: core::clone::Clone
+pub unsafe fn nika_vocab::run::RunAccess::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::run::RunAccess
+pub fn nika_vocab::run::RunAccess::from(t: T) -> T
 #[non_exhaustive] pub struct nika_vocab::run::RunDecl
+pub nika_vocab::run::RunDecl::access: core::option::Option<nika_vocab::run::RunAccess>
 pub nika_vocab::run::RunDecl::clock: core::option::Option<nika_vocab::run::RunClock>
 pub nika_vocab::run::RunDecl::entropy: core::option::Option<nika_vocab::run::RunEntropy>
+pub nika_vocab::run::RunDecl::reasoning: core::option::Option<nika_vocab::run::RunReasoning>
 impl nika_vocab::run::RunDecl
+pub fn nika_vocab::run::RunDecl::access_requirement(&self) -> core::option::Option<nika_types::access::selection::AccessRequirement>
 pub const fn nika_vocab::run::RunDecl::clock_or_default(&self) -> nika_vocab::run::RunClock
 pub const fn nika_vocab::run::RunDecl::contradiction(&self) -> core::option::Option<&'static str>
 pub const fn nika_vocab::run::RunDecl::contradiction_class(&self) -> core::option::Option<nika_vocab::run::RunContradiction>
 pub const fn nika_vocab::run::RunDecl::entropy_or_default(&self) -> nika_vocab::run::RunEntropy
 pub const fn nika_vocab::run::RunDecl::new(entropy: core::option::Option<nika_vocab::run::RunEntropy>, clock: core::option::Option<nika_vocab::run::RunClock>) -> Self
+pub fn nika_vocab::run::RunDecl::with_access(self, access: core::option::Option<nika_vocab::run::RunAccess>) -> Self
+pub fn nika_vocab::run::RunDecl::with_reasoning(self, reasoning: core::option::Option<nika_vocab::run::RunReasoning>) -> Self
 impl core::clone::Clone for nika_vocab::run::RunDecl
 pub fn nika_vocab::run::RunDecl::clone(&self) -> nika_vocab::run::RunDecl
 impl core::cmp::Eq for nika_vocab::run::RunDecl
@@ -1217,7 +1266,6 @@ impl core::fmt::Debug for nika_vocab::run::RunDecl
 pub fn nika_vocab::run::RunDecl::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::hash::Hash for nika_vocab::run::RunDecl
 pub fn nika_vocab::run::RunDecl::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
-impl core::marker::Copy for nika_vocab::run::RunDecl
 impl core::marker::StructuralPartialEq for nika_vocab::run::RunDecl
 impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::run::RunDecl where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_vocab::run::RunDecl::equivalent(&self, key: &K) -> bool
@@ -1243,6 +1291,46 @@ impl<T> core::clone::CloneToUninit for nika_vocab::run::RunDecl where T: core::c
 pub unsafe fn nika_vocab::run::RunDecl::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_vocab::run::RunDecl
 pub fn nika_vocab::run::RunDecl::from(t: T) -> T
+#[non_exhaustive] pub struct nika_vocab::run::RunReasoning
+pub nika_vocab::run::RunReasoning::effort: core::option::Option<alloc::string::String>
+impl nika_vocab::run::RunReasoning
+pub const fn nika_vocab::run::RunReasoning::new(effort: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_vocab::run::RunReasoning
+pub fn nika_vocab::run::RunReasoning::clone(&self) -> nika_vocab::run::RunReasoning
+impl core::cmp::Eq for nika_vocab::run::RunReasoning
+impl core::cmp::PartialEq for nika_vocab::run::RunReasoning
+pub fn nika_vocab::run::RunReasoning::eq(&self, other: &nika_vocab::run::RunReasoning) -> bool
+impl core::default::Default for nika_vocab::run::RunReasoning
+pub fn nika_vocab::run::RunReasoning::default() -> nika_vocab::run::RunReasoning
+impl core::fmt::Debug for nika_vocab::run::RunReasoning
+pub fn nika_vocab::run::RunReasoning::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_vocab::run::RunReasoning
+pub fn nika_vocab::run::RunReasoning::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_vocab::run::RunReasoning
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::run::RunReasoning where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::run::RunReasoning::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_vocab::run::RunReasoning where U: core::convert::From<T>
+pub fn nika_vocab::run::RunReasoning::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunReasoning where U: core::convert::Into<T>
+pub type nika_vocab::run::RunReasoning::Error = core::convert::Infallible
+pub fn nika_vocab::run::RunReasoning::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::run::RunReasoning where U: core::convert::TryFrom<T>
+pub type nika_vocab::run::RunReasoning::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::run::RunReasoning::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::run::RunReasoning where T: core::clone::Clone
+pub type nika_vocab::run::RunReasoning::Owned = T
+pub fn nika_vocab::run::RunReasoning::clone_into(&self, target: &mut T)
+pub fn nika_vocab::run::RunReasoning::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::run::RunReasoning where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::run::RunReasoning::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::run::RunReasoning where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunReasoning::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::run::RunReasoning where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunReasoning::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::run::RunReasoning where T: core::clone::Clone
+pub unsafe fn nika_vocab::run::RunReasoning::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::run::RunReasoning
+pub fn nika_vocab::run::RunReasoning::from(t: T) -> T
 pub mod nika_vocab::schema_version
 #[non_exhaustive] pub enum nika_vocab::schema_version::SchemaVersion
 pub nika_vocab::schema_version::SchemaVersion::V1
@@ -2538,15 +2626,62 @@ pub unsafe fn nika_vocab::retry::RetryConfig::clone_to_uninit(&self, dest: *mut 
 impl<T> core::convert::From<T> for nika_vocab::retry::RetryConfig
 pub fn nika_vocab::retry::RetryConfig::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_vocab::retry::RetryConfig where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_vocab::RunAccess
+pub nika_vocab::RunAccess::fallback: core::option::Option<nika_types::access::selection::AccessFallback>
+pub nika_vocab::RunAccess::protocol: core::option::Option<nika_types::access::selection::AccessProtocol>
+pub nika_vocab::RunAccess::via: core::option::Option<alloc::string::String>
+impl nika_vocab::run::RunAccess
+pub const fn nika_vocab::run::RunAccess::new(via: core::option::Option<alloc::string::String>, protocol: core::option::Option<nika_types::access::selection::AccessProtocol>, fallback: core::option::Option<nika_types::access::selection::AccessFallback>) -> Self
+impl core::clone::Clone for nika_vocab::run::RunAccess
+pub fn nika_vocab::run::RunAccess::clone(&self) -> nika_vocab::run::RunAccess
+impl core::cmp::Eq for nika_vocab::run::RunAccess
+impl core::cmp::PartialEq for nika_vocab::run::RunAccess
+pub fn nika_vocab::run::RunAccess::eq(&self, other: &nika_vocab::run::RunAccess) -> bool
+impl core::default::Default for nika_vocab::run::RunAccess
+pub fn nika_vocab::run::RunAccess::default() -> nika_vocab::run::RunAccess
+impl core::fmt::Debug for nika_vocab::run::RunAccess
+pub fn nika_vocab::run::RunAccess::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_vocab::run::RunAccess
+pub fn nika_vocab::run::RunAccess::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_vocab::run::RunAccess
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::run::RunAccess where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::run::RunAccess::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_vocab::run::RunAccess where U: core::convert::From<T>
+pub fn nika_vocab::run::RunAccess::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunAccess where U: core::convert::Into<T>
+pub type nika_vocab::run::RunAccess::Error = core::convert::Infallible
+pub fn nika_vocab::run::RunAccess::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::run::RunAccess where U: core::convert::TryFrom<T>
+pub type nika_vocab::run::RunAccess::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::run::RunAccess::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::run::RunAccess where T: core::clone::Clone
+pub type nika_vocab::run::RunAccess::Owned = T
+pub fn nika_vocab::run::RunAccess::clone_into(&self, target: &mut T)
+pub fn nika_vocab::run::RunAccess::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::run::RunAccess where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::run::RunAccess::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::run::RunAccess where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunAccess::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::run::RunAccess where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunAccess::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::run::RunAccess where T: core::clone::Clone
+pub unsafe fn nika_vocab::run::RunAccess::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::run::RunAccess
+pub fn nika_vocab::run::RunAccess::from(t: T) -> T
 #[non_exhaustive] pub struct nika_vocab::RunDecl
+pub nika_vocab::RunDecl::access: core::option::Option<nika_vocab::run::RunAccess>
 pub nika_vocab::RunDecl::clock: core::option::Option<nika_vocab::run::RunClock>
 pub nika_vocab::RunDecl::entropy: core::option::Option<nika_vocab::run::RunEntropy>
+pub nika_vocab::RunDecl::reasoning: core::option::Option<nika_vocab::run::RunReasoning>
 impl nika_vocab::run::RunDecl
+pub fn nika_vocab::run::RunDecl::access_requirement(&self) -> core::option::Option<nika_types::access::selection::AccessRequirement>
 pub const fn nika_vocab::run::RunDecl::clock_or_default(&self) -> nika_vocab::run::RunClock
 pub const fn nika_vocab::run::RunDecl::contradiction(&self) -> core::option::Option<&'static str>
 pub const fn nika_vocab::run::RunDecl::contradiction_class(&self) -> core::option::Option<nika_vocab::run::RunContradiction>
 pub const fn nika_vocab::run::RunDecl::entropy_or_default(&self) -> nika_vocab::run::RunEntropy
 pub const fn nika_vocab::run::RunDecl::new(entropy: core::option::Option<nika_vocab::run::RunEntropy>, clock: core::option::Option<nika_vocab::run::RunClock>) -> Self
+pub fn nika_vocab::run::RunDecl::with_access(self, access: core::option::Option<nika_vocab::run::RunAccess>) -> Self
+pub fn nika_vocab::run::RunDecl::with_reasoning(self, reasoning: core::option::Option<nika_vocab::run::RunReasoning>) -> Self
 impl core::clone::Clone for nika_vocab::run::RunDecl
 pub fn nika_vocab::run::RunDecl::clone(&self) -> nika_vocab::run::RunDecl
 impl core::cmp::Eq for nika_vocab::run::RunDecl
@@ -2558,7 +2693,6 @@ impl core::fmt::Debug for nika_vocab::run::RunDecl
 pub fn nika_vocab::run::RunDecl::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::hash::Hash for nika_vocab::run::RunDecl
 pub fn nika_vocab::run::RunDecl::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
-impl core::marker::Copy for nika_vocab::run::RunDecl
 impl core::marker::StructuralPartialEq for nika_vocab::run::RunDecl
 impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::run::RunDecl where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_vocab::run::RunDecl::equivalent(&self, key: &K) -> bool
@@ -2584,6 +2718,46 @@ impl<T> core::clone::CloneToUninit for nika_vocab::run::RunDecl where T: core::c
 pub unsafe fn nika_vocab::run::RunDecl::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_vocab::run::RunDecl
 pub fn nika_vocab::run::RunDecl::from(t: T) -> T
+#[non_exhaustive] pub struct nika_vocab::RunReasoning
+pub nika_vocab::RunReasoning::effort: core::option::Option<alloc::string::String>
+impl nika_vocab::run::RunReasoning
+pub const fn nika_vocab::run::RunReasoning::new(effort: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_vocab::run::RunReasoning
+pub fn nika_vocab::run::RunReasoning::clone(&self) -> nika_vocab::run::RunReasoning
+impl core::cmp::Eq for nika_vocab::run::RunReasoning
+impl core::cmp::PartialEq for nika_vocab::run::RunReasoning
+pub fn nika_vocab::run::RunReasoning::eq(&self, other: &nika_vocab::run::RunReasoning) -> bool
+impl core::default::Default for nika_vocab::run::RunReasoning
+pub fn nika_vocab::run::RunReasoning::default() -> nika_vocab::run::RunReasoning
+impl core::fmt::Debug for nika_vocab::run::RunReasoning
+pub fn nika_vocab::run::RunReasoning::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_vocab::run::RunReasoning
+pub fn nika_vocab::run::RunReasoning::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_vocab::run::RunReasoning
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::run::RunReasoning where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::run::RunReasoning::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_vocab::run::RunReasoning where U: core::convert::From<T>
+pub fn nika_vocab::run::RunReasoning::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunReasoning where U: core::convert::Into<T>
+pub type nika_vocab::run::RunReasoning::Error = core::convert::Infallible
+pub fn nika_vocab::run::RunReasoning::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::run::RunReasoning where U: core::convert::TryFrom<T>
+pub type nika_vocab::run::RunReasoning::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::run::RunReasoning::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::run::RunReasoning where T: core::clone::Clone
+pub type nika_vocab::run::RunReasoning::Owned = T
+pub fn nika_vocab::run::RunReasoning::clone_into(&self, target: &mut T)
+pub fn nika_vocab::run::RunReasoning::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::run::RunReasoning where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::run::RunReasoning::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::run::RunReasoning where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunReasoning::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::run::RunReasoning where T: ?core::marker::Sized
+pub fn nika_vocab::run::RunReasoning::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::run::RunReasoning where T: core::clone::Clone
+pub unsafe fn nika_vocab::run::RunReasoning::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::run::RunReasoning
+pub fn nika_vocab::run::RunReasoning::from(t: T) -> T
 #[non_exhaustive] pub struct nika_vocab::SecretRef
 pub nika_vocab::SecretRef::egress: alloc::vec::Vec<nika_vocab::secret::EgressRule>
 pub nika_vocab::SecretRef::key: alloc::string::String

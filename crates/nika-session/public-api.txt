@@ -1727,6 +1727,7 @@ impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::answer_gate_for(&mut self, id: &nika_session_change::outcome::GateId, line: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::banner(&self) -> alloc::string::String
 pub fn nika_session::runtime::SessionRuntime::consent_to(&mut self, id: &nika_session_change::outcome::ProposalId, answer: &str) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::hold_for_conversation(&mut self, pref: nika_session::intelligence::UserIntelligencePreference)
 pub fn nika_session::runtime::SessionRuntime::intelligence_chosen(&self) -> bool
 pub fn nika_session::runtime::SessionRuntime::lifecycle(&self) -> nika_onboard::lifecycle::Lifecycle
 pub fn nika_session::runtime::SessionRuntime::on_activity(&mut self, hook: nika_display::activity::ActivityHook)
@@ -3223,6 +3224,7 @@ impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::answer_gate_for(&mut self, id: &nika_session_change::outcome::GateId, line: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::banner(&self) -> alloc::string::String
 pub fn nika_session::runtime::SessionRuntime::consent_to(&mut self, id: &nika_session_change::outcome::ProposalId, answer: &str) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::hold_for_conversation(&mut self, pref: nika_session::intelligence::UserIntelligencePreference)
 pub fn nika_session::runtime::SessionRuntime::intelligence_chosen(&self) -> bool
 pub fn nika_session::runtime::SessionRuntime::lifecycle(&self) -> nika_onboard::lifecycle::Lifecycle
 pub fn nika_session::runtime::SessionRuntime::on_activity(&mut self, hook: nika_display::activity::ActivityHook)

@@ -972,6 +972,7 @@ pub type nika_compile_seats::foundry::component::Unresolved::Output = T
 #[non_exhaustive] pub struct nika_compile_seats::foundry::component::Component
 pub nika_compile_seats::foundry::component::Component::authority: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_seats::foundry::component::Component::callables: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_seats::foundry::component::Component::contract: serde_json::value::Value
 pub nika_compile_seats::foundry::component::Component::effects: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_seats::foundry::component::Component::file: alloc::string::String
 pub nika_compile_seats::foundry::component::Component::file_sha256: alloc::string::String
@@ -1088,6 +1089,7 @@ pub fn nika_compile_seats::foundry::component::ComponentRef::as_any(&self) -> &(
 impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::component::ComponentRef
 pub type nika_compile_seats::foundry::component::ComponentRef::Output = T
 #[non_exhaustive] pub struct nika_compile_seats::foundry::component::Hole
+pub nika_compile_seats::foundry::component::Hole::contract: serde_json::value::Value
 pub nika_compile_seats::foundry::component::Hole::name: alloc::string::String
 pub nika_compile_seats::foundry::component::Hole::note: core::option::Option<alloc::string::String>
 pub nika_compile_seats::foundry::component::Hole::owner: alloc::string::String
@@ -1196,6 +1198,55 @@ pub fn nika_compile_seats::shelf::Templates::release(&self) -> nika_compile_seat
 pub fn nika_compile_seats::shelf::Templates::resolve(&self, reference: &nika_compile_seats::foundry::component::ComponentRef) -> core::result::Result<nika_compile_seats::foundry::component::Component, nika_compile_seats::foundry::component::Unresolved>
 pub fn nika_compile_seats::foundry::component::pinned(reference: &nika_compile_seats::foundry::component::ComponentRef, release: &nika_compile_seats::foundry::component::Release) -> core::result::Result<(), nika_compile_seats::foundry::component::Unresolved>
 pub mod nika_compile_seats::foundry::document
+pub mod nika_compile_seats::foundry::document::create
+#[non_exhaustive] pub struct nika_compile_seats::foundry::document::create::Made
+pub nika_compile_seats::foundry::document::create::Made::base_sha256: core::option::Option<alloc::string::String>
+pub nika_compile_seats::foundry::document::create::Made::changed: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_seats::foundry::document::create::Made::constructed: usize
+pub nika_compile_seats::foundry::document::create::Made::mode: &'static str
+pub nika_compile_seats::foundry::document::create::Made::operations: usize
+pub nika_compile_seats::foundry::document::create::Made::receipts: alloc::vec::Vec<serde_json::value::Value>
+pub nika_compile_seats::foundry::document::create::Made::source: alloc::string::String
+pub nika_compile_seats::foundry::document::create::Made::verified: usize
+impl core::clone::Clone for nika_compile_seats::foundry::document::create::Made
+pub fn nika_compile_seats::foundry::document::create::Made::clone(&self) -> nika_compile_seats::foundry::document::create::Made
+impl core::fmt::Debug for nika_compile_seats::foundry::document::create::Made
+pub fn nika_compile_seats::foundry::document::create::Made::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::document::create::Made
+impl<T, U> core::convert::Into<U> for nika_compile_seats::foundry::document::create::Made where U: core::convert::From<T>
+pub fn nika_compile_seats::foundry::document::create::Made::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::foundry::document::create::Made where U: core::convert::Into<T>
+pub type nika_compile_seats::foundry::document::create::Made::Error = core::convert::Infallible
+pub fn nika_compile_seats::foundry::document::create::Made::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::foundry::document::create::Made where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::foundry::document::create::Made::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::foundry::document::create::Made::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::foundry::document::create::Made where T: core::clone::Clone
+pub type nika_compile_seats::foundry::document::create::Made::Owned = T
+pub fn nika_compile_seats::foundry::document::create::Made::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::foundry::document::create::Made::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::foundry::document::create::Made where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::document::create::Made::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::foundry::document::create::Made where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::document::create::Made::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::foundry::document::create::Made where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::document::create::Made::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::foundry::document::create::Made where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::foundry::document::create::Made::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::foundry::document::create::Made
+pub fn nika_compile_seats::foundry::document::create::Made::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::foundry::document::create::Made where T: core::clone::Clone
+pub fn nika_compile_seats::foundry::document::create::Made::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::document::create::Made where T: 'static
+pub fn nika_compile_seats::foundry::document::create::Made::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::document::create::Made
+pub type nika_compile_seats::foundry::document::create::Made::Output = T
+pub const nika_compile_seats::foundry::document::create::ROUTE: &str
+pub fn nika_compile_seats::foundry::document::create::bind(out: &mut nika_compile::types::CompileOutcome)
+pub fn nika_compile_seats::foundry::document::create::language() -> alloc::string::String
+pub fn nika_compile_seats::foundry::document::create::made(written: core::option::Option<alloc::string::String>, operations: &[serde_json::value::Value], last: core::option::Option<&nika_compile_seats::foundry::document::create::Made>, catalog: core::option::Option<&dyn nika_compile_seats::foundry::component::ComponentCatalog>) -> core::result::Result<nika_compile_seats::foundry::document::create::Made, alloc::vec::Vec<alloc::string::String>>
+pub fn nika_compile_seats::foundry::document::create::receipts(out: &nika_compile::types::CompileOutcome) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_compile_seats::foundry::document::create::record(intent: &str, made: &nika_compile_seats::foundry::document::create::Made, out: &mut nika_compile::types::CompileOutcome)
 #[non_exhaustive] pub struct nika_compile_seats::foundry::document::Applied
 pub nika_compile_seats::foundry::document::Applied::changed: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_seats::foundry::document::Applied::constructed: usize
@@ -1234,6 +1285,12 @@ pub fn nika_compile_seats::foundry::document::carried(record: core::option::Opti
 pub fn nika_compile_seats::foundry::document::components(catalog: core::option::Option<&dyn nika_compile_seats::foundry::component::ComponentCatalog>) -> serde_json::value::Value
 pub fn nika_compile_seats::foundry::document::nodes(source: &str) -> core::option::Option<serde_json::value::Value>
 pub fn nika_compile_seats::foundry::document::record((base, revised): (&str, &str), resolved: &str, intent_sha256: &str, applied: &nika_compile_seats::foundry::document::Applied) -> serde_json::value::Value
+pub mod nika_compile_seats::foundry::entry
+pub fn nika_compile_seats::foundry::entry::entry_text(row: &serde_json::value::Value, sources: &[(&str, core::option::Option<&serde_json::value::Value>)], body: core::option::Option<(&str, &str)>) -> alloc::string::String
+pub fn nika_compile_seats::foundry::entry::provenance(row: &serde_json::value::Value, sources: &[(&str, core::option::Option<&serde_json::value::Value>)]) -> alloc::string::String
+pub fn nika_compile_seats::foundry::entry::role(row: &serde_json::value::Value) -> core::option::Option<&'static str>
+pub fn nika_compile_seats::foundry::entry::role_line(row: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_seats::foundry::entry::sources_line(row: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
 pub mod nika_compile_seats::foundry::instance
 #[non_exhaustive] pub enum nika_compile_seats::foundry::instance::ExpandError
 pub nika_compile_seats::foundry::instance::ExpandError::Binding(nika_compile_seats::foundry::bind::BindingError)
@@ -1479,8 +1536,10 @@ pub const nika_compile_seats::foundry::reach::REACH: &str
 pub fn nika_compile_seats::foundry::reach::account(catalog: &dyn nika_compile_seats::foundry::component::ComponentCatalog, listed: usize, widened: usize, resolved: usize) -> serde_json::value::Value
 pub fn nika_compile_seats::foundry::reach::annotate(pack: &nika_compile::types::AuthoringKnowledge, record: &mut serde_json::value::Value, widened: &[alloc::string::String])
 pub fn nika_compile_seats::foundry::reach::coverage(catalog: core::option::Option<&dyn nika_compile_seats::foundry::component::ComponentCatalog>, listed: usize, widened: usize, resolved: usize) -> serde_json::value::Value
+pub fn nika_compile_seats::foundry::reach::describe_recalled(pack: &mut nika_compile::types::AuthoringKnowledge, catalog: &dyn nika_compile_seats::foundry::component::ComponentCatalog) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub fn nika_compile_seats::foundry::reach::descriptor(row: &serde_json::value::Value) -> alloc::string::String
 pub fn nika_compile_seats::foundry::reach::resolve_applicable(pack: &mut nika_compile::types::AuthoringKnowledge, record: &serde_json::value::Value, widened: &[alloc::string::String], catalog: &dyn nika_compile_seats::foundry::component::ComponentCatalog) -> usize
+pub fn nika_compile_seats::foundry::reach::restore(pack: &mut nika_compile::types::AuthoringKnowledge, full: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> usize
 pub fn nika_compile_seats::foundry::reach::widen(pack: &mut nika_compile::types::AuthoringKnowledge, catalog: &dyn nika_compile_seats::foundry::component::ComponentCatalog) -> (alloc::vec::Vec<alloc::string::String>, usize)
 pub mod nika_compile_seats::foundry::recall
 pub fn nika_compile_seats::foundry::recall::block_metadata(row: &serde_json::value::Value) -> alloc::string::String
@@ -2182,6 +2241,7 @@ pub type nika_compile_seats::foundry::bind::Binding::Output = T
 #[non_exhaustive] pub struct nika_compile_seats::foundry::Component
 pub nika_compile_seats::foundry::Component::authority: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_seats::foundry::Component::callables: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_seats::foundry::Component::contract: serde_json::value::Value
 pub nika_compile_seats::foundry::Component::effects: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_seats::foundry::Component::file: alloc::string::String
 pub nika_compile_seats::foundry::Component::file_sha256: alloc::string::String
@@ -2383,6 +2443,7 @@ pub fn nika_compile_seats::foundry::instance::Expansion::as_any(&self) -> &(dyn 
 impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::instance::Expansion
 pub type nika_compile_seats::foundry::instance::Expansion::Output = T
 #[non_exhaustive] pub struct nika_compile_seats::foundry::Hole
+pub nika_compile_seats::foundry::Hole::contract: serde_json::value::Value
 pub nika_compile_seats::foundry::Hole::name: alloc::string::String
 pub nika_compile_seats::foundry::Hole::note: core::option::Option<alloc::string::String>
 pub nika_compile_seats::foundry::Hole::owner: alloc::string::String
@@ -3714,6 +3775,202 @@ pub fn nika_compile_seats::rehearse::trial_shown(candidate_sha256: &str, run: &n
 pub fn nika_compile_seats::rehearse::trial_whole(observed: &serde_json::value::Value) -> bool
 pub type nika_compile_seats::rehearse::RehearsalFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_compile_seats::rehearse::RehearsalReport> + core::marker::Send + 'a)>>
 pub mod nika_compile_seats::remote
+pub mod nika_compile_seats::remote::bounds
+#[non_exhaustive] pub struct nika_compile_seats::remote::bounds::Bounds
+pub nika_compile_seats::remote::bounds::Bounds::call_timeout: core::time::Duration
+pub nika_compile_seats::remote::bounds::Bounds::deadline: core::option::Option<core::time::Duration>
+pub nika_compile_seats::remote::bounds::Bounds::grant: &'static str
+pub nika_compile_seats::remote::bounds::Bounds::initial_tokens: u32
+pub nika_compile_seats::remote::bounds::Bounds::max_calls: core::option::Option<u32>
+pub nika_compile_seats::remote::bounds::Bounds::max_tokens: u32
+pub nika_compile_seats::remote::bounds::Bounds::repairs: core::option::Option<u32>
+impl nika_compile_seats::remote::bounds::Bounds
+pub const fn nika_compile_seats::remote::bounds::Bounds::route(max_tokens: u32, initial_tokens: u32, call_timeout: core::time::Duration, grant: &'static str) -> Self
+impl core::clone::Clone for nika_compile_seats::remote::bounds::Bounds
+pub fn nika_compile_seats::remote::bounds::Bounds::clone(&self) -> nika_compile_seats::remote::bounds::Bounds
+impl core::cmp::Eq for nika_compile_seats::remote::bounds::Bounds
+impl core::cmp::PartialEq for nika_compile_seats::remote::bounds::Bounds
+pub fn nika_compile_seats::remote::bounds::Bounds::eq(&self, other: &nika_compile_seats::remote::bounds::Bounds) -> bool
+impl core::fmt::Debug for nika_compile_seats::remote::bounds::Bounds
+pub fn nika_compile_seats::remote::bounds::Bounds::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_seats::remote::bounds::Bounds
+impl core::marker::StructuralPartialEq for nika_compile_seats::remote::bounds::Bounds
+impl<D> owo_colors::OwoColorize for nika_compile_seats::remote::bounds::Bounds
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::remote::bounds::Bounds where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::remote::bounds::Bounds::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::remote::bounds::Bounds where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::remote::bounds::Bounds::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::remote::bounds::Bounds where U: core::convert::From<T>
+pub fn nika_compile_seats::remote::bounds::Bounds::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::remote::bounds::Bounds where U: core::convert::Into<T>
+pub type nika_compile_seats::remote::bounds::Bounds::Error = core::convert::Infallible
+pub fn nika_compile_seats::remote::bounds::Bounds::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::remote::bounds::Bounds where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::remote::bounds::Bounds::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::remote::bounds::Bounds::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::remote::bounds::Bounds where T: core::clone::Clone
+pub type nika_compile_seats::remote::bounds::Bounds::Owned = T
+pub fn nika_compile_seats::remote::bounds::Bounds::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::remote::bounds::Bounds::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::remote::bounds::Bounds where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::remote::bounds::Bounds::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::remote::bounds::Bounds where T: ?core::marker::Sized
+pub fn nika_compile_seats::remote::bounds::Bounds::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::remote::bounds::Bounds where T: ?core::marker::Sized
+pub fn nika_compile_seats::remote::bounds::Bounds::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::remote::bounds::Bounds where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::remote::bounds::Bounds::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::remote::bounds::Bounds
+pub fn nika_compile_seats::remote::bounds::Bounds::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::remote::bounds::Bounds where T: core::clone::Clone
+pub fn nika_compile_seats::remote::bounds::Bounds::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::remote::bounds::Bounds where T: 'static
+pub fn nika_compile_seats::remote::bounds::Bounds::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_seats::remote::bounds::Bounds where T: core::marker::Copy
+pub fn nika_compile_seats::remote::bounds::Bounds::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_seats::remote::bounds::Bounds
+pub type nika_compile_seats::remote::bounds::Bounds::Output = T
+pub struct nika_compile_seats::remote::bounds::Limits
+impl<'de> serde_core::de::Deserialize<'de> for nika_compile_seats::remote::bounds::Limits
+pub fn nika_compile_seats::remote::bounds::Limits::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_compile_seats::remote::bounds::Limits
+impl<T, U> core::convert::Into<U> for nika_compile_seats::remote::bounds::Limits where U: core::convert::From<T>
+pub fn nika_compile_seats::remote::bounds::Limits::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::remote::bounds::Limits where U: core::convert::Into<T>
+pub type nika_compile_seats::remote::bounds::Limits::Error = core::convert::Infallible
+pub fn nika_compile_seats::remote::bounds::Limits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::remote::bounds::Limits where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::remote::bounds::Limits::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::remote::bounds::Limits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_seats::remote::bounds::Limits where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::remote::bounds::Limits::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::remote::bounds::Limits where T: ?core::marker::Sized
+pub fn nika_compile_seats::remote::bounds::Limits::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::remote::bounds::Limits where T: ?core::marker::Sized
+pub fn nika_compile_seats::remote::bounds::Limits::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_seats::remote::bounds::Limits
+pub fn nika_compile_seats::remote::bounds::Limits::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_seats::remote::bounds::Limits where T: 'static
+pub fn nika_compile_seats::remote::bounds::Limits::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_compile_seats::remote::bounds::Limits where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_compile_seats::remote::bounds::Limits
+pub type nika_compile_seats::remote::bounds::Limits::Output = T
+pub const nika_compile_seats::remote::bounds::TOKEN_HEX: usize
+pub fn nika_compile_seats::remote::bounds::is_token(token: &str) -> bool
+pub fn nika_compile_seats::remote::bounds::narrow(asked: &nika_compile_seats::remote::bounds::Limits, operator: nika_compile_seats::remote::bounds::Bounds) -> core::option::Option<nika_compile_seats::remote::bounds::Bounds>
+pub mod nika_compile_seats::remote::input
+#[non_exhaustive] pub enum nika_compile_seats::remote::input::Input
+pub nika_compile_seats::remote::input::Input::Constant
+pub nika_compile_seats::remote::input::Input::Constant::literal: alloc::string::String
+pub nika_compile_seats::remote::input::Input::Constant::name: alloc::string::String
+pub nika_compile_seats::remote::input::Input::Constant::source: alloc::string::String
+pub nika_compile_seats::remote::input::Input::Create
+pub nika_compile_seats::remote::input::Input::Create::intent: alloc::string::String
+pub nika_compile_seats::remote::input::Input::Create::observed: core::option::Option<nika_compile_seats::remote::Observed>
+pub nika_compile_seats::remote::input::Input::Create::workflow_id: core::option::Option<alloc::string::String>
+pub nika_compile_seats::remote::input::Input::Revise
+pub nika_compile_seats::remote::input::Input::Revise::change: alloc::string::String
+pub nika_compile_seats::remote::input::Input::Revise::observed: core::option::Option<nika_compile_seats::remote::Observed>
+pub nika_compile_seats::remote::input::Input::Revise::original_intent: alloc::string::String
+pub nika_compile_seats::remote::input::Input::Revise::source: alloc::string::String
+impl nika_compile_seats::remote::input::Input
+pub fn nika_compile_seats::remote::input::Input::observe(self, world: &str, trial: core::option::Option<&str>) -> core::option::Option<core::result::Result<Self, nika_compile_seats::remote::Refusal>>
+pub fn nika_compile_seats::remote::input::Input::request(&self, answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::boxed::Box<serde_json::raw::RawValue>>) -> nika_compile::types::CompileRequest
+pub fn nika_compile_seats::remote::input::Input::trial(&self) -> core::option::Option<&serde_json::value::Value>
+impl core::clone::Clone for nika_compile_seats::remote::input::Input
+pub fn nika_compile_seats::remote::input::Input::clone(&self) -> nika_compile_seats::remote::input::Input
+impl core::cmp::Eq for nika_compile_seats::remote::input::Input
+impl core::cmp::PartialEq for nika_compile_seats::remote::input::Input
+pub fn nika_compile_seats::remote::input::Input::eq(&self, other: &nika_compile_seats::remote::input::Input) -> bool
+impl core::fmt::Debug for nika_compile_seats::remote::input::Input
+pub fn nika_compile_seats::remote::input::Input::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::remote::input::Input
+impl<D> owo_colors::OwoColorize for nika_compile_seats::remote::input::Input
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::remote::input::Input where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::remote::input::Input::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::remote::input::Input where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::remote::input::Input::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::remote::input::Input where U: core::convert::From<T>
+pub fn nika_compile_seats::remote::input::Input::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::remote::input::Input where U: core::convert::Into<T>
+pub type nika_compile_seats::remote::input::Input::Error = core::convert::Infallible
+pub fn nika_compile_seats::remote::input::Input::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::remote::input::Input where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::remote::input::Input::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::remote::input::Input::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::remote::input::Input where T: core::clone::Clone
+pub type nika_compile_seats::remote::input::Input::Owned = T
+pub fn nika_compile_seats::remote::input::Input::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::remote::input::Input::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::remote::input::Input where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::remote::input::Input::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::remote::input::Input where T: ?core::marker::Sized
+pub fn nika_compile_seats::remote::input::Input::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::remote::input::Input where T: ?core::marker::Sized
+pub fn nika_compile_seats::remote::input::Input::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::remote::input::Input where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::remote::input::Input::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::remote::input::Input
+pub fn nika_compile_seats::remote::input::Input::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::remote::input::Input where T: core::clone::Clone
+pub fn nika_compile_seats::remote::input::Input::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::remote::input::Input where T: 'static
+pub fn nika_compile_seats::remote::input::Input::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::remote::input::Input
+pub type nika_compile_seats::remote::input::Input::Output = T
+pub struct nika_compile_seats::remote::input::Answers(pub alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::boxed::Box<serde_json::raw::RawValue>>)
+impl core::default::Default for nika_compile_seats::remote::input::Answers
+pub fn nika_compile_seats::remote::input::Answers::default() -> nika_compile_seats::remote::input::Answers
+impl<'de> serde_core::de::Deserialize<'de> for nika_compile_seats::remote::input::Answers
+pub fn nika_compile_seats::remote::input::Answers::deserialize<D: serde_core::de::Deserializer<'de>>(deserializer: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error>
+impl<D> owo_colors::OwoColorize for nika_compile_seats::remote::input::Answers
+impl<T, U> core::convert::Into<U> for nika_compile_seats::remote::input::Answers where U: core::convert::From<T>
+pub fn nika_compile_seats::remote::input::Answers::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::remote::input::Answers where U: core::convert::Into<T>
+pub type nika_compile_seats::remote::input::Answers::Error = core::convert::Infallible
+pub fn nika_compile_seats::remote::input::Answers::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::remote::input::Answers where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::remote::input::Answers::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::remote::input::Answers::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_seats::remote::input::Answers where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::remote::input::Answers::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::remote::input::Answers where T: ?core::marker::Sized
+pub fn nika_compile_seats::remote::input::Answers::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::remote::input::Answers where T: ?core::marker::Sized
+pub fn nika_compile_seats::remote::input::Answers::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_seats::remote::input::Answers
+pub fn nika_compile_seats::remote::input::Answers::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_seats::remote::input::Answers where T: 'static
+pub fn nika_compile_seats::remote::input::Answers::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_compile_seats::remote::input::Answers where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_compile_seats::remote::input::Answers
+pub type nika_compile_seats::remote::input::Answers::Output = T
+pub struct nika_compile_seats::remote::input::Object<T>(pub T)
+impl<'de, T: serde_core::de::Deserialize<'de>> serde_core::de::Deserialize<'de> for nika_compile_seats::remote::input::Object<T>
+pub fn nika_compile_seats::remote::input::Object<T>::deserialize<D: serde_core::de::Deserializer<'de>>(deserializer: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error>
+impl<D> owo_colors::OwoColorize for nika_compile_seats::remote::input::Object<T>
+impl<T, U> core::convert::Into<U> for nika_compile_seats::remote::input::Object<T> where U: core::convert::From<T>
+pub fn nika_compile_seats::remote::input::Object<T>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::remote::input::Object<T> where U: core::convert::Into<T>
+pub type nika_compile_seats::remote::input::Object<T>::Error = core::convert::Infallible
+pub fn nika_compile_seats::remote::input::Object<T>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::remote::input::Object<T> where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::remote::input::Object<T>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::remote::input::Object<T>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_seats::remote::input::Object<T> where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::remote::input::Object<T>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::remote::input::Object<T> where T: ?core::marker::Sized
+pub fn nika_compile_seats::remote::input::Object<T>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::remote::input::Object<T> where T: ?core::marker::Sized
+pub fn nika_compile_seats::remote::input::Object<T>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_seats::remote::input::Object<T>
+pub fn nika_compile_seats::remote::input::Object<T>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_seats::remote::input::Object<T> where T: 'static
+pub fn nika_compile_seats::remote::input::Object<T>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_compile_seats::remote::input::Object<T> where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_compile_seats::remote::input::Object<T>
+pub type nika_compile_seats::remote::input::Object<T>::Output = T
+pub fn nika_compile_seats::remote::input::present<'de, D, T>(deserializer: D) -> core::result::Result<core::option::Option<T>, <D as serde_core::de::Deserializer>::Error> where D: serde_core::de::Deserializer<'de>, T: serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_compile_seats::remote::Refusal
 pub nika_compile_seats::remote::Refusal::Malformed
 pub nika_compile_seats::remote::Refusal::Oversize

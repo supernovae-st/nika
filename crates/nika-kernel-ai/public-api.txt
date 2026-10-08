@@ -441,6 +441,8 @@ pub use nika_kernel_ai::harness::TokenUsage
 #[non_exhaustive] pub enum nika_kernel_ai::harness::HarnessError
 pub nika_kernel_ai::harness::HarnessError::Refused
 pub nika_kernel_ai::harness::HarnessError::Refused::reason: alloc::string::String
+pub nika_kernel_ai::harness::HarnessError::Selection
+pub nika_kernel_ai::harness::HarnessError::Selection::reason: alloc::string::String
 pub nika_kernel_ai::harness::HarnessError::Session
 pub nika_kernel_ai::harness::HarnessError::Session::reason: alloc::string::String
 pub nika_kernel_ai::harness::HarnessError::Unavailable
@@ -641,6 +643,7 @@ pub nika_kernel_ai::harness::HarnessOutcome::images: alloc::vec::Vec<nika_kernel
 pub nika_kernel_ai::harness::HarnessOutcome::observed_model: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessOutcome::observed_model_source: core::option::Option<nika_kernel_ai::harness::ModelProvenance>
 pub nika_kernel_ai::harness::HarnessOutcome::output: alloc::string::String
+pub nika_kernel_ai::harness::HarnessOutcome::selection: nika_kernel_ai::harness::HarnessSelection
 pub nika_kernel_ai::harness::HarnessOutcome::usage: core::option::Option<nika_types::token_usage::TokenUsage>
 impl nika_kernel_ai::harness::HarnessOutcome
 pub fn nika_kernel_ai::harness::HarnessOutcome::new(output: impl core::convert::Into<alloc::string::String>) -> Self
@@ -681,11 +684,13 @@ pub fn nika_kernel_ai::harness::HarnessOutcome::as_any(&self) -> &(dyn core::any
 #[non_exhaustive] pub struct nika_kernel_ai::harness::HarnessRequest
 pub nika_kernel_ai::harness::HarnessRequest::cwd: std::path::PathBuf
 pub nika_kernel_ai::harness::HarnessRequest::prompt: alloc::string::String
+pub nika_kernel_ai::harness::HarnessRequest::requested_effort: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessRequest::requested_mode: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessRequest::requested_model: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessRequest::system: core::option::Option<alloc::string::String>
 impl nika_kernel_ai::harness::HarnessRequest
 pub fn nika_kernel_ai::harness::HarnessRequest::new(prompt: impl core::convert::Into<alloc::string::String>, cwd: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_kernel_ai::harness::HarnessRequest::with_requested_effort(self, effort: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_kernel_ai::harness::HarnessRequest::with_requested_mode(self, mode: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_ai::harness::HarnessRequest::with_requested_model(self, model: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_ai::harness::HarnessRequest::with_system(self, system: impl core::convert::Into<alloc::string::String>) -> Self
@@ -721,6 +726,51 @@ impl<T> core::convert::From<T> for nika_kernel_ai::harness::HarnessRequest
 pub fn nika_kernel_ai::harness::HarnessRequest::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_ai::harness::HarnessRequest where T: 'static
 pub fn nika_kernel_ai::harness::HarnessRequest::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_ai::harness::HarnessSelection
+pub nika_kernel_ai::harness::HarnessSelection::changed_mid_turn: alloc::vec::Vec<alloc::string::String>
+pub nika_kernel_ai::harness::HarnessSelection::configured_effort: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::harness::HarnessSelection::configured_effort_source: core::option::Option<nika_kernel_ai::harness::ModelProvenance>
+pub nika_kernel_ai::harness::HarnessSelection::effort_option: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::harness::HarnessSelection::model_option: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::harness::HarnessSelection::transmitted_effort: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::harness::HarnessSelection::transmitted_model: core::option::Option<alloc::string::String>
+impl nika_kernel_ai::harness::HarnessSelection
+pub fn nika_kernel_ai::harness::HarnessSelection::moved_refusal(&self) -> core::option::Option<nika_kernel_ai::harness::HarnessError>
+impl core::clone::Clone for nika_kernel_ai::harness::HarnessSelection
+pub fn nika_kernel_ai::harness::HarnessSelection::clone(&self) -> nika_kernel_ai::harness::HarnessSelection
+impl core::cmp::Eq for nika_kernel_ai::harness::HarnessSelection
+impl core::cmp::PartialEq for nika_kernel_ai::harness::HarnessSelection
+pub fn nika_kernel_ai::harness::HarnessSelection::eq(&self, other: &nika_kernel_ai::harness::HarnessSelection) -> bool
+impl core::default::Default for nika_kernel_ai::harness::HarnessSelection
+pub fn nika_kernel_ai::harness::HarnessSelection::default() -> nika_kernel_ai::harness::HarnessSelection
+impl core::fmt::Debug for nika_kernel_ai::harness::HarnessSelection
+pub fn nika_kernel_ai::harness::HarnessSelection::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_ai::harness::HarnessSelection
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::harness::HarnessSelection
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::harness::HarnessSelection where U: core::convert::From<T>
+pub fn nika_kernel_ai::harness::HarnessSelection::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::harness::HarnessSelection where U: core::convert::Into<T>
+pub type nika_kernel_ai::harness::HarnessSelection::Error = core::convert::Infallible
+pub fn nika_kernel_ai::harness::HarnessSelection::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::harness::HarnessSelection where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::harness::HarnessSelection::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::harness::HarnessSelection::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::harness::HarnessSelection where T: core::clone::Clone
+pub type nika_kernel_ai::harness::HarnessSelection::Owned = T
+pub fn nika_kernel_ai::harness::HarnessSelection::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::harness::HarnessSelection::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::harness::HarnessSelection where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::harness::HarnessSelection::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::harness::HarnessSelection where T: ?core::marker::Sized
+pub fn nika_kernel_ai::harness::HarnessSelection::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::harness::HarnessSelection where T: ?core::marker::Sized
+pub fn nika_kernel_ai::harness::HarnessSelection::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::harness::HarnessSelection where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::harness::HarnessSelection::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::harness::HarnessSelection
+pub fn nika_kernel_ai::harness::HarnessSelection::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::harness::HarnessSelection where T: 'static
+pub fn nika_kernel_ai::harness::HarnessSelection::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_kernel_ai::harness::PermissionReply
 impl nika_kernel_ai::harness::PermissionReply
 pub fn nika_kernel_ai::harness::PermissionReply::new(respond: alloc::boxed::Box<(dyn core::ops::function::FnOnce(nika_kernel_ai::harness::PermissionDecision) + core::marker::Send)>) -> Self
