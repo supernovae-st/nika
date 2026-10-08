@@ -825,7 +825,7 @@ pub fn nika_providers::admission::accounting_checkpoint(account: core::option::O
 pub fn nika_providers::admission::admit_unpriced_companion(admission: core::option::Option<&nika_providers::admission::InferenceAdmission>) -> core::result::Result<(), alloc::string::String>
 pub fn nika_providers::admission::allowance(amount: f64) -> core::result::Result<nika_types::cost::Cost, alloc::string::String>
 pub fn nika_providers::admission::decision_summary(observations: &[serde_json::value::Value], schema: &str) -> core::option::Option<alloc::string::String>
-pub fn nika_providers::admission::inference_summary(account: &str, observed: core::option::Option<&str>, details: &str, subscription: bool, gate: bool) -> alloc::string::String
+pub fn nika_providers::admission::inference_summary(admission_summary: &str, observed: core::option::Option<&str>, details: &str, subscription: bool, gate: bool) -> alloc::string::String
 pub fn nika_providers::admission::interrupted_note(count: usize) -> alloc::string::String
 pub fn nika_providers::admission::is_decision_observation(observation: &serde_json::value::Value, current: &str) -> bool
 pub fn nika_providers::admission::monetary_default(amount: core::option::Option<f64>) -> core::result::Result<core::option::Option<nika_types::cost::Cost>, alloc::string::String>

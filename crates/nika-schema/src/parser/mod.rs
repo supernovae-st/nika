@@ -155,7 +155,7 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
 
     workflow.inputs = envelope::parse_inputs(&cx, mapping)?;
     workflow.consts = envelope::parse_const(&cx, mapping)?;
-    workflow.secrets = envelope::parse_secrets(&cx, mapping)?;
+    workflow.secrets = envelope::parse_store_refs(&cx, mapping)?;
     workflow.permits = envelope::parse_permits(&cx, mapping)?;
     workflow.run = envelope::parse_run(&cx, mapping)?;
     workflow.outputs = envelope::parse_outputs(&cx, mapping)?;

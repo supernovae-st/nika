@@ -29,7 +29,7 @@ pub(crate) use nika_vocab::keys::{
 // The three value authorities parse in `envelope_values.rs` (the C2 file
 // split — ONE coherent unit); the parser's `envelope::parse_*` call paths
 // ride this re-export unchanged.
-pub(super) use super::envelope_values::{parse_const, parse_inputs, parse_secrets};
+pub(super) use super::envelope_values::{parse_const, parse_inputs, parse_store_refs};
 
 /// Parse `outputs:` — untyped (`name: ${{ … }}`) OR typed
 /// (`name: { value, type, description }`).
