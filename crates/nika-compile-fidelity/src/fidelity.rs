@@ -1145,10 +1145,11 @@ mod tests {
         }
     }
 
-    /// An address is never composed from a longer stated origin or path (independent K2
-    /// review): another host label, another port, a child path, a path suffix or another
-    /// spelling of the path is still invented, each named once; the whole stated components
-    /// compose.
+    /// An address is never composed from a longer stated origin or path (independent K2 and
+    /// K2b reviews): another host label, another port, a child path, a path suffix, a path
+    /// character continuing or preceding the quoted path, or another spelling of the path is
+    /// still invented, each named once; the whole stated components compose, punctuation
+    /// outside a closing quote included.
     #[test]
     fn an_address_taken_from_a_longer_origin_or_path_is_invented() {
         let api = "http://trusted.example/api";
@@ -1164,6 +1165,9 @@ mod tests {
                 "POST /Admin to http://trusted.example",
                 "http://trusted.example/admin",
             ),
+            (r#"POST "/api+v2" to http://trusted.example"#, api),
+            (r#"POST "/api:cancel" to http://trusted.example"#, api),
+            (r#"POST "/v2+/api" to http://trusted.example"#, api),
         ] {
             let mut found = Vec::new();
             invented(intent, &[url.to_owned()], &[], &mut found);
@@ -1172,14 +1176,14 @@ mod tests {
             let named = format!("INVENTED LITERAL: `{url}` is not in the request.");
             assert!(found[0].message.starts_with(&named), "{found:#?}");
         }
-        let mut none = Vec::new();
-        invented(
+        for intent in [
             "POST /api to http://trusted.example",
-            &[api.to_owned()],
-            &[],
-            &mut none,
-        );
-        assert!(none.is_empty(), "{none:#?}");
+            r#"POST "/api", then stop. Use http://trusted.example."#,
+        ] {
+            let mut none = Vec::new();
+            invented(intent, &[api.to_owned()], &[], &mut none);
+            assert!(none.is_empty(), "{intent}: {none:#?}");
+        }
     }
 
     #[test]

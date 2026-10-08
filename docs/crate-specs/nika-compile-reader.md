@@ -496,10 +496,17 @@ reader's own vocabulary) · `text` (the shared text helpers).
   verbatim from fidelity at that crate's size cap on 2026-10-08.
 - `origin_and_path`: an address composes from the request's own words when both of its parts
   are stated whole.
-  - Origin (`scheme://host[:port]`): read case-insensitively, and never continued by a host
-    label, a port digit or a `.label`.
-  - Path: in its own spelling, and never continued by a segment, a suffix or a query.
+  - Origin (`scheme://host[:port]`): read case-insensitively; it goes on only into its own
+    path, query or fragment (`/`, `?`, `#`).
+  - Path: in its own spelling.
 
-  A request may name a sink's origin in one sentence and the path it posts to in another. A
-  longer stated origin (`http://h.example.evil`, `http://h:8080`) or a longer or otherwise-spelt
-  path (`/api/private`, `/api-v2`, `/Admin`) composes nothing.
+  Each part must be a whole token of the request, as the lexer reads a literal:
+  - before it, up to the whitespace, stand only quotes and brackets;
+  - after it, up to the whitespace, stand only quotes, brackets and sentence punctuation.
+
+  Punctuation outside a closing quote is prose, never part of the path. Any other character
+  continuing or preceding a part inside its token, quoted or not, makes another token. A
+  request may name a sink's origin in one sentence and the path it posts to in another. A
+  longer stated origin (`http://h.example.evil`, `http://h:8080`,
+  `http://h.example@evil.example`) composes nothing. Neither does a longer or otherwise-spelt
+  path (`/api/private`, `/api-v2`, `"/api+v2"`, `/api:cancel`, `"/v2+/api"`, `/Admin`).

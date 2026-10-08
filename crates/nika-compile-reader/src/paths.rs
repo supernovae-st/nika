@@ -428,12 +428,13 @@ pub fn composed_from(lower: &str, token: &str) -> bool {
 }
 
 /// An address composed from the request's own words (`stated`, as written): its origin
-/// (`scheme://host[:port]`, read case-insensitively) stated as a whole authority, and its path
-/// stated as a whole path in its own spelling, as a request names a sink's origin in one
-/// sentence and the path it posts to in another. A stated origin a host label, a port digit or a
-/// `.label` continues (`http://h.example.evil`, `http://h:8080`) is another origin; a stated path
-/// a segment, a suffix or a query continues (`/api/private`, `/api-v2`), or spelt otherwise
-/// (`/Admin`), is another path. An origin with no path composes nothing.
+/// (`scheme://host[:port]`, read case-insensitively) and its path (in its own spelling) each
+/// stated as a whole token, as a request names a sink's origin in one sentence and the path it
+/// posts to in another. Only an origin goes on, into its own path, query or fragment; anything
+/// else continuing or preceding a stated origin or path inside its token, quoted or not, makes
+/// another one (`http://h.example.evil`, `http://h:8080`, `/api/private`, `"/api+v2"`,
+/// `/api:cancel`, `"/v2+/api"`), and a path spelt otherwise (`/Admin`) is another path. An
+/// origin with no path composes nothing.
 #[must_use]
 pub fn origin_and_path(stated: &str, token: &str) -> bool {
     let Some((scheme, rest)) = token.split_once("://") else {
@@ -443,22 +444,33 @@ pub fn origin_and_path(stated: &str, token: &str) -> bool {
     let origin = format!("{scheme}://{authority}").to_lowercase();
     !authority.is_empty()
         && path.len() > 1
-        && whole(&stated.to_lowercase(), &origin, "-_:@")
-        && whole(stated, path, "-_/~%?#=&")
+        && whole(&stated.to_lowercase(), &origin, &['/', '?', '#'])
+        && whole(stated, path, &[])
 }
 
-/// Whether `text` states `part` whole: where a word starts (no letter, digit or path character
-/// before it) and where it ends (no letter, digit or character of `goes_on` after it, nor a `.`
-/// a letter or digit follows).
-fn whole(text: &str, part: &str, goes_on: &str) -> bool {
+/// Quotes and brackets: what wraps a literal in prose, on either side of it.
+const WRAPS: &str = "\"'`‘’“”«»()[]<>";
+
+/// Whether `text` states `part` as a whole token, as the lexer reads a literal: between it and
+/// the whitespace (or edge of `text`) before it stand only quotes and brackets, and between it
+/// and the whitespace after it only quotes, brackets and sentence punctuation ([`TAIL`]),
+/// unless a character of `goes_on` opens the next component there. Any other character beside
+/// it inside its token (`+`, `:`, `@`, `'`, `,` … continuing it) makes another token.
+fn whole(text: &str, part: &str, goes_on: &[char]) -> bool {
     text.match_indices(part).any(|(at, _)| {
-        let before = text[..at].chars().next_back();
-        let mut after = text[at + part.len()..].chars();
-        let (next, then) = (after.next(), after.next());
-        let starts = before.is_none_or(|c| !(c.is_alphanumeric() || "./-_:".contains(c)));
-        let dotted = next == Some('.') && then.is_some_and(char::is_alphanumeric);
-        let ends = next.is_none_or(|c| !(c.is_alphanumeric() || goes_on.contains(c))) && !dotted;
-        starts && ends
+        let before = text[..at]
+            .rsplit(char::is_whitespace)
+            .next()
+            .unwrap_or_default();
+        let after = text[at + part.len()..]
+            .split(char::is_whitespace)
+            .next()
+            .unwrap_or_default();
+        before.chars().all(|c| WRAPS.contains(c))
+            && (after.starts_with(goes_on)
+                || after
+                    .chars()
+                    .all(|c| WRAPS.contains(c) || TAIL.contains(&c)))
     })
 }
 
@@ -522,6 +534,41 @@ mod tests {
             "POST /api, to http://trusted.example:8080",
             "http://trusted.example:8080/api"
         ));
+    }
+
+    /// A stated origin or path composes only as the whole token the request states, quoted or
+    /// not: a character of the path's own class continuing or preceding it inside its token
+    /// (`+ : @ ! $ ' ( ) , ;`) makes another token, while quotes, brackets and the sentence
+    /// punctuation outside them stay prose, and only an origin goes on, into its own path
+    /// (independent K2b review).
+    #[test]
+    fn an_address_composes_only_from_whole_stated_tokens() {
+        let api = "http://trusted.example/api";
+        for (stated, composed) in [
+            (r#"POST "/api+v2" to http://trusted.example"#, false),
+            (r#"POST "/api:cancel" to http://trusted.example"#, false),
+            ("POST /api@v2 to http://trusted.example", false),
+            ("POST '/api!x' to http://trusted.example", false),
+            ("POST «/api$1» to http://trusted.example", false),
+            ("POST `/api'v2` to http://trusted.example", false),
+            (r#"POST "/api(v2)" to http://trusted.example"#, false),
+            ("POST /api,v2 to http://trusted.example", false),
+            ("POST /api;v=2 to http://trusted.example", false),
+            (r#"POST "/v2+/api" to http://trusted.example"#, false),
+            ("POST /api to http://trusted.example@evil.example", false),
+            (
+                r#"POST "/api", then stop. Use http://trusted.example."#,
+                true,
+            ),
+            ("POST (/api) to <http://trusted.example>!", true),
+            (
+                "Read http://trusted.example/status, then POST `/api`;",
+                true,
+            ),
+            ("POST /api: it lives on http://trusted.example", true),
+        ] {
+            assert_eq!(origin_and_path(stated, api), composed, "{stated}");
+        }
     }
 
     #[test]
