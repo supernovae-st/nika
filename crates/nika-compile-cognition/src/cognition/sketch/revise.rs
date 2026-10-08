@@ -39,6 +39,7 @@ use crate::fidelity::Diagnostic;
 use crate::sketch::{Sketch, revision};
 use crate::types::{EditChange, Input};
 use crate::{CompileError, lexicon};
+use nika_compile_seats::foundry::ComponentCatalog;
 use nika_kernel::ai::provider::{Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
@@ -56,6 +57,27 @@ struct Links {
     like: Option<String>,
     #[serde(default, deserialize_with = "crate::cognition::nullable_default")]
     notes: String,
+    /// Operations over the complete base document (`crate::cognition::document`), for any change
+    /// the destination links cannot state.
+    #[serde(default, deserialize_with = "crate::cognition::nullable_default")]
+    operations: Vec<Value>,
+    /// The whole revised source, only when no operation can state the change.
+    #[serde(default)]
+    replace: Option<String>,
+}
+
+impl Links {
+    /// Whether the seat stated the change over the document rather than as destination links.
+    fn over_the_document(&self) -> bool {
+        !self.operations.is_empty() || self.replacement().is_some()
+    }
+
+    /// The whole revised source, when one was given (an empty text is none).
+    fn replacement(&self) -> Option<&str> {
+        self.replace
+            .as_deref()
+            .filter(|source| !source.trim().is_empty())
+    }
 }
 
 impl Links {
@@ -76,7 +98,11 @@ pub(in crate::cognition) const ROUTE: &str = "edit: semantic revision through th
 pub(in crate::cognition) const SOURCE_ROUTE: &str =
     "edit: source-anchored revision of one destination";
 
-const REVISE_SOURCE: &str = "This is a REVISION of the base workflow below (`base_candidate`), which no semantic record binds. The compiler replaces ONE destination it writes, or adds ONE beside the existing ones, in place, and changes nothing else; you never write the workflow. Your only call: in `supersedes`, name the clause of the original request that states the destination the change replaces (copied exactly from `original_clauses`) and the clause of the change that states its new destination (copied exactly from `change_clauses`) — or no link when the change adds a destination; in `adds`, every other clause of the change (copied exactly from `change_clauses`), each adding or restating a duty without replacing any. Every change clause is in exactly one of the two. When the change adds a destination, `like` names the destination of `base_destinations` whose written content the new one receives. Name only what the request and the change state; when they leave it open, omit it and the human is asked.";
+const REVISE_SOURCE: &str = "This is a REVISION of the base workflow below (`base_candidate`), which no semantic record binds; you never write the workflow from scratch. When the change replaces ONE destination the base writes, or adds ONE beside the existing ones, state it as links and the compiler edits it in place: in `supersedes`, name the clause of the original request that states the destination the change replaces (copied exactly from `original_clauses`) and the clause of the change that states its new destination (copied exactly from `change_clauses`) — or no link when the change adds a destination; in `adds`, every other clause of the change (copied exactly from `change_clauses`), each adding or restating a duty without replacing any. Every change clause is in exactly one of the two. When the change adds a destination, `like` names the destination of `base_destinations` whose written content the new one receives. Name only what the request and the change state; when they leave it open, omit it and the human is asked. With links, leave `operations` empty.";
+
+/// The prompt of a revision with no destination link to state (the base writes none, or the
+/// request it answers is unknown): operations over the document only.
+const REVISE_DOCUMENT: &str = "This is a REVISION of the base workflow below, which no semantic record binds; you never write the workflow from scratch. There is no destination link to state here: leave `supersedes` and `adds` empty and state the change as `operations`.";
 
 const REVISE: &str = "This is a REVISION of the base program below (`base_graph`, `base_fills`). Its graph stays exactly as it is: the change only changes what its tasks do through their typed holes. Call 1: in `supersedes`, name each clause of the original request the change replaces (copied exactly from `original_clauses`) and the clause of the change that replaces it (copied exactly from `change_clauses`); in `adds`, name each clause of the change (copied exactly from `change_clauses`) that adds a duty beside the original ones and replaces none. Every change clause is in exactly one of the two; every other original clause stays. Call 2: fill the base graph's holes for the revised request.";
 
@@ -595,6 +621,7 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
     request: &CompileRequest,
     policy: &AuthoringPolicy,
     (provider, decision): (&P, Option<&dyn DecisionSeat>),
+    catalog: Option<&dyn ComponentCatalog>,
 ) -> Result<CompileOutcome, CompileError> {
     let kept = || {
         let mut out = historical();
@@ -608,9 +635,14 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
     else {
         return Ok(kept());
     };
-    let Some(original) = source_original(request).filter(|_| revisable(base)) else {
+    // A base the strict parser does not read cannot be revised in place: kept, no seat asked.
+    if nika_compile::parse(base).is_err() {
         return Ok(kept());
-    };
+    }
+    // Destination links need the request the base answers and a destination it writes; any
+    // other change is stated over the complete document.
+    let original = source_original(request);
+    let destinations = original.is_some() && revisable(base);
     let mut out = crate::initial();
     let intent = nika_compile::revise_intent(request).unwrap_or_default();
     let reading = lexicon::read(&intent);
@@ -624,13 +656,17 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
             ["ledger"]
             .clone()
     };
-    let ledgers = (ledger(&original), ledger(change));
-    let (mut talk, sent, shown) = source_opened(base, &intent, &reading, request, &ledgers);
+    let ledgers = (
+        ledger(original.as_deref().unwrap_or_default()),
+        ledger(change),
+    );
+    let lent = (destinations, catalog);
+    let (mut talk, sent, shown) = source_opened(base, &intent, &reading, request, &ledgers, lent);
     let linked = super::call::<Links, P>(
         &mut talk,
         0,
         "revision",
-        revision::links_schema(),
+        revision_schema(),
         policy,
         provider,
         &mut out,
@@ -650,15 +686,148 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
         cold,
     };
     let reading = (intent.as_str(), &reading);
-    Ok(source_settled(
+    let seated = (policy, provider, decision);
+    if linked.0.over_the_document() || !destinations {
+        let answer = (linked, catalog);
+        return Ok(document_settled(request, reading, seated, journal, answer, out).await);
+    }
+    Ok(source_settled(request, reading, seated, journal, linked, out).await)
+}
+
+/// The schema of a record-less revision's one answer: the destination links, and the operations
+/// or the whole replacement any other change is stated as. Every operation field is text (a
+/// value travels as its JSON text) so a strict structured-output dialect can carry it.
+fn revision_schema() -> Value {
+    let mut schema = revision::links_schema();
+    let text = || json!({"type": "string"});
+    schema["properties"]["operations"] = json!({"type": "array", "items": {
+    "type": "object", "additionalProperties": false,
+    "required": ["op"],
+    "properties": {
+        "op": {"type": "string", "enum": ["set", "compose", "rebind"]},
+        "path": text(), "value_json": text(),
+        "component": text(), "version": text(), "bindings_json": text(),
+    }}});
+    schema["properties"]["replace"] = text();
+    schema
+}
+
+/// The change stated over the complete document: applied in order to the base
+/// ([`crate::cognition::document::apply`]), the result bound to its record and checked by the
+/// strict parser and Check, then judged against the whole request by the round's judge — never
+/// another seat call. Links stated where no destination edit applies are refused, never guessed
+/// into operations. A refusal leaves no candidate and names every reason.
+async fn document_settled<P: ProviderInferDyn>(
+    request: &CompileRequest,
+    (intent, reading): (&str, &lexicon::Reading),
+    (policy, provider, decision): (&AuthoringPolicy, &P, Option<&dyn DecisionSeat>),
+    mut journal: Journal<'_>,
+    ((links, text), catalog): ((Links, String), Option<&dyn ComponentCatalog>),
+    mut out: CompileOutcome,
+) -> CompileOutcome {
+    use crate::cognition::document;
+    let Input::Edit { source: base, .. } = &request.input else {
+        return out;
+    };
+    let carried = document::carried(request.plan.as_ref());
+    let applied = if links.over_the_document() {
+        document::apply(
+            base,
+            (&links.operations, links.replacement()),
+            catalog,
+            &carried,
+        )
+    } else {
+        Err(vec![
+            "the change was stated as destination links where no destination edit applies (the base writes none, or the request it answers is unknown); state it as operations".to_owned(),
+        ])
+    };
+    let notes = crate::cognition::receipt::withheld(&links.notes, &[], "revision notes");
+    let stated = json!({"operations": links.operations.len(),
+        "replaced": links.replacement().is_some()});
+    let refused: Vec<&String> = applied.as_ref().err().into_iter().flatten().collect();
+    journal
+        .talk
+        .rounds
+        .push(json!({"round": journal.round, "phase": "revision",
+        "document": stated, "notes": notes, "refused": refused}));
+    journal
+        .talk
+        .messages
+        .push(Message::text(Role::Assistant, text));
+    journal.talk.route.push(document::ROUTE.to_owned());
+    let Journal {
+        talk,
+        sent,
+        shown,
+        cold,
+        ..
+    } = journal;
+    let applied = match applied {
+        Ok(applied) => applied,
+        Err(why) => {
+            native::record(&mut out, request, &cold, &talk, &sent, None, shown);
+            crate::record_route(&mut out, &talk.route);
+            refuse(&mut out, &why);
+            out.provenance.strategy = Some(Strategy::Native);
+            return out;
+        }
+    };
+    let mut done = crate::initial();
+    nika_compile::finish(applied.source.clone(), &mut done);
+    done.provenance.strategy = Some(Strategy::Native);
+    done.provenance.authoring = out.provenance.authoring.take();
+    let resolved = source_original(request).map_or_else(
+        || intent.to_owned(),
+        |original| format!("{original}\n{}", revision_change(request)),
+    );
+    let sha = nika_compile::intent_sha256(intent);
+    let record = document::record((base, &applied.source), &resolved, &sha, &applied);
+    let mut decision_record = done.provenance.decision.take().unwrap_or_else(|| json!({}));
+    decision_record["document_revision"] = record["document_revision"].clone();
+    done.provenance.decision = Some(decision_record);
+    done.provenance.plan = Some(record);
+    let answer = Answer {
+        candidate: applied.source.clone(),
+        questions: Vec::new(),
+        gaps: Vec::new(),
+    };
+    native::record(
+        &mut done,
         request,
+        &cold,
+        &talk,
+        &sent,
+        Some(&answer),
+        shown,
+    );
+    crate::record_route(&mut done, &talk.route);
+    // What reuse the bytes really hold: each composed component witnessed on the candidate.
+    let qualification = json!({"by": null, "why": "a revision: components are composed by operations, none is qualified here"});
+    crate::cognition::knowledge::reused(request, qualification, &applied.receipts, &mut done);
+    if done.status != crate::CompileStatus::Ready {
+        return done;
+    }
+    super::super::verify::judged_native(
+        intent,
         reading,
-        (policy, provider, decision),
-        journal,
-        linked,
-        out,
+        policy,
+        (provider, decision),
+        request,
+        done,
     )
-    .await)
+    .await
+}
+
+/// The change words of an EDIT, as the revision read them.
+fn revision_change(request: &CompileRequest) -> String {
+    match &request.input {
+        Input::Edit {
+            change: EditChange::Text(words),
+            ..
+        } => format!("Change: {words}"),
+        _ => String::new(),
+    }
 }
 
 /// What a revision's round journals: the round its accepted answer was stated in (the links
@@ -744,6 +913,7 @@ fn source_opened<'a>(
     reading: &lexicon::Reading,
     request: &'a CompileRequest,
     ledgers: &(Value, Value),
+    (destinations, catalog): (bool, Option<&dyn ComponentCatalog>),
 ) -> (Talk, Vec<Value>, Option<(&'a str, &'a str)>) {
     let native::Prelude {
         references,
@@ -760,9 +930,24 @@ fn source_opened<'a>(
             .and_then(|doc| crate::sketch::import::written(&doc).ok())
             .unwrap_or_default()
     );
+    opening["base_source"] = json!(base);
+    opening["base_document"] = crate::cognition::document::nodes(base).unwrap_or_default();
+    opening["components"] = crate::cognition::document::components(catalog);
+    opening["composed"] = json!(
+        (crate::cognition::document::carried(request.plan.as_ref()).iter())
+            .map(|receipt| json!({"component": receipt["component"]["id"],
+                "bindings": receipt["bindings"]}))
+            .collect::<Vec<_>>()
+    );
     let mut system = system_message(&references, &callables);
     system.push_str("\n\n");
-    system.push_str(REVISE_SOURCE);
+    system.push_str(if destinations {
+        REVISE_SOURCE
+    } else {
+        REVISE_DOCUMENT
+    });
+    system.push_str("\n\n");
+    system.push_str(crate::cognition::document::OPERATIONS);
     // The opening is the machine-readable facts alone (hosts read it); what to answer is the
     // system's to say.
     let first = opening.to_string();

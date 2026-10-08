@@ -12,6 +12,7 @@ use serde_json::{Value, json};
 use crate::fidelity::Diagnostic;
 use crate::rehearse::{Attempt, Rehearsal, RehearsalReport, Rehearse, judged_run, trial_shown};
 use crate::{CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind};
+use nika_compile_seats::foundry::ComponentCatalog;
 
 mod record;
 #[cfg(test)]
@@ -44,7 +45,8 @@ struct Checked {
     room_bytes: u64,
 }
 
-/// The journal and consumption of one invocation. The native loop owns its repair limit;
+/// The journal and consumption of one invocation, and what its host lends the preparation (a
+/// rehearsal room, the admitted component catalogue). The native loop owns its repair limit;
 /// this bridge adds no retry and the final barrier never repeats its identical last report.
 pub(super) struct Rehearsals<'a> {
     host: Option<&'a dyn Rehearse>,
@@ -54,6 +56,9 @@ pub(super) struct Rehearsals<'a> {
     /// The compile this journal serves: the caller's own basis and request, which bind a
     /// semantic record before its paths are read, and the request the final barrier reads.
     serves: Option<Serves>,
+    /// The admitted release the host lends as executable components: whole-catalogue reach for
+    /// a pack, and the components a revision may compose. Lending it grants no authority.
+    catalog: Option<&'a dyn ComponentCatalog>,
 }
 
 /// The compile a journal serves (slice C): what binds a semantic record, what the barrier reads.
@@ -71,7 +76,19 @@ impl<'a> Rehearsals<'a> {
             records: Vec::new(),
             usage: Usage::default(),
             serves: None,
+            catalog: None,
         }
+    }
+
+    /// The same journal, its preparation lent `catalog` (none lends nothing).
+    pub(super) fn lending(mut self, catalog: Option<&'a dyn ComponentCatalog>) -> Self {
+        self.catalog = catalog;
+        self
+    }
+
+    /// The admitted component catalogue the host lent, when it lent one.
+    pub(super) fn catalog(&self) -> Option<&'a dyn ComponentCatalog> {
+        self.catalog
     }
 
     /// The same journal, serving this compile.

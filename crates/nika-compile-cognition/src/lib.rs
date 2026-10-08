@@ -80,8 +80,8 @@ pub use nika_compile_seats::{decide, rehearse};
 mod predicate;
 
 pub use cognition::{
-    Cognition, NoProvider, compile_with_cognition, compile_with_cognition_rehearsed,
-    compile_with_provider,
+    Cognition, NoProvider, compile_with_cognition, compile_with_cognition_composed,
+    compile_with_cognition_rehearsed, compile_with_provider,
 };
 
 /// A host's scoped observation of its compile's authoring answers as received (slice C).

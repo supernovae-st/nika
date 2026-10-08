@@ -758,22 +758,33 @@ async fn a_second_revision_uses_the_path_answered_when_the_first_change_named_no
     );
 }
 
-/// The zero-call controls stay: a base that writes nothing or cannot be read is kept with its
-/// limitation and no seat is asked; with no seat at all, nothing is revised.
+/// An unreadable base is kept and no seat is asked. A readable base that writes nothing has no
+/// destination link to state: it is revised over its complete document (one seat call), and an
+/// answer stated as destination links there is refused, with no candidate. With no seat at all,
+/// nothing is revised.
 #[tokio::test]
-async fn a_base_writing_nothing_or_unreadable_asks_no_seat() {
+async fn a_base_writing_nothing_is_revised_over_its_document_and_an_unreadable_one_asks_no_seat() {
     let read_only = "nika: lire\npermits:\n  tools: [\"nika:read\"]\n  fs:\n    read: [\"entree.txt\"]\ntasks:\n  read_source:\n    invoke:\n      tool: \"nika:read\"\n      args:\n        path: \"entree.txt\"\n";
-    for base in [read_only, "nika: [broken"] {
+    for (base, calls) in [(read_only, 1), ("nika: [broken", 0)] {
         let provider = Rotating::new(vec![links(COPY, USE_B, &[])]);
         let request = CompileRequest::edit(base, CHANGE)
             .with_original_intent(ORIGINAL)
             .with_authoring_policy(policy());
         let out = compile_with_provider(&request, &provider).await.unwrap();
-        assert_eq!(provider.calls.load(Ordering::SeqCst), 0, "{base}: {out:#?}");
+        assert_eq!(
+            provider.calls.load(Ordering::SeqCst),
+            calls,
+            "{base}: {out:#?}"
+        );
         assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
-        // A readable base is kept with no candidate; an unreadable one is the core's own finding.
+        // A readable base is kept with no candidate, the links refused where no destination
+        // edit applies; an unreadable one is the core's own finding.
         if base == read_only {
             assert!(out.candidate.is_none(), "{out:#?}");
+            assert!(
+                (out.diagnostics.iter()).any(|d| d.message.contains("no destination edit applies")),
+                "{out:#?}"
+            );
         }
     }
     // No seat: nothing is revised (the core keeps its own deterministic outcome, the base

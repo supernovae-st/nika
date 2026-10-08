@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 
 pub(super) use nika_compile::surface::sha256;
 /// The references a seat reads and the Foundry fold, owned with the seats (ADR-146 descent).
-pub(super) use nika_compile_seats::foundry::{folded, qualified, traced};
+pub(super) use nika_compile_seats::foundry::{folded, qualified, reused, traced};
 pub(super) use nika_compile_seats::shelf::{
     Reference, builtins_of, callables, references, rendered,
 };

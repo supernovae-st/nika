@@ -28,6 +28,7 @@ use super::{
     admit_hot, intent_sha256, lexical_rest_is_explicit, plan_record, record_ledger,
     record_retrieval, record_route, replay, unresolved,
 };
+use nika_compile_seats::foundry::ComponentCatalog;
 use nika_kernel::ai::provider::{InferRequest, InferResponse, Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
@@ -37,6 +38,7 @@ use agenda::Action;
 mod instructions;
 use instructions::INSTRUCTIONS;
 mod backstops;
+mod document;
 mod forensic;
 pub(super) mod knowledge;
 mod native;
@@ -190,6 +192,7 @@ async fn revise<P: ProviderInferDyn>(
         request,
         policy,
         (provider, cognition.seat),
+        rehearsals.catalog(),
     ))
     .await
 }
@@ -221,6 +224,24 @@ pub async fn compile_with_cognition_rehearsed<P: ProviderInferDyn>(
     cognition: Cognition<'_, P>,
     host: Option<&dyn crate::rehearse::Rehearse>,
 ) -> Result<CompileOutcome, CompileError> {
+    compile_with_cognition_composed(request, cognition, host, None).await
+}
+
+/// [`compile_with_cognition_rehearsed`] with the admitted release the host lends as executable
+/// components (`nika_onboard::knowledge::Snapshot`, reopened from the session's pin): a pack is
+/// qualified over the whole catalogue, and a revision of a base no semantic record binds may
+/// compose an admitted component (expanded, bound and witnessed) or rebind one it composed. The
+/// catalogue grants no authority: every candidate still passes the strict parser, Check and the
+/// round's judge, and the receipt names what was consulted and what was really expanded.
+///
+/// # Errors
+/// Returns the same representation/registry machinery failures as [`super::compile`].
+pub async fn compile_with_cognition_composed<P: ProviderInferDyn>(
+    request: &CompileRequest,
+    cognition: Cognition<'_, P>,
+    host: Option<&dyn crate::rehearse::Rehearse>,
+    catalog: Option<&dyn ComponentCatalog>,
+) -> Result<CompileOutcome, CompileError> {
     // The caller's own request, read before money or a clarification changes it (slice C).
     let caller = match nika_compile::surface::semantic::caller(request) {
         Ok(caller) => caller,
@@ -240,11 +261,13 @@ pub async fn compile_with_cognition_rehearsed<P: ProviderInferDyn>(
     } else {
         cognition
     };
-    let mut rehearsals = rehearsal::Rehearsals::new(host).serving(rehearsal::Serves {
-        caller: caller.clone(),
-        raw: request.clone(),
-        reading: reading.clone(),
-    });
+    let mut rehearsals = rehearsal::Rehearsals::new(host)
+        .serving(rehearsal::Serves {
+            caller: caller.clone(),
+            raw: request.clone(),
+            reading: reading.clone(),
+        })
+        .lending(catalog);
     let mut out = if request
         .plan
         .as_ref()
@@ -601,6 +624,9 @@ async fn compose<P: ProviderInferDyn>(
     if unbounded(policy, &mut out) {
         return Ok(out);
     }
+    // The pack the request carries, qualified as before. Whole-catalogue reach
+    // (`foundry::qualified_with`) asks the decision seat about every admitted entry the pack does
+    // not hold: a change of the questions and calls a creation makes, wired once it is measured.
     let qualified = knowledge::qualified(intent, request, cognition.seat).await;
     let shown = qualified
         .as_ref()
