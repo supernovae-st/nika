@@ -239,7 +239,7 @@ fn face_pointer(state: &UiState, desk: &mut Desk, column: u16, width: u16) -> Ro
     let Object::Workflow { title, .. } = &shown.object else {
         return Route::Repaint;
     };
-    let steps = if desk.opened == Some(Target::Live) {
+    let steps = if matches!(desk.opened, Some(Target::Live | Target::Past(_))) {
         let labels: Vec<_> = RunFace::ALL
             .iter()
             .map(|face| {

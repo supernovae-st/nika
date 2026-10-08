@@ -707,3 +707,103 @@ fn a_height_only_resize_keeps_the_picked_task_in_view() {
         "back: {at} in {scroll}+{rows}"
     );
 }
+
+/// One run's observation, under its own execution: asked, started, one task done, settled.
+fn observed_run(workflow: &str, uuid: &str, task: &str) -> Vec<Observed> {
+    let exec = format!(r#""execution":{{"uuid":"{uuid}"}}"#);
+    let frame = |n: u32, kind: &str, fields: &str| {
+        let line = format!(
+            r#"{{"correlation":null,{exec},"fields":[{fields}],"id":{{"uuid":"01a0ef11-03a7-74fb-bba0-{n:012x}"}},"kind":"{kind}","run":null,"timestamp":{n}}}"#
+        );
+        Observed::Frame(RunFrame::decode(&line).expect("frame"))
+    };
+    let started = format!(
+        r#"{{"key":"task","value":"{task}"}},{{"key":"note","value":"invoke · nika:write"}}"#
+    );
+    let ended = format!(
+        r#"{{"key":"task","value":"{task}"}},{{"key":"output","value":"\"./out/{task}.md\""}}"#
+    );
+    let settled = format!(
+        r#"{{"kind":"run_settled","status":"succeeded","cause":"normal",{exec},"spend":{{"priced_calls":0,"qualifier":"unmetered","unpriced_calls":0}},"evidence":"unsealed"}}"#
+    );
+    vec![
+        Observed::Asked {
+            workflow: workflow.to_owned(),
+            resume: false,
+            typed: true,
+            look: None,
+        },
+        frame(1, "workflow_started", ""),
+        frame(2, "task_started", &started),
+        frame(3, "task_completed", &ended),
+        Observed::Frame(RunFrame::decode(&settled).expect("settled")),
+    ]
+}
+
+/// The second run used to replace the only inspectable result: the first leg was kept in
+/// `past` but nothing could open it. It is now listed by its execution, opens as it was
+/// observed (its own workflow and task), and the run in flight comes back unchanged.
+#[test]
+fn an_earlier_run_reopens_by_its_execution_and_the_current_one_returns() {
+    let mut desk = demo();
+    desk.observe(
+        observed_run(
+            "first.nika",
+            "01a0ef11-0212-70de-a8b3-99de9427fcc1",
+            "alpha",
+        )
+        .into_iter(),
+    );
+    let first = desk
+        .live
+        .as_ref()
+        .and_then(LiveRun::execution)
+        .expect("first bound");
+    desk.observe(
+        observed_run(
+            "second.nika",
+            "02b0ef11-0212-70de-a8b3-99de9427fcc2",
+            "beta",
+        )
+        .into_iter(),
+    );
+    let second = desk
+        .live
+        .as_ref()
+        .and_then(LiveRun::execution)
+        .expect("second bound");
+    assert_ne!(first, second);
+    assert_eq!(desk.opened, Some(Target::Live));
+
+    let screen = desk.screen(false);
+    let index = (screen.aside.entries.iter())
+        .position(|e| e.label.contains("first.nika") && e.label.contains("earlier"))
+        .expect("the earlier run is listed");
+    assert!(!screen.aside.entries[index].open, "listed, not in view yet");
+    assert_eq!(desk.open(index), Route::Repaint);
+    assert_eq!(desk.opened, Some(Target::Past(first)));
+    desk.prepare(WIDE, false, false);
+    let Object::Workflow { title, body } = desk.screen(false).object else {
+        panic!("the earlier run is in view");
+    };
+    let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
+    assert!(title.to_string().contains("01a0ef110212"), "{title}");
+    assert!(rows.join(" ").contains("alpha"), "{rows:?}");
+    assert!(!rows.join(" ").contains("beta"), "{rows:?}");
+    assert_eq!(
+        desk.live.as_ref().and_then(LiveRun::execution),
+        Some(second),
+        "opening an earlier run leaves the run in flight as it is"
+    );
+
+    let live = (desk.screen(false).aside.entries.iter())
+        .position(|e| e.label.contains("second.nika") && !e.label.contains("earlier"))
+        .expect("the current run is listed");
+    assert_eq!(desk.open(live), Route::Repaint);
+    assert_eq!(desk.opened, Some(Target::Live));
+    desk.prepare(WIDE, false, false);
+    let Object::Workflow { title, .. } = desk.screen(false).object else {
+        panic!("the current run is in view");
+    };
+    assert!(title.to_string().contains("02b0ef110212"), "{title}");
+}

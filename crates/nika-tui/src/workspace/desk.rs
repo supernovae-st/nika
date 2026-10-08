@@ -409,10 +409,10 @@ impl Desk {
         reading: Reading,
         got: Vec<Got>,
     ) -> bool {
-        let current = |l: &&mut LiveRun| {
-            l.execution() == Some(execution) && l.generation() == reading.generation
-        };
-        let Some(leg) = self.live.as_mut().filter(current) else {
+        // The leg the reading was asked for, the one in flight or an earlier one in view.
+        let Some(leg) = viewed_mut(self.opened.as_ref(), &mut self.live, &mut self.past)
+            .filter(|l| l.execution() == Some(execution) && l.generation() == reading.generation)
+        else {
             return false;
         };
         for item in got {
@@ -544,7 +544,7 @@ impl Desk {
             self.view.as_ref(),
             self.opened.as_ref(),
             self.candidate.as_ref(),
-            self.live.as_ref(),
+            (self.live.as_ref(), &self.past),
         )
     }
 
@@ -570,7 +570,13 @@ impl Desk {
         let candidate = self.candidate.as_ref();
         let screen = Screen::new(
             project::place(view),
-            project::aside(view, self.focus.tab, opened, candidate, self.live.as_ref()),
+            project::aside(
+                view,
+                self.focus.tab,
+                opened,
+                candidate,
+                (self.live.as_ref(), &self.past),
+            ),
             object,
             project::thread(view, label.as_deref()),
         );
@@ -631,7 +637,8 @@ impl Desk {
             Action::Again if self.opened_workflow().is_some() => Route::Inspect,
             // A run in view is read again: its files and journal as they are now.
             Action::Again if matches!(self.shown(), Some(Opened::Live(_))) => {
-                if let Some(leg) = self.live.as_mut() {
+                if let Some(leg) = viewed_mut(self.opened.as_ref(), &mut self.live, &mut self.past)
+                {
                     leg.forget();
                 }
                 self.drawn = None;
@@ -651,7 +658,7 @@ impl Desk {
         if self.run_face != RunFace::Run || !matches!(self.shown(), Some(Opened::Live(_))) {
             return None;
         }
-        let leg = self.live.as_ref()?;
+        let leg = viewed(self.opened.as_ref(), self.live.as_ref(), &self.past)?;
         let open = self.pick.is_open();
         if !open && leg.listed().is_empty() {
             // No task to pick: the arrows scroll the facts as before.
@@ -726,8 +733,11 @@ impl Desk {
     /// (opened again, it is read again). Nothing is attached to the next
     /// message.
     fn open(&mut self, index: usize) -> Route {
-        let (candidate, live) = (self.candidate.as_ref(), self.live.as_ref());
-        match project::target(self.view.as_ref(), self.focus.tab, index, candidate, live) {
+        let (candidate, legs) = (
+            self.candidate.as_ref(),
+            (self.live.as_ref(), &self.past[..]),
+        );
+        match project::target(self.view.as_ref(), self.focus.tab, index, candidate, legs) {
             Some(Target::Conversation) => {
                 self.focus.region = Region::Conversation;
                 Route::Repaint
@@ -737,6 +747,12 @@ impl Desk {
                     self.look = None;
                     self.face = Face::Source;
                     self.focus.scroll = 0;
+                    // Another run in view: its own task list, from its run face.
+                    if matches!(target, Target::Live | Target::Past(_)) {
+                        self.pick = Pick::new();
+                        self.run_face = RunFace::Run;
+                        self.drawn = None;
+                    }
                 }
                 let workflow = matches!(target, Target::Workflow(_));
                 self.opened = Some(target);
@@ -794,6 +810,32 @@ pub(crate) fn draw(
             dragging: desk.dragging(),
         },
     )
+}
+
+/// The run leg in view: the leg in flight, or an earlier one opened by its execution.
+fn viewed<'a>(
+    opened: Option<&Target>,
+    live: Option<&'a LiveRun>,
+    past: &'a [LiveRun],
+) -> Option<&'a LiveRun> {
+    match opened? {
+        Target::Live => live,
+        Target::Past(execution) => past.iter().find(|l| l.execution() == Some(*execution)),
+        _ => None,
+    }
+}
+
+/// [`viewed`], to apply what was read for it or forget what it acquired.
+fn viewed_mut<'a>(
+    opened: Option<&Target>,
+    live: &'a mut Option<LiveRun>,
+    past: &'a mut [LiveRun],
+) -> Option<&'a mut LiveRun> {
+    match opened? {
+        Target::Live => live.as_mut(),
+        Target::Past(execution) => past.iter_mut().find(|l| l.execution() == Some(*execution)),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
