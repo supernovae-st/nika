@@ -50,10 +50,10 @@ fn a_known_context_refusal_does_not_announce_generation_or_change_the_request() 
     let outcome = session.compile_under_seat(AuthoringRound::new(request));
 
     let TurnOutcome::Refusal(refusal) = outcome else {
-        panic!("expected context refusal, got {outcome:?}");
+        panic!("expected context refusal");
     };
     assert_eq!(refusal.class, RefusalClass::AuthoringRefused);
-    assert!(refusal.text.contains(&refused), "{}", refusal.text);
+    assert!(refusal.text.contains(&refused), "names the context refusal");
     assert!(
         refusal
             .text

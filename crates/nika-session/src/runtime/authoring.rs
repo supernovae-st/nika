@@ -733,8 +733,9 @@ impl SessionRuntime {
     /// are named); a compiler failure is a refusal that names it; an
     /// authoring configuration that cannot be honored blocks the refused
     /// workflow-authoring call before dispatch — never authored without the
-    /// knowledge it names. Only that call is said unsent: earlier routing of
-    /// the same line may already have used the selected intelligence.
+    /// knowledge it names. Only that call is said unsent: earlier routing or
+    /// authoring calls for the same line may already have used the selected
+    /// intelligence.
     pub(super) fn machinery(&mut self, error: &AuthoringError) -> TurnOutcome {
         match error {
             AuthoringError::Cancelled => TurnOutcome::Cancelled(error.to_string()),
