@@ -306,6 +306,19 @@ fn state(intent: &str, request: &CompileRequest, candidate: &str) -> Value {
     state
 }
 
+/// A revision the compiler applied over the complete document (its record says so) is judged as
+/// the base with exactly the change: the base shown whole, whatever request it answers.
+fn over_document(base: &mut Value, request: &CompileRequest, out: &CompileOutcome) {
+    let applied = (out.provenance.decision.as_ref())
+        .is_some_and(|decision| decision.get("document_revision").is_some());
+    if let (true, Some(revision), Input::Edit { source, .. }) =
+        (applied, base.get_mut("revision"), &request.input)
+    {
+        revision["base_nika"] = json!(source);
+        revision["over_document"] = json!(true);
+    }
+}
+
 const REPAIR_REFERENCE: &str = "The compiler emits the workflow from your plan as the reference below states: how it writes and what each tool it calls does, so you can read the candidate's bytes in the STATE. Your answer stays the complete JSON plan.";
 
 /// The decision key under which the spelling law keeps its notes on the programs it could not
@@ -1390,7 +1403,8 @@ pub(super) async fn native_verdict<P: ProviderInferDyn>(
     let binding = Binding::of(intent, request, &assembled, &candidate);
     let grounding = grounding(Some(&candidate));
     verdict.reference = grounding.record;
-    let base = state(intent, request, &candidate);
+    let mut base = state(intent, request, &candidate);
+    over_document(&mut base, request, &out);
     let asked = (&base, grounding.text.as_str());
     verdict.candidate_sha256 = Some(sha);
     verdict.context_sha256 = Some(context(intent, request));
