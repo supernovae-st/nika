@@ -493,6 +493,48 @@ async fn a_session_runs_its_saved_copy_workflow_in_the_residents_runtime() {
     close(served, &session).await;
 }
 
+/// `save & run` over HTTP, run for real by the resident (NIK-14): one command lands the proposal
+/// shown and runs it once in the resident's runtime, whose file builtins write the brief's exact
+/// bytes; the same command replayed answers from its record and admits no second job.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn save_and_run_lands_the_proposal_and_runs_it_once_in_the_resident() {
+    let world = briefed();
+    let backend = Arc::new(Witnessed::producing(world.root.path()));
+    let served = serve(&world, (true, Registry::Project), Some(1.0), backend).await;
+    let opened = wire_request(served.address, &post("/v1/sessions", "", true)).await;
+    let opened = opened.json();
+    let session = opened["session"].as_str().expect("session").to_owned();
+    let commands = format!("/v1/sessions/{session}/commands");
+    let first = &opened["snapshot"]["snapshot"];
+    let request = post(&commands, &submit("c-1", first, COPY), true);
+    let proposed = wire_request(served.address, &request).await.json();
+    assert_eq!(proposed["outcomes"][0]["kind"], "proposal", "{proposed}");
+    let file = &proposed["snapshot"]["work"]["candidate"]["files"][0];
+    let path = file["path"].as_str().expect("path").to_owned();
+    let shown = &proposed["snapshot"]["snapshot"];
+    let request = post(&commands, &submit("c-2", shown, "save & run"), true);
+    let ran = wire_request(served.address, &request).await.json();
+    assert_eq!(kinds(&ran), ["run_requested", "facts"], "{ran}");
+    let observed = ran["outcomes"][1]["text"].as_str().expect("observation");
+    assert!(observed.contains("run observed · exit 0"), "{observed}");
+    let saved = std::fs::read_to_string(world.root.path().join(&path)).expect("saved");
+    assert_eq!(
+        served.backend.runs(),
+        [(saved, Some(0.25))],
+        "the saved bytes, once"
+    );
+    let copied = std::fs::read(world.root.path().join("out/copy.md")).expect("the run's output");
+    assert_eq!(copied, BRIEF.as_bytes(), "the brief's exact bytes");
+    let replay = wire_request(served.address, &request).await.json();
+    assert_eq!(replay["replayed"], true, "{replay}");
+    assert_eq!(
+        served.backend.runs().len(),
+        1,
+        "a replay admits no second job"
+    );
+    close(served, &session).await;
+}
+
 /// The project's own workflow, run by the resident's own runtime through the same Session: the
 /// job's journal is the one the Session reads back for its observation, and the run names what
 /// it observed of itself (the source hash its journal started with, its job's execution and the
