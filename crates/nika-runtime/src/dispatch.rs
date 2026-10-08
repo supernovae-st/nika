@@ -872,6 +872,7 @@ where
         if let Some(refused) = self.pre_send_refusal(&lane_model, "infer", ctx) {
             return refused;
         }
+        let input = input.with_requirement(self.requirement());
         let access = self.lane_plan(&lane_model);
         #[cfg(feature = "access-harness")]
         if let Some(seat_id) = self.seat_for(&lane_model) {
@@ -960,6 +961,7 @@ where
         let access = self.lane_plan(&lane_model);
         let seat = self.seat_for(&lane_model).map(str::to_owned);
         input.native_only = self.access_plan.is_some() && seat.is_none();
+        input.requirement = self.requirement().cloned();
         Self::bridge_inputs(&mut input, scope, ctx);
         input.max_turns = action.max_turns.as_ref().map(|t| t.value);
         input.max_tokens_total = action.max_tokens_total.as_ref().map(|t| t.value);

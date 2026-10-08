@@ -182,7 +182,9 @@ fn environment_attestation_fields() -> [(&'static str, FieldValue); 2] {
 /// - `spec_pin` names the exact spec commit compiled into the engine;
 /// - `stamper_kind` is `deterministic` under `entropy: none | seeded(N)`;
 /// - `clock` is the resolved run clock (`virtual` or `system`);
-/// - `seed` keys retry jitter and exists only for a deterministic run.
+/// - `seed` keys retry jitter and exists only for a deterministic run;
+/// - `access_requirement` is the authored `run.access`/`run.reasoning`,
+///   only when the file declares one.
 ///
 /// `time_source`/`time_scale` remain F-N10 receipt fields. `nika.lock` has no
 /// recording surface yet, so the manifest claims no digest for it.
@@ -195,6 +197,10 @@ pub(crate) fn boot_attestation_fields(wf: &RawWorkflow) -> Vec<(&'static str, Fi
         .map_or_else(nika_schema::types::RunDecl::default, |decl| {
             decl.value.clone()
         });
+    // The authored access selection, as written (absent = no claim).
+    if let Some(requirement) = decl.access_requirement() {
+        fields.push(("access_requirement", s(&requirement.to_json().to_string())));
+    }
     let entropy = decl.entropy_or_default();
     fields.push((
         "stamper_kind",
