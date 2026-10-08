@@ -30,6 +30,7 @@ nika-trace    = { path = "../nika-trace", version = "0.122.0" }       # run_view
 nika-schema   = { path = "../nika-schema", version = "0.122.0" }      # the parser — the review reads a candidate's tasks from the AST, never from prose
 nika-fs       = { path = "../nika-fs", version = "0.122.0" }          # OwnedDir — a change is witnessed and lands by temp + rename below the root's descriptor; the consent journal appends there
 nika-source   = { path = "../nika-source", version = "0.122.0" }      # lexical program-source naming (#1684) — a change lands only at a canonical program name
+nika-types    = { path = "../nika-types", version = "0.122.0" }       # net::{is_exact_loopback_literal, host_is_blocked, is_documentation_host} — a declared host is judged by the floor's own predicates
 
 blake3      = { workspace = true }   # the witness of the bytes a preview was built over
 serde       = { workspace = true }   # the consent record's line format
