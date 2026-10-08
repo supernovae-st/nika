@@ -376,8 +376,16 @@ pub(crate) fn thread(view: Option<&ProjectView>, on_screen: Option<&str>) -> Thr
     }
 }
 
+/// The demo the welcome offers: an exact skeleton of the pack whose records
+/// travel inside the example, so following it needs no file of the user's, no
+/// service and no model; its one open value (the currency) is asked. Typed as
+/// a line, it reaches the Session like any other request.
+pub(crate) const DEMO: &str = "aggregate-by-key";
+
 /// The welcome explains the work once. The aside owns inventory, the
-/// conversation owns intelligence/context, and its hint owns the keys.
+/// conversation owns intelligence/context, and its hint owns the keys. The
+/// example it offers brings its own data; a request about the user's own
+/// files names them.
 #[must_use]
 pub(crate) fn welcome(view: Option<&ProjectView>, _ascii: bool) -> Object {
     let mut words = vec![
@@ -388,8 +396,10 @@ pub(crate) fn welcome(view: Option<&ProjectView>, _ascii: bool) -> Object {
         "2  Answer questions; inspect the proposed plan.".to_owned(),
         "3  Save, then Run with the workflow's models.".to_owned(),
         String::new(),
-        "Try: Read orders.csv, group by customer,".to_owned(),
-        "and write totals to customer-totals.json.".to_owned(),
+        format!("Try: {DEMO}"),
+        "a demo with its own records: totals per".to_owned(),
+        "region, you name the currency.".to_owned(),
+        "For your own data, name the files to read.".to_owned(),
         String::new(),
     ];
     if view.is_none() {
@@ -575,6 +585,24 @@ mod tests {
         let thread = thread(Some(&demo), Some("a.nika"));
         assert_eq!(thread.intelligence, demo.seat);
         assert_eq!(thread.on_screen.as_deref(), Some("a.nika"));
+    }
+
+    /// The welcome once offered « Read orders.csv … » in a project that had no such file; the
+    /// example it offers now carries its own records, and it names no input file at all.
+    #[test]
+    fn the_welcome_example_brings_its_own_data_and_names_no_absent_file() {
+        let welcome_words = words(&welcome(None, false));
+        assert!(
+            welcome_words
+                .iter()
+                .any(|word| *word == format!("Try: {DEMO}")),
+            "{welcome_words:?}"
+        );
+        for word in &welcome_words {
+            for extension in [".csv", ".json", ".md", ".txt", ".nika"] {
+                assert!(!word.contains(extension), "a file is offered: {word}");
+            }
+        }
     }
 
     #[test]

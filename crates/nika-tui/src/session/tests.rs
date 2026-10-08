@@ -190,6 +190,38 @@ fn continuous_preparation_asks_no_cost_question_and_keeps_run_apart() {
     );
 }
 
+/// The welcome's example, typed in a project that holds no file of the user's, reaches the
+/// Session as any request: the pack's skeleton asks its one open value, no model is called and
+/// nothing is written before a proposal is consented.
+#[test]
+fn the_welcome_example_needs_no_file_and_asks_only_its_open_value() {
+    let room = Room::new("demo");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut live = session_live(&room, &calls);
+    let beats = live.submit(crate::workspace::project::DEMO).beats;
+    let asked = question(&beats);
+    assert!(asked.to_lowercase().contains("currency"), "{asked}");
+    assert!(
+        matches!(waits(&beats), Some(Waiting::Question { .. })),
+        "{beats:?}"
+    );
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "no model reads the example"
+    );
+    let written: Vec<_> = std::fs::read_dir(&room.0)
+        .expect("room")
+        .flatten()
+        .map(|e| e.file_name())
+        .filter(|name| name != ".nika")
+        .collect();
+    assert!(
+        written.is_empty(),
+        "nothing written before consent: {written:?}"
+    );
+}
+
 /// With no decision waiting, an interruption after a preparation cancels
 /// nothing and sends nothing.
 #[test]
