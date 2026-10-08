@@ -12,9 +12,11 @@ use std::path::Path;
 use nika_compile_seats::foundry::entry::role;
 use nika_compile_seats::foundry::reach::descriptor;
 use nika_compile_seats::foundry::release::canonical::jcs_json;
-use nika_compile_seats::foundry::{ComponentCatalog, ComponentRef, Unresolved};
+use nika_compile_seats::foundry::{ComponentCatalog, ComponentRef, Unresolved, qualified_with};
 use serde_json::Value;
 
+use crate::compile::CompileRequest;
+use crate::compile::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
 use crate::knowledge::{Snapshot, TrustedIdentity};
 
 /// The base payload of the shared r2 vectors, admitted against its identity.
@@ -177,4 +179,60 @@ fn an_r2_pack_presents_its_boundaries_contracts_skills_and_diagnostics() {
             .iter()
             .all(|r| r.id != "example:total" && !r.id.starts_with("counterexample:"))
     );
+}
+
+/// A seat that keeps every question it was asked and cannot tell any.
+struct Recorder(std::sync::Mutex<Vec<ChoiceQuestion>>);
+
+impl DecisionSeat for Recorder {
+    fn name(&self) -> &'static str {
+        "test/recorder"
+    }
+    fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
+        self.0.lock().unwrap().push(question.clone());
+        Box::pin(async move { Ok(ChoiceAnswer::new("none", "test/recorder")) })
+    }
+}
+
+#[tokio::test]
+async fn a_held_out_corpus_stays_out_of_the_catalogue_reach_judged_or_not() {
+    let snapshot = base();
+    let holdout = Some("refeng-cases-v0");
+    let absent = ["example:total", "counterexample:total:R0:19c2e1a5"];
+    let intent = "total the paid rows of a csv file";
+    let pack = snapshot.pack(intent, holdout).unwrap();
+    let request = CompileRequest::create(intent).with_authoring_knowledge(pack);
+    let catalogue = snapshot.catalogue(holdout);
+    for id in absent {
+        assert!(catalogue.reference(id).is_none(), "{id}");
+        assert!(
+            !catalogue.entries().iter().any(|row| row["id"] == id),
+            "{id}"
+        );
+        // The whole snapshot still lends it: the holdout is the request's, not the release's.
+        assert!(snapshot.reference(id).is_some(), "{id}");
+    }
+    let seat = Recorder(std::sync::Mutex::new(Vec::new()));
+    let (judged, _) = qualified_with(intent, &request, Some(&seat), Some(&catalogue))
+        .await
+        .unwrap();
+    let asked = seat.0.lock().unwrap().clone();
+    assert!(!asked.is_empty());
+    let (unjudged, _) = qualified_with(intent, &request, None, Some(&catalogue))
+        .await
+        .unwrap();
+    for id in absent {
+        let named =
+            |q: &ChoiceQuestion| q.instructions.contains(id) || q.state.to_string().contains(id);
+        assert!(!asked.iter().any(named), "{id} asked");
+        for shown in [&judged, &unjudged] {
+            let pack = shown.authoring_knowledge.as_ref().unwrap();
+            assert!(
+                pack.references
+                    .iter()
+                    .all(|r| r.id != id && !r.text.contains(id)),
+                "{id} shown"
+            );
+        }
+    }
 }
