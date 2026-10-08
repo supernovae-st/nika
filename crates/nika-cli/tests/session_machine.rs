@@ -127,6 +127,18 @@ fn the_machine_door_opens_with_the_conversation_s_named_choice() {
     assert!(!success, "a refused open is not a success");
     let kept = nika_session::intelligence::UserIntelligencePreference::path_under(home.path());
     assert!(!kept.exists(), "the operator's choice is never written");
+    // A misplaced `--fix` is not the machine door's: the front door teaches it, as before.
+    let misplaced = Command::new(env!("CARGO_BIN_EXE_nika"))
+        .args(["session", "--json", "--fix"])
+        .current_dir(project.path())
+        .env_clear()
+        .env("HOME", home.path())
+        .stdin(Stdio::null())
+        .output()
+        .expect("nika session --json --fix");
+    let taught = String::from_utf8(misplaced.stdout).expect("utf-8");
+    assert!(taught.contains("nika check --fix"), "{taught}");
+    assert_eq!(misplaced.status.code(), Some(2), "{taught}");
     let identity = Command::new(env!("CARGO_BIN_EXE_nika"))
         .arg("--sdk-identity")
         .current_dir(project.path())

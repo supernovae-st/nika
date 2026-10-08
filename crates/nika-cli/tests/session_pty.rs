@@ -134,11 +134,12 @@ fn a_pipe_is_the_concierge_and_the_tty_is_the_session() {
     session.expect(Eof).expect("the session closes");
     assert_eq!(exit_code(&mut session), 0);
     assert!(
-        home.path()
+        !home
+            .path()
             .join(".nika")
             .join("session-intelligence.json")
             .exists(),
-        "the choice is kept under the home"
+        "the choice holds for this conversation: the operator's kept choice is never written"
     );
     let entries: Vec<_> = std::fs::read_dir(project.path())
         .expect("project")
