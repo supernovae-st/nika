@@ -406,6 +406,17 @@ fn set_aside(composer: &mut Composer, typed: Vec<UiEvent>) -> Vec<UiEvent> {
     kept
 }
 
+/// The words and pastes among `typed` as one text, by the typeahead law (edits land, `Enter`
+/// and history recall are dropped), and the events that keep their ordinary handling
+/// (signals, `Ctrl+C`, a closed reader, a resize). A fresh spending question never takes
+/// this text as its answer, and nothing typed is dropped unseen: it is kept whole in the
+/// conversation instead.
+fn typed_text(typed: Vec<UiEvent>) -> (String, Vec<UiEvent>) {
+    let mut scratch = Composer::new();
+    let kept = set_aside(&mut scratch, typed);
+    (scratch.text(), kept)
+}
+
 /// What the busy loop does after an event heard while a turn runs.
 enum Heard {
     /// Leave now, with this exit.
@@ -728,7 +739,16 @@ impl<C: Conversation + 'static> Shell<C> {
         self.draw()?;
         let buffered = broker.discard_typeahead();
         self.state.waiting = waiting;
-        let buffered = buffered?;
+        // What was typed until the question showed is never its answer, and is never dropped
+        // unseen either: it joins the conversation whole, like the draft above.
+        let (late, buffered) = typed_text(buffered?);
+        if !late.trim().is_empty() {
+            let notice = cleared_notice(&late, self.state.ascii);
+            self.keep_reading(|state, _| {
+                state.transcript.push(Committed::new(Kind::Notice, notice));
+            });
+            self.commit_inline()?;
+        }
         let mut cancel = false;
         for event in buffered {
             match event {
@@ -1078,6 +1098,9 @@ impl<C: Conversation + 'static> Shell<C> {
             .drain(..)
             .chain(std::iter::from_fn(|| broker.try_recv()))
             .collect();
+        // Words and pastes typed while the turn ran join the draft, never the question's
+        // answer: the question's fresh input sets that whole draft aside in the conversation.
+        let buffered = self.keep_reading(|_, composer| set_aside(composer, buffered));
         for event in buffered {
             match event {
                 UiEvent::Signal(Signal::Terminate) => return Some(Exit::Terminated),
@@ -1212,7 +1235,7 @@ mod typeahead_tests {
 
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-    use super::{Defused, defuse, set_aside, typed_notice};
+    use super::{Defused, defuse, set_aside, typed_notice, typed_text};
     use crate::composer::Composer;
     use crate::events::{Signal, UiEvent};
 
@@ -1222,6 +1245,34 @@ mod typeahead_tests {
 
     fn plain(code: KeyCode) -> UiEvent {
         key(code, KeyModifiers::NONE)
+    }
+
+    /// Before a cost question showed, the typed tail still in the reader was dropped unseen;
+    /// it is now read as text (never sent, `Enter` dropped) and the signals keep their
+    /// handling, so the question's notice can keep it whole.
+    #[test]
+    fn typeahead_before_a_cost_question_is_kept_as_text_never_sent() {
+        let (text, kept) = typed_text(vec![
+            plain(KeyCode::Char('y')),
+            plain(KeyCode::Char('e')),
+            plain(KeyCode::Char('s')),
+            plain(KeyCode::Enter),
+            UiEvent::Paste(" and run it".to_owned()),
+            key(KeyCode::Char('c'), KeyModifiers::CONTROL),
+            UiEvent::Signal(Signal::Interrupt),
+            UiEvent::Resize(80, 24),
+        ]);
+        assert_eq!(text, "yes and run it");
+        assert!(
+            matches!(kept.as_slice(), [
+                UiEvent::Key(k),
+                UiEvent::Signal(Signal::Interrupt),
+                UiEvent::Resize(80, 24)
+            ] if k.code == KeyCode::Char('c')),
+            "{kept:?}"
+        );
+        let (empty, none) = typed_text(vec![plain(KeyCode::Enter), plain(KeyCode::Up)]);
+        assert!(empty.is_empty() && none.is_empty());
     }
 
     #[test]
