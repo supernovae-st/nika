@@ -479,3 +479,24 @@ tasks:
         told[1]
     );
 }
+
+/// A seat cycling between two refused statements (A, B, A) brings nothing new on the third and
+/// the talk ends there, with no repair bound set: every refusal told back is remembered.
+#[tokio::test]
+async fn refusals_cycling_between_two_statements_end_without_a_bound() {
+    let refused = |path: &str| {
+        operations(&[json!({"op": "set", "path": path, "value_json": "1",
+            "component": "", "version": "", "bindings_json": ""})])
+    };
+    let (a, b) = (refused("/const/absent"), refused("/const/missing"));
+    let seat = Seat::sequence(vec![a.clone(), b.clone(), a, b.clone(), b]);
+    assert!(policy().repairs.is_none(), "no repair bound in this policy");
+    let out = revised(rich(), "Set the constant to one", None, &seat).await;
+    assert_ne!(out.status, crate::CompileStatus::Ready, "{out:#?}");
+    assert!(out.candidate.is_none());
+    assert_eq!(
+        seat.roles(),
+        ["revision", "revision", "revision"],
+        "A, B, then A again: nothing new"
+    );
+}

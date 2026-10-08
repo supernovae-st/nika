@@ -56,6 +56,9 @@ pub(super) async fn document_settled<P: ProviderInferDyn>(
         cold,
     } = journal;
     talk.route.push(document::ROUTE.to_owned());
+    // Every refusal told back is remembered (unbounded repairs), so a seat cycling between
+    // refused statements (A, B, A) brings nothing new and ends, never loops.
+    talk.remember_under(policy);
     let (mut links, mut text) = (first, first_text);
     loop {
         let why = match stated(base, &links, catalog, &carried) {
