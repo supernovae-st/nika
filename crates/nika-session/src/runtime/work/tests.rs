@@ -7,10 +7,15 @@
 
 use std::path::{Path, PathBuf};
 
-use super::NOTHING_SHOWN;
+use nika_onboard::compile::{CompileRequest, compile};
+
+use super::{GATE_NOT_SHOWN, NOTHING_SHOWN, VALUE_NOT_SHOWN};
+use crate::authoring::AuthoringRound;
+use crate::intelligence::{DataLocus, IntelligenceKind, ResolvedSessionIntelligence};
 use crate::outcome::{GateId, ProposalId, RefusalClass};
-use crate::runtime::TurnOutcome;
+use crate::reasoner::NoReasoner;
 use crate::runtime::tests::{COPY, COPY_DEST, ready_with, tree};
+use crate::runtime::{SessionRuntime, TurnOutcome};
 use crate::work::{CONTRACT, Landing, RunEnd, Stage, Waiting};
 use crate::world::Reach;
 
@@ -211,4 +216,137 @@ fn the_snapshot_serializes_with_its_contract_and_waiting_kind() {
         json["candidate"]["files"][0]["audit"]["world"]["reach"],
         "local"
     );
+}
+
+/// A session with no intelligence chosen, so a value is bound as typed and nothing is sent.
+fn literal(root: &Path) -> SessionRuntime {
+    let none = ResolvedSessionIntelligence {
+        kind: IntelligenceKind::None,
+        model: None,
+        locus: DataLocus::None,
+        ready: false,
+        why: None,
+    };
+    SessionRuntime::open(root, none, Box::new(NoReasoner))
+}
+
+/// An exact skeleton's first authoring question, waiting in this session.
+fn at_a_question(s: &mut SessionRuntime) -> String {
+    let out = compile(&CompileRequest::create("aggregate-by-key")).expect("compiles");
+    let mut round = AuthoringRound::new("aggregate-by-key");
+    round.absorb(&out);
+    let key = round.current().map(|q| q.key.clone()).expect("a question");
+    s.authoring = Some(round);
+    s.questions.ask();
+    key
+}
+
+/// Whether the session bound `line` as an answer.
+fn bound(s: &SessionRuntime, line: &str) -> bool {
+    s.recent
+        .iter()
+        .any(|(said, noted)| said == line && noted.starts_with("(answered "))
+}
+
+#[test]
+fn a_gate_that_appears_after_the_line_was_typed_takes_no_answer_from_it() {
+    let dir = tree();
+    std::fs::write(dir.path().join("draft.md"), "the draft\n").expect("draft");
+    std::fs::write(dir.path().join("gate.nika"), GATE).expect("gate");
+    let mut s = ready_with(dir.path(), vec![]);
+    assert!(matches!(
+        s.turn("run gate.nika"),
+        TurnOutcome::RunRequested { .. }
+    ));
+    // The host showed a free prompt; the run then paused at its gate before the line arrived.
+    let shown = s.waiting();
+    assert_eq!(shown, Waiting::Free);
+    let store = dir.path().join(".nika").join("traces");
+    std::fs::create_dir_all(&store).expect("store");
+    let trace = store.join("paused.ndjson");
+    std::fs::write(&trace, PAUSED).expect("trace");
+    let TurnOutcome::GateAsk { id, .. } = s.observe_run(4, Some(&trace)) else {
+        panic!("the gate is asked");
+    };
+
+    // Before the fix this `yes` resumed the run (ResumeRequested): an answer to a gate never seen.
+    let TurnOutcome::Refusal(unseen) = s.submit("yes", &shown) else {
+        panic!("a gate the host did not show takes no answer");
+    };
+    assert_eq!(unseen.class, RefusalClass::StaleRevision, "{unseen}");
+    assert_eq!(unseen.text, GATE_NOT_SHOWN);
+    assert_eq!(s.waiting(), Waiting::Gate { gate: id.clone() });
+    // Read-only and leaving lines still go through; the gate keeps waiting.
+    assert!(
+        matches!(s.submit("/status", &shown), TurnOutcome::Facts(_)),
+        "a local command reads the session's facts beside the gate"
+    );
+    assert_eq!(s.waiting(), Waiting::Gate { gate: id.clone() });
+
+    let shown = s.waiting();
+    let TurnOutcome::ResumeRequested { answer, .. } = s.submit("yes", &shown) else {
+        panic!("the gate shown takes its answer");
+    };
+    assert_eq!(answer, "approve=true");
+}
+
+#[test]
+fn a_question_takes_only_the_answer_typed_at_its_own_identity() {
+    let dir = tempfile::tempdir().expect("root");
+    let mut s = literal(dir.path());
+    let key = at_a_question(&mut s);
+    let shown = s.waiting();
+    let Waiting::Question { key: asked, id } = &shown else {
+        panic!("a question waits: {shown:?}");
+    };
+    assert_eq!(asked, &key);
+    assert_eq!(s.pending_question_id().as_ref(), Some(id));
+
+    // A line typed at a free prompt fills nothing the host did not show.
+    let TurnOutcome::Refusal(unseen) = s.submit("\"EUR\"", &Waiting::Free) else {
+        panic!("an unshown question takes no value");
+    };
+    assert_eq!(unseen.class, RefusalClass::StaleRevision, "{unseen}");
+    assert_eq!(unseen.text, VALUE_NOT_SHOWN);
+    assert!(!bound(&s, "\"EUR\""));
+    assert_eq!(
+        s.waiting(),
+        shown,
+        "the question keeps waiting, same identity"
+    );
+    assert!(matches!(
+        s.submit("/status", &Waiting::Free),
+        TurnOutcome::Facts(_)
+    ));
+
+    // The same question asked again by a reopened session is another identity: the answer
+    // typed before the reopening is refused there, before anything reads it.
+    let mut reopened = literal(dir.path());
+    assert_eq!(at_a_question(&mut reopened), key);
+    let TurnOutcome::Refusal(stale) = reopened.submit("\"EUR\"", &shown) else {
+        panic!("an answer typed for another session's question is stale");
+    };
+    assert_eq!(stale.class, RefusalClass::StaleRevision, "{stale}");
+    assert!(!bound(&reopened, "\"EUR\""));
+    assert!(
+        reopened.pending_question().is_some(),
+        "the new question still waits"
+    );
+
+    // The question shown takes the line.
+    let _ = s.submit("\"EUR\"", &shown);
+    assert!(bound(&s, "\"EUR\""), "the shown question binds its answer");
+    assert_ne!(s.waiting(), shown, "an answered question waits no more");
+}
+
+#[test]
+fn the_question_identity_rides_the_wire_as_its_witness() {
+    let dir = tempfile::tempdir().expect("root");
+    let mut s = literal(dir.path());
+    let key = at_a_question(&mut s);
+    let id = s.pending_question_id().expect("waits");
+    let json = serde_json::to_value(s.work()).expect("serializes");
+    assert_eq!(json["waiting"]["kind"], "question");
+    assert_eq!(json["waiting"]["key"], key);
+    assert_eq!(json["waiting"]["id"], id.as_str());
 }

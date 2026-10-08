@@ -17,11 +17,17 @@ use std::path::PathBuf;
 use serde::Serialize;
 
 use crate::change::{ProjectChange, ProjectChangeSet, Witness, WorkflowAudit};
-use crate::outcome::{GateId, ProposalId};
+use crate::outcome::{GateId, ProposalId, QuestionId};
 use crate::world::World;
 
 /// The version a host checks before reading a [`Work`].
 pub const CONTRACT: &str = "nika/session-work@0";
+
+/// A question's identity on the wire: its witness (the question, its request revision and the
+/// intelligence that reads the answer), never the session that asked it.
+fn question_witness<S: serde::Serializer>(id: &QuestionId, out: S) -> Result<S::Ok, S::Error> {
+    out.serialize_str(id.as_str())
+}
 
 /// What the next line answers, by the session's one precedence: the one-time cost decision,
 /// the choice of intelligence, a proposal's consent, a run's gate, then the values a question,
@@ -52,6 +58,11 @@ pub enum Waiting {
     Question {
         /// The semantic hole the answer fills (`model` · `const.x` …).
         key: String,
+        /// The identity an answer names: this question as this session asked it, at this
+        /// revision of the request. It serializes as its witness; the session that asked it
+        /// is held in memory only, so an answer carried across a restart never matches.
+        #[serde(serialize_with = "question_witness")]
+        id: QuestionId,
     },
     /// A requested run waits for the value of one declared input.
     Input {

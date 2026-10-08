@@ -58,7 +58,7 @@ mod run_budget;
 mod unjudged;
 mod unknown_cost;
 mod work;
-pub use work::NOTHING_SHOWN;
+pub use work::{GATE_NOT_SHOWN, NOTHING_SHOWN, VALUE_NOT_SHOWN};
 
 pub use decision::{DecisionAnswer, decision_answer};
 use decision::{is_gate_token, is_no, is_yes, local_command_of};

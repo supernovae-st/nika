@@ -171,6 +171,9 @@ pub struct Live {
     run_started: Arc<AtomicBool>,
     /// HOME display preferences, with no Session or Run authority.
     layout: layout::Store,
+    /// The Session state the shell painted last (at its last prompt): a line typed there
+    /// answers that state by its identity, or nothing ([`SessionRuntime::submit`]).
+    shown: work::Waiting,
 }
 
 impl std::fmt::Debug for Live {
@@ -216,6 +219,7 @@ impl Live {
             jq: None,
             run_started: Arc::default(),
             layout,
+            shown: work::Waiting::Free,
         };
         live.open_runtime(kept);
         live
@@ -351,7 +355,7 @@ impl Live {
             beats.push(Beat::Say(Committed::new(Kind::Notice, notice)));
         }
         beats.extend(self.footer());
-        beats.push(Beat::Wait(self.waiting()));
+        beats.push(self.wait());
         beats
     }
 
@@ -369,6 +373,14 @@ impl Live {
             quiet,
         )
         .into()
+    }
+
+    /// The prompt the shell paints next, remembering the Session state it stands for: the
+    /// shell sends a line only once this prompt is painted (its typeahead law), so the line
+    /// answers exactly this state, by identity, or nothing.
+    fn wait(&mut self) -> Beat {
+        self.shown = (self.runtime.as_ref()).map_or(work::Waiting::Free, SessionRuntime::waiting);
+        Beat::Wait(self.waiting())
     }
 
     /// What the runtime waits for: the Session's one precedence (the plain loop reads the same),
@@ -389,7 +401,7 @@ impl Live {
             work::Waiting::IntelligenceChoice => Waiting::Choosing,
             work::Waiting::Consent { .. } => Waiting::Proposal,
             work::Waiting::Gate { .. } => Waiting::Gate,
-            work::Waiting::Question { key } | work::Waiting::Activation { key } => {
+            work::Waiting::Question { key, .. } | work::Waiting::Activation { key } => {
                 Waiting::Question { key }
             }
             work::Waiting::Input { .. } => Waiting::Question { key: String::new() },
@@ -485,7 +497,7 @@ impl Live {
         }
         if handoff.is_none() {
             beats.extend(self.reply_footer(reply));
-            beats.push(Beat::Wait(self.waiting()));
+            beats.push(self.wait());
         }
         (beats, handoff)
     }
@@ -533,7 +545,7 @@ impl Live {
                 self.pending_run = Some((pending, typed));
                 vec![
                     Beat::Say(Committed::new(Kind::Question, question)),
-                    Beat::Wait(self.waiting()),
+                    self.wait(),
                 ]
             }
             _ => vec![Beat::Say(Committed::new(
@@ -593,7 +605,7 @@ impl Live {
                 Kind::Notice,
                 "the observation asked for another run; say « run it » again when you want it",
             )));
-            beats.push(Beat::Wait(self.waiting()));
+            beats.push(self.wait());
         }
         beats
     }
@@ -823,7 +835,7 @@ impl Conversation for Live {
         // « Stopped by you », never « Settled », above a withdrawn result.
         let mut beats = vec![Beat::Cancelled(note)];
         beats.extend(self.footer());
-        beats.push(Beat::Wait(self.waiting()));
+        beats.push(self.wait());
         beats
     }
 
@@ -1003,7 +1015,7 @@ impl Live {
             return vec![
                 Beat::Say(Committed::new(Kind::Notice, facts)),
                 Beat::Say(Committed::new(Kind::Question, RUN_STILL_WAITS)),
-                Beat::Wait(self.waiting()),
+                self.wait(),
             ];
         }
         if trimmed == "/quit" {
@@ -1018,7 +1030,7 @@ impl Live {
                 self.pending_run = Some((pending, typed));
                 vec![
                     Beat::Say(Committed::new(Kind::Question, details)),
-                    Beat::Wait(self.waiting()),
+                    self.wait(),
                 ]
             }
             DecisionAnswer::Approve => {
@@ -1047,7 +1059,7 @@ impl Live {
                             "« {trimmed} » is not a yes or a no · nothing was sent\n{RUN_STILL_WAITS}"
                         ),
                     )),
-                    Beat::Wait(self.waiting()),
+                    self.wait(),
                 ]
             }
         }
@@ -1074,10 +1086,11 @@ impl Live {
                     handoff: None,
                 };
             };
-            // The Session routes the line to what waits, by the identity this host shows: the
-            // candidate on screen answers a consent (none shown: only leaving or declining goes
-            // through), and a gate answer names the gate that waits.
-            let shown = match runtime.waiting() {
+            // The Session routes the line to what waits, by the identity this host showed at
+            // the prompt the line was typed at: the candidate on screen answers a consent (none
+            // shown: only leaving or declining goes through); a gate or a question answers only
+            // the one painted, so a state that appeared since takes nothing from this line.
+            let shown = match &self.shown {
                 work::Waiting::Consent { .. } => {
                     match self.candidate.as_ref().filter(|shown| !shown.aside()) {
                         Some(shown) => work::Waiting::Consent {
@@ -1086,7 +1099,7 @@ impl Live {
                         None => work::Waiting::Free,
                     }
                 }
-                waiting => waiting,
+                waiting => waiting.clone(),
             };
             runtime.submit(line, &shown)
         };
@@ -1114,7 +1127,7 @@ impl Live {
     /// The handed-off work, performed with the terminal handed back.
     fn performed(&mut self, handoff: &Handoff) -> Vec<Beat> {
         let Some((id, work)) = self.pending.take() else {
-            return vec![Beat::Wait(self.waiting())];
+            return vec![self.wait()];
         };
         if id != handoff.id {
             return vec![
@@ -1122,7 +1135,7 @@ impl Live {
                     Kind::Refusal,
                     "the terminal was handed back for work the session no longer holds",
                 )),
-                Beat::Wait(self.waiting()),
+                self.wait(),
             ];
         }
         let root = self
@@ -1148,7 +1161,7 @@ impl Live {
                 Kind::Notice,
                 "the observation asked for another run; say « run it » again when you want it",
             )));
-            beats.push(Beat::Wait(self.waiting()));
+            beats.push(self.wait());
         }
         beats
     }
