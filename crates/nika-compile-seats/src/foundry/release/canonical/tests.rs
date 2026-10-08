@@ -187,3 +187,185 @@ fn a_number_anywhere_is_found() {
     assert!(holds_number(&json!(-0.0)));
     assert!(!holds_number(&json!({"a": ["x", true, null, {"b": "1"}]})));
 }
+
+#[test]
+fn es_number_is_the_rfc_8785_text_of_a_double() {
+    // RFC 8785 Appendix B, then the layout's edges; every text is the producer's `es_number`.
+    let cases: [(u64, &str); 41] = [
+        (0x0000_0000_0000_0000, "0"),
+        (0x8000_0000_0000_0000, "0"),
+        (0x0000_0000_0000_0001, "5e-324"),
+        (0x8000_0000_0000_0001, "-5e-324"),
+        (0x7fef_ffff_ffff_ffff, "1.7976931348623157e+308"),
+        (0xffef_ffff_ffff_ffff, "-1.7976931348623157e+308"),
+        (0x4340_0000_0000_0000, "9007199254740992"),
+        (0xc340_0000_0000_0000, "-9007199254740992"),
+        (0x4430_0000_0000_0000, "295147905179352830000"),
+        (0x44b5_2d02_c7e1_4af5, "9.999999999999997e+22"),
+        (0x44b5_2d02_c7e1_4af6, "1e+23"),
+        (0x44b5_2d02_c7e1_4af7, "1.0000000000000001e+23"),
+        (0x444b_1ae4_d6e2_ef4e, "999999999999999700000"),
+        (0x444b_1ae4_d6e2_ef4f, "999999999999999900000"),
+        (0x444b_1ae4_d6e2_ef50, "1e+21"),
+        (0x3eb0_c6f7_a0b5_ed8c, "9.999999999999997e-7"),
+        (0x3eb0_c6f7_a0b5_ed8d, "0.000001"),
+        (0x41b3_de43_5555_5553, "333333333.3333332"),
+        (0x41b3_de43_5555_5554, "333333333.33333325"),
+        (0x41b3_de43_5555_5555, "333333333.3333333"),
+        (0x41b3_de43_5555_5556, "333333333.3333334"),
+        (0x41b3_de43_5555_5557, "333333333.33333343"),
+        (0xbecb_f647_612f_3696, "-0.0000033333333333333333"),
+        (0x4314_3ff3_c1cb_0959, "1424953923781206.2"),
+        (0x3ff0_0000_0000_0000, "1"),
+        (0xbff8_0000_0000_0000, "-1.5"),
+        (0x3fb9_9999_9999_999a, "0.1"),
+        (0x4059_0000_0000_0000, "100"),
+        (0x4415_af1d_78b5_8c40, "100000000000000000000"),
+        (0x4454_542b_a12a_337c, "1.5e+21"),
+        (0x3e7a_d7f2_9abc_af48, "1e-7"),
+        (0x3e84_21f5_f40d_8376, "1.5e-7"),
+        (0x441a_c53a_7e04_bcda, "123456789012345680000"),
+        (0x3eb4_b3fd_5942_cd96, "0.000001234"),
+        (0x4340_0000_0000_0001, "9007199254740994"),
+        (0x7e41_eb2d_6600_5835, "1.5e+300"),
+        (0x0010_0000_0000_0000, "2.2250738585072014e-308"),
+        (0x3fd3_3333_3333_3334, "0.30000000000000004"),
+        (0x3ff0_0000_0000_0001, "1.0000000000000002"),
+        (0x000f_ffff_ffff_ffff, "2.225073858507201e-308"),
+        (0x4024_0000_0000_0000, "10"),
+    ];
+    for (bits, text) in cases {
+        assert_eq!(
+            es_number(f64::from_bits(bits)).as_deref(),
+            Some(text),
+            "{bits:#018x}"
+        );
+    }
+    for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        assert_eq!(es_number(value), None);
+    }
+}
+
+#[test]
+fn a_literal_is_canonical_exactly_when_jcs_writes_it_back() {
+    // The producer's `canonical_number_literal` verdict for each literal.
+    let cases = [
+        ("0", true),
+        ("-0", false),
+        ("1", true),
+        ("-1", true),
+        ("1.0", false),
+        ("1e3", false),
+        ("1E3", false),
+        ("1e+21", true),
+        ("1e21", false),
+        ("0.1", true),
+        ("0.10", false),
+        ("1.5", true),
+        ("-1.5", true),
+        ("9007199254740991", true),
+        ("9007199254740992", true),
+        ("9007199254740993", false),
+        ("-9007199254740993", false),
+        ("15000000000000000", true),
+        ("100000000000000000000", true),
+        ("1000000000000000000000", false),
+        ("1e+300", true),
+        ("1.5e+300", true),
+        ("1e-7", true),
+        ("0.0000001", false),
+        ("0.000001", true),
+        ("1e-6", false),
+        ("5e-324", true),
+        ("1e-400", false),
+        ("1e400", false),
+        ("18446744073709551616", false),
+        ("123456789012345680000", true),
+        ("0.30000000000000004", true),
+        ("1.7976931348623157e+308", true),
+        ("1.7976931348623159e+308", false),
+        ("2e-7", true),
+        ("-0.0", false),
+    ];
+    for (literal, canonical) in cases {
+        let written = strict_json(literal, 8).ok().map(|value| jcs_json(&value));
+        assert_eq!(
+            written.as_deref() == Some(literal),
+            canonical,
+            "{literal} → {written:?}"
+        );
+    }
+}
+
+#[test]
+fn a_number_is_the_correctly_rounded_double_of_its_literal() {
+    // Halfway cases and the largest subnormal: a best-effort float parse may miss them.
+    for (literal, bits) in [
+        (
+            "1.00000000000000011102230246251565404236316680908203125",
+            0x3ff0_0000_0000_0000_u64,
+        ),
+        (
+            "1.00000000000000011102230246251565404236316680908203126",
+            0x3ff0_0000_0000_0001,
+        ),
+        ("2.2250738585072011e-308", 0x000f_ffff_ffff_ffff),
+        ("9007199254740993.0", 0x4340_0000_0000_0000),
+        ("-18446744073709551617", 0xc3f0_0000_0000_0000),
+    ] {
+        let value = strict_json(&format!("[{literal}]"), 8).unwrap();
+        assert_eq!(value[0].as_f64().map(f64::to_bits), Some(bits), "{literal}");
+    }
+    let overflow = strict_json("[1.7976931348623159e+308]", 8);
+    assert!(
+        matches!(overflow, Err(StrictJsonError::Malformed(_))),
+        "a literal past the largest double is not a number: {overflow:?}"
+    );
+}
+
+#[test]
+fn every_number_literal_is_found_outside_strings_in_document_order() {
+    let text = r#"{"a\"1":[-1.5e+3,{"b":"2\\"},3],"c4":"5",  "d":0}"#;
+    assert_eq!(number_literals(text), ["-1.5e+3", "3", "0"]);
+    assert_eq!(
+        strict_json(text, 64),
+        Ok(json!({"a\"1": [-1500.0, {"b": "2\\"}, 3], "c4": "5", "d": 0}))
+    );
+}
+
+#[test]
+fn a_profile_r2_row_digest_is_the_producers_over_jcs_numbers() {
+    // The producer's `canonical` and `row_digest` of this exact line (profile r2).
+    let line = r#"{"attrs":{"confidence":0.85,"observed_count":15000000000000000},"big":1e+21,"id":"pattern:x","kind":"pattern","neg":-1.5,"sha256":"ignored","small":1e-7,"title":"Résumé"}"#;
+    let value = strict_line(line, 64).unwrap();
+    assert_eq!(jcs_json(&value), line);
+    assert_eq!(
+        jcs_row_digest(&value).as_deref(),
+        Some("64cbfdf158a46dc2b71410d6fb0fb4d9006aa50a47127ab616ccfffafaaf566c")
+    );
+    assert_eq!(jcs_row_digest(&json!([1])), None);
+    assert_eq!(
+        canonical_json(&value),
+        None,
+        "profile r1 has no fractional numbers"
+    );
+}
+
+/// Differential evidence against the producer's `es_number`: build with `NIKA_ES_DIFFERENTIAL`
+/// naming a file of `<bits hex> <text>` lines it wrote, and run the ignored tests.
+#[test]
+#[ignore = "differential evidence: needs NIKA_ES_DIFFERENTIAL at build time"]
+fn es_number_matches_the_producer_on_a_differential_corpus() {
+    let Some(path) = option_env!("NIKA_ES_DIFFERENTIAL") else {
+        panic!("NIKA_ES_DIFFERENTIAL names the corpus at build time");
+    };
+    let corpus = std::fs::read_to_string(path).unwrap();
+    let mut compared = 0_usize;
+    for line in corpus.lines() {
+        let (bits, text) = line.split_once(' ').unwrap();
+        let value = f64::from_bits(u64::from_str_radix(bits, 16).unwrap());
+        assert_eq!(es_number(value).as_deref(), Some(text), "{bits}");
+        compared += 1;
+    }
+    assert!(compared > 300_000, "{compared} doubles compared");
+}

@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The byte contract a knowledge release shares with its producer (the r1 contract §6.1
-//! and §9.1).
+//! and §9.1; profile r2 adds RFC 8785 numbers).
 //!
 //! **Strict JSON, bounded while it is read** (§9.1).
 //! - Arrays and objects nest at most [`MAX_DEPTH`]
@@ -16,6 +16,9 @@
 //!   full: a fault in it is the text's fault.
 //! - A key an object states twice is reported only in a text that is otherwise valid within its
 //!   bounds: a syntax or bound fault comes first.
+//! - A number is the double its literal denotes, correctly rounded from the literal's own text,
+//!   whatever precision the JSON parser would give it: a verdict never depends on how a build
+//!   parses floats. A literal past the largest double is not a number of this grammar.
 //!
 //! **The canonical form a row's digest is computed over.** It is the producer's
 //! `json.dumps(row, sort_keys=True, ensure_ascii=False, separators=(",", ":"))`, byte for byte:
@@ -24,7 +27,9 @@
 //! - a string escaped only where JSON requires it;
 //! - an integer in decimal.
 //!
-//! A number that is not an integer has no canonical form here.
+//! A number that is not an integer has no canonical form there (profile r1). Profile r2 writes
+//! numbers as RFC 8785 (JCS) does ([`jcs_json`]): a safe integer as its digits, any other number
+//! as the ECMAScript text of its double ([`es_number`]).
 
 use std::cell::{Cell, RefCell};
 use std::fmt;
@@ -36,6 +41,9 @@ use serde_json::{Map, Number, Value};
 
 /// The deepest an array or object may nest; the top-level one is at depth 1.
 pub const MAX_DEPTH: usize = 16;
+
+/// The largest integer a double holds exactly, with every smaller one (2^53 − 1).
+pub const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 
 /// Why a text is not strict JSON within its bounds.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -79,6 +87,8 @@ pub fn strict_json(text: &str, max_values: usize) -> Result<Value, StrictJsonErr
     let budget = Budget {
         values: Cell::new(max_values),
         duplicate: RefCell::new(None),
+        literals: number_literals(text),
+        next: Cell::new(0),
     };
     let mut deserializer = serde_json::Deserializer::from_str(text);
     let value = Strict {
@@ -94,13 +104,16 @@ pub fn strict_json(text: &str, max_values: usize) -> Result<Value, StrictJsonErr
     }
 }
 
-/// What one parse may still spend, and the first key an object stated twice.
-struct Budget {
+/// What one parse may still spend, the first key an object stated twice, and the text's number
+/// literals in document order with the next one to read.
+struct Budget<'t> {
     values: Cell<usize>,
     duplicate: RefCell<Option<String>>,
+    literals: Vec<&'t str>,
+    next: Cell<usize>,
 }
 
-impl Budget {
+impl<'t> Budget<'t> {
     /// Count one value, or stop the parse at the bound.
     fn spend<E: de::Error>(&self) -> Result<(), E> {
         let Some(left) = self.values.get().checked_sub(1) else {
@@ -109,16 +122,57 @@ impl Budget {
         self.values.set(left);
         Ok(())
     }
+
+    /// The literal of the number the parser reads now: numbers are read in document order.
+    fn literal(&self) -> Option<&'t str> {
+        let at = self.next.get();
+        self.next.set(at.saturating_add(1));
+        self.literals.get(at).copied()
+    }
+}
+
+/// The number literals of a JSON text in document order: a strict parse reads each number from
+/// its own literal. A text that is not JSON is refused by the parse whatever this finds in it.
+fn number_literals(text: &str) -> Vec<&str> {
+    let bytes = text.as_bytes();
+    let mut found = Vec::new();
+    let mut at = 0;
+    let mut in_string = false;
+    while let Some(&byte) = bytes.get(at) {
+        if in_string {
+            match byte {
+                b'\\' => at = at.saturating_add(1),
+                b'"' => in_string = false,
+                _ => {}
+            }
+            at = at.saturating_add(1);
+        } else if byte == b'"' {
+            in_string = true;
+            at = at.saturating_add(1);
+        } else if byte == b'-' || byte.is_ascii_digit() {
+            let rest = bytes.get(at..).unwrap_or_default();
+            let len = rest
+                .iter()
+                .position(|b| !matches!(b, b'0'..=b'9' | b'-' | b'+' | b'.' | b'e' | b'E'))
+                .unwrap_or(rest.len());
+            let end = at.saturating_add(len);
+            found.extend(text.get(at..end));
+            at = end;
+        } else {
+            at = at.saturating_add(1);
+        }
+    }
+    found
 }
 
 /// One value read at `depth` against the parse's budget: a seed and its own visitor.
 #[derive(Clone, Copy)]
-struct Strict<'a> {
-    budget: &'a Budget,
+struct Strict<'a, 't> {
+    budget: &'a Budget<'t>,
     depth: usize,
 }
 
-impl Strict<'_> {
+impl Strict<'_, '_> {
     /// Enter an array or object: within the depth bound, and one value spent.
     fn open<E: de::Error>(self) -> Result<Self, E> {
         if self.depth > MAX_DEPTH {
@@ -132,7 +186,7 @@ impl Strict<'_> {
     }
 }
 
-impl<'de> DeserializeSeed<'de> for Strict<'_> {
+impl<'de> DeserializeSeed<'de> for Strict<'_, '_> {
     type Value = Value;
 
     fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Value, D::Error> {
@@ -140,7 +194,7 @@ impl<'de> DeserializeSeed<'de> for Strict<'_> {
     }
 }
 
-impl<'de> Visitor<'de> for Strict<'_> {
+impl<'de> Visitor<'de> for Strict<'_, '_> {
     type Value = Value;
 
     fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -154,17 +208,25 @@ impl<'de> Visitor<'de> for Strict<'_> {
 
     fn visit_i64<E: de::Error>(self, value: i64) -> Result<Value, E> {
         self.budget.spend()?;
+        self.budget.literal();
         Ok(Value::from(value))
     }
 
     fn visit_u64<E: de::Error>(self, value: u64) -> Result<Value, E> {
         self.budget.spend()?;
+        self.budget.literal();
         Ok(Value::from(value))
     }
 
+    /// Any other number: the double its literal denotes, correctly rounded by `str::parse`.
     fn visit_f64<E: de::Error>(self, value: f64) -> Result<Value, E> {
         self.budget.spend()?;
-        Number::from_f64(value)
+        let exact = self
+            .budget
+            .literal()
+            .and_then(|literal| literal.parse::<f64>().ok())
+            .unwrap_or(value);
+        Number::from_f64(exact)
             .map(Value::Number)
             .ok_or_else(|| E::custom("a number that is not finite"))
     }
@@ -216,9 +278,9 @@ impl<'de> Visitor<'de> for Strict<'_> {
 }
 
 /// A member name read against the parse's budget: a member name is a value (§9.1).
-struct Key<'a>(&'a Budget);
+struct Key<'a, 't>(&'a Budget<'t>);
 
-impl<'de> DeserializeSeed<'de> for Key<'_> {
+impl<'de> DeserializeSeed<'de> for Key<'_, '_> {
     type Value = String;
 
     fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<String, D::Error> {
@@ -243,7 +305,75 @@ pub fn holds_number(value: &Value) -> bool {
 #[must_use]
 pub fn canonical_json(value: &Value) -> Option<String> {
     let mut out = String::new();
-    write_canonical(value, &mut out).then_some(out)
+    write_canonical(value, &mut out, integer_text).then_some(out)
+}
+
+/// The canonical JSON text of a value under profile r2: [`canonical_json`]'s keys, separators and
+/// strings, with RFC 8785 numbers ([`jcs_number`]).
+#[must_use]
+pub fn jcs_json(value: &Value) -> String {
+    let mut out = String::new();
+    write_canonical(value, &mut out, |number| Some(jcs_number(number)));
+    out
+}
+
+/// The digest a profile r2 row carries in its `sha256` field: the sha256 of [`jcs_json`] of the
+/// row without that field. `None` when the row is not an object.
+#[must_use]
+pub fn jcs_row_digest(row: &Value) -> Option<String> {
+    let mut unsigned = row.as_object()?.clone();
+    unsigned.remove("sha256");
+    Some(sha256(&jcs_json(&Value::Object(unsigned))))
+}
+
+/// The RFC 8785 text of a number: an integer of at most 2^53 − 1 in magnitude as its digits,
+/// any other number as the ECMAScript text of the double it denotes ([`es_number`]).
+#[must_use]
+pub fn jcs_number(number: &Number) -> String {
+    let double = if let Some(n) = number.as_u64() {
+        if n <= MAX_SAFE_INTEGER {
+            return n.to_string();
+        }
+        integer_double(n, false)
+    } else if let Some(n) = number.as_i64() {
+        if n.unsigned_abs() <= MAX_SAFE_INTEGER {
+            return n.to_string();
+        }
+        integer_double(n.unsigned_abs(), true)
+    } else {
+        number.as_f64().unwrap_or_default()
+    };
+    es_number(double).unwrap_or_else(|| "0".to_owned())
+}
+
+/// The double an integer past 2^53 − 1 denotes: the nearest one, ties to even, as JCS reads it.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "JCS has doubles only: an integer past 2^53 is the double nearest to it"
+)]
+fn integer_double(magnitude: u64, negative: bool) -> f64 {
+    let double = magnitude as f64;
+    if negative { -double } else { double }
+}
+
+/// The ECMAScript `Number::toString` text of a finite double (RFC 8785 §3.2.2.3): its shortest
+/// round-trip digits, the closest to the double and the even one on a tie, laid out as
+/// ECMAScript lays them out, as the JCS canonicalizer (ryu-js) writes them. A zero of either sign
+/// is `0`. `None` for a double that is not finite.
+#[must_use]
+pub fn es_number(value: f64) -> Option<String> {
+    if !value.is_finite() {
+        return None;
+    }
+    serde_json_canonicalizer::to_string(&value).ok()
+}
+
+/// Profile r1's numbers: an integer in decimal, nothing else.
+fn integer_text(number: &Number) -> Option<String> {
+    match number.as_i64() {
+        Some(n) => Some(n.to_string()),
+        None => number.as_u64().map(|n| n.to_string()),
+    }
 }
 
 /// The digest a release row carries in its `sha256` field: the sha256 of the canonical JSON of
@@ -256,17 +386,15 @@ pub fn row_digest(row: &Value) -> Option<String> {
     canonical_json(&Value::Object(unsigned)).map(|text| sha256(&text))
 }
 
-/// Append the canonical text of `value`; `false` when a number is not an integer.
-fn write_canonical(value: &Value, out: &mut String) -> bool {
+/// Append the canonical text of `value`, each number as `number` writes it; `false` when it
+/// writes none.
+fn write_canonical(value: &Value, out: &mut String, number: fn(&Number) -> Option<String>) -> bool {
     match value {
         Value::Null => out.push_str("null"),
         Value::Bool(flag) => out.push_str(if *flag { "true" } else { "false" }),
-        Value::Number(number) => match number.as_i64().map(|n| n.to_string()) {
+        Value::Number(n) => match number(n) {
             Some(text) => out.push_str(&text),
-            None => match number.as_u64() {
-                Some(n) => out.push_str(&n.to_string()),
-                None => return false,
-            },
+            None => return false,
         },
         Value::String(text) => out.push_str(&Value::String(text.clone()).to_string()),
         Value::Array(items) => {
@@ -275,7 +403,7 @@ fn write_canonical(value: &Value, out: &mut String) -> bool {
                 if at > 0 {
                     out.push(',');
                 }
-                if !write_canonical(item, out) {
+                if !write_canonical(item, out, number) {
                     return false;
                 }
             }
@@ -293,7 +421,7 @@ fn write_canonical(value: &Value, out: &mut String) -> bool {
                 out.push(':');
                 if !object
                     .get(key)
-                    .is_some_and(|item| write_canonical(item, out))
+                    .is_some_and(|item| write_canonical(item, out, number))
                 {
                     return false;
                 }
