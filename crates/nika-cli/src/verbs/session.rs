@@ -614,8 +614,8 @@ mod tests {
             "the waiting line resumed under the choice: {text}"
         );
         assert!(
-            UserIntelligencePreference::load(home.path()).is_some(),
-            "the choice holds"
+            UserIntelligencePreference::load(home.path()).is_none(),
+            "the choice holds for this conversation: the operator's is never written"
         );
         let entries: Vec<_> = std::fs::read_dir(project.path())
             .expect("dir")
@@ -681,6 +681,8 @@ mod tests {
         UserIntelligencePreference::new(IntelligenceKind::None, None)
             .save(home.path())
             .expect("saved");
+        let kept = UserIntelligencePreference::path_under(home.path());
+        let before = std::fs::read(&kept).expect("the operator's bytes");
         let mut input = Cursor::new(b"/intelligence\n4\n/quit\n".to_vec());
         let mut output = Vec::new();
         let code = drive(
@@ -699,7 +701,12 @@ mod tests {
             text.contains("Choose a connection for this conversation"),
             "asks again: {text}"
         );
-        assert!(text.contains("kept"), "the new choice is kept: {text}");
+        assert!(
+            text.contains("holds for this conversation"),
+            "the new choice holds here: {text}"
+        );
+        let after = std::fs::read(&kept).expect("the operator's bytes");
+        assert_eq!(after, before, "the operator's choice is untouched");
     }
 }
 
