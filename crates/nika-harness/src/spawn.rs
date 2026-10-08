@@ -23,7 +23,7 @@ use std::process::Stdio;
 use nika_kernel::ai::harness::{AgentBackendDyn, HarnessError, HarnessEventStream, HarnessRequest};
 use tokio::io::AsyncReadExt;
 
-use crate::client::drive;
+use crate::authoring::acp::{Deadline, Door, OneShot, Opened};
 
 /// The env floor a spawned adapter always receives — the variables a
 /// CLI needs to run at all, none of them a secret channel.
@@ -527,13 +527,8 @@ impl SpawnedHarness {
                     ),
                 }
             })?;
-        self.completion = Some(crate::authoring::acp::OneShot { role, profile });
+        self.completion = Some(OneShot { role, profile });
         Ok(self)
-    }
-
-    /// The audited one-shot this seat serves, if any.
-    pub(crate) const fn one_shot(&self) -> Option<crate::authoring::acp::OneShot> {
-        self.completion
     }
 
     /// Spawn the adapter child — piped stdio · composed env ·
@@ -850,11 +845,23 @@ async fn handshake_over(
     })
 }
 
-// The Send variant is what the house consumes (the `ProviderInferDyn`
-// precedent: every impl site writes the `*Dyn` form, and the kernel's
-// blanket erasure builds `Arc<dyn DynAgentBackend>` from it).
-impl AgentBackendDyn for SpawnedHarness {
-    async fn run_agent(&self, request: HarnessRequest) -> Result<HarnessEventStream, HarnessError> {
+impl SpawnedHarness {
+    /// Open one session stream and return it with the transport bound it was given. Each frame
+    /// read and each write is bounded by [`crate::IDLE_TIMEOUT_SECS`], or, inside a call's
+    /// `deadline`, by what that deadline leaves once the identity probes and the profile proof are
+    /// done: read before the spawn, so an expired deadline spawns nothing, probe included.
+    async fn open_stream(
+        &self,
+        request: HarnessRequest,
+        deadline: Option<Deadline>,
+    ) -> Result<(HarnessEventStream, std::time::Duration), HarnessError> {
+        let passed = || HarnessError::Session {
+            reason: "the call deadline passed before the adapter started; nothing was spawned"
+                .to_owned(),
+        };
+        if deadline.is_some_and(Deadline::expired) {
+            return Err(passed());
+        }
         // Identity before dialect (spec §4): a version outside the pin
         // refuses HERE, with the version named — never as a protocol
         // confusion three frames into a session.
@@ -864,6 +871,12 @@ impl AgentBackendDyn for SpawnedHarness {
                 self.codex_profile_env().await?
             }
             _ => Vec::new(),
+        };
+        let idle = match deadline {
+            None => std::time::Duration::from_secs(crate::IDLE_TIMEOUT_SECS),
+            Some(deadline) => Some(deadline.remaining())
+                .filter(|left| !left.is_zero())
+                .ok_or_else(passed)?,
         };
         let mut child =
             self.spawn_child(self.completion.map(|_| request.cwd.as_path()), &profile_env)?;
@@ -876,37 +889,51 @@ impl AgentBackendDyn for SpawnedHarness {
         // The child rides INSIDE the stream's driver task: dropping the
         // stream drops the driver, the driver drops the child, and
         // kill_on_drop reaps it — the cancel-safety contract.
-        Ok(drive_with_child(
-            stdout,
-            stdin,
-            request,
-            child,
-            self.completion,
-        ))
+        let stream = drive_with_child(stdout, stdin, request, child, self.completion, idle);
+        Ok((stream, idle))
     }
 }
 
-/// [`drive`] with the child's lifetime tied to the stream — the child
+// The Send variant is what the house consumes (the `ProviderInferDyn`
+// precedent: every impl site writes the `*Dyn` form, and the kernel's
+// blanket erasure builds `Arc<dyn DynAgentBackend>` from it).
+impl AgentBackendDyn for SpawnedHarness {
+    async fn run_agent(&self, request: HarnessRequest) -> Result<HarnessEventStream, HarnessError> {
+        Ok(self.open_stream(request, None).await?.0)
+    }
+}
+
+/// An authoring completion opens its stream inside the call's own deadline.
+impl Door for SpawnedHarness {
+    fn one_shot(&self) -> Option<OneShot> {
+        self.completion
+    }
+
+    fn open(
+        &self,
+        request: HarnessRequest,
+        deadline: Deadline,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Opened, HarnessError>> + Send + '_>> {
+        Box::pin(async move {
+            let (stream, allowance) = self.open_stream(request, Some(deadline)).await?;
+            Ok(Opened { stream, allowance })
+        })
+    }
+}
+
+/// The driver with the child's lifetime tied to the stream — the child
 /// handle parks inside a wrapper stream so its `Drop` (and the OS kill
-/// underneath) fires exactly when the consumer lets go.
+/// underneath) fires exactly when the consumer lets go. `idle` bounds each
+/// frame read and each write ([`crate::client::drive_profile`]).
 fn drive_with_child(
     stdout: tokio::process::ChildStdout,
     stdin: tokio::process::ChildStdin,
     request: HarnessRequest,
     child: tokio::process::Child,
-    completion: Option<crate::authoring::acp::OneShot>,
+    completion: Option<OneShot>,
+    idle: std::time::Duration,
 ) -> HarnessEventStream {
-    let inner = if completion.is_some() {
-        crate::client::drive_profile(
-            stdout,
-            stdin,
-            request,
-            std::time::Duration::from_secs(crate::IDLE_TIMEOUT_SECS),
-            completion,
-        )
-    } else {
-        drive(stdout, stdin, request)
-    };
+    let inner = crate::client::drive_profile(stdout, stdin, request, idle, completion);
     #[cfg(unix)]
     let group = completion.and_then(|_| child.id());
     Box::pin(ChildStream {
@@ -1401,3 +1428,6 @@ kid.wait()
         );
     }
 }
+
+#[cfg(test)]
+mod completion_tests;

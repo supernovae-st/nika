@@ -9,7 +9,9 @@ mod connection;
 pub use connection::{reason, reason_with_effort, validate_selection};
 
 use nika_types::access::HarnessTransport;
+use nika_types::cancel::CancelCtx;
 use std::sync::Mutex;
+use std::task::Poll;
 use std::time::Duration;
 
 use nika_kernel::ai::provider::{
@@ -35,7 +37,8 @@ pub struct HarnessAuthoring {
 #[derive(Debug)]
 enum Connection {
     Native(InferGradeSeat),
-    Acp(crate::SpawnedHarness),
+    /// The audited completion door: the registry adapter under its profile.
+    Acp(Box<dyn acp::Door>),
 }
 
 impl HarnessAuthoring {
@@ -58,12 +61,12 @@ impl HarnessAuthoring {
     ) -> Result<Self, String> {
         let wire_model = validate_selection(adapter, model, transport)?;
         let seat = if transport == HarnessTransport::Acp {
-            Connection::Acp(
+            Connection::Acp(Box::new(
                 crate::seat_from_id(adapter)?
                     .ok_or_else(|| "ACP adapter is unavailable".to_owned())?
                     .for_completion(acp::Completion::Authoring)
                     .map_err(|e| e.to_string())?,
-            )
+            ))
         } else {
             // One rule for every door: the native seat is the infer-grade row.
             // Codex starts only under its measured pre-execution empty-tools
@@ -133,6 +136,140 @@ impl HarnessAuthoring {
             observed: Mutex::new(Vec::new()),
         }
     }
+
+    /// An ACP authoring seat over a scripted completion door.
+    #[cfg(test)]
+    pub(crate) fn with_test_door(adapter: &str, door: Box<dyn acp::Door>) -> Self {
+        Self {
+            seat: Connection::Acp(door),
+            adapter: adapter.to_owned(),
+            requested_model: None,
+            wire_model: "session".into(),
+            observed: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// One call's answer, or how it ended: Stop first, then the deadline, then the call. The
+    /// waiting select only wakes; the verdict reads Stop and the clock again at the very poll that
+    /// would admit the answer (the cancel flag has no waker, and a deadline timer may not have
+    /// fired yet), so neither loses to an answer ready at the same instant. Nothing is retried.
+    async fn call(
+        &self,
+        native: crate::HarnessInferRequest,
+        cancel: Option<&CancelCtx>,
+        deadline: acp::Deadline,
+        progress: &acp::Progress,
+    ) -> Ended {
+        let call = async {
+            match &self.seat {
+                Connection::Native(seat) => seat.run(native).await.map(|out| {
+                    let metadata = json!({"status":"returned", "observed_model":out.observed_model,
+                        "usage_observed":out.usage_observed, "attested_version":out.attested_version});
+                    (out.output, metadata)
+                }).map_err(|e| Failed::Native(e.to_string())),
+                Connection::Acp(door) => {
+                    let requested = self.requested_model.as_deref();
+                    acp::run(door.as_ref(), native, requested, deadline, progress)
+                        .await
+                        .map_err(Failed::Acp)
+                }
+            }
+        };
+        let ended = tokio::select! {
+            biased;
+            () = stopped(cancel) => Ended::Cancelled,
+            () = deadline.passed() => Ended::TimedOut,
+            result = call => Ended::Done(result),
+        };
+        match ended {
+            Ended::Done(_) if cancel.is_some_and(CancelCtx::is_cancelled) => Ended::Cancelled,
+            Ended::Done(_) if deadline.expired() => Ended::TimedOut,
+            ended => ended,
+        }
+    }
+
+    /// Record how one call ended, and answer it. An ACP record also says where the call stood,
+    /// how long it ran and its bounds; a direct (native) seat's records are unchanged.
+    fn settle(
+        &self,
+        ended: Ended,
+        progress: &acp::Progress,
+        deadline: acp::Deadline,
+    ) -> Result<InferResponse, ProviderError> {
+        let conclude = |record: Value| match &self.seat {
+            Connection::Acp(_) => acp::conclude(record, progress, deadline),
+            Connection::Native(_) => record,
+        };
+        match ended {
+            Ended::Cancelled => {
+                self.record(conclude(
+                    json!({"status": "cancelled", "answer_accepted": false}),
+                ))?;
+                Err(refused("harness authoring cancelled; no answer accepted"))
+            }
+            Ended::TimedOut => {
+                self.record(conclude(
+                    json!({"status": "timed_out", "answer_accepted": false}),
+                ))?;
+                Err(refused("harness authoring timed out; no answer accepted"))
+            }
+            Ended::Done(Ok((text, metadata))) => {
+                self.record(conclude(metadata))?;
+                // The transport intentionally does not expose numeric usage. A
+                // protocol usage marker is not a zero-token or zero-cost bill.
+                Ok(InferResponse::new(
+                    vec![ContentBlock::Text { text }],
+                    TokenUsage::new(0, 0),
+                    StopReason::EndTurn,
+                )
+                .with_usage_reported(false))
+            }
+            Ended::Done(Err(Failed::Native(error))) => {
+                self.record(json!({"status": "failed", "reason": error}))?;
+                Err(refused(error))
+            }
+            Ended::Done(Err(Failed::Acp(failure))) => {
+                self.record(conclude(failure.record()))?;
+                Err(refused(failure.message))
+            }
+        }
+    }
+}
+
+/// How one authoring call ended.
+enum Ended {
+    Cancelled,
+    TimedOut,
+    Done(Result<(String, Value), Failed>),
+}
+
+/// A failed call: a direct seat's own words, or an ACP failure kept typed.
+enum Failed {
+    Native(String),
+    Acp(acp::Failure),
+}
+
+/// How often a Stop is looked for between the polls of a waiting call: its flag has no waker.
+const STOP_POLL: Duration = Duration::from_millis(10);
+
+/// Resolves as soon as `cancel` reads set: at every poll of the waiting select, and every
+/// [`STOP_POLL`] between them. Never without a cancel context.
+fn stopped(cancel: Option<&CancelCtx>) -> impl Future<Output = ()> + Send + '_ {
+    let mut tick = Box::pin(tokio::time::sleep(STOP_POLL));
+    std::future::poll_fn(move |cx| {
+        let Some(cancel) = cancel else {
+            return Poll::Pending;
+        };
+        loop {
+            if cancel.is_cancelled() {
+                return Poll::Ready(());
+            }
+            if tick.as_mut().poll(cx).is_pending() {
+                return Poll::Pending;
+            }
+            tick.as_mut().reset(tokio::time::Instant::now() + STOP_POLL);
+        }
+    })
 }
 
 fn refused(reason: impl Into<String>) -> ProviderError {
@@ -277,6 +414,8 @@ impl ProviderInferDyn for HarnessAuthoring {
         if timeout.is_zero() {
             return Err(refused("harness authoring deadline must be positive"));
         }
+        // The call's own deadline, counted from here: setup, probes and the spawn spend it too.
+        let deadline = acp::Deadline::start(timeout);
         let (system, prompt) = fold(&request.messages)?;
         let schema = match &request.response_format {
             ResponseFormat::JsonSchema(schema) => Some(schema.clone()),
@@ -299,59 +438,25 @@ impl ProviderInferDyn for HarnessAuthoring {
             "max_tokens_requested": request.max_tokens, "timeout_ms": timeout.as_millis(),
             "schema_enforced_by_harness": schema_enforced}),
         )?;
-        let call = tokio::time::timeout(timeout, async {
-            match &self.seat {
-                Connection::Native(seat) => seat.run(native).await.map(|out| {
-                    let metadata = json!({"status":"returned", "observed_model":out.observed_model,
-                        "usage_observed":out.usage_observed, "attested_version":out.attested_version});
-                    (out.output, metadata)
-                }).map_err(|e| e.to_string()),
-                Connection::Acp(seat) => acp::run(seat, native, self.requested_model.as_deref()).await,
-            }
-        });
-        let result = if let Some(cancel) = request.cancel {
-            tokio::select! {
-                biased;
-                () = async {
-                    while !cancel.is_cancelled() {
-                        tokio::time::sleep(Duration::from_millis(10)).await;
-                    }
-                } => {
-                    self.record(json!({"status": "cancelled", "answer_accepted": false}))?;
-                    return Err(refused("harness authoring cancelled; no answer accepted"));
-                },
-                result = call => result,
-            }
-        } else {
-            call.await
-        };
-        let Ok(result) = result else {
-            self.record(json!({"status": "timed_out", "answer_accepted": false}))?;
-            return Err(refused("harness authoring timed out; no answer accepted"));
-        };
-        match result {
-            Ok((text, metadata)) => {
-                self.record(metadata)?;
-                // The transport intentionally does not expose numeric usage. A
-                // protocol usage marker is not a zero-token or zero-cost bill.
-                Ok(InferResponse::new(
-                    vec![ContentBlock::Text { text }],
-                    TokenUsage::new(0, 0),
-                    StopReason::EndTurn,
-                )
-                .with_usage_reported(false))
-            }
-            Err(error) => {
-                self.record(json!({"status": "failed", "reason": error}))?;
-                Err(refused(error))
-            }
-        }
+        let progress = acp::Progress::default();
+        let ended = self
+            .call(native, request.cancel.as_ref(), deadline, &progress)
+            .await;
+        self.settle(ended, &progress, deadline)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The completion door behind the ACP connection keeps the public seat's auto traits.
+    #[test]
+    fn the_authoring_seat_keeps_its_auto_traits() {
+        fn holds<T: Send + Sync + Unpin + std::panic::UnwindSafe + std::panic::RefUnwindSafe>() {}
+        holds::<HarnessAuthoring>();
+    }
+
     #[test]
     fn explicit_models_are_forwarded_or_refused_never_ignored() {
         assert_eq!(

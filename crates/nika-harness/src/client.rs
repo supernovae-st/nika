@@ -44,13 +44,16 @@ use crate::wire::{
 /// Never alias this bound to a forensic decoder's limit.
 pub const MAX_LINE_BYTES: usize = 18 * 1024 * 1024;
 
-/// How long the driver waits for the NEXT byte before calling the
-/// session dead. A size bound alone leaves the wedge the refuter
+/// How long the driver waits for the NEXT complete frame (one
+/// newline-terminated line), and for one write to drain, before calling
+/// the session dead. A size bound alone leaves the wedge the refuter
 /// found (2026-08-06): a peer that writes half a line and goes silent
 /// without closing its pipe hangs the driver forever — no EOF, no
 /// overflow, no newline. Agent turns are long (a harness may think for
-/// minutes), so the bound is on SILENCE between bytes, never on the
-/// turn: any progress resets it.
+/// minutes), so the bound is per frame, never on the turn: each frame
+/// that arrives resets it, while the bytes of an unfinished frame do not
+/// (the bound wraps the whole read of the line). An authoring completion
+/// is bounded by its own call deadline instead (`authoring::acp`).
 pub const IDLE_TIMEOUT_SECS: u64 = 300;
 
 const ID_INITIALIZE: u64 = 1;
@@ -73,10 +76,10 @@ where
     )
 }
 
-/// [`drive`] with an explicit idle deadline — the seam the wedge tests
-/// drive at millisecond scale (a five-minute constant cannot be proven
-/// by a test that must finish; virtual time does not compose with the
-/// spawned driver task).
+/// [`drive`] with an explicit idle deadline: each frame read and each
+/// write may take at most `idle`. The wedge tests drive it at millisecond
+/// scale; the driver task also runs under paused virtual time, where the
+/// five-minute default is proven without waiting for it.
 pub fn drive_with_idle<R, W>(
     reader: R,
     writer: W,
@@ -139,7 +142,7 @@ struct Driver<R, W> {
     writer: W,
     event_tx: mpsc::Sender<Result<HarnessEvent, HarnessError>>,
     output: String,
-    /// How long a silence may last before the session is abandoned.
+    /// How long one frame read or one write may take before the session is abandoned.
     idle: std::time::Duration,
     /// The partial-line accumulator (see [`read_bounded_line`]'s
     /// cancel-safety note): it MUST outlive any single read future,
@@ -245,7 +248,7 @@ where
                             let done: PromptResult = parse_payload(result, "session/prompt")?;
                             self.media.check_stop(&done.stop_reason)?;
                             if let Some(completion) = self.completion
-                                && done.stop_reason != "end_turn"
+                                && done.stop_reason != crate::authoring::acp::ACCEPTED_STOP
                             {
                                 return Err(crate::authoring::acp::refusal(&format!(
                                     "{} did not complete a turn",
@@ -751,9 +754,11 @@ async fn read_bounded_line<R: AsyncRead + Unpin>(
         // The idle deadline (the anti-wedge · refuted 2026-08-06): the
         // size bound alone let a peer write half a line and go silent
         // WITHOUT closing its pipe — no EOF, no overflow, no newline,
-        // a driver hung forever. Each read waits at most `idle` for
-        // progress; any byte resets it, so a long thinking turn is
-        // never killed, only a dead one.
+        // a driver hung forever. Each frame read waits at most `idle`
+        // for its newline: a frame that arrives resets it, the bytes of
+        // an unfinished frame do not (the timeout wraps the whole
+        // `read_until`), so a frame trickling in longer than `idle` ends
+        // the session too.
         let n = tokio::time::timeout(idle, limited.read_until(b'\n', buf))
             .await
             .map_err(|_| HarnessError::Session {
@@ -1453,6 +1458,9 @@ mod wedge_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod frame_tests;
 
 #[cfg(test)]
 mod media_bound_tests;
