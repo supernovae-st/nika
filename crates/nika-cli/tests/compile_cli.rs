@@ -582,6 +582,49 @@ fn a_seated_decision_model_is_stated_outside_the_authority() {
     assert!(authority.get("decision_seat").is_none(), "{doc}");
 }
 
+/// A revision in words may seat the decision intelligence its caller chose, as the HTTP door
+/// does: the door accepts `--base` beside `--decision-model` and the receipt states the seat.
+#[test]
+fn a_revision_seats_the_chosen_decision_model() {
+    let room = tempfile::tempdir().expect("room");
+    let answer = r#"const.request="https://example.invalid/A""#;
+    let made = call(
+        room.path(),
+        &[
+            "compile",
+            "classify-and-route",
+            "base.nika",
+            "--answer",
+            answer,
+            "--json",
+        ],
+    );
+    assert_eq!(made.status.code(), Some(0), "{}", result(&made));
+    let seat = LoopbackSeat::start(vec![serde_json::json!({"not": "a revision"}).to_string()]);
+    let out = command(room.path())
+        .env("NIKA_VLLM_BASE_URL", seat.base())
+        .args(["compile", "--base", "base.nika"])
+        .args([
+            "--change",
+            "Route the urgent requests to a second queue as well",
+        ])
+        .args(["--authoring-model", "vllm/loopback-seat"])
+        .args(["--decision-model", "vllm/loopback-seat"])
+        .args(["--authoring-timeout", "2", "--json"])
+        .output()
+        .expect("CLI");
+    // The door takes the pair (a usage refusal prints no result); the seat's answer is no
+    // revision, so the compile ends incomplete with its receipt stating the decision seat.
+    let doc = result(&out);
+    let authoring = &doc["provenance"]["authoring"];
+    assert_eq!(authoring["context"][0]["call"], "revision", "{doc}");
+    assert_eq!(
+        authoring["backend"]["authority"]["decision_seat"],
+        "outside this authority: its own client, protocol retries included",
+        "{doc}"
+    );
+}
+
 /// A response that reports no model identity leaves the identity unknown, never the model the
 /// operator requested: the receipt lists no observed model and counts the response apart.
 #[test]

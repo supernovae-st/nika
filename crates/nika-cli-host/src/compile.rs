@@ -116,7 +116,7 @@ pub struct CompileArgs {
     /// Explicitly seat one bounded-decision capability (`typesafe/jev-1.13.0` or `provider/name`) for finite ambiguities.
     /// Its requests ride its own client, outside `--authoring-max-calls`: a `typesafe/<jev>` question is sent once
     /// (no protocol retry); a `provider/name` seat keeps its client's protocol retries.
-    #[arg(long, conflicts_with_all = ["base", "list"])]
+    #[arg(long, conflicts_with = "list")]
     pub decision_model: Option<String>,
     /// Replace the explicitly named destination.
     #[arg(long, requires = "destination")]
@@ -601,6 +601,33 @@ mod tests {
         Door::try_parse_from(std::iter::once("compile").chain(argv.iter().copied()))
             .expect("the door parses")
             .args
+    }
+
+    /// A revision may seat the decision intelligence the caller chose, as the HTTP door does: the
+    /// base and the decision model parse together; listing still stands apart.
+    #[test]
+    fn a_revision_takes_an_explicit_decision_model() {
+        let args = parse(&[
+            "--base",
+            "stock.nika",
+            "--change",
+            "Keep three days of history instead of two.",
+            "--authoring-model",
+            "deepseek/deepseek-v4-pro",
+            "--decision-model",
+            "typesafe/jev-1.13.0",
+        ]);
+        assert_eq!(args.base.as_deref(), Some("stock.nika"));
+        assert_eq!(args.decision_model.as_deref(), Some("typesafe/jev-1.13.0"));
+        assert!(
+            Door::try_parse_from([
+                "compile",
+                "--list",
+                "--decision-model",
+                "typesafe/jev-1.13.0"
+            ])
+            .is_err()
+        );
     }
 
     /// A held-out corpus named on the command line guards the snapshot the environment names:
