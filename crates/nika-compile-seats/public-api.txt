@@ -165,6 +165,165 @@ pub fn nika_compile_seats::compose::rank(candidates: &[nika_compile_seats::compo
 pub fn nika_compile_seats::compose::signature(plan: &nika_compile_reader::plan::Plan) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_compile_seats::decide
 pub mod nika_compile_seats::decide::system_one
+#[non_exhaustive] pub enum nika_compile_seats::decide::system_one::Refusal
+pub nika_compile_seats::decide::system_one::Refusal::Capacity
+pub nika_compile_seats::decide::system_one::Refusal::Capacity::status: u16
+pub nika_compile_seats::decide::system_one::Refusal::Invalid
+pub nika_compile_seats::decide::system_one::Refusal::Invalid::status: u16
+pub nika_compile_seats::decide::system_one::Refusal::Status(u16)
+impl nika_compile_seats::decide::system_one::Refusal
+pub const fn nika_compile_seats::decide::system_one::Refusal::status(&self) -> u16
+pub const fn nika_compile_seats::decide::system_one::Refusal::word(&self) -> &'static str
+impl core::clone::Clone for nika_compile_seats::decide::system_one::Refusal
+pub fn nika_compile_seats::decide::system_one::Refusal::clone(&self) -> nika_compile_seats::decide::system_one::Refusal
+impl core::cmp::Eq for nika_compile_seats::decide::system_one::Refusal
+impl core::cmp::PartialEq for nika_compile_seats::decide::system_one::Refusal
+pub fn nika_compile_seats::decide::system_one::Refusal::eq(&self, other: &nika_compile_seats::decide::system_one::Refusal) -> bool
+impl core::fmt::Debug for nika_compile_seats::decide::system_one::Refusal
+pub fn nika_compile_seats::decide::system_one::Refusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_compile_seats::decide::system_one::Refusal
+pub fn nika_compile_seats::decide::system_one::Refusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_seats::decide::system_one::Refusal
+impl core::marker::StructuralPartialEq for nika_compile_seats::decide::system_one::Refusal
+impl<D> owo_colors::OwoColorize for nika_compile_seats::decide::system_one::Refusal
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::decide::system_one::Refusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::decide::system_one::Refusal::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::decide::system_one::Refusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::decide::system_one::Refusal::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::decide::system_one::Refusal where U: core::convert::From<T>
+pub fn nika_compile_seats::decide::system_one::Refusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::decide::system_one::Refusal where U: core::convert::Into<T>
+pub type nika_compile_seats::decide::system_one::Refusal::Error = core::convert::Infallible
+pub fn nika_compile_seats::decide::system_one::Refusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::decide::system_one::Refusal where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::decide::system_one::Refusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::decide::system_one::Refusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::decide::system_one::Refusal where T: core::clone::Clone
+pub type nika_compile_seats::decide::system_one::Refusal::Owned = T
+pub fn nika_compile_seats::decide::system_one::Refusal::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::decide::system_one::Refusal::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_compile_seats::decide::system_one::Refusal where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_compile_seats::decide::system_one::Refusal::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_compile_seats::decide::system_one::Refusal where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::decide::system_one::Refusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::decide::system_one::Refusal where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::system_one::Refusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::decide::system_one::Refusal where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::system_one::Refusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::decide::system_one::Refusal where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::decide::system_one::Refusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::decide::system_one::Refusal
+pub fn nika_compile_seats::decide::system_one::Refusal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::decide::system_one::Refusal where T: core::clone::Clone
+pub fn nika_compile_seats::decide::system_one::Refusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::decide::system_one::Refusal where T: 'static
+pub fn nika_compile_seats::decide::system_one::Refusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_seats::decide::system_one::Refusal where T: core::marker::Copy
+pub fn nika_compile_seats::decide::system_one::Refusal::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_seats::decide::system_one::Refusal
+pub type nika_compile_seats::decide::system_one::Refusal::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::decide::system_one::Attempt
+pub nika_compile_seats::decide::system_one::Attempt::bytes: usize
+pub nika_compile_seats::decide::system_one::Attempt::error: core::option::Option<nika_compile_seats::decide::DecisionError>
+pub nika_compile_seats::decide::system_one::Attempt::halved: bool
+pub nika_compile_seats::decide::system_one::Attempt::halves: core::option::Option<usize>
+pub nika_compile_seats::decide::system_one::Attempt::items: alloc::vec::Vec<usize>
+pub nika_compile_seats::decide::system_one::Attempt::model: core::option::Option<alloc::string::String>
+pub nika_compile_seats::decide::system_one::Attempt::refusal: core::option::Option<nika_compile_seats::decide::system_one::Refusal>
+pub nika_compile_seats::decide::system_one::Attempt::sent: bool
+pub nika_compile_seats::decide::system_one::Attempt::sha256: alloc::string::String
+pub nika_compile_seats::decide::system_one::Attempt::status: core::option::Option<u16>
+pub nika_compile_seats::decide::system_one::Attempt::unasked: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_seats::decide::system_one::Attempt::usage: nika_compile_seats::decide::system_one::Usage
+impl core::clone::Clone for nika_compile_seats::decide::system_one::Attempt
+pub fn nika_compile_seats::decide::system_one::Attempt::clone(&self) -> nika_compile_seats::decide::system_one::Attempt
+impl core::cmp::PartialEq for nika_compile_seats::decide::system_one::Attempt
+pub fn nika_compile_seats::decide::system_one::Attempt::eq(&self, other: &nika_compile_seats::decide::system_one::Attempt) -> bool
+impl core::fmt::Debug for nika_compile_seats::decide::system_one::Attempt
+pub fn nika_compile_seats::decide::system_one::Attempt::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::decide::system_one::Attempt
+impl<D> owo_colors::OwoColorize for nika_compile_seats::decide::system_one::Attempt
+impl<T, U> core::convert::Into<U> for nika_compile_seats::decide::system_one::Attempt where U: core::convert::From<T>
+pub fn nika_compile_seats::decide::system_one::Attempt::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::decide::system_one::Attempt where U: core::convert::Into<T>
+pub type nika_compile_seats::decide::system_one::Attempt::Error = core::convert::Infallible
+pub fn nika_compile_seats::decide::system_one::Attempt::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::decide::system_one::Attempt where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::decide::system_one::Attempt::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::decide::system_one::Attempt::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::decide::system_one::Attempt where T: core::clone::Clone
+pub type nika_compile_seats::decide::system_one::Attempt::Owned = T
+pub fn nika_compile_seats::decide::system_one::Attempt::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::decide::system_one::Attempt::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::decide::system_one::Attempt where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::decide::system_one::Attempt::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::decide::system_one::Attempt where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::system_one::Attempt::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::decide::system_one::Attempt where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::system_one::Attempt::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::decide::system_one::Attempt where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::decide::system_one::Attempt::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::decide::system_one::Attempt
+pub fn nika_compile_seats::decide::system_one::Attempt::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::decide::system_one::Attempt where T: core::clone::Clone
+pub fn nika_compile_seats::decide::system_one::Attempt::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::decide::system_one::Attempt where T: 'static
+pub fn nika_compile_seats::decide::system_one::Attempt::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::decide::system_one::Attempt
+pub type nika_compile_seats::decide::system_one::Attempt::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::decide::system_one::Partition
+pub nika_compile_seats::decide::system_one::Partition::answers: alloc::vec::Vec<core::result::Result<nika_compile_seats::decide::ChoiceAnswer, nika_compile_seats::decide::DecisionError>>
+pub nika_compile_seats::decide::system_one::Partition::attempts: alloc::vec::Vec<nika_compile_seats::decide::system_one::Attempt>
+pub nika_compile_seats::decide::system_one::Partition::outcomes: alloc::vec::Vec<&'static str>
+impl nika_compile_seats::decide::system_one::Partition
+pub fn nika_compile_seats::decide::system_one::Partition::begin(&mut self, batch: &nika_compile_seats::decide::ChoiceBatch, model: &str) -> core::option::Option<(usize, serde_json::value::Value)>
+pub fn nika_compile_seats::decide::system_one::Partition::error(&self) -> core::option::Option<nika_compile_seats::decide::DecisionError>
+pub fn nika_compile_seats::decide::system_one::Partition::lost(&mut self, at: usize, sent: bool, error: nika_compile_seats::decide::DecisionError)
+pub fn nika_compile_seats::decide::system_one::Partition::model(&self) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_seats::decide::system_one::Partition::of(batch: &nika_compile_seats::decide::ChoiceBatch) -> Self
+pub fn nika_compile_seats::decide::system_one::Partition::record(&self, at: usize, batch: &nika_compile_seats::decide::ChoiceBatch, slots: &[usize]) -> serde_json::value::Value
+pub fn nika_compile_seats::decide::system_one::Partition::responded(&mut self, at: usize, batch: &nika_compile_seats::decide::ChoiceBatch, status: u16, body: &[u8])
+pub fn nika_compile_seats::decide::system_one::Partition::unasked(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_seats::decide::system_one::Partition::unsent(&self, batch: &nika_compile_seats::decide::ChoiceBatch, word: &str) -> core::option::Option<serde_json::value::Value>
+pub fn nika_compile_seats::decide::system_one::Partition::usage(&self) -> nika_compile_seats::decide::system_one::Usage
+pub fn nika_compile_seats::decide::system_one::Partition::waiting(&self) -> bool
+pub fn nika_compile_seats::decide::system_one::Partition::withhold(&mut self, word: &'static str, error: &nika_compile_seats::decide::DecisionError)
+impl core::clone::Clone for nika_compile_seats::decide::system_one::Partition
+pub fn nika_compile_seats::decide::system_one::Partition::clone(&self) -> nika_compile_seats::decide::system_one::Partition
+impl core::cmp::PartialEq for nika_compile_seats::decide::system_one::Partition
+pub fn nika_compile_seats::decide::system_one::Partition::eq(&self, other: &nika_compile_seats::decide::system_one::Partition) -> bool
+impl core::fmt::Debug for nika_compile_seats::decide::system_one::Partition
+pub fn nika_compile_seats::decide::system_one::Partition::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::decide::system_one::Partition
+impl<D> owo_colors::OwoColorize for nika_compile_seats::decide::system_one::Partition
+impl<T, U> core::convert::Into<U> for nika_compile_seats::decide::system_one::Partition where U: core::convert::From<T>
+pub fn nika_compile_seats::decide::system_one::Partition::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::decide::system_one::Partition where U: core::convert::Into<T>
+pub type nika_compile_seats::decide::system_one::Partition::Error = core::convert::Infallible
+pub fn nika_compile_seats::decide::system_one::Partition::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::decide::system_one::Partition where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::decide::system_one::Partition::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::decide::system_one::Partition::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::decide::system_one::Partition where T: core::clone::Clone
+pub type nika_compile_seats::decide::system_one::Partition::Owned = T
+pub fn nika_compile_seats::decide::system_one::Partition::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::decide::system_one::Partition::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::decide::system_one::Partition where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::decide::system_one::Partition::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::decide::system_one::Partition where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::system_one::Partition::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::decide::system_one::Partition where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::system_one::Partition::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::decide::system_one::Partition where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::decide::system_one::Partition::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::decide::system_one::Partition
+pub fn nika_compile_seats::decide::system_one::Partition::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::decide::system_one::Partition where T: core::clone::Clone
+pub fn nika_compile_seats::decide::system_one::Partition::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::decide::system_one::Partition where T: 'static
+pub fn nika_compile_seats::decide::system_one::Partition::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::decide::system_one::Partition
+pub type nika_compile_seats::decide::system_one::Partition::Output = T
 #[non_exhaustive] pub struct nika_compile_seats::decide::system_one::Reply
 pub nika_compile_seats::decide::system_one::Reply::items: alloc::vec::Vec<(&'static str, core::result::Result<nika_compile_seats::decide::ChoiceAnswer, nika_compile_seats::decide::DecisionError>)>
 pub nika_compile_seats::decide::system_one::Reply::model: alloc::string::String
@@ -263,6 +422,7 @@ pub fn nika_compile_seats::decide::system_one::answer(parsed: &serde_json::value
 pub fn nika_compile_seats::decide::system_one::criteria(question: &nika_compile_seats::decide::ChoiceQuestion) -> serde_json::map::Map<alloc::string::String, serde_json::value::Value>
 pub fn nika_compile_seats::decide::system_one::read(questions: &[&nika_compile_seats::decide::ChoiceQuestion], status: u16, body: &[u8]) -> (nika_compile_seats::decide::system_one::Usage, core::result::Result<nika_compile_seats::decide::system_one::Reply, alloc::string::String>)
 pub fn nika_compile_seats::decide::system_one::read_state(body: &serde_json::value::Value, id: &str) -> core::option::Option<serde_json::value::Value>
+pub fn nika_compile_seats::decide::system_one::refusal(status: u16, body: &[u8]) -> core::option::Option<nika_compile_seats::decide::system_one::Refusal>
 pub fn nika_compile_seats::decide::system_one::request(model: &str, questions: &[&nika_compile_seats::decide::ChoiceQuestion]) -> serde_json::value::Value
 #[non_exhaustive] pub enum nika_compile_seats::decide::Bound<'r>
 pub nika_compile_seats::decide::Bound::Answer(&'r serde_json::value::Value)
