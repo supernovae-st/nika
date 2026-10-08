@@ -190,6 +190,21 @@ pub enum VerbAgentError {
         spend: Box<SpendOnFailure>,
     },
 
+    /// The user's agent harness itself failed the task, typed by its own
+    /// class (NIKA-1803 unavailable · NIKA-1804 the session died, the one
+    /// transient row · NIKA-1805 refused: an unoffered model or effort, a
+    /// configuration it did not confirm on read-back). Never erased into a
+    /// provider failure: the access family names what to fix.
+    #[error("agent harness: {source}")]
+    #[diagnostic(code(nika::access::agent_harness))]
+    Harness {
+        /// The harness's typed failure.
+        #[source]
+        source: nika_kernel::ai::harness::HarnessError,
+        /// Empty-honest: a harness reports no meterable spend.
+        spend: Box<SpendOnFailure>,
+    },
+
     /// The harness asked for authority the workflow's `permits:` grants
     /// do not cover, and no operator answer is bound (NIKA-1806 · P3
     /// B5). This is NOT a failure — it is the durable human gate
@@ -229,6 +244,7 @@ impl VerbAgentError {
             | Self::SchemaValidation { spend, .. }
             | Self::Stalled { spend, .. }
             | Self::SecurityBoundary { spend, .. }
+            | Self::Harness { spend, .. }
             | Self::HarnessGate { spend, .. } => *spend = incurred,
             Self::InvalidParam { .. } | Self::ToolDefs { .. } => {}
         }
@@ -249,6 +265,7 @@ impl VerbAgentError {
             | Self::SchemaValidation { spend, .. }
             | Self::Stalled { spend, .. }
             | Self::SecurityBoundary { spend, .. }
+            | Self::Harness { spend, .. }
             | Self::HarnessGate { spend, .. } => spend.has_signal().then_some(spend),
             Self::InvalidParam { .. } | Self::ToolDefs { .. } => None,
         }
@@ -268,6 +285,7 @@ impl NikaErrorCode for VerbAgentError {
             Self::Stalled { .. } => NIKA_467,
             Self::SecurityBoundary { .. } => NIKA_468,
             Self::UsageUnmetered { .. } => NIKA_469,
+            Self::Harness { source, .. } => source.nika_code(),
             Self::HarnessGate { .. } => NIKA_1806,
         }
     }
@@ -302,6 +320,7 @@ impl NikaErrorCode for VerbAgentError {
             Self::InvalidParam { .. }
             | Self::ToolDefs { .. }
             | Self::Stalled { .. }
+            | Self::Harness { .. }
             | Self::HarnessGate { .. } => self.nika_code().to_string(),
         }
     }
@@ -326,6 +345,8 @@ impl NikaErrorCode for VerbAgentError {
             Self::Inference { source, .. } => source.is_transient(),
             // The kernel seam is terminal-by-default (its own contract).
             Self::ToolDefs { source } => source.is_transient(),
+            // Only a session death heals on retry — of the SAME route.
+            Self::Harness { source, .. } => source.is_transient(),
         }
     }
 }
