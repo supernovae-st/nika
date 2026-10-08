@@ -79,14 +79,9 @@ impl HarnessSeat {
     }
 }
 
-/// Run the task on the harness seat — the external half of
-/// `run_observed`.
-pub(crate) async fn run_on_harness(
-    seat: &HarnessSeat,
-    input: AgentInput,
-    observer: &dyn AgentObserver,
-    images: Option<&Arc<dyn crate::spill::SpillStoreDyn>>,
-) -> Result<AgentOutput, VerbAgentError> {
+/// What a harness access cannot honour, refused before its session starts: a structured-output
+/// schema it does not attest, and a tool whitelist it cannot enforce.
+fn refuse_unenforceable(input: &AgentInput) -> Result<(), VerbAgentError> {
     if input.schema.is_some() {
         return Err(VerbAgentError::InvalidParam {
             param: "schema",
@@ -105,6 +100,18 @@ pub(crate) async fn run_on_harness(
                 .to_owned(),
         });
     }
+    Ok(())
+}
+
+/// Run the task on the harness seat — the external half of
+/// `run_observed`.
+pub(crate) async fn run_on_harness(
+    seat: &HarnessSeat,
+    input: AgentInput,
+    observer: &dyn AgentObserver,
+    images: Option<&Arc<dyn crate::spill::SpillStoreDyn>>,
+) -> Result<AgentOutput, VerbAgentError> {
+    refuse_unenforceable(&input)?;
 
     let typed = input.requirement.is_some();
     let request = session_request(seat, &input);
