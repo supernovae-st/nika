@@ -14,8 +14,9 @@ use super::bind::{Binding, BindingError, EditRefusal, edit_literal, kind};
 use super::component::{
     Component, ComponentCatalog, ComponentRef, Hole, Release, Unresolved, pinned,
 };
-use super::instance::{ExpandError, expand, instantiate};
-use super::witness::{reuse, reuse_of, revise, witness};
+use super::instance::{ExpandError, adopt, expand, instantiate};
+use super::invoke::invoke;
+use super::witness::{reuse, reuse_of, revise, witness, witness_child};
 use super::{trace, traced};
 
 /// A filter-then-report component: records older than a threshold, counted and written.
@@ -598,4 +599,217 @@ fn the_qualification_record_states_reuse_from_receipts_and_never_instantiation_f
     assert_eq!(record["reuse"]["expanded"], 0);
     assert_eq!(record["lexical_overlap"]["most_lines"], 1);
     assert!(!record.to_string().contains("instantiated"), "{record:#}");
+}
+
+#[test]
+fn an_editor_inserting_the_exact_entries_gets_the_same_node_receipt() {
+    let stale = component(STALE);
+    let instance = instantiate(&stale, &bound(48)).unwrap();
+    let entries = instance.entries().unwrap();
+    let text = |section: &str, name: &str| {
+        let entry = entries
+            .iter()
+            .find(|e| e.section == section && e.name == name);
+        entry.map(|e| e.text.clone()).unwrap()
+    };
+    assert_eq!(
+        text("const", "max_age_hours"),
+        "{ type: integer, value: 48 }"
+    );
+    assert_eq!(text("const", "records_path"), "\"./in/tickets.json\"");
+    assert_eq!(text("outputs", "stale"), "${{ tasks.stale.output }}");
+    assert!(text("tasks", "stale").starts_with("with: { rows:"));
+    assert!(text("tasks", "stale").contains("\ninvoke:\n  tool: \"nika:jq\"\n  args:\n"));
+    assert_eq!(entries.iter().filter(|e| e.section == "tasks").count(), 5);
+    // Another editor writes the same entries under the person's keys, its own way.
+    let mut doc = String::from("nika: stale-tickets-report\nconst:\n");
+    let mut tasks = String::from("tasks:\n");
+    let mut outputs = String::from("outputs:\n");
+    for entry in &entries {
+        use std::fmt::Write as _;
+        let _ = match entry.section.as_str() {
+            "tasks" => {
+                let _ = writeln!(tasks, "    {}:", entry.name);
+                for line in entry.text.lines() {
+                    let _ = writeln!(tasks, "        {line}");
+                }
+                Ok(())
+            }
+            "const" => writeln!(doc, "    {}: {}", entry.name, entry.text),
+            _ => writeln!(outputs, "    {}: {}", entry.name, entry.text),
+        };
+    }
+    let permits = PARENT
+        .split("permits:\n")
+        .nth(1)
+        .unwrap()
+        .replace("tasks: {}\n", "");
+    let candidate = format!("{doc}permits:\n{permits}{tasks}{outputs}");
+    let adopted = adopt(&candidate, &instance).unwrap();
+    assert!(adopted.ready, "{:#}", adopted.receipt["check"]);
+    let expanded = expand(PARENT, &instance).unwrap();
+    assert_eq!(adopted.receipt["nodes"], expanded.receipt["nodes"]);
+    assert_ne!(adopted.candidate, expanded.candidate);
+    assert_eq!(
+        witness(&expanded.receipt, &candidate)["verdict"],
+        "expanded"
+    );
+    // What the bound component does not write is no adoption of it.
+    let changed = expanded.candidate.replace("value: 48", "value: 49");
+    assert!(matches!(
+        adopt(&changed, &instance),
+        Err(ExpandError::Unproven(_))
+    ));
+    assert!(matches!(
+        adopt(PARENT, &instance),
+        Err(ExpandError::Unproven(_))
+    ));
+}
+
+#[test]
+fn a_hole_in_the_components_authority_is_never_bound_and_never_open() {
+    let mut stale = component(STALE);
+    stale
+        .holes
+        .push(Hole::new("permits.fs.read", "human", None));
+    let refused = instantiate(
+        &stale,
+        &[Binding::new(
+            "permits.fs.read",
+            json!(["./in/tickets.json"]),
+        )],
+    );
+    assert_eq!(
+        refused.unwrap_err(),
+        BindingError::Authority("permits.fs.read".to_owned())
+    );
+    // Its permits never reach the document: the hole is closed by construction, and the
+    // person's own boundary is the one Check judges.
+    let instance = instantiate(&stale, &bound(48)).unwrap();
+    assert!(instance.open.is_empty(), "{:?}", instance.open);
+    let expansion = expand(PARENT, &instance).unwrap();
+    assert!(expansion.ready, "{:#}", expansion.receipt["check"]);
+    assert!(!expansion.candidate.contains("./data/tickets.json"));
+}
+
+#[test]
+fn a_literal_with_quotes_newlines_and_other_scripts_round_trips_through_the_proof() {
+    for value in [
+        json!("say \"hi\"\nthen 'bye'"),
+        json!("Écarte les lignes — 東京 ✓"),
+        json!("a: b, [c] {d} # not a comment"),
+        json!(["./in/a.json", "./in/b.json"]),
+        json!({"type": "object", "required": ["id"]}),
+    ] {
+        let source = format!(
+            "nika: x\nconst:\n  target: {}\n  other: kept # a comment\ntasks: {{}}\n",
+            if value.is_string() {
+                "./data/tickets.json".to_owned()
+            } else {
+                value_like(&value)
+            }
+        );
+        let edited = edit_literal(&source, "const.target", &value).unwrap();
+        let projection = literal_projection(&edited).unwrap();
+        assert_eq!(projection["const"]["target"], value, "{edited}");
+        assert!(
+            edited.ends_with("  other: kept # a comment\ntasks: {}\n"),
+            "{edited}"
+        );
+    }
+}
+
+/// A held literal of the same kind as `value`, written in flow form.
+fn value_like(value: &Value) -> String {
+    if value.is_array() {
+        "[\"./data/x.json\"]".to_owned()
+    } else {
+        "{ type: string }".to_owned()
+    }
+}
+
+#[test]
+fn a_component_kept_behind_a_child_boundary_never_meets_the_parents_names() {
+    let stale = component(STALE);
+    let instance = instantiate(&stale, &bound(48)).unwrap();
+    // The person's document already names a task like the component's: an expansion refuses,
+    // an invocation keeps both.
+    let taken = PARENT.replace(
+        "tasks: {}\n",
+        "tasks:\n  stale:\n    invoke: { tool: \"nika:read\", args: { path: \"./in/tickets.json\" } }\n",
+    );
+    assert!(matches!(
+        expand(&taken, &instance),
+        Err(ExpandError::Collision { .. })
+    ));
+    let child_path = "./components/stale-filter-report.nika";
+    let invocation = invoke(&taken, &instance, "stale_report", child_path).unwrap();
+    // The child: its own name, the person's boundary, no model of the probe.
+    let child = literal_projection(&invocation.child).unwrap();
+    assert_eq!(child["nika"], "stale-filter-report");
+    assert!(child.get("model").is_none(), "{}", invocation.child);
+    assert_eq!(
+        child["permits"],
+        literal_projection(PARENT).unwrap()["permits"]
+    );
+    assert_eq!(
+        child["const"]["max_age_hours"],
+        json!({"type": "integer", "value": 48})
+    );
+    assert!(!invocation.child.contains("./data/tickets.json"));
+    let receipt = &invocation.receipt;
+    assert_eq!(
+        receipt["child"]["check"]["ready"], true,
+        "{:#}",
+        receipt["child"]
+    );
+    assert_eq!(receipt["authority"]["inherited"], false);
+    assert_eq!(receipt["invocation"]["workflow"], child_path);
+    // The parent: its own task untouched, one calling task added.
+    let parent = literal_projection(&invocation.candidate).unwrap();
+    assert_eq!(
+        parent["tasks"]["stale_report"],
+        json!({"invoke": {"workflow": child_path}})
+    );
+    assert_eq!(
+        parent["tasks"]["stale"],
+        literal_projection(&taken).unwrap()["tasks"]["stale"]
+    );
+    // The parent holds the call, the child the bound component; a parent without the call holds
+    // no reuse.
+    assert_eq!(
+        witness(receipt, &invocation.candidate)["verdict"],
+        "invoked"
+    );
+    assert_eq!(
+        witness_child(receipt, &invocation.child)["verdict"],
+        "expanded"
+    );
+    assert_eq!(witness(receipt, &taken)["verdict"], "absent");
+    let counted = reuse(
+        &[],
+        std::slice::from_ref(receipt),
+        Some(&invocation.candidate),
+    );
+    assert_eq!(counted["invoked"], 1);
+    // A taken task name, or a child path outside the person's project, is refused.
+    assert!(matches!(
+        invoke(&taken, &instance, "stale", child_path),
+        Err(ExpandError::Collision { .. })
+    ));
+    for path in [
+        "../x.nika",
+        "/abs/x.nika",
+        "./x.yaml",
+        "./${{ inputs.x }}.nika",
+        "./Up.nika",
+    ] {
+        assert!(
+            matches!(
+                invoke(PARENT, &instance, "call", path),
+                Err(ExpandError::Unproven(_))
+            ),
+            "{path}"
+        );
+    }
 }

@@ -66,12 +66,11 @@ pub fn widen(
     (widened, entries.len())
 }
 
-/// After qualification: each widened entry the seat found applicable, resolved in full from the
-/// catalogue; the record's rows say which form each reference was asked and shown in. Returns how
-/// many were resolved.
+/// After qualification: each entry `catalog` widened that the seat found applicable, resolved in
+/// full from it. Returns how many were resolved.
 pub fn resolve_applicable(
     pack: &mut AuthoringKnowledge,
-    record: &mut Value,
+    record: &Value,
     widened: &[String],
     catalog: &dyn ComponentCatalog,
 ) -> usize {
@@ -89,6 +88,12 @@ pub fn resolve_applicable(
             resolved += 1;
         }
     }
+    resolved
+}
+
+/// The record's rows marked with the form each reference was asked in (`widened`: by its
+/// descriptor) and, unless discarded, shown in.
+pub fn annotate(pack: &AuthoringKnowledge, record: &mut Value, widened: &[String]) {
     let shown: BTreeSet<&str> = pack
         .references
         .iter()
@@ -111,10 +116,27 @@ pub fn resolve_applicable(
             });
         }
     }
-    resolved
 }
 
-/// The coverage account of one qualification.
+/// What one catalogue's pass covered: its release, how many entries it lists, how many the pack
+/// already held, how many were asked by descriptor and how many were resolved in full.
+#[must_use]
+pub fn account(
+    catalog: &dyn ComponentCatalog,
+    listed: usize,
+    widened: usize,
+    resolved: usize,
+) -> Value {
+    json!({
+        "release": catalog.release().record(),
+        "admitted_entries": listed,
+        "already_in_pack": listed.saturating_sub(widened),
+        "asked_by_descriptor": widened,
+        "resolved_in_full": resolved,
+    })
+}
+
+/// The coverage account of one qualification: complete only when a release catalogue was lent.
 #[must_use]
 pub fn coverage(
     catalog: Option<&dyn ComponentCatalog>,
@@ -123,15 +145,12 @@ pub fn coverage(
     resolved: usize,
 ) -> Value {
     match catalog {
-        Some(catalog) => json!({
-            "law": REACH,
-            "complete": true,
-            "release": catalog.release().record(),
-            "admitted_entries": listed,
-            "already_in_pack": listed.saturating_sub(widened),
-            "asked_by_descriptor": widened,
-            "resolved_in_full": resolved,
-        }),
+        Some(catalog) => {
+            let mut account = account(catalog, listed, widened, resolved);
+            account["law"] = json!(REACH);
+            account["complete"] = json!(true);
+            account
+        }
         None => json!({
             "complete": false,
             "why": "no catalogue was lent: only the recalled pack was asked, so an admitted entry sharing no word with the request was never a candidate",

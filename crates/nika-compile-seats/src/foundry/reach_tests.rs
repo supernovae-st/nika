@@ -96,9 +96,9 @@ impl DecisionSeat for Judge {
             .as_str()
             .unwrap_or_default();
         let choice = match id {
-            "block:stale-filter-report" => Ok("applies"),
-            "block:demandes-bilan" => Ok("unrelated"),
+            "block:stale-filter-report" | "skeleton:aggregate-by-key" => Ok("applies"),
             "pattern:filter-by-age" => Ok(NONE_OPTION),
+            id if id == "block:demandes-bilan" || id.starts_with("skeleton:") => Ok("unrelated"),
             _ => Err("unscripted"),
         };
         Box::pin(async move {
@@ -243,6 +243,35 @@ async fn an_entry_no_word_reaches_is_asked_resolved_in_full_bound_and_witnessed(
         .find(|r| r["id"] == "block:stale-filter-report")
         .unwrap();
     assert_eq!(used["use"], "expanded");
+}
+
+#[tokio::test]
+async fn every_embedded_template_is_reached_beside_the_release_never_only_the_top_hits() {
+    let judge = Judge(Mutex::new(Vec::new()));
+    let (shown, record) = qualified_with(INTENT, &request(), Some(&judge), Some(&Release1))
+        .await
+        .unwrap();
+    let templates = &record["coverage"]["embedded_templates"];
+    let listed = templates["admitted_entries"].as_u64().unwrap();
+    assert_eq!(listed, nika_pack::template_names().len() as u64);
+    assert_eq!(
+        listed,
+        templates["already_in_pack"].as_u64().unwrap()
+            + templates["asked_by_descriptor"].as_u64().unwrap()
+    );
+    let pack = shown.authoring_knowledge.as_ref().unwrap();
+    let text = |id: &str| (pack.references.iter().find(|r| r.id == id)).map(|r| r.text.clone());
+    // The applicable template in full, an unrelated one out with the seat's answer.
+    let aggregate = text("skeleton:aggregate-by-key").unwrap();
+    assert!(
+        aggregate.starts_with("nika: aggregate-by-key"),
+        "{aggregate}"
+    );
+    assert_eq!(text("skeleton:deduplicate-records"), None);
+    assert_eq!(
+        row(&record, "skeleton:deduplicate-records")["verdict"],
+        "unrelated"
+    );
 }
 
 #[tokio::test]

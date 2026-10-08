@@ -1,0 +1,30 @@
+nika: p90-stale-filter-report
+model: mock/echo
+const:
+  records_path: ./data/tickets.json
+  report_path: ./out/stale.json
+  max_age_hours: { type: integer, value: 48 }
+permits:
+  fs: { read: ["./data/tickets.json"], write: ["./out/stale.json"] }
+  tools: ["nika:read", "nika:jq", "nika:write"]
+tasks:
+  read_records:
+    invoke: { tool: "nika:read", args: { path: "${{ const.records_path }}" } }
+  parse_records:
+    with: { raw: "${{ tasks.read_records.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.raw }}", expression: "fromjson" } }
+  stale:
+    with: { rows: "${{ tasks.parse_records.output }}", hours: "${{ const.max_age_hours }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { rows: "${{ with.rows }}", hours: "${{ with.hours }}" }
+        expression: "(.hours | tonumber) as $h | [.rows[] | select(.age_hours > $h)]"
+  report_text:
+    with: { stale: "${{ tasks.stale.output }}" }
+    invoke: { tool: "nika:jq", args: { input: { stale: "${{ with.stale }}" }, expression: "{count: (.stale | length), ids: [.stale[].id]} | tojson" } }
+  write_report:
+    with: { content: "${{ tasks.report_text.output }}" }
+    invoke: { tool: "nika:write", args: { path: "${{ const.report_path }}", content: "${{ with.content }}" } }
+outputs:
+  stale: ${{ tasks.stale.output }}
