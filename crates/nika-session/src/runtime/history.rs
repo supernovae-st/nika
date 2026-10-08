@@ -58,14 +58,16 @@ pub(super) struct Saved {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_run: Option<serde_json::Value>,
     /// This conversation's own explicit intelligence choice (a `UserIntelligencePreference`
-    /// value): it resumes with the conversation; absent from records that had none.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// value): it resumes with the conversation; absent from records that had none. A present
+    /// `null` is refused, never an absence.
+    #[serde(default, deserialize_with = "present")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub selection: Option<serde_json::Value>,
 }
 
 fn present<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<serde_json::Value>, D::Error> {
     let value = serde_json::Value::deserialize(d)?;
-    let null = || serde::de::Error::custom("a kept run is present but null");
+    let null = || serde::de::Error::custom("a kept value is present but null");
     (!value.is_null()).then_some(Some(value)).ok_or_else(null)
 }
 
