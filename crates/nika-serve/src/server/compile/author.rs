@@ -301,7 +301,8 @@ async fn author(
         let intent = match input {
             Input::Create { intent, .. } => Some(intent.clone()),
             Input::Revise { .. } => revise_intent(&request),
-            Input::Constant { .. } => None,
+            // A structured constant states no intent to retrieve knowledge for.
+            _ => None,
         };
         if let Some(intent) = intent.filter(|intent| !intent.trim().is_empty()) {
             let mut pack = snapshot
@@ -311,7 +312,7 @@ async fn author(
             request = request.with_authoring_knowledge(pack);
         }
     }
-    let authority = bounds.authority().map_err(|_| Refusal::Machinery)?;
+    let authority = v2::authority(bounds).map_err(|_| Refusal::Machinery)?;
     let invocations = authority.envelope();
     let requests = authority.envelope();
     let http = nika_cli_host::compile::authoring_http_with_deadline(bounds.call_timeout)

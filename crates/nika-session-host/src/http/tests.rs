@@ -3,12 +3,13 @@
 
 //! The HTTP door over a real listener, and its parity with the native door: the same command
 //! script on two copies of one project gives the same frames (Session identities, snapshot
-//! handles and the project root aside) and the same bytes on disk.
+//! handles and the project root aside) and the same bytes on disk. A run a resident reviews
+//! first waits in the Session: one yes admits its job once, a no admits none.
 
 use std::collections::BTreeMap;
 use std::io::Write as _;
 use std::net::SocketAddr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, mpsc};
 use std::time::Duration;
 
@@ -20,7 +21,7 @@ use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use super::*;
 use crate::host::tests::{COPY, Gate, runtime, world};
 use crate::machine::tests::Lines;
-use crate::run::NoRunDoor;
+use crate::run::{Admitted, JobDoor, JobFuture, Jobs, NoRunDoor, RunRequest};
 
 const WAIT: Duration = Duration::from_secs(60);
 
@@ -607,6 +608,144 @@ async fn http_decisions(root: &Path) -> Vec<(String, Value, Value)> {
     steps
 }
 
+/// A resident that holds a cost review for every run and admits its job on approval; what it
+/// was asked to decide, in order.
+#[derive(Default)]
+struct Reviewing {
+    decided: Mutex<Vec<(String, bool)>>,
+}
+
+impl Jobs for Reviewing {
+    fn admit<'a>(&'a self, _run: &'a RunRequest) -> JobFuture<'a, Result<Admitted, String>> {
+        Box::pin(async move {
+            let n = self.decided.lock().expect("decided").len() + 1;
+            Ok(Admitted::Review {
+                review: format!("rev-{n}"),
+                question: "Run once at an unknown cost?".to_owned(),
+                details: "route deepseek/x · price unknown".to_owned(),
+            })
+        })
+    }
+
+    fn decide<'a>(
+        &'a self,
+        review: &'a str,
+        approve: bool,
+    ) -> JobFuture<'a, Result<Option<String>, String>> {
+        Box::pin(async move {
+            let mut decided = self.decided.lock().expect("decided");
+            decided.push((review.to_owned(), approve));
+            Ok(approve.then(|| format!("job-of-{review}")))
+        })
+    }
+
+    fn settled<'a>(&'a self, _id: &'a str) -> JobFuture<'a, Result<(u8, Option<PathBuf>), String>> {
+        Box::pin(async { Ok((0, None)) })
+    }
+}
+
+/// Save, then a run the resident reviews: a stale yes, the yes that admits its job, a replay of
+/// that yes, a second run declined. The resident's decisions and every (step, sent, answered).
+async fn http_run_review(root: &Path) -> (Arc<Reviewing>, Vec<(String, Value, Value)>) {
+    let root = root.to_path_buf();
+    let jobs = Arc::new(Reviewing::default());
+    let lent = Arc::clone(&jobs);
+    let session_opener: Opener = Arc::new(move || Ok((runtime(&root), Vec::new())));
+    let doors: Doors = Box::new(move || {
+        let handle = tokio::runtime::Handle::current();
+        Box::new(JobDoor::new(handle, Arc::clone(&lent) as Arc<dyn Jobs>))
+    });
+    let address = listen(Arc::new(Sessions::new(session_opener, doors))).await;
+    let mut steps = Vec::new();
+    let (_, opened) = call(address, "POST", "/v1/sessions", "").await;
+    let session = opened["session"].as_str().expect("session").to_owned();
+    let path = format!("/v1/sessions/{session}/commands");
+    let mut current = opened["snapshot"]["snapshot"].clone();
+    steps.push(("open".to_owned(), Value::Null, opened));
+    for (label, id, line) in [
+        ("propose", "c-1", COPY),
+        ("save", "c-2", "yes"),
+        ("run", "c-3", "run it"),
+    ] {
+        let sent = command("submit", id, &current, line);
+        let (_, answered) = call(address, "POST", &path, &sent.to_string()).await;
+        current = answered["snapshot"]["snapshot"].clone();
+        steps.push((label.to_owned(), sent, answered));
+    }
+    let saved = steps[2].2["snapshot"]["snapshot"].clone();
+    let stale = command("submit", "c-4", &saved, "yes");
+    let (_, refused) = call(address, "POST", &path, &stale.to_string()).await;
+    steps.push(("stale_yes".to_owned(), stale, refused));
+    let approve = command("submit", "c-5", &current, "yes");
+    let (_, approved) = call(address, "POST", &path, &approve.to_string()).await;
+    let (_, replayed) = call(address, "POST", &path, &approve.to_string()).await;
+    current = approved["snapshot"]["snapshot"].clone();
+    steps.push(("approve".to_owned(), approve.clone(), approved));
+    steps.push(("approve_replayed".to_owned(), approve, replayed));
+    for (label, id, line) in [("run_again", "c-6", "run it"), ("decline", "c-7", "no")] {
+        let sent = command("submit", id, &current, line);
+        let (_, answered) = call(address, "POST", &path, &sent.to_string()).await;
+        current = answered["snapshot"]["snapshot"].clone();
+        steps.push((label.to_owned(), sent, answered));
+    }
+    let (_, closed) = call(address, "DELETE", &format!("/v1/sessions/{session}"), "").await;
+    steps.push(("close".to_owned(), Value::Null, closed));
+    (jobs, steps)
+}
+
+fn outcome_kinds(answered: &Value) -> Vec<String> {
+    (answered["outcomes"].as_array().into_iter().flatten())
+        .filter_map(|outcome| outcome["kind"].as_str().map(str::to_owned))
+        .collect()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_run_review_waits_in_the_session_and_one_yes_admits_its_job_once() {
+    let root = world();
+    let (jobs, steps) = http_run_review(root.path()).await;
+    let step = |label: &str| {
+        let found = steps.iter().find(|(name, _, _)| name == label);
+        found
+            .map(|(_, _, answered)| answered.clone())
+            .expect("step")
+    };
+    assert_eq!(outcome_kinds(&step("run")), ["run_requested", "run_review"]);
+    let review = step("run")["outcomes"][1]["review"].clone();
+    let stale = step("stale_yes");
+    assert_eq!(stale["error"], "stale_snapshot", "{stale}");
+    assert_eq!(stale["line"], "yes", "the refused line is handed back");
+    let approved = step("approve");
+    assert_eq!(
+        outcome_kinds(&approved),
+        ["run_reviewed", "facts"],
+        "{approved}"
+    );
+    assert_eq!(approved["outcomes"][0]["review"], review);
+    assert_eq!(approved["outcomes"][0]["approve"], true);
+    let observed = approved["outcomes"][1]["text"].as_str().expect("observed");
+    assert!(observed.starts_with("run observed · exit 0"), "{observed}");
+    let replayed = step("approve_replayed");
+    assert_eq!(replayed["replayed"], true);
+    assert_eq!(
+        replayed["event"], approved["event"],
+        "the same recorded result"
+    );
+    assert_eq!(
+        outcome_kinds(&step("run_again")),
+        ["run_requested", "run_review"]
+    );
+    let declined = step("decline");
+    assert_eq!(outcome_kinds(&declined), ["run_reviewed"], "{declined}");
+    assert_eq!(declined["outcomes"][0]["approve"], false);
+    let decided = jobs.decided.lock().expect("decided").clone();
+    assert_eq!(
+        decided,
+        [("rev-1".to_owned(), true), ("rev-2".to_owned(), false)],
+        "one decision per review, the stale yes and the replay decide nothing"
+    );
+    assert_eq!(step("close")["frame"], "closed");
+}
+
 /// Record the contract's frames from the real doors over a scripted Session (its reasoner
 /// is synthetic and never asked; the deterministic compiler reads the intents): the parity
 /// script on both doors, and the decisions over HTTP. Writes JSON files under the system
@@ -618,21 +757,27 @@ async fn record_contract_fixture() {
         std::env::temp_dir().join(format!("nika-session-host-fixture-{}", std::process::id()));
     std::fs::create_dir_all(&out).expect("fixture dir");
     let (native_root, http_root, decision_root) = (world(), world(), world());
+    let review_root = world();
     let native_path = native_root.path().to_path_buf();
     let (native, native_log) = tokio::task::spawn_blocking(move || native_script(&native_path))
         .await
         .expect("native");
     let (http, http_log) = http_script(http_root.path()).await;
     let decisions = http_decisions(decision_root.path()).await;
-    let decisions: Vec<Value> = (decisions.into_iter())
-        .map(|(step, sent, answered)| serde_json::json!({"step": step, "sent": sent, "answered": answered}))
-        .collect();
+    let steps = |steps: Vec<(String, Value, Value)>| -> Vec<Value> {
+        (steps.into_iter())
+            .map(|(step, sent, answered)| serde_json::json!({"step": step, "sent": sent, "answered": answered}))
+            .collect()
+    };
+    let decisions = steps(decisions);
+    let review = steps(http_run_review(review_root.path()).await.1);
     let files = [
         ("native-answers.json", Value::Array(native)),
         ("native-log.json", Value::Array(native_log)),
         ("http-answers.json", Value::Array(http)),
         ("http-sse-log.json", Value::Array(http_log)),
         ("http-decisions.json", Value::Array(decisions)),
+        ("http-run-review.json", Value::Array(review)),
     ];
     for (name, value) in files {
         let text = serde_json::to_string_pretty(&value).expect("json");

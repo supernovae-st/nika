@@ -32,6 +32,7 @@ nika-cli-host = { path = "../nika-cli-host", version = "0.122.0", default-featur
 nika-kernel  = { path = "../nika-kernel", version = "0.122.0" }   # the provider seam the native authoring gate implements (ProviderInferDyn · Secret)
 nika-providers = { path = "../nika-providers", version = "0.122.0" }  # ProviderRegistry + ProvidersConfig — the operator's pinned authoring seat over the runtime's provider transport
 nika-runtime = { path = "../nika-runtime", version = "0.122.0" }
+nika-session-host = { path = "../nika-session-host", version = "0.122.0", default-features = false }  # the project's native Session over HTTP under /v1/sessions (lateral L4→L4 · opt-in by the operator · nika-session-host never reaches nika-serve)
 nika-trace   = { path = "../nika-trace", version = "0.122.0" }    # the ONE verifier `nika trace verify` runs — the verify route projects its machine document (lateral L4→L4 · the nika-mcp → nika-cli-host precedent)
 nika-types = { path = "../nika-types", version = "0.122.0" }
 nika-vocab = { path = "../nika-vocab", version = "0.122.0" }
@@ -52,6 +53,7 @@ minisign = { workspace = true }  # the in-memory run key the seal-point test sig
 nika-arm = { path = "../nika-arm", version = "0.122.0", features = ["test-support"] }  # the ledger fixtures the one-firer tests write
 nika-onboard = { path = "../nika-onboard", version = "0.122.0", features = ["test-support"] }  # the synthetic release the strict knowledge door admits
 tempfile = { workspace = true }
+nika-session = { path = "../nika-session", version = "0.122.0", default-features = false }  # a scripted Session behind the /v1/sessions door (its reasoner never asked)
 
 [lints]
 workspace = true

@@ -5496,6 +5496,8 @@ dependencies = [
  "nika-providers",
  "nika-runtime",
  "nika-service-execution",
+ "nika-session",
+ "nika-session-host",
  "nika-source",
  "nika-trace",
  "nika-types",

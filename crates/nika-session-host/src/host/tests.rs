@@ -6,6 +6,7 @@
 //! each race is decided, not hoped for.
 
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
@@ -16,7 +17,7 @@ use nika_session::{ScriptedReasoner, SessionRuntime};
 use serde_json::Value;
 
 use super::*;
-use crate::run::NoRunDoor;
+use crate::run::{NoRunDoor, RunDoor, RunRequest, RunSink, RunStep};
 use crate::wire::CONTRACT;
 
 /// A Ready intent the compiler settles with no question and no model.
@@ -375,6 +376,98 @@ fn a_stop_that_wins_withdraws_the_late_proposal_before_anything_is_published() {
         let candidate = &value["snapshot"]["work"]["candidate"];
         assert!(candidate.is_null(), "published: {value}");
     }
+}
+
+/// A run door that counts every run, resume and review answer it is asked for, and starts none.
+#[derive(Clone, Default)]
+struct Counted(Arc<AtomicUsize>);
+
+impl Counted {
+    fn asked(&self) -> usize {
+        self.0.load(Ordering::SeqCst)
+    }
+
+    fn count(&self) -> RunStep {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        RunStep::NotStarted {
+            why: "counted, not started".to_owned(),
+        }
+    }
+}
+
+impl RunDoor for Counted {
+    fn run(&mut self, _root: &Path, _run: &RunRequest, _sink: &dyn RunSink) -> RunStep {
+        self.count()
+    }
+
+    fn resume(&mut self, _: &Path, _: &Path, _: &Path, _: &str, _: &dyn RunSink) -> RunStep {
+        self.count()
+    }
+
+    fn answer_review(&mut self, _approve: bool, _sink: &dyn RunSink) -> RunStep {
+        self.count()
+    }
+}
+
+/// A saved workflow, then « run it » held after the Session returned its run request.
+fn run_requested_and_held(at: &'static str) -> (tempfile::TempDir, SessionHost, Counted, Gate) {
+    let root = world();
+    let door = Counted::default();
+    let host =
+        SessionHost::start(runtime(root.path()), Box::new(door.clone()), Vec::new()).expect("host");
+    assert_eq!(kinds(&settle(&host, "c-1", COPY)), ["proposal"]);
+    settle(&host, "c-2", "yes");
+    let gate = Gate::default();
+    host.pause_at(gate.pause());
+    gate.hold(at);
+    assert!(matches!(
+        host.dispatch(submit("c-3", &handle(&host), "run it")),
+        Dispatch::Accepted { .. }
+    ));
+    gate.reached();
+    (root, host, door, gate)
+}
+
+#[test]
+fn a_stop_accepted_before_its_run_is_admitted_starts_no_run() {
+    let (_root, host, door, gate) = run_requested_and_held("returned");
+    let receipt = reply(host.dispatch(stop("s-1")));
+    assert_eq!(
+        (receipt["receipt"].clone(), receipt["target"].clone()),
+        ("stop_requested".into(), "c-3".into())
+    );
+    gate.release();
+    let settled = json(&host.wait_result("c-3").expect("settled"));
+    assert_eq!(
+        kinds(&settled),
+        ["run_requested", "run_not_started"],
+        "{settled}"
+    );
+    let why = settled["outcomes"][1]["text"].as_str().expect("why");
+    assert!(
+        why.starts_with("the Stop accepted while this turn prepared"),
+        "{why}"
+    );
+    assert_eq!(
+        door.asked(),
+        0,
+        "no run door was asked after an accepted Stop"
+    );
+    // A Stop that comes once the turn settles stops nothing: the next run is asked for.
+    let (_root, host, door, gate) = run_requested_and_held("settling");
+    assert_eq!(
+        reply(host.dispatch(stop("s-1")))["receipt"],
+        "nothing_to_stop"
+    );
+    gate.release();
+    let settled = json(&host.wait_result("c-3").expect("settled"));
+    assert_eq!(
+        kinds(&settled),
+        ["run_requested", "run_not_started"],
+        "{settled}"
+    );
+    assert_eq!(settled["outcomes"][1]["text"], "counted, not started");
+    assert_eq!(door.asked(), 1, "the run door was asked once");
 }
 
 #[test]

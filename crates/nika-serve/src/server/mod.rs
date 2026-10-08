@@ -18,6 +18,7 @@ mod route;
 mod schedule_http;
 mod schedule_inputs;
 mod scheduler;
+mod session;
 mod sse;
 mod store;
 mod trace_verdict;
@@ -375,6 +376,8 @@ struct AppState {
     cancellations: Arc<ActiveCancellations>,
     /// The cost-review door, when the operator started this server with it.
     cost_review: Option<Arc<cost_review::Door>>,
+    /// The project's native Session door, when the operator started this server with it.
+    sessions: Option<Arc<nika_session_host::http::Sessions>>,
 }
 
 struct AuthorityState {
@@ -625,7 +628,12 @@ impl BoundServer {
             let root = root.unwrap_or_else(|| config.workflow_root().to_path_buf());
             cost_review::Door::open(root, authority.state.limits.default_max_cost_usd())
         });
-        let state = Arc::new(AppState {
+        let sessions = config.sessions().then(|| {
+            let root = authority.state.workflow_root.get().cloned();
+            root.unwrap_or_else(|| config.workflow_root().to_path_buf())
+        });
+        // A Session's runs are this server's jobs: its door reaches the state it is part of.
+        let state = Arc::new_cyclic(|state| AppState {
             #[cfg(test)]
             before_named_capture: Arc::default(),
             #[cfg(test)]
@@ -655,6 +663,7 @@ impl BoundServer {
             clock: Arc::clone(&authority.state.clock),
             cancellations: Arc::clone(&authority.state.cancellations),
             cost_review,
+            sessions: sessions.map(|root| Arc::new(session::open(root, state.clone()))),
         });
         Ok(Self { listener, state })
     }
@@ -1130,6 +1139,12 @@ async fn run_claimed(
         .get(task.id.clone())
         .await?
         .ok_or_else(|| crate::JobStoreError::JobNotFound(task.id.clone()))?;
+    // A ceiling the job's requester bound restricts the task's, never widens it: on admission,
+    // replay and restart alike.
+    let max_cost_usd = match (task.max_cost_usd, record.max_cost_usd()) {
+        (Some(task), Some(job)) => Some(task.min(job)),
+        (task, job) => task.or(job),
+    };
     let inputs = record.inputs;
     let mut guard = RunningGuard::new(state.store.clone(), task.id.clone(), task.prestarted);
     if !task.prestarted && !start_running(&mut guard, session.context()).await? {
@@ -1144,7 +1159,7 @@ async fn run_claimed(
         &mut guard,
         (session, authority),
         task.origin.clone(),
-        task.max_cost_usd,
+        max_cost_usd,
         task.access_pin.take(),
         inputs,
         cancel,

@@ -231,6 +231,19 @@ async fn open_review(
         Err(error) => return Err(error.into_response()),
     };
     let admitted = route::admit_by_name(&job.workflow, state).await?;
+    review_admitted(state, door, job, admitted, (version, None)).await
+}
+
+/// A review over a world its caller already admitted (a Session's door verified it holds the
+/// bytes the Session checked), judged with `invocation` as the default ceiling the review
+/// overrides once, as `nika run` does.
+pub(super) async fn review_admitted(
+    state: &AppState,
+    door: &Arc<Door>,
+    job: JobByName,
+    admitted: AdmittedExecution,
+    (version, invocation): (u64, Option<f64>),
+) -> Result<Result<String, Value>, Response<ResponseBody>> {
     let inputs = job.inputs.clone().unwrap_or_default();
     super::inputs::validate(&admitted, &inputs).map_err(super::error::ApiError::into_response)?;
     let request = request_value(&job);
@@ -242,7 +255,15 @@ async fn open_review(
     let forced = None;
     let framed = tokio::task::spawn_blocking(move || {
         let access = (access.as_deref(), forced);
-        frame(service, admitted, &root, ceiling, &inputs, access, version)
+        frame(
+            service,
+            admitted,
+            &root,
+            ceiling,
+            &inputs,
+            access,
+            (version, invocation),
+        )
     })
     .await
     .map_err(|_| internal())?;
@@ -292,6 +313,10 @@ enum Framed {
     NotRequired(bool, &'static str),
 }
 
+/// Where a review's defaults come from: a manual caller states none, a Session its run ceiling.
+const CALLER_BASIS: &str = "invocation: none (this server's per-run ceiling is a hard cap, never a default); project: the project's `ceiling:`, overridden once as nika run does; no hard cap is ever overridden";
+const SESSION_BASIS: &str = "invocation: the Session's run ceiling, overridden once by this approval as nika run does; project: the project's `ceiling:`, overridden once as nika run does; no hard cap is ever overridden";
+
 /// Version 1's answer to a Run only version 2 can show.
 const V1_MULTIPLIED: &str = "this Run fans out or retries: its finite dispatch bound is reviewed only at POST /v2/cost-reviews (health costReviewV2); version 1 reviews one sequential single-attempt Run";
 const OBSERVED: &str = "exact declared-free or run-time routes: the job binds a per-Run observer account, as nika run does";
@@ -312,7 +337,7 @@ fn frame(
     ceiling: Option<f64>,
     inputs: &BTreeMap<String, Value>,
     (access, forced): (Option<&str>, Option<ExecutionAccessPlan>),
-    version: u64,
+    (version, invocation): (u64, Option<f64>),
 ) -> Result<Framed, Refused> {
     let session = service.begin(admitted);
     let driver = nika_service_execution::ServiceExecutionDriver::new(session.context(), root)
@@ -329,7 +354,7 @@ fn frame(
         None,
         &plan,
         inputs,
-        None,
+        invocation,
         (evidence(ceiling), &ask),
     )
     .map_err(Refused::Other)?;
@@ -365,6 +390,11 @@ fn document(
     let challenge = review.challenge();
     let (requests, tokens, timeout) = review.bounds();
     let [invocation, project] = review.defaults();
+    let basis = if invocation.is_some() {
+        SESSION_BASIS
+    } else {
+        CALLER_BASIS
+    };
     let prior = review.prior_journal();
     let created = jiff::Timestamp::now();
     let expires = created
@@ -386,7 +416,7 @@ fn document(
         "question": challenge.question,
         "bounds": {"max_requests": requests, "max_output_tokens": tokens, "request_timeout_seconds": timeout.as_secs(), "retries": 0},
         "defaults": {"invocation_usd": usd(invocation), "project_usd": usd(project),
-            "basis": "invocation: none (this server's per-run ceiling is a hard cap, never a default); project: the project's `ceiling:`, overridden once as nika run does; no hard cap is ever overridden"},
+            "basis": basis},
         "host": {"authority": "operator_started_cost_review", "evidence": evidence(door.ceiling).view(),
             "credential_custody": custody(plan, &challenge.route.provider)},
         "prior_journal": {"length": prior.length, "sha256": prior.sha256},
@@ -436,6 +466,30 @@ pub(super) fn get(id: &str, state: &AppState, version: u64) -> Response<Response
         Some(door) => respond(door, id, StatusCode::OK, version),
         None => unavailable(),
     }
+}
+
+/// A review a Session holds, as it shows it: the question, and the public document on demand.
+pub(super) fn shown(door: &Door, id: &str) -> Option<(String, String)> {
+    let view = door.store().view(id).ok()?;
+    let question = view["question"].as_str()?.to_owned();
+    Some((question, serde_json::to_string_pretty(&view).ok()?))
+}
+
+/// A Session's human decision on a review its door holds, in this door's custody: the Session
+/// showed that very review, so the review's own witness binds the decision. Returns it.
+pub(super) fn decide_held(door: &Door, id: &str, approve: bool) -> Result<String, String> {
+    let words = |refusal: ReviewRefusal| refusal.message().to_owned();
+    let view = door.store().view(id).map_err(words)?;
+    let witness = view["witness_sha256"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    let stamp = (door.now(), jiff::Timestamp::now().to_string());
+    let decided = door
+        .store()
+        .decide(id, &witness, approve, (stamp.0, &stamp.1));
+    decided.map_err(words)?;
+    Ok(witness)
 }
 
 #[derive(serde::Deserialize)]
@@ -522,6 +576,7 @@ pub(super) async fn admit(
             job.access,
             inputs,
             Some(authority),
+            None,
         )
         .await;
     if let Ok(Admission::Created(record)) = &admitted {

@@ -354,6 +354,21 @@ pub async fn refusal_words(response: Response<ResponseBody>) -> String {
         .unwrap_or_else(|| "the server refused the run".to_owned())
 }
 
+/// The job a server's admission answered (`{"id"}`), or its refusal's words.
+///
+/// # Errors
+/// The refusal's words, or that the answer named no job.
+pub async fn job_id(response: Response<ResponseBody>) -> Result<String, String> {
+    if !response.status().is_success() {
+        return Err(refusal_words(response).await);
+    }
+    let body = (response.into_body().collect().await).map(http_body_util::Collected::to_bytes);
+    (body.ok())
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .and_then(|value| value["id"].as_str().map(str::to_owned))
+        .ok_or_else(|| "the server's admission answered no job".to_owned())
+}
+
 /// An answer the host cannot give, said plainly.
 fn internal(message: &'static str) -> Response<ResponseBody> {
     let frame = Frame::refused("", Refused::SessionUnavailable, message, None, None, None);

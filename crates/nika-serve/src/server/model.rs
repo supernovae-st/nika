@@ -202,7 +202,9 @@ struct HttpAdapterIdentity {
 }
 
 impl HttpAdapterIdentity {
-    fn current(schedule_live: bool, native: Option<(bool, bool)>, cost_review: bool) -> Self {
+    /// `doors`: whether the cost-review door and the Session door are seated.
+    fn current(schedule_live: bool, native: Option<(bool, bool)>, doors: [bool; 2]) -> Self {
+        let [cost_review, sessions] = doors;
         let (decision, trials) = native.unwrap_or_default();
         let native = native.is_some();
         let identity = nika_runtime::engine_identity();
@@ -229,14 +231,19 @@ impl HttpAdapterIdentity {
                 .chain(decision.then_some(DECISION_SEAT_CAPABILITY))
                 .chain(trials.then_some(TRIAL_CAPABILITY))
                 .chain(COST_REVIEW_CAPABILITIES.into_iter().filter(|_| cost_review))
+                .chain(sessions.then_some(nika_session_host::CAPABILITY))
                 .collect(),
         }
     }
 }
 
 impl HealthResponse {
-    /// `seated`: whether a decision model judges, whether the server tries candidates.
-    pub(crate) fn current(schedule_live: bool, seated: Option<(bool, bool)>, review: bool) -> Self {
+    /// The health of the server `state` is: what it seats (whether a decision model judges,
+    /// whether it tries candidates) and which opt-in doors it serves.
+    pub(crate) fn current(state: &super::AppState) -> Self {
+        let seated =
+            (state.native.as_ref()).map(|seat| (seat.decision.is_some(), seat.trials.is_some()));
+        let doors = [state.cost_review.is_some(), state.sessions.is_some()];
         Self {
             status: "ok",
             service: "nika-serve",
@@ -244,7 +251,7 @@ impl HealthResponse {
                 jobs: crate::job::STATE_VERSION,
                 schedules: crate::schedule::STATE_VERSION,
             },
-            identity: HttpAdapterIdentity::current(schedule_live, seated, review),
+            identity: HttpAdapterIdentity::current(true, seated, doors),
         }
     }
 }

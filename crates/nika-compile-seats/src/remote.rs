@@ -9,6 +9,9 @@
 //! paths the request states, within bounds; anything else is refused whole, never trimmed.
 //! Admission proves a shape, never a truth: the facts stay data a seat reads.
 
+pub mod bounds;
+pub mod input;
+
 use std::collections::BTreeSet;
 use std::path::{Component, Path};
 

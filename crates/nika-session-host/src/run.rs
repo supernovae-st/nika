@@ -198,17 +198,42 @@ impl RunDoor for LaneRunDoor {
 /// A future a [`Jobs`] port answers with.
 pub type JobFuture<'a, T> = std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
 
+/// What an admission came to.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum Admitted {
+    /// The job's identity.
+    Job(String),
+    /// The resident holds a fresh cost review the run waits at: nothing is admitted before the
+    /// human's decision on it.
+    Review {
+        /// The review's identity, held by this door.
+        review: String,
+        /// The review's question.
+        question: String,
+        /// The review's document, shown on demand.
+        details: String,
+    },
+}
+
 /// What a resident's own job admission lends a Session's run door: the by-name admission its
-/// job route takes, and the wait for that job's end. Nothing else of the resident.
+/// job route takes (or the fresh cost review it holds first), the decision on that review, and
+/// the wait for the job's end. Nothing else of the resident.
 pub trait Jobs: Send + Sync {
-    /// Admit the workflow `name` (relative to the project) by name, with the run's `name=value`
-    /// pairs and access pin: the job's identity, or the resident's refusal in its own words.
-    fn admit<'a>(
+    /// Admit the Session's run by its workflow's name (relative to the project), its
+    /// `name=value` pairs and access pin unchanged: the job, the review it waits at, or the
+    /// resident's refusal in its own words. The job runs under the run's ceiling restricted by
+    /// the resident's own, never a raised one; only a review the human then approves runs at an
+    /// unknown cost.
+    fn admit<'a>(&'a self, run: &'a RunRequest) -> JobFuture<'a, Result<Admitted, String>>;
+
+    /// The human's decision on `review`: approved, the job its approval admitted; declined,
+    /// none, and nothing is sent.
+    fn decide<'a>(
         &'a self,
-        name: &'a str,
-        vars: &'a [String],
-        access: Option<&'a str>,
-    ) -> JobFuture<'a, Result<String, String>>;
+        review: &'a str,
+        approve: bool,
+    ) -> JobFuture<'a, Result<Option<String>, String>>;
 
     /// The job `id` once it settled or paused: the exit `nika run` gives for that end, and the
     /// journal the resident wrote, when it wrote one.
@@ -216,15 +241,19 @@ pub trait Jobs: Send + Sync {
 }
 
 /// A Session's runs through a resident's job admission, waited for on the resident's runtime
-/// from the Session's own worker thread.
+/// from the Session's own worker thread. A cost review it holds is declined when a new run
+/// replaces it or when the door is dropped: a pending review never outlives its Session.
 pub struct JobDoor {
     handle: tokio::runtime::Handle,
     jobs: Arc<dyn Jobs>,
+    held: Option<String>,
 }
 
 impl std::fmt::Debug for JobDoor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("JobDoor").finish_non_exhaustive()
+        f.debug_struct("JobDoor")
+            .field("held", &self.held)
+            .finish_non_exhaustive()
     }
 }
 
@@ -232,33 +261,56 @@ impl JobDoor {
     /// Runs admitted through `jobs`, awaited on `handle`.
     #[must_use]
     pub fn new(handle: tokio::runtime::Handle, jobs: Arc<dyn Jobs>) -> Self {
-        Self { handle, jobs }
+        Self {
+            handle,
+            jobs,
+            held: None,
+        }
     }
-}
 
-impl RunDoor for JobDoor {
-    fn run(&mut self, _root: &Path, run: &RunRequest, sink: &dyn RunSink) -> RunStep {
-        let name = run.workflow.to_string_lossy().into_owned();
-        let access = run.access_pin.as_deref();
-        let job = match self
-            .handle
-            .block_on(self.jobs.admit(&name, &run.vars, access))
-        {
-            Ok(job) => job,
-            Err(why) => {
-                return RunStep::NotStarted {
-                    why: format!("{why} · nothing ran"),
-                };
-            }
-        };
+    /// Decline the review this door holds, if any: nothing is sent.
+    fn release(&mut self) {
+        if let Some(review) = self.held.take() {
+            let _declined = self.handle.block_on(self.jobs.decide(&review, false));
+        }
+    }
+
+    /// The admitted job, waited for to its end.
+    fn observe(&self, job: &str, sink: &dyn RunSink) -> RunStep {
         sink.said(format!("run admitted as job {job}"));
-        match self.handle.block_on(self.jobs.settled(&job)) {
+        match self.handle.block_on(self.jobs.settled(job)) {
             Ok((exit, trace)) => {
                 sink.said(format!("job {job} ended with exit {exit}"));
                 RunStep::Observed { exit, trace }
             }
             Err(why) => RunStep::Unobserved {
                 why: format!("job {job} was admitted; its end was not observed: {why}"),
+            },
+        }
+    }
+}
+
+impl Drop for JobDoor {
+    fn drop(&mut self) {
+        self.release();
+    }
+}
+
+impl RunDoor for JobDoor {
+    fn run(&mut self, _root: &Path, run: &RunRequest, sink: &dyn RunSink) -> RunStep {
+        self.release();
+        match self.handle.block_on(self.jobs.admit(run)) {
+            Ok(Admitted::Job(job)) => self.observe(&job, sink),
+            Ok(Admitted::Review {
+                review,
+                question,
+                details,
+            }) => {
+                self.held = Some(review);
+                RunStep::Review { question, details }
+            }
+            Err(why) => RunStep::NotStarted {
+                why: format!("{why} · nothing ran"),
             },
         }
     }
@@ -276,9 +328,18 @@ impl RunDoor for JobDoor {
         }
     }
 
-    fn answer_review(&mut self, _approve: bool, _sink: &dyn RunSink) -> RunStep {
-        RunStep::NotStarted {
-            why: "no run waits at a cost review on this door · nothing was sent".to_owned(),
+    fn answer_review(&mut self, approve: bool, sink: &dyn RunSink) -> RunStep {
+        let Some(review) = self.held.take() else {
+            return RunStep::NotStarted {
+                why: "no run waits at a cost review on this door · nothing was sent".to_owned(),
+            };
+        };
+        match self.handle.block_on(self.jobs.decide(&review, approve)) {
+            Ok(Some(job)) => self.observe(&job, sink),
+            Ok(None) => RunStep::Declined,
+            Err(why) => RunStep::NotStarted {
+                why: format!("{why} · nothing ran"),
+            },
         }
     }
 }

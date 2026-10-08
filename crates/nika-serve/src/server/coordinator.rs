@@ -109,13 +109,16 @@ impl ResidentExecutionCoordinator {
             access_pin,
             std::collections::BTreeMap::new(),
             None,
+            None,
         )
         .await
     }
 
     /// A reviewed admission (`reviewed`) attaches its captured world and cost
     /// authority to the created job before its task is queued; any other
-    /// outcome drops it, which settles its account with nothing sent.
+    /// outcome drops it, which settles its account with nothing sent. A
+    /// `declared` ceiling (a Session's run) is kept with the job: it restricts
+    /// the server's at every run of it, never widens it.
     #[allow(clippy::too_many_arguments)]
     pub(super) async fn admit_manual_inputs(
         &self,
@@ -126,6 +129,7 @@ impl ResidentExecutionCoordinator {
         access_pin: Option<String>,
         inputs: std::collections::BTreeMap<String, serde_json::Value>,
         reviewed: Option<(nika_execution::ExecutionSession, super::CostAuthority)>,
+        declared: Option<f64>,
     ) -> Result<Admission, ServerError> {
         let permit = self
             .jobs
@@ -141,7 +145,7 @@ impl ResidentExecutionCoordinator {
                 workflow,
                 world,
                 access_pin,
-                inputs,
+                (inputs, declared),
             )
             .await?;
         match &admission {
