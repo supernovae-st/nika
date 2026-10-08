@@ -514,11 +514,29 @@ fn both_layouts_keep_the_composer_and_the_switch_at_every_size() {
     }
     assert!(term.screen.hues().is_empty(), "{:?}", term.screen.hues());
     // Below the minimum the focus view stands in: the draft stays, and F4
-    // switches nothing there (no layout is drawn).
+    // switches nothing there (no layout is drawn). The shell decides F4 at the
+    // size it last drew, so F4 waits for a frame drawn at 59x15: the focus
+    // view's hint, its last row, which no Workbench paints (cropped by the
+    // resize, the 100-column Workbench can keep its composer row, never its
+    // switch).
     term.resize(59, 15);
-    term.send(F4);
     term.wait_until("the focus view", |s| {
-        s.size() == (59, 15) && s.contains("nika › draft here") && !s.contains("Workbench")
+        s.size() == (59, 15)
+            && s.contains(FREE_HINT)
+            && s.contains("nika › draft here")
+            && !s.contains("Workbench")
+    });
+    // Keys are read in order (one broker): the key typed after F4 shows in the
+    // draft only once F4 was read, here, before the grow; erasing it gives back
+    // the exact draft.
+    term.send(F4);
+    term.send("!");
+    term.wait_until("F4 read in the focus view", |s| {
+        s.lines().iter().any(|row| row == "nika › draft here!")
+    });
+    term.send("\x7f");
+    term.wait_until("the exact draft", |s| {
+        s.lines().iter().any(|row| row == "nika › draft here")
     });
     term.resize(120, 40);
     term.wait_until("the same Workbench again", |s| {
