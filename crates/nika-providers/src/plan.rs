@@ -99,6 +99,10 @@ pub struct ExecutionAccessPlan {
     /// file declares none. `pin` stays the operator's flag alone, so a
     /// child workflow never inherits its parent file's route.
     pub requirement: Option<AccessRequirement>,
+    /// The probe rows a declared plan was resolved over, kept so a model
+    /// rendered at dispatch is judged by the same resolver on the same
+    /// rows ([`Self::task_lane`]); empty without a requirement.
+    rows: Vec<ProviderProbe>,
 }
 
 impl ResolvedLane {
@@ -125,6 +129,7 @@ impl ExecutionAccessPlan {
             seat,
             pin_refusal,
             requirement: None,
+            rows: Vec::new(),
         }
     }
 

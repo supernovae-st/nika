@@ -395,3 +395,84 @@ mod seats {
         assert_eq!(plan.pin.as_deref(), Some("claude-code"));
     }
 }
+
+fn api_route(via: &str) -> AccessRequirement {
+    AccessRequirement::new()
+        .with_via(Some(via.into()))
+        .with_protocol(Some(AccessProtocol::Api))
+        .with_fallback(Some(AccessFallback::None))
+}
+
+/// A model rendered at dispatch is judged by the same resolver on the
+/// frozen rows: another provider than the file's `via` is refused (the
+/// pin judge's 1801, named after the file field), the route itself
+/// yields a lane that carries the requirement to the terminal.
+#[test]
+fn a_rendered_model_is_bound_by_the_declared_api_route() {
+    let probes = [api_probe("deepseek", true), api_probe("mistral", true)];
+    let frozen = plan(&[], &probes, None, &api_route("deepseek"));
+    assert!(frozen.is_admitted(), "{:?}", frozen.pin_refusal);
+    let both = VerbNeeds::new(true, true);
+    match frozen.task_lane("mistral/mistral-small-latest", both) {
+        Err(PinRefusal::PinUnsatisfied { message }) => {
+            assert!(message.contains("`run.access.via: deepseek`"), "{message}");
+            assert!(
+                message.contains("mistral/mistral-small-latest"),
+                "{message}"
+            );
+        }
+        other => panic!("another provider must refuse: {other:?}"),
+    }
+    let lane = frozen
+        .task_lane("deepseek/deepseek-flash", both)
+        .expect("the route serves it")
+        .expect("a lane");
+    assert_eq!(
+        (lane.access.as_str(), lane.chosen),
+        ("deepseek", AccessClass::Api)
+    );
+    assert_eq!(lane.requirement.as_deref(), Some(&api_route("deepseek")));
+}
+
+/// A declared seat serves any rendered model on the seat (its ACP
+/// session then selects that exact model or refuses before a prompt).
+#[cfg(feature = "access-harness")]
+#[test]
+fn a_rendered_model_rides_the_declared_seat_with_its_lane() {
+    let probes = [
+        api_probe("openai", true),
+        harness_probe("codex", &["openai"], true, true),
+    ];
+    let frozen = plan(&[], &probes, None, &codex_route());
+    assert_eq!(frozen.seat.as_deref(), Some("codex"));
+    let lane = frozen
+        .task_lane("openai/gpt-6-astra", VerbNeeds::new(false, true))
+        .expect("admitted")
+        .expect("a lane");
+    assert_eq!(
+        (lane.access.as_str(), lane.chosen),
+        ("codex", AccessClass::Harness)
+    );
+    assert_eq!(lane.requirement.as_deref(), Some(&codex_route()));
+}
+
+/// Without a requirement nothing changes (no lane, no refusal); under an
+/// effort alone a rendered model keeps its own provider path, never
+/// refused here, and the lane names it with the requirement.
+#[test]
+fn an_undeclared_or_effort_only_plan_never_refuses_a_rendered_model() {
+    let probes = [api_probe("deepseek", true), api_probe("mistral", true)];
+    let bare = resolve_execution_plan_for(&[], &probes, None, VerbNeeds::new(true, false));
+    assert_eq!(
+        bare.task_lane("mistral/mistral-small-latest", VerbNeeds::new(true, false)),
+        Ok(None)
+    );
+    let effort = AccessRequirement::new().with_effort(Some("high".into()));
+    let frozen = plan(&[], &probes, None, &effort);
+    let lane = frozen
+        .task_lane("mistral/mistral-small-latest", VerbNeeds::new(true, false))
+        .expect("never refused")
+        .expect("its own provider");
+    assert_eq!((lane.access.as_str(), lane.pinned), ("mistral", false));
+    assert_eq!(lane.requirement.as_deref(), Some(&effort));
+}
