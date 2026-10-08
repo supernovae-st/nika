@@ -19,7 +19,8 @@ use std::collections::BTreeMap;
 use std::{future::Future, pin::Pin};
 
 use nika_onboard::compile::decide::{
-    Carried, ChoiceAnswer, ChoiceBatch, ChoiceQuestion, DecisionError, NONE_OPTION,
+    Bound, Carried, ChoiceAnswer, ChoiceBatch, ChoiceQuestion, DecisionError, NONE_OPTION,
+    WrittenKeys, bind,
 };
 use serde_json::{Map, Value, json};
 
@@ -88,43 +89,27 @@ impl BatchExchange {
     /// The exchange before its request, and the items it may send (their ids asked once): an
     /// item whose id the batch asks more than once is never sent.
     fn before(batch: &ChoiceBatch) -> (Self, Vec<usize>) {
-        let mut asked: BTreeMap<&str, usize> = BTreeMap::new();
-        for item in &batch.items {
-            *asked.entry(item.question.id.as_str()).or_default() += 1;
-        }
-        let once = |id: &str| asked.get(id) == Some(&1);
+        let repeated = batch.repeated();
         let sent: Vec<usize> = (batch.items.iter().enumerate())
-            .filter(|(_, item)| once(&item.question.id))
+            .filter(|(_, item)| !repeated.contains(item.question.id.as_str()))
             .map(|(at, _)| at)
             .collect();
-        let answers = (batch.items.iter())
-            .map(|item| {
-                Err(DecisionError(format!(
-                    "the batch asks `{}` more than once: an answer keyed by id cannot tell them apart; not sent",
-                    item.question.id
-                )))
-            })
-            .collect();
-        let outcomes = (batch.items.iter())
-            .map(|item| {
-                if once(&item.question.id) {
-                    "failed"
-                } else {
-                    "not_sent"
-                }
-            })
-            .collect();
-        let error = (sent.is_empty() && !batch.items.is_empty()).then(|| {
-            DecisionError("every id of this batch is asked more than once; nothing sent".into())
-        });
+        let unsent = |id: &str| {
+            let why = "more than once: an answer keyed by id cannot tell them apart; not sent";
+            Err(DecisionError(format!("the batch asks `{id}` {why}")))
+        };
         let exchange = Self {
-            answers,
-            outcomes,
+            answers: (batch.items.iter())
+                .map(|item| unsent(&item.question.id))
+                .collect(),
+            outcomes: vec!["not_sent"; batch.items.len()],
             delivery: Delivery::NotSent,
             model: None,
             usage: Usage::default(),
             unasked: Vec::new(),
-            error,
+            error: (sent.is_empty() && !batch.items.is_empty()).then(|| {
+                DecisionError("every id of this batch is asked more than once; nothing sent".into())
+            }),
         };
         (exchange, sent)
     }
@@ -147,65 +132,57 @@ impl BatchExchange {
     /// Read the response to the sent items: each answer bound by id and validated against what
     /// its question offered; the usage once, whatever the items came to.
     fn read(&mut self, sent: &[usize], questions: &[&ChoiceQuestion], status: u16, body: &[u8]) {
-        let failure = |message: String, usage: Usage| ExchangeError {
-            error: DecisionError(message),
-            delivery: Delivery::Responded(status),
-            usage,
-        };
-        let parsed = match serde_json::from_slice::<Value>(body) {
-            Ok(parsed) => parsed,
-            Err(error) => {
-                let message = if (200..300).contains(&status) {
-                    format!("response is not JSON: {error}")
-                } else {
-                    format!("typesafe http status {status}")
-                };
-                return self.failed(sent, failure(message, Usage::default()));
+        let parsed = serde_json::from_slice::<Value>(body);
+        let usage = parsed.as_ref().map_or_else(|_| Usage::default(), Usage::of);
+        let written = serde_json::from_slice::<Listed>(body).map(|listed| listed.answers);
+        let read = match (&parsed, (200..300).contains(&status)) {
+            (_, false) => Err(format!("typesafe http status {status}")),
+            (Err(error), true) => Err(format!("response is not JSON: {error}")),
+            (Ok(parsed), true) => {
+                match (
+                    parsed["model"].as_str(),
+                    parsed["answers"].as_object(),
+                    &written,
+                ) {
+                    (Some(model), Some(answers), Ok(written)) => Ok((model, answers, written)),
+                    _ => Err("response lacks its model, or one map of answers by id".to_owned()),
+                }
             }
         };
-        let usage = Usage::of(&parsed);
-        if !(200..300).contains(&status) {
-            return self.failed(
-                sent,
-                failure(format!("typesafe http status {status}"), usage),
-            );
-        }
-        let (
-            Some(model),
-            Some(answers),
-            Ok(Listed {
-                answers: Named(named),
-            }),
-        ) = (
-            parsed["model"].as_str(),
-            parsed["answers"].as_object(),
-            serde_json::from_slice::<Listed>(body),
-        )
-        else {
-            let message = "response lacks its model, or one map of answers by question id";
-            return self.failed(sent, failure(message.to_owned(), usage));
+        let (model, answers, written) = match read {
+            Ok(read) => read,
+            Err(message) => {
+                let error = DecisionError(message);
+                let delivery = Delivery::Responded(status);
+                return self.failed(
+                    sent,
+                    ExchangeError {
+                        error,
+                        delivery,
+                        usage,
+                    },
+                );
+            }
         };
         self.model = Some(model.to_owned());
         self.usage = usage;
+        let ids: Vec<&str> = questions.iter().map(|q| q.id.as_str()).collect();
+        let (bound, unasked) = bind(&ids, answers, written);
+        self.unasked = unasked;
         let mut carries_usage = true;
-        for (at, question) in sent.iter().zip(questions) {
-            let times = named.iter().filter(|id| **id == question.id).count();
-            let (outcome, answer) = match (times, answers.get(&question.id)) {
-                (1, Some(entry)) => answer_to(question, entry, model),
-                (0 | 1, _) => (
-                    "unanswered",
-                    Err("the response carries no answer to this question".to_owned()),
-                ),
+        for ((at, question), bound) in sent.iter().zip(questions).zip(bound) {
+            let (outcome, answer) = match bound {
+                Bound::Answer(entry) => answer_to(question, entry, model),
+                Bound::Repeated => ("repeated", Err("answered more than once".to_owned())),
                 _ => (
-                    "repeated",
-                    Err("the response answers this question more than once".to_owned()),
+                    "unanswered",
+                    Err("the response carries no answer to it".to_owned()),
                 ),
             };
             let answer = answer.map(|mut answer| {
-                if carries_usage {
+                if std::mem::take(&mut carries_usage) {
                     answer.input_tokens = usage.input_tokens;
                     answer.output_tokens = usage.output_tokens;
-                    carries_usage = false;
                 }
                 answer
             });
@@ -214,12 +191,6 @@ impl BatchExchange {
             {
                 *slot = answer.map_err(DecisionError);
                 *word = outcome;
-            }
-        }
-        let asked: Vec<&str> = questions.iter().map(|q| q.id.as_str()).collect();
-        for id in named {
-            if !asked.contains(&id.as_str()) && !self.unasked.contains(&id) {
-                self.unasked.push(id);
             }
         }
     }
@@ -333,35 +304,7 @@ pub(super) fn read_state(body: &Value, id: &str) -> Option<Value> {
 /// The response's top-level shape as written: its `answers` keys, repeats kept.
 #[derive(serde::Deserialize)]
 struct Listed {
-    answers: Named,
-}
-
-/// The keys of one JSON object in the order written, repeats kept (a parsed map keeps one).
-struct Named(Vec<String>);
-
-impl<'de> serde::Deserialize<'de> for Named {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_map(NamedVisitor)
-    }
-}
-
-struct NamedVisitor;
-
-impl<'de> serde::de::Visitor<'de> for NamedVisitor {
-    type Value = Named;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("one JSON object")
-    }
-
-    fn visit_map<M: serde::de::MapAccess<'de>>(self, mut map: M) -> Result<Named, M::Error> {
-        let mut keys = Vec::new();
-        while let Some(key) = map.next_key::<String>()? {
-            map.next_value::<serde::de::IgnoredAny>()?;
-            keys.push(key);
-        }
-        Ok(Named(keys))
-    }
+    answers: WrittenKeys,
 }
 
 #[cfg(test)]
