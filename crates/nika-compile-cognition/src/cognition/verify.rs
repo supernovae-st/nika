@@ -278,11 +278,16 @@ fn state(intent: &str, request: &CompileRequest, candidate: &str) -> Value {
     // told so: its replaced clauses are still in the words, superseded by the change.
     let appended = request.original_intent.is_some()
         && nika_compile::revise_intent(request).is_some_and(|resolved| resolved == intent);
+    let unknown = first.is_none();
     let (first, revision) = match change {
         Some(change) => {
             let mut revision = json!({"change": change, "base_request": first});
             if appended {
                 revision["appended"] = json!(true);
+            }
+            // A base whose request is unknown is shown whole: the change is judged over it.
+            if let (true, Input::Edit { source, .. }) = (unknown, &request.input) {
+                revision["base_nika"] = json!(source);
             }
             (None, revision)
         }

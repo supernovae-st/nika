@@ -940,3 +940,20 @@ async fn a_prefetched_answer_serves_only_the_very_question_it_was_asked_for() {
         "the question asked in the batch takes its own answer"
     );
 }
+
+/// A revision of a base whose own request is unknown is judged over that base: the state shows
+/// the base whole and the instructions say the base's behaviour is kept, never extra. With the
+/// earlier request known, that request is the history and the base is not repeated.
+#[test]
+fn a_record_less_revision_is_judged_over_its_base() {
+    let base = "nika: base\ntasks: {}\n";
+    let request = crate::CompileRequest::edit(base, "change it");
+    let state = super::state("the workflow — change it", &request, "nika: x\n");
+    assert_eq!(state["revision"]["base_nika"], base);
+    let told = super::faithful::told(&state, "", "WHOLE");
+    assert!(told.contains("whose own request is unknown"), "{told}");
+    let known = crate::CompileRequest::edit(base, "change it").with_original_intent("a base");
+    let state = super::state("a base — change it", &known, "nika: x\n");
+    assert!(state["revision"].get("base_nika").is_none(), "{state}");
+    assert!(!super::faithful::told(&state, "", "WHOLE").contains("whose own request"));
+}
