@@ -140,6 +140,96 @@ pub struct Candidate {
     pub run_after_save: bool,
     /// Every file the yes lands, in the set's order.
     pub files: Vec<CandidateFile>,
+    /// How the workflow it lands was revised over its complete document, when it was: bound to
+    /// these exact bytes, never to an earlier candidate's.
+    pub revision: Option<DocumentRevision>,
+}
+
+/// A revision applied over a complete workflow document: what was changed and which admitted
+/// components the bytes hold, each witnessed on these very bytes. It states what the compiler
+/// did, never that the result is what the request meant: that is the judge's and the run's.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
+pub struct DocumentRevision {
+    /// `operations` (literal edits and component merges) or `replaced` (the whole source).
+    pub mode: String,
+    /// The digest (sha256) of the bytes revised.
+    pub base_sha256: Option<String>,
+    /// The digest (sha256) of the candidate's bytes, the ones the record binds.
+    pub candidate_sha256: String,
+    /// The node paths and components the operations changed, in order.
+    pub changed: Vec<String>,
+    /// The preservation the compiler claims, in words (none for a replacement).
+    pub preservation: String,
+    /// The admitted components the bytes hold.
+    pub components: Vec<ComponentUse>,
+}
+
+impl DocumentRevision {
+    /// The revision a compile record states (`document_revision`), with the witness of each of
+    /// its components on the candidate's bytes, in order. `None` when the record states none.
+    #[must_use]
+    pub fn of(record: &serde_json::Value, witnesses: &[String]) -> Option<Self> {
+        let text = |value: &serde_json::Value| value.as_str().map(str::to_owned);
+        let components = (record["components"].as_array().into_iter().flatten())
+            .enumerate()
+            .map(|(at, receipt)| ComponentUse {
+                id: text(&receipt["component"]["id"]).unwrap_or_default(),
+                version: text(&receipt["component"]["release"]["version"]),
+                release: text(&receipt["component"]["release"]["snapshot_sha256"]),
+                file_sha256: text(&receipt["component"]["file_sha256"]),
+                bindings: (receipt["bindings"].as_array().into_iter().flatten())
+                    .map(|row| Bound {
+                        path: text(&row["path"]).unwrap_or_default(),
+                        value: row["bound"].clone(),
+                    })
+                    .collect(),
+                witness: witnesses
+                    .get(at)
+                    .cloned()
+                    .unwrap_or_else(|| "unwitnessed".to_owned()),
+            })
+            .collect();
+        Some(Self {
+            mode: text(&record["mode"])?,
+            base_sha256: text(&record["base_sha256"]),
+            candidate_sha256: text(&record["candidate_sha256"])?,
+            changed: (record["changed"].as_array().into_iter().flatten())
+                .filter_map(text)
+                .collect(),
+            preservation: text(&record["preservation"]).unwrap_or_default(),
+            components,
+        })
+    }
+}
+
+/// One admitted component a candidate's bytes hold.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
+pub struct ComponentUse {
+    /// The component (`block:<name>`).
+    pub id: String,
+    /// The release version it resolved in.
+    pub version: Option<String>,
+    /// The release snapshot digest it resolved in.
+    pub release: Option<String>,
+    /// The digest of the admitted bytes it was expanded from.
+    pub file_sha256: Option<String>,
+    /// Each hole bound, with its value.
+    pub bindings: Vec<Bound>,
+    /// What the bytes show of it now: `expanded` (its nodes, as bound), `revised` (some
+    /// changed since), `absent`, or `unwitnessed`.
+    pub witness: String,
+}
+
+/// One hole bound and its value.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
+pub struct Bound {
+    /// The hole's path in the component (`const.max_age_hours`).
+    pub path: String,
+    /// The bound literal.
+    pub value: serde_json::Value,
 }
 
 impl Candidate {
@@ -157,7 +247,15 @@ impl Candidate {
             rehearsed,
             run_after_save: set.run.is_some(),
             files,
+            revision: None,
         }
+    }
+
+    /// The same candidate, with how its workflow was revised over its complete document.
+    #[must_use]
+    pub fn with_revision(mut self, revision: Option<DocumentRevision>) -> Self {
+        self.revision = revision;
+        self
     }
 
     /// Where each audited workflow of the candidate reaches, in the set's order.

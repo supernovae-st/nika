@@ -264,3 +264,45 @@ fn a_requested_run_keeps_input_names_and_never_their_values() {
         "values stay with the run request: {json}"
     );
 }
+
+#[test]
+fn a_document_revision_is_read_from_its_record_with_each_component_witnessed() {
+    use super::DocumentRevision;
+    let record = serde_json::json!({
+        "mode": "operations",
+        "base_sha256": "base",
+        "candidate_sha256": "candidate",
+        "changed": ["const.window_hours", "component block:stale-filter-report"],
+        "preservation": "by construction",
+        "components": [{
+            "component": {"id": "block:stale-filter-report",
+                "release": {"version": "r1", "snapshot_sha256": "snapshot"},
+                "file_sha256": "file"},
+            "bindings": [{"path": "const.max_age_hours", "bound": 72}],
+        }],
+    });
+    let revision = DocumentRevision::of(&record, &["expanded".to_owned()]).expect("a revision");
+    assert_eq!(revision.mode, "operations");
+    assert_eq!(revision.candidate_sha256, "candidate");
+    assert_eq!(
+        revision.changed,
+        ["const.window_hours", "component block:stale-filter-report"]
+    );
+    let [component] = revision.components.as_slice() else {
+        panic!("one component: {revision:?}");
+    };
+    assert_eq!(component.id, "block:stale-filter-report");
+    assert_eq!(
+        (component.version.as_deref(), component.release.as_deref()),
+        (Some("r1"), Some("snapshot"))
+    );
+    assert_eq!(component.bindings[0].path, "const.max_age_hours");
+    assert_eq!(component.bindings[0].value, serde_json::json!(72));
+    assert_eq!(component.witness, "expanded");
+    // A component no witness was given for is said unwitnessed, never assumed expanded.
+    let unwitnessed = DocumentRevision::of(&record, &[]).expect("a revision");
+    assert_eq!(unwitnessed.components[0].witness, "unwitnessed");
+    // A record that names no mode or no candidate is no revision.
+    assert!(DocumentRevision::of(&serde_json::json!({"mode": "operations"}), &[]).is_none());
+    assert!(DocumentRevision::of(&serde_json::json!({}), &[]).is_none());
+}
