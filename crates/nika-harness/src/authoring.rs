@@ -105,7 +105,7 @@ impl HarnessAuthoring {
                 "none; empty native tool list; tool or permission events refuse the answer"
             },
             "context_exposed": "compiler messages only; isolated transport scratch",
-            "effort": "harness default; explicit thinking budget unsupported",
+            "effort": "harness default; an explicit effort or thinking budget is refused",
             "token_ceiling": "requested by Compiler; native CLI does not enforce a token cap",
             "bounds": "one turn per call; the call's own deadline; transport output byte ceiling"}))
     }
@@ -278,12 +278,19 @@ impl ProviderInferDyn for HarnessAuthoring {
             _ => None,
         };
         let (prompt, schema, schema_enforced) = schema_route(&self.adapter, prompt, schema);
+        // An explicit effort travels as its own word: the ACP session applies it through its
+        // advertised reasoning option and reads it back, a direct seat refuses it — never lost.
+        let effort = request
+            .reasoning_effort
+            .map(|level| level.word().to_owned());
         let native = HarnessInferRequest::new(prompt, &self.wire_model)
             .with_system(system)
             .with_schema(schema)
-            .with_timeout(Some(timeout));
+            .with_timeout(Some(timeout))
+            .with_effort(effort.clone());
         self.record(
             json!({"status": "invoking", "requested_model": self.requested_model,
+            "requested_effort": effort,
             "max_tokens_requested": request.max_tokens, "timeout_ms": timeout.as_millis(),
             "schema_enforced_by_harness": schema_enforced}),
         )?;

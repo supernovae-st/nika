@@ -242,3 +242,30 @@ fn transport_errors_do_not_publish_peer_secrets() {
     assert!(!why.contains("private prompt"));
     assert!(why.contains("no answer accepted"));
 }
+
+/// The audit's loss hazard, ACP half: an explicit authoring effort rides the
+/// session request verbatim (the client then applies it through the session's
+/// own reasoning option and reads it back, or refuses before the prompt).
+#[test]
+fn an_explicit_authoring_effort_rides_the_session_request() {
+    let native = crate::HarnessInferRequest::new("draft", "claude-code/opus")
+        .with_system(Some("card".into()))
+        .with_effort(Some("high".into()));
+    let request = session_request(
+        native,
+        Some("claude-code/opus"),
+        std::path::Path::new("/tmp"),
+    );
+    assert_eq!(request.requested_effort.as_deref(), Some("high"));
+    assert_eq!(request.requested_model.as_deref(), Some("claude-code/opus"));
+    assert_eq!(request.system.as_deref(), Some("card"));
+    let plain = session_request(
+        crate::HarnessInferRequest::new("draft", "session"),
+        None,
+        std::path::Path::new("/tmp"),
+    );
+    assert_eq!(
+        (plain.requested_effort, plain.requested_model),
+        (None, None)
+    );
+}
