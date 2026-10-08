@@ -337,6 +337,7 @@ pub mod nika_compile_seats::foundry
 pub mod nika_compile_seats::foundry::bind
 #[non_exhaustive] pub enum nika_compile_seats::foundry::bind::BindingError
 pub nika_compile_seats::foundry::bind::BindingError::Absent(alloc::string::String)
+pub nika_compile_seats::foundry::bind::BindingError::Authority(alloc::string::String)
 pub nika_compile_seats::foundry::bind::BindingError::Duplicate(alloc::string::String)
 pub nika_compile_seats::foundry::bind::BindingError::Expression(alloc::string::String)
 pub nika_compile_seats::foundry::bind::BindingError::Incompatible
@@ -776,6 +777,11 @@ pub fn nika_compile_seats::foundry::component::ComponentCatalog::entries(&self) 
 pub fn nika_compile_seats::foundry::component::ComponentCatalog::reference(&self, id: &str) -> core::option::Option<nika_compile::types::KnowledgeReference>
 pub fn nika_compile_seats::foundry::component::ComponentCatalog::release(&self) -> nika_compile_seats::foundry::component::Release
 pub fn nika_compile_seats::foundry::component::ComponentCatalog::resolve(&self, reference: &nika_compile_seats::foundry::component::ComponentRef) -> core::result::Result<nika_compile_seats::foundry::component::Component, nika_compile_seats::foundry::component::Unresolved>
+impl nika_compile_seats::foundry::component::ComponentCatalog for nika_compile_seats::shelf::Templates
+pub fn nika_compile_seats::shelf::Templates::entries(&self) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_compile_seats::shelf::Templates::reference(&self, id: &str) -> core::option::Option<nika_compile::types::KnowledgeReference>
+pub fn nika_compile_seats::shelf::Templates::release(&self) -> nika_compile_seats::foundry::component::Release
+pub fn nika_compile_seats::shelf::Templates::resolve(&self, reference: &nika_compile_seats::foundry::component::ComponentRef) -> core::result::Result<nika_compile_seats::foundry::component::Component, nika_compile_seats::foundry::component::Unresolved>
 pub fn nika_compile_seats::foundry::component::pinned(reference: &nika_compile_seats::foundry::component::ComponentRef, release: &nika_compile_seats::foundry::component::Release) -> core::result::Result<(), nika_compile_seats::foundry::component::Unresolved>
 pub mod nika_compile_seats::foundry::instance
 #[non_exhaustive] pub enum nika_compile_seats::foundry::instance::ExpandError
@@ -832,6 +838,51 @@ impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::instance::Exp
 pub fn nika_compile_seats::foundry::instance::ExpandError::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::instance::ExpandError
 pub type nika_compile_seats::foundry::instance::ExpandError::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::foundry::instance::Entry
+pub nika_compile_seats::foundry::instance::Entry::name: alloc::string::String
+pub nika_compile_seats::foundry::instance::Entry::section: alloc::string::String
+pub nika_compile_seats::foundry::instance::Entry::text: alloc::string::String
+impl core::clone::Clone for nika_compile_seats::foundry::instance::Entry
+pub fn nika_compile_seats::foundry::instance::Entry::clone(&self) -> nika_compile_seats::foundry::instance::Entry
+impl core::cmp::Eq for nika_compile_seats::foundry::instance::Entry
+impl core::cmp::PartialEq for nika_compile_seats::foundry::instance::Entry
+pub fn nika_compile_seats::foundry::instance::Entry::eq(&self, other: &nika_compile_seats::foundry::instance::Entry) -> bool
+impl core::fmt::Debug for nika_compile_seats::foundry::instance::Entry
+pub fn nika_compile_seats::foundry::instance::Entry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::foundry::instance::Entry
+impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::instance::Entry
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::foundry::instance::Entry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::instance::Entry::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::foundry::instance::Entry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::instance::Entry::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::foundry::instance::Entry where U: core::convert::From<T>
+pub fn nika_compile_seats::foundry::instance::Entry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::foundry::instance::Entry where U: core::convert::Into<T>
+pub type nika_compile_seats::foundry::instance::Entry::Error = core::convert::Infallible
+pub fn nika_compile_seats::foundry::instance::Entry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::foundry::instance::Entry where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::foundry::instance::Entry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::foundry::instance::Entry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::foundry::instance::Entry where T: core::clone::Clone
+pub type nika_compile_seats::foundry::instance::Entry::Owned = T
+pub fn nika_compile_seats::foundry::instance::Entry::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::foundry::instance::Entry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::foundry::instance::Entry where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::instance::Entry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::foundry::instance::Entry where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::instance::Entry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::foundry::instance::Entry where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::instance::Entry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::foundry::instance::Entry where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::foundry::instance::Entry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::foundry::instance::Entry
+pub fn nika_compile_seats::foundry::instance::Entry::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::foundry::instance::Entry where T: core::clone::Clone
+pub fn nika_compile_seats::foundry::instance::Entry::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::instance::Entry where T: 'static
+pub fn nika_compile_seats::foundry::instance::Entry::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::instance::Entry
+pub type nika_compile_seats::foundry::instance::Entry::Output = T
 #[non_exhaustive] pub struct nika_compile_seats::foundry::instance::Expansion
 pub nika_compile_seats::foundry::instance::Expansion::candidate: alloc::string::String
 pub nika_compile_seats::foundry::instance::Expansion::ready: bool
@@ -879,6 +930,8 @@ pub nika_compile_seats::foundry::instance::Instance::open: alloc::vec::Vec<alloc
 pub nika_compile_seats::foundry::instance::Instance::source: alloc::string::String
 impl nika_compile_seats::foundry::instance::Instance
 pub fn nika_compile_seats::foundry::instance::Instance::bindings_record(&self) -> serde_json::value::Value
+impl nika_compile_seats::foundry::instance::Instance
+pub fn nika_compile_seats::foundry::instance::Instance::entries(&self) -> core::result::Result<alloc::vec::Vec<nika_compile_seats::foundry::instance::Entry>, nika_compile_seats::foundry::instance::ExpandError>
 impl core::clone::Clone for nika_compile_seats::foundry::instance::Instance
 pub fn nika_compile_seats::foundry::instance::Instance::clone(&self) -> nika_compile_seats::foundry::instance::Instance
 impl core::cmp::Eq for nika_compile_seats::foundry::instance::Instance
@@ -922,15 +975,61 @@ impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::instance:
 pub type nika_compile_seats::foundry::instance::Instance::Output = T
 pub const nika_compile_seats::foundry::instance::EXPANDED: &str
 pub const nika_compile_seats::foundry::instance::MERGED: [&str; 4]
+pub fn nika_compile_seats::foundry::instance::adopt(candidate: &str, instance: &nika_compile_seats::foundry::instance::Instance) -> core::result::Result<nika_compile_seats::foundry::instance::Expansion, nika_compile_seats::foundry::instance::ExpandError>
 pub fn nika_compile_seats::foundry::instance::expand(parent: &str, instance: &nika_compile_seats::foundry::instance::Instance) -> core::result::Result<nika_compile_seats::foundry::instance::Expansion, nika_compile_seats::foundry::instance::ExpandError>
 pub fn nika_compile_seats::foundry::instance::instantiate(component: &nika_compile_seats::foundry::component::Component, bindings: &[nika_compile_seats::foundry::bind::Binding]) -> core::result::Result<nika_compile_seats::foundry::instance::Instance, nika_compile_seats::foundry::bind::BindingError>
 pub fn nika_compile_seats::foundry::instance::nodes(document: &serde_json::value::Value, bound: &serde_json::value::Value) -> serde_json::value::Value
+pub mod nika_compile_seats::foundry::invoke
+#[non_exhaustive] pub struct nika_compile_seats::foundry::invoke::Invocation
+pub nika_compile_seats::foundry::invoke::Invocation::candidate: alloc::string::String
+pub nika_compile_seats::foundry::invoke::Invocation::child: alloc::string::String
+pub nika_compile_seats::foundry::invoke::Invocation::receipt: serde_json::value::Value
+impl core::clone::Clone for nika_compile_seats::foundry::invoke::Invocation
+pub fn nika_compile_seats::foundry::invoke::Invocation::clone(&self) -> nika_compile_seats::foundry::invoke::Invocation
+impl core::cmp::PartialEq for nika_compile_seats::foundry::invoke::Invocation
+pub fn nika_compile_seats::foundry::invoke::Invocation::eq(&self, other: &nika_compile_seats::foundry::invoke::Invocation) -> bool
+impl core::fmt::Debug for nika_compile_seats::foundry::invoke::Invocation
+pub fn nika_compile_seats::foundry::invoke::Invocation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::foundry::invoke::Invocation
+impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::invoke::Invocation
+impl<T, U> core::convert::Into<U> for nika_compile_seats::foundry::invoke::Invocation where U: core::convert::From<T>
+pub fn nika_compile_seats::foundry::invoke::Invocation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::foundry::invoke::Invocation where U: core::convert::Into<T>
+pub type nika_compile_seats::foundry::invoke::Invocation::Error = core::convert::Infallible
+pub fn nika_compile_seats::foundry::invoke::Invocation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::foundry::invoke::Invocation where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::foundry::invoke::Invocation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::foundry::invoke::Invocation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::foundry::invoke::Invocation where T: core::clone::Clone
+pub type nika_compile_seats::foundry::invoke::Invocation::Owned = T
+pub fn nika_compile_seats::foundry::invoke::Invocation::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::foundry::invoke::Invocation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::foundry::invoke::Invocation where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::invoke::Invocation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::foundry::invoke::Invocation where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::invoke::Invocation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::foundry::invoke::Invocation where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::invoke::Invocation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::foundry::invoke::Invocation where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::foundry::invoke::Invocation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::foundry::invoke::Invocation
+pub fn nika_compile_seats::foundry::invoke::Invocation::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::foundry::invoke::Invocation where T: core::clone::Clone
+pub fn nika_compile_seats::foundry::invoke::Invocation::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::invoke::Invocation where T: 'static
+pub fn nika_compile_seats::foundry::invoke::Invocation::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::invoke::Invocation
+pub type nika_compile_seats::foundry::invoke::Invocation::Output = T
+pub const nika_compile_seats::foundry::invoke::INVOKED: &str
+pub fn nika_compile_seats::foundry::invoke::invoke(parent: &str, instance: &nika_compile_seats::foundry::instance::Instance, task: &str, child_path: &str) -> core::result::Result<nika_compile_seats::foundry::invoke::Invocation, nika_compile_seats::foundry::instance::ExpandError>
 pub mod nika_compile_seats::foundry::reach
 pub const nika_compile_seats::foundry::reach::DESCRIPTOR: &str
 pub const nika_compile_seats::foundry::reach::REACH: &str
+pub fn nika_compile_seats::foundry::reach::account(catalog: &dyn nika_compile_seats::foundry::component::ComponentCatalog, listed: usize, widened: usize, resolved: usize) -> serde_json::value::Value
+pub fn nika_compile_seats::foundry::reach::annotate(pack: &nika_compile::types::AuthoringKnowledge, record: &mut serde_json::value::Value, widened: &[alloc::string::String])
 pub fn nika_compile_seats::foundry::reach::coverage(catalog: core::option::Option<&dyn nika_compile_seats::foundry::component::ComponentCatalog>, listed: usize, widened: usize, resolved: usize) -> serde_json::value::Value
 pub fn nika_compile_seats::foundry::reach::descriptor(row: &serde_json::value::Value) -> alloc::string::String
-pub fn nika_compile_seats::foundry::reach::resolve_applicable(pack: &mut nika_compile::types::AuthoringKnowledge, record: &mut serde_json::value::Value, widened: &[alloc::string::String], catalog: &dyn nika_compile_seats::foundry::component::ComponentCatalog) -> usize
+pub fn nika_compile_seats::foundry::reach::resolve_applicable(pack: &mut nika_compile::types::AuthoringKnowledge, record: &serde_json::value::Value, widened: &[alloc::string::String], catalog: &dyn nika_compile_seats::foundry::component::ComponentCatalog) -> usize
 pub fn nika_compile_seats::foundry::reach::widen(pack: &mut nika_compile::types::AuthoringKnowledge, catalog: &dyn nika_compile_seats::foundry::component::ComponentCatalog) -> (alloc::vec::Vec<alloc::string::String>, usize)
 pub mod nika_compile_seats::foundry::recall
 pub fn nika_compile_seats::foundry::recall::block_metadata(row: &serde_json::value::Value) -> alloc::string::String
@@ -944,8 +1043,10 @@ pub fn nika_compile_seats::foundry::witness::reuse(shown: &[nika_compile::types:
 pub fn nika_compile_seats::foundry::witness::reuse_of(record: &serde_json::value::Value) -> serde_json::value::Value
 pub fn nika_compile_seats::foundry::witness::revise(candidate: &str, receipt: &serde_json::value::Value, component: &nika_compile_seats::foundry::component::Component, changes: &[nika_compile_seats::foundry::bind::Binding]) -> core::result::Result<(alloc::string::String, serde_json::value::Value), nika_compile_seats::foundry::bind::BindingError>
 pub fn nika_compile_seats::foundry::witness::witness(receipt: &serde_json::value::Value, candidate: &str) -> serde_json::value::Value
+pub fn nika_compile_seats::foundry::witness::witness_child(receipt: &serde_json::value::Value, child: &str) -> serde_json::value::Value
 #[non_exhaustive] pub enum nika_compile_seats::foundry::BindingError
 pub nika_compile_seats::foundry::BindingError::Absent(alloc::string::String)
+pub nika_compile_seats::foundry::BindingError::Authority(alloc::string::String)
 pub nika_compile_seats::foundry::BindingError::Duplicate(alloc::string::String)
 pub nika_compile_seats::foundry::BindingError::Expression(alloc::string::String)
 pub nika_compile_seats::foundry::BindingError::Incompatible
@@ -1379,6 +1480,51 @@ impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::component::Co
 pub fn nika_compile_seats::foundry::component::ComponentRef::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::component::ComponentRef
 pub type nika_compile_seats::foundry::component::ComponentRef::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::foundry::Entry
+pub nika_compile_seats::foundry::Entry::name: alloc::string::String
+pub nika_compile_seats::foundry::Entry::section: alloc::string::String
+pub nika_compile_seats::foundry::Entry::text: alloc::string::String
+impl core::clone::Clone for nika_compile_seats::foundry::instance::Entry
+pub fn nika_compile_seats::foundry::instance::Entry::clone(&self) -> nika_compile_seats::foundry::instance::Entry
+impl core::cmp::Eq for nika_compile_seats::foundry::instance::Entry
+impl core::cmp::PartialEq for nika_compile_seats::foundry::instance::Entry
+pub fn nika_compile_seats::foundry::instance::Entry::eq(&self, other: &nika_compile_seats::foundry::instance::Entry) -> bool
+impl core::fmt::Debug for nika_compile_seats::foundry::instance::Entry
+pub fn nika_compile_seats::foundry::instance::Entry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::foundry::instance::Entry
+impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::instance::Entry
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::foundry::instance::Entry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::instance::Entry::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::foundry::instance::Entry where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::instance::Entry::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::foundry::instance::Entry where U: core::convert::From<T>
+pub fn nika_compile_seats::foundry::instance::Entry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::foundry::instance::Entry where U: core::convert::Into<T>
+pub type nika_compile_seats::foundry::instance::Entry::Error = core::convert::Infallible
+pub fn nika_compile_seats::foundry::instance::Entry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::foundry::instance::Entry where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::foundry::instance::Entry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::foundry::instance::Entry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::foundry::instance::Entry where T: core::clone::Clone
+pub type nika_compile_seats::foundry::instance::Entry::Owned = T
+pub fn nika_compile_seats::foundry::instance::Entry::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::foundry::instance::Entry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::foundry::instance::Entry where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::instance::Entry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::foundry::instance::Entry where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::instance::Entry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::foundry::instance::Entry where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::instance::Entry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::foundry::instance::Entry where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::foundry::instance::Entry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::foundry::instance::Entry
+pub fn nika_compile_seats::foundry::instance::Entry::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::foundry::instance::Entry where T: core::clone::Clone
+pub fn nika_compile_seats::foundry::instance::Entry::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::instance::Entry where T: 'static
+pub fn nika_compile_seats::foundry::instance::Entry::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::instance::Entry
+pub type nika_compile_seats::foundry::instance::Entry::Output = T
 #[non_exhaustive] pub struct nika_compile_seats::foundry::Expansion
 pub nika_compile_seats::foundry::Expansion::candidate: alloc::string::String
 pub nika_compile_seats::foundry::Expansion::ready: bool
@@ -1474,6 +1620,8 @@ pub nika_compile_seats::foundry::Instance::open: alloc::vec::Vec<alloc::string::
 pub nika_compile_seats::foundry::Instance::source: alloc::string::String
 impl nika_compile_seats::foundry::instance::Instance
 pub fn nika_compile_seats::foundry::instance::Instance::bindings_record(&self) -> serde_json::value::Value
+impl nika_compile_seats::foundry::instance::Instance
+pub fn nika_compile_seats::foundry::instance::Instance::entries(&self) -> core::result::Result<alloc::vec::Vec<nika_compile_seats::foundry::instance::Entry>, nika_compile_seats::foundry::instance::ExpandError>
 impl core::clone::Clone for nika_compile_seats::foundry::instance::Instance
 pub fn nika_compile_seats::foundry::instance::Instance::clone(&self) -> nika_compile_seats::foundry::instance::Instance
 impl core::cmp::Eq for nika_compile_seats::foundry::instance::Instance
@@ -1515,6 +1663,46 @@ impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::instance::Ins
 pub fn nika_compile_seats::foundry::instance::Instance::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::instance::Instance
 pub type nika_compile_seats::foundry::instance::Instance::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::foundry::Invocation
+pub nika_compile_seats::foundry::Invocation::candidate: alloc::string::String
+pub nika_compile_seats::foundry::Invocation::child: alloc::string::String
+pub nika_compile_seats::foundry::Invocation::receipt: serde_json::value::Value
+impl core::clone::Clone for nika_compile_seats::foundry::invoke::Invocation
+pub fn nika_compile_seats::foundry::invoke::Invocation::clone(&self) -> nika_compile_seats::foundry::invoke::Invocation
+impl core::cmp::PartialEq for nika_compile_seats::foundry::invoke::Invocation
+pub fn nika_compile_seats::foundry::invoke::Invocation::eq(&self, other: &nika_compile_seats::foundry::invoke::Invocation) -> bool
+impl core::fmt::Debug for nika_compile_seats::foundry::invoke::Invocation
+pub fn nika_compile_seats::foundry::invoke::Invocation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::foundry::invoke::Invocation
+impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::invoke::Invocation
+impl<T, U> core::convert::Into<U> for nika_compile_seats::foundry::invoke::Invocation where U: core::convert::From<T>
+pub fn nika_compile_seats::foundry::invoke::Invocation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::foundry::invoke::Invocation where U: core::convert::Into<T>
+pub type nika_compile_seats::foundry::invoke::Invocation::Error = core::convert::Infallible
+pub fn nika_compile_seats::foundry::invoke::Invocation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::foundry::invoke::Invocation where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::foundry::invoke::Invocation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::foundry::invoke::Invocation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::foundry::invoke::Invocation where T: core::clone::Clone
+pub type nika_compile_seats::foundry::invoke::Invocation::Owned = T
+pub fn nika_compile_seats::foundry::invoke::Invocation::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::foundry::invoke::Invocation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::foundry::invoke::Invocation where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::invoke::Invocation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::foundry::invoke::Invocation where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::invoke::Invocation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::foundry::invoke::Invocation where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::invoke::Invocation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::foundry::invoke::Invocation where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::foundry::invoke::Invocation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::foundry::invoke::Invocation
+pub fn nika_compile_seats::foundry::invoke::Invocation::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::foundry::invoke::Invocation where T: core::clone::Clone
+pub fn nika_compile_seats::foundry::invoke::Invocation::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::invoke::Invocation where T: 'static
+pub fn nika_compile_seats::foundry::invoke::Invocation::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::invoke::Invocation
+pub type nika_compile_seats::foundry::invoke::Invocation::Output = T
 #[non_exhaustive] pub struct nika_compile_seats::foundry::Qualified
 pub nika_compile_seats::foundry::Qualified::knowledge: nika_compile::types::AuthoringKnowledge
 pub nika_compile_seats::foundry::Qualified::record: serde_json::value::Value
@@ -1607,10 +1795,17 @@ pub fn nika_compile_seats::foundry::ComponentCatalog::entries(&self) -> alloc::v
 pub fn nika_compile_seats::foundry::ComponentCatalog::reference(&self, id: &str) -> core::option::Option<nika_compile::types::KnowledgeReference>
 pub fn nika_compile_seats::foundry::ComponentCatalog::release(&self) -> nika_compile_seats::foundry::component::Release
 pub fn nika_compile_seats::foundry::ComponentCatalog::resolve(&self, reference: &nika_compile_seats::foundry::component::ComponentRef) -> core::result::Result<nika_compile_seats::foundry::component::Component, nika_compile_seats::foundry::component::Unresolved>
+impl nika_compile_seats::foundry::component::ComponentCatalog for nika_compile_seats::shelf::Templates
+pub fn nika_compile_seats::shelf::Templates::entries(&self) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_compile_seats::shelf::Templates::reference(&self, id: &str) -> core::option::Option<nika_compile::types::KnowledgeReference>
+pub fn nika_compile_seats::shelf::Templates::release(&self) -> nika_compile_seats::foundry::component::Release
+pub fn nika_compile_seats::shelf::Templates::resolve(&self, reference: &nika_compile_seats::foundry::component::ComponentRef) -> core::result::Result<nika_compile_seats::foundry::component::Component, nika_compile_seats::foundry::component::Unresolved>
+pub fn nika_compile_seats::foundry::adopt(candidate: &str, instance: &nika_compile_seats::foundry::instance::Instance) -> core::result::Result<nika_compile_seats::foundry::instance::Expansion, nika_compile_seats::foundry::instance::ExpandError>
 pub fn nika_compile_seats::foundry::edit_literal(source: &str, path: &str, value: &serde_json::value::Value) -> core::result::Result<alloc::string::String, nika_compile_seats::foundry::bind::EditRefusal>
 pub fn nika_compile_seats::foundry::expand(parent: &str, instance: &nika_compile_seats::foundry::instance::Instance) -> core::result::Result<nika_compile_seats::foundry::instance::Expansion, nika_compile_seats::foundry::instance::ExpandError>
 pub fn nika_compile_seats::foundry::folded(request: &nika_compile::types::CompileRequest) -> bool
 pub fn nika_compile_seats::foundry::instantiate(component: &nika_compile_seats::foundry::component::Component, bindings: &[nika_compile_seats::foundry::bind::Binding]) -> core::result::Result<nika_compile_seats::foundry::instance::Instance, nika_compile_seats::foundry::bind::BindingError>
+pub fn nika_compile_seats::foundry::invoke(parent: &str, instance: &nika_compile_seats::foundry::instance::Instance, task: &str, child_path: &str) -> core::result::Result<nika_compile_seats::foundry::invoke::Invocation, nika_compile_seats::foundry::instance::ExpandError>
 pub async fn nika_compile_seats::foundry::qualified(intent: &str, request: &nika_compile::types::CompileRequest, seat: core::option::Option<&dyn nika_compile_seats::decide::DecisionSeat>) -> core::option::Option<(nika_compile::types::CompileRequest, serde_json::value::Value)>
 pub async fn nika_compile_seats::foundry::qualified_with(intent: &str, request: &nika_compile::types::CompileRequest, seat: core::option::Option<&dyn nika_compile_seats::decide::DecisionSeat>, catalog: core::option::Option<&dyn nika_compile_seats::foundry::component::ComponentCatalog>) -> core::option::Option<(nika_compile::types::CompileRequest, serde_json::value::Value)>
 pub async fn nika_compile_seats::foundry::qualify(intent: &str, pack: &nika_compile::types::AuthoringKnowledge, seat: &dyn nika_compile_seats::decide::DecisionSeat, by: &str) -> nika_compile_seats::foundry::Qualified
@@ -1622,6 +1817,7 @@ pub fn nika_compile_seats::foundry::revise(candidate: &str, receipt: &serde_json
 pub fn nika_compile_seats::foundry::trace(shown: &[nika_compile::types::KnowledgeReference], candidate: &str) -> serde_json::value::Value
 pub fn nika_compile_seats::foundry::traced(qualified: &nika_compile::types::CompileRequest, record: serde_json::value::Value, out: &mut nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::foundry::verdict(question: &nika_compile_seats::decide::ChoiceQuestion, answer: core::result::Result<&nika_compile_seats::decide::ChoiceAnswer, &nika_compile_seats::decide::DecisionError>) -> nika_compile_seats::foundry::Verdict
+pub fn nika_compile_seats::foundry::witness_child(receipt: &serde_json::value::Value, child: &str) -> serde_json::value::Value
 pub mod nika_compile_seats::objects
 pub enum nika_compile_seats::objects::Objects<'a>
 pub nika_compile_seats::objects::Objects::None
@@ -2752,6 +2948,50 @@ impl<T> nika_error::traits::AsAny for nika_compile_seats::shelf::Reference where
 pub fn nika_compile_seats::shelf::Reference::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_seats::shelf::Reference
 pub type nika_compile_seats::shelf::Reference::Output = T
+pub struct nika_compile_seats::shelf::Templates
+impl core::clone::Clone for nika_compile_seats::shelf::Templates
+pub fn nika_compile_seats::shelf::Templates::clone(&self) -> nika_compile_seats::shelf::Templates
+impl core::default::Default for nika_compile_seats::shelf::Templates
+pub fn nika_compile_seats::shelf::Templates::default() -> nika_compile_seats::shelf::Templates
+impl core::fmt::Debug for nika_compile_seats::shelf::Templates
+pub fn nika_compile_seats::shelf::Templates::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_seats::shelf::Templates
+impl nika_compile_seats::foundry::component::ComponentCatalog for nika_compile_seats::shelf::Templates
+pub fn nika_compile_seats::shelf::Templates::entries(&self) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_compile_seats::shelf::Templates::reference(&self, id: &str) -> core::option::Option<nika_compile::types::KnowledgeReference>
+pub fn nika_compile_seats::shelf::Templates::release(&self) -> nika_compile_seats::foundry::component::Release
+pub fn nika_compile_seats::shelf::Templates::resolve(&self, reference: &nika_compile_seats::foundry::component::ComponentRef) -> core::result::Result<nika_compile_seats::foundry::component::Component, nika_compile_seats::foundry::component::Unresolved>
+impl<D> owo_colors::OwoColorize for nika_compile_seats::shelf::Templates
+impl<T, U> core::convert::Into<U> for nika_compile_seats::shelf::Templates where U: core::convert::From<T>
+pub fn nika_compile_seats::shelf::Templates::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::shelf::Templates where U: core::convert::Into<T>
+pub type nika_compile_seats::shelf::Templates::Error = core::convert::Infallible
+pub fn nika_compile_seats::shelf::Templates::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::shelf::Templates where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::shelf::Templates::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::shelf::Templates::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::shelf::Templates where T: core::clone::Clone
+pub type nika_compile_seats::shelf::Templates::Owned = T
+pub fn nika_compile_seats::shelf::Templates::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::shelf::Templates::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::shelf::Templates where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::shelf::Templates::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::shelf::Templates where T: ?core::marker::Sized
+pub fn nika_compile_seats::shelf::Templates::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::shelf::Templates where T: ?core::marker::Sized
+pub fn nika_compile_seats::shelf::Templates::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::shelf::Templates where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::shelf::Templates::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::shelf::Templates
+pub fn nika_compile_seats::shelf::Templates::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::shelf::Templates where T: core::clone::Clone
+pub fn nika_compile_seats::shelf::Templates::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::shelf::Templates where T: 'static
+pub fn nika_compile_seats::shelf::Templates::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_seats::shelf::Templates where T: core::marker::Copy
+pub fn nika_compile_seats::shelf::Templates::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_seats::shelf::Templates
+pub type nika_compile_seats::shelf::Templates::Output = T
 pub const nika_compile_seats::shelf::EVERYDAY: &[&str]
 pub fn nika_compile_seats::shelf::builtins_of(references: &[nika_compile_seats::shelf::Reference]) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_seats::shelf::callables(names: &[alloc::string::String]) -> alloc::vec::Vec<nika_compile_seats::shelf::Reference>
