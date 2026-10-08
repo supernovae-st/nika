@@ -16,7 +16,9 @@
 //! - [`shelf`] · the references an authoring seat reads (the embedded recall, the callable
 //!   contracts), rendered and receipted.
 //! - [`foundry`] · recalled Foundry knowledge qualified by a decision seat against the request
-//!   before an author reads it, and the record of what was found, shown, discarded and traced.
+//!   before an author reads it, and the record of what was found, shown and discarded; an
+//!   admitted release's executable components resolved, bound, expanded into the document and
+//!   checked, with the reuse witness re-derived from the candidate's bytes.
 //! - [`remote`] · what a door that holds no project admits from its caller's engine to prepare
 //!   as `nika compile` does: the observation of the stated files and the trial inputs a room is
 //!   built from.

@@ -174,12 +174,17 @@ fn the_trace_reads_which_shown_code_the_candidate_kept() {
     ];
     let candidate = "tasks:\n  remind:\n    invoke: { tool: \"nika:jq\" }\n    args: { filter: \"map(select(.status != \\\"cancelled\\\"))\" }\n";
     let traced = trace(&shown, candidate);
-    let uses: Vec<&str> = (traced["references"].as_array().unwrap().iter())
-        .map(|r| r["use"].as_str().unwrap())
+    let overlaps: Vec<&str> = (traced["references"].as_array().unwrap().iter())
+        .map(|r| r["overlap"].as_str().unwrap())
         .collect();
-    assert_eq!(uses, ["instantiated", "adapted", "not_traced", "consulted"]);
-    assert_eq!(traced["instantiated"], 1);
-    assert_eq!(traced["adapted"], 1);
-    assert_eq!(traced["not_traced"], 1);
-    assert_eq!(traced["consulted"], 1);
+    assert_eq!(
+        overlaps,
+        ["most_lines", "some_lines", "no_lines", "no_code"]
+    );
+    assert_eq!(traced["most_lines"], 1);
+    assert_eq!(traced["some_lines"], 1);
+    assert_eq!(traced["no_lines"], 1);
+    assert_eq!(traced["no_code"], 1);
+    // A measure of shared lines, never a reuse verdict.
+    assert!(!traced.to_string().contains("instantiated"), "{traced:#}");
 }

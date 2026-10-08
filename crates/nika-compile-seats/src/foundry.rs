@@ -10,8 +10,24 @@
 //! answer; one it finds applicable is shown; NONE, a failed call or an answer outside the options
 //! leaves it unqualified and still shown, as an exploration hypothesis: never a defect, never a
 //! validated option. The record says what was found, shown, discarded and unqualified, by digest,
-//! with every answer; after the composition [`trace`] says which shown references left their
-//! lines in the candidate — a lexical trace of use, not proof of a causal one.
+//! with every answer.
+//!
+//! Executable reuse is another fact, established by the candidate's own bytes: a checked block
+//! of an admitted release is resolved by id and release ([`component`]), bound at its holes by
+//! literal edits the parser proves ([`bind`]), expanded into the document and checked as a whole
+//! ([`instance`]); the [`witness`] re-derives the expansion's nodes from the candidate. A shown
+//! reference no receipt names is consulted, never reused. [`trace`] keeps only the lexical
+//! overlap of shown code with the candidate: a measure, never evidence of reuse.
+
+pub mod bind;
+pub mod component;
+pub mod instance;
+pub mod witness;
+
+pub use bind::{Binding, BindingError, EditRefusal, edit_literal};
+pub use component::{Component, ComponentCatalog, ComponentRef, Hole, Release, Unresolved};
+pub use instance::{ExpandError, Expansion, Instance, expand, instantiate};
+pub use witness::{reuse, reuse_of, revise};
 
 use nika_compile::{
     AuthoringKnowledge, CompileOutcome, CompileRequest, KnowledgeReference, surface::sha256,
@@ -187,10 +203,11 @@ fn code_lines(text: &str) -> Vec<&str> {
     lines
 }
 
-/// What the candidate kept of each shown reference with code (a skeleton, block or example):
-/// how many of its lines appear in the candidate's bytes. `instantiated` when at least half do,
-/// `adapted` when some do, `not_traced` when none; a reference without code (a pattern, a skill,
-/// a family) is `consulted`, its use unobservable here. A lexical trace, never causal proof.
+/// How many code lines of each shown reference with code (a skeleton, block or example) appear
+/// in the candidate's bytes: `most_lines` when at least half do, `some_lines` when some do,
+/// `no_lines` when none, `no_code` for a reference without code (a pattern, a skill, a family).
+/// A lexical measure only: the same lines inside a prompt count alike, so it never says a
+/// reference was reused ([`witness::reuse`] does, from expansion receipts).
 #[must_use]
 pub fn trace(shown: &[KnowledgeReference], candidate: &str) -> Value {
     let rows: Vec<Value> = (shown.iter())
@@ -201,23 +218,23 @@ pub fn trace(shown: &[KnowledgeReference], candidate: &str) -> Value {
             } else {
                 Vec::new()
             };
-            let traced = lines.iter().filter(|l| candidate.contains(**l)).count();
-            let used = match (lines.len(), traced) {
-                (0, _) => "consulted",
-                (_, 0) => "not_traced",
-                (all, n) if n * 2 >= all => "instantiated",
-                _ => "adapted",
+            let found = lines.iter().filter(|l| candidate.contains(**l)).count();
+            let overlap = match (lines.len(), found) {
+                (0, _) => "no_code",
+                (_, 0) => "no_lines",
+                (all, n) if n * 2 >= all => "most_lines",
+                _ => "some_lines",
             };
-            json!({"id": reference.id, "lines": lines.len(), "traced": traced, "use": used})
+            json!({"id": reference.id, "lines": lines.len(), "found": found, "overlap": overlap})
         })
         .collect();
-    let count = |word: &str| rows.iter().filter(|r| r["use"] == word).count();
+    let count = |word: &str| rows.iter().filter(|r| r["overlap"] == word).count();
     json!({
-        "law": "lexical: a shown reference's code lines found in the candidate bytes; not causal",
-        "instantiated": count("instantiated"),
-        "adapted": count("adapted"),
-        "not_traced": count("not_traced"),
-        "consulted": count("consulted"),
+        "law": "lexical overlap: a shown reference's code lines found in the candidate bytes; a measure, never evidence of reuse",
+        "most_lines": count("most_lines"),
+        "some_lines": count("some_lines"),
+        "no_lines": count("no_lines"),
+        "no_code": count("no_code"),
         "references": rows,
     })
 }
@@ -269,15 +286,31 @@ pub async fn qualified(
     Some((request.clone().with_authoring_knowledge(folded), record))
 }
 
-/// The qualification record on the outcome, with what the candidate kept of the shown pack.
-pub fn traced(qualified: &CompileRequest, mut record: Value, out: &mut CompileOutcome) {
-    if let (Some(pack), Some(candidate)) = (&qualified.authoring_knowledge, &out.candidate) {
-        record["trace"] = trace(&pack.references, candidate);
+/// The qualification record on the outcome, with the reuse the candidate's bytes hold (no
+/// expansion receipt here: every shown reference is consulted) and the lexical overlap.
+pub fn traced(qualified: &CompileRequest, record: Value, out: &mut CompileOutcome) {
+    reused(qualified, record, &[], out);
+}
+
+/// The qualification record on the outcome with the expansions `receipts` name, each witnessed
+/// on the outcome's candidate ([`witness::reuse`]), and the lexical overlap of the shown pack.
+pub fn reused(
+    qualified: &CompileRequest,
+    mut record: Value,
+    receipts: &[Value],
+    out: &mut CompileOutcome,
+) {
+    let shown = (qualified.authoring_knowledge.as_ref()).map_or(&[][..], |p| &p.references[..]);
+    record["reuse"] = reuse(shown, receipts, out.candidate.as_deref());
+    if let Some(candidate) = &out.candidate {
+        record["lexical_overlap"] = trace(shown, candidate);
     }
     let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
     decision["knowledge_qualification"] = record;
     out.provenance.decision = Some(decision);
 }
 
+#[cfg(test)]
+mod reuse_tests;
 #[cfg(test)]
 mod tests;
