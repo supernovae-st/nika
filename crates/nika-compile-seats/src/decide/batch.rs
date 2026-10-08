@@ -7,6 +7,10 @@
 //! every answer is bound to its question by id, never by position. A seat that cannot group
 //! questions asks each item as its own question, all at once: one physical request per item, no
 //! retry, the answers in item order.
+//!
+//! Grouping never loses context: whatever its JSON kind (object, array, string, number, null),
+//! each item's whole state is what the batch shares plus what the item carries beside it
+//! ([`Carried`]), and a request renders every item from the question it asks alone.
 
 use std::{
     future::Future,
@@ -28,8 +32,93 @@ pub struct BatchItem {
     pub question: ChoiceQuestion,
     /// What the item asks beyond the batch's shared instructions (empty when nothing).
     pub asks: String,
-    /// What the item adds to the batch's shared state (its clause, its part of a run).
+    /// What the item adds to the batch's shared state (its clause, its part of a run): `null`
+    /// when nothing, the entries it adds when both states are objects, else its whole state, read
+    /// in place of the shared one ([`Carried`]).
     pub adds: Value,
+}
+
+/// How one question's whole state rides beside the state a batch shares: what a request must
+/// carry with the item so that it reads exactly the state it reads alone, never less.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Carried {
+    /// The shared state is the question's whole state: nothing rides beside it.
+    Shared,
+    /// The shared state (an object) and these entries of the question's own, read together.
+    Beside(Map<String, Value>),
+    /// The question's whole state, read in place of the shared state.
+    Whole(Value),
+}
+
+impl Carried {
+    /// The state `states` hold alike: when all are objects, the entries every one holds with the
+    /// same value (`{}` when none); else the one state they all are; else nothing (`null`). A
+    /// key one state lacks is never shared with a state that holds it, even as `null`.
+    #[must_use]
+    pub fn common(states: &[&Value]) -> Value {
+        let Some(first) = states.first() else {
+            return Value::Object(Map::new());
+        };
+        if states.iter().all(|state| state.is_object()) {
+            let alike =
+                |key: &str, value: &Value| (states.iter()).all(|s| s.get(key) == Some(value));
+            let entries = (first.as_object().into_iter().flatten())
+                .filter(|(key, value)| alike(key, value))
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect();
+            Value::Object(entries)
+        } else if states.iter().all(|state| state == first) {
+            (*first).clone()
+        } else {
+            Value::Null
+        }
+    }
+
+    /// What `state` carries beside `shared`: nothing when they are equal; the entries an object
+    /// adds when it holds every shared entry alike; else its whole state.
+    #[must_use]
+    pub fn of(shared: &Value, state: &Value) -> Self {
+        if state == shared {
+            return Self::Shared;
+        }
+        match (shared.as_object(), state.as_object()) {
+            (Some(shared), Some(own)) if shared.iter().all(|(k, v)| own.get(k) == Some(v)) => {
+                let beside = (own.iter())
+                    .filter(|(key, _)| !shared.contains_key(*key))
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect();
+                Self::Beside(beside)
+            }
+            _ => Self::Whole(state.clone()),
+        }
+    }
+
+    /// The whole state a question reads from `shared` and what it carries; for every pair,
+    /// `Carried::of(shared, state).state(shared)` is `state`.
+    #[must_use]
+    pub fn state(&self, shared: &Value) -> Value {
+        match (self, shared) {
+            (Self::Shared, _) => shared.clone(),
+            (Self::Beside(own), Value::Object(entries)) => {
+                let mut whole = entries.clone();
+                whole.extend(own.iter().map(|(key, value)| (key.clone(), value.clone())));
+                Value::Object(whole)
+            }
+            (Self::Beside(own), _) => Value::Object(own.clone()),
+            (Self::Whole(state), _) => state.clone(),
+        }
+    }
+
+    /// The item's [`BatchItem::adds`]: `null`, the entries it adds, or its whole state. A batch
+    /// made by [`ChoiceBatch::of`] never carries a whole `null` (it would be shared).
+    fn adds(self) -> Value {
+        match self {
+            Self::Shared => Value::Null,
+            Self::Beside(own) => Value::Object(own),
+            Self::Whole(state) => state,
+        }
+    }
 }
 
 impl BatchItem {
@@ -79,41 +168,37 @@ impl ChoiceBatch {
 
 impl ChoiceBatch {
     /// The batch of `questions`, each as it is asked alone: what their instructions share (their
-    /// longest common prefix, ended at the last paragraph break in it) and the state entries
-    /// they all hold alike become the batch's; what each adds stays its item's own.
+    /// longest common prefix, ended at the last paragraph break in it) and the state they hold
+    /// alike ([`Carried::common`]) become the batch's; what each adds stays its item's own, so
+    /// every item's whole state is the shared state with what it carries, whatever its JSON kind.
     #[must_use]
     pub fn of(id: impl Into<String>, questions: &[ChoiceQuestion]) -> Self {
         let shared = (questions.iter().map(|q| q.instructions.as_str()))
             .reduce(common_prefix)
             .unwrap_or_default();
         let shared = shared.rfind("\n\n").map_or("", |end| &shared[..end]);
-        let alike =
-            |key: &str, value: &Value| (questions.iter()).all(|q| q.state.get(key) == Some(value));
-        let state: Map<String, Value> = (questions.first())
-            .and_then(|q| q.state.as_object())
-            .map(|first| {
-                (first.iter())
-                    .filter(|(key, value)| alike(key, value))
-                    .map(|(key, value)| (key.clone(), value.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let states: Vec<&Value> = questions.iter().map(|q| &q.state).collect();
+        let state = Carried::common(&states);
         let items = (questions.iter())
             .map(|q| {
                 let asks = q.instructions[shared.len()..].trim_start().to_owned();
-                let own: Map<String, Value> = (q.state.as_object().into_iter().flatten())
-                    .filter(|(key, _)| !state.contains_key(*key))
-                    .map(|(key, value)| (key.clone(), value.clone()))
-                    .collect();
-                let adds = if own.is_empty() {
-                    Value::Null
-                } else {
-                    Value::Object(own)
-                };
-                BatchItem::new(q.clone(), asks, adds)
+                BatchItem::new(q.clone(), asks, Carried::of(&state, &q.state).adds())
             })
             .collect();
-        Self::new(id, shared, Value::Object(state), items)
+        Self::new(id, shared, state, items)
+    }
+}
+
+/// What a question asks beyond the shared instructions, read from the question it asks alone:
+/// the rest of its words when they open with the shared ones up to a break, else all of them.
+fn own_words<'q>(shared: &str, whole: &'q str) -> &'q str {
+    match whole.strip_prefix(shared) {
+        Some(rest)
+            if !shared.is_empty() && (rest.is_empty() || rest.starts_with(char::is_whitespace)) =>
+        {
+            rest.trim_start()
+        }
+        _ => whole,
     }
 }
 
@@ -166,27 +251,37 @@ async fn joined<T>(mut futures: Vec<Pin<Box<dyn Future<Output = T> + Send + '_>>
 }
 
 /// The two messages and the answer schema of a batch asked in one request: the shared
-/// instructions and state once, then each item with what it asks, what it adds and its options;
-/// the answer names, for each item id, one of that item's keys.
+/// instructions and state once, then each item with what it asks, what it carries beside the
+/// shared state and its options, all read from the question it asks alone ([`Carried`]); the
+/// answer names, for each item id, one of that item's keys.
 #[must_use]
 pub fn closed_choices(batch: &ChoiceBatch) -> (Vec<Message>, Value) {
     let system = format!(
-        "You settle SEVERAL independent closed choices for a workflow compiler, one per item. Read the state once, then judge each item alone, on its own words, and pick exactly one of THAT item's option keys. {} Choose \"{NONE_OPTION}\" for an item when none of its options fits. Return only a JSON object mapping each item id to the key you chose for it.",
+        "You settle SEVERAL independent closed choices for a workflow compiler, one per item. Read the shared STATE once, then judge each item alone, on its own words and its own state, and pick exactly one of THAT item's option keys. {} Choose \"{NONE_OPTION}\" for an item when none of its options fits. Return only a JSON object mapping each item id to the key you chose for it.",
         batch.instructions
     );
+    let pretty = |value: &Value| serde_json::to_string_pretty(value).unwrap_or_default();
     let items: Vec<String> = (batch.items.iter())
         .map(|item| {
             let options: Vec<String> = (item.question.options.iter())
                 .map(|o| format!("- {}: {}", o.key, o.description))
                 .collect();
             let mut text = format!("ITEM {}:", item.question.id);
-            if !item.asks.is_empty() {
+            let asks = own_words(&batch.instructions, &item.question.instructions);
+            if !asks.is_empty() {
                 text.push('\n');
-                text.push_str(&item.asks);
+                text.push_str(asks);
             }
-            if !item.adds.is_null() {
-                text.push('\n');
-                text.push_str(&serde_json::to_string_pretty(&item.adds).unwrap_or_default());
+            match Carried::of(&batch.state, &item.question.state) {
+                Carried::Shared => {}
+                Carried::Beside(own) => {
+                    text.push_str("\nITEM STATE, read with the shared STATE:\n");
+                    text.push_str(&pretty(&Value::Object(own)));
+                }
+                Carried::Whole(own) => {
+                    text.push_str("\nITEM STATE, read in place of the shared STATE:\n");
+                    text.push_str(&pretty(&own));
+                }
             }
             format!("{text}\nOPTIONS:\n{}", options.join("\n"))
         })
@@ -250,5 +345,9 @@ pub fn decoded_each(
         .collect())
 }
 
+#[cfg(test)]
+mod regression_tests;
+#[cfg(test)]
+mod state_tests;
 #[cfg(test)]
 mod tests;

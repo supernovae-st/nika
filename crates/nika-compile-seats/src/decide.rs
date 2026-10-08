@@ -134,7 +134,9 @@ pub type ChoiceFuture<'a> =
     Pin<Box<dyn Future<Output = Result<ChoiceAnswer, DecisionError>> + Send + 'a>>;
 
 mod batch;
-pub use batch::{BatchFuture, BatchItem, ChoiceBatch, closed_choices, decoded_each, each_alone};
+pub use batch::{
+    BatchFuture, BatchItem, Carried, ChoiceBatch, closed_choices, decoded_each, each_alone,
+};
 
 /// A bounded decision capability. Vendor-neutral by construction.
 pub trait DecisionSeat: Send + Sync {
