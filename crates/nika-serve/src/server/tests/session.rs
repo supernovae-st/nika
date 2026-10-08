@@ -16,7 +16,7 @@
 
 use std::sync::atomic::AtomicUsize;
 
-use nika_session::change::Witness;
+use nika_session::change::{Closure, Witness};
 use nika_session::intelligence::{
     IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence, UserIntelligencePreference,
 };
@@ -211,15 +211,22 @@ async fn serve(
     }
 }
 
-/// The run request a Session makes for `workflow` after checking `checked` (none: no check).
-fn checked_run(workflow: &str, checked: Option<&str>) -> RunRequest {
+/// The run request a Session makes for `workflow` under `root` after checking `checked` (none:
+/// no check): the witness of those bytes, and the closure of the world on disk as it is made.
+fn checked_run(root: &std::path::Path, workflow: &str, checked: Option<&str>) -> RunRequest {
+    let world = || {
+        let project = nika_fs::OwnedDir::open(root).ok()?;
+        let limits = nika_execution::SnapshotLimits::default();
+        let path = std::path::Path::new(workflow);
+        nika_execution::ExecutionSnapshot::capture(&project, path, limits).ok()
+    };
     RunRequest {
         workflow: PathBuf::from(workflow),
         vars: Vec::new(),
         max_cost_usd: 0.25,
         access_pin: None,
         bytes: checked.map(|source| Box::new(Witness::of(source.as_bytes()))),
-        closure: None,
+        closure: (checked.and_then(|_| world())).map(|world| Box::new(Closure::of(&world))),
     }
 }
 
@@ -596,32 +603,41 @@ async fn a_saved_workflow_outside_the_served_registry_is_never_admitted() {
 }
 
 /// The admission seam between the Session's check and the job: the workflow rewritten after the
-/// Session checked it (a valid workflow still), or a request naming no checked bytes, admits
-/// nothing; the checked bytes admit their one job, which runs exactly them.
+/// Session checked it (a valid workflow still), a request naming no checked bytes, or one whose
+/// bytes are not those its world holds, admits nothing; the checked bytes admit their one job,
+/// which runs exactly them.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_run_admits_only_the_bytes_the_session_checked() {
     let world = TestWorld::new();
     let path = world.root.path().join("root.nika");
+    std::fs::write(&path, WORKFLOW).expect("the checked bytes");
+    let checked = checked_run(world.root.path(), "root.nika", Some(WORKFLOW));
     let rewritten = WORKFLOW.replace(r#"expression: ".""#, r#"expression: ". + 1""#);
     assert_ne!(rewritten, WORKFLOW, "a different valid workflow");
     std::fs::write(&path, &rewritten).expect("rewritten after the check");
     let served = serve(&world, (true, Registry::Project), Some(1.0), Arc::default()).await;
     let resident = Resident::lent(&served.state);
-    for run in [
-        checked_run("root.nika", Some(WORKFLOW)),
-        checked_run("root.nika", None),
-    ] {
-        let refused = resident.admit(&run).await;
+    let unbound = checked_run(world.root.path(), "root.nika", None);
+    for run in [&checked, &unbound] {
+        let refused = resident.admit(run).await;
         assert!(
-            matches!(&refused, Err(words) if words.starts_with("the workflow on disk is not the bytes the Session checked")),
+            matches!(&refused, Err(words) if words.starts_with(UNCHECKED_WORDS)),
             "{refused:?}"
         );
     }
     assert!(served.backend.runs().is_empty(), "nothing was admitted");
     std::fs::write(&path, WORKFLOW).expect("the checked bytes");
-    let admitted = resident
-        .admit(&checked_run("root.nika", Some(WORKFLOW)))
-        .await;
+    // The checked world under another source's witness: not a request the Session made.
+    let crossed = RunRequest {
+        bytes: Some(Box::new(Witness::of(rewritten.as_bytes()))),
+        ..checked.clone()
+    };
+    let refused = resident.admit(&crossed).await;
+    assert!(
+        matches!(&refused, Err(words) if words.starts_with(UNCHECKED_WORDS)),
+        "{refused:?}"
+    );
+    let admitted = resident.admit(&checked).await;
     assert!(matches!(admitted, Ok(Admitted::Job(_))), "{admitted:?}");
     let Ok(Admitted::Job(job)) = admitted else {
         return;
@@ -633,6 +649,44 @@ async fn a_run_admits_only_the_bytes_the_session_checked() {
         [(WORKFLOW.to_owned(), Some(0.25))],
         "exactly the checked bytes, once"
     );
+    stop(served).await;
+}
+
+/// How the door refuses a run whose world is not the one the Session checked.
+const UNCHECKED_WORDS: &str =
+    "the workflow on disk, or a workflow or skill it uses, is not what the Session checked";
+
+/// The whole checked world binds: a child workflow rewritten after the Session checked its caller
+/// (still valid, the caller's own bytes unchanged) admits nothing, and the checked world admits
+/// its one job.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_run_admits_only_the_world_the_session_checked() {
+    // The parent grants what its child uses: a composition admits no wider child.
+    const PARENT: &str = "nika: parent\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  call:\n    invoke: { workflow: \"./child.nika\" }\n";
+    let world = TestWorld::new();
+    let child = world.root.path().join("child.nika");
+    std::fs::write(world.root.path().join("parent.nika"), PARENT).expect("parent");
+    std::fs::write(&child, WORKFLOW).expect("child");
+    let checked = checked_run(world.root.path(), "parent.nika", Some(PARENT));
+    assert!(checked.closure.is_some(), "the checked world was captured");
+    let rewritten = WORKFLOW.replace(r#"expression: ".""#, r#"expression: ". + 1""#);
+    std::fs::write(&child, rewritten).expect("the child rewritten after the check");
+    let served = serve(&world, (true, Registry::Project), Some(1.0), Arc::default()).await;
+    let resident = Resident::lent(&served.state);
+    let refused = resident.admit(&checked).await;
+    assert!(
+        matches!(&refused, Err(words) if words.starts_with(UNCHECKED_WORDS)),
+        "{refused:?}"
+    );
+    assert!(served.backend.runs().is_empty(), "nothing was admitted");
+    std::fs::write(&child, WORKFLOW).expect("the checked child");
+    let admitted = resident.admit(&checked).await;
+    assert!(matches!(admitted, Ok(Admitted::Job(_))), "{admitted:?}");
+    let Ok(Admitted::Job(job)) = admitted else {
+        return;
+    };
+    assert_eq!(resident.settled(&job).await.expect("its end").exit, 0);
+    assert_eq!(served.backend.runs().len(), 1, "the checked world, once");
     stop(served).await;
 }
 
@@ -707,7 +761,7 @@ async fn a_reviewed_run_is_admitted_once_on_approval_and_never_on_decline() {
         super::cost_review::start(&world, lent, super::cost_review::disarmed(), true).await;
     let resident = Resident::lent(&state);
     let source = std::fs::read_to_string(world.workflows.join("review.nika")).expect("source");
-    let reviewed = checked_run("review.nika", Some(&source));
+    let reviewed = checked_run(&world.workflows, "review.nika", Some(&source));
     let held = resident.admit(&reviewed).await;
     assert!(
         matches!(held, Ok(Admitted::Review { .. })),
