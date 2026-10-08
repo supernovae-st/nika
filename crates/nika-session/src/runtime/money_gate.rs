@@ -590,10 +590,12 @@ impl SessionRuntime {
         workflow: &std::path::Path,
         explicit: Option<f64>,
     ) -> Result<f64, TurnOutcome> {
-        let (parsed, _) = self
+        let (mut parsed, _) = self
             .read_money(input, false)
             .map_err(|reason| self.refuse_run_money(input, &reason))?;
         if explicit.is_some() {
+            // The ceiling stated: the line's own, or a typed request's (`save & run`).
+            parsed.amount = explicit;
             self.money.current =
                 Some(self.inference_observation(self.money_decision(input, &parsed)));
         } else {

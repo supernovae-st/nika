@@ -47,14 +47,8 @@ impl SessionRuntime {
             Ok(ceiling) => ceiling,
             Err(reason) => return Some(self.refuse_run_money(input, reason)),
         };
-        if self.pending_gate.is_some() || self.money.gate.is_some() {
-            return Some(self.refuse_run_money(
-                input,
-                "a paused gate waits; answer it before requesting another Run",
-            ));
-        }
-        if self.money.reconfirm && ceiling.is_none() {
-            return Some(self.refuse_run_money(input, &self.restored_refusal()));
+        if let Some(refused) = self.run_refused(input, ceiling) {
+            return Some(refused);
         }
         // The run grammar is closed: the verb, the workflow named or « it »,
         // a ceiling. A line that carries more (« run it, but only on
@@ -92,6 +86,39 @@ impl SessionRuntime {
                 "nothing to run — name a workflow file (« run brief.nika »), or describe the work and Nika builds one first",
             ));
         };
+        self.admit_run(input, workflow, ceiling, access_pin, inline_vars(input))
+    }
+
+    /// A run refused before any check: a paused gate waits, or a restored exposure has no stated
+    /// ceiling to reconfirm it.
+    fn run_refused(&mut self, said: &str, ceiling: Option<f64>) -> Option<TurnOutcome> {
+        if self.pending_gate.is_some() || self.money.gate.is_some() {
+            let why = "a paused gate waits; answer it before requesting another Run";
+            return Some(self.refuse_run_money(said, why));
+        }
+        (self.money.reconfirm && ceiling.is_none()).then(|| {
+            let why = self.restored_refusal();
+            self.refuse_run_money(said, &why)
+        })
+    }
+
+    /// The run of `workflow` under the one admission every run request meets, typed: whatever
+    /// asked it (a run line, a `save & run`), its values reach the check, the money and the inputs
+    /// exactly. A rehearsed copy runs only over its rehearsed world, the check on disk is clean
+    /// under `access_pin`, the money is admitted (a stated `ceiling`, else the saved decision), and
+    /// each declared input not `given` is asked; then the run request. `said` is the human's line.
+    pub(super) fn admit_run(
+        &mut self,
+        said: &str,
+        workflow: PathBuf,
+        ceiling: Option<f64>,
+        access_pin: Option<String>,
+        given: Vec<String>,
+    ) -> TurnOutcome {
+        if let Some(refused) = self.run_refused(said, ceiling) {
+            return refused;
+        }
+        let root = self.snapshot.root.clone();
         // A rehearsed copy runs only over the bytes and the world it was rehearsed on.
         if let Some(withdrawn) = self.rehearsed_at_run(&workflow) {
             return withdrawn;
@@ -108,7 +135,7 @@ impl SessionRuntime {
             }
             return TurnOutcome::Facts(text);
         }
-        let max_cost_usd = match self.run_money(input, &workflow, ceiling) {
+        let max_cost_usd = match self.run_money(said, &workflow, ceiling) {
             Ok(amount) => amount,
             Err(refusal) => return refusal,
         };
@@ -116,13 +143,12 @@ impl SessionRuntime {
         // The workflow's own declared inputs: a required one with no
         // default is asked, in the product, before the run is requested —
         // the engine would refuse the launch (NIKA-1708) otherwise.
-        let given = inline_vars(input);
         let needed: Vec<String> = required_inputs_of(&root, &workflow)
             .into_iter()
             .filter(|name| !given.iter().any(|v| v.starts_with(&format!("{name}="))))
             .collect();
         let inputs = RunInputs {
-            workflow: workflow.clone(),
+            workflow,
             max_cost_usd,
             access_pin,
             needed,
@@ -130,7 +156,7 @@ impl SessionRuntime {
             world: audit.world,
             checked: (audit.bytes, audit.closure),
         };
-        self.remember(input, "(run requested)");
+        self.remember(said, "(run requested)");
         self.request_or_ask(inputs)
     }
 

@@ -216,7 +216,7 @@ impl SessionRuntime {
             TurnAct::RequestRun => self.hold_pending(
                 set,
                 id,
-                "consent is never a run — `yes` applies the proposal first, then « run it »",
+                "consent is never a run on its own — `save & run` saves this proposal and runs it once · `yes` only saves it",
             ),
             TurnAct::NewWork => self.hold_pending(
                 set,

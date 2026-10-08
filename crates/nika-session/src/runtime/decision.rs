@@ -11,7 +11,9 @@ use super::history::Operation;
 use super::{SessionRuntime, TurnOutcome};
 
 pub use nika_session_change::decision::{DecisionAnswer, decision_answer};
-pub(super) use nika_session_change::decision::{is_gate_token, is_no, is_yes, local_command_of};
+pub(super) use nika_session_change::decision::{
+    is_gate_token, is_no, is_save_and_run, is_yes, local_command_of,
+};
 
 impl SessionRuntime {
     /// A slash command answered from the session's own facts while something

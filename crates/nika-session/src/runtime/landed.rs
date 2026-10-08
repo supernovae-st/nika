@@ -9,9 +9,9 @@ use std::fmt::Write as _;
 
 use super::{SessionRuntime, TurnOutcome};
 use crate::change::{Applied, ProjectChangeSet, WorkflowAudit, check_on_disk};
-use crate::outcome::ProposalId;
+use crate::outcome::{ProposalId, Refusal};
 use crate::snapshot::ProjectSnapshot;
-use crate::work::RequestedRun;
+use nika_session_change::save_run::SaveRun;
 
 impl SessionRuntime {
     /// After a yes lands the set: mark decided, check every workflow,
@@ -20,13 +20,14 @@ impl SessionRuntime {
     /// never becomes `already_consumed`.
     pub(super) fn report_landed(
         &mut self,
-        set: ProjectChangeSet,
+        set: &ProjectChangeSet,
         applied: &Applied,
         id: &ProposalId,
         basis: Option<&str>,
+        run: Option<SaveRun>,
     ) -> TurnOutcome {
-        self.save_proposal_money(&set, id);
-        let evidence = self.evidence_applied(&set, id, applied);
+        self.save_proposal_money(set, id);
+        let evidence = self.evidence_applied(set, id, applied);
         // A rehearsed copy's proof moves to the workflow it was saved as (`rehearsed.rs`).
         let landed_workflow = set.workflows().into_iter().next();
         let rehearsed = self.land_rehearsal(id, landed_workflow.as_deref());
@@ -41,7 +42,7 @@ impl SessionRuntime {
         if let Some(basis) = basis {
             let _ = write!(report, "\n  {basis}");
         }
-        let audits = checked(&set, &mut report);
+        let audits = checked(set, &mut report);
         let all_clean = audits.iter().all(|a| a.clean);
         // Where each landed workflow reaches, from the same on-disk check the report states.
         let world_of = |workflow: &std::path::Path| {
@@ -84,17 +85,8 @@ impl SessionRuntime {
                 .changes
                 .iter()
                 .any(|c| c.path() == std::path::Path::new("nika.yaml"));
-        match set.run {
-            Some(mut run) if all_clean => {
-                // The run is bound to the bytes and the world the on-disk check just judged clean.
-                let checked = audits.iter().find(|audit| audit.path == run.workflow);
-                run.bytes = checked.and_then(|audit| audit.bytes.clone().map(Box::new));
-                run.closure = checked.and_then(|audit| audit.closure.clone().map(Box::new));
-                self.last_workflow = Some(run.workflow.clone());
-                self.requested_run = world_of(&run.workflow)
-                    .map(|world| RequestedRun::new(run.workflow.clone(), &run.vars, world));
-                TurnOutcome::RunRequested { report, run }
-            }
+        match run {
+            Some(run) if all_clean => self.run_saved(&report, run),
             Some(_) => {
                 report.push_str(
                     "\n  the run was not started: findings stop it — repair them, then ask to run",
@@ -121,6 +113,35 @@ impl SessionRuntime {
                 TurnOutcome::Facts(report)
             }
             None => TurnOutcome::Facts(report),
+        }
+    }
+
+    /// `save & run`'s run, once its save checked clean: its typed target and values through the
+    /// one run admission (`admit_run`); not started, the save stands and says why.
+    fn run_saved(&mut self, report: &str, run: SaveRun) -> TurnOutcome {
+        let SaveRun {
+            workflow,
+            vars,
+            access_pin,
+            max_cost_usd,
+            ..
+        } = run;
+        match self.admit_run("save & run", workflow, max_cost_usd, access_pin, vars) {
+            TurnOutcome::RunRequested {
+                report: run_report,
+                run,
+            } => {
+                let report = format!("{report}\n  run once · {run_report}");
+                TurnOutcome::RunRequested { report, run }
+            }
+            TurnOutcome::Question { key, question } => {
+                let question = format!("{report}\n{question}");
+                TurnOutcome::Question { key, question }
+            }
+            TurnOutcome::Refusal(Refusal { text, .. }) | TurnOutcome::Facts(text) => {
+                TurnOutcome::Facts(format!("{report}\n  the run was not started: {text}"))
+            }
+            _ => TurnOutcome::Facts(format!("{report}\n  the run was not started")),
         }
     }
 }
