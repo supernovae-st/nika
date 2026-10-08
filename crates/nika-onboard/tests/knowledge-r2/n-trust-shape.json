@@ -1,0 +1,25 @@
+{
+ "base": "p01-base",
+ "expected": {
+  "format": "x",
+  "policy": {
+   "id": "policy-vectors-r2",
+   "sha256": "631bac7695ec45366bebef3208dbfdca1d18f03a1986430a62376c51a2db63c8"
+  },
+  "profile": "nika-knowledge-release-profile/r2",
+  "snapshot_sha256": "86931940797490090efc2290c610b48ad50db2341f4ef0bafc6ee5563b6efc4b"
+ },
+ "fault": "the trusted identity carries an extra key",
+ "files": {},
+ "forms": [
+  "memory",
+  "disk"
+ ],
+ "name": "n-trust-shape",
+ "removed": [],
+ "requirement": "\u00a7r2 A1",
+ "verdict": {
+  "admit": false,
+  "code": "ADMISSION_UNTRUSTED"
+ }
+}

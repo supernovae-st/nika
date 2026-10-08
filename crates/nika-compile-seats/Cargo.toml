@@ -29,6 +29,7 @@ nika-kernel           = { path = "../nika-kernel", version = "0.122.0" }        
 nika-pack             = { path = "../nika-pack", version = "0.122.0" }             # the skeletons and the stdlib page the shelf cuts a seat's references from
 serde      = { workspace = true } # IgnoredAny · DeserializeOwned: a seat's answer shapes; a remote door's repeated-key law
 serde_json = { workspace = true } # the closed choice's state, schema and provenance record
+serde_json_canonicalizer = { workspace = true } # RFC 8785 number text of a knowledge release r2 (ryu-js · ECMAScript ties)
 thiserror  = { workspace = true }
 tokio      = { workspace = true } # the single decision call's bound
 

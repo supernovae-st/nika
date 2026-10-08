@@ -30,6 +30,7 @@ pub mod instance;
 pub mod invoke;
 pub mod reach;
 pub mod recall;
+pub mod release;
 pub mod witness;
 
 pub use bind::{Binding, BindingError, EditRefusal, edit_literal};

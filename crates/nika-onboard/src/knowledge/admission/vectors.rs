@@ -27,29 +27,44 @@ pub(super) type Files = BTreeMap<String, Vec<u8>>;
 /// step.
 pub(super) type Verdict = Result<String, (&'static str, &'static str)>;
 
-fn dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/knowledge-r1")
+fn dir(set: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join(set)
 }
 
 /// A vector file's bytes and value, checked against its INDEX pin.
-fn read(name: &str, pin: &str) -> Value {
-    let bytes = std::fs::read(dir().join(format!("{name}.json"))).expect("a pinned vector");
+fn read(set: &str, name: &str, pin: &str) -> Value {
+    let bytes = std::fs::read(dir(set).join(format!("{name}.json"))).expect("a pinned vector");
     assert_eq!(sha256_hex(&bytes), pin, "{name}: not its INDEX pin");
     serde_json::from_slice(&bytes).expect("a vector is JSON")
 }
 
-/// The INDEX, checked against the pin, and every vector it pins by name.
-pub(super) fn vectors() -> (Value, BTreeMap<String, Value>) {
-    let bytes = std::fs::read(dir().join("INDEX.json")).expect("the INDEX");
-    assert_eq!(sha256_hex(&bytes), INDEX_SHA256, "the INDEX both sides pin");
+/// The INDEX of the vector set `set` (`knowledge-r1`), checked against `index_sha256`, and every
+/// vector it pins by name.
+pub(super) fn vectors_of(set: &str, index_sha256: &str) -> (Value, BTreeMap<String, Value>) {
+    let bytes = std::fs::read(dir(set).join("INDEX.json")).expect("the INDEX");
+    assert_eq!(sha256_hex(&bytes), index_sha256, "the INDEX both sides pin");
     let index: Value = serde_json::from_slice(&bytes).expect("the INDEX is JSON");
     let vectors = index["vectors"]
         .as_object()
         .expect("vectors by name")
         .iter()
-        .map(|(name, pin)| (name.clone(), read(name, pin.as_str().expect("a pin"))))
+        .map(|(name, pin)| (name.clone(), read(set, name, pin.as_str().expect("a pin"))))
         .collect();
     (index, vectors)
+}
+
+/// The r1 INDEX and its vectors.
+pub(super) fn vectors() -> (Value, BTreeMap<String, Value>) {
+    vectors_of("knowledge-r1", INDEX_SHA256)
+}
+
+/// The identity a vector names, for the door of `profile`: the product door hands each identity
+/// to its own profile's rules, so an identity under another profile is none for this one (§2
+/// A1).
+pub(super) fn identity_for(record: &Value, profile: &str) -> Option<TrustedIdentity> {
+    TrustedIdentity::from_json(record).filter(|identity| identity.profile() == profile)
 }
 
 fn bytes_of(entry: &Value) -> Vec<u8> {
@@ -85,7 +100,8 @@ pub(super) fn payload(vector: &Value, vectors: &BTreeMap<String, Value>) -> File
 pub(super) fn positive(name: &str) -> (Files, TrustedIdentity, String) {
     let (_, vectors) = vectors();
     let vector = &vectors[name];
-    let identity = TrustedIdentity::from_json(&vector["expected"]).expect("an identity");
+    let identity =
+        identity_for(&vector["expected"], super::ADMISSION_PROFILE).expect("an identity");
     let snapshot = vector["verdict"]["snapshot_sha256"]
         .as_str()
         .expect("an admission")
@@ -112,7 +128,7 @@ pub(super) fn outcome(result: Result<Admitted, Refusal>) -> Verdict {
 }
 
 /// A vector's verdict: its snapshot, or its code and the step its `requirement` names.
-fn expected(vector: &Value) -> Result<String, (&str, &str)> {
+pub(super) fn expected(vector: &Value) -> Result<String, (&str, &str)> {
     let verdict = &vector["verdict"];
     if verdict["admit"] == true {
         return Ok(verdict["snapshot_sha256"]
@@ -148,7 +164,7 @@ fn every_shared_vector_gives_its_exact_verdict_in_memory_and_on_disk() {
     let mut failures = Vec::new();
     for (name, vector) in &vectors {
         let files = payload(vector, &vectors);
-        let identity = TrustedIdentity::from_json(&vector["expected"]);
+        let identity = identity_for(&vector["expected"], super::ADMISSION_PROFILE);
         let want = expected(vector);
         let memory = outcome(admit_memory(files.clone(), identity.as_ref()));
         if memory != want {
