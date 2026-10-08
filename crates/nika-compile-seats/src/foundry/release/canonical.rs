@@ -5,7 +5,7 @@
 //! and §9.1).
 //!
 //! **Strict JSON, bounded while it is read** (§9.1).
-//! - Arrays and objects nest at most [`MAX_DEPTH`](crate::knowledge::canonical::MAX_DEPTH)
+//! - Arrays and objects nest at most [`MAX_DEPTH`]
 //!   deep: the top-level one at 1, a scalar adding no depth.
 //! - A text holds at most the values its caller allows. Every object, array, string, member name,
 //!   number and literal counts once, every occurrence: a key stated twice counts twice, and so
@@ -29,17 +29,18 @@
 use std::cell::{Cell, RefCell};
 use std::fmt;
 
-use nika_event::source_id::sha256_hex;
+use nika_compile::surface::sha256;
 use serde::Deserialize as _;
 use serde::de::{self, DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde_json::{Map, Number, Value};
 
 /// The deepest an array or object may nest; the top-level one is at depth 1.
-pub(crate) const MAX_DEPTH: usize = 16;
+pub const MAX_DEPTH: usize = 16;
 
 /// Why a text is not strict JSON within its bounds.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum StrictJsonError {
+#[non_exhaustive]
+pub enum StrictJsonError {
     /// An object states this key twice, in a text otherwise valid JSON within its bounds.
     DuplicateKey(String),
     /// Not JSON, something after the value, or past a bound (the parser's words).
@@ -57,7 +58,10 @@ impl fmt::Display for StrictJsonError {
 
 /// One JSONL line (§9.1): strict JSON of at most `max_values` values, with nothing at all after
 /// its value. A value never ends with JSON whitespace, so a line that does breaks the grammar.
-pub(crate) fn strict_line(line: &str, max_values: usize) -> Result<Value, StrictJsonError> {
+///
+/// # Errors
+/// [`StrictJsonError`]: not strict JSON within its bounds, or a key stated twice.
+pub fn strict_line(line: &str, max_values: usize) -> Result<Value, StrictJsonError> {
     if line.ends_with([' ', '\t', '\n', '\r']) {
         return Err(StrictJsonError::Malformed(
             "something after the value of a line".to_owned(),
@@ -68,7 +72,10 @@ pub(crate) fn strict_line(line: &str, max_values: usize) -> Result<Value, Strict
 
 /// Parse one strict JSON text of at most `max_values` values (§9.1): nested at most
 /// [`MAX_DEPTH`] deep, nothing after the value but whitespace, every key once.
-pub(crate) fn strict_json(text: &str, max_values: usize) -> Result<Value, StrictJsonError> {
+///
+/// # Errors
+/// [`StrictJsonError`]: not strict JSON within its bounds, or a key stated twice.
+pub fn strict_json(text: &str, max_values: usize) -> Result<Value, StrictJsonError> {
     let budget = Budget {
         values: Cell::new(max_values),
         duplicate: RefCell::new(None),
@@ -221,7 +228,7 @@ impl<'de> DeserializeSeed<'de> for Key<'_> {
 }
 
 /// Whether a value holds a number anywhere (a row line holds none, §6.1).
-pub(crate) fn holds_number(value: &Value) -> bool {
+pub fn holds_number(value: &Value) -> bool {
     match value {
         Value::Number(_) => true,
         Value::Array(items) => items.iter().any(holds_number),
@@ -234,7 +241,7 @@ pub(crate) fn holds_number(value: &Value) -> bool {
 /// code point, no whitespace, strings escaped only where JSON requires it, integers in decimal.
 /// `None` when the value holds a number that is not an integer (no canonical form here).
 #[must_use]
-pub(crate) fn canonical_json(value: &Value) -> Option<String> {
+pub fn canonical_json(value: &Value) -> Option<String> {
     let mut out = String::new();
     write_canonical(value, &mut out).then_some(out)
 }
@@ -243,10 +250,10 @@ pub(crate) fn canonical_json(value: &Value) -> Option<String> {
 /// the row without that field. `None` when the row is not an object or holds a number that is
 /// not an integer.
 #[must_use]
-pub(crate) fn row_digest(row: &Value) -> Option<String> {
+pub fn row_digest(row: &Value) -> Option<String> {
     let mut unsigned = row.as_object()?.clone();
     unsigned.remove("sha256");
-    canonical_json(&Value::Object(unsigned)).map(|text| sha256_hex(text.as_bytes()))
+    canonical_json(&Value::Object(unsigned)).map(|text| sha256(&text))
 }
 
 /// Append the canonical text of `value`; `false` when a number is not an integer.

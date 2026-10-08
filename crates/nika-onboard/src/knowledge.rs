@@ -50,8 +50,8 @@ use serde_json::{Value, json};
 mod admission;
 /// The release this build embeds: its issued bytes compiled in, admitted in memory.
 pub(crate) mod bundled;
-/// The byte contract a release shares with its producer: strict JSON and the canonical digest.
-mod canonical;
+// The byte contract a release shares with its producer: strict JSON and the canonical digest.
+use nika_compile_seats::foundry::release::canonical;
 /// The admitted release as a catalogue: executable components and whole-catalog entries.
 mod catalog;
 /// A synthetic release the strict door admits (tests, and doors with `test-support`).

@@ -41,7 +41,7 @@ fn keys_sort_by_code_point_as_the_producer_sorts_them() {
         Some(r#"{"B":3,"a":4,"bé":1,"bê":2,"☃":5}"#)
     );
     assert_eq!(
-        sha256_hex(canonical_json(&value).unwrap().as_bytes()),
+        sha256(&canonical_json(&value).unwrap()),
         "9f753a3553f89d1f07c41da57d331228328199c851239b6ba8c2432947c29455"
     );
 }
