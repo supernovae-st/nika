@@ -37,6 +37,7 @@
 
 pub mod change;
 pub mod consent;
+pub mod draft;
 pub mod outcome;
 pub mod review;
 pub mod work;
