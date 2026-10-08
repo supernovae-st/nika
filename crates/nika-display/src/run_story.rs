@@ -276,6 +276,145 @@ impl Settled {
     }
 }
 
+/// What one run's own frames name of it, folded the one way every host folds them: the execution
+/// its first frame binds, the source hash its ONE start names, and the journal and receipt its
+/// settlement names. A frame naming another execution or none, or arriving after the settlement,
+/// adds nothing; two starts name no source hash. Display-owned: a host maps it to what it keeps.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct RunIdentity {
+    execution: Option<ExecutionId>,
+    starts: Vec<Option<String>>,
+    trace: Option<PathBuf>,
+    chain_head: Option<String>,
+    chain_len: Option<u64>,
+    settled: bool,
+}
+
+impl RunIdentity {
+    /// Nothing observed yet: the first frame naming an execution binds it.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The identity of `execution`, which a host bound before folding its frames.
+    #[must_use]
+    pub fn of_execution(execution: ExecutionId) -> Self {
+        Self {
+            execution: Some(execution),
+            ..Self::default()
+        }
+    }
+
+    /// A settled identity as a host kept it from an earlier observation (its start's source
+    /// hash, its journal and receipt): evidence to re-verify, never a frame.
+    #[must_use]
+    pub fn restored(
+        execution: ExecutionId,
+        workflow_sha256: Option<String>,
+        trace: Option<PathBuf>,
+        (chain_head, chain_len): (Option<String>, Option<u64>),
+    ) -> Self {
+        Self {
+            execution: Some(execution),
+            starts: vec![workflow_sha256],
+            trace,
+            chain_head,
+            chain_len,
+            settled: true,
+        }
+    }
+
+    /// The identity a journal's own lines name, each folded as the frame it is: a line that is
+    /// not a typed frame adds nothing.
+    #[must_use]
+    pub fn of_journal(raw: &str) -> Self {
+        let mut identity = Self::new();
+        for frame in raw.lines().filter_map(RunFrame::decode) {
+            identity.frame(&frame);
+        }
+        identity
+    }
+
+    /// One typed frame of the run.
+    pub fn frame(&mut self, frame: &RunFrame) {
+        match frame {
+            RunFrame::Event(event) => self.event(event),
+            RunFrame::Settled(settled) => self.settle(settled),
+        }
+    }
+
+    /// One event of the run: its start names the source hash it ran.
+    pub fn event(&mut self, event: &Event) {
+        if self.binds(event.execution) && event.kind == EventKind::WorkflowStarted {
+            (self.starts).push(event.str_field("workflow_sha256").map(str::to_owned));
+        }
+    }
+
+    /// The run's settlement: the journal and receipt it names. Nothing after it adds.
+    pub fn settle(&mut self, settled: &Settled) {
+        if self.binds(settled.execution) {
+            self.trace.clone_from(&settled.trace);
+            self.chain_head.clone_from(&settled.chain_head);
+            self.chain_len = settled.chain_len;
+            self.settled = true;
+        }
+    }
+
+    /// Whether a frame of `execution` is this run's: the first execution named binds it.
+    fn binds(&mut self, execution: Option<ExecutionId>) -> bool {
+        match (execution, self.execution) {
+            (None, _) => false,
+            _ if self.settled => false,
+            (Some(named), None) => {
+                self.execution = Some(named);
+                true
+            }
+            (Some(named), Some(bound)) => named == bound,
+        }
+    }
+
+    /// The execution the run's first frame bound.
+    #[must_use]
+    pub const fn execution(&self) -> Option<ExecutionId> {
+        self.execution
+    }
+
+    /// The source hash the run's start named, when exactly one start named one.
+    #[must_use]
+    pub fn workflow_sha256(&self) -> Option<&str> {
+        match self.starts.as_slice() {
+            [Some(hash)] => Some(hash),
+            _ => None,
+        }
+    }
+
+    /// The journal the settlement's receipt names.
+    #[must_use]
+    pub fn trace(&self) -> Option<&std::path::Path> {
+        self.trace.as_deref()
+    }
+
+    /// The journal's chain head, as the receipt names it.
+    #[must_use]
+    pub fn chain_head(&self) -> Option<&str> {
+        self.chain_head.as_deref()
+    }
+
+    /// How many events the journal's chain holds, as the receipt says.
+    #[must_use]
+    pub const fn chain_len(&self) -> Option<u64> {
+        self.chain_len
+    }
+
+    /// Whether the settlement was observed.
+    #[must_use]
+    pub const fn settled(&self) -> bool {
+        self.settled
+    }
+}
+
 /// A settlement's outputs, kept within [`OUTPUTS_KEPT`] bytes.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -968,5 +1107,103 @@ mod tests {
                 "{kind}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod identity_tests {
+    use super::*;
+
+    const EXEC: &str = "01a0ef11-0212-70de-a8b3-99de9427fccc";
+    const OTHER: &str = "01a0ef11-0212-70de-a8b3-99de94270000";
+
+    fn line(exec: &str, n: u32, kind: &str, fields: &str) -> String {
+        format!(
+            r#"{{"chain":"ab","correlation":null,"execution":{{"uuid":"{exec}"}},"fields":[{fields}],"id":{{"uuid":"01a0ef11-03a7-74fb-bba0-{n:012x}"}},"kind":"{kind}","run":null,"timestamp":{n}}}"#
+        )
+    }
+
+    fn start(exec: &str, n: u32, hash: &str) -> String {
+        let fields = format!(r#"{{"key":"workflow_sha256","value":"{hash}"}}"#);
+        line(exec, n, "workflow_started", &fields)
+    }
+
+    fn settled(exec: &str) -> RunFrame {
+        let line = format!(
+            r#"{{"kind":"run_settled","status":"succeeded","cause":"normal","execution":{{"uuid":"{exec}"}},"spend":{{"priced_calls":0,"qualifier":"unmetered","unpriced_calls":0}},"evidence":"unsealed","receipt":{{"trace_path":".nika/traces/t.ndjson","chain_head":"cd","chain_len":7}}}}"#
+        );
+        RunFrame::decode(&line).expect("a settlement")
+    }
+
+    fn id(uuid: &str) -> ExecutionId {
+        serde_json::from_value(serde_json::json!({ "uuid": uuid })).expect("an execution id")
+    }
+
+    /// The first execution binds the run: another execution's start and anything after the
+    /// settlement add nothing, and the settlement names the journal and receipt.
+    #[test]
+    fn a_run_is_its_first_execution_until_its_settlement() {
+        let mut run = RunIdentity::new();
+        for frame in [start(EXEC, 1, "aa"), start(OTHER, 2, "bb")] {
+            run.frame(&RunFrame::decode(&frame).expect("an event"));
+        }
+        run.frame(&settled(EXEC));
+        run.frame(&RunFrame::decode(&start(EXEC, 3, "cc")).expect("an event"));
+        run.frame(&settled(OTHER));
+        assert_eq!(run.execution(), Some(id(EXEC)));
+        assert_eq!(run.workflow_sha256(), Some("aa"));
+        let trace = run.trace().map(|t| t.display().to_string());
+        assert_eq!(trace.as_deref(), Some(".nika/traces/t.ndjson"));
+        assert_eq!((run.chain_head(), run.chain_len()), (Some("cd"), Some(7)));
+        assert!(run.settled());
+    }
+
+    /// Two starts of one execution name no source hash; an event naming no execution binds
+    /// nothing.
+    #[test]
+    fn two_starts_name_no_source_hash_and_an_unnamed_event_binds_nothing() {
+        let unnamed = r#"{"correlation":null,"fields":[{"key":"workflow_sha256","value":"zz"}],"id":{"uuid":"01a0ef11-03a7-74fb-bba0-000000000001"},"kind":"workflow_started","run":null,"timestamp":1}"#;
+        let mut run = RunIdentity::new();
+        run.frame(&RunFrame::decode(unnamed).expect("an event"));
+        assert_eq!((run.execution(), run.workflow_sha256()), (None, None));
+        for frame in [start(EXEC, 2, "aa"), start(EXEC, 3, "aa")] {
+            run.frame(&RunFrame::decode(&frame).expect("an event"));
+        }
+        assert_eq!(run.execution(), Some(id(EXEC)));
+        assert_eq!(run.workflow_sha256(), None);
+    }
+
+    /// A journal's own lines fold as the frames they are: its chain field is no frame of its
+    /// own, a line that is not a frame adds nothing, and no journal names a settlement.
+    #[test]
+    fn a_journal_folds_its_own_lines() {
+        let completed = line(EXEC, 2, "workflow_completed", "");
+        let raw = format!("{}\nnot a frame\n{completed}\n", start(EXEC, 1, "aa"));
+        let run = RunIdentity::of_journal(&raw);
+        assert_eq!(run.execution(), Some(id(EXEC)));
+        assert_eq!(run.workflow_sha256(), Some("aa"));
+        assert!(!run.settled());
+        assert_eq!((run.trace(), run.chain_head()), (None, None));
+        assert_eq!(RunIdentity::of_journal(""), RunIdentity::new());
+    }
+
+    /// A bound execution keeps another's frames out; a restored identity is settled and adds
+    /// nothing more.
+    #[test]
+    fn a_bound_or_restored_identity_keeps_its_execution() {
+        let mut bound = RunIdentity::of_execution(id(EXEC));
+        bound.frame(&RunFrame::decode(&start(OTHER, 1, "bb")).expect("an event"));
+        assert_eq!(bound.workflow_sha256(), None);
+        let mut kept = RunIdentity::restored(
+            id(EXEC),
+            Some("aa".to_owned()),
+            None,
+            (Some("cd".to_owned()), Some(4)),
+        );
+        kept.frame(&RunFrame::decode(&start(EXEC, 2, "bb")).expect("an event"));
+        assert_eq!(kept.workflow_sha256(), Some("aa"));
+        assert_eq!((kept.chain_head(), kept.chain_len()), (Some("cd"), Some(4)));
+        assert!(kept.settled());
     }
 }
