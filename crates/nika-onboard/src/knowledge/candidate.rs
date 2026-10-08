@@ -145,7 +145,10 @@ fn every_candidate_row_reaches_the_consumer_whole_in_its_role() {
         assert!(text.contains(&jcs_json(row)), "the whole contract of {id}");
         if let Some(file) = row["file"].as_str() {
             let body = std::str::from_utf8(&snapshot.files[file]).unwrap();
-            assert!(text.contains(body.trim_end()), "the whole body of {id}");
+            assert!(
+                text.contains(&format!("\n{body}")),
+                "the whole body of {id}"
+            );
         }
         for source in row["provenance"]["sources"].as_array().unwrap() {
             let source = source.as_str().unwrap();
