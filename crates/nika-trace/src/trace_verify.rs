@@ -65,8 +65,10 @@ mod captured;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod captured_tests;
+mod door;
 mod json;
 pub use captured::{JOURNAL_BOUND, verify_captured};
+pub use door::door_verdict;
 pub use json::VERIFY_VERSION;
 use json::{finish, ladder_doc};
 

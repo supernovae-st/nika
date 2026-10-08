@@ -1464,6 +1464,7 @@ pub type nika_trace::trace_verify::VerifyOptions::NoneType = T
 pub fn nika_trace::trace_verify::VerifyOptions::null_value() -> T
 pub const nika_trace::trace_verify::JOURNAL_BOUND: usize
 pub const nika_trace::trace_verify::VERIFY_VERSION: u32
+pub fn nika_trace::trace_verify::door_verdict(path: &std::path::Path, trace_id: &str) -> serde_json::value::Value
 pub fn nika_trace::trace_verify::verify(trace: &str) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace_verify::verify_captured(trace: &str, raw: &str, opts: &nika_trace::trace_verify::VerifyOptions) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace_verify::verify_many(traces: &[std::path::PathBuf]) -> nika_cli_host::output::VerbOutput
