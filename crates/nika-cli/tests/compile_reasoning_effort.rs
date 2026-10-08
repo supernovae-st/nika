@@ -232,33 +232,36 @@ async fn a_named_max_leaves_with_the_request_its_facts_and_its_identities() {
     }
 }
 
-/// The escalating strategy asks max of its plan call and of the sketch call after it; the plan
-/// call carries the request as written. The sketch door takes one request more than the plan's
-/// bound once counted, so one repair is granted for it to open; its refused sketch ends the
-/// door with that allowance spent.
+/// The document door's opening: the JSON object its user turn starts with.
+fn opening(body: &Value) -> Value {
+    let user = text_of(body, "user");
+    (serde_json::Deserializer::from_str(&user).into_iter::<Value>())
+        .next()
+        .expect("an opening")
+        .expect("the opening's JSON")
+}
+
+/// The escalating strategy opens the document door: it asks max of its document call and of the
+/// repair call after it, each opening with the request whole. One repair is granted; the refused
+/// document ends the door with that allowance spent.
 #[tokio::test]
 async fn every_call_of_an_escalating_round_asks_the_named_level() {
     let capture = Arc::new(Capture::default());
     let config = configured("escalate", Some("max"));
     let outcome = authored(&capture, &config, (FREE, 8192, 1)).await;
     let sent = capture.sent();
-    assert_eq!(
-        sent.len(),
-        2,
-        "the plan, then the sketch call: {outcome:#?}"
-    );
+    assert_eq!(sent.len(), 2, "the document, then its repair: {outcome:#?}");
     for (_, body) in &sent {
         assert_eq!(body["thinking"], json!({"type": "enabled"}), "{body}");
         assert_eq!(body["reasoning_effort"], "max", "{body}");
         assert_eq!(body["max_tokens"].as_u64(), Some(8192), "{body}");
+        assert_eq!(opening(body)["request"], FREE, "the request, whole: {body}");
     }
-    let plan = text_of(&sent[0].1, "user");
-    assert_eq!(plan.split_once(SCHEMA_INSTRUCTION).map(|p| p.0), Some(FREE));
     let calls: Vec<Value> = context(&outcome)
         .iter()
         .map(|call| call["call"].clone())
         .collect();
-    assert_eq!(calls, [json!("plan"), json!("sketch")]);
+    assert_eq!(calls, [json!("document"), json!("document-repair")]);
 }
 
 /// Without a level the route keeps its own bytes (the bounded low under 8192 tokens, nothing
@@ -546,11 +549,7 @@ fn without_a_level_the_cli_sends_the_request_with_the_routes_own_bytes() {
         );
         assert!(body.get("thinking").is_none(), "{body}");
     }
-    assert!(
-        text_of(&bodies[0], "user").starts_with(FREE),
-        "{}",
-        bodies[0]
-    );
+    assert_eq!(opening(&bodies[0])["request"], FREE, "{}", bodies[0]);
     let call = &doc["provenance"]["authoring"]["context"][0];
     assert_eq!(call["reasoning"]["configured"], Value::Null, "{doc}");
     assert_eq!(
