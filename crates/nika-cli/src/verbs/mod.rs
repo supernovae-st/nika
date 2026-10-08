@@ -78,8 +78,12 @@ pub(crate) fn load_checked_with_source(
 pub(crate) fn load_checked_run_source(
     source: &RunSource,
 ) -> Result<(RawWorkflow, CheckReport), VerbOutput> {
-    let wf = nika_schema::parse(source.source(), FileId::new(0), ParseMode::Strict)
-        .map_err(|error| schema_refusal(&error, source))?;
+    parse_checked(source).map_err(|error| schema_refusal(&error, source))
+}
+
+/// The same load, its refusal still typed for a `--json` lane to render whole.
+pub(crate) fn parse_checked(source: &RunSource) -> Result<(RawWorkflow, CheckReport), SchemaError> {
+    let wf = nika_schema::parse(source.source(), FileId::new(0), ParseMode::Strict)?;
     let report = check_workflow(&wf, source.logical_path());
     Ok((wf, report))
 }
@@ -99,7 +103,7 @@ pub(crate) fn check_workflow(wf: &RawWorkflow, path: &str) -> CheckReport {
 /// When the error carries a span, the same rustc-grade frame CONFORM
 /// findings already print rides under the PARSE line — the parser had
 /// the site; dropping it made PARSE look vaguer than CONFORM (#1075).
-fn schema_refusal(error: &SchemaError, source: &RunSource) -> VerbOutput {
+pub(crate) fn schema_refusal(error: &SchemaError, source: &RunSource) -> VerbOutput {
     let mut text = format!("PARSE ✗  {}", error.diagnostic());
     if let Some(span) = error.span() {
         let frame = crate::display::snippet::paint_span(
