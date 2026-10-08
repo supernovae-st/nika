@@ -224,15 +224,12 @@ pub enum Admitted {
 /// job route takes (or the fresh cost review it holds first), the decision on that review, and
 /// the wait for the job's end. Nothing else of the resident.
 pub trait Jobs: Send + Sync {
-    /// Admit the workflow `name` (relative to the project) by name, with the run's `name=value`
-    /// pairs and access pin: the job, the review it waits at, or the resident's refusal in its
-    /// own words.
-    fn admit<'a>(
-        &'a self,
-        name: &'a str,
-        vars: &'a [String],
-        access: Option<&'a str>,
-    ) -> JobFuture<'a, Result<Admitted, String>>;
+    /// Admit the Session's run by its workflow's name (relative to the project), its
+    /// `name=value` pairs and access pin unchanged: the job, the review it waits at, or the
+    /// resident's refusal in its own words. The job runs under the run's ceiling restricted by
+    /// the resident's own, never a raised one; only a review the human then approves runs at an
+    /// unknown cost.
+    fn admit<'a>(&'a self, run: &'a RunRequest) -> JobFuture<'a, Result<Admitted, String>>;
 
     /// The human's decision on `review`: approved, the job its approval admitted; declined,
     /// none, and nothing is sent.
@@ -306,12 +303,7 @@ impl Drop for JobDoor {
 impl RunDoor for JobDoor {
     fn run(&mut self, _root: &Path, run: &RunRequest, sink: &dyn RunSink) -> RunStep {
         self.release();
-        let name = run.workflow.to_string_lossy().into_owned();
-        let access = run.access_pin.as_deref();
-        match self
-            .handle
-            .block_on(self.jobs.admit(&name, &run.vars, access))
-        {
+        match self.handle.block_on(self.jobs.admit(run)) {
             Ok(Admitted::Job(job)) => self.observe(&job, sink),
             Ok(Admitted::Review {
                 review,

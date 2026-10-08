@@ -9,13 +9,10 @@ use std::sync::Mutex;
 
 use super::*;
 
-/// One admission asked: the workflow, its pairs and its pin.
-type Asked = (String, Vec<String>, Option<String>);
-
 /// A resident that answers from a script and records what it was asked and decided.
 #[derive(Default)]
 struct Scripted {
-    admitted: Mutex<Vec<Asked>>,
+    admitted: Mutex<Vec<RunRequest>>,
     decided: Mutex<Vec<(String, bool)>>,
     refuse: Option<String>,
     review: bool,
@@ -23,18 +20,13 @@ struct Scripted {
 }
 
 impl Jobs for Scripted {
-    fn admit<'a>(
-        &'a self,
-        name: &'a str,
-        vars: &'a [String],
-        access: Option<&'a str>,
-    ) -> JobFuture<'a, Result<Admitted, String>> {
+    fn admit<'a>(&'a self, run: &'a RunRequest) -> JobFuture<'a, Result<Admitted, String>> {
         Box::pin(async move {
             if let Some(why) = &self.refuse {
                 return Err(why.clone());
             }
             let mut admitted = self.admitted.lock().expect("admitted");
-            admitted.push((name.to_owned(), vars.to_vec(), access.map(str::to_owned)));
+            admitted.push(run.clone());
             let n = admitted.len();
             Ok(if self.review {
                 Admitted::Review {
@@ -124,15 +116,10 @@ fn a_run_is_one_admission_by_name_then_its_observed_end() {
     assert_eq!(exit, 4, "the resident's end, as the exit nika run gives");
     assert_eq!(trace, Some(PathBuf::from(".nika/traces/job-1.ndjson")));
     let admitted = jobs.admitted.lock().expect("admitted").clone();
-    let asked = (
-        "workflows/copy.nika".to_owned(),
-        vec!["city=Paris".to_owned()],
-        Some("api".to_owned()),
-    );
     assert_eq!(
         admitted,
-        [asked],
-        "one admission by name, inputs and pin unchanged"
+        [request()],
+        "one admission: name, inputs, pin and ceiling unchanged"
     );
     let told = told.0.lock().expect("told").clone();
     assert_eq!(
