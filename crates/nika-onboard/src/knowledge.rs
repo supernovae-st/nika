@@ -18,8 +18,9 @@
 //! the Foundry graph), not the one the Foundry producer computes, and the record says so.
 //!
 //! Admitted against a trusted identity, never trusted for its own claims. One strict admission
-//! ([`Snapshot::open`] on disk, [`Snapshot::from_files`] in memory, [`ADMISSION_PROFILE`]) serves
-//! every product door (`nika compile`, the session, serve).
+//! ([`Snapshot::open`] on disk, [`Snapshot::from_files`] in memory) serves every product door
+//! (`nika compile`, the session, serve), under the profile the identity names: r1
+//! ([`ADMISSION_PROFILE`], frozen) or r2 (every kind of the ontology in its role).
 //!
 //! The embedder names the [`TrustedIdentity`] it expects (the release's `SNAPSHOT_SHA256` and
 //! its policy), from its own release record. A source without one is refused before anything is
@@ -164,7 +165,7 @@ pub struct Snapshot {
     /// The sha256 of the manifest's bytes as admitted: the release's `SNAPSHOT_SHA256`, which
     /// content-addresses every file through the manifest's pins.
     manifest_sha256: String,
-    /// The admission that verified it ([`ADMISSION_PROFILE`]).
+    /// The admission profile that verified it ([`ADMISSION_PROFILE`], or profile r2).
     admission: &'static str,
 }
 
@@ -173,8 +174,8 @@ impl Snapshot {
     /// identity an embedder trusts. Nothing of `dir` is touched without one. Then:
     /// - every file is collected on held descriptors and read once;
     /// - every byte is bound to its pin;
-    /// - every row and relation is checked against this reader's profile
-    ///   ([`ADMISSION_PROFILE`]).
+    /// - every row and relation is checked against the identity's profile (r1,
+    ///   [`ADMISSION_PROFILE`], or r2).
     ///
     /// # Errors
     /// [`KnowledgeError::Unavailable`] with the first cause found ([`RefusalCode`]): no trusted
@@ -183,6 +184,7 @@ impl Snapshot {
     pub fn open(dir: &Path, identity: Option<&TrustedIdentity>) -> Result<Self, KnowledgeError> {
         Self::admitted(
             dir.to_path_buf(),
+            identity,
             admission::admit(dir, identity, &mut |_, _| {}),
         )
     }
@@ -201,13 +203,16 @@ impl Snapshot {
     ) -> Result<Self, KnowledgeError> {
         Self::admitted(
             PathBuf::from(label),
+            identity,
             admission::admit_memory(files, identity),
         )
     }
 
-    /// The snapshot an admission kept, or its refusal bound to the source it named.
+    /// The snapshot an admission under `identity` kept, or its refusal bound to the source it
+    /// named.
     fn admitted(
         dir: PathBuf,
+        identity: Option<&TrustedIdentity>,
         admitted: Result<admission::Admitted, admission::Refusal>,
     ) -> Result<Self, KnowledgeError> {
         let admitted = admitted.map_err(|admission::Refusal(_step, code, detail)| {
@@ -226,7 +231,7 @@ impl Snapshot {
             files: admitted.files,
             row_files: admitted.row_files,
             manifest_sha256: admitted.manifest_sha256,
-            admission: ADMISSION_PROFILE,
+            admission: identity.map_or(ADMISSION_PROFILE, TrustedIdentity::profile),
         })
     }
 
@@ -295,22 +300,20 @@ impl Snapshot {
         self.rows.get(kind).map_or(&[], Vec::as_slice)
     }
 
+    /// The row `id` names, found by its prefix's kind (the ontology's prefixes, shared by r1 and
+    /// r2: `block`, `src`, `facet`…).
     fn row(&self, id: &str) -> Option<&Value> {
-        let kind = id.split(':').next()?;
-        let file = match kind {
-            "family" => "families",
-            "pack" => "pattern_packs",
-            "pattern" => "patterns",
-            "block" => "blocks",
-            "example" => "examples",
-            "skill" => "skills",
-            "repair" => "repair_principles",
-            "diagnostic" => "diagnostics",
-            other => other,
-        };
-        self.rows(file)
+        let kinds = nika_compile_seats::foundry::release::r2::profile().ok()?;
+        let stem = kinds.kind_of_id(id)?.stem();
+        self.rows(stem)
             .iter()
             .find(|r| r.get("id").and_then(Value::as_str) == Some(id))
+    }
+
+    /// The admission profile that verified this release.
+    #[must_use]
+    pub const fn profile(&self) -> &'static str {
+        self.admission
     }
 
     /// The targets of `from --rel--> to` edges leaving `from`.

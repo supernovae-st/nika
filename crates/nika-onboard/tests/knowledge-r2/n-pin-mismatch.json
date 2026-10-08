@@ -1,0 +1,28 @@
+{
+ "base": "p01-base",
+ "expected": {
+  "policy": {
+   "id": "policy-vectors-r2",
+   "sha256": "631bac7695ec45366bebef3208dbfdca1d18f03a1986430a62376c51a2db63c8"
+  },
+  "profile": "nika-knowledge-release-profile/r2",
+  "snapshot_sha256": "86931940797490090efc2290c610b48ad50db2341f4ef0bafc6ee5563b6efc4b"
+ },
+ "fault": "a body byte changed after pinning",
+ "files": {
+  "blocks/total.nika": {
+   "text": "nika: total\nmodel: mock/echo\nconst:\n  path: \"./data.csv\"\npermits:\n  fs: { read: [\"./data.csv\"] }\n  tools: [\"nika:read\"]\ntasks:\n  load:\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"${{ const.path }}\" }\n# changed\n"
+  }
+ },
+ "forms": [
+  "memory",
+  "disk"
+ ],
+ "name": "n-pin-mismatch",
+ "removed": [],
+ "requirement": "\u00a7r2 E3",
+ "verdict": {
+  "admit": false,
+  "code": "PIN_MISMATCH"
+ }
+}

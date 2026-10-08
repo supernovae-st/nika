@@ -169,7 +169,7 @@ impl KnowledgePin {
             "digest_is": "declared by the manifest, not recomputed",
             "manifest_sha256": self.manifest_sha256,
             "snapshot_sha256": self.manifest_sha256,
-            "admission": ADMISSION_PROFILE,
+            "admission": self.identity.as_ref().map_or(ADMISSION_PROFILE, TrustedIdentity::profile),
             "policy": self.identity.as_ref().map(|identity| json!({
                 "id": identity.policy_id(),
                 "sha256": identity.policy_sha256(),
