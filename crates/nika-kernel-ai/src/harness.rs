@@ -383,6 +383,15 @@ pub enum HarnessError {
         /// The harness's own refusal.
         reason: String,
     },
+    /// Nika's own judgment of the route's offer against an explicit
+    /// selection — a model or effort the session does not offer, or a
+    /// read-back that does not confirm it — before any prompt. The words
+    /// are Nika's, never the adapter's text, so any surface may show them.
+    #[error("harness refused: {reason}")]
+    Selection {
+        /// The refusal, naming the option, the value and the offer.
+        reason: String,
+    },
 }
 
 impl HarnessError {
