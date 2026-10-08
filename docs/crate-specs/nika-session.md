@@ -185,8 +185,12 @@ decides nothing. The reach it shows for the requested run and the saved workflow
 check that cleared the run request or landed the consent, kept beside them when they happen. Its
 `authoring` is the last compile outcome the session keeps, read as the compiler wrote it, so a
 failed or unfinished creation stays explainable after its card. The CLI plain loop and the
-terminal renderer route through these since 2026-10-08; the Run cost review the renderer holds
-is still outside the session.
+terminal renderer route through these since 2026-10-08. A requested run's cost review is part
+of them: the host announces the child's challenge (`run_review_asked`), `waiting` names it first
+(`Waiting::RunReview`, its identity only), and `submit` reads the line with the one spending
+grammar: one shown yes returns `RunReviewed { approve: true }` and the host answers its child
+once; a decline, leaving or `decline_run_review` (an interruption) sends nothing; the evidence,
+`/help` and `/status` answer beside it. The host keeps only the live child and its pipe.
 
 ## Exact schedule activation
 

@@ -64,7 +64,8 @@ Two typed readings joined these modules on 2026-10-08, so every host reads the s
   destinations, so a run does not turn it into an observation.
 - `work` — the work a session holds, typed once for every host (contract
   `nika/session-work@0`, serializable): `Waiting` names what the next line answers with the
-  identity an answer names (a proposal, a gate); `Work` is one snapshot of the request, the
+  identity an answer names (a proposal, a gate, a run's cost review by its `ReviewId`, never its
+  screen or evidence); `Work` is one snapshot of the request, the
   candidate's files with their witnesses, audits and reach, the saved workflow, the last observed
   run (`current` only for the run of the workflow saved last in this session) and the rail.
   Since the same day it also names the run requested last (`RequestedRun`: the workflow, the

@@ -24,6 +24,10 @@ pub const GATE_NOT_SHOWN: &str = "a run is waiting at a gate this line was not t
 /// fills nothing and what is asked keeps waiting.
 pub const VALUE_NOT_SHOWN: &str = "this line was not typed for the value asked now · nothing was filled · the question is shown again after this line";
 
+/// Said when a line arrives while a run's cost review waits that the host did not show: the
+/// line was typed for something else, so it decides nothing there and the review keeps waiting.
+pub const REVIEW_NOT_SHOWN: &str = "a run's cost review is waiting that this line was not typed for · nothing was sent · the review is shown again after this line";
+
 /// A line that leaves or declines: it applies nothing, whether a proposal was shown or not.
 fn declines(line: &str) -> bool {
     matches!(line.trim(), "/quit" | "/exit")
@@ -37,12 +41,15 @@ fn beside_any_answer(line: &str) -> bool {
 }
 
 impl SessionRuntime {
-    /// What the next line answers, by the one precedence every host shares: the one-time
-    /// cost decision, the choice of intelligence, a proposal's consent, a run's gate, then the
-    /// value an authoring question, a run input or an activation asks; else a new turn.
+    /// What the next line answers, by the one precedence every host shares: a requested run's
+    /// cost review, the one-time cost decision, the choice of intelligence, a proposal's consent,
+    /// a run's gate, then the value an authoring question, a run input or an activation asks;
+    /// else a new turn.
     #[must_use]
     pub fn waiting(&self) -> Waiting {
-        if self.waiting_cost_choice() {
+        if let Some(review) = self.waiting_review() {
+            Waiting::RunReview { review }
+        } else if self.waiting_cost_choice() {
             Waiting::CostChoice
         } else if self.pending_choice {
             Waiting::IntelligenceChoice
@@ -81,11 +88,22 @@ impl SessionRuntime {
     /// did not show takes no answer from the line. An authoring question takes the line only
     /// under the identity it was shown with ([`Self::answer_question_for`]): an answer typed
     /// before a restore, a revision or another question is refused as stale. A run input or an
-    /// activation value takes the line only when the host showed that very value. Leaving and
-    /// the session's read-only commands go through whatever waits; what waits keeps waiting
-    /// after a refusal. With nothing waiting, the line is a new turn.
+    /// activation value takes the line only when the host showed that very value. A run's cost
+    /// review takes the line only under the identity it was shown with: one yes runs the child
+    /// once, a decline sends nothing ([`Self::run_review_asked`]). Leaving and the session's
+    /// read-only commands go through whatever waits; what waits keeps waiting after a refusal.
+    /// With nothing waiting, the line is a new turn.
     pub fn submit(&mut self, line: &str, shown: &Waiting) -> TurnOutcome {
         match self.waiting() {
+            Waiting::RunReview { review } => match shown {
+                Waiting::RunReview { review: seen } => self.answer_run_review(seen, line),
+                // Leaving and the read-only commands go through: none of them can approve.
+                _ if beside_any_answer(line) => self.answer_run_review(&review, line),
+                _ => TurnOutcome::Refusal(Refusal::new(
+                    RefusalClass::StaleRevision,
+                    REVIEW_NOT_SHOWN,
+                )),
+            },
             Waiting::IntelligenceChoice => self.choose(line.trim()),
             Waiting::Consent { .. } => match shown {
                 Waiting::Consent { proposal } => self.consent_to(proposal, line.trim()),

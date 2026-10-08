@@ -47,6 +47,7 @@ pub type RunReviewed = Box<dyn Fn(&Path, &RunRequest, &Sender<String>) -> RunPro
 /// (`run_story::RunSink`).
 pub type RunReviewedObserved = Box<dyn Fn(&Path, &RunRequest, &dyn RunSink) -> RunProgress + Send>;
 use nika_session::intelligence::{IntelligenceCensus, UserIntelligencePreference};
+use nika_session::outcome::ReviewId;
 use nika_session::runtime::{ReasonerFactory, SessionRuntime, TurnOutcome};
 use nika_session::work;
 
@@ -149,9 +150,9 @@ pub struct Live {
     run_review: Option<RunReviewed>,
     run_review_observed: Option<RunReviewedObserved>,
     run_tapped_observed: Option<RunTappedObserved>,
-    /// The child waiting at its cost question, and whether its runner tells
-    /// the frames (its answer is told the same way).
-    pending_run: Option<(Box<PendingRun>, bool)>,
+    /// The child waiting at its cost review, under the review's identity the Session holds, and
+    /// whether its runner tells the frames (its answer is told the same way).
+    pending_run: Option<(ReviewId, Box<PendingRun>, bool)>,
     pending: Option<(u64, Work)>,
     next_id: u64,
     busy: BusySlot,
@@ -383,18 +384,15 @@ impl Live {
         Beat::Wait(self.waiting())
     }
 
-    /// What the runtime waits for: the Session's one precedence (the plain loop reads the same),
-    /// after the Run cost review this host still holds.
+    /// What the runtime waits for: the Session's one precedence (the plain loop reads the same).
     fn waiting(&self) -> Waiting {
-        if self.pending_run.is_some() {
-            return Waiting::Question {
-                key: "run_cost".into(),
-            };
-        }
         let Some(runtime) = self.runtime.as_ref() else {
             return Waiting::Free;
         };
         match runtime.waiting() {
+            work::Waiting::RunReview { .. } => Waiting::Question {
+                key: "run_cost".into(),
+            },
             work::Waiting::CostChoice => Waiting::Question {
                 key: "unknown_cost".into(),
             },
@@ -415,7 +413,23 @@ impl Live {
         let mut handoff = None;
         let reply = footer::reply_label(&outcome);
         match outcome {
-            TurnOutcome::Quit => return (vec![Beat::Quit], None),
+            TurnOutcome::Quit => {
+                // Leaving at a cost review: the held child is dropped, nothing is sent.
+                let mut beats = match self.pending_run.take() {
+                    Some(_) => self.declined_run("Run cost decision cancelled; nothing sent."),
+                    None => Vec::new(),
+                };
+                beats.push(Beat::Quit);
+                return (beats, None);
+            }
+            TurnOutcome::RunReviewed { review, approve } => {
+                return (self.reviewed(&review, approve), None);
+            }
+            // Beside a cost review that still waits, the Session's aside (the evidence, or why the
+            // line answered nothing) is shown as the review's own question.
+            TurnOutcome::Aside(text) if self.pending_run.is_some() => {
+                beats.push(Beat::Say(Committed::new(Kind::Question, text)));
+            }
             TurnOutcome::Reply(text)
             | TurnOutcome::Facts(text)
             | TurnOutcome::Help(text)
@@ -543,7 +557,13 @@ impl Live {
             RunProgress::Complete(result) => self.run_result(result),
             RunProgress::Review(pending) => {
                 let question = pending.question();
-                self.pending_run = Some((pending, typed));
+                // The Session holds the review; this host holds only the child (dropped, it
+                // sends nothing).
+                let Some(runtime) = self.runtime.as_mut() else {
+                    return Vec::new();
+                };
+                let review = runtime.run_review_asked(&question, &pending.details());
+                self.pending_run = Some((review, pending, typed));
                 vec![
                     Beat::Say(Committed::new(Kind::Question, question)),
                     self.wait(),
@@ -720,9 +740,6 @@ fn footer_beats(
         Beat::Status(status),
     ]
 }
-
-/// The Run review, still waiting after a local command or an unknown line.
-const RUN_STILL_WAITS: &str = "the fresh Run cost decision still waits · `yes`/`oui` runs it once · `no`/`non` cancels · `details` shows the evidence";
 
 /// The Session's one-time unknown-cost question, told apart from Save and
 /// Run and closing on the three choices; the Session's sentences stay whole.
@@ -994,86 +1011,33 @@ impl Live {
             .and_then(|runtime| candidate::take(runtime, self.candidate.as_ref()));
     }
 
-    /// A line under the retained Run review. The review's own answer grammar
-    /// is the Session's (EN/FR); a local command answers from the session's
-    /// facts; an unknown line is asked again. Only an approval answers the
-    /// child, once.
-    fn answer_run_review(
-        &mut self,
-        (pending, typed): (Box<PendingRun>, bool),
-        line: &str,
-    ) -> Vec<Beat> {
-        use nika_session::runtime::{DecisionAnswer, decision_answer};
-        let trimmed = line.trim();
-        if matches!(trimmed, "/help" | "/status") {
-            let facts = match (trimmed, self.runtime.as_ref()) {
-                ("/help", Some(runtime)) => runtime.help_card(),
-                ("/help", None) => nika_session::runtime::HELP.to_owned(),
-                (_, Some(runtime)) => runtime.status(),
-                (_, None) => String::new(),
-            };
-            self.pending_run = Some((pending, typed));
-            return vec![
-                Beat::Say(Committed::new(Kind::Notice, facts)),
-                Beat::Say(Committed::new(Kind::Question, RUN_STILL_WAITS)),
-                self.wait(),
-            ];
+    /// The Session decided the cost review this host shows: one yes answers the held child
+    /// once; anything else drops it, and nothing is sent.
+    fn reviewed(&mut self, review: &ReviewId, approve: bool) -> Vec<Beat> {
+        let Some((held, pending, typed)) = self.pending_run.take() else {
+            return vec![self.wait()];
+        };
+        if held != *review {
+            self.pending_run = Some((held, pending, typed));
+            return vec![self.wait()];
         }
-        if trimmed == "/quit" {
+        if !approve {
             drop(pending);
-            let mut beats = self.declined_run("Run cost decision cancelled; nothing sent.");
-            beats.push(Beat::Quit);
-            return beats;
+            return self.declined_run(
+                "Run cost decision cancelled; nothing sent. Request Run again for a fresh review.",
+            );
         }
-        match decision_answer(trimmed) {
-            DecisionAnswer::Details => {
-                let details = pending.details();
-                self.pending_run = Some((pending, typed));
-                vec![
-                    Beat::Say(Committed::new(Kind::Question, details)),
-                    self.wait(),
-                ]
-            }
-            DecisionAnswer::Approve => {
-                let feed = self.feed();
-                let result = if typed {
-                    (*pending).answer_observed(true, &feed)
-                } else {
-                    (*pending).answer(true, feed.busy())
-                };
-                self.run_result(result)
-            }
-            DecisionAnswer::Decline => {
-                drop(pending);
-                self.declined_run(
-                    "Run cost decision cancelled; nothing sent. Request Run again for a fresh review.",
-                )
-            }
-            // Unknown, and any answer this door does not know yet
-            // (the grammar is non-exhaustive): asked again, never a yes.
-            _ => {
-                self.pending_run = Some((pending, typed));
-                vec![
-                    Beat::Say(Committed::new(
-                        Kind::Question,
-                        format!(
-                            "« {trimmed} » is not a yes or a no · nothing was sent\n{RUN_STILL_WAITS}"
-                        ),
-                    )),
-                    self.wait(),
-                ]
-            }
-        }
+        let feed = self.feed();
+        let result = if typed {
+            (*pending).answer_observed(true, &feed)
+        } else {
+            (*pending).answer(true, feed.busy())
+        };
+        self.run_result(result)
     }
 
     /// One submitted line to the state that waits for it.
     fn answer(&mut self, line: &str) -> Turn {
-        if let Some(pending) = self.pending_run.take() {
-            return Turn {
-                beats: self.answer_run_review(pending, line),
-                handoff: None,
-            };
-        }
         if let Some(beats) = self.cost_details(line) {
             return Turn {
                 beats,
@@ -1110,8 +1074,9 @@ impl Live {
 
     /// An interruption: a fresh spending question it cancels, nothing else.
     fn cancelled(&mut self) -> Vec<Beat> {
-        if self.pending_run.take().is_some() {
-            return self.declined_run("Run cost decision cancelled; nothing sent");
+        if let Some(declined) = (self.runtime.as_mut()).and_then(SessionRuntime::decline_run_review)
+        {
+            return self.map(declined).0;
         }
         let Some(runtime) = self.runtime.as_mut() else {
             return Vec::new();
