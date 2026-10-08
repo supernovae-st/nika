@@ -12,6 +12,7 @@
 
 mod common;
 
+use std::io::Write as _;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -121,14 +122,22 @@ fn scenario(name: &str, expected_calls: usize) {
         ))
         .spawn()
         .expect("child");
-    let deadline = Instant::now() + Duration::from_secs(60);
+    let started = Instant::now();
+    let deadline = started + Duration::from_secs(60);
     let status = loop {
         if let Some(status) = child.try_wait().expect("wait") {
             break status;
         }
         if Instant::now() > deadline {
             let _ = child.kill();
-            panic!("bounded child timed out");
+            let _ = child.wait();
+            seat.shutdown();
+            panic!(
+                "bounded child timed out after {} ms with {} HTTP attempts; its phases:\n{}",
+                started.elapsed().as_millis(),
+                seat.bodies().len(),
+                std::fs::read_to_string(&log).unwrap_or_default()
+            );
         }
         std::thread::sleep(Duration::from_millis(20));
     };
@@ -157,12 +166,20 @@ fn unbounded_confirm_question_reaches_the_actual_provider_factory() {
     scenario("control", 1);
 }
 
+/// One unbuffered line per phase of the child: its case, the phase and the elapsed time only.
+fn mark(started: Instant, case: &str, phase: &str) {
+    let elapsed = started.elapsed().as_millis();
+    let _ = writeln!(std::io::stderr(), "phase {case} {phase} {elapsed} ms");
+}
+
 #[test]
 #[ignore = "bounded child invoked by loopback parents"]
 fn child() {
+    let started = Instant::now();
     let root = std::env::var("MONETARY_ROOT").expect("root");
     let root = Path::new(&root);
     gate_fixture(root);
+    mark(started, "fixture", "ready");
     if std::env::var("MONETARY_SCENARIO").expect("scenario") == "control" {
         let mut session = provider(root);
         assert!(session.restore_state().is_some());
@@ -174,7 +191,7 @@ fn child() {
         assert_eq!(session.waiting_gate(), Some(gate));
         return;
     }
-    for (clause, amount) in [
+    for (index, (clause, amount)) in [
         ("budget=0", Some(0.0)),
         ("budget:0", Some(0.0)),
         ("0USD", Some(0.0)),
@@ -185,14 +202,24 @@ fn child() {
         ("budget=2", Some(2.0)),
         ("budget:0,50", Some(0.5)),
         ("2USD", Some(2.0)),
-    ] {
-        for verb in [
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        for (variant, verb) in [
             "What can you tell me about stars,",
             "Prépare la copie de entree.txt dans sortie.txt,",
-        ] {
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let case = format!("{index}/turn{variant}");
+            mark(started, &case, "open");
             let mut session = provider(root);
+            mark(started, &case, "opened");
             let input = format!("{verb} {clause}?");
             let out = session.turn(&input);
+            mark(started, &case, "turned");
             // A6 permits the deterministic copy to reach review under a valid ceiling;
             // cognition, save and execution are still unauthorized by this turn.
             let deterministic = verb.starts_with("Prépare") && amount.is_some();
@@ -207,11 +234,17 @@ fn child() {
             assert_eq!(session.pending_proposal().is_some(), deterministic);
             assert!(session.pending_question().is_none());
         }
-        for (addressed, start_with_zero) in
+        for (variant, (addressed, start_with_zero)) in
             [(false, false), (true, false), (false, true), (true, true)]
+                .into_iter()
+                .enumerate()
         {
+            let case = format!("{index}/gate{variant}");
+            mark(started, &case, "open");
             let mut session = provider(root);
+            mark(started, &case, "opened");
             assert!(session.restore_state().is_some());
+            mark(started, &case, "restored");
             let gate = session.waiting_gate().expect("restored gate");
             if start_with_zero {
                 assert!(matches!(
@@ -236,6 +269,7 @@ fn child() {
                 session.answer_gate("what does this permit?")
             };
             assert!(matches!(followup, TurnOutcome::Refusal(_)), "{followup:?}");
+            mark(started, &case, "answered");
             assert_eq!(session.waiting_gate().as_ref(), Some(&gate));
             assert_eq!(session.monetary_decision(), Some(&money));
         }
