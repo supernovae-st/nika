@@ -6,22 +6,33 @@ message. The project list, conversation and object are views of the same Session
 
 ## Arrange the same work
 
-The header names the current layout. `F4` switches between **Session** and
-**Workbench** without sending the draft or changing the selected object, its
-face, the Session or a Run.
+Use the selected object's **Expand** control, or `F4`, to give it more room.
+**Restore** returns to the chosen proportions. Both actions keep the draft,
+selected object, face, conversation reading position and Run; they send and authorize
+nothing. When the object changes between compact graph rows and cards, its
+reading restarts at the top so the new format begins with whole tasks.
 
-Session places the conversation beside the object from 100 columns; the project
+The workspace places the conversation beside the object from 100 columns; the project
 list appears on the left from 120 columns. At narrower sizes the conversation
-sits below the object and the project list remains reachable with `F6`.
-Workbench gives the object more space above a compact conversation and its
-composer. Below 60 columns or 16 rows, the focus view keeps the conversation
-usable until the workspace fits again.
+sits below the object. When the project is folded, the header names Project,
+Conversation and Object; choose a name to move keyboard focus, or use `F6`.
+Expanding the object keeps the conversation beside it from 100 columns and
+gives the object more height at narrower sizes. Its local control stays clear
+of the object's title and face tabs, uses a shorter form when needed, and
+yields when no form fits. Expand is offered only when it can give the object
+more room; Restore remains available after expansion. The command palette
+offers the same action and availability. Below 60 columns or 16 rows, the focus
+view keeps the conversation usable until the workspace fits again; pane access
+and object expansion return with that space.
 
 Drag a visible separator to change its proportions. With the project list or
 object focused, `+` grows that region, `-` shrinks it and `0` restores its
 automatic proportion. These characters remain ordinary text in the composer.
 Resizing applies the chosen proportions within bounds; it does not overwrite
-them.
+them. On a wide expanded view, dragging the conversation separator toward the
+object restores the regular arrangement at the width you choose. Shrinking
+the object with `-` does the same. Restore otherwise returns to the proportions
+you had before expanding.
 
 The live host keeps settled layout changes in `$HOME/.nika/tui-layout.json`.
 An unsupported or malformed preference file is preserved and a local notice
@@ -40,6 +51,8 @@ that panel. When the workspace fits, choosing conversation navigation focuses
 the conversation instead. Choosing a command returns focus to the composer.
 Clicking another panel closes the palette and keeps the clicked panel's focus with the draft
 restored.
+The full diagnostic owns its whole screen: clicks cannot activate the workspace
+behind it. Closing the diagnostic returns to the same draft and view.
 View actions in the palette change the display directly and grant no Session
 authority.
 
@@ -62,9 +75,21 @@ Choosing intelligence does not rewrite a previously observed Run.
 
 ## Keep the conversation in reach
 
+Ordinary messages share a continuous surface, identified by their speaker.
+Questions, approval requests and failures keep a distinct boundary so the next
+decision remains visible. Scrolling preserves the complete text in either form.
+On a tall, side-by-side workspace, the composer has a quiet frame and a
+`Your message` or `Your answer` caption. It grows with the draft; short and
+stacked panels keep the compact input. The selected preparation intelligence
+has one home in the workspace header. `/status` gives its full name and the
+project's location and configuration facts when the header is too narrow.
+The input cursor appears only while the composer holds the keys; the draft
+and its insertion position stay when focus moves to another panel.
+
 | Gesture | Effect |
 |---|---|
 | `F6` / `Shift+F6` | Move keyboard focus between panels |
+| `F4`, or the object's Expand / Restore control | Expand the selected object or restore the chosen proportions |
 | `Esc` from the project or object | Return to the composer |
 | `Enter` in the project list | Open the selected entry for inspection |
 | `Left` / `Right` in the object | Change the object's face |
@@ -91,6 +116,12 @@ returns. A reported child can be inspected from that detail without starting it.
 
 Source, Plan, Graph and Check inspect the same observed candidate. A static
 Check is not proof that a Run will succeed or that its business result is right.
+Graph leads with the task cards and a compact definition summary. Its structural
+verdict is scoped to the inspected file; the read identity remains visible.
+A short object uses complete dependency rows for plain value dependencies;
+typed conditions, shortened labels and drawing limits retain the detailed
+rendering. More above/below indicates reachable content in the same object.
+Source and Check retain the detailed capture and audit facts.
 Run, Outputs, Files and Proof describe the selected execution, including a kept
 earlier result; they do not substitute today's workflow for its source witness.
 

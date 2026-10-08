@@ -2,12 +2,15 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The conversation panel's own rows: who the next message goes to and with
-//! what. The title names the thread and its project, the one home of the
-//! recipient; the empty composer invites the work and names the door to the
-//! commands ([`invitation`]); the context row keeps apart what is only on
-//! screen (consulted, never sent) and what is attached to the next message
-//! (joined explicitly). Opening an object changes what is on screen, never
-//! the thread, and never attaches it.
+//! what. The title names the thread by its own name: the header is the one
+//! home of the project, so the title does not repeat it, and the composer's
+//! placeholder ([`placeholder`]) names the full recipient. The empty composer
+//! invites the work and names the door to the commands ([`invitation`]). The
+//! context row says what is attached to the next message (joined
+//! explicitly), then apart and quieter what is only on screen (consulted,
+//! never sent); with nothing attached it stays silent, the object's own title
+//! naming what is on screen. Opening an object changes what is on screen,
+//! never the thread, and never attaches it.
 
 use nika_display::theme::Role;
 use ratatui::text::{Line, Span};
@@ -75,9 +78,9 @@ impl Thread {
 #[must_use]
 pub fn invitation(ascii: bool) -> &'static str {
     if ascii {
-        "Describe the outcome - / for commands"
+        "Ask, change, or run... / commands"
     } else {
-        "Describe the outcome · / for commands"
+        "Ask, change, or run… / commands"
     }
 }
 
@@ -92,34 +95,26 @@ pub fn placeholder(thread: &Thread) -> String {
     }
 }
 
-/// The title row, `width` cells: the thread, then its project. A narrow row
-/// cuts the thread's name before the project. As a `rule` (the panel under the
+/// The title row, `width` cells: the conversation's glyph, then the thread's
+/// own name, cut at its end on a narrow row. As a `rule` (the panel under the
 /// object on a narrow terminal) the row is drawn across as a separator.
 #[must_use]
 pub fn title(thread: &Thread, width: u16, ascii: bool, color: bool, rule: bool) -> Line<'static> {
     let width = usize::from(width);
-    let (sep, cut) = marks(ascii);
-    let dim = role::style(Role::Dim, color);
+    let (_, cut) = marks(ascii);
     let line = if ascii { "-" } else { "─" };
     let lead = if rule {
         format!("{line}{line} ")
     } else {
         String::new()
     };
-    let head = format!("{lead}{} ", Icon::Conversation.glyph(ascii));
-    let project = if thread.project.is_empty() {
-        String::new()
-    } else {
-        format!("{sep}{}", thread.project)
-    };
-    let room = width.saturating_sub(head.width() + project.width());
-    let name = fit_head(&thread.name, room, cut);
-    let project = fit_head(
-        &project,
-        width.saturating_sub(head.width() + name.width()),
-        cut,
+    let head = fit_head(
+        &format!("{lead}{} ", Icon::Conversation.glyph(ascii)),
+        width,
+        "",
     );
-    let used = head.width() + name.width() + project.width();
+    let name = fit_head(&thread.name, width - head.width(), cut);
+    let used = head.width() + name.width();
     let tail = if rule && used < width {
         format!(" {}", line.repeat(width - used - 1))
     } else {
@@ -127,53 +122,81 @@ pub fn title(thread: &Thread, width: u16, ascii: bool, color: bool, rule: bool) 
     };
     Line::from(vec![
         Span::styled(head, role::style(Role::Accent, color)),
-        Span::styled(
-            name,
-            role::style(Role::Accent, color).patch(role::style(Role::Strong, color)),
-        ),
-        Span::styled(project, dim),
-        Span::styled(tail, dim),
+        Span::styled(name, role::style(Role::Strong, color)),
+        Span::styled(tail, role::style(Role::Dim, color)),
     ])
 }
 
-/// The narrowest on-screen part worth keeping: its label and a few characters.
+/// The word the context row puts before what is attached.
+const ATTACHED: &str = "Attached: ";
+
+/// The narrowest viewed part worth keeping after what is attached: the
+/// separator, its word and a few characters of the object.
 const MIN_SEEN: usize = 16;
 
-/// The context row, `width` cells: what is on screen, then what is attached,
-/// or that nothing is. What the next message carries keeps priority: on a
-/// narrow panel the on-screen part is cut first, then dropped.
+/// The narrowest cut reference worth keeping, its cut mark included.
+const MIN_REFERENCE: usize = 4;
+
+/// The context row, `width` cells: what the next message carries, strong,
+/// then apart and quieter the object in view, never counted as attached.
+/// With nothing attached the row is empty. What is attached keeps priority:
+/// on a narrow panel the viewed part is cut first, then dropped, then whole
+/// references give way to how many more there are.
 #[must_use]
 pub fn context(thread: &Thread, width: u16, ascii: bool, color: bool) -> Line<'static> {
+    if thread.attached.is_empty() {
+        return Line::default();
+    }
     let width = usize::from(width);
     let (sep, cut) = marks(ascii);
-    let sent = if thread.attached.is_empty() {
-        "nothing attached".to_owned()
-    } else {
-        format!("with {}", thread.attached.join(", "))
-    };
-    let text = match &thread.on_screen {
-        Some(object) => {
-            let seen = format!("on screen: {object}");
-            let room = width.saturating_sub(sep.width() + sent.width());
-            if seen.width() <= room {
-                format!("{seen}{sep}{sent}")
-            } else if room >= MIN_SEEN {
-                format!("{}{sep}{sent}", fit_head(&seen, room, cut))
-            } else {
-                sent
-            }
+    let (sent, whole) = attached(&thread.attached, width, cut);
+    let room = width.saturating_sub(sent.width());
+    let seen = thread
+        .on_screen
+        .as_ref()
+        .filter(|object| whole && !thread.attached.contains(object))
+        .map(|object| format!("{sep}viewing {object}"))
+        .filter(|seen| seen.width() <= room || room >= MIN_SEEN);
+    let dim = role::style(Role::Dim, color);
+    let mut spans = vec![Span::styled(sent, role::style(Role::Strong, color))];
+    spans.extend(seen.map(|seen| Span::styled(fit_head(&seen, room, cut), dim)));
+    Line::from(spans)
+}
+
+/// The references the next message carries, in at most `width` cells, and
+/// whether every one is shown whole: as many whole as fit and how many more,
+/// else the first one cut and how many more, else their count alone.
+fn attached(references: &[String], width: usize, cut: &str) -> (String, bool) {
+    let count = references.len();
+    let more = |shown: usize| {
+        if shown < count {
+            format!(" +{}", count - shown)
+        } else {
+            String::new()
         }
-        None => sent,
     };
-    Line::from(Span::styled(
-        fit_head(&text, width, cut),
-        role::style(Role::Dim, color),
-    ))
+    for shown in (1..=count).rev() {
+        let listed = references[..shown].join(", ");
+        let words = format!("{ATTACHED}{listed}{}", more(shown));
+        if words.width() <= width {
+            return (words, shown == count);
+        }
+    }
+    let room = width.saturating_sub(ATTACHED.width() + more(1).width());
+    match references.first() {
+        Some(first) if room >= MIN_REFERENCE => (
+            format!("{ATTACHED}{}{}", fit_head(first, room, cut), more(1)),
+            false,
+        ),
+        _ => (fit_head(&format!("{count} attached"), width, cut), false),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::workspace::aside::{self, Aside, Entry, Tab};
+    use crate::workspace::header::{self, Place};
 
     fn text(line: &Line<'_>) -> String {
         line.spans.iter().map(|s| s.content.as_ref()).collect()
@@ -183,19 +206,81 @@ mod tests {
         Thread::new("studio", "release checklist").viewing("release.nika")
     }
 
+    /// The title names the thread alone, the header being the project's one
+    /// home; the placeholder still names the full recipient, and no width
+    /// spills the title or brings the project back into it.
     #[test]
-    fn the_panel_names_the_thread_its_project_and_the_full_recipient() {
+    fn the_title_names_the_thread_alone_and_the_placeholder_the_recipient() {
         assert_eq!(
             text(&title(&release(), 60, false, false, false)),
-            "◌ release checklist · studio"
+            "◌ release checklist"
         );
         assert_eq!(
             placeholder(&release()),
             "Message to studio / release checklist"
         );
-        let narrow = text(&title(&release(), 20, false, false, false));
-        assert_eq!(narrow, "◌ release … · studio");
-        assert!(narrow.width() <= 20);
+        assert_eq!(
+            text(&title(&release(), 12, false, false, false)),
+            "◌ release c…"
+        );
+        for width in 0..=60 {
+            for (ascii, rule) in [(false, false), (false, true), (true, false), (true, true)] {
+                let row = text(&title(&release(), width, ascii, false, rule));
+                assert!(row.width() <= usize::from(width), "{width}: {row}");
+                assert!(!row.contains("studio"), "{row}");
+            }
+        }
+    }
+
+    /// The thread's name is the panel's strong word; its glyph keeps the
+    /// accent, with and without colour.
+    #[test]
+    fn the_thread_name_is_strong_and_its_glyph_accented() {
+        for color in [false, true] {
+            let row = title(&release(), 40, false, color, false);
+            let name = row
+                .spans
+                .iter()
+                .find(|span| span.content == "release checklist")
+                .map(|span| span.style);
+            assert_eq!(name, Some(role::style(Role::Strong, color)));
+            assert_eq!(
+                row.spans.first().map(|span| span.style),
+                Some(role::style(Role::Accent, color))
+            );
+        }
+    }
+
+    /// One home per fact: the header names the project; neither the aside's
+    /// first rows nor the conversation's title repeat it.
+    #[test]
+    fn the_project_has_one_home_among_the_primary_rows() {
+        let place = Place::on("local")
+            .with_project("studio", "~/Projects/studio")
+            .observed(true, true);
+        let listing = Aside::new(
+            "studio",
+            Tab::Nika,
+            vec![Entry::new(Icon::Conversation, "release checklist")],
+            true,
+        );
+        let thread = Thread::new("studio", "release checklist");
+        for ascii in [false, true] {
+            let head = header::lines(&place, 80, 1, ascii, false)
+                .first()
+                .map(text)
+                .unwrap_or_default();
+            assert!(head.contains("studio"), "{head}");
+            let top: Vec<String> = aside::lines(&listing, 24, 10, ascii, false)
+                .iter()
+                .take(2)
+                .map(text)
+                .collect();
+            assert!(top.iter().all(|row| !row.contains("studio")), "{top:?}");
+            let heading = text(&title(&thread, 40, ascii, false, false));
+            assert!(heading.contains("release checklist"), "{heading}");
+            assert!(!heading.contains("studio"), "{heading}");
+        }
     }
 
     /// The empty box invites the work and the door to the commands, the door
@@ -205,7 +290,7 @@ mod tests {
     fn the_empty_box_invites_the_work_and_the_slash_door() {
         for ascii in [false, true] {
             let words = invitation(ascii);
-            assert!(words.starts_with("Describe the outcome"), "{words}");
+            assert!(words.starts_with("Ask, change, or run"), "{words}");
             let door = words.find('/').map(|at| words[..at].width());
             assert!(door.is_some_and(|at| at < 24), "{words}");
             assert!(words.width() <= 37, "{words}");
@@ -228,40 +313,71 @@ mod tests {
     #[test]
     fn under_the_object_the_title_is_a_rule_across_the_panel() {
         let row = text(&title(&release(), 40, true, false, true));
-        assert_eq!(row, "-- [C] release checklist - studio ------");
+        assert_eq!(row, "-- [C] release checklist ---------------");
         assert_eq!(row.width(), 40);
         let unicode = text(&title(&release(), 40, false, false, true));
-        assert!(unicode.starts_with("── ◌ release checklist · studio ─"));
-        assert!(unicode.width() <= 40);
+        assert!(unicode.starts_with("── ◌ release checklist ─"), "{unicode}");
+        assert_eq!(unicode.width(), 40);
     }
 
+    /// With nothing attached the row is silent whatever is in view (the
+    /// object's title names it). Attached references are said, strong; what
+    /// is only viewed follows apart and dim, never among them.
     #[test]
-    fn what_is_on_screen_is_never_shown_as_attached() {
-        assert_eq!(
-            text(&context(&release(), 80, false, false)),
-            "on screen: release.nika · nothing attached"
-        );
+    fn an_empty_attachment_is_silent_and_what_is_viewed_is_never_attached() {
+        assert_eq!(text(&context(&release(), 80, false, false)), "");
+        let bare = Thread::new("studio", "weekly report");
+        assert_eq!(text(&context(&bare, 80, true, false)), "");
         let joined = release().attaching("notes.md").attaching("orders.csv");
         assert_eq!(
-            text(&context(&joined, 80, true, false)),
-            "on screen: release.nika - with notes.md, orders.csv"
+            text(&context(&joined, 80, false, false)),
+            "Attached: notes.md, orders.csv · viewing release.nika"
         );
-        let bare = Thread::new("studio", "weekly report");
-        assert_eq!(text(&context(&bare, 80, false, false)), "nothing attached");
-        assert!(text(&context(&joined, 24, false, false)).width() <= 24);
+        assert_eq!(
+            text(&context(&joined, 80, true, false)),
+            "Attached: notes.md, orders.csv - viewing release.nika"
+        );
+        let row = context(&joined, 80, false, false);
+        let style = |words: &str| {
+            row.spans
+                .iter()
+                .find(|span| span.content.contains(words))
+                .map(|span| span.style)
+        };
+        assert_eq!(style("Attached"), Some(role::style(Role::Strong, false)));
+        assert_eq!(style("viewing"), Some(role::style(Role::Dim, false)));
+        // The object in view, attached explicitly, is listed once, as attached.
+        let both = Thread::new("studio", "notes")
+            .viewing("notes.md")
+            .attaching("notes.md");
+        assert_eq!(
+            text(&context(&both, 80, false, false)),
+            "Attached: notes.md"
+        );
     }
 
+    /// Under elision the attached references keep the row: what is viewed
+    /// goes first, then whole references give way to a count, never to the
+    /// object in view.
     #[test]
-    fn a_narrow_row_cuts_what_is_on_screen_before_what_is_sent() {
-        assert_eq!(
-            text(&context(&release(), 36, false, false)),
-            "on screen: relea… · nothing attached"
-        );
-        assert_eq!(
-            text(&context(&release(), 30, false, false)),
-            "nothing attached"
-        );
-        let joined = release().attaching("orders.csv");
-        assert_eq!(text(&context(&joined, 20, true, false)), "with orders.csv");
+    fn attachments_survive_elision_and_the_viewed_object_goes_first() {
+        let joined = release().attaching("notes.md").attaching("orders.csv");
+        let row = |width| text(&context(&joined, width, false, false));
+        assert_eq!(row(30), "Attached: notes.md, orders.csv");
+        assert_eq!(row(24), "Attached: notes.md +1");
+        assert_eq!(row(17), "Attached: not… +1");
+        assert_eq!(row(14), "2 attached");
+        for width in 0..=70 {
+            for ascii in [false, true] {
+                let shown = text(&context(&joined, width, ascii, false));
+                let (sep, _) = marks(ascii);
+                let sent = shown.split(sep).next().unwrap_or_default();
+                assert!(shown.width() <= usize::from(width), "{width}: {shown}");
+                assert!(!sent.contains("release"), "{width}: {shown}");
+                if width >= 10 {
+                    assert!(shown.contains("ttached"), "{width}: {shown}");
+                }
+            }
+        }
     }
 }

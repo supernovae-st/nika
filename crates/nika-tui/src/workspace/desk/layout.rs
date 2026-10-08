@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The desk's arrangement: which layout shows its state, where the
+//! The desk's arrangement: whether the object is expanded (the internal v1
+//! `Workbench` layout; `Session` is the object restored), where the
 //! separators stand, and the one geometry every reader of the frame takes
 //! (drawing, the keys, the pointer, the transcript's scroll).
 //!
-//! Switching the layout (`F4`, the header's switch) and moving a separator
-//! (the pointer, or `+` · `-` · `0` in the aside or the object) change the
-//! view only: the draft, the keyboard focus, the object in view and its face,
-//! the runs and every scroll stay where they were, and nothing is sent,
-//! approved or saved. A change settles once no separator is held; the shell
-//! takes it then ([`Desk::take_settled`]) for its host to keep.
+//! Expanding or restoring the object (`F4`, the object's own action) and
+//! moving a separator (the pointer, or `+` · `-` · `0` in the aside or the
+//! object) change the view only: the draft, the keyboard focus, the object in
+//! view and its face, runs and conversation scroll stay where they were, and
+//! nothing is sent, approved or saved. The object expands only where that
+//! enlarges it, and a kept expansion always restores. A change settles once
+//! no separator is held; the shell takes it then ([`Desk::take_settled`]) for
+//! its host to keep.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Position, Rect};
@@ -18,10 +21,11 @@ use ratatui::layout::{Position, Rect};
 use super::{Desk, Route};
 use crate::workspace::focus::Region;
 use crate::workspace::geometry::{Arrangement, Geometry, Layout, Separator};
+use crate::workspace::screen;
 
 /// The columns a separator key moves the aside or the conversation by.
 const COLUMN_STEP: u16 = 2;
-/// The rows a separator key moves the Workbench conversation by.
+/// The rows a separator key moves the conversation under the expanded object by.
 const ROW_STEP: u16 = 1;
 
 /// A separator the pointer moves: which one, where its button went down, and
@@ -42,7 +46,9 @@ impl Desk {
         Geometry::arranged(area, self.pins(), &self.arrangement)
     }
 
-    /// The layout in view and the separators' shares.
+    /// The layout in view and the separators' shares (the shell reads it
+    /// through [`Desk::toggled`] and [`Desk::take_settled`]).
+    #[cfg(test)]
     #[must_use]
     pub(crate) const fn arrangement(&self) -> Arrangement {
         self.arrangement
@@ -64,15 +70,24 @@ impl Desk {
         (self.drag.is_none() && std::mem::take(&mut self.unsettled)).then_some(self.arrangement)
     }
 
-    /// Show the other layout (`F4`); the layout now in view.
-    pub(crate) fn toggle_layout(&mut self) -> Layout {
-        let next = self.arrangement.layout.toggled();
-        self.set_layout(next);
-        next
+    /// What `F4` and the object's own action show next on a terminal of
+    /// `size` ([`screen::toggled`]); `None` where they change nothing.
+    #[must_use]
+    pub(crate) fn toggled(&self, size: (u16, u16)) -> Option<Layout> {
+        let area = Rect::new(0, 0, size.0, size.1);
+        screen::toggled(area, self.pins(), &self.arrangement)
+    }
+
+    /// Expand or restore the object (`F4`, its own action) on a terminal of
+    /// `size`; `false` where that would change nothing (the object cannot
+    /// grow there): the arrangement stays as it is.
+    pub(crate) fn toggle_layout(&mut self, size: (u16, u16)) -> bool {
+        self.toggled(size).is_some_and(|next| self.set_layout(next))
     }
 
     /// Show `layout`; `false` when it is already in view. The shares, the
-    /// draft, the focus, the object and every scroll stay.
+    /// draft, focus, object and conversation scroll stay. A graph-format
+    /// change restarts its object reading at the top.
     pub(crate) fn set_layout(&mut self, layout: Layout) -> bool {
         self.drag = None;
         self.rearranged(self.arrangement.with_layout(layout))
@@ -80,8 +95,10 @@ impl Desk {
 
     /// A separator key where a region other than the composer holds the
     /// keys: `+` (or `=`) widens or heightens that region, `-` (or `_`)
-    /// narrows it, `0` gives it its automatic share. `None` leaves the key to
-    /// the region (the composer's region types these characters).
+    /// narrows it, `0` gives it its automatic share (beside the expanded
+    /// object, where the conversation is at its narrowest, it already has
+    /// it). `None` leaves the key to the region (the composer's region types
+    /// these characters).
     pub(crate) fn separator_key(&mut self, key: KeyEvent, size: (u16, u16)) -> Option<Route> {
         if key
             .modifiers
@@ -105,7 +122,9 @@ impl Desk {
         if !geometry.shows(separator) {
             return Some(Route::Nothing);
         }
+        let expanded = self.arrangement.layout == Layout::Workbench;
         let next = match grow {
+            None if expanded && separator == Separator::Beside => self.arrangement,
             None => self.arrangement.restored(separator),
             Some(grow) => {
                 // The aside grows with its separator; the object grows as the

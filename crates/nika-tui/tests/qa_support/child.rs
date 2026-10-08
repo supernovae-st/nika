@@ -20,11 +20,16 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 use std::time::{Duration, Instant};
 
 use nika_tui::app::{self, Options};
 use nika_tui::model::{
-    Beat, Committed, Conversation, Handoff, Kind, Presentation, Script, Turn, Waiting, demo_project,
+    Beat, Committed, Conversation, Handoff, Kind, Presentation, Script, Stopper, Stopping, Turn,
+    Waiting, demo_project,
 };
 
 use crate::qa_support::{Term, sized};
@@ -41,6 +46,8 @@ pub(crate) const AFTER_GATE: &str = "qa gate answered";
 /// What the held turn says when it ends on a free prompt, and the next turn.
 pub(crate) const DONE: &str = "qa turn done";
 pub(crate) const SECOND: &str = "qa second turn";
+/// The held preparation settled after a real Stop request, counted exactly.
+pub(crate) const STOPPED: &str = "qa Stop observed · calls=1";
 /// The opening banner.
 pub(crate) const BANNER: &str = "qa child · ready";
 /// The longest a held turn waits for its release.
@@ -56,6 +63,9 @@ pub(crate) struct Child {
     gate_waits: bool,
     /// The workspace mode lends the demo project ([`demo_project`]).
     lends_project: bool,
+    /// Only `slow-stop` lends a stoppable preparation. Settlement still waits
+    /// for the proof's release, so requesting and observing Stop stay distinct.
+    stop_calls: Option<Arc<AtomicUsize>>,
 }
 
 impl Child {
@@ -76,6 +86,14 @@ impl Child {
 }
 
 impl Conversation for Child {
+    fn stopper(&mut self) -> Option<Stopper> {
+        let calls = self.stop_calls.as_ref()?.clone();
+        Some(Box::new(move || {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Stopping::Requested
+        }))
+    }
+
     fn fresh_input_required(&self) -> bool {
         self.fresh_at_gate && self.gate_waits
     }
@@ -120,6 +138,23 @@ impl Conversation for Child {
         self.submitted += 1;
         if self.submitted == 1 {
             self.hold(busy);
+            if let Some(calls) = self
+                .stop_calls
+                .as_ref()
+                .filter(|calls| calls.load(Ordering::SeqCst) > 0)
+            {
+                let mut cancelled = Script::new(
+                    Vec::new(),
+                    vec![vec![
+                        Beat::Cancelled(format!(
+                            "qa Stop observed · calls={}",
+                            calls.load(Ordering::SeqCst)
+                        )),
+                        Beat::Wait(Waiting::Free),
+                    ]],
+                );
+                return <Script as Conversation>::submit(&mut cancelled, line);
+            }
         }
         self.submit(line)
     }
@@ -150,7 +185,7 @@ fn diagnostic() -> Option<Beat> {
 /// The conversation and presentation of one mode, `<kind>[:<n>[:<inline|focus|workspace>]]`
 /// (the workspace mode lends the demo project):
 /// `slow-free` · `slow-gate` · `slow-gate-fresh` (the gate asks for fresh
-/// input) · `slow-diagnostic` (opening raw evidence) · `big` (no held turn)
+/// input) · `slow-stop` (stoppable preparation) · `slow-diagnostic` (opening raw evidence) · `big` (no held turn)
 /// open on `n` transcript lines; `flood`
 /// sends `n` busy labels in its first turn.
 pub(crate) fn conversation_for(mode: &str, release: Option<PathBuf>) -> (Child, Presentation) {
@@ -159,7 +194,7 @@ pub(crate) fn conversation_for(mode: &str, release: Option<PathBuf>) -> (Child, 
     let count: usize = parts.next().and_then(|n| n.parse().ok()).unwrap_or(0);
     let presentation = match parts.next() {
         Some("focus") => Presentation::Focus,
-        Some("workspace") => Presentation::Workspace,
+        Some("workspace" | "workspace-ascii") => Presentation::Workspace,
         _ => Presentation::Inline,
     };
     let mut opening = vec![say(Kind::Banner, BANNER)];
@@ -192,6 +227,7 @@ pub(crate) fn conversation_for(mode: &str, release: Option<PathBuf>) -> (Child, 
         submitted: 0,
         gate_waits: false,
         lends_project: presentation == Presentation::Workspace,
+        stop_calls: (kind == "slow-stop").then(|| Arc::new(AtomicUsize::new(0))),
     };
     (child, presentation)
 }
@@ -215,6 +251,7 @@ pub(crate) fn host() {
     let (child, presentation) = conversation_for(&mode, switch(RELEASE).map(PathBuf::from));
     let mut options = Options::new(presentation);
     options.term = Some("xterm-256color".to_owned());
+    options.ascii = mode.ends_with(":workspace-ascii");
     let code = match app::run(child, options) {
         Ok(exit) => i32::from(exit.code()),
         Err(_) => 2,

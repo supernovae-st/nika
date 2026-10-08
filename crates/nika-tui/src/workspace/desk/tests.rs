@@ -290,7 +290,12 @@ fn the_face_is_rendered_again_for_a_new_width() {
     let wide = desk.drawn.as_ref().map(|d| d.key.4);
     desk.prepare((60, 18), true, false);
     let narrow = desk.drawn.as_ref().map(|d| d.key.4);
-    assert_eq!((wide, narrow), (Some(69), Some(60)));
+    // The face is rendered for its body: beside the conversation the object's
+    // 69 columns less the one of air after the separator; stacked at 60
+    // columns, the whole region.
+    assert_eq!((wide, narrow), (Some(68), Some(60)));
+    let body = |size| desk.geometry(size).map(|g| screen::object_body(&g).width);
+    assert_eq!((wide, narrow), (body((160, 48)), body((60, 18))));
     let Object::Workflow { title, body } = desk.screen(false).object else {
         panic!("the look is in view");
     };

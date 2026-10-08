@@ -7,6 +7,8 @@
 //! versioned HOME file through `OwnedDir`; a malformed or future file is
 //! preserved, and a failure keeps the current layout usable. Nothing here
 //! restores a request, consent, workflow revision, model choice or Run.
+//! The v1 `session` and `workbench` spellings mean restored workspace and
+//! expanded object; their bytes stay compatible with earlier preference files.
 
 use std::path::Path;
 

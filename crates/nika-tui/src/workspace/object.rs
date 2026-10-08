@@ -7,7 +7,7 @@
 //! view lives.
 
 pub use nika_tui_view::workspace::object::{
-    Object, Paint, length, lines, lines_from, render, render_from, welcome_mark,
+    Object, Paint, content_rows, length, lines, lines_from, render, render_from, welcome_mark,
 };
 
 #[cfg(test)]

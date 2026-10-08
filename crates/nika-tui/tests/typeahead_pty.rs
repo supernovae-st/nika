@@ -247,7 +247,7 @@ fn a_command_chosen_while_nika_works_waits_in_the_box_and_answers_nothing() {
         term.send("digest my notes\r");
         term.wait_text(HOLDS);
         term.send("/st");
-        term.wait_until("the list while Nika works", |screen| {
+        term.wait_workspace_frame("the list while Nika works", |screen| {
             screen.contains("Nika is working · a command waits in the box until your turn")
                 && screen.contains("› /status")
         });
@@ -267,9 +267,9 @@ fn a_command_chosen_while_nika_works_waits_in_the_box_and_answers_nothing() {
 
 /// [`decision_holds_the_draft`] for any typed draft.
 fn decision_holds_the_draft_as(term: &mut Term, shows: &str, prompt: &str, typed: &str) {
-    term.wait_until(NOTICE, |screen| screen.seen(NOTICE));
+    term.wait_workspace_frame(NOTICE, |screen| screen.seen(NOTICE));
     let draft = format!("{prompt} {typed}");
-    term.wait_until(&format!("{shows} · {draft}"), |screen| {
+    term.wait_workspace_frame(&format!("{shows} · {draft}"), |screen| {
         screen.seen(shows) && screen.row_starting(&draft).is_some()
     });
 }
@@ -312,11 +312,11 @@ fn cancelling_the_palette_while_nika_works_returns_the_keys_to_the_preview() {
     term.send("\x1b[17~\x0f");
     term.wait_text("commands ›");
     term.send("\x1b");
-    term.wait_until("the palette closed", |screen| {
+    term.wait_workspace_frame("the palette closed", |screen| {
         !screen.contains("commands ›")
     });
     term.send("x");
-    term.wait_until("the question with the draft", |screen| {
+    term.wait_workspace_frame("the question with the draft", |screen| {
         screen.seen(QUESTION) && screen.contains("reply › kept")
     });
     term.settle(WATCH);
@@ -338,15 +338,15 @@ fn a_presentation_switch_while_typing_or_working_keeps_the_exact_draft() {
             Term::proto_with(&["--demo-pace", PACE_MS], cols, rows, &[("NO_COLOR", "1")]);
         term.wait_prompt(FREE);
         term.send("keep this\x1b\rexact draft");
-        term.wait_until("the draft", |screen| {
+        term.wait_workspace_frame("the draft", |screen| {
             screen.row_starting("nika › keep this").is_some() && screen.contains("exact draft")
         });
         term.send("\x14");
-        term.wait_until("the workspace with the draft", |screen| {
+        term.wait_workspace_frame("the workspace with the draft", |screen| {
             screen.on_alt() && screen.contains("nika › keep this") && screen.contains("exact draft")
         });
         term.send("\x14");
-        term.wait_until("inline with the draft", |screen| {
+        term.wait_workspace_frame("inline with the draft", |screen| {
             !screen.on_alt()
                 && screen.row_starting("nika › keep this").is_some()
                 && screen.contains("exact draft")
@@ -358,7 +358,7 @@ fn a_presentation_switch_while_typing_or_working_keeps_the_exact_draft() {
             term.dump()
         );
         term.send(&"\x7f".repeat("keep this\nexact draft".chars().count()));
-        term.wait_until("the draft erased", |screen| {
+        term.wait_workspace_frame("the draft erased", |screen| {
             screen.lines().iter().any(|line| line == FREE)
         });
         term.send("digest my notes\r");
@@ -366,7 +366,7 @@ fn a_presentation_switch_while_typing_or_working_keeps_the_exact_draft() {
         term.send("typed while busy");
         term.wait_text("typed while busy");
         term.send("\x14");
-        term.wait_until(
+        term.wait_workspace_frame(
             "the question, in the workspace, the draft unsent",
             |screen| {
                 screen.on_alt()
@@ -384,36 +384,82 @@ fn a_presentation_switch_while_typing_or_working_keeps_the_exact_draft() {
     }
 }
 
+/// Read wrapped words only from the expanded conversation's own cells.
+fn expanded_conversation_words(screen: &qa_support::vt::Screen) -> String {
+    use nika_tui::workspace::geometry::{Arrangement, Geometry, Layout};
+    use ratatui::layout::Rect;
+    let (cols, rows) = screen.size();
+    let size = Rect::new(
+        0,
+        0,
+        u16::try_from(cols).expect("columns"),
+        u16::try_from(rows).expect("rows"),
+    );
+    let geometry =
+        Geometry::arranged(size, false, &Arrangement::of(Layout::Workbench)).expect("workspace");
+    let area = geometry.conversation;
+    screen
+        .lines()
+        .into_iter()
+        .skip(usize::from(area.y))
+        .take(usize::from(area.height))
+        .map(|row| {
+            row.chars()
+                .skip(usize::from(area.x))
+                .take(usize::from(area.width))
+                .collect::<String>()
+        })
+        .map(|row| row.trim_matches([' ', '│']).to_owned())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// `F4` as a terminal sends it.
 const F4: &str = "\x1bOS";
 
-/// The Session / Workbench switch (`F4`) rearranges the same conversation:
+/// Contextual object expansion (`F4`) rearranges the same conversation:
 /// while typing, the two-line draft stays exact and nothing is sent; while
 /// Nika works it acts at once, and the words typed meanwhile wait, unsent,
 /// in the box of the question the turn ends on.
 #[test]
-fn the_layout_switch_while_typing_or_working_keeps_the_exact_draft() {
+fn contextual_expansion_while_typing_or_working_keeps_the_exact_draft() {
+    let two_lines = |screen: &qa_support::vt::Screen| {
+        let rows = screen.lines();
+        rows.iter().enumerate().any(|(index, row)| {
+            let Some((before, after)) = row.split_once("nika › keep this") else {
+                return false;
+            };
+            before.chars().all(|c| c.is_whitespace() || c == '│')
+                && after
+                    .split('│')
+                    .next()
+                    .is_some_and(|tail| tail.trim().is_empty())
+                && rows.get(index + 1).is_some_and(|next| {
+                    next.trim_start_matches([' ', '│'])
+                        .split('│')
+                        .next()
+                        .is_some_and(|text| text.trim() == "exact draft")
+                })
+        })
+    };
     for (cols, rows) in [(80, 24), (120, 40)] {
         let mut term =
             Term::proto_with(&["--demo-pace", PACE_MS], cols, rows, &[("NO_COLOR", "1")]);
         term.wait_prompt(FREE);
         term.send("\x14");
-        term.wait_text("[Session] Workbench");
+        term.wait_text("[+] Expand · F4");
         term.send("keep this\x1b\rexact draft");
-        term.wait_until("the draft", |screen| {
-            screen.contains("nika › keep this") && screen.contains("exact draft")
+        term.wait_workspace_frame("the draft", |screen| two_lines(screen));
+        term.send(F4);
+        term.wait_workspace_frame("the expanded object with the draft", |screen| {
+            screen.contains("[-] Restore · F4") && two_lines(screen)
         });
         term.send(F4);
-        term.wait_until("the Workbench with the draft", |screen| {
-            screen.contains("Session [Workbench]")
-                && screen.contains("nika › keep this")
-                && screen.contains("exact draft")
-        });
-        term.send(F4);
-        term.wait_until("the Session again with the draft", |screen| {
-            screen.contains("[Session] Workbench")
-                && screen.contains("nika › keep this")
-                && screen.contains("exact draft")
+        term.wait_workspace_frame("the restored workspace again with the draft", |screen| {
+            screen.contains("[+] Expand · F4") && two_lines(screen)
         });
         term.settle(Duration::from_millis(300));
         assert!(
@@ -422,19 +468,20 @@ fn the_layout_switch_while_typing_or_working_keeps_the_exact_draft() {
             term.dump()
         );
         term.send(&"\x7f".repeat("keep this\nexact draft".chars().count()));
-        term.wait_until("the draft erased", |screen| !screen.contains("keep this"));
+        term.wait_workspace_frame("the draft erased", |screen| !screen.contains("keep this"));
         term.send("digest my notes\r");
         term.wait_text(HOLDS);
         term.send("typed while busy");
         term.wait_text("typed while busy");
         term.send(F4);
-        term.wait_until("the Workbench while Nika works", |screen| {
-            screen.contains("Session [Workbench]") && screen.contains(HOLDS)
+        term.wait_workspace_frame("the expanded object while Nika works", |screen| {
+            screen.contains("[-] Restore · F4") && screen.contains(HOLDS)
         });
         // The compact conversation may scroll the question itself out of
         // view: its reply prompt and the typeahead notice name it.
-        term.wait_until("the question's prompt, the draft in its box", |screen| {
-            screen.contains("reply › typed while busy") && screen.contains(NOTICE)
+        term.wait_workspace_frame("the question's prompt, the draft in its box", |screen| {
+            screen.contains("reply › typed while busy")
+                && expanded_conversation_words(screen).contains(NOTICE)
         });
         term.settle(WATCH);
         assert!(

@@ -80,7 +80,7 @@ impl Composer {
         let mut area = TextArea::default();
         area.set_wrap_mode(WRAP);
         area.set_cursor_line_style(Style::default());
-        area.set_cursor_style(Style::default().add_modifier(Modifier::REVERSED));
+        area.set_cursor_style(CURSOR);
         Self {
             area,
             history: Vec::new(),
@@ -479,6 +479,7 @@ fn fresh_like(previous: &TextArea<'static>) -> TextArea<'static> {
     let mut area = TextArea::default();
     area.set_wrap_mode(WRAP);
     area.set_cursor_line_style(Style::default());
+    // Shown or hidden as the keys left it: `set_focused` keeps it current.
     area.set_cursor_style(previous.cursor_style());
     let placeholder = previous.placeholder_text();
     if !placeholder.is_empty() {
@@ -490,6 +491,11 @@ fn fresh_like(previous: &TextArea<'static>) -> TextArea<'static> {
 
 /// The placeholder's look in every glyph column and colour mode.
 const PLACEHOLDER: Style = Style::new().add_modifier(Modifier::DIM);
+
+/// The text area's cursor while the composer holds the keys: one reversed
+/// cell. With the keys elsewhere it takes the cursor line's own style, which
+/// the text area paints as no cursor at all (`set_focused`).
+const CURSOR: Style = Style::new().add_modifier(Modifier::REVERSED);
 
 #[cfg(test)]
 mod chooser_tests;

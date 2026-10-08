@@ -24,10 +24,11 @@ pub(crate) use wrapped::{pages, paint_page, window};
 use nika_display::theme::Role;
 use ratatui::Frame;
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::layout::{Constraint, Layout, Margin, Rect};
 use ratatui::style::{Modifier, Style};
+use ratatui::symbols::border;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Paragraph, Widget, Wrap};
+use ratatui::widgets::{Block, Paragraph, Widget, Wrap};
 
 use crate::composer::Composer;
 use crate::model::{Committed, Kind, Presentation, UiState, Waiting};
@@ -76,28 +77,20 @@ fn accent(color: bool) -> Style {
 }
 
 /// An activity mark only while the Session reports work. The existing
-/// frame drives both the orbit and its accent; no frame means reduced
-/// motion, and a stale frame without `busy` never animates an idle view.
+/// frame turns the orbit, never its hue: every frame wears the accent, the
+/// one hue of active work (the Session's `●` phase), in weight. No frame
+/// means reduced motion, and a stale frame without `busy` never animates an
+/// idle view.
 pub(crate) fn activity_marker(state: &UiState) -> Option<Span<'static>> {
     state.busy.as_ref()?;
-    let (glyph, tone) = match state.spinner {
-        Some(frame) => {
-            let frame = usize::from(frame);
-            let glyph = if state.ascii {
-                ASCII_SPINNER[frame % ASCII_SPINNER.len()]
-            } else {
-                SPINNER[frame % SPINNER.len()]
-            };
-            let tones = [Role::Accent, Role::VerbInvoke, Role::VerbAgent];
-            (glyph, tones[(frame / 3) % tones.len()])
-        }
-        None => (if state.ascii { '*' } else { '●' }, Role::Accent),
+    let glyph = match state.spinner {
+        Some(frame) if state.ascii => ASCII_SPINNER[usize::from(frame) % ASCII_SPINNER.len()],
+        Some(frame) => SPINNER[usize::from(frame) % SPINNER.len()],
+        None if state.ascii => '*',
+        None => '●',
     };
-    let style = if state.color {
-        role::style(tone, true).add_modifier(Modifier::BOLD)
-    } else {
-        accent(false)
-    };
+    // Without colour the weight alone marks it.
+    let style = accent(state.color).add_modifier(Modifier::BOLD);
     Some(Span::styled(format!("{glyph} "), style))
 }
 
@@ -181,21 +174,45 @@ pub fn render_block(block: &Committed, color: bool, ascii: bool, buf: &mut Buffe
 /// or all but two rows while the chooser shows; never more than all but two.
 #[must_use]
 pub fn live_rows(state: &UiState, composer: &Composer, width: u16, height: u16) -> u16 {
+    rows_of_live(state, composer, width, height, false)
+}
+
+/// [`live_rows`] of the workspace's composer boxed under its caption
+/// ([`render_boxed_live`]): the caption and the box's two edges as well, the
+/// line wrapped inside the box exactly as it is painted there.
+#[must_use]
+pub(crate) fn boxed_live_rows(
+    state: &UiState,
+    composer: &Composer,
+    width: u16,
+    height: u16,
+) -> u16 {
+    rows_of_live(state, composer, width, height, true)
+}
+
+/// The rows a live area `width` wide asks for within `height`, `boxed` or not.
+fn rows_of_live(state: &UiState, composer: &Composer, width: u16, height: u16, boxed: bool) -> u16 {
     let chooser = chooser::rows(state, composer, width);
     let input = if composer.palette_open() {
         1
     } else {
-        composer.content_rows(editor_width(state, composer, width))
+        let inner = inner_width(width, boxed);
+        // A framed field keeps a little writing space even before a second
+        // line is entered. The palette keeps its compact search row.
+        composer
+            .content_rows(editor_width(state, composer, inner))
+            .max(if boxed { 2 } else { 1 })
     };
     // The chooser borrows the rail's row while it shows.
-    let rail = usize::from(!state.rail.is_empty() && chooser == 0);
+    let rail = usize::from(rail_shown(state) && chooser == 0);
     let aside = usize::from(composer.aside().is_some());
     let hint = usize::from(wrapped_rows(&[hint_line(state, composer, width)], width).min(3));
     let status = usize::from(status_rows(state, composer.listing().is_some(), width));
-    let rows = rail + status + aside + input + chooser + hint;
+    let edges = if boxed { usize::from(BOX_ROWS) } else { 0 };
+    let rows = rail + status + aside + edges + input + chooser + hint;
     // Only a multi-line draft asks past the half; a one-line draft never does.
     let readable = if input > 1 {
-        u16::try_from(status + input.min(READABLE_LINES) + hint).unwrap_or(u16::MAX)
+        u16::try_from(status + edges + input.min(READABLE_LINES) + hint).unwrap_or(u16::MAX)
     } else {
         0
     };
@@ -214,9 +231,56 @@ pub fn live_rows(state: &UiState, composer: &Composer, width: u16, height: u16) 
 /// yields its row to them.
 const READABLE_LINES: usize = 3;
 
+/// The rows a boxed composer adds: its caption and the box's top and bottom.
+const BOX_ROWS: u16 = 3;
+
+/// The columns a boxed composer takes around its line: on each side, the
+/// box's edge and one cell of air.
+const BOX_INSET: u16 = 4;
+
+/// The box's edges in the ASCII glyph column.
+const ASCII_BOX: border::Set<'static> = border::Set {
+    top_left: "+",
+    top_right: "+",
+    bottom_left: "+",
+    bottom_right: "+",
+    vertical_left: "|",
+    vertical_right: "|",
+    horizontal_top: "-",
+    horizontal_bottom: "-",
+};
+
+/// The cells left to the prompt and the line being written in a live area
+/// `width` wide, inside the box when `boxed`.
+const fn inner_width(width: u16, boxed: bool) -> u16 {
+    if boxed {
+        width.saturating_sub(BOX_INSET)
+    } else {
+        width
+    }
+}
+
+/// The slim caption over the boxed composer: what the next line is.
+fn caption_of(state: &UiState) -> &'static str {
+    if state.waiting == Waiting::Free {
+        "Your message"
+    } else {
+        "Your answer"
+    }
+}
+
 /// The loader's frames: the theme seam's own braille orbit, one motion for the
 /// renderer and the run frames.
 pub use nika_display::theme::SPINNER;
+
+/// Whether the lifecycle rail takes its row. The workspace shows it once it
+/// says something: a fresh session's fields, every one still pending (`○`),
+/// are the opening, not a fact. Elsewhere it shows whenever reported.
+fn rail_shown(state: &UiState) -> bool {
+    let pending = |field: &str| field.ends_with(" ○");
+    !state.rail.is_empty()
+        && (state.presentation != Presentation::Workspace || !state.rail.split(" · ").all(pending))
+}
 
 /// The lifecycle rail, dim like the chrome: five facts, never one badge.
 fn rail_line(state: &UiState) -> Line<'static> {
@@ -276,6 +340,10 @@ fn status_line(state: &UiState, choosing: bool) -> Line<'static> {
             _ if choosing => "",
             Presentation::Inline => "",
             Presentation::Focus => "focus · Esc returns inline · PgUp/PgDn scroll",
+            // Below the minimum the focus view stands in: no panel to move to.
+            Presentation::Workspace if !crate::workspace::geometry::fits(state.size) => {
+                "workspace needs 60x16 · Esc inline · PgUp/PgDn scroll"
+            }
             Presentation::Workspace => "workspace · F6 panel · Esc back",
         };
         let mode = own(mode, state.ascii);
@@ -310,13 +378,20 @@ const WORKING_HINT: &str =
     "Preparing: Ctrl+C requests Stop; correction + Enter. Run: typing waits.";
 
 /// The key that opens the palette of every command and view key: named once,
-/// on the idle hint row.
+/// on the idle hint row, always with what it does.
 const PALETTE_HINT: &str = "Ctrl+O: commands";
+
+/// Whether `text` holds in `width` cells as the row paints it: in the glyph
+/// column in use, measured with the layout's own width table.
+fn fits_row(text: &str, ascii: bool, width: u16) -> bool {
+    unicode_width::UnicodeWidthStr::width(own(text, ascii).as_str()) <= usize::from(width)
+}
 
 /// The hint row: a notice the last key left, else how to choose while the
 /// chooser shows, else what keys do while a turn works, else what the
 /// waiting state takes. At a free prompt the row is the one place that names
-/// the palette key; the workspace keeps `F6` and `Esc` on its status row and
+/// the palette key; the workspace's composer also says how `Enter` sends and
+/// `Alt+Enter` breaks a line, and keeps `F6` and `Esc` on its status row and
 /// the empty composer invites `/`, so neither repeats here.
 fn hint_line(state: &UiState, composer: &Composer, width: u16) -> Line<'static> {
     let choosing = composer
@@ -329,31 +404,30 @@ fn hint_line(state: &UiState, composer: &Composer, width: u16) -> Line<'static> 
         && crate::workspace::geometry::fits(state.size)
     {
         // One row, even beside a narrow preview; Stop, consent and completion keep priority.
-        // Scrolled back, this row owns the keyboard cue beside the clickable marker.
+        // Scrolled back, this row owns the keyboard cue beside the clickable marker. A
+        // narrower row drops a whole cue, never the action after the palette key.
         let hints = if state.focus_scroll > 0 {
             [
                 "click chat; End: latest · /intelligence · Ctrl+O: commands",
-                "click chat; End: latest · /intelligence · Ctrl+O",
                 "click chat; End: latest · /intelligence",
                 "End: latest · /intelligence",
             ]
         } else {
             [
-                "/intelligence · Ctrl+O: commands · wheel: scroll",
-                "/intelligence · Ctrl+O · wheel: scroll",
-                "/intelligence · Ctrl+O · wheel:scroll",
-                "/intelligence · Ctrl+O",
+                "Enter send · Alt+Enter new line · Ctrl+O: commands",
+                "Enter send · Ctrl+O: commands",
+                PALETTE_HINT,
             ]
         };
         let last = hints[hints.len() - 1];
         hints
             .into_iter()
-            .find(|hint| hint.chars().count() <= usize::from(width))
+            .find(|hint| fits_row(hint, state.ascii, width))
             .unwrap_or(last)
             .to_owned()
     } else if state.waiting == Waiting::Free {
         let hint = format!("{} · {PALETTE_HINT}", state.waiting.hint());
-        if hint.chars().count() <= usize::from(width) {
+        if fits_row(&hint, state.ascii, width) {
             hint
         } else {
             state.waiting.hint().to_owned()
@@ -368,18 +442,22 @@ fn hint_line(state: &UiState, composer: &Composer, width: u16) -> Line<'static> 
     };
     let tone = match state.waiting {
         Waiting::Proposal | Waiting::Gate if state.busy.is_none() => Role::Warn,
+        Waiting::Free if state.busy.is_none() && state.completion.is_none() => Role::Dim,
         _ => Role::Accent,
     };
     Line::from(Span::styled(text, role::style(tone, state.color)))
 }
 
 /// The rows of the live area, top to bottom: the rail, the status, a draft
-/// set aside, the line being written (or the palette's search), the chooser
-/// under it, a filler, the hint.
+/// set aside, the caption and the box when boxed, the line being written (or
+/// the palette's search), the chooser under it, a filler, the hint.
 struct LiveAreas {
     rail: Rect,
     status: Rect,
     aside: Rect,
+    /// The caption and the box (its edges included), when boxed.
+    boxed: Option<(Rect, Rect)>,
+    /// The prompt and the line being written: inside the box when boxed.
     input: Rect,
     chooser: Rect,
     hint: Rect,
@@ -388,45 +466,52 @@ struct LiveAreas {
 /// Cut `area` into the live rows. Closed, the line being written takes every
 /// spare row, as it always did; while the chooser shows, the line takes its
 /// own rows, the chooser what it asks for, and the spare rows go below it.
-fn live_areas(state: &UiState, composer: &Composer, area: Rect) -> LiveAreas {
+/// `boxed`, the line stands in a box under its caption, one cell of air
+/// inside each edge: sizing, wrapping and painting read these same cells.
+fn live_areas(state: &UiState, composer: &Composer, area: Rect, boxed: bool) -> LiveAreas {
     let chooser_wanted =
         u16::try_from(chooser::rows(state, composer, area.width)).unwrap_or(u16::MAX);
     let choosing = chooser_wanted > 0;
     let hint_wanted = wrapped_rows(&[hint_line(state, composer, area.width)], area.width).min(3);
     let status_wanted = status_rows(state, composer.listing().is_some(), area.width);
+    let inner = inner_width(area.width, boxed);
     let lines = if composer.palette_open() {
         1
     } else {
-        composer.rows(editor_width(state, composer, area.width))
+        composer.rows(editor_width(state, composer, inner))
     };
     let readable = lines.min(u16::try_from(READABLE_LINES).unwrap_or(u16::MAX));
+    let edges = if boxed { BOX_ROWS } else { 0 };
     // The rail takes a row of its own above the status (both are full
     // sentences; one 80-column row cannot hold them side by side), yields it
     // on a terminal too short for four rows or to the first lines of a
     // multi-line draft, and lends it to the chooser.
     let rail_rows = u16::from(
-        !state.rail.is_empty()
+        rail_shown(state)
             && !choosing
-            && area.height >= 4
-            && (lines < 2 || area.height > hint_wanted + status_wanted + readable),
+            && area.height >= 4 + edges
+            && (lines < 2 || area.height > hint_wanted + status_wanted + readable + edges),
     );
-    let hint_rows = hint_wanted.min(area.height.saturating_sub(rail_rows + 2).max(1));
-    let status_rows =
-        status_wanted.min(area.height.saturating_sub(rail_rows + hint_rows + 1).max(1));
-    let fixed = rail_rows + hint_rows + status_rows;
+    let hint_rows = hint_wanted.min(area.height.saturating_sub(rail_rows + edges + 2).max(1));
+    let status_rows = status_wanted.min(
+        area.height
+            .saturating_sub(rail_rows + edges + hint_rows + 1)
+            .max(1),
+    );
+    let fixed = rail_rows + hint_rows + status_rows + edges;
     let aside_rows = u16::from(composer.aside().is_some() && area.height >= fixed + 2);
     let spare = area.height.saturating_sub(fixed + aside_rows);
     let (input, chooser, filler) = if choosing {
         let input = lines.clamp(1, spare.max(1));
         let chooser = chooser_wanted.min(spare.saturating_sub(input));
         (
-            Constraint::Length(input),
+            Constraint::Length(input + edges),
             Constraint::Length(chooser),
             Constraint::Min(0),
         )
     } else {
         (
-            Constraint::Min(1),
+            Constraint::Min(1 + edges),
             Constraint::Length(0),
             Constraint::Length(0),
         )
@@ -441,10 +526,21 @@ fn live_areas(state: &UiState, composer: &Composer, area: Rect) -> LiveAreas {
         Constraint::Length(hint_rows),
     ])
     .areas(area);
+    // Boxed, the caption takes the first row and the box the rest, the line
+    // one cell of air inside each edge.
+    let (boxed, input) = if boxed {
+        let [caption, frame] =
+            Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(input);
+        let air = Margin::new(BOX_INSET / 2, 1);
+        (Some((caption, frame)), frame.inner(air))
+    } else {
+        (None, input)
+    };
     LiveAreas {
         rail,
         status,
         aside,
+        boxed,
         input,
         chooser,
         hint,
@@ -468,10 +564,32 @@ fn editor_width(state: &UiState, composer: &Composer, width: u16) -> u16 {
 }
 
 /// Draw the live area (status · prompt + composer · chooser · hint) into
-/// `area`: the same live area inline, under the focus transcript and in the
-/// workspace panel.
+/// `area`: the same live area inline, under the focus transcript and in a
+/// short workspace panel.
 pub(crate) fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Composer, area: Rect) {
-    let areas = live_areas(state, composer, area);
+    render_live_in(frame, state, composer, area, false);
+}
+
+/// The workspace's live area with its composer boxed under a slim caption
+/// (« Your message », or « Your answer » while a decision waits): the same
+/// prompt, line, chooser and hint as [`render_live`], in quiet edges.
+pub(crate) fn render_boxed_live(
+    frame: &mut Frame<'_>,
+    state: &UiState,
+    composer: &Composer,
+    area: Rect,
+) {
+    render_live_in(frame, state, composer, area, true);
+}
+
+fn render_live_in(
+    frame: &mut Frame<'_>,
+    state: &UiState,
+    composer: &Composer,
+    area: Rect,
+    boxed: bool,
+) {
+    let areas = live_areas(state, composer, area, boxed);
     if areas.rail.height > 0 {
         frame.render_widget(Paragraph::new(rail_line(state)), areas.rail);
     }
@@ -482,6 +600,23 @@ pub(crate) fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Com
     if let Some(aside) = composer.aside().filter(|_| areas.aside.height > 0) {
         let line = chooser::aside_line(aside, areas.aside.width, state.ascii, state.color);
         frame.render_widget(Paragraph::new(line), areas.aside);
+    }
+    if let Some((caption, edges)) = areas.boxed {
+        let quiet = role::style(Role::Dim, state.color);
+        frame.render_widget(
+            Paragraph::new(Line::styled(caption_of(state), quiet)),
+            caption,
+        );
+        let set = if state.ascii {
+            ASCII_BOX
+        } else {
+            border::ROUNDED
+        };
+        let frame_style = role::border(state.color);
+        frame.render_widget(
+            Block::bordered().border_set(set).border_style(frame_style),
+            edges,
+        );
     }
     let prompt = prompt_of(state, composer);
     let prompt_width = u16::try_from(prompt.chars().count()).unwrap_or(8);
@@ -507,6 +642,12 @@ pub(crate) fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Com
         );
     } else {
         composer.render(editor, frame.buffer_mut());
+        if boxed && state.color && composer.is_blank() {
+            frame.buffer_mut().set_style(
+                editor,
+                role::style(Role::Dim, true).remove_modifier(Modifier::DIM | Modifier::BOLD),
+            );
+        }
     }
     chooser::render(state, composer, areas.chooser, frame.buffer_mut());
     frame.render_widget(
@@ -716,17 +857,25 @@ mod tests {
         state.status = "Last Run · Done · the run failed · `release.nika`".into();
         let composer = Composer::new();
         for (scroll, commands) in [
-            (0, ["/intelligence", "Ctrl+O", "wheel"]),
+            // The composer says how `Enter` sends, as the approved design does.
+            (0, ["Enter send", "Ctrl+O", "Enter send"]),
             (3, ["click chat", "End: latest", "/intelligence"]),
         ] {
             state.focus_scroll = scroll;
-            for width in [39, 44, 60, 68, 92] {
+            for width in [39, 44, 49, 50, 60, 68, 92] {
                 for ascii in [false, true] {
                     state.ascii = ascii;
                     let hint = hint_line(&state, &composer, width);
                     let text = words(hint.clone());
                     for command in commands {
                         assert!(text.contains(command), "{scroll} {width}: {text}");
+                    }
+                    if scroll == 0 && width >= 50 {
+                        // The new line keeps its compatible key where every cue fits.
+                        assert!(text.contains("Alt+Enter new line"), "{width}: {text}");
+                    }
+                    if text.contains("Ctrl+O") {
+                        assert!(text.contains(PALETTE_HINT), "{scroll} {width}: {text}");
                     }
                     // `F6` and `Esc` keep their one home, the status row.
                     assert!(!text.contains("F6"), "{scroll} {width}: {text}");
@@ -777,6 +926,78 @@ mod tests {
             words(hint_line(&state, &composer, 40)),
             own(state.waiting.hint(), true)
         );
+    }
+
+    /// The palette key keeps its action wherever the free hint names it: a
+    /// row too narrow for every cue drops one whole, never the words after
+    /// `Ctrl+O`, and each form is chosen by the cells it paints.
+    #[test]
+    fn the_palette_key_keeps_its_action_in_every_free_hint() {
+        let composer = Composer::new();
+        let words = |line: Line<'_>| -> String {
+            line.spans
+                .iter()
+                .map(|span| span.content.as_ref())
+                .collect()
+        };
+        for (scroll, width, expected) in [
+            (0, 50, "Enter send · Alt+Enter new line · Ctrl+O: commands"),
+            (0, 49, "Enter send · Ctrl+O: commands"),
+            (0, 29, "Enter send · Ctrl+O: commands"),
+            (0, 28, PALETTE_HINT),
+            (
+                3,
+                58,
+                "click chat; End: latest · /intelligence · Ctrl+O: commands",
+            ),
+            (3, 57, "click chat; End: latest · /intelligence"),
+            (3, 38, "End: latest · /intelligence"),
+        ] {
+            for ascii in [false, true] {
+                let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
+                state.focus_scroll = scroll;
+                state.ascii = ascii;
+                let shown = words(hint_line(&state, &composer, width));
+                let at = format!("{scroll} {width} ascii={ascii}");
+                assert_eq!(shown, own(expected, ascii), "{at}");
+                let cells = unicode_width::UnicodeWidthStr::width(shown.as_str());
+                assert!(cells <= usize::from(width), "{at}: {shown}");
+            }
+        }
+    }
+
+    /// Below the workspace's minimum the focus view stands in: the status row
+    /// names only what works there (Esc back inline, the page keys) and the
+    /// size it waits for, never the panel key it cannot honour; from the
+    /// minimum the workspace's own note returns.
+    #[test]
+    fn below_the_minimum_the_status_row_names_only_keys_that_work() {
+        let words = |line: Line<'_>| -> String {
+            line.spans
+                .iter()
+                .map(|span| span.content.as_ref())
+                .collect()
+        };
+        let (width, height) = crate::workspace::geometry::MIN_SIZE;
+        let minimum = format!("{width}x{height}");
+        for (size, fits) in [
+            ((59, 15), false),
+            ((59, 40), false),
+            ((200, 15), false),
+            ((60, 16), true),
+            ((120, 40), true),
+        ] {
+            for ascii in [false, true] {
+                let mut state = UiState::new(Presentation::Workspace, false, size);
+                state.ascii = ascii;
+                let note = words(status_line(&state, false));
+                assert_eq!(note.contains("F6 panel"), fits, "{size:?}: {note}");
+                assert_eq!(note.contains(&minimum), !fits, "{size:?}: {note}");
+                let small = note.contains("Esc inline") && note.contains("PgUp/PgDn");
+                assert_eq!(small, !fits, "{size:?}: {note}");
+                assert_eq!(note.is_ascii(), ascii, "{size:?}: {note}");
+            }
+        }
     }
 
     /// The armed row says what a second press does and claims no
@@ -904,7 +1125,7 @@ mod tests {
             assert_eq!(
                 buffer[(0, 0)].fg,
                 if color {
-                    ratatui::style::Color::Rgb(242, 193, 125)
+                    ratatui::style::Color::Rgb(233, 191, 126)
                 } else {
                     ratatui::style::Color::Reset
                 }
@@ -1011,35 +1232,46 @@ mod tests {
             .collect();
         assert_eq!(still, "* thinking");
     }
+
+    /// While a turn works the marker turns through the theme's own frames in
+    /// one steady style, the accent of active work set in weight: a frame
+    /// moves the glyph, never the hue. Reduced motion is the still dot in that
+    /// style, no colour leaves the weight alone, and an idle view (even with a
+    /// stale frame) has no marker.
     #[test]
-    fn activity_marker_uses_native_frames_and_never_animates_idle() {
+    fn activity_marker_turns_native_frames_in_one_steady_hue_and_never_animates_idle() {
         let mut state = UiState::new(Presentation::Workspace, true, (120, 40));
         state.spinner = Some(3);
         assert!(activity_marker(&state).is_none());
         state.busy = Some("authoring".to_owned());
-        let cyan = activity_marker(&state).expect("an observed busy turn");
-        assert_eq!(cyan.content, "⠸ ");
-        assert_eq!(
-            cyan.style.fg,
-            Some(ratatui::style::Color::Rgb(106, 216, 226))
-        );
-        state.spinner = Some(6);
-        let purple = activity_marker(&state).expect("busy frame");
-        assert_ne!(cyan.content, purple.content);
-        assert_ne!(cyan.style.fg, purple.style.fg);
+        let steady = role::style(Role::Accent, true).add_modifier(Modifier::BOLD);
+        // Two whole turns of the orbit: each frame its own glyph, one style.
+        for frame in 0..20_u8 {
+            state.spinner = Some(frame);
+            let mark = activity_marker(&state).expect("an observed busy turn");
+            let glyph = SPINNER[usize::from(frame) % SPINNER.len()];
+            assert_eq!(mark.content, format!("{glyph} "), "frame {frame}");
+            assert_eq!(mark.style, steady, "frame {frame}");
+        }
         state.spinner = None;
         let still = activity_marker(&state).expect("reduced motion");
         assert_eq!(still.content, "● ");
+        assert_eq!(still.style, steady);
         assert_eq!(activity_marker(&state), Some(still));
         state.ascii = true;
         state.color = false;
-        for frame in 0..10 {
+        let weight = Style::default().add_modifier(Modifier::BOLD);
+        for frame in 0..10_u8 {
             state.spinner = Some(frame);
             let mark = activity_marker(&state).expect("ASCII busy marker");
-            assert!(mark.content.is_ascii());
-            assert_eq!(mark.style.fg, None);
-            assert_eq!(mark.style.bg, None);
+            let glyph = ASCII_SPINNER[usize::from(frame) % ASCII_SPINNER.len()];
+            assert_eq!(mark.content, format!("{glyph} "), "frame {frame}");
+            assert_eq!(mark.style, weight, "frame {frame}");
         }
+        state.spinner = None;
+        let still = activity_marker(&state).expect("reduced motion in ASCII");
+        assert_eq!(still.content, "* ");
+        assert_eq!(still.style, weight);
         state.busy = None;
         state.waiting = Waiting::Gate;
         assert!(activity_marker(&state).is_none());
@@ -1194,5 +1426,42 @@ mod tests {
         let mut inline = UiState::new(Presentation::Inline, false, (80, 24));
         inline.focus_scroll = 3;
         assert!(!words(&inline).contains("End: latest"));
+    }
+
+    /// The workspace says the lifecycle once it says something: a fresh
+    /// session's five pending fields take no row there, a field reached (or
+    /// an earlier result) does, and the inline view keeps its rail as before.
+    #[test]
+    fn an_untouched_lifecycle_takes_no_workspace_row() {
+        let composer = Composer::new();
+        let fresh = "Draft ○ · Saved ○ · Checked ○ · Active ○ · Run ○";
+        let begun = "Draft ● · Saved ○ · Checked ○ · Active ○ · Run ○";
+        let earlier = format!("{fresh} (earlier ✓)");
+        for presentation in [Presentation::Workspace, Presentation::Inline] {
+            let mut state = UiState::new(presentation, false, (120, 40));
+            let bare = live_rows(&state, &composer, 80, 40);
+            let quiet = presentation == Presentation::Workspace;
+            for (rail, shown) in [(fresh, !quiet), (begun, true), (earlier.as_str(), true)] {
+                state.apply(Beat::Rail(rail.to_owned()));
+                let rows = live_rows(&state, &composer, 80, 40);
+                assert_eq!(rows, bare + u16::from(shown), "{presentation:?} {rail}");
+            }
+        }
+    }
+
+    /// The boxed composer asks for its caption and its two edges, and wraps
+    /// its line at the box's inner width: a line the plain row holds takes
+    /// two rows inside the box.
+    #[test]
+    fn a_boxed_composer_asks_its_caption_edges_and_inner_rows() {
+        let state = UiState::new(Presentation::Workspace, false, (120, 40));
+        let mut short = Composer::new();
+        short.paste("short");
+        let plain = live_rows(&state, &short, 40, 40);
+        assert_eq!(boxed_live_rows(&state, &short, 40, 40), plain + 4);
+        let mut long = Composer::new();
+        long.paste(&"x".repeat(31));
+        assert_eq!(live_rows(&state, &long, 40, 40), plain);
+        assert_eq!(boxed_live_rows(&state, &long, 40, 40), plain + 4);
     }
 }

@@ -95,20 +95,53 @@ pub fn lines_from(
     paint: Paint,
     scroll: usize,
 ) -> Vec<Line<'static>> {
-    match object {
-        Object::Welcome { words } => welcome(words, width, height, paint),
+    if let Object::Welcome { words } = object {
+        return welcome(words, width, height, paint);
+    }
+    let total = length(object);
+    let rows = content_rows(total, height);
+    let visible = usize::from(rows);
+    let from = scroll.min(total.saturating_sub(visible));
+    let mut out = match object {
+        Object::Welcome { .. } => Vec::new(),
         Object::Shown { icon, name, lines } => {
-            let from = scroll.min(lines.len());
-            shown(*icon, name, &lines[from..], width, height, paint)
+            shown(*icon, name, &lines[from..], width, rows + 1, paint)
         }
         Object::Workflow { title, body } => {
-            let from = scroll.min(body.len());
             let mut out = vec![title.clone()];
-            out.extend(body[from..].iter().cloned());
-            out.truncate(usize::from(height));
+            out.extend(body[from..].iter().take(visible).cloned());
             out
         }
+    };
+    if height >= 3 && total > usize::from(height - 1) {
+        out.push(continuation(from > 0, from + visible < total, width, paint));
     }
+    out.truncate(usize::from(height));
+    out
+}
+
+/// Rows available to an object's content under its title. Overflow reserves
+/// one row for a continuation cue; scrolling and following a picked task
+/// use the same budget as painting. Very short regions keep the content.
+#[must_use]
+pub fn content_rows(lines: usize, height: u16) -> u16 {
+    let rows = height.saturating_sub(1);
+    rows.saturating_sub(u16::from(height >= 3 && lines > usize::from(rows)))
+}
+
+fn continuation(above: bool, below: bool, width: u16, paint: Paint) -> Line<'static> {
+    let words = match (above, below, paint.ascii) {
+        (true, true, true) => "^ Above / v Below - scroll",
+        (true, true, false) => "↑ Above · ↓ Below · scroll",
+        (true, false, true) => "^ More above - scroll",
+        (true, false, false) => "↑ More above · scroll",
+        (_, _, true) => "v More below - scroll",
+        (_, _, false) => "↓ More below · scroll",
+    };
+    Line::styled(
+        fit_head(words, usize::from(width), marks(paint.ascii).1),
+        role::style(Role::Dim, paint.color),
+    )
 }
 
 /// The lines an open object holds under its title row (none for the
@@ -316,19 +349,48 @@ mod tests {
             ],
         };
         let rows = text(&lines(&object, 24, 3, paint(false)));
-        assert_eq!(rows, ["⑂ release.nika", "nika: release", "tasks:"]);
+        assert_eq!(
+            rows,
+            ["⑂ release.nika", "nika: release", "↓ More below · scroll"]
+        );
         let ascii = text(&lines(&object, 24, 4, paint(true)));
         assert_eq!(ascii[0], "[W] release.nika");
         assert_eq!(ascii[3], "  gate: { invoke: { t...");
         let scrolled = text(&lines_from(&object, 24, 3, paint(false), 1));
         assert_eq!(
             scrolled,
-            ["⑂ release.nika", "tasks:", "  gate: { invoke: { too…"]
+            ["⑂ release.nika", "tasks:", "↑ Above · ↓ Below · scr…"]
         );
         assert_eq!(length(&object), 3);
         assert_eq!(
             text(&lines_from(&object, 24, 3, paint(false), 9)),
-            ["⑂ release.nika"]
+            [
+                "⑂ release.nika",
+                "  gate: { invoke: { too…",
+                "↑ More above · scroll"
+            ]
         );
+    }
+
+    #[test]
+    fn an_overflowing_object_names_its_continuation_and_keeps_the_last_row_reachable() {
+        let object = Object::Workflow {
+            title: Line::raw("notes.nika"),
+            body: (0..6).map(|n| Line::raw(format!("row {n}"))).collect(),
+        };
+        for ascii in [false, true] {
+            let first = text(&lines(&object, 40, 4, paint(ascii)));
+            assert_eq!(&first[..3], ["notes.nika", "row 0", "row 1"]);
+            assert!(first[3].contains("More below"), "{first:?}");
+            let last = text(&lines_from(&object, 40, 4, paint(ascii), 4));
+            assert_eq!(&last[..3], ["notes.nika", "row 4", "row 5"]);
+            assert!(last[3].contains("More above"), "{last:?}");
+            assert!(!last[3].contains("below"));
+            assert!(first.iter().chain(&last).all(|row| row.width() <= 40));
+            if ascii {
+                assert!(first.iter().chain(&last).all(|row| row.is_ascii()));
+            }
+        }
+        assert_eq!(text(&lines(&object, 40, 7, paint(true))).len(), 7);
     }
 }

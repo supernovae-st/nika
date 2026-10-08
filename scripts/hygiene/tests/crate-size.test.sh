@@ -44,6 +44,7 @@ scaffold() {
   local dir="$1" red_rows="$2" red_rc="$3" band_rows="$4" band_rc="$5"
   mkdir -p "$dir/scripts/hygiene" "$dir/scripts/ci"
   cp "$VECTOR" "$dir/scripts/hygiene/"
+  cp "$ROOT/scripts/ci/crate-size-policy.sh" "$dir/scripts/ci/"
   printf '%s' "$red_rows" >"$dir/red.rows"
   printf '%s' "$band_rows" >"$dir/band.rows"
   printf '%s\n' "$red_rc" >"$dir/red.rc"
@@ -131,6 +132,16 @@ expect_says '14995/15000' 'header carries the tightest figure, not a band label'
 # Control · a single crate in the band still names itself.
 expect_says 'crates/nika-solo' 'a lone crate in the band is named' \
   '' 0 "$ONE" 1
+
+TUI='FAIL  crates/nika-tui  17500 LOC (max 12000)
+FAIL  crates/nika-runtime  14995 LOC (max 12000)
+'
+expect_says 'crates/nika-runtime' 'tightness uses each reviewed crate limit' \
+  '' 0 "$TUI" 1
+expect_says '5 LOC of headroom' 'the native TUI exception does not hide another near-limit crate' \
+  '' 0 "$TUI" 1
+expect_says '17500/18000' 'the native TUI ceiling is visible in the dashboard' \
+  '' 0 'FAIL  crates/nika-tui  17500 LOC (max 12000)' 1
 
 # The verdict semantics are untouched by the message change.
 expect_rc 1 'band is YELLOW, never blocking' '' 0 "$UNSORTED" 1

@@ -4,14 +4,14 @@
 //! The workspace the shell keeps between frames: the project view the
 //! conversation last lent, the keyboard focus, the workflow opened as the
 //! object in view, the look its Session took of that workflow, the face in
-//! view and the arrangement of all of it (the Session or the Workbench
-//! layout, the separators' shares: the private `layout` module). It assembles
+//! view and the arrangement of all of it (the object restored or expanded,
+//! the separators' shares: the private `layout` module). It assembles
 //! one [`Screen`] from them and routes a key by a fixed precedence (the shell
 //! decides `Ctrl+C` and `Ctrl+T` before it):
 //!
 //! | key                        | a region other than the composer   | the composer's region           |
 //! |----------------------------|------------------------------------|---------------------------------|
-//! | `F4`                       | Session · Workbench (view only)    | Session · Workbench (view only) |
+//! | `F4`                       | the object expanded (where it grows) · restored | the same          |
 //! | `F6` · `Shift+F6`          | next · previous region             | next · previous region          |
 //! | `Esc`                      | back to the composer               | leaves to inline, draft intact  |
 //! | `PgUp` · `PgDn`            | the object scrolls (object region) | the transcript scrolls          |
@@ -37,7 +37,7 @@
 //!
 //! Below [`super::geometry::MIN_SIZE`] the shell draws the focus view: every
 //! key then behaves as in the composer's region (`F4` changes nothing there:
-//! no layout is drawn), and the focus kept here returns with the workspace
+//! no object is drawn), and the focus kept here returns with the workspace
 //! when the size allows. Nothing here reads a file, a clock or the
 //! environment.
 
@@ -191,7 +191,7 @@ struct Drawn {
     /// What was rendered (a look's path, or a candidate's identity) and the
     /// witness of its bytes, the face, the region's width, the glyph column
     /// and the colour it was rendered for.
-    key: (String, Option<String>, Face, RunFace, u16, bool, bool),
+    key: (String, Option<String>, Face, RunFace, u16, bool, bool, bool),
     title: Line<'static>,
     body: Vec<Line<'static>>,
     /// The body line of the picked task, when the run's list shows one.
@@ -325,18 +325,35 @@ impl Desk {
 
     /// Render the face in view for a terminal of `size`, before the frame and
     /// only when the look or the candidate, the face, the region's width, the
-    /// glyph column or the colour changed: drawing paints these lines and
+    /// glyph column, colour or short graph format changed: drawing paints these lines and
     /// calls no viewer.
     pub(crate) fn prepare(&mut self, size: (u16, u16), ascii: bool, color: bool) {
         let (Some((from, witness)), Some(geometry)) = (self.rendered_from(), self.geometry(size))
         else {
             return;
         };
-        let width = geometry.object.width;
-        let rows = usize::from(geometry.object.height.saturating_sub(1)).max(1);
-        let key = (from, witness, self.face, self.run_face, width, ascii, color);
+        // The face is rendered for the cells the object paints it in.
+        let width = screen::object_body(&geometry).width;
+        let height = geometry.object.height;
+        let compact = height < 24
+            && self.face == Face::Graph
+            && matches!(
+                self.shown(),
+                Some(Opened::Candidate(_) | Opened::Workflow(_))
+            );
+        let key = (
+            from,
+            witness,
+            self.face,
+            self.run_face,
+            width,
+            ascii,
+            color,
+            compact,
+        );
         if let Some(drawn) = self.drawn.as_mut().filter(|d| d.key == key) {
             // The same lines in another viewport: a picked task stays in view.
+            let rows = usize::from(super::object::content_rows(drawn.body.len(), height)).max(1);
             if drawn.rows != rows {
                 drawn.rows = rows;
                 if let Some(line) = drawn.picked {
@@ -345,10 +362,21 @@ impl Desk {
             }
             return;
         }
-        let resized = (self.drawn.as_ref()).is_some_and(|d| d.key.4 != width || d.rows != rows);
+        // Compact rows and cards have different line identities. Start the
+        // graph at its top when that format changes; keep source and focus.
+        if self.drawn.as_ref().is_some_and(|drawn| {
+            drawn.key.0 == key.0
+                && drawn.key.1 == key.1
+                && drawn.key.2 == key.2
+                && drawn.key.7 != compact
+        }) {
+            self.focus.scroll = 0;
+        }
         let mut picked_line = None;
         let lines = match (self.shown(), &self.look) {
-            (Some(Opened::Candidate(c)), _) => c.face_lines(self.face, width, ascii, color),
+            (Some(Opened::Candidate(c)), _) => {
+                c.face_lines_in(self.face, width, ascii, color, compact)
+            }
             (Some(Opened::Live(leg)), _) => {
                 let lines = leg.view(self.run_face, &self.pick, width, ascii, color);
                 if self.run_face == RunFace::Run && !self.pick.is_open() {
@@ -360,9 +388,11 @@ impl Desk {
                 }
                 lines
             }
-            (_, Some(look)) => look.face_lines(self.face, width, ascii, color),
+            (_, Some(look)) => look.face_lines_in(self.face, width, ascii, color, compact),
             (_, None) => return,
         };
+        let rows = usize::from(super::object::content_rows(lines.1.len(), height)).max(1);
+        let resized = (self.drawn.as_ref()).is_some_and(|d| d.key.4 != width || d.rows != rows);
         if let (Some(line), true) = (picked_line, self.pick.follows() || resized) {
             // A moved pick, or one a new size shows elsewhere, stays in
             // view: the scroll follows it once, never the page keys.
@@ -601,10 +631,14 @@ impl Desk {
             return composer_route(key);
         };
         if key.code == KeyCode::F(4) {
-            // The other layout of the same desk, from every region: the view
+            // The object expanded or restored, from every region: the view
             // changes, the draft, the focus, the object and the runs do not.
-            self.toggle_layout();
-            return Route::Repaint;
+            // Where the object cannot grow the arrangement stays as it is.
+            return if self.toggle_layout(size) {
+                Route::Repaint
+            } else {
+                Route::Nothing
+            };
         }
         if let Some(route) = self.separator_key(key, size) {
             return route;
@@ -761,7 +795,7 @@ impl Desk {
 
 /// A key in the composer's region of a full screen (the workspace's, or the
 /// focus view's whole screen): `Esc` leaves, the page keys scroll the
-/// transcript, `F4` changes nothing (no layout is drawn there), the composer
+/// transcript, `F4` changes nothing (no object is drawn there), the composer
 /// takes everything else.
 pub(crate) fn composer_route(key: KeyEvent) -> Route {
     match key.code {

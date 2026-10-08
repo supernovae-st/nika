@@ -24,6 +24,29 @@ follow_ups: ["the admission evidence of the member, pending with its WIP unit", 
 
 # ADR-143: nika-tui size-cap member split — nika-tui-view
 
+## Amendment · 8 October 2026 · native composition ceiling
+
+The native workspace combines continuous conversation, contextual object
+expansion and retained input; typed inline interactions continue this same
+integration. Its production counter reached 15,158 lines during this work. Keep the existing viewer/renderer
+boundary while completing that cohesive experience; deleting explanatory code
+or adding another crate solely to pass the counter would obscure this change.
+
+The reviewed production ceiling is **18,000 LOC for `crates/nika-tui` only**.
+Every other crate retains 15,000 LOC. The per-file 1,500-line rule, dependency
+boundaries, tests, review and normal hooks remain in force. This is a bounded
+exception, not a new workspace default or a reusable exemption marker.
+
+`scripts/ci/crate-size-policy.sh` owns both ceilings; the existing counter and
+hygiene dashboard consume it. A probe can only lower a ceiling. The dashboard
+sorts by remaining headroom and shows each actual limit so the exception cannot
+hide another crate approaching its own wall. Tests cover both exact limits,
+one-line violations, and the lowered probe. Review the renderer's cohesion again
+after the native interaction integration; this amendment does not prescribe a
+new architectural split in advance.
+
+The original split and its dated measurements below remain historical evidence.
+
 ## Context
 
 `nika-tui` (ADR-139) measures **13,879 prod LOC** at the terminal UI head `887fb8459`, against

@@ -5,6 +5,9 @@
 //! holds, and that choosing never sends.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
+use ratatui::style::Modifier;
 
 use super::chooser::{Chosen, Door, Entry};
 use super::{Composer, ComposerAction};
@@ -355,4 +358,64 @@ fn a_fresh_answer_takes_palette_words_whole_and_never_restores_them() {
     c.paste("no");
     assert_eq!(c.take(), "no");
     assert_eq!(c.text(), "");
+}
+
+/// The cells `composer` paints reversed in a two-row box: its cursor.
+fn reversed(composer: &Composer) -> Vec<(u16, u16)> {
+    let area = Rect::new(0, 0, 24, 2);
+    let mut buffer = Buffer::empty(area);
+    composer.render(area, &mut buffer);
+    let mut cells = Vec::new();
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            if buffer[(x, y)].modifier.contains(Modifier::REVERSED) {
+                cells.push((x, y));
+            }
+        }
+    }
+    cells
+}
+
+/// The text area paints its cursor, one reversed cell, only while the
+/// composer holds the keys. Giving them to another region and back changes
+/// nothing else: the draft, the cell the cursor stands on, the slash list's
+/// selection and the words the palette set aside stay exact, and a box
+/// emptied or refilled meanwhile shows its cursor again with the keys.
+#[test]
+fn the_cursor_shows_only_while_the_composer_holds_the_keys() {
+    let mut c = composer();
+    type_text(&mut c, "/s");
+    c.choose(key(KeyCode::Down));
+    let selection = listed(&c);
+    assert_eq!(reversed(&c), [(2, 0)], "the cursor ends the draft");
+    c.set_focused(false);
+    assert!(reversed(&c).is_empty(), "no cursor with the keys elsewhere");
+    assert_eq!(c.text(), "/s");
+    assert!(c.listing().is_none(), "nor a slash list");
+    c.set_focused(true);
+    assert_eq!(reversed(&c), [(2, 0)], "the same cell, the keys back");
+    assert_eq!(listed(&c), selection, "the selection kept its entry");
+    // A command chosen over typed words sets them aside; the line is then
+    // taken while the keys are elsewhere, which empties and refills the box.
+    c.clear();
+    c.paste("my words");
+    c.toggle_palette();
+    type_query(&mut c, "status");
+    assert_eq!(c.choose(key(KeyCode::Enter)), Chosen::Inserted);
+    c.set_focused(false);
+    assert_eq!(c.take(), "/status");
+    assert_eq!(c.text(), "my words", "the words set aside are back");
+    assert!(
+        reversed(&c).is_empty(),
+        "the refilled box shows no cursor yet"
+    );
+    c.set_focused(true);
+    assert_eq!(reversed(&c), [(8, 0)], "after the words, the keys back");
+    // An empty box: its cursor is the cell before the invitation.
+    c.set_placeholder("Ask, change, or run");
+    c.clear();
+    c.set_focused(false);
+    assert!(reversed(&c).is_empty(), "the invitation stands alone");
+    c.set_focused(true);
+    assert_eq!(reversed(&c), [(0, 0)], "the cursor opens the invitation");
 }

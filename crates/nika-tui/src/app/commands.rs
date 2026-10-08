@@ -193,9 +193,13 @@ impl<C: Conversation + 'static> Shell<C> {
         let view = catalog::View {
             presentation: self.state.presentation,
             fits: geometry::fits(self.state.size),
-            scrolled: self.state.focus_scroll > 0,
+            // A palette's own height changes while searching; keep its return
+            // action available even when that temporarily fits all messages.
+            scrolled: self.state.focus_scroll > 0 || self.composer.palette_open(),
             // Only the palette lists keys: the transcript is read for it alone.
             diagnostic: self.composer.palette_open() && self.summarized().is_some(),
+            // What F4 does now, as the object's own action says it.
+            object: self.desk.toggled(self.state.size),
         };
         let entries = catalog::offered(&self.commands, view);
         self.composer.offer(entries);
@@ -314,12 +318,17 @@ impl<C: Conversation + 'static> Shell<C> {
     }
 
     /// One event heard while a turn runs: the shell's readers first, the busy
-    /// law ([`Self::hear`]) for what they leave.
+    /// law ([`Self::hear`]) for what they leave. Whatever emptied the hint row
+    /// (a reader, the palette, the diagnostic, End back to the latest row, a
+    /// pointer, an edit), a requested stop's words come back to it
+    /// ([`Self::keep_stop_notice`]).
     pub(super) fn hear_first(&mut self, event: UiEvent, armed: &mut bool) -> Heard {
-        match self.catch_busy(event, armed) {
+        let heard = match self.catch_busy(event, armed) {
             Ok(heard) => heard,
             Err(event) => self.hear(event, armed),
-        }
+        };
+        self.keep_stop_notice(*armed);
+        heard
     }
 
     /// [`Self::catch`] for an event heard while a turn runs: `Ok` with what

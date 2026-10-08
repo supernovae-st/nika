@@ -97,8 +97,10 @@ runs before drawing and opens no consent, Save or Run authority. For a workflow 
 in a harness build, run the installed agent CLIs' authentication status probes; it never
 calls a model.
 
-Session and Workbench are arrangements of the same Desk, selected with `F4` or
-the header switch. Their bounded separators have pointer and keyboard routes;
+The selected object's local Expand/Restore control and `F4` arrange the same
+Desk, preserving input, focus, selection and reading. The header offers concrete
+Project/Conversation/Object access only while the project region is folded.
+Bounded separators have pointer and keyboard routes;
 resize clamps the rendered geometry without changing the chosen proportions.
 The Live host keeps only settled display choices in a versioned HOME preference
 file through `OwnedDir`. Painting performs no I/O; restoring an arrangement
@@ -187,14 +189,25 @@ a stamped integrated build or a paid model route.
   second row. Below 60×16 there is no workspace and the caller keeps the focus
   presentation. The regions cover the screen exactly without overlap at 80×24,
   100×32, 120×40 and 160×48, with and without a pinned row.
-- `workspace::header` paints where the human stands from a `Place` the Session
-  projects: the active project (icon, name, chevron), its location, the host,
-  then the observed facts (git or no git, `nika.yaml` or no `nika.yaml`); an
-  unobserved fact is not written, a missing project reads `no project`. A narrow
-  row cuts the location from its start, never the project name; the ASCII column
-  replaces glyphs, separators and the ellipsis.
+  Contextual expansion keeps the conversation beside the object from 100 columns,
+  at its minimum usable width; narrower views give the object more height.
+  Only a strict increase in object space offers Expand. Restore stays reachable.
+  Moving the wide expanded separator toward a larger conversation restores the
+  regular arrangement at that requested width, preserving the same draft and object.
+- `workspace::screen::masthead` composes the Session's `Place` and selected
+  preparation intelligence in one header. The brand and project stand on the
+  left, the intelligence on the right. A second row is a quiet rule, or holds
+  the intelligence when it cannot fit beside the project. The selected name
+  shortens at whole words beside `/status` when necessary; `/status` alone is
+  the fallback when its labeled name cannot fit. It is a displayed fact, not a
+  selector, and keeps a blank cell before the right edge or folded region names.
+  Routine location, Git and governing file facts are available there. A refused `nika.yaml` remains visible.
+  A missing project reads `no project`; unknown facts stay unknown. The ASCII
+  column replaces renderer-owned glyphs, separators and the ellipsis.
 - `workspace::aside` lists what the project holds in two projections, Nika and
-  Files (the chosen one underlined), with the object in view marked; an overflow
+  Files (the chosen one underlined), under headings derived from the entries'
+  typed kinds. The selected row and object in view have distinct marks. Pointer
+  routing reads the same row plan as painting; headings and notes are inert. An overflow
   ends on a `+N more` row and a listing the Session marks partial says so on its
   last row instead of pretending to show the whole disk.
 - `workspace::pinned` paints the pinned run: its owning project, workflow and
@@ -206,32 +219,44 @@ a stamped integrated build or a paid model route.
   `nika_display::theme::Theme::glyph` paints.
 - `workspace::object` paints the preview on the right. An open object is named by its kind's
   icon and its name, and its given lines are cut at the edge, never wrapped
-  (workflow faces use `nika-tui-view`; observed run faces use `workspace::live`). With nothing open it welcomes: the largest
+  (workflow faces use `nika-tui-view`; observed run faces use `workspace::live`).
+  A short inspected or proposed graph uses bounded complete dependency rows for
+  plain value flow; predicates, material notes or unsafe/shortened identities
+  retain the detailed renderer. The same content budget drives scroll extent,
+  painting and the More above/below cue; every retained line remains reachable.
+  With nothing open it welcomes: the largest
   butterfly that fits whole above the onboarding words, up to 48×20 when both
   the mark and the instructions fit. The instructions explain describing an
   outcome, answering questions, reviewing, saving and then running; they give
   a concrete example and navigation keys. The mark reveals once from the
   caller's clock and appears final at once under reduced motion.
 - `workspace::conversation` names who the next message goes to: the title row
-  gives the thread and its project, the composer's placeholder the full
+  gives the thread alone, the composer's placeholder the full
   recipient (`Message to studio / release checklist`), and the context row
-  keeps apart what is only on screen and what is attached. What the next
+  names actual attachments separately from the viewed object. An empty attachment
+  context is silent. What the next
   message carries keeps priority on a narrow panel; the on-screen part is cut
-  first, then dropped. The heading identifies the Session's selection as
+  first, then dropped. The workspace header identifies the Session's selection as
   `Prepare with:`; it does not attribute a local action or a reply to that model.
   It names the explicitly configured model, or the authoring seat's resolved
   provider model when no model was named; an unresolved default stays explicit.
   During intelligence selection the fixed composer hint names all four numbered
   routes (account, API, local, no AI), even when the menu is above the viewport.
-  A selected model also receives wrapped heading space in short panels while
-  the existing activity/composer area stays fixed. The header and scroll bounds
-  use the same measurement; one transcript row remains. An unknown selection
-  stays explicit; the renderer makes no provider call.
-  The idle hint keeps intelligence selection and panel navigation visible after
-  the welcome closes. While scrolled back, it asks the user to click the
+  The selection has no second copy in the conversation and does not change its
+  scroll bounds. An unknown selection stays explicit; the renderer makes no
+  provider call. Beside the object, a sufficiently tall panel gives the composer
+  a quiet frame and a `Your message` or `Your answer` caption; stacked and short
+  panels retain the compact composer. Input wrapping, cursor placement and
+  painting use the same inner cells. Its software cursor disappears while
+  another panel has the keys and returns at the retained insertion position;
+  buffer replacement preserves that focus style.
+  The idle hint names sending, a new line and the command palette; panel
+  navigation stays on the status row. While scrolled back, it asks the user to click the
   conversation, then press End for the latest messages: the wheel does not move
   keyboard focus. The hint fits one row at the available width; Stop, Save,
   cost questions and completion keep their own instructions.
+  A lifecycle whose fields are all still pending takes no workspace row; reached
+  states and earlier results remain visible. Inline and Focus keep their rail.
 - `workspace::screen::draw` composes one frame from a `Screen` (place, aside,
   object, thread, pinned run): the transcript, status, composer and hint are
   painted by the same functions as the focus presentation. Beside the object
@@ -242,8 +267,8 @@ a stamped integrated build or a paid model route.
   it by default, so typing never needs a first move; `F6` moves to the next
   region and `Shift+F6` back (a folded aside is skipped), `Esc` returns to the
   composer, and `Tab` stays the composer's completion key. In the aside the
-  arrows move a reversed selection (a weight, readable without colour) that
-  the listing always shows, and `Enter` opens the entry: the object in view
+  arrows move an underlined selection with its own marker, readable without
+  colour, that the listing always shows, and `Enter` opens the entry: the object in view
   changes, the conversation does not, and nothing is attached to the next
   message. In the object the arrows and page keys scroll its lines under a
   title row that stays. On the Run face, Up/Down select a task and Enter opens

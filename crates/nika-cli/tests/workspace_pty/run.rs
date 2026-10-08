@@ -453,7 +453,13 @@ fn a_child_run_is_opened_from_its_task_and_left_for_the_parent() {
     term.wait_until("the child's journal, read", |s| {
         s.contains("child ./child.nika") && s.contains("verdict ·") && s.contains("greet")
     });
-    assert!(term.text().contains("not recorded"), "{}", term.dump());
+    assert!(
+        preview_text(&term.screen).contains(
+            "identity not compared: its execution is not recorded on its frames; the parent's frame names no child execution"
+        ),
+        "{}",
+        term.dump()
+    );
     term.resize(80, 24);
     term.wait_until("the child at 80x24", |s| s.contains("child ./child.nika"));
     term.resize(50, 14);

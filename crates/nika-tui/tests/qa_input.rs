@@ -243,7 +243,6 @@ fn wide_and_combining_glyphs_go_through_whole() {
 /// a script written without spaces) wraps onto the next row and every
 /// character typed stays visible, the cursor with it.
 #[test]
-#[ignore = "defect: a word wider than the composer is clipped at the edge, the rest typed blind · composer.rs uses WrapMode::Word, whose words wider than the viewport are not split (ratatui-textarea 0.9 docs); WordOrGlyph falls back to graphemes · composer.rs sizing"]
 fn a_word_wider_than_the_composer_stays_visible() {
     let word: String = TOKEN.repeat(3);
     let mut term = Term::proto(&[], 80, 24);

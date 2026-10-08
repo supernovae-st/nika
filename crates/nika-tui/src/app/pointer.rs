@@ -3,12 +3,14 @@
 
 //! Pointer navigation and input while a turn runs. All coordinates are judged
 //! against the current frame geometry (the desk's arrangement); no click, no
-//! drag becomes a submitted line, a consent or a Run. The header's switch
-//! shows the other layout, a separator follows the pointer while its button
-//! is held (within its bounds), and the marker of a transcript scrolled back
-//! returns it to its latest row as `End` does. Hold Shift for the terminal's
-//! own selection/copy where supported; F4, F6, the separator keys, arrows,
-//! PageUp/PageDown, End and Enter remain the complete keyboard path.
+//! drag becomes a submitted line, a consent or a Run. The object's own action
+//! expands or restores it as `F4` does, a region the folded header names takes
+//! the keys as `F6` moves them, a separator follows the pointer while its
+//! button is held (within its bounds), and the marker of a transcript scrolled
+//! back returns it to its latest row as `End` does. While the full diagnostic
+//! covers the frame, nothing under it takes the pointer. Hold Shift for the
+//! terminal's own selection/copy where supported; F4, F6, the separator keys,
+//! arrows, PageUp/PageDown, End and Enter remain the complete keyboard path.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use nika_tui_view::Face;
@@ -20,7 +22,7 @@ use super::{
     Busy, Composer, ComposerAction, Conversation, Desk, Exit, Heard, LEAVE_WAITS, Presentation,
     Route, Shell, Signal, UiEvent, UiState, busy_key, is_ctrl_c,
 };
-use crate::workspace::screen::{self, Switch};
+use crate::workspace::screen;
 use crate::workspace::{
     aside, focus::Region, geometry::Geometry, live::RunFace, object::Object, project::Target,
 };
@@ -110,13 +112,12 @@ fn route(state: &mut UiState, desk: &mut Desk, composer: &Composer, mouse: Mouse
             }
         } else {
             desk.focus.region = Region::Object;
-            if mouse.row == geometry.object.y {
-                return face_pointer(
-                    state,
-                    desk,
-                    mouse.column - geometry.object.x,
-                    geometry.object.width,
-                );
+            // The faces stand where the object paints its title: its body.
+            let body = screen::object_body(&geometry);
+            if mouse.row == body.y
+                && let Some(column) = mouse.column.checked_sub(body.x)
+            {
+                return face_pointer(state, desk, column, body.width);
             }
         }
         return Route::Repaint;
@@ -124,11 +125,13 @@ fn route(state: &mut UiState, desk: &mut Desk, composer: &Composer, mouse: Mouse
     Route::Nothing
 }
 
-/// A press on the chrome rather than on a region's content: the header's
-/// layout switch, a separator (held until the button comes up, the keyboard
-/// focus unchanged), or the marker back to the transcript's latest row (the
-/// conversation takes the keys, as a click on it does, and `End` applies).
-/// `None` leaves the press to the regions. Every one of them is view only.
+/// A press on the chrome rather than on a region's content: a region the
+/// folded header names (it takes the keys, as `F6` moves them), the object's
+/// own action (`F4`), a separator (held until the button comes up, the
+/// keyboard focus unchanged), or the marker back to the transcript's latest
+/// row (the conversation takes the keys, as a click on it does, and `End`
+/// applies). `None` leaves the press to the regions. Every one of them is
+/// view only.
 fn chrome_pointer(
     state: &mut UiState,
     desk: &mut Desk,
@@ -138,24 +141,26 @@ fn chrome_pointer(
 ) -> Option<Route> {
     desk.release();
     let shown = desk.screen(state.ascii);
-    let layout = desk.arrangement().layout;
-    if point.y == geometry.header.y {
-        let asked = screen::switch_at(&shown.place, geometry.header, layout, state.ascii, point.x);
-        match asked {
-            Some(Switch::To(layout)) => return Some(held(desk.set_layout(layout))),
-            Some(Switch::Toggle) => {
-                desk.toggle_layout();
-                return Some(Route::Repaint);
-            }
-            None => {}
+    let focused = desk.focus.region;
+    if point.y == geometry.header.y && geometry.aside.is_none() {
+        let named = screen::region_at(&shown.place, geometry.header, focused, state.ascii, point.x);
+        if let Some(region) = named {
+            desk.focus.region = region;
+            return Some(held(region != focused));
         }
+    }
+    let next = desk.toggled(state.size);
+    let action = screen::object_action(&shown.object, geometry, focused, next, state.ascii);
+    if action.is_some_and(|(cells, _)| cells.contains(point)) {
+        // The object's own action is `F4`: the view changes, the keys stay.
+        desk.toggle_layout(state.size);
+        return Some(Route::Repaint);
     }
     if desk.press(point, state.size).is_some() {
         return Some(Route::Repaint);
     }
     if state.focus_scroll > 0 {
-        let seat = shown.thread.intelligence.as_deref();
-        let transcript = screen::panel_areas(geometry, state, composer, seat)[1];
+        let transcript = screen::panel_areas(geometry, state, composer, &shown.thread)[1];
         let marker = screen::latest_area(transcript, state.ascii);
         if marker.is_some_and(|marker| marker.contains(point)) {
             desk.focus.region = Region::Conversation;
@@ -320,6 +325,12 @@ impl<C: Conversation + 'static> Shell<C> {
 
     /// One pointer event; what it changed (`Route::Nothing`: nothing to draw).
     pub(super) fn on_mouse(&mut self, mouse: MouseEvent) -> Route {
+        if self.diagnostic.is_some() {
+            // The full diagnostic covers every region: no target under it
+            // takes the pointer, and a held separator is let go where it is.
+            self.desk.release();
+            return Route::Nothing;
+        }
         let routed = route(&mut self.state, &mut self.desk, &self.composer, mouse);
         if self.composer.palette_open()
             && matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left))
@@ -364,10 +375,13 @@ impl<C: Conversation + 'static> Shell<C> {
             }
             UiEvent::Mouse(mouse) => {
                 // A pointer moving over the screen changes nothing: no frame.
-                return match self.on_mouse(mouse) {
-                    Route::Nothing => Heard::Nothing,
-                    _ => Heard::Redraw,
-                };
+                if self.on_mouse(mouse) == Route::Nothing {
+                    return Heard::Nothing;
+                }
+                // The view changed: a requested stop's words come back once
+                // the event is handled ([`Self::hear_first`]); the next
+                // `Ctrl+C` leaves, it does not ask the stop again.
+                return Heard::Redraw;
             }
             UiEvent::Key(key) => key,
             UiEvent::Resize(cols, rows) if self.state.presentation != Presentation::Inline => {
@@ -639,46 +653,6 @@ mod tests {
         assert_eq!(focus.scroll, 0);
     }
 
-    /// The header's switch shows the layout clicked; the layout in view asks
-    /// nothing; `F4` toggles. The draft, the transcript, the keys and the
-    /// reading position stay.
-    #[test]
-    fn the_header_switch_shows_a_layout_and_keeps_the_draft_and_the_reading() {
-        use crate::workspace::geometry::Layout;
-        let (mut state, mut desk, composer) = setup((120, 40));
-        state.focus_scroll = 7;
-        let header = desk.geometry(state.size).expect("geometry").header;
-        let place = desk.screen(state.ascii).place;
-        let area = screen::switch_area(&place, header, state.ascii).expect("switch");
-        let down = |x| mouse(MouseEventKind::Down(MouseButton::Left), x, area.y);
-        let blocks = state.transcript.len();
-        assert_eq!(
-            route(&mut state, &mut desk, &composer, down(area.x + 12)),
-            Route::Repaint
-        );
-        assert_eq!(desk.arrangement().layout, Layout::Workbench);
-        assert_eq!(
-            route(&mut state, &mut desk, &composer, down(area.x + 12)),
-            Route::Nothing
-        );
-        assert_eq!(
-            route(&mut state, &mut desk, &composer, down(area.right() - 1)),
-            Route::Repaint
-        );
-        assert_eq!(desk.arrangement().layout, Layout::Session);
-        assert_eq!(
-            route(&mut state, &mut desk, &composer, down(area.x + 4)),
-            Route::Nothing
-        );
-        assert_eq!(composer.text(), "unsent yes");
-        assert_eq!(state.transcript.len(), blocks);
-        assert_eq!(
-            state.focus_scroll, 7,
-            "the reading position is the reader's"
-        );
-        assert_eq!(desk.focus.region, Region::Conversation);
-    }
-
     /// A separator follows real pointer events from press to release, within
     /// its bounds; the keys stay in their region and nothing is sent.
     #[test]
@@ -750,8 +724,8 @@ mod tests {
             desk.focus.region = Region::Object;
             state.focus_scroll = 9;
             let g = desk.geometry(state.size).expect("geometry");
-            let seat = desk.screen(state.ascii).thread.intelligence;
-            let transcript = screen::panel_areas(&g, &state, &composer, seat.as_deref())[1];
+            let thread = desk.screen(state.ascii).thread;
+            let transcript = screen::panel_areas(&g, &state, &composer, &thread)[1];
             let marker = screen::latest_area(transcript, state.ascii).expect("marker");
             let click = |x| mouse(MouseEventKind::Down(MouseButton::Left), x, marker.y);
             assert_eq!(
@@ -785,9 +759,19 @@ mod tests {
     #[test]
     fn tabs_hit_only_visible_labels_in_the_painted_title() {
         let row = crate::workspace::inspect::title_row("日本.nika", Face::Source, 70, false, false);
-        assert_eq!(span_at(&row, 10, 70), Some("plan"));
-        assert_eq!(span_at(&row, 8, 70), Some(" "));
-        assert_eq!(span_at(&row, 10, 10), None, "partial labels never hit");
+        // The labels stand where the painted title puts them (after the
+        // object's own name): measured on the row, never assumed.
+        let plan = row.spans.iter().position(|span| span.content == "plan");
+        let plan = plan.expect("the plan tab is painted");
+        let start: usize = row.spans[..plan].iter().map(|s| s.content.width()).sum();
+        let start = u16::try_from(start).expect("cells");
+        assert_eq!(span_at(&row, start + 1, 70), Some("plan"));
+        assert_eq!(span_at(&row, start - 1, 70), Some(" "));
+        assert_eq!(
+            span_at(&row, start + 1, start + 2),
+            None,
+            "partial labels never hit"
+        );
         let labels = vec![
             "[run]".into(),
             "outputs".into(),
@@ -800,5 +784,269 @@ mod tests {
             suffix_tab_at(&Line::from("日本 · [run] out…"), &labels, 14, 80),
             None
         );
+    }
+
+    /// The frame the shell paints for `desk` at the state's size.
+    fn painted(state: &UiState, desk: &Desk, composer: &Composer) -> ratatui::buffer::Buffer {
+        let (width, height) = state.size;
+        let backend = ratatui::backend::TestBackend::new(width, height);
+        let mut terminal = ratatui::Terminal::new(backend).expect("terminal");
+        let paint = crate::workspace::object::Paint {
+            ascii: state.ascii,
+            color: false,
+            elapsed: std::time::Duration::ZERO,
+            reduced_motion: true,
+        };
+        terminal
+            .draw(|frame| {
+                assert!(crate::workspace::desk::draw(
+                    frame, desk, paint, state, composer
+                ));
+            })
+            .expect("draw");
+        terminal.backend().buffer().clone()
+    }
+
+    /// The text of the cells `from..to` of row `y`.
+    fn cells(buffer: &ratatui::buffer::Buffer, from: u16, to: u16, y: u16) -> String {
+        (from..to).map(|x| buffer[(x, y)].symbol()).collect()
+    }
+
+    /// A press on the object's own action is exactly `F4`: the object grows
+    /// (beside the conversation from 100 columns, above it below) while the
+    /// draft, the transcript, the reading position and the keys stay, the
+    /// change settles once, and the restore form gives back the same frame.
+    /// The blank cell before the action is the title row (a focus); under
+    /// the folded project list nothing expands.
+    #[test]
+    fn a_press_on_the_object_action_is_f4_and_changes_only_the_view() {
+        let press = |x, y| mouse(MouseEventKind::Down(MouseButton::Left), x, y);
+        for size in [(80, 24), (120, 40), (180, 48)] {
+            let (mut state, mut desk, composer) = setup(size);
+            desk.opened = Some(Target::Workflow("release.nika".to_owned()));
+            state.focus_scroll = 7;
+            let blocks = state.transcript.len();
+            let mut keyboard = Desk::new();
+            keyboard.view = desk.view.clone();
+            assert_eq!(keyboard.route(key(KeyCode::F(4)), size), Route::Repaint);
+            let restored = desk.geometry(size).expect("geometry");
+            let (x, y) = (restored.object.right() - 15, restored.object.y);
+            let action = cells(&painted(&state, &desk, &composer), x, x + 15, y);
+            assert_eq!(action, "[+] Expand · F4", "{size:?}: the object's action");
+            assert_eq!(
+                route(&mut state, &mut desk, &composer, press(x - 1, y)),
+                Route::Repaint
+            );
+            assert_eq!(desk.arrangement(), Desk::new().arrangement(), "{size:?}");
+            desk.focus.region = Region::Conversation;
+            assert_eq!(
+                route(&mut state, &mut desk, &composer, press(x, y)),
+                Route::Repaint
+            );
+            assert_eq!(
+                desk.arrangement(),
+                keyboard.arrangement(),
+                "{size:?}: not F4"
+            );
+            let expanded = desk.geometry(size).expect("geometry");
+            let area = |r: Rect| u32::from(r.width) * u32::from(r.height);
+            assert!(area(expanded.object) > area(restored.object), "{size:?}");
+            assert_eq!(
+                desk.focus.region,
+                Region::Conversation,
+                "{size:?}: the keys"
+            );
+            assert_eq!(composer.text(), "unsent yes");
+            assert_eq!((state.transcript.len(), state.focus_scroll), (blocks, 7));
+            assert_eq!(desk.take_settled(), Some(desk.arrangement()), "{size:?}");
+            assert_eq!(desk.take_settled(), None, "{size:?}: settled once");
+            let (x, y) = (expanded.object.right() - 16, expanded.object.y);
+            let action = cells(&painted(&state, &desk, &composer), x, x + 16, y);
+            assert_eq!(action, "[-] Restore · F4", "{size:?}");
+            assert_eq!(
+                route(&mut state, &mut desk, &composer, press(x + 15, y)),
+                Route::Repaint
+            );
+            assert_eq!(
+                desk.geometry(size),
+                Some(restored),
+                "{size:?}: not restored"
+            );
+        }
+        let (mut state, mut desk, composer) = setup((80, 24));
+        desk.opened = Some(Target::Workflow("release.nika".to_owned()));
+        desk.focus.region = Region::Aside;
+        let object = desk.geometry(state.size).expect("geometry").object;
+        route(
+            &mut state,
+            &mut desk,
+            &composer,
+            press(object.right() - 2, object.y),
+        );
+        assert_eq!(
+            desk.arrangement(),
+            Desk::new().arrangement(),
+            "under the list"
+        );
+    }
+
+    /// While the project list is folded, a press on a region's name in the
+    /// header gives that region the keys and changes nothing else, and the
+    /// region that has them asks nothing; from 120 columns no name is drawn.
+    #[test]
+    fn a_press_on_a_folded_regions_name_moves_only_the_keys() {
+        for size in [(80, 24), (100, 32)] {
+            let (mut state, mut desk, composer) = setup(size);
+            state.focus_scroll = 5;
+            for (name, region) in [
+                ("Project", Region::Aside),
+                ("Object", Region::Object),
+                ("Conversation", Region::Conversation),
+                ("Conversation", Region::Conversation),
+            ] {
+                let row = cells(&painted(&state, &desk, &composer), 0, size.0, 0);
+                let words = match desk.focus.region {
+                    Region::Aside => "[Project] Conversation Object",
+                    Region::Object => "Project Conversation [Object]",
+                    Region::Conversation => "Project [Conversation] Object",
+                };
+                assert!(row.ends_with(words), "{size:?}: {row}");
+                let start = size.0 - u16::try_from(words.len()).expect("cells");
+                let at = start + u16::try_from(words.find(name).expect("named")).expect("cells");
+                let moved = desk.focus.region != region;
+                let press = mouse(MouseEventKind::Down(MouseButton::Left), at + 1, 0);
+                let routed = route(&mut state, &mut desk, &composer, press);
+                assert_eq!(routed == Route::Repaint, moved, "{size:?} {name}");
+                assert_eq!(desk.focus.region, region, "{size:?} {name}");
+                assert_eq!(desk.arrangement(), Desk::new().arrangement(), "{size:?}");
+                assert_eq!(
+                    (composer.text(), state.focus_scroll),
+                    ("unsent yes".into(), 5)
+                );
+            }
+        }
+        let (state, desk, composer) = setup((120, 40));
+        let row = cells(&painted(&state, &desk, &composer), 0, 120, 0);
+        assert!(
+            !row.contains("Conversation") && !row.contains("Workbench"),
+            "{row}"
+        );
+    }
+
+    /// The demo project with `opened` in view and, when `pinned`, a run pinned.
+    fn opened(size: (u16, u16), pinned: bool) -> (UiState, Desk, Composer) {
+        let (state, mut desk, composer) = setup(size);
+        desk.opened = Some(Target::Workflow("release.nika".to_owned()));
+        if pinned {
+            let run = crate::workspace::pinned::Pinned::new(
+                "demo",
+                "release.nika",
+                "#7",
+                nika_display::state::TaskState::Paused,
+                "waiting",
+            );
+            desk.view.as_mut().expect("the demo project").pinned = Some(run);
+        }
+        (state, desk, composer)
+    }
+
+    /// Where expanding would not give the object more cells, no `[+]` is
+    /// painted and a press at the end of its first row expands nothing (the
+    /// object takes the keys, as a press on its title does); a kept expansion
+    /// there still paints its restore, and a press on it restores.
+    #[test]
+    fn a_press_never_expands_an_object_that_cannot_grow() {
+        use crate::workspace::geometry::{Arrangement, Layout};
+        let press = |x, y| mouse(MouseEventKind::Down(MouseButton::Left), x, y);
+        for (size, pinned) in [
+            ((60, 16), false),
+            ((60, 16), true),
+            ((80, 17), true),
+            ((99, 16), false),
+        ] {
+            let (mut state, mut desk, composer) = opened(size, pinned);
+            let at = format!("{size:?} pinned={pinned}");
+            let object = desk.geometry(size).expect("geometry").object;
+            let row = cells(
+                &painted(&state, &desk, &composer),
+                object.x,
+                object.right(),
+                object.y,
+            );
+            assert!(!row.contains("[+]"), "{at}: {row}");
+            route(
+                &mut state,
+                &mut desk,
+                &composer,
+                press(object.right() - 2, object.y),
+            );
+            assert_eq!(desk.arrangement(), Desk::new().arrangement(), "{at}");
+            assert_eq!(desk.take_settled(), None, "{at}");
+            desk.arrange(Arrangement::of(Layout::Workbench));
+            let object = desk.geometry(size).expect("geometry").object;
+            let row = cells(
+                &painted(&state, &desk, &composer),
+                object.x,
+                object.right(),
+                object.y,
+            );
+            assert!(row.ends_with("[-] Restore · F4"), "{at}: {row}");
+            route(
+                &mut state,
+                &mut desk,
+                &composer,
+                press(object.right() - 2, object.y),
+            );
+            assert_eq!(desk.arrangement().layout, Layout::Session, "{at}");
+            assert_eq!(composer.text(), "unsent yes", "{at}");
+        }
+    }
+
+    /// A long project name never hides the folded regions: a press on each
+    /// region's name moves only the keys, with a one-row and a two-row
+    /// header, wide glyphs and both glyph columns.
+    #[test]
+    fn a_long_project_name_keeps_each_folded_region_pressable() {
+        use crate::workspace::project::ProjectView;
+        for size in [(60, 16), (60, 30)] {
+            for name in [
+                "customer-onboarding-automation",
+                "顧客オンボーディング-automation",
+            ] {
+                for ascii in [false, true] {
+                    let (mut state, mut desk, composer) = setup(size);
+                    state.ascii = ascii;
+                    state.focus_scroll = 5;
+                    let location = format!("~/Projects/{name}");
+                    desk.view = Some(ProjectView::new("local", name, location));
+                    for (target, region) in [
+                        ("Project", Region::Aside),
+                        ("Object", Region::Object),
+                        ("Conversation", Region::Conversation),
+                    ] {
+                        let at = format!("{size:?} {name} ascii={ascii} {target}");
+                        let words = match desk.focus.region {
+                            Region::Aside => "[Project] Conversation Object",
+                            Region::Object => "Project Conversation [Object]",
+                            Region::Conversation => "Project [Conversation] Object",
+                        };
+                        let row = cells(&painted(&state, &desk, &composer), 0, size.0, 0);
+                        assert!(row.ends_with(words), "{at}: {row}");
+                        let start = size.0 - u16::try_from(words.len()).expect("cells");
+                        let offset = words.find(target).expect("named");
+                        let x = start + u16::try_from(offset).expect("cells") + 1;
+                        let press = mouse(MouseEventKind::Down(MouseButton::Left), x, 0);
+                        route(&mut state, &mut desk, &composer, press);
+                        assert_eq!(desk.focus.region, region, "{at}");
+                        assert_eq!(desk.arrangement(), Desk::new().arrangement(), "{at}");
+                        assert_eq!(
+                            (composer.text(), state.focus_scroll),
+                            ("unsent yes".into(), 5),
+                            "{at}"
+                        );
+                    }
+                }
+            }
+        }
     }
 }

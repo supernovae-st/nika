@@ -205,6 +205,18 @@ impl Proposed {
         ascii: bool,
         color: bool,
     ) -> (Line<'static>, Vec<Line<'static>>) {
+        self.face_lines_in(face, width, ascii, color, false)
+    }
+
+    /// Short previews keep exact graph rows beside the same proposal facts.
+    pub(crate) fn face_lines_in(
+        &self,
+        face: Face,
+        width: u16,
+        ascii: bool,
+        color: bool,
+        compact: bool,
+    ) -> (Line<'static>, Vec<Line<'static>>) {
         let (sep, cut) = marks(ascii);
         let name = format!("proposal{sep}{}", self.look.title());
         let title = title_row(&name, face, width, ascii, color);
@@ -217,7 +229,10 @@ impl Proposed {
         let short: String = self.witness().unwrap_or("").chars().take(12).collect();
         let said =
             format!("these bytes {short}, the proposal's own{sep}Left/Right change the face");
-        body.extend(self.look.judged_lines(face, width, ascii, color, &said));
+        body.extend(
+            self.look
+                .judged_lines_in(face, width, ascii, color, &said, compact),
+        );
         (title, body)
     }
 }
