@@ -12,10 +12,11 @@ use nika_kernel::http::HttpPostDyn;
 use nika_onboard::compile::authority::{Authority, Envelope, Seat, Wire, usage_complete};
 use nika_onboard::compile::{
     Cognition, CompileError, CompileOutcome, CompileRequest, NoProvider,
-    compile_with_cognition_rehearsed,
+    compile_with_cognition_composed,
     decide::{DecisionSeat, ProviderChoice},
     rehearse::Rehearse,
 };
+use nika_onboard::knowledge::ComponentCatalog;
 use std::{sync::Arc, time::Duration};
 
 /// Whether `--authoring-model` names one of the engine's harness seats (`claude-code/default`).
@@ -114,13 +115,15 @@ pub fn decision_seat_note(model: &str) -> &'static str {
 /// decision call asks the same effort under the declared authoring cap (R4 B16). With a
 /// rehearsal `host` (the observed room over the working directory), each final candidate is
 /// tried on a scratch copy of its stated inputs, as the Session tries it: a failed or missing
-/// trial is evidence the judge reads and the repairs start from, never a READY.
+/// trial is evidence the judge reads and the repairs start from, never a READY. With a
+/// `catalog` (the release the pack came from, its holdout kept out), the pack is qualified over
+/// the whole catalogue.
 pub(super) fn compile(
     request: &CompileRequest,
     args: &super::CompileArgs,
     (config, authority): (&config::AuthoringConfig, &Authority),
     capture_flags: &super::CaptureFlags,
-    host: Option<&dyn Rehearse>,
+    (host, catalog): (Option<&dyn Rehearse>, Option<&dyn ComponentCatalog>),
 ) -> Result<CompileOutcome, String> {
     let providers = nika_runtime::compose::config_from_env();
     let (request, (max_tokens, timeout)) = with_policy(request, args, config, providers.clone())?;
@@ -173,7 +176,8 @@ pub(super) fn compile(
         let keys = keys.iter().flatten().map(|key| key.expose());
         let keys = keys.chain(typesafe.as_ref().map(super::typesafe::TypesafeSeat::key));
         let scope = (args.authoring_model.as_deref(), max_tokens, timeout);
-        let work = seated(&request, (harness.as_ref(), provider.as_ref()), seat, host);
+        let rooms = (host, catalog);
+        let work = seated(&request, (harness.as_ref(), provider.as_ref()), seat, rooms);
         let outcome =
             super::capture::cli_observe(capture_flags, keys, harness.is_none(), scope, work).await;
         let mut outcome = outcome.map_err(|e| e.to_string())?;
@@ -216,39 +220,42 @@ async fn seated<H: ProviderInferDyn, P: ProviderInferDyn>(
     request: &CompileRequest,
     (harness, provider): (Option<&H>, Option<&P>),
     seat: Option<&dyn DecisionSeat>,
-    host: Option<&dyn Rehearse>,
+    (host, catalog): (Option<&dyn Rehearse>, Option<&dyn ComponentCatalog>),
 ) -> Result<CompileOutcome, CompileError> {
     match (harness, provider) {
         (Some(harness), _) => {
-            Box::pin(compile_with_cognition_rehearsed(
+            Box::pin(compile_with_cognition_composed(
                 request,
                 Cognition {
                     provider: Some(harness),
                     seat,
                 },
                 host,
+                catalog,
             ))
             .await
         }
         (None, Some(provider)) => {
-            Box::pin(compile_with_cognition_rehearsed(
+            Box::pin(compile_with_cognition_composed(
                 request,
                 Cognition {
                     provider: Some(provider),
                     seat,
                 },
                 host,
+                catalog,
             ))
             .await
         }
         (None, None) => {
-            Box::pin(compile_with_cognition_rehearsed::<NoProvider>(
+            Box::pin(compile_with_cognition_composed::<NoProvider>(
                 request,
                 Cognition {
                     provider: None,
                     seat,
                 },
                 host,
+                catalog,
             ))
             .await
         }

@@ -294,14 +294,20 @@ fn run_with_capture(
     // The knowledge door: the source the configuration names, its pack for the intent the
     // compiler reads composed here and stated to the seat beside the card; a source that
     // cannot be honored refuses, never a silent card alone.
+    let mut lent = None;
     if let Some(config) = &authoring_config {
-        request = match config.with_knowledge(request, &effective_intent(args, true)) {
-            Ok(request) => request,
+        (request, lent) = match config.with_knowledge_lent(request, &effective_intent(args, true)) {
+            Ok(composed) => composed,
             Err(error) => {
                 return render::failure("knowledge", &error.to_string(), exit::ENV, args.json);
             }
         };
     }
+    // The catalogue of this request: the release the pack came from, its holdout kept out.
+    let catalogue =
+        (lent.as_ref()).map(|(snapshot, exclude)| snapshot.catalogue(exclude.as_deref()));
+    let catalog = (catalogue.as_ref())
+        .map(|catalogue| catalogue as &dyn nika_onboard::knowledge::ComponentCatalog);
     // Free intents and revisions in words carry a record (a creation's plan, a revision's
     // native candidate); a skeleton, hello or a structured edit never does.
     let sha = (!named).then(|| match revise_intent(&request) {
@@ -314,7 +320,7 @@ fn run_with_capture(
     let host = trials.map(|room| room as &dyn nika_onboard::compile::rehearse::Rehearse);
     let result = match (&resolved, &authoring_config) {
         (Some(resolved), Some(config)) => {
-            authoring::compile(&request, args, (config, resolved), capture, host)
+            authoring::compile(&request, args, (config, resolved), capture, (host, catalog))
         }
         _ => compile(&request).map_err(|error| error.to_string()),
     };

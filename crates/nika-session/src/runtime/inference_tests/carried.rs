@@ -70,10 +70,11 @@ fn judged_by_seat(root: &Path, home: &Path, base: &str) -> SessionRuntime {
     let mut s = SessionRuntime::open(root, selected, Box::new(reasoner()));
     s.factory = Some(Box::new(move |_| Box::new(reasoner())));
     let none = AuthoringSettings::none();
+    // The verifier's carry is under test, not the knowledge release: none is opened, so no
+    // catalogue is lent and the seat is asked the verifier's questions only.
+    let off = AuthoringSettings::none().with_knowledge_off();
     let seat = DecisionSetup::with_key(SEAT, Some(KEY.to_owned()), Some(base));
-    s.set_authoring_context(
-        AuthoringContext::from_settings(&none, &none).with_decision(Some(seat)),
-    );
+    s.set_authoring_context(AuthoringContext::from_settings(&off, &none).with_decision(Some(seat)));
     s.enable_continuous_preparation();
     s.with_classifier(Box::new(Correcting));
     s.enable_history(home).unwrap();
