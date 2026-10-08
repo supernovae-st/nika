@@ -1384,6 +1384,16 @@ impl<T> tracing::instrument::Instrument for nika_session_change::outcome::Review
 impl<T> tracing::instrument::WithSubscriber for nika_session_change::outcome::ReviewId
 impl<T> typenum::type_operators::Same for nika_session_change::outcome::ReviewId
 pub type nika_session_change::outcome::ReviewId::Output = T
+pub mod nika_session_change::reply
+pub fn nika_session_change::reply::as_typed(line: &str) -> bool
+pub fn nika_session_change::reply::carries_an_offer(question: &nika_compile::types::CompileQuestion, line: &str) -> bool
+pub fn nika_session_change::reply::choice_prompt(question: &nika_compile::types::CompileQuestion, line: &str) -> alloc::string::String
+pub fn nika_session_change::reply::names_a_model(line: &str) -> bool
+pub fn nika_session_change::reply::names_an_offer_alone(question: &nika_compile::types::CompileQuestion, line: &str) -> bool
+pub fn nika_session_change::reply::offered_keys(question: &nika_compile::types::CompileQuestion) -> alloc::string::String
+pub fn nika_session_change::reply::offered_part(reply: &str, line: &str, question: &nika_compile::types::CompileQuestion) -> core::option::Option<alloc::string::String>
+pub fn nika_session_change::reply::reading_prompt(question: &nika_compile::types::CompileQuestion, line: &str) -> alloc::string::String
+pub fn nika_session_change::reply::verbatim_part(reply: &str, line: &str) -> core::option::Option<alloc::string::String>
 pub mod nika_session_change::review
 pub use nika_session_change::review::plan_lines
 pub use nika_session_change::review::plan_lines_in_order

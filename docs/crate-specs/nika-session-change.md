@@ -57,6 +57,10 @@ those paths as an external consumer.
   answer names, the class of a refusal. A question's identity is held with the session
   incarnation that asked it; an answer naming it answers that question in that session, or
   nothing.
+- `reply` — the grammar of a human's reply to one compile question, pure over the question and
+  the line: an offered key named alone or carried as whole tokens, a value as typed, the one
+  bounded reading prompt for a value or a choice, and the verbatim whole-token copy a reading
+  may bind. The Session decides when a reading runs and what it binds.
 - `consent` — the append-only `.nika/consents.ndjson` under the project: what was previewed (the
   proposal's identity, every path with the witness of the bytes it was previewed over and of the
   bytes it lands), what landed, when. One JSON object per line.
