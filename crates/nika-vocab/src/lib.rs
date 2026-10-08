@@ -74,7 +74,7 @@ pub use output_decl::OutputDecl;
 pub use nika_cap::EffectClass;
 pub use permits::{ExecPermit, FsPermits, NetPermits, Permits};
 pub use retry::{BackoffStrategy, RetryConfig, is_valid_error_code};
-pub use run::{RunClock, RunContradiction, RunDecl, RunEntropy};
+pub use run::{RunAccess, RunClock, RunContradiction, RunDecl, RunEntropy, RunReasoning};
 pub use schema_version::SchemaVersion;
 pub use secret::{EgressRule, SecretRef, SecretSource};
 pub use type_expr::{coerce_declared, default_not_conforming_teaching, type_expr_display};

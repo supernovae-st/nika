@@ -192,7 +192,9 @@ pub(crate) fn boot_attestation_fields(wf: &RawWorkflow) -> Vec<(&'static str, Fi
     let decl = wf
         .run
         .as_ref()
-        .map_or_else(nika_schema::types::RunDecl::default, |decl| decl.value);
+        .map_or_else(nika_schema::types::RunDecl::default, |decl| {
+            decl.value.clone()
+        });
     let entropy = decl.entropy_or_default();
     fields.push((
         "stamper_kind",
