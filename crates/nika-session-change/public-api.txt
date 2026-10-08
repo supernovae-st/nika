@@ -971,6 +971,66 @@ impl<T> tracing::instrument::Instrument for nika_session_change::outcome::Refusa
 impl<T> tracing::instrument::WithSubscriber for nika_session_change::outcome::Refusal
 impl<T> typenum::type_operators::Same for nika_session_change::outcome::Refusal
 pub type nika_session_change::outcome::Refusal::Output = T
+pub struct nika_session_change::outcome::ReviewId(_)
+impl nika_session_change::outcome::ReviewId
+pub fn nika_session_change::outcome::ReviewId::as_str(&self) -> &str
+pub fn nika_session_change::outcome::ReviewId::new(turn: u64, question: &str, details: &str) -> Self
+impl core::clone::Clone for nika_session_change::outcome::ReviewId
+pub fn nika_session_change::outcome::ReviewId::clone(&self) -> nika_session_change::outcome::ReviewId
+impl core::cmp::Eq for nika_session_change::outcome::ReviewId
+impl core::cmp::PartialEq for nika_session_change::outcome::ReviewId
+pub fn nika_session_change::outcome::ReviewId::eq(&self, other: &nika_session_change::outcome::ReviewId) -> bool
+impl core::fmt::Debug for nika_session_change::outcome::ReviewId
+pub fn nika_session_change::outcome::ReviewId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_session_change::outcome::ReviewId
+pub fn nika_session_change::outcome::ReviewId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_session_change::outcome::ReviewId
+pub fn nika_session_change::outcome::ReviewId::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_session_change::outcome::ReviewId
+impl serde_core::ser::Serialize for nika_session_change::outcome::ReviewId
+pub fn nika_session_change::outcome::ReviewId::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_session_change::outcome::ReviewId
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::outcome::ReviewId where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::outcome::ReviewId::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::outcome::ReviewId where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::outcome::ReviewId::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::outcome::ReviewId where U: core::convert::From<T>
+pub fn nika_session_change::outcome::ReviewId::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::outcome::ReviewId where U: core::convert::Into<T>
+pub type nika_session_change::outcome::ReviewId::Error = core::convert::Infallible
+pub fn nika_session_change::outcome::ReviewId::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::outcome::ReviewId where U: core::convert::TryFrom<T>
+pub type nika_session_change::outcome::ReviewId::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::outcome::ReviewId::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::outcome::ReviewId where T: core::clone::Clone
+pub type nika_session_change::outcome::ReviewId::Owned = T
+pub fn nika_session_change::outcome::ReviewId::clone_into(&self, target: &mut T)
+pub fn nika_session_change::outcome::ReviewId::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_session_change::outcome::ReviewId where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_session_change::outcome::ReviewId::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_session_change::outcome::ReviewId where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::outcome::ReviewId::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::outcome::ReviewId where T: ?core::marker::Sized
+pub fn nika_session_change::outcome::ReviewId::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::outcome::ReviewId where T: ?core::marker::Sized
+pub fn nika_session_change::outcome::ReviewId::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::outcome::ReviewId where T: core::clone::Clone
+pub unsafe fn nika_session_change::outcome::ReviewId::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::outcome::ReviewId
+pub fn nika_session_change::outcome::ReviewId::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::outcome::ReviewId where T: core::clone::Clone
+pub fn nika_session_change::outcome::ReviewId::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_session_change::outcome::ReviewId where T: core::fmt::Display
+pub fn nika_session_change::outcome::ReviewId::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_session_change::outcome::ReviewId where T: 'static
+pub fn nika_session_change::outcome::ReviewId::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::outcome::ReviewId where T: ?core::marker::Sized
+pub fn nika_session_change::outcome::ReviewId::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::outcome::ReviewId::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::outcome::ReviewId
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::outcome::ReviewId
+impl<T> typenum::type_operators::Same for nika_session_change::outcome::ReviewId
+pub type nika_session_change::outcome::ReviewId::Output = T
 pub mod nika_session_change::review
 pub use nika_session_change::review::plan_lines
 pub use nika_session_change::review::plan_lines_in_order
@@ -1296,6 +1356,8 @@ pub nika_session_change::work::Waiting::IntelligenceChoice
 pub nika_session_change::work::Waiting::Question
 pub nika_session_change::work::Waiting::Question::id: nika_session_change::outcome::QuestionId
 pub nika_session_change::work::Waiting::Question::key: alloc::string::String
+pub nika_session_change::work::Waiting::RunReview
+pub nika_session_change::work::Waiting::RunReview::review: nika_session_change::outcome::ReviewId
 impl core::clone::Clone for nika_session_change::work::Waiting
 pub fn nika_session_change::work::Waiting::clone(&self) -> nika_session_change::work::Waiting
 impl core::cmp::Eq for nika_session_change::work::Waiting
