@@ -73,6 +73,8 @@ pub mod pin;
 
 pub use admission::{ADMISSION_PROFILE, RELEASE_FORMAT, RefusalCode, TrustedIdentity};
 pub use catalog::Catalogue;
+/// What a host lends a compile as its catalogue ([`Snapshot::catalogue`]).
+pub use nika_compile_seats::foundry::ComponentCatalog;
 
 /// The snapshot identity as an answer may carry it: every hash, count and selection, no host
 /// path (the snapshot directory, the files root).
