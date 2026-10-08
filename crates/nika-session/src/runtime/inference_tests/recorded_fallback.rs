@@ -64,7 +64,11 @@ fn a_recorded_workflow_takes_a_change_its_graph_refuses_over_its_whole_document(
     // once and stated again: nothing new): the route a refused structural addition takes too.
     let links = json!({"supersedes": [{"replaces": "écris aussi dans une autre copie",
         "by": CHANGE.trim_end_matches('.')}], "adds": [], "notes": ""});
-    let mut replies = authored(response);
+    // The saved workflow's semantic record is the sketch door's: this test names that door.
+    let mut replies: Vec<_> = (sketched_copy("sortie.txt").iter())
+        .map(|t| (200, response(t)))
+        .collect();
+    replies.push((200, response(JUDGE_APPROVES)));
     replies.push((200, response(&links.to_string())));
     replies.push((200, response(&links.to_string())));
     replies.push((200, response(&operations())));
@@ -73,6 +77,10 @@ fn a_recorded_workflow_takes_a_change_its_graph_refuses_over_its_whole_document(
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().expect("root");
     let mut s = open(dir.path());
+    s.set_authoring_context(crate::authoring::AuthoringContext::from_settings(
+        &nika_cli_host::compile::config::AuthoringSettings::none().with_strategy("sketch"),
+        &nika_cli_host::compile::config::AuthoringSettings::none(),
+    ));
     s.with_classifier(Box::new(Acts));
     s.admit_money("budget 2 USD", false, false)
         .expect("allowance");

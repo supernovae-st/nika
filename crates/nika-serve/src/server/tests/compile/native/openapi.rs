@@ -141,7 +141,7 @@ fn assert_judged_revision(revised: &Value, seat: &Seat) {
     assert!(source.contains("./b.md") && source.contains("./c.md") && source.contains(RUN_MODEL));
     assert_eq!(
         seat.calls(),
-        5,
+        3,
         "the source revision and its judge both reached the seat"
     );
 }
@@ -161,14 +161,10 @@ async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate
     assert_eq!(document, openapi::live(true));
     parity_cases_validate(&server, &document).await;
     let (request, answer) = (schema_at(&document, REQUEST), schema_at(&document, ANSWER));
-    // A fresh round: the plan, the sketch and its fill, generation 2, a kept round's token.
+    // A fresh round: the document, generation 2, a kept round's token.
     let first = exchange(&server, &request, &answer, &fresh(&json!({}))).await;
     assert_eq!(first.json()["compile_version"], 2);
-    assert_eq!(
-        seat.calls(),
-        3,
-        "plan, sketch and fill; model question still open"
-    );
+    assert_eq!(seat.calls(), 1, "the document; its question still open");
     for (field, invalid) in [
         ("/provenance/authoring/backend/host", json!(false)),
         (
@@ -213,10 +209,9 @@ async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate
     let token = token_of(&first);
     assert_valid(&schema_at(&document, TOKEN), &json!(token), "token");
     // Its replay: zero calls, generation 1.
-    let answers = json!({"answers": {"model": RUN_MODEL}});
-    let replayed = exchange(&server, &request, &answer, &replay(&token, &answers)).await;
+    let replayed = exchange(&server, &request, &answer, &replay(&token, &closing())).await;
     assert_eq!(replayed.json()["compile_version"], 1);
-    assert_eq!(seat.calls(), 3, "the deterministic replay calls no seat");
+    assert_eq!(seat.calls(), 1, "the deterministic replay calls no seat");
     // Generation-1 replay keeps decision evidence and its public type. Without
     // this schema field generated SDK types erase an actually observed record.
     let replay_doc = replayed.json();
@@ -246,8 +241,8 @@ async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate
     assert_eq!(skeleton.json()["compile_version"], 1);
     assert_eq!(
         seat.calls(),
-        5,
-        "the fresh round's three, the revision and its judgment, nothing else"
+        3,
+        "the fresh round's one, the revision and its judgment, nothing else"
     );
     server.stop().await.expect("clean stop");
 }

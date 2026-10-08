@@ -32,6 +32,11 @@ fn kept(s: &SessionRuntime) -> Value {
     assert!(s.status_line().contains("Not ready"));
     s.authoring.as_ref().unwrap().continuation.clone().unwrap()
 }
+/// The digest of the bytes the first round's judge was asked (its call failed): the ones its
+/// kept record replays.
+fn first_judged(peer: &Peer) -> String {
+    judged_sha(&peer.bodies()[CREATE_CALLS - 1]).expect("the first round asked its judge")
+}
 #[test]
 fn same_intent_retries_only_the_judge_before_any_save_or_run() {
     let peer = Peer::start(first_script());
@@ -57,7 +62,7 @@ fn same_intent_retries_only_the_judge_before_any_save_or_run() {
     assert!(judge.bodies()[0].to_string().contains("unfaithful"));
     let source = s.candidate().unwrap().set.changes[0].content();
     assert_eq!(
-        plan["final"]["candidate_sha256"],
+        first_judged(&peer),
         nika_event::source_id::sha256_hex(source.as_bytes())
     );
     assert!(!dir.path().join("compiled-workflow.nika").exists());
@@ -92,7 +97,7 @@ fn close_restore_and_retry_preserve_exact_candidate_and_obligations() {
     assert_eq!(judge.bodies().len(), 1);
     let source = s.candidate().unwrap().set.changes[0].content();
     assert_eq!(
-        plan["final"]["candidate_sha256"],
+        first_judged(&peer),
         nika_event::source_id::sha256_hex(source.as_bytes())
     );
 }
@@ -158,7 +163,7 @@ fn located_defect() -> Vec<(u16, Value)> {
     ]
 }
 /// [`semantic_create`] with its tasks named otherwise: the same program in other bytes.
-fn renamed_create() -> [String; 3] {
+fn renamed_create() -> [String; 1] {
     semantic_create().map(|text| {
         text.replace("read_source", "read_entree")
             .replace("write_output", "write_sortie")
@@ -178,10 +183,8 @@ fn a_replayed_candidate_the_judge_doubts_is_written_again_not_left_held() {
     let home = tempfile::tempdir().unwrap();
     let mut s = live(dir.path(), home.path());
     assert!(matches!(s.turn(WORK), TurnOutcome::Facts(_)));
-    let held_sha = kept(&s)["final"]["candidate_sha256"]
-        .as_str()
-        .expect("the kept record names its candidate")
-        .to_owned();
+    kept(&s);
+    let held_sha = first_judged(&peer);
     let mut script = located_defect();
     script.extend(renamed_create().iter().map(|t| (200, response(t))));
     script.push((200, response(JUDGE_APPROVES)));
@@ -217,8 +220,12 @@ fn a_replayed_candidate_the_judge_doubts_is_written_again_not_left_held() {
     let judged: Vec<Option<String>> = bodies.iter().map(judged_sha).collect();
     let held = Some(held_sha.clone());
     assert_eq!(judged[..3], [held.clone(), held.clone(), held]);
-    assert_eq!(judged[3..6], [None, None, None], "authoring calls");
-    let fresh = judged[6]
+    let authored = 3 + CREATE_CALLS - 1;
+    assert!(
+        judged[3..authored].iter().all(Option::is_none),
+        "authoring calls"
+    );
+    let fresh = judged[authored]
         .clone()
         .expect("the written-again candidate judged");
     assert_ne!(fresh, held_sha, "other bytes");
@@ -244,11 +251,10 @@ fn steps<'a>(decision: &'a Value, prefix: &str) -> Vec<&'a str> {
 /// The written-again round after a located defect authors the held bytes again: the verdict that
 /// rejected them in the replay is carried into it (R6), so their judge is not asked again. No
 /// judge question follows the replay's three; the written-again attempt repeats that verdict
-/// with no call (`carried`), and its located defect reopens the sketch, an authoring call. The
-/// reopened sketch writes the same bytes again: a repeat within the compile, no call and no
-/// progress, so the door stops, and its source recovery ends when the seat answers no source
-/// twice (the repair repeats the refused answer: no progress). Nothing is proposed or written,
-/// and the human is told what stopped it.
+/// with no call (`carried`), and its located defect asks the document's repair, an authoring
+/// call. The repair writes the same bytes again: a repeat within the compile, no call and no
+/// progress, so the door stops. Nothing is proposed or written, and the human is told what
+/// stopped it.
 #[test]
 fn a_write_again_that_reproduces_the_held_bytes_never_asks_their_judge() {
     let peer = Peer::start(first_script());
@@ -257,25 +263,19 @@ fn a_write_again_that_reproduces_the_held_bytes_never_asks_their_judge() {
     let home = tempfile::tempdir().unwrap();
     let mut s = live(dir.path(), home.path());
     assert!(matches!(s.turn(WORK), TurnOutcome::Facts(_)));
-    let held_sha = kept(&s)["final"]["candidate_sha256"]
-        .as_str()
-        .expect("the kept record names its candidate")
-        .to_owned();
+    kept(&s);
+    let held_sha = first_judged(&peer);
     let mut script = located_defect();
     script.extend(semantic_create().iter().map(|t| (200, response(t))));
-    // The reopening from the carried defect: the same sketch and fills, the same bytes.
-    script.extend(semantic_create()[1..].iter().map(|t| (200, response(t))));
-    // The source recovery: an answer that is no source, then the same again after its repair.
-    for _ in 0..2 {
-        script.push((200, response(r#"{"notes":"no source"}"#)));
-    }
+    // The repair from the carried defect: the same document, the same bytes.
+    script.extend(semantic_create().iter().map(|t| (200, response(t))));
     let again = Peer::start(script);
     let _again = test_transport::install(&again.url);
     let out = s.turn("RePrEnD");
     let bodies = again.bodies();
     let judged: Vec<Option<String>> = bodies.iter().map(judged_sha).collect();
     let mut expected = vec![Some(held_sha.clone()); 3];
-    expected.resize(10, None);
+    expected.resize(5, None);
     let calls = "the replay's three questions, then authoring calls only";
     assert_eq!(judged, expected, "{calls}: {out:?}");
     let TurnOutcome::Facts(words) = &out else {
@@ -307,17 +307,15 @@ fn a_write_again_that_reproduces_the_held_bytes_never_asks_their_judge() {
         carried["notes"],
         json!([{"defect": PART, "note": "the judge points to the task write_output"}])
     );
-    // The door's own steps, in order: the sketch accepted, reopened from the carried defect and
-    // accepted again, stopped on no progress, then the source recovery, exhausted.
+    // The door's own steps, in order: the document accepted, repaired from the carried defect
+    // and accepted again, then stopped on no progress.
     assert_eq!(
         steps(decision, "native:"),
         [
-            "native: sketch after the plan",
+            "native: document",
             "native: accepted",
             "native: accepted",
-            "native: no progress",
-            "native: source recovery after structured exhaustion",
-            "native: exhausted"
+            "native: no progress"
         ]
     );
     // The verifier's steps stay on the route: the carried verdict, then its repeat.
@@ -335,9 +333,8 @@ fn a_write_again_that_reproduces_the_held_bytes_never_asks_their_judge() {
     assert!(!dir.path().join("compiled-workflow.nika").exists());
 }
 /// What the session says when the written-again bytes are the held ones: the verdict carried
-/// from the replay stands, the one reopening from its defect wrote them again, and the source
-/// recovery found no source.
-const NO_PROGRESS: &str = "Nika could not finish building this automation — an authoring step failed on Nika's side (below), not because of how you asked; nothing was written.\n  what stopped it:\n    · The judge compared the whole request with the candidate's bytes: it does not carry « Je veux que sortie.txt contienne exactement les octets présents dans entree.txt (the judge points to the task write_output) ». 1 repair(s) from that defect did not settle it; nothing is READY. Next: a stronger authoring model, or a restatement of that part\n    · No candidate passed the checks within the repair budget; the original request, candidates and diagnostics are retained. No workflow was emitted. Inspect the last diagnostic before another bounded attempt\n  your request is kept as the goal: send it again unchanged for another attempt, or `/intelligence` for another model · `/meaning` shows what was understood";
+/// from the replay stands, and the one repair from its defect wrote them again.
+const NO_PROGRESS: &str = "Nika could not finish building this automation — an authoring step failed on Nika's side (below), not because of how you asked; nothing was written.\n  what stopped it:\n    · The judge compared the whole request with the candidate's bytes: it does not carry « Je veux que sortie.txt contienne exactement les octets présents dans entree.txt (the judge points to the task write_output) ». 1 repair(s) from that defect did not settle it; nothing is READY. Next: a stronger authoring model, or a restatement of that part\n  your request is kept as the goal: send it again unchanged for another attempt, or `/intelligence` for another model · `/meaning` shows what was understood";
 /// What the session says of a candidate its verifier judged and rejected with no defect located
 /// (`nika_onboard`'s held words): built, shown, never proposed, nothing written; a correction or
 /// another authoring model, which also judges unless a decision model is set, can decide it.
@@ -367,7 +364,8 @@ fn a_replayed_doubt_no_part_settles_is_never_written_again() {
     let home = tempfile::tempdir().unwrap();
     let mut s = live(dir.path(), home.path());
     assert!(matches!(s.turn(WORK), TurnOutcome::Facts(_)));
-    let plan = kept(&s);
+    kept(&s);
+    let held_sha = first_judged(&peer);
     // A later author request would be answered with the last reply, and counted below.
     let again = Peer::start(vec![
         (200, response(r#"{"choice":"unfaithful"}"#)),
@@ -404,9 +402,7 @@ fn a_replayed_doubt_no_part_settles_is_never_written_again() {
     );
     assert_eq!(
         (held.candidate.as_deref()).map(|c| nika_event::source_id::sha256_hex(c.as_bytes())),
-        plan["final"]["candidate_sha256"]
-            .as_str()
-            .map(str::to_owned),
+        Some(held_sha),
         "the same bytes, shown as the preview"
     );
     let attempts = &held.provenance.decision.as_ref().expect("decision")["semantic_verification"];
@@ -508,10 +504,8 @@ fn the_stronger_retry_after_a_held_replay_authors_afresh_and_never_rejudges_the_
     };
     assert_eq!(s.stronger_seat(), Some(stronger));
     assert!(matches!(s.turn(WORK), TurnOutcome::Facts(_)));
-    let held_sha = kept(&s)["final"]["candidate_sha256"]
-        .as_str()
-        .expect("the kept record names its candidate")
-        .to_owned();
+    kept(&s);
+    let held_sha = first_judged(&peer);
     assert!(
         (peer.bodies().iter()).all(|body| body["model"] == "deepseek-flash"),
         "the unnamed default authored the kept candidate"
@@ -541,13 +535,16 @@ fn the_stronger_retry_after_a_held_replay_authors_afresh_and_never_rejudges_the_
     );
     let models: Vec<&Value> = bodies.iter().map(|body| &body["model"]).collect();
     let (flash, pro) = (json!("deepseek-flash"), json!("deepseek-v4-pro"));
-    assert_eq!(models, [&flash, &flash, &flash, &pro, &pro, &pro, &pro]);
+    assert_eq!(models, [&flash, &flash, &flash, &pro, &pro]);
     let judged: Vec<Option<String>> = bodies.iter().map(judged_sha).collect();
     let held = Some(held_sha.clone());
     assert_eq!(judged[..3], [held.clone(), held.clone(), held.clone()]);
-    let authored: [Option<String>; 3] = [None, None, None];
-    assert_eq!(judged[3..6], authored, "authoring calls, no judge question");
-    let fresh = judged[6]
+    let authored = 3 + CREATE_CALLS - 1;
+    assert!(
+        judged[3..authored].iter().all(Option::is_none),
+        "authoring calls, no judge question"
+    );
+    let fresh = judged[authored]
         .clone()
         .expect("the stronger seat's candidate judged");
     assert_ne!(fresh, held_sha, "other bytes");
@@ -558,7 +555,7 @@ fn the_stronger_retry_after_a_held_replay_authors_afresh_and_never_rejudges_the_
         nika_event::source_id::sha256_hex(proposed.as_bytes()),
         fresh
     );
-    let (whole, verdicts) = asked(&bodies[6]).expect("the whole request judged");
+    let (whole, verdicts) = asked(&bodies[authored]).expect("the whole request judged");
     assert_eq!(whole["request"], WORK);
     assert_eq!(verdicts, ["faithful", "unfaithful", "none"]);
     let outcome = s.last_outcome.as_ref().expect("the proposed outcome");

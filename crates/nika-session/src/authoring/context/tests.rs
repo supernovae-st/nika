@@ -384,9 +384,9 @@ fn wire_message<'a>(body: &'a Value, role: &str) -> &'a str {
         .expect("text message")
 }
 
-/// The receipt identifies the private plan's instruction (the call the semantic route opens
-/// with); classification calls do not read the pack.
-fn plan_body<'a>(out: &CompileOutcome, bodies: &'a [Value]) -> &'a Value {
+/// The receipt identifies the document's instruction (the call the default route opens with);
+/// classification calls do not read the pack.
+fn opening_body<'a>(out: &CompileOutcome, bodies: &'a [Value]) -> &'a Value {
     let call = out
         .provenance
         .authoring
@@ -394,8 +394,8 @@ fn plan_body<'a>(out: &CompileOutcome, bodies: &'a [Value]) -> &'a Value {
         .expect("authoring receipt")
         .context
         .iter()
-        .find(|call| call["call"] == "plan")
-        .expect("a plan authoring call");
+        .find(|call| call["call"] == "document")
+        .expect("a document authoring call");
     let digest = call["instruction_sha256"]
         .as_str()
         .expect("instruction digest");
@@ -404,17 +404,17 @@ fn plan_body<'a>(out: &CompileOutcome, bodies: &'a [Value]) -> &'a Value {
         .find(|body| {
             nika_event::source_id::sha256_hex(wire_message(body, "system").as_bytes()) == digest
         })
-        .expect("the local server received that plan instruction")
+        .expect("the local server received that document instruction")
 }
 
 fn knowledge_record(out: &CompileOutcome) -> &Value {
     &out.provenance.decision.as_ref().expect("stamped")["session"]["authoring"]["knowledge"]
 }
 
-/// This provider's JSON-object route appends the answer schema to the plan's user words (the
-/// request alone). Validate both frames, including the schema's receipt, rather than ignoring
-/// trailing text.
-fn assert_plan_request(out: &CompileOutcome, body: &Value, intent: &str) {
+/// This provider's JSON-object route appends the answer schema to the document's opening (the
+/// request among the door's fields). Validate both frames, including the schema's receipt,
+/// rather than ignoring trailing text.
+fn assert_opening_request(out: &CompileOutcome, body: &Value, intent: &str) {
     let separator = concat!(
         "\n\nReply with ONLY a JSON value that satisfies this JSON Schema, no prose, no code ",
         "fences. Every property that lists an enum takes exactly one of the listed values, ",
@@ -424,7 +424,11 @@ fn assert_plan_request(out: &CompileOutcome, body: &Value, intent: &str) {
     let (opening, schema_text) = wire_message(body, "user")
         .split_once(separator)
         .expect("the JSON-object provider's complete schema instruction");
-    assert_eq!(opening, intent, "the original intention is retained, alone");
+    let opening: Value = serde_json::from_str(opening).expect("the door's opening fields");
+    assert_eq!(
+        opening["request"], intent,
+        "the original intention is retained whole"
+    );
     let schema: Value = serde_json::from_str(schema_text).expect("complete schema JSON");
     assert!(schema.is_object());
     assert_eq!(body["response_format"]["type"], "json_object");
@@ -435,15 +439,15 @@ fn assert_plan_request(out: &CompileOutcome, body: &Value, intent: &str) {
         .expect("authoring receipt")
         .context
         .iter()
-        .find(|call| call["call"] == "plan")
-        .expect("plan call");
+        .find(|call| call["call"] == "document")
+        .expect("document call");
     assert_eq!(
         call["schema_sha256"],
         nika_event::source_id::sha256_hex(schema_text.as_bytes())
     );
 }
 
-/// A default session presents the recalled material in the instruction of its private plan,
+/// A default session presents the recalled material in the instruction of its document call,
 /// the semantic call that opens the round. The off control sends the same intention without those
 /// references. A canned answer proves delivery only.
 #[test]
@@ -480,7 +484,7 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
     assert!(record["identity"].get("dir").is_none());
     assert_eq!(record["presented"], true);
     assert_eq!(record["pack_sha256"], pack.identity["door"]["pack_sha256"]);
-    let body = plan_body(&out, &bodies);
+    let body = opening_body(&out, &bodies);
     let system = wire_message(body, "system");
     let digest = nika_event::source_id::sha256_hex(system.as_bytes());
     assert!(
@@ -488,7 +492,7 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
             .as_array()
             .expect("calls")
             .iter()
-            .any(|call| { call["call"] == "plan" && call["instruction_sha256"] == digest })
+            .any(|call| { call["call"] == "document" && call["instruction_sha256"] == digest })
     );
     let off = host(&AuthoringSettings::none().with_knowledge_off());
     let (unread, unread_bodies) = dispatched(&off, QUALIFIED, &round);
@@ -497,11 +501,11 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
         knowledge_record(&unread).is_null(),
         "knowledge off attaches nothing"
     );
-    let off_body = plan_body(&unread, &unread_bodies);
+    let off_body = opening_body(&unread, &unread_bodies);
     for reference in expected {
         assert!(
             system.contains(&reference.text),
-            "the plan's instruction carries {}",
+            "the document's instruction carries {}",
             reference.id
         );
         assert!(!wire_message(off_body, "system").contains(&reference.text));
@@ -519,8 +523,8 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
                 })
         );
     }
-    assert_plan_request(&out, body, &intent);
-    assert_plan_request(&unread, off_body, &intent);
+    assert_opening_request(&out, body, &intent);
+    assert_opening_request(&unread, off_body, &intent);
 }
 
 #[test]

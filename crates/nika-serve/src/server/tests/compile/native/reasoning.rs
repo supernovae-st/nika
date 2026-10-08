@@ -36,7 +36,7 @@ fn first_call(document: &Value) -> Value {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_named_level_rides_the_round_and_an_unqualified_route_sends_nothing() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
+    let seat = Seat::start(question_round());
     let control = NativeAuthoring::new(PRO, deepseek(&seat)).with_repairs(0);
     let (server, _) = start_native(&world, compile_limits(), control).await;
     let response = server.request(&compile_request(&fresh(&json!({})))).await;
@@ -98,7 +98,7 @@ async fn a_named_level_rides_the_round_and_an_unqualified_route_sends_nothing() 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_explicit_short_answer_keeps_the_route_effort_and_its_wire_receipt() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
+    let seat = Seat::start(question_round());
     let control = NativeAuthoring::new(PRO, deepseek(&seat))
         .with_repairs(0)
         .with_max_tokens(8192);

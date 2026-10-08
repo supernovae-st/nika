@@ -72,11 +72,12 @@ fn historical_worst_case(strategy: NativeMode, samples: u32, repairs: u32, edit:
     }
 }
 
-/// The request-independent worst case of the current policy. COLD creation (`off` or
-/// `escalate`) follows every unstated computation, so its request count is unknown here even
-/// with an explicit repair limit. The sketch door's judgment asks each part of a doubted request
-/// alone, the task a missing part points to, the extra-operation question and the questions over
-/// a trial run: its count depends on the request too. Revisions also depend on the retained
+/// The request-independent worst case of the current policy. COLD creation (`off`) follows every
+/// unstated computation, so its request count is unknown here even with an explicit repair
+/// limit. The document door (a creation under `escalate` or `only`) and the sketch door judge
+/// each candidate whole: their judgment asks each part of a doubted request alone, the task a
+/// missing part points to, the extra-operation question and the questions over a trial run, so
+/// their count depends on the request too. Revisions also depend on the retained
 /// representation and its link, fill and repeated judgment work, which these arguments do not
 /// describe. A strategy with no repair limit has no finite worst case wherever repairs add
 /// requests, or the finite estimate exceeds the count representation.
@@ -92,7 +93,7 @@ pub fn worst_case_of(
     // Neither the samples nor the repairs bound a request-dependent judgment: kept for callers.
     let _ = (samples, repairs);
     match (strategy, edit) {
-        (NativeMode::Off, true) | (NativeMode::Only, false) => Some(0),
+        (NativeMode::Off, true) => Some(0),
         _ => None,
     }
 }
@@ -118,14 +119,14 @@ pub fn usage_complete(context: &[Value]) -> bool {
     })
 }
 
-/// The requests a typed strategy needs at least before its READY can be judged (nv1b): the plan,
-/// then its judgment (2); the sketch, its fills, then their judgment (3). A strategy no typed
-/// minimum names needs one; `only` creates nothing, so no grant of more requests can help it.
+/// The requests a typed strategy needs at least before its READY can be judged (nv1b): the
+/// document, then its judgment (2, a creation under `escalate` or `only`); the sketch, its
+/// fills, then their judgment (3). A strategy no typed minimum names needs one.
 #[must_use]
 pub const fn least_requests(strategy: NativeMode) -> u32 {
     match strategy {
         NativeMode::Sketch => 3,
-        NativeMode::Escalate => 2,
+        NativeMode::Escalate | NativeMode::Only => 2,
         _ => 1,
     }
 }
@@ -301,7 +302,7 @@ impl Authority {
     /// [`Refusal::Multiplicity`] when a known finite request count under typed repairs exceeds
     /// both the defaults' and a typed bound. A request-dependent count remains unknown and is
     /// enforced by the counters; [`Refusal::Strategy`] for a typed
-    /// escalate or sketch granted one request, outside an edit.
+    /// escalate, only or sketch granted fewer requests than it needs, outside an edit.
     pub fn resolve(
         max_calls: Option<u32>,
         strategy: NativeMode,
@@ -334,12 +335,11 @@ impl Authority {
                 strategy,
             });
         }
-        // A typed strategy is honored in full or refused here: a READY is judged, so the plan or
-        // the sketch and its fills are not enough alone (nv1b). A creation under `only` is refused
-        // by the core with its migration, never by a grant it could buy.
+        // A typed strategy is honored in full or refused here: a READY is judged, so the document
+        // or the sketch and its fills are not enough alone (nv1b).
         let steps = match strategy {
             _ if edit || !typed.strategy => None,
-            NativeMode::Escalate => Some("the plan, then its judgment"),
+            NativeMode::Escalate | NativeMode::Only => Some("the document, then its judgment"),
             NativeMode::Sketch => Some("the sketch, its fills, then their judgment"),
             _ => None,
         };
@@ -352,18 +352,14 @@ impl Authority {
                 "strategy",
                 typed.strategy && edit && strategy != NativeMode::Off,
             ),
+            // Only the private plan (`off`) samples; the document and sketch doors do not.
             (
                 "samples",
-                samples.is_some()
-                    && (edit || matches!(strategy, NativeMode::Only | NativeMode::Sketch)),
+                samples.is_some() && (edit || strategy != NativeMode::Off),
             ),
             (
                 "repairs",
-                repairs.is_some()
-                    && matches!(
-                        (strategy, edit),
-                        (NativeMode::Off, true) | (NativeMode::Only, false)
-                    ),
+                repairs.is_some() && edit && strategy == NativeMode::Off,
             ),
         ]
         .into_iter()
@@ -536,13 +532,11 @@ mod tests {
         assert!(resolve(Some(18), Escalate, samples).is_ok());
         assert!(resolve(None, Escalate, samples).is_ok());
         // A typed strategy is honored in full or refused by a typed bound: a judged READY takes
-        // two requests at least, three for the sketch. A typed `only` creates nothing, so no
-        // grant is named to it: the core refuses the creation with its migration.
-        let only = resolve(Some(1), Only, nothing.with_strategy()).expect("no grant to buy");
-        assert_eq!(only.configured["worst_case"], 0);
-        assert_eq!(least_requests(Only), 1);
+        // two requests at least (the document door of `escalate` and `only`), three for the
+        // sketch.
         for (strategy, steps, least) in [
-            (Escalate, "the plan, then its judgment", 2),
+            (Escalate, "the document, then its judgment", 2),
+            (Only, "the document, then its judgment", 2),
             (Sketch, "the sketch, its fills, then their judgment", 3),
         ] {
             let named = nothing.with_strategy();
@@ -640,7 +634,7 @@ mod tests {
         use NativeMode::{Escalate, Off, Only, Sketch};
         for strategy in [Escalate, Off, Only, Sketch] {
             for edit in [false, true] {
-                let no_calls = matches!((strategy, edit), (Off, true) | (Only, false));
+                let no_calls = strategy == Off && edit;
                 let typed = no_calls.then_some(0);
                 assert_eq!(worst_case_of(strategy, 5, Some(64), edit), typed);
                 assert_eq!(
@@ -693,8 +687,8 @@ mod tests {
         assert_eq!(ignored(&off), json!([]));
         assert_eq!(off.max_calls(), Some(1));
         assert_eq!(off.configured["worst_case"], Value::Null);
-        // Samples change nothing where no plan is sampled.
-        for strategy in [Only, Sketch] {
+        // Samples change nothing where no plan is sampled: only the private plan (`off`) is.
+        for strategy in [Escalate, Only, Sketch] {
             let sampled = resolve(None, strategy, nothing.with_samples(Some(3))).expect("runs");
             assert_eq!(ignored(&sampled), json!(["samples"]), "{strategy:?}");
         }
@@ -708,5 +702,9 @@ mod tests {
         assert_eq!(sampled.max_calls(), Some(1));
         let repaired = resolve(Some(66), Escalate, nothing.with_repairs(Some(3))).expect("66");
         assert_eq!(ignored(&repaired), json!([]));
+        // The document door repairs under `only` as under `escalate`: typed repairs count.
+        let only = resolve(None, Only, nothing.with_repairs(Some(3))).expect("runs");
+        assert_eq!(ignored(&only), json!([]));
+        assert_eq!(only.configured["worst_case"], Value::Null);
     }
 }

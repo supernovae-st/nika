@@ -2,16 +2,10 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! Authoring grants bound actual requests, separately from repair preferences. A creation is
-//! authored under the shared default strategy (`escalate`): the private plan, then the sketch
-//! door; the compiler writes the source and its permits, and its READY waits for a judgment the
-//! grant must leave room for.
+//! authored under the shared default strategy (`escalate`): the document door asks for the
+//! whole document first, and its READY waits for a judgment the grant must leave room for.
 
 use super::*;
-
-/// The run model the compiler asks for, answered in the request itself.
-pub(super) fn answered() -> Value {
-    json!({"answers": {"model": RUN_MODEL}})
-}
 
 /// The account a round's receipt keeps: the grant, what was configured, what was sent.
 fn authority(document: &Value) -> Value {
@@ -31,8 +25,8 @@ pub(super) fn roles(document: &Value) -> Vec<(String, Value)> {
         .collect()
 }
 
-/// The permits the compiler derives for [`INTENT`]'s stated read and write, as it emits them.
-const STATED_PERMITS: &str = "permits:\n  fs:\n    read:\n    - ./a.md\n    write:\n    - ./b.md\n";
+/// The permits the document states for [`INTENT`]'s read and write.
+const STATED_PERMITS: &str = "  fs:\n    read: [\"./a.md\"]\n    write: [\"./b.md\"]\n";
 
 /// The lines of one task in an emitted document: its key line and everything nested under it.
 fn task_block<'a>(candidate: &'a str, task: &str) -> Vec<&'a str> {
@@ -43,31 +37,29 @@ fn task_block<'a>(candidate: &'a str, task: &str) -> Vec<&'a str> {
         .collect()
 }
 
-/// A plan whose read cites words the request never wrote: the core asks one evidence repair.
-fn loose_plan() -> String {
-    let mut plan: Value = serde_json::from_str(&plan_answer(DRAFT, &[])).expect("plan");
-    plan["steps"][0]["evidence"] = json!("Read the file ./a.md");
-    plan.to_string()
+/// A document that writes a destination the request never names: the laws ask one repair.
+fn loose_document() -> String {
+    native_answer(&candidate(RUN_MODEL, false).replace("./b.md", "./elsewhere.md"))
 }
 
-/// The task of the compiled candidate that writes `./b.md`: the one the judge points to.
-const WRITE_TASK: &str = "write_output";
+/// The task of the document that writes `./b.md`: the one the judge points to.
+const WRITE_TASK: &str = "write_result";
 
 /// The draft detail of the plan the repair answers in [`judged_repair`]: the same read, draft
 /// and write, the draft detailed otherwise, so the repaired candidate is other bytes than the
 /// ones the judge declined (those are never asked of it again).
 const REPAIRED_DRAFT: &str = "do something clever with it, in plain words";
 
-/// The judge's closed choices, then the plan the repair call answers.
+/// The judge's closed choices, then the document the repair call answers.
 pub(super) fn judged_repair() -> Vec<Reply> {
     judged_then(REPAIRED_DRAFT)
 }
 
-/// The plan, the judge's closed choices over its candidate, the repair's plan with the draft
-/// detailed as `repaired`, then an approving judge.
+/// The document, the judge's closed choices over it, the repair's document with the prompt
+/// stating `repaired`, then an approving judge.
 pub(super) fn judged_then(repaired: &str) -> Vec<Reply> {
     vec![
-        Reply::Text(plan_answer(DRAFT, &[])),
+        Reply::Text(document_answer(DRAFT)),
         Reply::Text(json!({"choice": "unfaithful"}).to_string()),
         // Each part of the request asked alone: the read carried, the write missing. A part
         // judged missing is a defect only with its reason: the judge then points to the task
@@ -75,7 +67,7 @@ pub(super) fn judged_then(repaired: &str) -> Vec<Reply> {
         Reply::Text(json!({"choice": "carried"}).to_string()),
         Reply::Text(json!({"choice": "missing"}).to_string()),
         Reply::Text(json!({"choice": format!("task-{WRITE_TASK}")}).to_string()),
-        Reply::Text(plan_answer(repaired, &[])),
+        Reply::Text(document_answer(repaired)),
         Reply::Text(JUDGE_APPROVES.to_owned()),
     ]
 }
@@ -83,16 +75,7 @@ pub(super) fn judged_then(repaired: &str) -> Vec<Reply> {
 /// The defect [`judged_repair`] locates, with the reason its pointer gave, as a repair and a
 /// finding read it.
 pub(super) const NOTED_DEFECT: &str =
-    "then write ./b.md (the judge points to the task write_output)";
-
-/// The core's own finding on the whole request still pending on `candidate`: no admitted
-/// judgment of these bytes carried it.
-pub(super) fn pending_finding(candidate: &str) -> String {
-    format!(
-        "The request states `{INTENT}` and no element of the plan names it: no law reads from candidate {} that it carries it, and no admitted judgment made in this compile settles it. Nothing is READY on a pending clause: it stays INCOMPLETE until an admitted judgment of these bytes against the whole request carries it.",
-        &sha256_hex(candidate.as_bytes())[..12]
-    )
-}
+    "then write ./b.md (the judge points to the task write_result)";
 
 /// The judge's located defect that `repairs` repairs did not settle.
 pub(super) fn unrepaired_finding(repairs: usize) -> String {
@@ -100,11 +83,6 @@ pub(super) fn unrepaired_finding(repairs: usize) -> String {
         "The judge compared the whole request with the candidate's bytes: it does not carry « {NOTED_DEFECT} ». {repairs} repair(s) from that defect did not settle it; nothing is READY. Next: a stronger authoring model, or a restatement of that part."
     )
 }
-
-/// The `verify_held` finding of a candidate the judge declined with a located defect: that
-/// verifier is not asked again on these bytes, in this compile or in a later round that carries
-/// the verdict (the server passes no declined verdict from one request to the next).
-pub(super) const HELD_DEFECTS: &str = "The candidate was judged and not accepted: the parts named above stay missing. It is shown, never offered, and nothing was written; this verifier is not asked again on these bytes, in this compile or in a later round that carries this verdict. A correction of the request, another authoring model or another verifier can decide it.";
 
 /// Every finding of a document, in order, as its kind, target and message.
 pub(super) fn findings(document: &Value) -> Vec<(String, String, String)> {
@@ -114,23 +92,30 @@ pub(super) fn findings(document: &Value) -> Vec<(String, String, String)> {
         .collect()
 }
 
-/// The findings of a candidate held with [`judged_repair`]'s defect unsettled after `repairs`
-/// repairs: the core's pending whole request, the judge's defect, then the held marker.
-pub(super) fn held_findings(candidate: &str, repairs: usize) -> Vec<(String, String, String)> {
+/// The findings of a document withdrawn with [`judged_repair`]'s defect unsettled after
+/// `repairs` repairs: the door's journal of its rounds (one per repair after the first, each
+/// document accepted by the evidence laws), then the judge's defect.
+pub(super) fn withdrawn_findings(repairs: usize) -> Vec<(String, String, String)> {
     let finding =
         |kind: &str, target: &str, message: String| (kind.to_owned(), target.to_owned(), message);
+    let rounds = repairs + 1;
+    let accepted: Vec<String> = (0..rounds)
+        .map(|round| format!("round {round}: accepted"))
+        .collect();
     vec![
         finding(
-            "unknown",
-            "semantic_verification",
-            pending_finding(candidate),
+            "applied",
+            "authoring_native",
+            format!(
+                "The authoring conversation recorded {rounds} round(s), including {rounds} candidate or sketch judgment(s): {}.",
+                accepted.join("; ")
+            ),
         ),
         finding(
             "unknown",
             "semantic_verification",
             unrepaired_finding(repairs),
         ),
-        finding("applied", "verify_held", HELD_DEFECTS.to_owned()),
     ]
 }
 
@@ -155,8 +140,8 @@ pub(super) fn one_repair(seat: &Seat) -> NativeAuthoring {
 async fn an_explicit_one_request_limit_never_buys_a_repair_request() {
     let world = TestWorld::new();
     let seat = Seat::start(vec![
-        Reply::Text(loose_plan()),
-        Reply::Text(plan_answer(DRAFT, &[])),
+        Reply::Text(loose_document()),
+        Reply::Text(document_answer(DRAFT)),
     ]);
     let operator = NativeAuthoring::new(SEAT, seat.providers()).with_max_calls(1);
     let (server, _) = start_native(&world, compile_limits(), operator).await;
@@ -174,10 +159,10 @@ async fn an_explicit_one_request_limit_never_buys_a_repair_request() {
     assert_eq!(
         roles(&document),
         [
-            ("plan".to_owned(), Value::Null),
-            ("repair".to_owned(), json!("admission_refused")),
+            ("document".to_owned(), Value::Null),
+            ("document-repair".to_owned(), json!("admission_refused")),
         ],
-        "the evidence repair is refused before a byte leaves: {document:#}"
+        "the repair is refused before a byte leaves: {document:#}"
     );
     assert!(document.to_string().contains("max_calls"));
     server.stop().await.expect("clean stop");
@@ -187,19 +172,19 @@ async fn an_explicit_one_request_limit_never_buys_a_repair_request() {
 async fn unidentified_responses_remain_visible_beside_named_responses() {
     let world = TestWorld::new();
     let mut named: Value =
-        serde_json::from_str(&completion(&plan_answer(DRAFT, &[]))).expect("completion");
+        serde_json::from_str(&completion(&document_answer(DRAFT))).expect("completion");
     named["model"] = json!("observed-first-response");
     let seat = Seat::start(vec![
         Reply::Status(200, named.to_string()),
         Reply::Text(JUDGE_APPROVES.to_owned()),
     ]);
-    // The plan and its judgment; repairs stay the default preference.
+    // The document and its judgment; repairs stay the default preference.
     let operator = NativeAuthoring::new(SEAT, seat.providers()).with_max_calls(4);
     let (server, _) = start_native(&world, compile_limits(), operator).await;
-    let response = server.request(&compile_request(&fresh(&answered()))).await;
+    let response = server.request(&compile_request(&fresh(&json!({})))).await;
     let document = response.json();
     assert_eq!(document["status"], "ready", "{document:#}");
-    assert_eq!(seat.calls(), 2, "the named plan, then its judgment");
+    assert_eq!(seat.calls(), 2, "the named document, then its judgment");
     let backend = &document["provenance"]["authoring"]["backend"];
     assert_eq!(
         backend["observed_models"],
@@ -213,7 +198,7 @@ async fn unidentified_responses_remain_visible_beside_named_responses() {
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_preparation_never_hides_a_transport_retry() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Busy, Reply::Text(plan_answer(DRAFT, &[]))]);
+    let seat = Seat::start(vec![Reply::Busy, Reply::Text(open_document(""))]);
     let operator = NativeAuthoring::new(SEAT, seat.providers()).with_repairs(0);
     let (server, _) = start_native(&world, compile_limits(), operator).await;
     let response = server.request(&compile_request(&fresh(&json!({})))).await;
@@ -223,7 +208,7 @@ async fn continuous_preparation_never_hides_a_transport_retry() {
     assert_eq!(bodies.len(), 2, "the transient retry reached the seat");
     assert_eq!(bodies[0], bodies[1], "the retry sends the same request");
     assert_eq!(document["provenance"]["authoring"]["calls"], 1);
-    assert_eq!(roles(&document), [("plan".to_owned(), Value::Null)]);
+    assert_eq!(roles(&document), [("document".to_owned(), Value::Null)]);
     let account = authority(&document);
     assert_eq!(account["max_calls"], Value::Null);
     assert_eq!(account["invocations"], json!({"sent": 1, "refused": 0}));
@@ -234,14 +219,14 @@ async fn continuous_preparation_never_hides_a_transport_retry() {
     );
     assert_eq!(document["status"], "incomplete", "{document:#}");
     assert!(document["candidate"].is_null(), "{document:#}");
-    assert_eq!(document["questions"][0]["key"], "model");
+    assert_eq!(document["questions"][0]["key"], OPEN_KEY);
     server.stop().await.expect("clean stop");
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_explicit_one_request_limit_refuses_a_transport_retry() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Busy, Reply::Text(plan_answer(DRAFT, &[]))]);
+    let seat = Seat::start(vec![Reply::Busy, Reply::Text(document_answer(DRAFT))]);
     let operator = NativeAuthoring::new(SEAT, seat.providers())
         .with_repairs(0)
         .with_max_calls(1);
@@ -270,9 +255,9 @@ async fn an_explicit_one_request_limit_refuses_a_transport_retry() {
 #[tokio::test(flavor = "multi_thread")]
 async fn explicit_authority_repairs_and_a_caller_can_narrow_but_never_widen_it() {
     for (limits, expected_calls, ready) in [
-        // The operator's grant: the plan, its judgment, the request's two parts asked alone,
-        // the task the missing one points to, the repair, the repaired plan's judgment — one
-        // real repair.
+        // The operator's grant: the document, its judgment, the request's two parts asked
+        // alone, the task the missing one points to, the repair, the repaired document's
+        // judgment — one real repair.
         (json!({}), 7, true),
         (json!({"max_calls": 1, "repairs": 0}), 1, false),
     ] {
@@ -290,8 +275,7 @@ async fn explicit_authority_repairs_and_a_caller_can_narrow_but_never_widen_it()
             assert_eq!(response.status, 422, "{}", response.body);
             assert_eq!(seat.calls(), 0, "bad authority never contacts a provider");
         }
-        let mut fields = answered();
-        fields["limits"] = limits;
+        let fields = json!({"limits": limits});
         let response = server.request(&compile_request(&fresh(&fields))).await;
         assert_eq!(response.status, 200, "{}", response.body);
         let document = response.json();
@@ -318,12 +302,12 @@ async fn explicit_authority_repairs_and_a_caller_can_narrow_but_never_widen_it()
 async fn a_default_round_reaches_its_judgment_without_a_request_grant() {
     let world = TestWorld::new();
     let seat = Seat::start(vec![
-        Reply::Text(plan_answer(DRAFT, &[])),
+        Reply::Text(document_answer(DRAFT)),
         Reply::Text(JUDGE_APPROVES.to_owned()),
     ]);
     let operator = NativeAuthoring::new(SEAT, seat.providers());
     let (server, backend) = start_native(&world, compile_limits(), operator).await;
-    let response = server.request(&compile_request(&fresh(&answered()))).await;
+    let response = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
     assert_eq!(document["status"], "ready", "{document:#}");
@@ -333,7 +317,7 @@ async fn a_default_round_reaches_its_judgment_without_a_request_grant() {
     assert_eq!(
         roles(&document),
         [
-            ("plan".to_owned(), Value::Null),
+            ("document".to_owned(), Value::Null),
             ("judge_request".to_owned(), Value::Null),
         ]
     );
@@ -357,7 +341,7 @@ async fn a_default_round_repairs_a_judged_defect_without_an_implicit_count() {
         NativeAuthoring::new(SEAT, seat.providers()),
     )
     .await;
-    let response = server.request(&compile_request(&fresh(&answered()))).await;
+    let response = server.request(&compile_request(&fresh(&json!({})))).await;
     let document = response.json();
     assert_eq!(document["status"], "ready", "{document:#}");
     assert_eq!(seat.calls(), 7);
@@ -367,12 +351,12 @@ async fn a_default_round_repairs_a_judged_defect_without_an_implicit_count() {
     assert_eq!(
         journaled,
         [
-            "plan",
+            "document",
             "judge_request",
             "judge_part",
             "judge_part",
             "judge_point",
-            "repair",
+            "document-repair",
             "judge_request"
         ]
     );
@@ -385,14 +369,12 @@ async fn a_default_round_repairs_a_judged_defect_without_an_implicit_count() {
     let told = user_texts(&seat.bodies()[5]);
     assert_eq!(told.len(), 2, "the request, then what the verifier found");
     assert!(
-        told[1].starts_with(&format!(
-            "{REPAIR_OPENING}\n- {NOTED_DEFECT}\nReturn the complete"
-        )),
+        told[1].starts_with(REPAIR_OPENING) && told[1].contains(LOCATED),
         "{}",
         told[1]
     );
-    // The repaired plan's judgment carries the request whole, over other bytes than the ones
-    // the judge declined: the bytes now proposed.
+    // The repaired document's judgment carries the request whole, over other bytes than the
+    // ones the judge declined: the bytes now proposed.
     let proposed = document["candidate"].as_str().expect("the candidate");
     assert_carried(&attempts[1], proposed);
     assert_ne!(
@@ -401,7 +383,7 @@ async fn a_default_round_repairs_a_judged_defect_without_an_implicit_count() {
     );
     assert_eq!(
         verify_steps(&document),
-        ["verify: repair 1", "verify: judged (authoring_provider)"]
+        ["verify: judged (authoring_provider)"]
     );
     server.stop().await.expect("clean stop");
 }
@@ -416,7 +398,7 @@ fn assert_located(first: &Value) {
     assert_eq!(first["defects"], json!(["then write ./b.md"]));
     assert_eq!(
         first["notes"],
-        json!([{"defect": "then write ./b.md", "note": "the judge points to the task write_output"}])
+        json!([{"defect": "then write ./b.md", "note": "the judge points to the task write_result"}])
     );
     for settled in ["unknown", "contested", "unsettled"] {
         assert_eq!(first[settled], json!([]), "{settled}");
@@ -491,8 +473,12 @@ fn assert_carried(second: &Value, proposed: &str) {
     assert_eq!(second["candidate_sha256"], sha256_hex(proposed.as_bytes()));
 }
 
-/// What a COLD repair is told before the defects it starts from.
-const REPAIR_OPENING: &str = "VERIFIER: the workflow compiled from your plan was compared with the WHOLE request. It does not carry these parts of the request, or does them differently:";
+/// What a document repair is told before the findings it starts from.
+const REPAIR_OPENING: &str =
+    "COMPILER DIAGNOSTICS on your candidate. Return the complete corrected JSON answer";
+
+/// The judge's located defect as the repair reads it: the part and the judge's reason.
+const LOCATED: &str = "\n1. [semantic_verification] the judge compared the whole request with the candidate's bytes: it does not carry « then write ./b.md » · the judge's reason: the judge points to the task write_result\n";
 
 /// The texts of a request's user turns, in order.
 fn user_texts(body: &Value) -> Vec<String> {
@@ -512,11 +498,9 @@ fn assert_pointed(point: &Value) {
     assert_eq!(
         point["options"],
         json!([
-            "task-draft",
-            "task-draft_admit",
-            "task-draft_anchors",
             "task-read_source",
-            "task-write_output",
+            "task-transform",
+            "task-write_result",
             "omitted",
             "no_task",
             "none"
@@ -528,12 +512,12 @@ fn assert_pointed(point: &Value) {
     );
 }
 
-/// A plan whose candidate needs a value the request never names asks it in one request: no
-/// judgment is due, no second request is sent, and the round is not kept.
+/// A document that leaves a value the request never names asks it in one request: no
+/// judgment is due, no second request is sent, and the round is kept for its answer.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_plan_question_round_sends_one_request_and_keeps_no_token() {
+async fn a_document_question_round_sends_one_request_and_keeps_its_token() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
+    let seat = Seat::start(question_round());
     let operator = NativeAuthoring::new(SEAT, seat.providers());
     let (server, _) = start_native(&world, compile_limits(), operator).await;
     let response = server.request(&compile_request(&fresh(&json!({})))).await;
@@ -544,19 +528,19 @@ async fn a_plan_question_round_sends_one_request_and_keeps_no_token() {
     let keys: Vec<&Value> = (document["questions"].as_array().expect("questions").iter())
         .map(|question| &question["key"])
         .collect();
-    assert_eq!(keys, [&json!("model")]);
+    assert_eq!(keys, [&json!(OPEN_KEY)]);
     assert_eq!(seat.calls(), 1);
-    assert_eq!(roles(&document), [("plan".to_owned(), Value::Null)]);
-    assert_eq!(document["provenance"]["strategy"], "cold");
-    // Its answer round is authored again: the Cold replay is a missing Serve raccord.
-    assert!(response.header("nika-compile-replay").is_none());
+    assert_eq!(roles(&document), [("document".to_owned(), Value::Null)]);
+    assert_eq!(document["provenance"]["strategy"], "native");
+    // Its answer round replays the kept round.
+    assert!(response.header("nika-compile-replay").is_some());
     server.stop().await.expect("clean stop");
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_caller_can_select_large_limits_where_the_operator_left_preparation_open() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
+    let seat = Seat::start(question_round());
     let operator = NativeAuthoring::new(SEAT, seat.providers());
     let (server, _) = start_native(&world, compile_limits(), operator).await;
     let limits = json!({"limits": {
@@ -579,8 +563,7 @@ async fn a_caller_can_select_large_limits_where_the_operator_left_preparation_op
     server.stop().await.expect("clean stop");
 }
 
-/// A request that gates its write on the human: the plan cannot carry the gate, so the sketch
-/// door takes it.
+/// A request that gates its write on the human: the document carries the gate.
 pub(super) const GATED: &str =
     "Read ./a.md and do something clever with it, then ask me before you write ./b.md";
 
@@ -588,60 +571,39 @@ fn gated_round() -> Vec<Reply> {
     gated_round_judged(JUDGE_APPROVES)
 }
 
-/// The plan, the sketch door's graph and its fills for [`GATED`], then the judge's `answer`.
+/// The document for [`GATED`]: the human's confirmation gates the write.
+const GATED_DOCUMENT: &str = "nika: clever-rewrite\nmodel: mistral/mistral-small-latest\npermits:\n  tools: [\"nika:read\", \"nika:prompt\", \"nika:write\"]\n  fs:\n    read: [\"./a.md\"]\n    write: [\"./b.md\"]\ntasks:\n  read_source:\n    invoke:\n      tool: nika:read\n      args: { path: ./a.md }\n  transform:\n    with: { text: \"${{ tasks.read_source.output }}\" }\n    infer:\n      max_tokens: 600\n      prompt: \"Rewrite this text in a clever way, inventing nothing: ${{ with.text }}\"\n  approve:\n    invoke:\n      tool: nika:prompt\n      args: { mode: confirm, message: \"Write the rewrite to ./b.md?\" }\n  write_result:\n    after: { approve: success }\n    with:\n      approved: ${{ tasks.approve.output }}\n      content: ${{ tasks.transform.output }}\n    when: ${{ with.approved == true }}\n    invoke:\n      tool: nika:write\n      args: { path: ./b.md, content: \"${{ with.content }}\" }\n";
+
+/// The document door's answer for [`GATED`], then the judge's `answer`.
 pub(super) fn gated_round_judged(answer: &str) -> Vec<Reply> {
-    let mut plan: Value = serde_json::from_str(&plan_answer(DRAFT, &[])).expect("plan");
-    plan["effects"][0]["policy"] = json!("human_first");
-    plan["effects"][0]["evidence"] = json!("ask me before you write ./b.md");
-    let sketch = json!({"name": "clever-rewrite", "tasks": [
-        {"id": "read_source", "verb": "invoke", "tool": "nika:read", "purpose": "read",
-         "reads": ["./a.md"]},
-        {"id": "transform", "verb": "infer", "purpose": "rewrite cleverly",
-         "with": [{"name": "text", "from": "read_source"}]},
-        {"id": "approve", "verb": "invoke", "tool": "nika:prompt", "purpose": "ask first"},
-        {"id": "write_result", "verb": "invoke", "tool": "nika:write", "purpose": "write",
-         "writes": ["./b.md"], "with": [{"name": "text", "from": "transform"}],
-         "gated_by": "approve"},
-    ], "questions": [], "gaps": [], "notes": "read, transform, ask, write"});
-    let fills = json!({"fills": [
-        {"task": "transform", "field": "prompt",
-         "value": "Rewrite this text in a clever way, inventing nothing: ${{ with.text }}"},
-        {"task": "approve", "field": "args.message", "value": "Write the rewrite to ./b.md?"},
-    ], "notes": "two holes"});
     vec![
-        Reply::Text(plan.to_string()),
-        Reply::Text(sketch.to_string()),
-        Reply::Text(fills.to_string()),
+        Reply::Text(native_answer(GATED_DOCUMENT)),
         Reply::Text(answer.to_owned()),
     ]
 }
 
-/// An explicit grant of four: the plan, the sketch, its fills and the judgment — READY, the
-/// compiler's document gating the write on the human. An explicit limit of one sends the plan
-/// alone: the sketch is refused before it leaves, and nothing is READY.
+/// An explicit grant of two: the document and its judgment — READY, the document gating the
+/// write on the human. An explicit limit of one sends the document alone: its judgment is
+/// refused before it leaves, and nothing is READY.
 #[tokio::test(flavor = "multi_thread")]
-async fn an_explicit_grant_reaches_a_judged_sketch_and_a_limit_of_one_stops_the_second() {
-    let request = || {
-        let mut fields = answered();
-        fields["intent"] = json!(GATED);
-        fresh(&fields)
-    };
+async fn an_explicit_grant_reaches_a_judged_document_and_a_limit_of_one_stops_the_second() {
+    let request = || fresh(&json!({"intent": GATED}));
     let world = TestWorld::new();
     let seat = Seat::start(gated_round());
-    let granted = NativeAuthoring::new(SEAT, seat.providers()).with_max_calls(4);
+    let granted = NativeAuthoring::new(SEAT, seat.providers()).with_max_calls(2);
     let (server, _) = start_native(&world, compile_limits(), granted).await;
     let response = server.request(&compile_request(&request())).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
     assert_eq!(document["status"], "ready", "{document:#}");
     let journaled: Vec<String> = roles(&document).into_iter().map(|(role, _)| role).collect();
-    assert_eq!(journaled, ["plan", "sketch", "fill", "judge_request"]);
-    assert_eq!(seat.calls(), 4);
+    assert_eq!(journaled, ["document", "judge_request"]);
+    assert_eq!(seat.calls(), 2);
     let account = authority(&document);
-    assert_eq!(account["http_requests"]["sent"], 4);
-    assert_eq!(account["invocations"]["sent"], 4);
-    assert_eq!(account["max_calls"], 4);
-    // The compiler's document: the stated paths, their permits and the human gate.
+    assert_eq!(account["http_requests"]["sent"], 2);
+    assert_eq!(account["invocations"]["sent"], 2);
+    assert_eq!(account["max_calls"], 2);
+    // The document: the stated paths, their permits and the human gate.
     let emitted = document["candidate"].as_str().expect("candidate");
     assert!(emitted.contains(STATED_PERMITS), "{emitted}");
     assert!(
@@ -658,13 +620,9 @@ async fn an_explicit_grant_reaches_a_judged_sketch_and_a_limit_of_one_stops_the_
             "the write waits for the human: {emitted}"
         );
     }
-    for body in seat.bodies() {
-        let schema = body["response_format"].to_string();
-        assert!(
-            !schema.contains("candidate_lines") && !schema.contains("\"candidate\""),
-            "no source is ever asked of the seat: {schema}"
-        );
-    }
+    // The first request asks the seat for the whole document.
+    let schema = seat.bodies()[0]["response_format"].to_string();
+    assert!(schema.contains("candidate_lines"), "{schema}");
     assert!(response.header("nika-compile-replay").is_some(), "kept");
     server.stop().await.expect("clean stop");
 
@@ -681,8 +639,8 @@ async fn an_explicit_grant_reaches_a_judged_sketch_and_a_limit_of_one_stops_the_
     assert_eq!(
         roles(&document),
         [
-            ("plan".to_owned(), Value::Null),
-            ("sketch".to_owned(), json!("admission_refused")),
+            ("document".to_owned(), Value::Null),
+            ("judge_request".to_owned(), json!("admission_refused")),
         ]
     );
     let account = authority(&document);
@@ -711,7 +669,7 @@ async fn the_policy_and_its_account_resolve_one_strategy() {
     ];
     for (operator, repairs, max_calls) in cases {
         let world = TestWorld::new();
-        let seat = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
+        let seat = Seat::start(question_round());
         let (server, _) = start_native(&world, compile_limits(), operator(&seat)).await;
         let response = server.request(&compile_request(&fresh(&json!({})))).await;
         assert_eq!(response.status, 200, "{}", response.body);

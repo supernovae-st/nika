@@ -160,9 +160,8 @@ fn amendment_protocol(input: &str, scenario: &str, native: bool) {
     std::fs::create_dir_all(&root).expect("root");
     std::fs::create_dir_all(&home).expect("home");
     std::fs::write(root.join("entree.txt"), "A\n").expect("input");
-    // On the default strategy, semantic CREATE: the private plan (it names the exact-byte copy as
-    // what it cannot carry, so the door escalates), the sketch, its fills (READY), then its
-    // judgment (native step 1).
+    // On the default strategy, semantic CREATE: the document door's whole document (READY), then
+    // its judgment (native step 1).
     let mut script = semantic_copy();
     script.push(JUDGE_APPROVES.to_owned());
     let seat = LoopbackSeat::start(script);
@@ -176,8 +175,8 @@ fn amendment_protocol(input: &str, scenario: &str, native: bool) {
         );
         assert_eq!(
             bodies.len(),
-            4,
-            "plan, sketch, fills, judgment; the monetary revision calls no one: {bodies:#?}"
+            2,
+            "the document, its judgment; the monetary revision calls no one: {bodies:#?}"
         );
         assert!(
             bodies

@@ -147,6 +147,8 @@ fn door(
         Some(Strategy::Native) => {
             let reason = if has(NATIVE_SKETCH) {
                 "policy_sketch_before_hot"
+            } else if has(super::document_create::ROUTE) {
+                "complete_document_door"
             } else if composition {
                 "plan_composition_requires_sketch"
             } else if has(super::agenda::PLAN_LIMIT) {

@@ -2,10 +2,10 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! What a judged round answers on the wire (R4 A11, R6). A candidate is proposed only READY,
-//! once an admitted judgment carried the whole request. Bytes the judge declined are held: the
-//! document still carries them as its candidate, INCOMPLETE, with the `verify_held` finding, and
-//! keeps no round to replay them; the judge is never asked of them again, a repair that returns
-//! them included. A candidate no admitted judgment was made of is withdrawn with the
+//! once an admitted judgment carried the whole request. Bytes the judge declined with a located
+//! defect the repairs did not settle are withdrawn: INCOMPLETE, never the document's candidate,
+//! and no round kept to replay them; the judge is never asked of them again, a repair that
+//! returns them included. A candidate no admitted judgment was made of is withdrawn with the
 //! `verify_resume` finding, its round kept, and that round's zero-call replay asks no judge.
 //! Every document validates against the contract the server publishes, which names each marker
 //! it carries.
@@ -13,7 +13,7 @@
 use std::collections::BTreeSet;
 
 use super::authority::{
-    GATED, answered, findings, gated_round_judged, held_findings, judged_then, roles, verify_steps,
+    GATED, findings, gated_round_judged, judged_then, roles, verify_steps, withdrawn_findings,
 };
 use super::openapi::{ANSWER, REQUEST, exchange, schema_at, served};
 use super::*;
@@ -54,14 +54,14 @@ fn assert_published(published: &Value, document: &Value) {
     }
 }
 
-/// A repair whose plan the compiler assembles into the very bytes the judge declined: the judge
-/// is not asked of them again. The earlier verdict stands as a new attempt with no call, the
-/// repairs end there although no count bounds them, and the bytes are held.
+/// A repair whose document is the very bytes the judge declined: the judge is not asked of them
+/// again. The earlier verdict stands as a new attempt with no call, the repairs end there
+/// although no count bounds them, and the bytes are withdrawn.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_repair_that_returns_the_declined_bytes_asks_the_judge_nothing_and_holds_them() {
+async fn a_repair_that_returns_the_declined_bytes_asks_the_judge_nothing_and_withdraws_them() {
     let world = TestWorld::new();
-    // The repair answers the plan the judge declined; the approval scripted after it is never
-    // asked.
+    // The repair answers the document the judge declined; the approval scripted after it is
+    // never asked.
     let seat = Seat::start(judged_then(DRAFT));
     let operator = NativeAuthoring::new(SEAT, seat.providers());
     let (server, _backend) = start_native(&world, compile_limits(), operator).await;
@@ -70,7 +70,7 @@ async fn a_repair_that_returns_the_declined_bytes_asks_the_judge_nothing_and_hol
         schema_at(&published, REQUEST),
         schema_at(&published, ANSWER),
     );
-    let response = exchange(&server, &request, &answer, &fresh(&answered())).await;
+    let response = exchange(&server, &request, &answer, &fresh(&json!({}))).await;
     let document = response.json();
     assert_eq!(document["status"], "incomplete", "{document:#}");
     assert_eq!(seat.calls(), 6, "no call after the repair");
@@ -82,38 +82,35 @@ async fn a_repair_that_returns_the_declined_bytes_asks_the_judge_nothing_and_hol
     assert_eq!(
         journaled,
         [
-            "plan",
+            "document",
             "judge_request",
             "judge_part",
             "judge_part",
             "judge_point",
-            "repair"
+            "document-repair"
         ]
     );
     assert_eq!(
         verify_steps(&document),
         [
-            "verify: repair 1",
             "verify: same bytes, earlier verdict stands",
-            "verify: no progress",
-            "verify: not ready",
-            "verify: doubted, not replayable"
+            "verify: not ready"
         ]
     );
-    // The held bytes are still the document's candidate: the ones judged, then repeated.
-    let candidate = document["candidate"].as_str().expect("the held candidate");
-    let sha = sha256_hex(candidate.as_bytes());
+    // The declined bytes are withdrawn: never the document's candidate, never offered.
+    assert_eq!(document["candidate"], Value::Null, "{document:#}");
     let attempts = document["provenance"]["decision"]["semantic_verification"]
         .as_array()
         .expect("the attempts");
     assert_eq!(attempts.len(), 2, "{attempts:#?}");
     let (first, again) = (&attempts[0], &attempts[1]);
-    assert_eq!(first["candidate_sha256"], sha.as_str());
+    let sha = first["candidate_sha256"]
+        .as_str()
+        .expect("the judged bytes");
     assert_eq!(first["same_bytes_as"], Value::Null);
     assert_eq!(first["questions"].as_array().map(Vec::len), Some(4));
     // The repeated attempt: the same bytes and judge, the earlier verdict read back, no call.
-    assert_eq!(again["attempt"], 1);
-    assert_eq!(again["candidate_sha256"], sha.as_str());
+    assert_eq!(again["candidate_sha256"], sha);
     assert_eq!(again["same_bytes_as"], 0);
     assert_eq!(again["questions"], json!([]));
     for count in ["attempted", "returned", "consumed"] {
@@ -152,14 +149,10 @@ async fn a_repair_that_returns_the_declined_bytes_asks_the_judge_nothing_and_hol
         (&first["carried"], &again["carried"]),
         (&json!(false), &json!(false))
     );
-    // The core's pending whole request, the judge's defect after its one repair, the marker.
-    assert_eq!(
-        findings(&document),
-        held_findings(candidate, 1),
-        "{document:#}"
-    );
+    // The door's journal, then the judge's defect after its one repair.
+    assert_eq!(findings(&document), withdrawn_findings(1), "{document:#}");
     assert_eq!(document["questions"], json!([]));
-    assert_eq!(document["check_preview"]["scope"], "sourceOnly");
+    assert_eq!(document["check_preview"], Value::Null);
     assert_eq!(document["provenance"]["plan"], Value::Null);
     assert!(
         response.header("nika-compile-replay").is_none(),
@@ -169,7 +162,7 @@ async fn a_repair_that_returns_the_declined_bytes_asks_the_judge_nothing_and_hol
     server.stop().await.expect("clean stop");
 }
 
-/// The sketch door's round whose judge answers a choice it was not offered: no admitted
+/// The document door's round whose judge answers a choice it was not offered: no admitted
 /// judgment of the candidate exists, nothing was declined. The candidate is withdrawn and its
 /// round kept; that round's replay calls no one, so it judges nothing either: the same bytes
 /// come back held for a judge, the whole request pending.
@@ -184,17 +177,16 @@ async fn a_candidate_no_admitted_judgment_was_made_of_is_withdrawn_and_its_round
         schema_at(&published, REQUEST),
         schema_at(&published, ANSWER),
     );
-    let mut fields = answered();
-    fields["intent"] = json!(GATED);
+    let fields = json!({"intent": GATED});
     let response = exchange(&server, &request, &answer, &fresh(&fields)).await;
     let document = response.json();
     assert_eq!(document["status"], "incomplete", "{document:#}");
     assert_eq!(document["candidate"], Value::Null, "{document:#}");
     assert_eq!(document["check_preview"], Value::Null);
     assert_eq!(document["questions"], json!([]));
-    assert_eq!(seat.calls(), 4);
+    assert_eq!(seat.calls(), 2);
     let journaled: Vec<String> = roles(&document).into_iter().map(|(role, _)| role).collect();
-    assert_eq!(journaled, ["plan", "sketch", "fill", "judge_request"]);
+    assert_eq!(journaled, ["document", "judge_request"]);
     // The judge's answer is recorded and admitted nothing: an unknown, never a doubt.
     let attempts = document["provenance"]["decision"]["semantic_verification"]
         .as_array()
@@ -233,15 +225,15 @@ async fn a_candidate_no_admitted_judgment_was_made_of_is_withdrawn_and_its_round
     let finding = |kind: &str, target: &str, message: &str| {
         (kind.to_owned(), target.to_owned(), message.to_owned())
     };
-    // The sketch door's own journal (its graph and its fills, each accepted by the evidence
-    // laws), the request no admitted judgment settled, then the marker.
+    // The document door's own journal (its document, accepted by the evidence laws), the
+    // request no admitted judgment settled, then the marker.
     assert_eq!(
         findings(&document),
         [
             finding(
                 "applied",
                 "authoring_native",
-                "The authoring conversation recorded 2 round(s), including 2 candidate or sketch judgment(s): round 0: accepted; round 1: accepted."
+                "The authoring conversation recorded 1 round(s), including 1 candidate or sketch judgment(s): round 0: accepted."
             ),
             finding(
                 "unknown",
@@ -278,6 +270,6 @@ async fn a_candidate_no_admitted_judgment_was_made_of_is_withdrawn_and_its_round
         .map(|clause| &clause["clause"])
         .collect();
     assert_eq!(open, [&json!(GATED)], "{replayed:#}");
-    assert_eq!(seat.calls(), 4, "the replay called no one");
+    assert_eq!(seat.calls(), 2, "the replay called no one");
     server.stop().await.expect("clean stop");
 }

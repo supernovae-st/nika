@@ -28,7 +28,7 @@ fn sales(root: &Path) {
     .expect("fixture");
 }
 
-/// The default context (escalate: semantic CREATE, the private plan first), observing `root`.
+/// The default context (escalate: semantic CREATE, the document door first), observing `root`.
 fn context(root: &Path) -> AuthoringContext {
     AuthoringContext::from_settings(
         &nika_cli_host::compile::config::AuthoringSettings::none(),

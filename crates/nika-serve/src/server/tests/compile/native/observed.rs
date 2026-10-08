@@ -90,7 +90,7 @@ async fn an_admitted_observation_rides_the_round_and_binds_its_kept_round() {
 #[tokio::test(flavor = "multi_thread")]
 async fn an_observation_beyond_the_observers_shape_is_refused_before_any_call() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
+    let seat = Seat::start(vec![Reply::Text(document_answer(DRAFT))]);
     let authoring = NativeAuthoring::new(SEAT, seat.providers()).with_repairs(0);
     let (server, _) = start_native(&world, compile_limits(), authoring).await;
     let wide: Vec<String> = (0..20_000).map(|n| format!("column_{n}")).collect();
@@ -152,7 +152,7 @@ async fn a_seated_decision_model_judges_in_place_of_the_author() {
     // them shown, unqualified), then the author plans, then the decision model judges.
     let seat = Seat::start(vec![
         Reply::Text("{}".to_owned()),
-        Reply::Text(plan_answer(DRAFT, &[])),
+        Reply::Text(document_answer(DRAFT)),
         Reply::Text(JUDGE_APPROVES.to_owned()),
     ]);
     let authoring = NativeAuthoring::new(SEAT, seat.providers())
@@ -166,9 +166,7 @@ async fn a_seated_decision_model_judges_in_place_of_the_author() {
         "{advertised}"
     );
 
-    let response = server
-        .request(&compile_request(&fresh(&super::authority::answered())))
-        .await;
+    let response = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
     let bodies = seat.bodies();
@@ -198,7 +196,7 @@ async fn a_seated_decision_model_judges_in_place_of_the_author() {
     server.stop().await.expect("clean stop");
 
     // Without one, the author judges itself and the health says nothing of a decision seat.
-    let plain = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
+    let plain = Seat::start(vec![Reply::Text(document_answer(DRAFT))]);
     let authoring = NativeAuthoring::new(SEAT, plain.providers()).with_repairs(0);
     let (server, _) = start_native(&world, compile_limits(), authoring).await;
     assert!(!capabilities(&health(&server).await).contains(&"compileDecisionSeat".to_owned()));
@@ -242,7 +240,7 @@ async fn trial_inputs_are_tried_in_the_shared_room_and_refused_outside_their_law
     use nika_onboard::compile::room::JqHelper;
     let world = TestWorld::new();
     let seat = Seat::start(vec![
-        Reply::Text(plan_answer(DRAFT, &[])),
+        Reply::Text(document_answer(DRAFT)),
         Reply::Text(JUDGE_APPROVES.to_owned()),
     ]);
     let authoring = NativeAuthoring::new(SEAT, seat.providers())
@@ -250,7 +248,7 @@ async fn trial_inputs_are_tried_in_the_shared_room_and_refused_outside_their_law
         .with_trials(JqHelper::new("/nonexistent/jq-helper"));
     let (server, _) = start_native(&world, compile_limits(), authoring).await;
     assert!(capabilities(&health(&server).await).contains(&"compileTrialInputs".to_owned()));
-    let mut fields = super::authority::answered();
+    let mut fields = json!({});
     fields["observed_world"] = observation();
     fields["trial_inputs"] = trial_inputs();
     let response = server.request(&compile_request(&fresh(&fields))).await;
@@ -291,7 +289,7 @@ async fn trial_inputs_are_tried_in_the_shared_room_and_refused_outside_their_law
     server.stop().await.expect("clean stop");
 
     // A server that tries nothing refuses them, and lists no trial capability.
-    let plain = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
+    let plain = Seat::start(vec![Reply::Text(document_answer(DRAFT))]);
     let authoring = NativeAuthoring::new(SEAT, plain.providers()).with_repairs(0);
     let (server, _) = start_native(&world, compile_limits(), authoring).await;
     assert!(!capabilities(&health(&server).await).contains(&"compileTrialInputs".to_owned()));

@@ -7,7 +7,7 @@
 //! carries is READY, generation 2. A candidate it does not accept is held and its token
 //! forgotten: those bytes are never put to the same judge again through it.
 
-use super::authority::{answered, roles};
+use super::authority::roles;
 use super::*;
 
 /// A judged answer round of the kept round `token` of [`INTENT`], with `fields` over it.
@@ -19,9 +19,9 @@ fn judged_replay(token: &str, fields: &Value) -> String {
 
 /// The question round is kept; its judged answer round asks the seat one question, the whole
 /// request over the replayed bytes, and no authoring call: the answer is baked into the kept
-/// plan's candidate, which the judge carries, READY.
+/// document, which the judge carries, READY.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_judged_answer_round_replays_the_kept_plan_and_asks_the_seat_only_to_judge() {
+async fn a_judged_answer_round_replays_the_kept_document_and_asks_the_seat_only_to_judge() {
     let world = TestWorld::new();
     let mut script = question_round();
     script.push(Reply::Text(JUDGE_APPROVES.to_owned()));
@@ -40,25 +40,22 @@ async fn a_judged_answer_round_replays_the_kept_plan_and_asks_the_seat_only_to_j
     let first = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(first.status, 200, "{}", first.body);
     let token = token_of(&first);
-    assert_eq!(seat.calls(), 3, "the plan, the sketch and its fill");
+    assert_eq!(seat.calls(), 1, "the document");
     let judged = server
-        .request(&compile_request(&judged_replay(&token, &answered())))
+        .request(&compile_request(&judged_replay(&token, &closing())))
         .await;
     assert_eq!(judged.status, 200, "{}", judged.body);
     assert_eq!(judged.header("cache-control"), Some("no-store"));
     let document = judged.json();
     assert_eq!(document["compile_version"], 2, "a judge call happened");
     assert_eq!(document["status"], "ready", "{document:#}");
-    assert_eq!(seat.calls(), 4, "one judge question, no authoring call");
+    assert_eq!(seat.calls(), 2, "one judge question, no authoring call");
     let asked: Vec<String> = (roles(&document).into_iter())
         .map(|(role, _)| role)
         .collect();
     assert_eq!(asked, ["judge_request"], "{document:#}");
     let candidate = document["candidate"].as_str().expect("a candidate");
-    assert!(
-        candidate.contains(&format!("model: {RUN_MODEL}")),
-        "{candidate}"
-    );
+    assert!(candidate.contains(STYLE), "{candidate}");
     server.stop().await.expect("clean stop");
 }
 
@@ -78,7 +75,7 @@ async fn a_judged_answer_round_the_judge_declines_holds_and_forgets_its_token() 
     let first = server.request(&compile_request(&fresh(&json!({})))).await;
     let token = token_of(&first);
     let judged = server
-        .request(&compile_request(&judged_replay(&token, &answered())))
+        .request(&compile_request(&judged_replay(&token, &closing())))
         .await;
     assert_eq!(judged.status, 200, "{}", judged.body);
     assert!(judged.header("nika-compile-replay").is_none(), "no token");
@@ -96,7 +93,7 @@ async fn a_judged_answer_round_the_judge_declines_holds_and_forgets_its_token() 
     );
     let calls = seat.calls();
     let again = server
-        .request(&compile_request(&judged_replay(&token, &answered())))
+        .request(&compile_request(&judged_replay(&token, &closing())))
         .await;
     assert_eq!(again.status, 409, "{}", again.body);
     assert_eq!(again.json()["error"]["code"], "compile_replay_unavailable");

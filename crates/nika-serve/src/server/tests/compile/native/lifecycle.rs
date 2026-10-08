@@ -105,10 +105,11 @@ async fn a_round_its_caller_gave_up_on_never_starts_later() {
 async fn a_stopping_server_cancels_and_joins_its_native_rounds_before_it_returns() {
     let world = TestWorld::new();
     let seat = Seat::start(vec![
-        Reply::Parked(plan_answer(DRAFT, &[OPEN])),
-        Reply::Text(sketch_answer()),
+        Reply::Parked(native_answer(&candidate(RUN_MODEL, false))),
+        Reply::Text(JUDGE_APPROVES.to_owned()),
     ]);
-    // A plan that leaves a part open: an un-cancelled round would send its sketch once released.
+    // A whole document with its model: an un-cancelled round would send its judgment once
+    // released.
     let limits = compile_limits();
     let slots = limits.max_compile_requests();
     let (server, _backend, state) = start_native_observed(
@@ -148,29 +149,30 @@ async fn a_stopping_server_cancels_and_joins_its_native_rounds_before_it_returns
 #[tokio::test(flavor = "multi_thread")]
 async fn an_authorized_503_resend_is_counted_as_a_second_physical_request() {
     let world = TestWorld::new();
-    let mut script = vec![Reply::Busy];
-    script.extend(question_round());
-    script.push(Reply::Text(JUDGE_APPROVES.to_owned()));
+    let script = vec![
+        Reply::Busy,
+        Reply::Text(document_answer(DRAFT)),
+        Reply::Text(JUDGE_APPROVES.to_owned()),
+    ];
     let seat = Seat::start(script);
-    // The plan (sent twice), the sketch, its fill and the judgment: five physical requests, the
-    // grant stated for this round alone.
+    // The document (sent twice) and its judgment: three physical requests, the grant stated for
+    // this round alone.
     let (server, _backend) =
-        start_native(&world, compile_limits(), operator(&seat).with_max_calls(5)).await;
-    let answered = json!({"answers": {"model": RUN_MODEL}});
-    let response = server.request(&compile_request(&fresh(&answered))).await;
+        start_native(&world, compile_limits(), operator(&seat).with_max_calls(3)).await;
+    let response = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
     assert_eq!(document["status"], "ready", "{document:#}");
-    // The plan, the sketch, its fill and their judgment: four journaled calls.
-    assert_eq!(document["provenance"]["authoring"]["calls"], 4);
+    // The document and its judgment: two journaled calls.
+    assert_eq!(document["provenance"]["authoring"]["calls"], 2);
     assert_eq!(
         seat.bodies().len(),
-        5,
+        3,
         "the explicit grant covers the resend and the judgment"
     );
     let account = &document["provenance"]["authoring"]["backend"]["authority"];
-    assert_eq!(account["http_requests"]["sent"], 5);
-    assert_eq!(account["invocations"]["sent"], 4);
-    assert_eq!(account["max_calls"], 5);
+    assert_eq!(account["http_requests"]["sent"], 3);
+    assert_eq!(account["invocations"]["sent"], 2);
+    assert_eq!(account["max_calls"], 3);
     server.stop().await.expect("clean stop");
 }

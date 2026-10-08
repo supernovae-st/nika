@@ -514,11 +514,11 @@ pub enum NativeMode {
     /// a caller's calls stay exactly what it asked for; the CLI opts into `Escalate`).
     #[default]
     Off,
-    /// After the private plan ends without a candidate, fails the fidelity laws or hands
-    /// the human a machine's problem (a rewrite, a jq expression, a glob): the sketch door.
+    /// A creation the reader does not settle whole: the document door composes the complete
+    /// document at once (the whole language, admitted components composed in).
     Escalate,
-    /// Retired for a creation: no request is sent and the outcome names `escalate` or `sketch`;
-    /// a revision and the replay of a recorded source keep the native door.
+    /// Every creation straight to the document door, no reader's reading checked first; a
+    /// revision and the replay of a recorded source keep the native door.
     Only,
     /// Straight to the sketch door: the seat proposes structure (tasks, edges, gates, the
     /// stated paths and hosts), judged before a word is written; then fills the typed holes;

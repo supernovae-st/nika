@@ -8,19 +8,9 @@
 use super::*;
 use crate::runtime::inference::OBSERVED_PREFIX;
 
-/// DIALOG-11's request: the private plan reads the stated source and writes to the destination
-/// the request leaves open, which the compiler asks (`const.output_path`); the plan shape of
-/// `question_identity`, kept local to these mechanics.
+/// DIALOG-11's request: the document reads the stated source and writes to the destination the
+/// request leaves open, which it asks (`const.output_path`, [`asks_destination`]).
 const DESTINATION: &str = "Copie entree.txt vers une destination à préciser.";
-
-fn plans_destination() -> String {
-    json!({"steps":[{"op":"read","detail":"entree.txt","evidence":"Copie entree.txt"}],
-        "effects":[{"verb":"write","target":"une destination à préciser","policy":"automatic",
-            "evidence":"vers une destination à préciser"}],
-        "obligations":[],"constraints":[],"unknowns":[],"regions":[],
-        "approval_bypass":{"present":false}})
-    .to_string()
-}
 
 /// A door's classifier that takes every line at a question as its answer.
 struct Answers;
@@ -155,8 +145,8 @@ fn every_dispatch_site_rides_the_one_no_budget_observation() {
     // A revision rides the same bracket (S102 left this site unrecorded).
     s.compile_request(&round.request(), WORK).expect("revision");
     let r = s.money.observed.snapshot().unwrap();
-    // Three routed calls, then two semantic CREATEs (plan, sketch, fills and the judge's):
-    // the round's and the revision's.
+    // Three routed calls, then two semantic CREATEs (the document and the judge's): the
+    // round's and the revision's.
     assert_eq!(r.attempts.len(), 3 + 2 * CREATE_CALLS);
     assert!(
         r.attempts.iter().all(|a| a.sent && a.estimated.is_some()),
@@ -175,7 +165,7 @@ fn a_continuation_stays_on_its_frozen_observation_until_new_work() {
     let mut contradicted = response("archive/copie.txt");
     contradicted["model"] = json!("s108-another-served-model");
     let peer = Peer::start(vec![
-        (200, response(&plans_destination())),
+        (200, response(&asks_destination())),
         (200, contradicted),
         (200, response("Hello")),
     ]);

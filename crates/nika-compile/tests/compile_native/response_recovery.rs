@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The public creation entry's recovery controls: the attached knowledge reaches the first
-//! semantic call, an invalid bound is named under a supported policy, a sketch failure is
-//! terminal. The source door's own syntax-feedback and transport law lives beside its owner
+//! authoring call (the document door), an invalid bound is named under a supported policy, a
+//! sketch failure is terminal. The source door's own syntax-feedback and transport law lives beside its owner
 //! (`nika-compile-cognition`'s `cognition/native/response_recovery_tests.rs`).
 use super::*;
 use nika_kernel::ai::provider::{
@@ -103,27 +103,19 @@ async fn attached_knowledge_reaches_the_first_open_generation_with_answers_and_w
         .with_authoring_knowledge(pack)
         .with_knowledge(world)
         .answer("model", "\"deepseek/deepseek-flash\"");
-    // The first open generation is the private plan, reading the attached context; a plan with
-    // no candidate escalates to the sketch door, whose graph and fills the compiler emits.
-    let seat = Seat::new([
-        reply("no plan here"),
-        reply(&graph_a("./data/paiements.csv")),
-        reply(&fills_a()),
-    ]);
+    // The first open generation is the document door, reading the attached context, the
+    // answers and the observed world; the scripted author answers CASE A's complete document.
+    let seat = Seat::new([reply(&good())]);
     // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
     let out = compile_with_provider(&request, &Judged::approving(&seat))
         .await
         .unwrap();
-    assert_eq!(seat.calls(), 3);
+    assert_eq!(seat.calls(), 1);
     let context = &out.provenance.authoring.as_ref().unwrap().context;
-    assert_eq!(context[0]["call"], "plan");
-    assert_eq!(context[1]["call"], "sketch");
-    assert_eq!(context[2]["call"], "fill");
-    assert_eq!(
-        context[0]["semantic_context"]["world_sha256"]
-            .as_str()
-            .map(str::len),
-        Some(64),
+    assert_eq!(context[0]["call"], "document");
+    assert!(
+        (context[0]["references"].as_array().unwrap().iter())
+            .any(|r| r["id"] == "block:test-filter-total"),
         "{:#}",
         context[0]
     );
@@ -145,10 +137,14 @@ async fn attached_knowledge_reaches_the_first_open_generation_with_answers_and_w
             _ => Value::Null,
         };
         assert!(schema.is_object(), "every authoring call has a schema");
+        // A schema asking for `candidate` is the document door's (it carries `operations`),
+        // never the retired whole-source schema.
+        let properties = &schema["properties"];
         assert!(
-            schema["properties"].get("candidate").is_none()
-                && schema["properties"].get("candidate_lines").is_none(),
-            "no whole-source schema: {schema}"
+            properties.get("operations").is_some()
+                || (properties.get("candidate").is_none()
+                    && properties.get("candidate_lines").is_none()),
+            "no retired whole-source schema: {schema}"
         );
     }
     assert_eq!(native_record(&out)["accepted"], true, "{out:#?}");

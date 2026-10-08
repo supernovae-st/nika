@@ -10,6 +10,8 @@
 //! then checked. COLD: explicitly authorized proposals of a private semantic plan, never source
 //! or permits, each accountable for every region of the request; a computation the plan's typed
 //! stages cannot state sends it to the sketch door next, with no program round to exhaust first.
+//! Wherever a native door is permitted the author composes the complete document instead (the
+//! document door): the whole language, admitted components composed in, judged as any candidate.
 //! Deterministic policy facts (prohibitions, gates, indecision, contradictions,
 //! bounds, approval bypasses) are the floor under every proposal, and every
 //! strategy ends in the same deterministic assembler and the same Check.
@@ -35,6 +37,8 @@ use serde_json::{Value, json};
 mod admitted;
 mod agenda;
 use agenda::Action;
+/// The document door of a fresh CREATE: the complete document, admitted components composed in.
+mod document_create;
 mod instructions;
 use instructions::INSTRUCTIONS;
 mod backstops;
@@ -278,6 +282,8 @@ pub async fn compile_with_cognition_composed<P: ProviderInferDyn>(
     };
     sketch::bind_caller(caller, request, &mut out);
     rehearsals.finish(&reading, &mut out).await;
+    // A created document settled with nothing left to ask is bound to its final bytes.
+    document_create::bind(&mut out);
     if let Some(money) = record {
         admitted::record(
             request,
@@ -461,26 +467,11 @@ async fn route_create<P: ProviderInferDyn>(
         return super::compile(&read_as);
     }
     let mut route = Vec::new();
-    // Source-only CREATE is retired: whatever seat is offered, a fresh request under `only` sends
-    // nothing and names the semantic doors. The reader's own floor refusal keeps its cause.
-    if (request.authoring.as_ref()).is_some_and(|policy| policy.native == NativeMode::Only) {
-        if !native::floor_refuses(&reading, &mut out) {
-            super::finding(
-                &mut out,
-                DiagnosticKind::Refused,
-                "authoring_policy",
-                ONLY_RETIRED,
-            );
-            out.status = crate::CompileStatus::Refused;
-        }
-        route.push(forensic::ONLY_RETIRED.to_owned());
-        record_route(&mut out, &route);
-        return Ok(out);
-    }
     // What the request still lacks after the reader decides the next action (R1 · A1). The
     // deterministic door judges the reading with its stated rules promoted; the reading itself
-    // keeps its constraints, the policy floor a seat's proposal inherits. The sketch policy names
-    // its composer before the reader is admitted.
+    // keeps its constraints, the policy floor a seat's proposal inherits. The sketch and only
+    // policies name their composer (the sketch door, the document door) before the reader is
+    // admitted.
     let selected = agenda::Selected::of(
         request,
         cognition.provider.is_some(),
@@ -492,7 +483,8 @@ async fn route_create<P: ProviderInferDyn>(
     };
     let mut admitted = reading.clone();
     super::shape::promote_stated_rules(&mut admitted.plan, intent);
-    if !(selected.author && selected.native == NativeMode::Sketch) {
+    let explicit = matches!(selected.native, NativeMode::Sketch | NativeMode::Only);
+    if !(selected.author && explicit) {
         match admit_hot(intent, &admitted, request.hot) {
             Ok(()) => {
                 route.push("hot".to_owned());
@@ -607,8 +599,9 @@ async fn judged<P: ProviderInferDyn>(
 }
 
 /// The author composes (A1): the attached knowledge qualified by the decision seat first, then
-/// the sketch door or the private plan as the action names. The qualification record and what
-/// the candidate kept of the shown references ride the outcome.
+/// the document door, the sketch door or the private plan as the action names. The qualification
+/// record and what the candidate kept of the shown references ride the outcome, with the
+/// expansions the document door's receipts name witnessed on the candidate.
 async fn compose<P: ProviderInferDyn>(
     action: Action,
     intent: &str,
@@ -642,21 +635,30 @@ async fn compose<P: ProviderInferDyn>(
         .as_ref()
         .map_or(request, |(qualified, _)| qualified);
     let seats = (provider, cognition.seat, rehearsals);
-    let mut done = if action == Action::Sketch {
-        route.push(forensic::NATIVE_SKETCH.to_owned());
-        // Boxed: the seat doors are rare and large; they must not grow every compile future.
-        Box::pin(sketch::author(
-            intent, &reading, policy, seats, shown, route, out,
-        ))
-        .await?
-    } else {
-        Box::pin(author_create(
-            intent, policy, seats, shown, reading, route, out,
-        ))
-        .await?
+    // Boxed: the seat doors are rare and large; they must not grow every compile future.
+    let mut done = match action {
+        Action::Document => {
+            route.push(document_create::ROUTE.to_owned());
+            let door = document_create::author(intent, &reading, policy, seats, shown, route, out);
+            Box::pin(door).await?
+        }
+        Action::Sketch => {
+            route.push(forensic::NATIVE_SKETCH.to_owned());
+            let door = sketch::author(intent, &reading, policy, seats, shown, route, out);
+            Box::pin(door).await?
+        }
+        _ => {
+            let door = author_create(intent, policy, seats, shown, reading, route, out);
+            Box::pin(door).await?
+        }
     };
     if let Some((qualified, record)) = qualified {
-        knowledge::traced(&qualified, record, &mut done);
+        if action == Action::Document {
+            let receipts = document_create::receipts(&done);
+            knowledge::reused(&qualified, record, &receipts, &mut done);
+        } else {
+            knowledge::traced(&qualified, record, &mut done);
+        }
     }
     Ok(done)
 }
@@ -915,9 +917,6 @@ async fn after_cold<P: ProviderInferDyn>(
     ))
     .await
 }
-
-/// Why a fresh CREATE under `only` sends no request.
-const ONLY_RETIRED: &str = "Source-only authoring (native: only) is retired for a new workflow: no model writes whole source. Use native: escalate (the default: the private plan, then the sketch door when the plan cannot carry the request) or native: sketch (the structure, then its typed fills); the compiler writes the source. No request was sent and no candidate was assembled.";
 
 const POLICY_BOUNDS: &str = "Authoring requires an explicit model, a positive sample count, a positive output-token limit (an initial one within it) and a positive timeout.";
 

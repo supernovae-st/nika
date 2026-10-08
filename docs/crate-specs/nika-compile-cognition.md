@@ -40,8 +40,8 @@ and answer rounds. Candidate, fidelity and sketch laws come from `nika-compile-f
 (ADR-141); no Reader implementation is duplicated.
 
 A completed seat answer may carry separate `Thinking` blocks beside exactly one final `Text`.
-Only that Text reaches proposal, sketch/fill, source-recovery, transform and closed-choice
-judgment decoders. Thinking never supplies missing answer bytes; multiple Text blocks, tools,
+Only that Text reaches proposal, document, sketch/fill, source-recovery, transform and
+closed-choice judgment decoders. Thinking never supplies missing answer bytes; multiple Text blocks, tools,
 images and any other block kind remain refused, as do non-terminal stop reasons. The shared
 projection borrows the response without changing the raw observation, receipt or usage.
 
@@ -728,9 +728,11 @@ representable finite upper bound. With an explicit repair count `r`:
   per part judged missing, the extra-operation question and, over a trial run, a question per
   part still open and the observed-run questions: the request determines that count (the
   earlier `4 + 3r` counted two judgment questions per candidate);
-- COLD creation (`off` or `escalate`): unknown (`None`), including with an explicit
-  repair count, because the request determines its clause and transform work;
-- a creation under `only`: zero requests; the core refuses the retired source-authoring route.
+- COLD creation (`off`): unknown (`None`), including with an explicit repair count,
+  because the request determines its clause and transform work;
+- the document door (a creation under `escalate` or `only`): unknown (`None`), including
+  with an explicit repair count, because each candidate's whole-request judgment asks one
+  question per part of a doubted request, as the sketch door's does.
 
 Only the paths with no possible call keep a finite count, zero; no saturated number is
 presented as an upper bound. No configuration that asks a model has a finite estimate, so
@@ -760,10 +762,10 @@ whole-request protocol (the verdict, then one located part), are historical beha
 not active limits. Typed repairs under `off` are the verifier's and count, never ignored.
 A typed strategy is honored in full or refused, needing
 `authority::least_requests`:
-- `escalate`: two requests (the plan, then its judgment);
+- `escalate` and `only`: two requests (the document, then its judgment);
 - `sketch`: three (the sketch, its fills, then their judgment).
-The refusal names that number. A fresh creation under `only` is refused by the core
-with a migration to the semantic doors; no larger grant can enable it.
+The refusal names that number. Typed samples apply only where a private plan is sampled
+(`off`); elsewhere the receipt records them as ignored.
 
 This removal does not claim unrestricted model context or complete R5 cooperation.
 The current native Check diagnostic projection still keeps up to six conformance
@@ -1082,10 +1084,20 @@ do not persist raw answers or implement the private writer and host adapters.
 
 ## Semantic CREATE and resolved questions
 
-Fresh Escalate proposes Plan and, when no candidate remains, Sketch; Rust assembles the
-ordinary workflow. Whole-source authoring remains available for supported EDIT and
-historical replay, and as the eligible CREATE source recovery described above. Its
-success does not prove that structured composition succeeded. After a Sketch passes structural laws, the existing admitted-question
+A fresh creation with an author under `escalate` or `only` reaches the document door at
+its first call (`cognition/document_create.rs`, its laws in
+`nika_compile_seats::foundry::document::create`): the author writes the complete `.nika` in
+the whole language, or states the document's operations over its own text, composing an
+admitted component of the lent catalogue by identity with its receipt. The document is
+judged, settled, examined and repaired as any candidate; on READY its native record is bound
+to the final bytes (`plan.document`: version, candidate digest, effective request, a null
+base, mode, component receipts), which a later change in words revises as an EDIT, never as
+an answer round of the creation. No Plan or Sketch round has to fail first. `sketch` keeps
+the sketch door and `off` the private Plan, which Rust assembles; a reading the reader
+composes whole is still checked by a judge. Whole-source recovery remains the sketch door's
+eligible CREATE recovery described above, and whole source remains available for supported
+EDIT and historical replay. Its success does not prove that structured composition
+succeeded. After a Sketch passes structural laws, the existing admitted-question
 check removes questions already resolved by the request or observation before fills are
 requested. The full check after filling remains. This adds no repair grant or second compiler.
 

@@ -217,10 +217,12 @@ fn cold_plan() -> String {
     .to_string()
 }
 
+/// The private plan's own door: `off` names it (under `escalate` a fresh CREATE composes the
+/// complete document instead).
 fn escalated() -> CompileRequest {
     CompileRequest::create(OPEN_DESTINATION).with_authoring_policy(
         AuthoringPolicy::new("mock/author", 4096, Duration::from_secs(2))
-            .with_native(NativeMode::Escalate)
+            .with_native(NativeMode::Off)
             .with_repairs(0),
     )
 }

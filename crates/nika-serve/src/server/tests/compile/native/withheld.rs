@@ -11,10 +11,10 @@ use nika_kernel::secret::Secret;
 use super::refusals::operator;
 use super::*;
 
-/// The private plan for [`INTENT`] whose draft detail carries `text`: the field the compiler
-/// reads into the document it answers.
+/// The document for [`INTENT`] whose prompt carries `text`, asking what the request leaves
+/// open: one request, its answer the document the server would return.
 fn echoing(text: &str) -> String {
-    plan_answer(&format!("{DRAFT}, signed {text}"), &[])
+    open_document(&format!(", signed {text}"))
 }
 
 async fn answered_with(authoring: NativeAuthoring) -> WireResponse {

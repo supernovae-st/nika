@@ -23,17 +23,6 @@ const DIALOG_11: &str = "Copie entree.txt vers une destination à préciser.";
 /// The human changes the destination while its question waits.
 const CHANGE: &str = "Finalement la destination change : je te la redonne tout de suite.";
 
-/// The private plan for DIALOG-11, the same every time: read the stated source, write to the
-/// destination the request leaves open, which the compiler asks (`const.output_path`).
-fn plans_destination() -> String {
-    json!({"steps":[{"op":"read","detail":"entree.txt","evidence":"Copie entree.txt"}],
-        "effects":[{"verb":"write","target":"une destination à préciser","policy":"automatic",
-            "evidence":"vers une destination à préciser"}],
-        "obligations":[],"constraints":[],"unknowns":[],"regions":[],
-        "approval_bypass":{"present":false}})
-    .to_string()
-}
-
 /// A reasoner that answers every prompt with the route ANSWER and counts the prompts.
 struct Counted(Arc<AtomicUsize>);
 
@@ -356,25 +345,21 @@ fn judged_whole_over(body: &serde_json::Value, bound: &str) -> bool {
     })
 }
 
-/// The round's judge settles the change the request now carries: the asked destination does it.
-const JUDGE_CARRIES: &str = r#"{"choice":"carried"}"#;
-
-/// The seat's answers in DIALOG-11, in call order: the private plan of the request, the plan of
-/// the request read again, then the answer round's judge, the clause the change added carried
-/// and the whole request faithful.
+/// The seat's answers in DIALOG-11, in call order: the document of the request, the document of
+/// the request read again, then the answer round's judge of the whole request, faithful (the
+/// last reply, which the seat repeats for every later call).
 fn dialog_11_script() -> Vec<(u16, serde_json::Value)> {
-    let asks = || (200, response(&plans_destination()));
+    let asks = || (200, response(&asks_destination()));
     let says = |text: &str| (200, response(text));
-    vec![asks(), asks(), says(JUDGE_CARRIES), says(JUDGE_APPROVES)]
+    vec![asks(), asks(), says(JUDGE_APPROVES)]
 }
 
-/// DIALOG-11's shape through semantic CREATE: the private plan leaves the destination open and
-/// the compiler asks it; the destination changes before any answer, the request is read again,
+/// DIALOG-11's shape through semantic CREATE: the document leaves the destination open and asks
+/// it; the destination changes before any answer, the request is read again,
 /// and the SAME key is asked in the SAME words for the revised request. The old answer names the
 /// old question: refused with no route, no call and nothing changed; the current answer binds
-/// and the recorded plan replays, its calls the judge the seat is permitted as when the round
-/// finishes, over the bound bytes: the clause the change added, then the whole request (a
-/// replayed model plan is judged whole in the round, C3), whose faithful verdict is weighed
+/// and the recorded document replays, its calls the judge the seat is permitted as when the
+/// round finishes, over the bound bytes: the whole request, whose faithful verdict is weighed
 /// against the round's trial run of those bytes, each part asked over it; only the durable money
 /// record changes before consent, never a workflow or an output file.
 #[test]
@@ -433,26 +418,26 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
         return Err(format!("the current answer binds: {out:?}"));
     };
     assert!(preview.contains("archive/copie.txt"), "{preview}");
-    assert_eq!(calls(), (6, routed + 1));
+    assert_eq!(calls(), (5, routed + 1));
+    assert!(
+        judged_whole_over(&peer.bodies()[2], "archive/copie.txt"),
+        "the round's judge of the whole request"
+    );
     let over_the_run = |body: &serde_json::Value| body.to_string().contains("unexercised");
     assert!(
-        peer.bodies()[4..].iter().all(over_the_run),
+        peer.bodies()[3..].iter().all(over_the_run),
         "its parts over the trial run"
     );
     assert!(
-        judged_over(&peer.bodies()[2], "archive/copie.txt"),
-        "the round's judge"
-    );
-    assert!(
-        judged_whole_over(&peer.bodies()[3], "archive/copie.txt"),
-        "the round's judge of the whole request"
+        (peer.bodies()[3..].iter()).all(|body| judged_over(body, "archive/copie.txt")),
+        "each part judged over the bound bytes"
     );
     let out = s.answer_question_for(&current, "autre.txt");
     assert!(refused(&out, RefusalClass::AlreadyConsumed), "{out:?}");
     let out = s.answer_question_for(&old, "sortie.txt");
     assert!(refused(&out, RefusalClass::WrongState), "{out:?}");
     assert_eq!(s.pending_proposal().as_ref(), Some(id));
-    assert_eq!(calls(), (6, routed + 1));
+    assert_eq!(calls(), (5, routed + 1));
     let state_path = dir
         .path()
         .join(".nika/session-state.json")

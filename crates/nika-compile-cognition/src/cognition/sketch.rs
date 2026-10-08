@@ -29,7 +29,7 @@ use serde_json::{Value, json};
 
 #[cfg(test)]
 mod decision_tests;
-mod evidence;
+pub(super) mod evidence;
 /// The whole-source recovery an explicit policy allows after the structured rounds.
 mod recover;
 #[cfg(test)]
@@ -83,13 +83,13 @@ const SKETCH: &str = include_str!("../../assets/native_authoring_sketch.md");
 const SKETCH_SCHEMA: &str = include_str!("../../assets/sketch_schema.json");
 const FILLS_SCHEMA: &str = include_str!("../../assets/fills_schema.json");
 
-fn schema(text: &str) -> Value {
+pub(super) fn schema(text: &str) -> Value {
     serde_json::from_str(text).unwrap_or_else(|_| json!({"type": "object"}))
 }
 
 /// One call under the schema: the seat's text decoded as `T`, or the end of the talk (a
 /// failed call is journaled here; the decoder journals the rest).
-async fn call<T: Shaped, P: ProviderInferDyn>(
+pub(super) async fn call<T: Shaped, P: ProviderInferDyn>(
     talk: &mut Talk,
     round: u32,
     role: &'static str,
@@ -272,7 +272,7 @@ fn refused_round(
 /// The tail of a fill repair: the sketch stays as accepted, only the named holes are filled again.
 const FILL_AGAIN: &str = "\nFill the named holes again (the sketch stays as accepted); answer the same {\"fills\", \"notes\"} object.";
 
-fn diagnostics_record(diagnostics: &[Diagnostic]) -> Vec<Value> {
+pub(super) fn diagnostics_record(diagnostics: &[Diagnostic]) -> Vec<Value> {
     diagnostics
         .iter()
         .map(|d| json!({"kind": d.kind, "message": d.message}))
@@ -281,7 +281,12 @@ fn diagnostics_record(diagnostics: &[Diagnostic]) -> Vec<Value> {
 
 /// Whether a repair round opens: the assistant's text and the repair message join the talk
 /// and the diagnostics are remembered; a repeated refusal is no progress and ends the talk.
-fn repair(talk: &mut Talk, text: String, diagnostics: Vec<Diagnostic>, tail: &str) -> bool {
+pub(super) fn repair(
+    talk: &mut Talk,
+    text: String,
+    diagnostics: Vec<Diagnostic>,
+    tail: &str,
+) -> bool {
     let last = talk.last.clone();
     if !progressed(talk, last.as_deref(), &diagnostics) {
         return false;
@@ -609,7 +614,7 @@ pub(super) async fn compose<P: ProviderInferDyn>(
 }
 
 /// Whether `round` is within the rounds a limit allows (`None`: no count).
-fn within(last: Option<u32>, round: u32) -> bool {
+pub(super) fn within(last: Option<u32>, round: u32) -> bool {
     last.is_none_or(|last| round <= last)
 }
 
@@ -844,7 +849,11 @@ fn refused_reason(more: bool, defects: &[Diagnostic]) -> String {
 }
 
 /// [`refused_reason`] under the caller's own wording (the sketch door's, a recovery's).
-fn stop_reason(more: bool, defects: &[Diagnostic], (spent, repeated): (&str, &str)) -> String {
+pub(super) fn stop_reason(
+    more: bool,
+    defects: &[Diagnostic],
+    (spent, repeated): (&str, &str),
+) -> String {
     if !more {
         return spent.to_owned();
     }
@@ -854,7 +863,7 @@ fn stop_reason(more: bool, defects: &[Diagnostic], (spent, repeated): (&str, &st
 
 /// Where one settled candidate leads: the door's answer, a reopening from these defects, or a
 /// withdrawal past the last round from the defects the whole-request judgment demonstrated.
-enum Step {
+pub(super) enum Step {
     Done(CompileOutcome),
     Reopen(CompileOutcome, Vec<Diagnostic>),
     Withdrawn(CompileOutcome, Vec<Diagnostic>),
@@ -864,7 +873,7 @@ enum Step {
 /// then, when nothing there refuses it, the whole-request judgment. Round `next` is the one a
 /// reopening would spend; past `last` (`None`: no count) a refusal withdraws the candidate. The
 /// room admits `attempts` rehearsals in all (`None`: one per candidate produced).
-async fn examine<P: ProviderInferDyn>(
+pub(super) async fn examine<P: ProviderInferDyn>(
     (intent, reading, policy, request): (&str, &Reading, &AuthoringPolicy, &CompileRequest),
     (provider, decision, rehearsals): (&P, Option<&dyn DecisionSeat>, &mut Rehearsals<'_>),
     talk: &mut Talk,
@@ -937,7 +946,7 @@ fn judged_attempts(out: &CompileOutcome) -> usize {
 }
 
 /// The round after the journal's last: where a reopened graph continues the door's count.
-fn next_round(talk: &Talk) -> u32 {
+pub(super) fn next_round(talk: &Talk) -> u32 {
     (talk.rounds.iter())
         .filter_map(|round| round["round"].as_u64())
         .max()
@@ -982,7 +991,7 @@ fn identity(diagnostics: &[Diagnostic]) -> std::collections::BTreeSet<(&str, &st
 
 /// Reopen from evidence: the diagnostics go back with the `tail` instruction (the whole sketch
 /// again, its holes filled after it; or a recovery's whole source); a repeat is no progress.
-fn reopen(talk: &mut Talk, diagnostics: Vec<Diagnostic>, tail: &str) -> bool {
+pub(super) fn reopen(talk: &mut Talk, diagnostics: Vec<Diagnostic>, tail: &str) -> bool {
     let last = talk.reopened.clone();
     if !progressed(talk, last.as_deref(), &diagnostics) {
         return false;

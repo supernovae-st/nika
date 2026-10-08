@@ -201,47 +201,31 @@ pub(crate) fn candidate(model: &str, copy: bool) -> String {
     )
 }
 
-/// The private plan a seat returns for [`INTENT`] (semantic CREATE): read the stated source, draft
-/// the rewrite, write the stated destination. The compiler writes the source from it.
-pub(crate) fn plan_answer() -> String {
-    json!({"steps": [
-            {"op": "read", "detail": "./a.md", "evidence": "Read ./a.md"},
-            {"op": "draft", "detail": "something clever", "evidence": "do something clever with it"}],
-        "effects": [{"verb": "write", "target": "./b.md", "policy": "automatic",
-            "evidence": "then write ./b.md"}],
-        "obligations": [], "constraints": [], "unknowns": [], "regions": [],
-        "approval_bypass": {"present": false}})
-    .to_string()
+/// The document a seat returns for [`INTENT`] on the default route (semantic CREATE): read the
+/// stated source, one infer, write the stated destination, its run model the placeholder the
+/// compiler asks the human for.
+pub(crate) fn document_answer() -> String {
+    native_answer(&candidate("mock/echo", false))
 }
 
 /// A semantic CREATE of the exact-byte copy of `entree.txt` into `sortie.txt`, in call order:
-/// the private plan names the copy as the part it cannot carry (the request escalates to the
-/// sketch door), the sketch reads and writes the two stated files, the fills add nothing (the
-/// edge carries the bytes). No reply is whole source.
+/// the document door's one whole document, the copy fixture's workflow over those two files.
 pub(crate) fn semantic_copy() -> Vec<String> {
-    let task = |id: &str, tool: &str, extra: Value| {
-        let mut task = json!({"id": id, "verb": "invoke", "tool": tool, "purpose": id});
-        task.as_object_mut()
-            .unwrap()
-            .extend(extra.as_object().unwrap().clone());
-        task
-    };
+    let fixture: Value =
+        serde_json::from_str(include_str!("../fixtures/compile/copy-fr.json")).unwrap();
+    let candidate = fixture["candidate"]
+        .as_str()
+        .unwrap()
+        .replace("./notes/brief.md", "./entree.txt")
+        .replace("./out/copie.md", "./sortie.txt");
     vec![
-        json!({"steps": [], "effects": [], "obligations": [], "constraints": [],
-            "unknowns": ["sortie.txt contienne exactement les octets présents dans entree.txt"],
-            "regions": [], "approval_bypass": {"present": false}})
+        json!({"candidate": candidate, "questions": [], "gaps": [],
+            "notes": "copy the exact bytes"})
         .to_string(),
-        json!({"name": "compiled-workflow", "tasks": [
-            task("read_source", "nika:read", json!({"reads": ["entree.txt"]})),
-            task("write_output", "nika:write",
-                json!({"writes": ["sortie.txt"], "with": [{"name": "content", "from": "read_source"}]})),
-        ], "outputs": [], "questions": [], "gaps": [], "notes": "copy the exact bytes"})
-        .to_string(),
-        json!({"fills": [], "notes": "the edge carries the bytes"}).to_string(),
     ]
 }
 
-/// The native answer the seat returns for a candidate (a source EDIT's reply).
+/// The native answer the seat returns for a candidate: the document door's whole document.
 pub(crate) fn native_answer(candidate: &str) -> String {
     json!({"candidate": candidate, "questions": [], "gaps": [], "notes": "read, transform, write"})
         .to_string()

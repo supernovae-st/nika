@@ -32,6 +32,10 @@ use super::{Binding, ComponentCatalog, ComponentRef, expand, instantiate, revise
 use nika_schema::document::{Document, Edit, Path};
 use serde_json::{Value, json};
 
+/// The document door of a fresh CREATE: what the author's answer makes of the complete document,
+/// and the record that binds a settled creation to its final bytes.
+pub mod create;
+
 /// The route a document revision records.
 pub const ROUTE: &str = "edit: document revision over the complete base";
 

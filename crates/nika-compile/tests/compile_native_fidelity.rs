@@ -642,37 +642,30 @@ fn copy_graph(source: &str, destination: &str) -> String {
     ]))
 }
 
+/// A complete document that only reads both files the source answer names: no write realizes the
+/// destination the request states.
+const READ_BOTH: &str = "nika: notes-copy\npermits:\n  tools: [\"nika:read\"]\n  fs:\n    read: [\"Notes équipe.txt\", \"Copie équipe.txt\"]\ntasks:\n  read_notes:\n    invoke:\n      tool: \"nika:read\"\n      args:\n        path: \"Notes équipe.txt\"\n  read_copy:\n    invoke:\n      tool: \"nika:read\"\n      args:\n        path: \"Copie équipe.txt\"\n";
+
 #[tokio::test]
-async fn a_source_answer_never_stands_for_the_destination_at_the_native_door() {
-    // The same law on the default route: the plan cannot carry the request, the escalation
-    // reaches the sketch door, and the `équipe.txt` after `dans` stays owed whatever the source
-    // answer says; the destination actually written is Ready under exactly those grants.
-    let read = |path: &str, id: &str| node(id, "nika:read", &json!({"reads": [path]}));
-    let read_both = sketch_of(&json!([
-        read("Notes équipe.txt", "read_notes"),
-        read("Copie équipe.txt", "read_copy")
-    ]));
+async fn a_source_answer_never_stands_for_the_destination_at_the_document_door() {
+    // The same law on the default route, which opens the document door: the `équipe.txt` after
+    // `dans` stays owed whatever the source answer says, so a document that only reads both
+    // files is refused; the document that writes the destination (the one the explicit sketch
+    // door emits from the same graph) is Ready under exactly those grants.
     let escalate = |answer: &str| {
         CompileRequest::create(DESTINED)
             .with_authoring_policy(policy(1).with_native(NativeMode::Escalate))
             .answer("const.source_paths", answer)
     };
-    let provider = Rotating::new(vec![
-        "no plan here".to_owned(),
-        read_both,
-        NO_FILLS.to_owned(),
-    ]);
+    let provider = Rotating::new(vec![common::document_answer(READ_BOTH)]);
     let out = compile_with_provider(&escalate(BOTH_TYPED), &provider)
         .await
         .unwrap();
-    assert!(
-        route(&out).contains("native: sketch after the plan"),
-        "{}",
-        route(&out)
-    );
-    assert_eq!(native(&out)["sketch"]["accepted"], false, "{out:#?}");
+    assert!(route(&out).contains("native: document"), "{}", route(&out));
+    assert_ne!(native(&out)["accepted"], true, "{out:#?}");
     assert_eq!(unrealized(&rounds(&out)[0]), ["équipe.txt"], "{out:#?}");
     assert!(out.candidate.is_none(), "{out:#?}");
+    let read = |path: &str, id: &str| node(id, "nika:read", &json!({"reads": [path]}));
     let write_copie = sketch_of(&json!([
         read("Notes équipe.txt", "read_notes"),
         node(
@@ -681,19 +674,19 @@ async fn a_source_answer_never_stands_for_the_destination_at_the_native_door() {
             &json!({"writes": ["Copie équipe.txt"], "with": [{"name": "notes", "from": "read_notes"}]})
         )
     ]));
-    let provider = Rotating::new(vec![
-        "no plan here".to_owned(),
-        write_copie,
-        NO_FILLS.to_owned(),
-    ]);
+    let sketched = CompileRequest::create(DESTINED)
+        .with_authoring_policy(sketch_policy())
+        .answer("const.source_paths", TYPED);
+    let written = common::sketched(&sketched, vec![write_copie, NO_FILLS.to_owned()]).await;
+    let provider = Rotating::new(vec![common::document_answer(&written)]);
     // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
     let out = compile_with_provider(&escalate(TYPED), &Judged::approving(&provider))
         .await
         .unwrap();
     assert_eq!(
         provider.calls.load(Ordering::SeqCst),
-        3,
-        "the plan, the sketch, its fills"
+        1,
+        "the complete document at the first call"
     );
     assert_eq!(intent_of(&out), intent_sha256(DESTINED));
     let doc = document(&out);

@@ -756,9 +756,11 @@ async fn repair_boundary_stops_the_second_physical_call_and_a_deterministic_comp
 }
 
 #[tokio::test]
-async fn cold_to_sketch_escalation_uses_the_same_account() {
+async fn a_document_repair_uses_the_same_account() {
     use nika_compile::{AuthoringPolicy, CompileRequest, NativeMode};
     use nika_compile_cognition::compile_with_provider;
+    // A fresh CREATE under escalate opens the document door: an answer that is no document is
+    // refused and repaired within the allowance, every physical call on the same account.
     let provider = Metered::new(vec!["{}".into()]);
     let req = CompileRequest::create(common::INTENT).with_authoring_policy(
         AuthoringPolicy::new(MODEL, 4096, std::time::Duration::from_secs(2))
@@ -769,14 +771,18 @@ async fn cold_to_sketch_escalation_uses_the_same_account() {
         .await
         .unwrap();
     let receipt = out.provenance.authoring.as_ref().expect("authoring");
-    assert_eq!(receipt.context[0]["call"], "plan", "{out:#?}");
+    assert_eq!(receipt.context[0]["call"], "document", "{out:#?}");
     assert!(
-        receipt.context.iter().any(|c| c["call"] == "sketch"),
+        receipt
+            .context
+            .iter()
+            .any(|c| c["call"] == "document-repair"),
         "{out:#?}"
     );
     assert!(
-        !receipt.context.iter().any(|c| c["call"] == "native"),
-        "no source door: {out:#?}"
+        !(receipt.context.iter())
+            .any(|c| ["native", "plan", "sketch"].contains(&c["call"].as_str().unwrap_or_default())),
+        "no other door: {out:#?}"
     );
     assert!(provider.calls.load(Ordering::SeqCst) >= 2);
     assert_eq!(
