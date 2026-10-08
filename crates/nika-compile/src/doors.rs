@@ -124,6 +124,15 @@ pub fn plan_record(plan: &Plan, strategy: Option<Strategy>) -> Value {
     record
 }
 
+/// The record a replay rebuilds of a plan, the replayed record's `declined` kept on it (A3).
+fn replayed_record(plan: &Plan, strategy: Option<Strategy>, replayed: &Value) -> Value {
+    let mut rebuilt = plan_record(plan, strategy);
+    if let Some(declined) = replayed.get("declined").filter(|kept| kept.is_array()) {
+        rebuilt["declined"] = declined.clone();
+    }
+    rebuilt
+}
+
 /// Record the obligation ledger a plan states in the decision record (the assembler
 /// overwrites it with the realized one when it emits): the plan record itself stays the
 /// replayable identity of the plan, byte-identical across answer rounds.
@@ -239,7 +248,7 @@ pub fn replay_judged(
             QuestionType::Text,
         );
         record_ledger(out, &super::ledger::Ledger::extract(&plan));
-        out.provenance.plan = Some(plan_record(&plan, strategy));
+        out.provenance.plan = Some(replayed_record(&plan, strategy, record));
         return Ok(());
     }
     // A record from an earlier engine may still carry a numeric rule as guidance.
@@ -254,13 +263,13 @@ pub fn replay_judged(
     // A seat's plan (or a record with no strategy word) that works on nothing is asked,
     // never assembled; the reader's own HOT plan was already judged explicit.
     if strategy != Some(Strategy::Hot) && super::assemble::unfed(&plan, intent, out) {
-        out.provenance.plan = Some(plan_record(&plan, strategy));
+        out.provenance.plan = Some(replayed_record(&plan, strategy, record));
         return Ok(());
     }
     super::assemble::assemble_judged(&plan, intent, request, judgments, whole, out)?;
     record_retrieval(out, intent, Some(&plan));
     out.provenance.strategy = strategy;
-    out.provenance.plan = Some(plan_record(&plan, strategy));
+    out.provenance.plan = Some(replayed_record(&plan, strategy, record));
     Ok(())
 }
 

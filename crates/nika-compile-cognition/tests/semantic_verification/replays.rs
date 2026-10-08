@@ -104,6 +104,47 @@ async fn a_rejected_plan_record_replays_twice_and_asks_its_judge_nothing_either_
     }
 }
 
+/// A round with no judge between them changes nothing (A3): the rejected record a round replays
+/// with no judge (cognition with no provider, or the core's own replay) keeps the rejections it
+/// carries on the record it rebuilds, so the next round under the judge that rejected the bytes
+/// repeats the rejection and asks it nothing.
+#[tokio::test]
+async fn a_rejected_record_replayed_with_no_judge_still_asks_its_judge_nothing() {
+    let (record, candidate) = judged_record().await;
+    let (first, _, asked) = answered_by(&record, refuse).await;
+    assert!(asked > 0 && record_as_declined(&first), "{first:#?}");
+    let kept = first.provenance.plan.clone().unwrap_or_default();
+    let observed = json!({"observed": [{"path": "./data/input.csv", "state": "observed", "complete": false, "kind": "csv", "columns": ["id", "item", "status", "qty"]}]});
+    let policy = AuthoringPolicy::new("mock/authoring", 1024, Duration::from_secs(2));
+    let request = CompileRequest::create(intent(SUM))
+        .with_knowledge(observed)
+        .with_plan(kept.clone())
+        .with_hot_policy(HotPolicy::Off)
+        .with_authoring_policy(policy);
+    let cognition = Cognition::<NoProvider> {
+        provider: None,
+        seat: None,
+    };
+    let unjudged = [
+        compile_with_cognition(&request, cognition).await.unwrap(),
+        nika_compile::compile(&request).unwrap(),
+    ];
+    for (round, out) in unjudged.into_iter().enumerate() {
+        assert_eq!(out.status, CompileStatus::Incomplete, "{round}: {out:#?}");
+        assert_eq!(
+            out.candidate.as_deref(),
+            Some(candidate.as_str()),
+            "{round}"
+        );
+        let carried = out.provenance.plan.clone().unwrap_or_default();
+        assert_eq!(carried["declined"], kept["declined"], "{round}: {out:#?}");
+        let (again, authored, asked) = answered_by(&carried, refuse).await;
+        assert_eq!((authored, asked), (0, 0), "{round}: {again:#?}");
+        assert_eq!(attempt(&again)["carried"], true, "{round}: {again:#?}");
+        assert!(record_as_declined(&again), "{round}: {again:#?}");
+    }
+}
+
 #[tokio::test]
 async fn an_answer_round_whose_judge_refuses_the_remainder_is_incomplete() {
     let (record, candidate) = judged_record().await;

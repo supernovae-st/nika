@@ -544,7 +544,10 @@ model's COLD or WARM plan, a record with no strategy word or an unknown one)
 replays with its whole request pending on the bytes it emits, as a native record
 always does (below). With no judge in the round, such a replay is therefore
 INCOMPLETE with the pending-clause finding below, never READY: no judgment of the
-replayed bytes was made in the round. `replay_judged` adds the duty when its
+replayed bytes was made in the round. Every record either entry rebuilds of the
+plan it replays keeps the rejections the replayed record carries (`declined`), so
+a round with no judge never loses one and a later round under the judge that
+rejected those bytes repeats it with no call. `replay_judged` adds the duty when its
 caller asks for it (`whole`). Cognition asks for it in the answer round of every
 record but a HOT plan's, so the whole request is judged again on the bytes that
 round replays, and for a regenerated candidate after a field answer, judged as the

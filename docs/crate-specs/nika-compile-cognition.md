@@ -585,6 +585,9 @@ judge outvotes it there; a verdict that declined nothing may be asked again.
   authoring call; a rejection the round only repeated (carried, or the same bytes again) is
   kept too, once per judge, context and request, so the record keeps it however often it
   replays.
+  The core's plan door keeps the replayed record's `declined` on every record it rebuilds
+  (`nika_compile::replay_judged`), so a round with no judge between two rounds (this crate
+  with no provider, or the core's own replay) loses none of them.
   An abstention keeps no record (an abstention is never carried), nor does a sketch door's
   semantic record, whose closed format holds no rejection: dropped, it is never replayed to
   that judge. The replay shows its judge the context the rejection was bound to: a revision
