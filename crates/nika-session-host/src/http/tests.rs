@@ -24,6 +24,22 @@ use crate::run::NoRunDoor;
 
 const WAIT: Duration = Duration::from_secs(60);
 
+/// A test's action between the moment a resync is read and the moment its stream starts.
+type BetweenResync = (String, Box<dyn Fn() + Send>);
+
+static BETWEEN_RESYNC: std::sync::Mutex<Option<BetweenResync>> = std::sync::Mutex::new(None);
+
+/// Run the action a test placed for `session`, once.
+pub(super) fn after_resync_point(session: &str) {
+    let mut placed = BETWEEN_RESYNC.lock().expect("hook");
+    if placed.as_ref().is_some_and(|(id, _)| id == session)
+        && let Some((_, action)) = placed.take()
+    {
+        drop(placed);
+        action();
+    }
+}
+
 fn sessions(root: &Path) -> Arc<Sessions> {
     let root = root.to_path_buf();
     let opener: Opener = Arc::new(move || Ok((runtime(&root), Vec::new())));
@@ -474,4 +490,67 @@ async fn the_native_and_http_doors_give_the_same_session() {
         .to_owned();
     let bytes = |root: &Path| std::fs::read(root.join(&saved)).expect("saved bytes");
     assert_eq!(bytes(native_root.path()), bytes(http_root.path()));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_resync_snapshot_is_never_newer_than_its_cursor() {
+    let root = world();
+    let sessions = sessions(root.path());
+    let address = listen(Arc::clone(&sessions)).await;
+    let (_, opened) = call(address, "POST", "/v1/sessions", "").await;
+    let session = opened["session"].as_str().expect("session").to_owned();
+    let path = format!("/v1/sessions/{session}/commands");
+    let body = command("submit", "c-1", &opened["snapshot"]["snapshot"], COPY).to_string();
+    let (_, proposed) = call(address, "POST", &path, &body).await;
+    let host = sessions.any_live().await.expect("live");
+    let gate = Gate::default();
+    host.pause_at(gate.pause());
+    gate.hold("settling");
+    let yes = command("submit", "c-2", &proposed["snapshot"]["snapshot"], "yes").to_string();
+    let saving = tokio::spawn(async move { call(address, "POST", &path, &yes).await });
+    let waiting = gate.clone();
+    tokio::task::spawn_blocking(move || waiting.reached())
+        .await
+        .expect("held");
+    // Between the resync's reading and its stream, the held turn publishes its result.
+    let (published, settled) = (gate.clone(), Arc::clone(&host));
+    *BETWEEN_RESYNC.lock().expect("hook") = Some((
+        session.clone(),
+        Box::new(move || {
+            published.release();
+            let _ = settled.wait_result("c-2");
+        }),
+    ));
+    let events = format!("/v1/sessions/{session}/events");
+    let stream = subscribe(address, &events, Some("ses_other:1")).await;
+    let (_, saved) = saving.await.expect("saved");
+    let (status, _) = call(address, "DELETE", &format!("/v1/sessions/{session}"), "").await;
+    assert_eq!(status, 200);
+    let frames = drain(stream).await;
+    let (cursor, resync) = &frames[0];
+    assert_eq!(resync["frame"], "resync");
+    assert_eq!(
+        resync["snapshot"]["snapshot"], proposed["snapshot"]["snapshot"],
+        "the snapshot the cursor stands for, not a later one"
+    );
+    let from: u64 = cursor
+        .rsplit(':')
+        .next()
+        .and_then(|n| n.parse().ok())
+        .expect("cursor");
+    let after: Vec<&Value> = frames[1..].iter().map(|(_, frame)| frame).collect();
+    assert_eq!(
+        after[0]["event"].as_u64(),
+        Some(from + 1),
+        "the stream resumes at the cursor"
+    );
+    let result = after
+        .iter()
+        .find(|f| f["command"] == "c-2")
+        .expect("the held result");
+    assert_eq!(
+        result["snapshot"]["snapshot"],
+        saved["snapshot"]["snapshot"]
+    );
+    assert!(result["snapshot"]["seq"].as_u64() > resync["snapshot"]["seq"].as_u64());
 }

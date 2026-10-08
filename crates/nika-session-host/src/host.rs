@@ -441,9 +441,17 @@ impl SessionHost {
             .unwrap_or_else(PoisonError::into_inner) = Some(pause);
     }
 
-    /// The current snapshot, for a refusal or a resync.
+    /// The current snapshot, for a refusal.
     pub(crate) fn current(&self) -> Snapshot {
         self.shared.lock().snapshot()
+    }
+
+    /// The number of the last event logged and the current snapshot, read at one instant: what a
+    /// resync hands a client, so that no event after it is older than its snapshot.
+    pub(crate) fn resync_point(&self) -> (u64, Snapshot) {
+        let custody = self.shared.lock();
+        let last = u64::try_from(custody.events.len()).unwrap_or(u64::MAX);
+        (last, custody.snapshot())
     }
 
     /// One command. Reads and refusals answer at once; a submit reaches the Session and its

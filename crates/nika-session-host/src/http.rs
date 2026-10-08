@@ -268,23 +268,25 @@ fn events(host: Arc<SessionHost>, headers: &HeaderMap) -> Response<ResponseBody>
                 .filter(|n| *n <= last)
         });
     let (from, resync) = match named {
-        None => (0, false),
-        Some(Some(n)) => (n, false),
-        Some(None) => (last, true),
+        None => (0, None),
+        Some(Some(n)) => (n, None),
+        Some(None) => {
+            // The cursor and the snapshot it stands for, read at one instant.
+            let (from, snapshot) = host.resync_point();
+            (
+                from,
+                Some(Frame::new(&session, None, Body::Resync { snapshot })),
+            )
+        }
     };
+    #[cfg(test)]
+    tests::after_resync_point(&session);
     let (sender, receiver) = tokio::sync::mpsc::channel::<Bytes>(16);
     tokio::spawn(async move {
-        if resync {
-            let frame = Frame::new(
-                &session,
-                None,
-                Body::Resync {
-                    snapshot: host.current(),
-                },
-            );
-            if sender.send(sse(&session, from, &frame)).await.is_err() {
-                return;
-            }
+        if let Some(frame) = resync
+            && sender.send(sse(&session, from, &frame)).await.is_err()
+        {
+            return;
         }
         let mut cursor = from;
         loop {
