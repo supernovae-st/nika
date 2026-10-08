@@ -35,6 +35,16 @@ pub fn is_yes(answer: &str) -> bool {
     )
 }
 
+/// The combined consent line, and nothing else: save the proposal shown and run what it saves
+/// once (`save & run`, the word a host's Save & run sends), the whole line.
+#[must_use]
+pub fn is_save_and_run(answer: &str) -> bool {
+    matches!(
+        answer.trim().to_lowercase().as_str(),
+        "save & run" | "save and run" | "enregistre et lance"
+    )
+}
+
 /// One answer to a fresh spending decision: the Session's one-time
 /// unknown-cost choice and a Run cost decision read the same grammar
 /// (English and French). Approval is the whole line and nothing else; a

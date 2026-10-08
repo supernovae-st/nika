@@ -556,7 +556,7 @@ impl ProjectChangeSet {
         if let Some(r) = &self.run {
             let _ = writeln!(
                 out,
-                "  then · run `{}` once (--max-cost-usd {:.2} · say « with a ceiling of 0.05 » to change it) · only if the check on disk is clean",
+                "  with `save & run` · then run `{}` once (--max-cost-usd {:.2}) · only if the check on disk is clean · `yes` saves only",
                 r.workflow.display(),
                 r.max_cost_usd
             );
