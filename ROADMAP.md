@@ -44,9 +44,10 @@ remain separate from accepting that direction.
 >
 > Crate count: the **Diamond architecture target is 42** (admitted census in
 > the generated status block below); the **long-term** envelope grows to **50-90** (cap 100), driven by the
-> 11-crate Connectome cluster (1 L2 orchestrator + 10 L1 satellites · ratified
-> 2026-06-11 · lands whole before 1.0 per D-2026-07-22-N1), `nika-embed`, WASM + sandbox. See
-> §Crate sequence.
+> 10 memory and retrieval satellite crates (each capability under its own owner and
+> release acceptance; the 11-crate Connectome cluster ratified 2026-06-11, its L2
+> orchestrator and its whole-before-1.0 landing per D-2026-07-22-N1 are superseded
+> by D-2026-10-08-N1), `nika-embed`, WASM + sandbox. See §Crate sequence.
 >
 > The target counts **architectural units, not workspace members**
 > (D-2026-07-09-N1): a size-cap descent (one crate splitting at the 15k
@@ -223,7 +224,7 @@ Next phases (~35 commits across B-H):
 **Next steps** · the admission order is the tag scheme below plus the
 forward gates of the machine-verified timeline; the 2026-05-12 waypoint list
 that stood here is superseded (git keeps it) — its memory-subsystem naming
-predates the Connectome canon.
+predates the Connectome canon (itself retired by D-2026-10-08-N1).
 
 The **4-verb invariant (`infer · exec · invoke · agent`)** is locked through 2036 per BLUEPRINT_2036 §1 stress-test (D-2026-05-22-N18 · `fetch` is the `nika:fetch` builtin via `invoke`, not a verb) · candidates `fetch/embed/evaluate/train/serve/stream/transform` all collapse cleanly into the 4-verb taxonomy. ADRs 050-056 queue Phase 2-7 amendments (WASM Component Model · CRDT federation · edge no_std subset · multi-protocol gateway · 3 cluster-collapses).
 
@@ -335,7 +336,7 @@ Sub-phased per Q2 (topological × user-value):
   The native in-process backend ships separately as `nika-infer-local`
   (candle sidecar · ADR-091)
 - **1d pck backend**: `nika-pck-registry`, `nika-pck-store`
-- **1e memory foundation** (the Connectome climb): `nika-embed` (own
+- **1e memory foundation** (the memory climb, once called the Connectome climb): `nika-embed` (own
   quantized local model), `nika-bm25` ✅ (ADR-038), `nika-hnsw`, `nika-rrf`,
   `nika-autodesc-minimal`
 - **1f memory advanced**: `nika-temporal`, `nika-fsrs`, `nika-rdfs-reasoner`,
@@ -349,9 +350,10 @@ Sub-phased per Q2 (topological × user-value):
 ### L2 — domain (~15 crates)
 
 `nika-verb-{exec,invoke,infer,agent}` (fetch = `nika:fetch` builtin via invoke), `nika-pck` orchestrator,
-`nika-connectome` orchestrator (the Connectome), `nika-builtin`,
+`nika-builtin`,
 `nika-builtin-{github,cloud,workspace}`,
-`nika-mcp`, `nika-display`.
+`nika-mcp`, `nika-display`. The planned `nika-connectome` orchestrator is retired
+(D-2026-10-08-N1); no other branded orchestrator replaces it.
 
 ### L3 — orchestration (~6 crates)
 
@@ -369,11 +371,13 @@ Sub-phased per Q2 (topological × user-value):
 `nika` is already born as `nika-cli`'s bin target (ADR-135); L5 takes the
 target by moving it, never by renaming it.
 
-### Memory subsystem detail — the Connectome cluster (1 orchestrator + 10 satellites · ADR-004)
+### Memory subsystem detail — the memory and retrieval satellites (10 satellites · ADR-004)
 
 Specs: `docs/crate-specs/nika-<sat>.md`.
 
-**10 satellites** (admitted during L1 phases 1e-1f, composed by `nika-connectome` L2):
+**10 satellites** (admitted during L1 phases 1e-1f, each capability under its own owner and
+release acceptance; the `nika-connectome` L2 composer they once named is retired ·
+D-2026-10-08-N1):
 
 - `nika-hnsw` — ANN vector recall (M adaptive per store size, efConstruction=400)
 - `nika-bm25` ✅ — lexical recall (ADMITTED · ADR-038)
@@ -451,7 +455,7 @@ See `docs/architecture/forward-compat-invariants.md` §9.
 |---|---|---|---|
 | `WasmPluginHost` | `src/plugin.rs` | ✅ shipped | `nika-wasm-host` (L3) |
 | `Sandbox` | `src/sandbox.rs` | ✅ shipped | `nika-sandbox-{linux,macos,windows}` (L3) |
-| `MemoryStore` | `src/ai/memory.rs` | ✅ shipped | `nika-connectome` (L2 · composes the 10 satellites, L1 phase 1e-1f) |
+| `MemoryStore` | `src/ai/memory.rs` | ✅ shipped | owner-assigned per capability (the planned `nika-connectome` L2 composer is retired · D-2026-10-08-N1) |
 | `EmbeddingProvider` | `src/memory.rs` | ✅ shipped | `nika-embed` (L1 phase 1e) |
 | `IdGenerator` | `src/id_gen.rs` | ✅ shipped (W2) | in-tree |
 | `SecretResolver` | `src/secret.rs` | ✅ shipped (W2, sealed) | in-tree |
@@ -900,7 +904,7 @@ outright or reclassified as a future layer-phase deliverable (no version tag).
 | `nika-tui` (terminal UI) | DELETED in W1 → **rebuilt**: WIP member since 2026-09-21 (ADR-139), the Session's default renderer since 0.121.0 | the conversational Session pulled it back |
 | `ProviderCategory` enum | DELETED | 11 ex-MCP providers migrated to `McpAlias` catalog |
 | Agent-v2 (multi-turn, 4 guardrails) | **Built during L2** | blocked on memory L1 phase 1e-1f |
-| The Connectome (1 orchestrator + 10 satellites) | **Built during L1 phases 1e-1f-1g** | ontology-graph + auto-descriptive, see §Memory subsystem detail |
+| Memory and retrieval satellites (10 · the Connectome umbrella and orchestrator are retired, D-2026-10-08-N1) | **Built during L1 phases 1e-1f-1g**, each under its own owner and release acceptance | ontology-graph + auto-descriptive, see §Memory subsystem detail |
 | WASM host (wasmtime + extism) | **Built during L3** | Sandbox-3 triplet ships alongside |
 | Keys subsystem (Keychain/OAuth) | **Built during L1 phases 1a-1b** | `nika-keys-env` + `nika-keys-keychain` |
 | Hosted cloud runner | Polish forever (post-1.0) | Self-host is primary; SaaS optional |
