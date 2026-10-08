@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The screen refuses the values a run would build before the room's write budget sees them.
-//! Pure: every case is a few lines of candidate source screened in memory; no room, runtime,
-//! file or provider is reached, and nothing here says a candidate copies what its request asks.
+//! The law refuses the values a run would build before the room's write budget sees them.
+//! Pure: every case is a few lines of candidate source read in memory; no room, runtime, file
+//! or provider is reached, and nothing here says a candidate copies what its request asks. The
+//! host's screen around it (its order, its refusal class) is tested where it lives.
 
-use nika_compile_cognition::rehearse::Refusal;
+use nika_schema::{FileId, ParseMode};
 
-use super::super::screen::{Refused, screen};
-use super::text;
+use super::{evaluated, text};
 
 /// A read of `./in.txt` and its write to `./out.txt`. `@WITH@` extends the write's bindings,
 /// `@FIELD@` adds lines to the write task, `@CONTENT@` is its content and `@TAIL@` extends the
@@ -38,19 +38,19 @@ fn copy(changes: &[(&str, &str)]) -> String {
         .replace("@TAIL@", "")
 }
 
-/// The screen over the copy's one observed input.
-fn screened(candidate: &str) -> Result<(), Refused> {
-    screen(candidate, &["./in.txt".to_owned()]).map(|_| ())
+/// The law over `candidate`, parsed as a host's screen parses it.
+fn screened(candidate: &str) -> Result<(), String> {
+    let workflow = nika_schema::parse(candidate, FileId::new(0), ParseMode::Strict)
+        .expect("a candidate the strict parser reads");
+    evaluated(&workflow)
 }
 
-/// The screen's refusal of `candidate`: a data bound in the words of `field`, for `cause`.
+/// The law's refusal of `candidate`, in the words of `field`, for `cause`.
 fn bounded(candidate: &str, field: &str, cause: &str) {
-    let refused = screened(candidate).expect_err(field);
-    assert_eq!(refused.refusal, Refusal::DataBounds, "{}", refused.reason);
+    let reason = screened(candidate).expect_err(field);
     assert!(
-        refused.reason.starts_with(field) && refused.reason.contains(cause),
-        "{field}, {cause}: {}",
-        refused.reason
+        reason.starts_with(field) && reason.contains(cause),
+        "{field}, {cause}: {reason}"
     );
 }
 
@@ -58,25 +58,6 @@ fn bounded(candidate: &str, field: &str, cause: &str) {
 const TWO: &str = "joins 2 template islands";
 const LIST: &str = "builds a list of values";
 const HELD: &str = "builds an array or an object of values";
-
-/// The compiler's two-task copy of one text file, read as text.
-const TEXT_COPY: &str = r#"nika: compiled-workflow
-const:
-  source_path: ./in/source.txt
-  output_path: ./out/copied.txt
-permits:
-  tools: ["nika:read", "nika:write"]
-  fs: { read: ["./in/source.txt"], write: ["./out/copied.txt"] }
-tasks:
-  read_source:
-    invoke: { tool: "nika:read", args: { path: "${{ const.source_path }}" } }
-  write_output:
-    after: { read_source: success }
-    with: { content: "${{ tasks.read_source.output }}" }
-    invoke: { tool: "nika:write", args: { path: "${{ const.output_path }}", content: "${{ with.content }}", create_dirs: true, overwrite: true } }
-outputs:
-  write_status: "${{ tasks.write_output.status }}"
-"#;
 
 #[test]
 fn two_islands_are_refused_in_every_evaluated_field() {
@@ -152,20 +133,6 @@ fn a_json_container_holding_a_reference_is_refused() {
 }
 
 #[test]
-fn the_text_and_bytes_copies_pass() {
-    let bytes = TEXT_COPY.replace(
-        r#"args: { path: "${{ const.source_path }}" }"#,
-        r#"args: { path: "${{ const.source_path }}", binary: true }"#,
-    );
-    assert_ne!(bytes, TEXT_COPY);
-    for candidate in [TEXT_COPY, bytes.as_str()] {
-        let outcome = screen(candidate, &["./in/source.txt".to_owned()]);
-        assert!(outcome.is_ok(), "{outcome:?}");
-    }
-    assert!(screened(&copy(&[])).is_ok());
-}
-
-#[test]
 fn literal_forms_pass() {
     for candidate in [
         // Escaped openers are no islands.
@@ -206,27 +173,8 @@ fn a_template_the_screen_cannot_read_is_refused() {
     let candidate = copy(&[("@CONTENT@", r#""${{ with.chunk""#)]);
     bounded(&candidate, "task write_it args.content", "cannot read");
     let refused = text("a value", "${{ with.chunk", false).expect_err("an unterminated island");
-    assert!(refused.reason.contains("cannot read"), "{}", refused.reason);
+    assert!(refused.contains("cannot read"), "{refused}");
     assert!(text("a value", "", false).is_ok());
-}
-
-#[test]
-fn existing_refusals_come_first() {
-    let twice = r#""${{ with.chunk }}${{ with.chunk }}""#;
-    let jq = "  shape_it:\n    with: { text: \"${{ tasks.read_it.output }}\" }\n    invoke: { tool: \"nika:jq\", args: { input: { text: \"${{ with.text }}\" }, expression: \".\" } }\n";
-    let exec = "  run_it:\n    exec: { command: [\"true\"] }\n";
-    let unobserved =
-        "  read_more:\n    invoke: { tool: \"nika:read\", args: { path: \"./elsewhere.txt\" } }\n";
-    for (tail, refusal, words) in [
-        (jq, Refusal::DataBounds, "runs nika:jq"),
-        (exec, Refusal::Effect, "exec"),
-        (unobserved, Refusal::Confinement, "not observed"),
-    ] {
-        let candidate = copy(&[("@CONTENT@", twice), ("@TAIL@", tail)]);
-        let refused = screened(&candidate).expect_err(words);
-        assert_eq!(refused.refusal, refusal, "{}", refused.reason);
-        assert!(refused.reason.contains(words), "{}", refused.reason);
-    }
 }
 
 #[test]

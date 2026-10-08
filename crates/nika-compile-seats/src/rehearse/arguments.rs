@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+//! The values a rehearsal room refuses before any run: a host's screen applies this law last.
+//!
 //! Evaluated fields can construct values synchronously without a rendered-byte cap.
 //! A write's arguments are rendered before its filesystem byte reservation; output and model
 //! values are checked at their own stages. Three source forms can amplify referenced values:
@@ -9,22 +11,23 @@
 //! the parsed form the shared scanner gives, never by evaluating it; a template the scanner
 //! cannot read is refused too. Constants, input defaults, keys, metadata and the bytes a
 //! rehearsal copies are data, never scanned. This closes these forms; it bounds neither memory
-//! as a whole nor the size of one value read whole.
+//! as a whole nor the size of one value read whole. Every refusal it states is a
+//! [`Refusal::DataBounds`](super::Refusal::DataBounds).
 
-use nika_compile_cognition::rehearse::Refusal;
 use nika_schema::expression::{Expr, expr_refs, scan_templates};
 use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 use nika_schema::types::OnErrorAction;
 use serde_json::Value;
-
-use super::screen::Refused;
 
 #[cfg(test)]
 mod tests;
 
 /// Refuse the three amplifying forms described above in evaluated values: every task,
 /// whatever its condition or branch, then the workflow's outputs and its model.
-pub(super) fn evaluated(workflow: &RawWorkflow) -> Result<(), Refused> {
+///
+/// # Errors
+/// The words of the first refused value, in those of its field.
+pub fn evaluated(workflow: &RawWorkflow) -> Result<(), String> {
     for task in &workflow.tasks {
         task_values(&task.value)?;
     }
@@ -41,7 +44,7 @@ pub(super) fn evaluated(workflow: &RawWorkflow) -> Result<(), Refused> {
 /// The evaluated values of one task: each binding, its condition, its fan-out collection, each
 /// argument and its recovery value. The `with` and `args` maps are envelopes: each of their
 /// values is evaluated on its own.
-fn task_values(task: &RawTask) -> Result<(), Refused> {
+fn task_values(task: &RawTask) -> Result<(), String> {
     let id = task.id.value.as_str();
     for (name, value) in &task.with {
         root(&format!("task {id} with.{}", name.value), &value.value)?;
@@ -84,7 +87,7 @@ fn task_values(task: &RawTask) -> Result<(), Refused> {
 
 /// One evaluated value: a string is scanned, an array or an object is a container the run
 /// builds, and any other scalar is data.
-fn root(at: &str, value: &Value) -> Result<(), Refused> {
+fn root(at: &str, value: &Value) -> Result<(), String> {
     match value {
         Value::String(source) => text(at, source, false),
         Value::Array(_) | Value::Object(_) => container(at, value),
@@ -94,7 +97,7 @@ fn root(at: &str, value: &Value) -> Result<(), Refused> {
 
 /// The values, never the keys, of an array or an object the run builds: each string is scanned
 /// as a part of it.
-fn container(at: &str, value: &Value) -> Result<(), Refused> {
+fn container(at: &str, value: &Value) -> Result<(), String> {
     match value {
         Value::String(source) => text(at, source, true),
         Value::Array(items) => items.iter().try_for_each(|item| container(at, item)),
@@ -106,7 +109,7 @@ fn container(at: &str, value: &Value) -> Result<(), Refused> {
 /// One evaluated string, scanned by the shared scanner: refused when the scan fails, when it
 /// holds two islands or more, when an island builds a list holding a value reference, or, as a
 /// part of an array or an object, when an island reads a value.
-fn text(at: &str, source: &str, contained: bool) -> Result<(), Refused> {
+fn text(at: &str, source: &str, contained: bool) -> Result<(), String> {
     let islands = scan_templates(source).map_err(|error| {
         bound(
             at,
@@ -152,12 +155,9 @@ fn builds_list(expr: &Expr) -> bool {
 
 /// A value the run would build before the room's write budget sees it, refused in the words of
 /// its field.
-fn bound(at: &str, what: &str) -> Refused {
-    Refused::new(
-        Refusal::DataBounds,
-        format!(
-            "{at} {what}: the run builds it before the room's write budget sees it, and a \
-             rehearsal vouches for no bound on it"
-        ),
+fn bound(at: &str, what: &str) -> String {
+    format!(
+        "{at} {what}: the run builds it before the room's write budget sees it, and a rehearsal \
+         vouches for no bound on it"
     )
 }

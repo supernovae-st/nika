@@ -13,7 +13,6 @@
 //! back, and the room is deleted and verified gone. A candidate the room cannot run safely is
 //! not run, and the report says why.
 
-mod arguments;
 mod record;
 mod screen;
 mod world;

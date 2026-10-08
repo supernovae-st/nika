@@ -66,7 +66,13 @@ as an external consumer.
   core's `UNJUDGED_DEPENDENCY` finding on a parsed `invoke.workflow` task) and records the answer
   on `decision.composition`. `discharge_children` lifts that hold only for a clean closure of
   these exact bytes and then settles READY by the core's own law (`ready_by_law`). An MCP or
-  skill hold, a mandatory question or a refusal stays as it is.
+  skill hold, a mandatory question or a refusal stays as it is. `arguments::evaluated` is the
+  law a host's room screen applies last, held by `nika-onboard` until its size cap (2026-10-08):
+  in every task (its bindings, condition, fan-out collection, arguments and recovery value),
+  the outputs and the model, it refuses a value the run would build before the room's write
+  budget sees it (two template islands or more in one string, a CEL list holding a value
+  reference, an array or an object holding a template that reads a value, or a template the
+  scanner cannot read), in the words of its field; the screen states each as a data bound.
 - `reasoning` — `effort` (the provider level an authoring level names) and `reasoning_record`
   (one call's reasoning, each fact apart), shared with every authoring call of the doors.
 - `objects` — the JSON objects of a seat's text (`first_json_object`, `answer_objects` and

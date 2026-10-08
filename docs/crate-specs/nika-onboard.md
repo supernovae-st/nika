@@ -776,7 +776,10 @@ the authoring provider) the observation of the last completed run of those exact
 default, as preparation context, and asks over it only when the run proves whole outputs. The
 copy door (`copy::qualify`) judges by exact bytes, and no verifier reads its runs. The room's
 isolation, receipts and bounds (`COPY_BOUND`, `PREVIEW_BOUND`) are unchanged and are not
-session-wide creation quotas; a trial run grants no live `.nika` Run authority.
+session-wide creation quotas; a trial run grants no live `.nika` Run authority. Before any room,
+the room's screen refuses what a rehearsal cannot bound or confine; its last pass is the
+argument law of `nika-compile-seats` (`rehearse::arguments`, held here until this crate's size
+cap), and each value that law refuses is a data bound in the words of its field.
 
 ### Child workflows checked composed
 

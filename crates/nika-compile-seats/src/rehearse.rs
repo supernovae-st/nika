@@ -17,6 +17,7 @@ use nika_compile::surface::{UNJUDGED_DEPENDENCY, parse, ready_by_law, sha256};
 use nika_compile::{CompileOutcome, CompileStatus, DiagnosticKind};
 use serde_json::json;
 
+pub mod arguments;
 #[cfg(test)]
 mod composed_tests;
 mod judged;
