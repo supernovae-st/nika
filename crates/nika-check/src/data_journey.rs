@@ -379,11 +379,25 @@ fn collect_net_effect(
             .and_then(|p| p.net.as_ref())
             .map_or(&[][..], |n| n.http.as_slice());
         for host in hosts {
-            if !nika_types::net::host_is_blocked(host) {
-                external.insert(host.clone());
-                touch("net.http", host.clone());
-            }
+            grant_destination(host, touch, external);
         }
+    }
+}
+
+/// One host of the net grant as a destination a computed URL or an agent may reach. An exact
+/// loopback literal is reachable because the grant declassifies it (#395): it is a destination,
+/// never an external sink, like a literal URL to it. Any other floor-blocked entry stays refused
+/// at the floor, so it reaches nothing.
+fn grant_destination(
+    host: &str,
+    touch: &mut dyn FnMut(&'static str, String),
+    external: &mut BTreeSet<String>,
+) {
+    if !nika_types::net::host_is_blocked(host) {
+        external.insert(host.to_owned());
+        touch("net.http", host.to_owned());
+    } else if nika_types::net::is_exact_loopback_literal(host) {
+        touch("net.http", host.to_owned());
     }
 }
 
@@ -416,10 +430,7 @@ fn collect_agent_tool_effects(
         }
         if let Some(BuiltinEffect::Net { .. }) = nika_cap::builtin_effect(name, None) {
             for host in hosts {
-                if !nika_types::net::host_is_blocked(host) {
-                    external.insert(host.clone());
-                    touch("net.http", host.clone());
-                }
+                grant_destination(host, &mut touch, external);
             }
         }
     }
@@ -1087,6 +1098,37 @@ tasks:
             ["api.eu.example.com", "api.us.example.com"],
             "{s:?}"
         );
+    }
+
+    /// A computed URL under a grant whose host is an exact loopback literal reaches that local
+    /// service, which the grant declassifies (#395): the journey names it as the destination of
+    /// the task, never as an external sink, so the class stays internal. A private host the floor
+    /// refuses whatever the grant says stays out, as it reaches nothing.
+    #[test]
+    fn a_computed_url_reaches_the_loopback_host_its_grant_declassifies() {
+        let j = journey_of(
+            r#"
+nika: loopback-sink
+inputs:
+  base: { type: string, required: true }
+permits:
+  net: { http: ["127.0.0.1", "10.0.0.5"] }
+  tools: ["nika:fetch"]
+tasks:
+  post:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "${{ inputs.base }}/notifications/stock", method: POST, body: { ok: true }, mode: text }
+"#,
+        );
+        let net: Vec<(&str, &[String])> = j
+            .destinations
+            .iter()
+            .filter(|d| d.kind == "net.http")
+            .map(|d| (d.target.as_str(), d.tasks.as_slice()))
+            .collect();
+        assert_eq!(net, [("127.0.0.1", &["post".to_owned()][..])], "{net:?}");
+        assert_eq!(j.classification, DataClassification::Internal);
     }
 
     /// A PII-shaped declared path upgrades the class to sensitive — no

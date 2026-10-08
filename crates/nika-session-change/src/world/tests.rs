@@ -294,6 +294,47 @@ fn the_audit_of_exact_bytes_tells_fixture_local_service_and_connected_apart() {
     );
 }
 
+/// The contract server's address is a run input: the URL is computed, so the reach comes from
+/// the grant, whose exact loopback literal the check names as the task's destination.
+const INPUT_SINK: &str = r#"nika: stock-input-sink
+
+inputs:
+  base:
+    type: string
+    required: true
+
+permits:
+  tools: ["nika:fetch"]
+  net:
+    http: ["127.0.0.1"]
+
+tasks:
+  post:
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ inputs.base }}/notifications/stock"
+        method: POST
+        body: { channel: "stock", item_ids: ["v-101"] }
+"#;
+
+#[test]
+fn a_computed_url_to_the_granted_loopback_host_is_a_local_service_not_files_only() {
+    let root = tempfile::tempdir().expect("root");
+    let sink = audited(root.path(), "input-sink.nika", INPUT_SINK);
+    assert_eq!(sink.reach, Reach::LocalServices, "{sink:?}");
+    let local: Vec<(&str, &[String])> = sink
+        .of_kind(PlaceKind::LocalService)
+        .map(|p| (p.target.as_str(), p.tasks.as_slice()))
+        .collect();
+    assert_eq!(local, [("127.0.0.1", &tasks(&["post"])[..])], "{sink:?}");
+    assert!(
+        sink.summary().starts_with("local services only: 127.0.0.1"),
+        "{}",
+        sink.summary()
+    );
+}
+
 #[test]
 fn a_workflow_that_cannot_be_read_claims_no_reach() {
     let root = tempfile::tempdir().expect("root");
