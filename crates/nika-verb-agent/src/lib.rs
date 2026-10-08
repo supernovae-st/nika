@@ -114,6 +114,7 @@ mod intrinsic;
 mod io;
 mod request;
 mod router;
+mod selection;
 mod shape;
 mod spill;
 mod turn;
@@ -414,8 +415,11 @@ where
             )
             .await;
         }
-        // arm_run failures precede any billed call — no spend to decorate.
+        // arm_run failures (and an undeclarable effort) precede any billed call.
+        selection::native_level(input.requirement.as_ref())?;
         let (whitelist, defs, model, budget) = self.arm_run(&input).await?;
+        let receipt = (input.requirement.as_ref())
+            .map(|r| selection::native_evidence(r, Some(model.clone())));
         // The pricing-grade accumulators live HERE so the failure path
         // decorates at ONE seam below: billed turns are real money
         // whether or not the loop concludes — the dispatch layer prices
@@ -434,7 +438,7 @@ where
                 &mut tools_cost_usd,
             )
             .await;
-        out.map(|out| out.with_inference_calls(inference_calls.clone()))
+        out.map(|out| (out.with_inference_calls(inference_calls.clone())).with_selection(receipt))
             .map_err(|e| {
                 e.with_spend(
                     SpendOnFailure::new(
@@ -1474,3 +1478,7 @@ mod tests_spill;
 #[cfg(test)]
 #[cfg(feature = "access-harness")]
 mod tests_harness_model;
+
+#[cfg(test)]
+#[cfg(feature = "access-harness")]
+mod tests_selection;

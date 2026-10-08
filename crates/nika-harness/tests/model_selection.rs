@@ -64,7 +64,7 @@ async fn absent_stale_or_malformed_model_confirmation_refuses_before_prompt() {
         );
         let outcome = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
         assert!(
-            matches!(outcome, Some(Err(HarnessError::Refused { .. }))),
+            matches!(outcome, Some(Err(HarnessError::Selection { .. }))),
             "{outcome:?}"
         );
         drop(stream);

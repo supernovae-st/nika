@@ -15,6 +15,11 @@ fn safe_error(error: &HarnessError) -> String {
         }
         HarnessError::Unavailable { .. } => "ACP authoring unavailable: check the installed adapter, version and account; no fallback".into(),
         HarnessError::Refused { .. } => "ACP authoring refused: the audited claude-agent-acp 0.81.1 profile, selected model or text-only contract was not satisfied; no answer accepted".into(),
+        // Nika's own words about the offer (never adapter text): verbatim,
+        // so the author sees the exact option, value and discovered offer.
+        HarnessError::Selection { reason } => {
+            format!("ACP authoring refused: {reason}; no answer accepted")
+        }
         _ => "ACP authoring transport ended before a complete answer; no answer accepted".into(),
     }
 }
@@ -96,12 +101,14 @@ pub(crate) fn descriptor(
         "served_model":null, "adapter_version":VERSION})
 }
 
-pub(crate) async fn run(
-    seat: &crate::SpawnedHarness,
+/// The session request one completion sends: the wrapped prompt, the selected model when one
+/// was asked, and the explicit effort verbatim (the client applies it or refuses before the
+/// prompt) — never dropped.
+pub(crate) fn session_request(
     native: crate::HarnessInferRequest,
     requested: Option<&str>,
-) -> Result<(String, Value), String> {
-    let scratch = tempfile::tempdir().map_err(|e| e.to_string())?;
+    cwd: &std::path::Path,
+) -> HarnessRequest {
     let mut prompt = native.prompt;
     if let Some(schema) = native.schema {
         let _ = write!(
@@ -109,18 +116,31 @@ pub(crate) async fn run(
             "\n\nReturn only the complete JSON value matching this schema:\n{schema}"
         );
     }
-    let mut request = HarnessRequest::new(prompt, scratch.path());
+    let mut request = HarnessRequest::new(prompt, cwd).with_requested_effort(native.effort);
     request.system = native.system;
     if requested.is_some() && native.requested_model != "session" {
         request = request.with_requested_model(native.requested_model);
     }
+    request
+}
+
+pub(crate) async fn run(
+    seat: &crate::SpawnedHarness,
+    native: crate::HarnessInferRequest,
+    requested: Option<&str>,
+) -> Result<(String, Value), String> {
+    let scratch = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let request = session_request(native, requested, scratch.path());
     let mut stream = seat.run_agent(request).await.map_err(|e| safe_error(&e))?;
     while let Some(event) = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await {
         match event.map_err(|e| safe_error(&e))? {
             HarnessEvent::MessageChunk { .. } => {}
             HarnessEvent::Completed { outcome } if outcome.images.is_empty() => {
+                let selection = &outcome.selection;
                 let metadata = json!({"status":"returned", "configured_model":outcome.observed_model,
                     "model_evidence":outcome.observed_model_source.map(nika_kernel::ai::harness::ModelProvenance::as_str),
+                    "effort_option":selection.effort_option, "transmitted_effort":selection.transmitted_effort,
+                    "configured_effort":selection.configured_effort,
                     "served_model":null, "usage_observed":outcome.usage.is_some(), "attested_version":VERSION});
                 return Ok((outcome.output, metadata));
             }

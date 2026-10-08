@@ -50,11 +50,18 @@ pub const RETRY_KEYS: &[&str] = &[
 /// Keys of the `run:` block (F-P3 · closed — a typo'd declaration would
 /// silently not bind, so the parser refuses unknown keys in BOTH modes,
 /// the `permits:`/`policy:` precedent).
-pub const RUN_KEYS: &[&str] = &["entropy", "clock"];
+pub const RUN_KEYS: &[&str] = &["entropy", "clock", "access", "reasoning"];
 
 /// Keys of the parameterized `run.entropy` form (`{ seeded: <u64> }` ·
 /// the single-key map idiom of the `assert:` vocabulary).
 pub const RUN_ENTROPY_MAP_KEYS: &[&str] = &["seeded"];
+
+/// Keys of `run.access` (closed in both modes: a typo'd `protocl:` would
+/// silently let the run reach its model another way).
+pub const RUN_ACCESS_KEYS: &[&str] = &["via", "protocol", "fallback"];
+
+/// Keys of `run.reasoning` (closed).
+pub const RUN_REASONING_KEYS: &[&str] = &["effort"];
 
 /// Keys of an `on_error:` block (spec 05 §`on_error` · exactly one
 /// ACTION + the optional `on_codes` filter).
@@ -126,6 +133,12 @@ pub fn known_child_keys(block_key: &str, parent: Option<&str>) -> Option<&'stati
         "permits" => Some(PERMITS_KEYS),
         "fs" if parent == Some("permits") => Some(PERMITS_FS_KEYS),
         "net" if parent == Some("permits") => Some(PERMITS_NET_KEYS),
+        // `run:` is the envelope block only at the root (a task may be
+        // named `run`); `access:`/`reasoning:` are run vocabulary only
+        // under it.
+        "run" if parent.is_none() => Some(RUN_KEYS),
+        "access" if parent == Some("run") => Some(RUN_ACCESS_KEYS),
+        "reasoning" if parent == Some("run") => Some(RUN_REASONING_KEYS),
         _ => None,
     }
 }

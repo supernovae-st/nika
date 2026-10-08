@@ -47,71 +47,10 @@ pub(crate) fn emit_recovered(
     );
 }
 
-/// D-2026-08-04-N1 · the access facts — structured provenance for
-/// infer/agent terminals (`model` = the resolved provider/name ·
-/// `provider` = its prefix · `access` = HOW it was reached · `billing`
-/// = the economic lane). Additive fields; the note keeps its historical
-/// `infer · <model>` form, now a render, not a carrier — readers of
-/// pre-access traces still parse it.
-///
-/// One Door · wave 1: the admitted LANE stamps the terminal when the
-/// run carried a frozen plan — `access` · `billing` · `access_id` are
-/// the path that actually served (the plan the prologue recorded),
-/// never a provider-prefix guess. The prefix derivation stays the bare
-/// embedder's fallback; the `SubscriptionQuota` arm is the planless
-/// harness receipt (P3 B7 · `access: harness` · billing `unknown`
-/// until an adapter's own surface attests it · never a fake $0).
-pub(crate) fn push_access_fields(
-    fields: &mut Vec<(&'static str, FieldValue)>,
-    model: Option<&str>,
-    access: Option<&nika_types::access::AccessPlan>,
-    cost_unpriced: Option<nika_types::cost::UnpricedReason>,
-) {
-    if let Some(lane) = access {
-        // The verb's resolved model when it reported one (the API path
-        // answers with the responder's name), else the lane's own model
-        // (a seat run: the requested model IS what the plan resolved).
-        fields.push(("model", s(model.unwrap_or(&lane.model))));
-        fields.push(("provider", s(&lane.provider)));
-        fields.push(("access", s(lane.chosen.as_str())));
-        fields.push(("access_id", s(&lane.access)));
-        fields.push(("billing", s(lane.billing.as_str())));
-    } else if let Some(m) = model {
-        fields.push(("model", s(m)));
-        if let Some((provider, _)) = m.split_once('/') {
-            fields.push(("provider", s(provider)));
-            let access = nika_providers::profile::access_class_for(provider);
-            fields.push(("access", s(access.as_str())));
-            fields.push(("billing", s(access.default_billing().as_str())));
-        }
-    } else if cost_unpriced == Some(nika_types::cost::UnpricedReason::SubscriptionQuota) {
-        fields.push(("access", s("harness")));
-        fields.push((
-            "billing",
-            s(nika_types::access::BillingClass::Unknown.as_str()),
-        ));
-    }
-}
-
-/// The typed refusal of a chosen seat (`access_refused` · ONE compact
-/// JSON text, the `outcome` precedent): the seat that failed, its own
-/// witness, the next READY path the admission recorded and the one flag
-/// that pins it — so a reader of the sealed trace knows what to pin
-/// without re-running. Absent when no seat refused.
-pub(crate) fn push_access_refused_field(
-    fields: &mut Vec<(&'static str, FieldValue)>,
-    refused: Option<&nika_types::access::AccessRefused>,
-) {
-    if let Some(refused) = refused {
-        let json = serde_json::json!({
-            "seat": refused.seat,
-            "witness": refused.witness,
-            "next_ready": refused.next_ready,
-            "pin": refused.pin,
-        });
-        fields.push(("access_refused", s(&json.to_string())));
-    }
-}
+// The access stamps (lane facts · the authored requirement and the call's
+// selection receipt · a seat's typed refusal) are pure projections owned
+// beside the plan they read (`nika_providers::stamp`, moved verbatim).
+pub(crate) use nika_providers::stamp::{push_access_fields, push_access_refused_field};
 
 /// Emit one `task_completed` frame — the base fields (`note` ·
 /// `duration_ms`) + spend (`tokens` + the additive usage split) + the OBS-E `warning` diagnostic

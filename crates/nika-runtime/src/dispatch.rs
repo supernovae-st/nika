@@ -587,6 +587,28 @@ where
     /// or seat request when the launch gates' own laws refuse it
     /// ([`crate::admit::run_decided_refusal`]). Never transient and never
     /// retried: it spent nothing and records no provider attempt.
+    /// The lane a task's EFFECTIVE model rides: its static lane, or the one
+    /// the frozen plan resolves for a model rendered now — refused before
+    /// any request when the declared route cannot serve it (NIK-13).
+    fn task_lane(
+        &self,
+        model: &str,
+        verb: &str,
+    ) -> Result<Option<nika_types::access::AccessPlan>, Box<Dispatched>> {
+        let Some(plan) = &self.access_plan else {
+            return Ok(None);
+        };
+        let verbs = nika_providers::VerbNeeds::new(verb == "infer", verb == "agent");
+        plan.task_lane(model, verbs).map_err(|refusal| {
+            let err = crate::admit::map_pin_refusal(refusal);
+            let code = err.nika_code().to_string();
+            let note = format!("{verb} · {model}");
+            Box::new(
+                Dispatched::comp_refusal(&note, &code, err.to_string()).with_retry_forbidden(true),
+            )
+        })
+    }
+
     fn pre_send_refusal(
         &self,
         seat: &str,
@@ -869,10 +891,14 @@ where
             .model
             .clone()
             .unwrap_or_else(|| self.infer.default_model().to_owned());
+        let access = match self.task_lane(&lane_model, "infer") {
+            Ok(access) => access,
+            Err(refused) => return *refused,
+        };
         if let Some(refused) = self.pre_send_refusal(&lane_model, "infer", ctx) {
             return refused;
         }
-        let access = self.lane_plan(&lane_model);
+        let input = input.with_requirement(self.requirement());
         #[cfg(feature = "access-harness")]
         if let Some(seat_id) = self.seat_for(&lane_model) {
             return match self.infer.run_on_harness(seat_id, input).await {
@@ -954,12 +980,16 @@ where
             .model
             .clone()
             .unwrap_or_else(|| self.agent.default_model().to_owned());
+        let access = match self.task_lane(&lane_model, "agent") {
+            Ok(access) => access,
+            Err(refused) => return *refused,
+        };
         if let Some(refused) = self.pre_send_refusal(&lane_model, "agent", ctx) {
             return refused;
         }
-        let access = self.lane_plan(&lane_model);
         let seat = self.seat_for(&lane_model).map(str::to_owned);
         input.native_only = self.access_plan.is_some() && seat.is_none();
+        input.requirement = self.requirement().cloned();
         Self::bridge_inputs(&mut input, scope, ctx);
         input.max_turns = action.max_turns.as_ref().map(|t| t.value);
         input.max_tokens_total = action.max_tokens_total.as_ref().map(|t| t.value);

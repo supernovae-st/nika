@@ -1,0 +1,28 @@
+# Every authored access key beside the determinism axes, in the order an
+# author writes them. A document edit that does not touch `run:` must
+# keep this block byte-for-byte; the parser test pins its exact values.
+nika: run-access-rich
+model: openai/gpt-6-astra
+inputs:
+  topic:
+    type: string
+    default: "the forward-compat invariants"
+run:
+  entropy: { seeded: 42 }
+  clock: virtual
+  access:
+    via: codex
+    protocol: acp
+    fallback: none
+  reasoning:
+    effort: xhigh
+tasks:
+  draft:
+    agent:
+      prompt: "Summarise ${{ inputs.topic }} in three bullets."
+  review:
+    with: { draft: "${{ tasks.draft.output }}" }
+    agent:
+      prompt: "Tighten this summary without adding claims: ${{ with.draft }}"
+outputs:
+  summary: ${{ tasks.review.output }}
