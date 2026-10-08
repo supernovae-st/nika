@@ -19,7 +19,7 @@ use nika_compile::surface::{initial, literal_projection, sha256};
 
 use crate::compile::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
 use crate::compile::{AuthoringKnowledge, CompileRequest};
-use crate::knowledge::{Snapshot, TrustedIdentity, bundled};
+use crate::knowledge::{Snapshot, TrustedIdentity, bundled, fixture};
 
 /// The admitted filter-then-report block of the current release.
 const BLOCK: &str = "block:validate-quarantine-total";
@@ -276,4 +276,105 @@ async fn a_request_sharing_no_word_with_the_block_reaches_it_through_the_whole_c
     );
     let reuse = &out.provenance.decision.as_ref().unwrap()["knowledge_qualification"]["reuse"];
     assert_eq!(reuse["expanded"], 1, "{reuse:#}");
+}
+
+/// A synthetic filter-then-report block: the records older than a threshold, counted and
+/// written. A test fixture, never part of an issued release.
+const STALE: &str = include_str!("../../../tests/fixtures/foundry/stale-filter-report.nika");
+
+/// A synthetic release holding that block, admitted through the same strict door as an issued
+/// one; its check receipt is the fixture's synthetic receipt.
+fn stale_release() -> Snapshot {
+    let file = "blocks/stale-filter-report.nika";
+    let mut block = fixture::row(
+        "block",
+        "block:stale-filter-report",
+        "Records older than a threshold, counted and written",
+        "EXPERIMENTAL",
+        "CHECKED",
+    );
+    block["purpose"] = json!(
+        "Keep the records whose age_hours exceeds the threshold, count them, write their ids."
+    );
+    block["file"] = json!(file);
+    block["file_sha256"] = json!(sha256(STALE));
+    block["holes"] = json!([
+        {"name": "const.records_path", "owner": "human"},
+        {"name": "const.report_path", "owner": "human"},
+        {"name": "const.max_age_hours", "owner": "human", "note": "the age the request states, in hours"},
+    ]);
+    block["effects"] = json!(["fs.read", "fs.write"]);
+    block["authority"] = json!(["permits.fs", "permits.tools"]);
+    block["interfaces"] = json!(["RecordTransformer"]);
+    block["callables"] = json!(["nika:jq", "nika:read", "nika:write"]);
+    block["known_failure_modes"] = json!(["a record without age_hours is never stale"]);
+    block["check_receipt"] = json!({
+        "verifier_sha256": fixture::VERIFIER, "spec_sha": fixture::SPEC,
+        "sha256": sha256(STALE), "verdict": "CURRENT_CHECKED",
+    });
+    let mut payload = fixture::Payload::minimal();
+    payload.kind("block").push(block);
+    payload
+        .files
+        .insert(file.to_owned(), STALE.as_bytes().to_vec());
+    let files = payload.files();
+    let identity = fixture::identity_of(&files).unwrap();
+    Snapshot::from_files("fixture:stale-filter-report", files, Some(&identity)).unwrap()
+}
+
+/// The person's document for the stale-tickets request.
+const STALE_PARENT: &str = r#"nika: stale-tickets-report
+permits:
+  fs: { read: ["./in/tickets.json"], write: ["./out/report.json"] }
+  tools: ["nika:read", "nika:jq", "nika:write"]
+tasks: {}
+"#;
+
+fn stale_bindings(hours: i64) -> Vec<Binding> {
+    vec![
+        Binding::new("const.records_path", json!("./in/tickets.json")),
+        Binding::new("const.report_path", json!("./out/report.json")),
+        Binding::new("const.max_age_hours", json!(hours)),
+    ]
+}
+
+/// The expansions a run is judged on, pinned byte for byte: what the engine runs is exactly what
+/// expansion and revision produce here.
+#[test]
+fn the_expansions_and_the_48_to_72_revision_are_the_pinned_candidates() {
+    let snapshot = current();
+    let component = snapshot.resolve(&ComponentRef::new(BLOCK)).unwrap();
+    let quarantine = expand(PARENT, &instantiate(&component, &bindings()).unwrap()).unwrap();
+    let pinned = include_str!("../../../tests/fixtures/foundry/orders-quarantine.nika");
+    assert_eq!(quarantine.candidate, pinned);
+    assert_eq!(quarantine.receipt["candidate_sha256"], sha256(pinned));
+    let stale = stale_release();
+    assert_eq!(stale.release().version, fixture::VERSION);
+    let component = stale
+        .resolve(&ComponentRef::new("block:stale-filter-report"))
+        .unwrap();
+    assert_eq!(component.source, STALE);
+    let at48 = expand(
+        STALE_PARENT,
+        &instantiate(&component, &stale_bindings(48)).unwrap(),
+    );
+    let at48 = at48.unwrap();
+    assert!(at48.ready, "{:#}", at48.receipt["check"]);
+    let pinned48 = include_str!("../../../tests/fixtures/foundry/stale-tickets-48.nika");
+    assert_eq!(at48.candidate, pinned48);
+    let change = [Binding::new("const.max_age_hours", json!(72))];
+    let (at72, receipt72) = revise(&at48.candidate, &at48.receipt, &component, &change).unwrap();
+    let pinned72 = include_str!("../../../tests/fixtures/foundry/stale-tickets-72.nika");
+    assert_eq!(at72, pinned72);
+    assert_eq!(
+        (
+            receipt72["revises"].clone(),
+            receipt72["candidate_sha256"].clone()
+        ),
+        (json!(sha256(pinned48)), json!(sha256(pinned72)))
+    );
+    // The revision is the one bound literal; the rest of the program is the same bytes.
+    assert_eq!(pinned48.replacen("value: 48 }", "value: 72 }", 1), pinned72);
+    assert_eq!(witness(&receipt72, pinned72)["verdict"], "expanded");
+    assert_eq!(witness(&at48.receipt, pinned72)["verdict"], "revised");
 }

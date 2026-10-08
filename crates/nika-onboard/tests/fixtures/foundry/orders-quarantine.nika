@@ -1,0 +1,54 @@
+nika: orders-quarantine
+const:
+  batch_path: "./in/orders.json"
+  schema_path: "./in/order.schema.json"
+  quarantine_path: "./out/rejected.json"
+  total_path: ./out/total.txt
+  amount_field: amount
+permits:
+  fs: { read: ["./in/orders.json", "./in/order.schema.json"], write: ["./out/rejected.json", "./out/total.txt"] }
+  tools: ["nika:read", "nika:jq", "nika:validate", "nika:write"]
+tasks:
+  read_batch:
+    invoke: { tool: "nika:read", args: { path: "${{ const.batch_path }}" } }
+  read_schema:
+    invoke: { tool: "nika:read", args: { path: "${{ const.schema_path }}" } }
+  parse_batch:
+    with: { raw: "${{ tasks.read_batch.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.raw }}", expression: "fromjson" } }
+  parse_schema:
+    with: { raw: "${{ tasks.read_schema.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.raw }}", expression: "fromjson" } }
+  validate_each:
+    with: { records: "${{ tasks.parse_batch.output }}", schema: "${{ tasks.parse_schema.output }}" }
+    for_each: { items: "${{ with.records }}", fail_fast: false }
+    invoke: { tool: "nika:validate", args: { data: "${{ item }}", schema: "${{ with.schema }}" } }
+  split:
+    with: { reports: "${{ tasks.validate_each.output }}", records: "${{ tasks.parse_batch.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { reports: "${{ with.reports }}", records: "${{ with.records }}" }
+        expression: "{ invalid: [range(0; .records | length) as $i | select(.reports[$i].valid == false) | .records[$i]], valid: [range(0; .records | length) as $i | select(.reports[$i].valid == true) | .records[$i]] }"
+  total_valid:
+    with: { split: "${{ tasks.split.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ with.split }}"
+        expression: "[.valid[] | .${{ const.amount_field }} | tonumber] | add // 0"
+  quarantine_text:
+    with: { split: "${{ tasks.split.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.split }}", expression: ".invalid | tojson" } }
+  total_text:
+    with: { total: "${{ tasks.total_valid.output }}" }
+    invoke: { tool: "nika:jq", args: { input: { total: "${{ with.total }}" }, expression: ".total | tostring" } }
+  write_quarantine:
+    with: { content: "${{ tasks.quarantine_text.output }}" }
+    invoke: { tool: "nika:write", args: { path: "${{ const.quarantine_path }}", content: "${{ with.content }}" } }
+  write_total:
+    with: { content: "${{ tasks.total_text.output }}" }
+    invoke: { tool: "nika:write", args: { path: "${{ const.total_path }}", content: "${{ with.content }}" } }
+outputs:
+  invalid: ${{ tasks.split.output }}
+  total: ${{ tasks.total_valid.output }}
