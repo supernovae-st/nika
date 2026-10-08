@@ -170,10 +170,12 @@ const STALE_INTENT: &str = "Create a new workflow that reads ./in/tickets.json. 
 
 /// A SCRIPTED seat over the real compile entry: the authoring answers in order (the document door
 /// and the revision door both ask under a schema with `operations`), and every verifier question
-/// approved by its own option. It records the opening of each authoring call.
+/// approved by its own option. It records the opening of each authoring call and the STATE each
+/// verifier question carried.
 struct Scripted {
     answers: std::sync::Mutex<Vec<String>>,
     openings: std::sync::Mutex<Vec<String>>,
+    states: std::sync::Mutex<Vec<Value>>,
 }
 
 impl Scripted {
@@ -181,12 +183,42 @@ impl Scripted {
         Self {
             answers: std::sync::Mutex::new(answers),
             openings: std::sync::Mutex::new(Vec::new()),
+            states: std::sync::Mutex::new(Vec::new()),
         }
     }
 
     fn openings(&self) -> Vec<String> {
         self.openings.lock().expect("openings").clone()
     }
+
+    /// The engine facts every verifier question showed, the same in each.
+    fn judged_facts(&self) -> Value {
+        let states = self.states.lock().expect("states").clone();
+        let facts: Vec<&Value> = states.iter().filter_map(|s| s.get("authoring")).collect();
+        assert!(
+            !facts.is_empty(),
+            "the judge was shown the facts: {states:#?}"
+        );
+        assert!(facts.iter().all(|f| *f == facts[0]), "{facts:#?}");
+        facts[0].clone()
+    }
+}
+
+/// The STATE a verifier question carries (`STATE:` up to its options), parsed.
+fn state_of(request: &nika_kernel::ai::provider::InferRequest) -> Option<Value> {
+    use nika_kernel::ai::provider::ContentBlock;
+    let text: String = (request.messages.iter())
+        .flat_map(|message| message.content.iter())
+        .filter_map(|block| match block {
+            ContentBlock::Text { text } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect();
+    let start = text.find("STATE:\n")? + "STATE:\n".len();
+    let end = text[start..]
+        .find("\n\nOPTIONS:")
+        .map_or(text.len(), |at| start + at);
+    serde_json::from_str(&text[start..end]).ok()
 }
 
 /// The option a verifier question offers for an approval.
@@ -224,6 +256,9 @@ impl nika_kernel::ai::provider::ProviderInferDyn for Scripted {
                     reason: "the scripted seat has no further answer".to_owned(),
                 })?
         } else {
+            if let Some(state) = state_of(&request) {
+                self.states.lock().expect("states").push(state);
+            }
             json!({"choice": approval(schema)}).to_string()
         };
         Ok(InferResponse::new(
@@ -469,5 +504,42 @@ async fn a_created_component_is_remembered_reopened_and_rebound_by_a_new_change(
     assert_eq!(
         witnessed["expanded"], 1,
         "the receipt followed the bytes: {witnessed:#}"
+    );
+}
+
+/// The judge reads the engine facts the request conditions on (A5, T3): the catalogue release the
+/// door was lent and the component it composed, by receipt; the same bytes written whole under
+/// the same catalogue composed none.
+#[tokio::test]
+async fn the_judge_reads_the_lent_release_and_what_the_document_composed() {
+    let request = crate::CompileRequest::create(STALE_INTENT)
+        .with_authoring_policy(policy())
+        .with_authoring_knowledge(pack());
+    let release = Shelf.release().record();
+    let author = Scripted::new(vec![door(ENVELOPE, &[compose(48)])]);
+    let out = compiled(&request, &author).await;
+    assert_eq!(
+        out.status,
+        crate::CompileStatus::Ready,
+        "{:#?}",
+        out.diagnostics
+    );
+    let facts = author.judged_facts();
+    assert_eq!(facts["catalogue"], release);
+    let composed = facts["composed"].as_array().cloned().unwrap_or_default();
+    assert_eq!(composed.len(), 1, "{facts:#}");
+    assert_eq!(composed[0]["component"]["id"], "block:stale-filter-report");
+    let written = out.candidate.clone().expect("the expanded document");
+    let author = Scripted::new(vec![door(&written, &[])]);
+    let out = compiled(&request, &author).await;
+    assert_eq!(
+        out.status,
+        crate::CompileStatus::Ready,
+        "{:#?}",
+        out.diagnostics
+    );
+    assert_eq!(
+        author.judged_facts(),
+        json!({"catalogue": release, "composed": []})
     );
 }

@@ -306,3 +306,32 @@ async fn a_replayed_document_revision_is_judged_in_the_context_its_rejection_bin
         assert_eq!(verdict.carried, calls == 0, "{case}");
     }
 }
+
+/// The engine facts a document door recorded bind the context its judge's rejection holds in
+/// (A5): the same bytes under the same lent release and composition repeat the rejection with no
+/// call; under another release, or with another composition, they are another context and the
+/// judge is asked again.
+#[tokio::test]
+async fn a_rejection_binds_the_release_and_composition_it_was_judged_under() {
+    let lent = |release: &str, composed: &Value| {
+        let mut out = ready();
+        let section = json!({"components": composed, "catalogue": {"version": release}});
+        out.provenance.plan = Some(json!({"strategy": "native", "document_create": section}));
+        out
+    };
+    let none = json!([]);
+    let fresh = CompileRequest::create(INTENT);
+    let (earlier, _) = declined(judged_under(&doubting(), &fresh, lent("r1", &none)).await);
+    let request = CompileRequest::create(INTENT).with_declined(attempts(&earlier));
+    let receipt = json!([{"component": {"id": "block:stale-filter-report"}}]);
+    for (release, composed, asked) in [
+        ("r1", &none, false),
+        ("r2", &none, true),
+        ("r1", &receipt, true),
+    ] {
+        let judge = doubting();
+        let _ = judged_under(&judge, &request, lent(release, composed)).await;
+        let called = !judge.told.lock().unwrap().is_empty();
+        assert_eq!(called, asked, "{release} {composed}");
+    }
+}

@@ -287,6 +287,7 @@ pub(super) async fn author<P: ProviderInferDyn>(
             drafted.as_ref(),
             (&opened_on, &mut done),
         );
+        nika_compile_seats::judge::lent(catalog, &mut done);
         let Some((_, made)) = drafted else {
             return Ok(done);
         };

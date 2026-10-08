@@ -53,7 +53,7 @@ use grounding::grounding;
 use held::held_text;
 pub(super) use held::{HELD_TARGET, held, kept, preserve_unjudged, withdrawn};
 use nika_compile_clauses::parts::{parts, restricts};
-use nika_compile_seats::judge::{over_document, state};
+use nika_compile_seats::judge::{authoring, over_document, state};
 use nika_compile_seats::repairs::carry_declined;
 
 /// Who judges a candidate: a decision seat the caller permits (its calls and usage are its own,
@@ -522,6 +522,7 @@ async fn verdict_on<P: ProviderInferDyn>(
     let run = observation.filter(|o| o["candidate_sha256"] == sha.as_str());
     let mut base = state(intent, request, candidate);
     over_document(&mut base, request, settled);
+    authoring(&mut base, request, settled);
     if let Some(notes) = unjudged(settled, plan) {
         base[UNJUDGED_SPELLINGS] = notes;
     }
@@ -1384,6 +1385,7 @@ pub(super) async fn native_verdict<P: ProviderInferDyn>(
     let mut verdict = Verdict::default();
     let mut base = state(intent, request, &candidate);
     over_document(&mut base, request, &out);
+    authoring(&mut base, request, &out);
     let shown = context(&base);
     if let Some(earlier) = judged_before(&out, (request, intent, &shown), &sha, &judge) {
         if !unfinished(&earlier, observation) {

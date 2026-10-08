@@ -2697,6 +2697,8 @@ pub fn nika_compile_seats::foundry::traced(qualified: &nika_compile::types::Comp
 pub fn nika_compile_seats::foundry::verdict(question: &nika_compile_seats::decide::ChoiceQuestion, answer: core::result::Result<&nika_compile_seats::decide::ChoiceAnswer, &nika_compile_seats::decide::DecisionError>) -> nika_compile_seats::foundry::Verdict
 pub fn nika_compile_seats::foundry::witness_child(receipt: &serde_json::value::Value, child: &str) -> serde_json::value::Value
 pub mod nika_compile_seats::judge
+pub fn nika_compile_seats::judge::authoring(base: &mut serde_json::value::Value, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome)
+pub fn nika_compile_seats::judge::lent(catalog: core::option::Option<&dyn nika_compile_seats::foundry::component::ComponentCatalog>, out: &mut nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::judge::over_document(base: &mut serde_json::value::Value, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::judge::state(intent: &str, request: &nika_compile::types::CompileRequest, candidate: &str) -> serde_json::value::Value
 pub mod nika_compile_seats::objects
