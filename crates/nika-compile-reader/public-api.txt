@@ -546,9 +546,11 @@ impl<T> core::clone::CloneToUninit for nika_compile_reader::paths::Structured wh
 pub unsafe fn nika_compile_reader::paths::Structured::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_compile_reader::paths::Structured
 pub fn nika_compile_reader::paths::Structured::from(t: T) -> T
+pub fn nika_compile_reader::paths::composed_from(lower: &str, token: &str) -> bool
 pub fn nika_compile_reader::paths::directory_of(path: &str) -> alloc::string::String
 pub fn nika_compile_reader::paths::extension(path: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_compile_reader::paths::literals(text: &str) -> alloc::vec::Vec<nika_compile_reader::paths::PathShape>
+pub fn nika_compile_reader::paths::origin_and_path(lower: &str, token: &str) -> bool
 pub fn nika_compile_reader::paths::single_file(text: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_compile_reader::paths::stem(path: &str) -> alloc::string::String
 pub fn nika_compile_reader::paths::token(word: &str) -> core::option::Option<nika_compile_reader::paths::PathShape>

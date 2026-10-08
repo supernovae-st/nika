@@ -489,3 +489,11 @@ typed plan and its provenance record) · `rules`, `aggregate`, `rule_tokens`, `r
 `paths`, `columns` (the structural laws: what a clause names, where a human gate sits, what
 a literal token is, which words are columns) · `hot` (the strict HOT admission over the
 reader's own vocabulary) · `text` (the shared text helpers).
+
+`paths` also says what a literal composes from the request's own words, for fidelity's law 2
+(no invented path or host).
+- `composed_from`: every directory and the stem of a path appear in the request. It moved
+  verbatim from fidelity at that crate's size cap on 2026-10-08.
+- `origin_and_path`: an address's origin (`scheme://host[:port]`) and its path each appear
+  verbatim, the path where a word starts. A request may name a sink's origin in one sentence and
+  the path it posts to in another; another origin or another path composes nothing.

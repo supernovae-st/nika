@@ -406,9 +406,87 @@ impl Structured {
     }
 }
 
+/// A path composed from the request's own words (`./catalog/<slug>.md` with the slug listed
+/// in the request) is not invented: every directory and the file's stem appear in the request;
+/// a pure glob segment composes nothing.
+#[must_use]
+pub fn composed_from(lower: &str, token: &str) -> bool {
+    let body = token
+        .trim_start_matches("./")
+        .trim_start_matches("../")
+        .trim_start_matches("~/");
+    let segments: Vec<&str> = body
+        .split('/')
+        .filter(|s| !s.is_empty() && *s != "." && *s != "..")
+        .collect();
+    !segments.is_empty()
+        && segments.iter().all(|segment| {
+            let stem = segment.rsplit_once('.').map_or(*segment, |(stem, _)| stem);
+            let stem = stem.trim_matches('*');
+            stem.is_empty() || lower.contains(&stem.to_lowercase())
+        })
+}
+
+/// An address composed from the request's own words (`lower`, lowercased): its origin
+/// (`scheme://host[:port]`) and its path each stated there verbatim, the path where a word
+/// starts, as a request names a sink's origin in one sentence and the path it posts to in
+/// another. Another origin or another path composes nothing, nor does an origin with no path.
+#[must_use]
+pub fn origin_and_path(lower: &str, token: &str) -> bool {
+    let token = token.to_lowercase();
+    let Some((scheme, rest)) = token.split_once("://") else {
+        return false;
+    };
+    let (host, path) = rest.split_at(rest.find('/').unwrap_or(rest.len()));
+    let origin = format!("{scheme}://{host}");
+    let starts_a_word = |at: usize| {
+        let before = lower[..at].chars().next_back();
+        before.is_none_or(|c| !(c.is_alphanumeric() || "./-_".contains(c)))
+    };
+    !host.is_empty()
+        && path.len() > 1
+        && lower.contains(&origin)
+        && lower.match_indices(path).any(|(at, _)| starts_a_word(at))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A path composed from the request's own words is not invented; a directory or stem the
+    /// request never states is.
+    #[test]
+    fn a_path_composed_from_the_requests_words_is_not_invented() {
+        let lower = "for each slug solar-lamp, wind-chime read ./catalog/<slug>.md";
+        assert!(composed_from(lower, "./catalog/solar-lamp.md"));
+        assert!(composed_from(lower, "./catalog/*.md"));
+        assert!(!composed_from(lower, "./catalog/moon-rock.md"));
+        assert!(!composed_from(lower, "./archive/solar-lamp.md"));
+    }
+
+    /// An address whose origin and path the request each states is composed from it; another
+    /// path, another origin, an origin alone, or a path found only inside another path or
+    /// file name is not.
+    #[test]
+    fn an_address_is_composed_from_a_stated_origin_and_a_stated_path() {
+        let lower = "lis ./stock.json, puis effectue un post /notifications/stock vers le sink local http://127.0.0.1:65409 ;";
+        assert!(origin_and_path(
+            lower,
+            "http://127.0.0.1:65409/notifications/stock"
+        ));
+        assert!(origin_and_path(
+            lower,
+            "HTTP://127.0.0.1:65409/Notifications/Stock"
+        ));
+        assert!(!origin_and_path(lower, "http://127.0.0.1:65409/other"));
+        assert!(!origin_and_path(
+            lower,
+            "http://evil.example/notifications/stock"
+        ));
+        assert!(!origin_and_path(lower, "http://127.0.0.1:65409"));
+        assert!(!origin_and_path(lower, "http://127.0.0.1:65409/stock"));
+        assert!(!origin_and_path(lower, "./notifications/stock"));
+    }
 
     #[test]
     fn a_path_token_sheds_nested_brackets_and_punctuation_until_nothing_changes() {

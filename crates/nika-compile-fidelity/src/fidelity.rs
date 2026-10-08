@@ -784,8 +784,9 @@ pub fn prohibitions(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
 }
 
 /// Law 2: no invented path or host — every `./…`, `~/…`, `http(s)://…` literal of the
-/// candidate is in the request (a glob's stem counts), was answered by the human, or rides a
-/// `${{ }}` reference.
+/// candidate is in the request (a glob's stem counts), is composed from its words (a path's
+/// directories and stem, [`paths::composed_from`]; an address's origin and path,
+/// [`paths::origin_and_path`]), was answered by the human, or rides a `${{ }}` reference.
 pub fn invented(intent: &str, literals: &[String], allowed: &[String], out: &mut Vec<Diagnostic>) {
     // The request and the human's answers are the words a path may be composed from.
     let mut lower = intent.to_lowercase();
@@ -809,32 +810,15 @@ pub fn invented(intent: &str, literals: &[String], allowed: &[String], out: &mut
                 continue;
             }
             let stem = token.trim_end_matches("/**").trim_end_matches("/*");
-            if lower.contains(&stem.to_lowercase()) || (path_like && composed_from(&lower, token)) {
+            if lower.contains(&stem.to_lowercase())
+                || (path_like && paths::composed_from(&lower, token))
+                || (host_like && paths::origin_and_path(&lower, token))
+            {
                 continue;
             }
             out.push(Diagnostic { kind: "literal", message: format!("INVENTED LITERAL: `{token}` is not in the request. Use the request's own path or host, or declare a `const:` placeholder and ask for it.") });
         }
     }
-}
-
-/// A path composed from the request's own words (`./catalog/<slug>.md` with the slug listed
-/// in the request) is not invented: every directory and the file's stem appear in the request;
-/// a pure glob segment composes nothing.
-fn composed_from(lower: &str, token: &str) -> bool {
-    let body = token
-        .trim_start_matches("./")
-        .trim_start_matches("../")
-        .trim_start_matches("~/");
-    let segments: Vec<&str> = body
-        .split('/')
-        .filter(|s| !s.is_empty() && *s != "." && *s != "..")
-        .collect();
-    !segments.is_empty()
-        && segments.iter().all(|segment| {
-            let stem = segment.rsplit_once('.').map_or(*segment, |(stem, _)| stem);
-            let stem = stem.trim_matches('*');
-            stem.is_empty() || lower.contains(&stem.to_lowercase())
-        })
 }
 
 #[must_use]
@@ -1137,13 +1121,27 @@ mod tests {
         assert!(clarified_sources(&BTreeMap::new()).is_empty());
     }
 
+    /// An address the stock request composes from its own words (its sink's origin in one
+    /// sentence, the path it posts to in another) is not invented; another path or another
+    /// origin still is, under the same finding (K2, T6).
     #[test]
-    fn a_path_composed_from_the_requests_words_is_not_invented() {
-        let lower = "for each slug solar-lamp, wind-chime read ./catalog/<slug>.md";
-        assert!(composed_from(lower, "./catalog/solar-lamp.md"));
-        assert!(composed_from(lower, "./catalog/*.md"));
-        assert!(!composed_from(lower, "./catalog/moon-rock.md"));
-        assert!(!composed_from(lower, "./archive/solar-lamp.md"));
+    fn an_address_composed_from_a_stated_origin_and_path_is_not_invented() {
+        let intent = "Lis ./in/stock.json, puis effectue exactement un POST /notifications/stock vers le sink local fourni par le futur pilote. Pour cette exécution réelle, le pilote a démarré le sink local http://127.0.0.1:65409 ; effectue le POST prévu, uniquement dans les conditions ci-dessus.";
+        let judged = |url: &str| {
+            let mut out = Vec::new();
+            invented(intent, &[url.to_owned()], &[], &mut out);
+            out
+        };
+        assert!(judged("http://127.0.0.1:65409/notifications/stock").is_empty());
+        for url in [
+            "http://127.0.0.1:65409/other",
+            "http://evil.example/notifications/stock",
+        ] {
+            let found = judged(url);
+            assert_eq!(found.len(), 1, "{url}: {found:#?}");
+            let named = format!("INVENTED LITERAL: `{url}` is not in the request.");
+            assert!(found[0].message.starts_with(&named), "{found:#?}");
+        }
     }
 
     #[test]
