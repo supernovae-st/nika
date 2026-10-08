@@ -206,7 +206,7 @@ async fn an_effort_only_the_previous_model_offered_refuses_before_the_prompt() {
     )
     .await
     .expect_err("refused");
-    let HarnessError::Refused { reason } = err else {
+    let HarnessError::Selection { reason } = err else {
         panic!("a refusal, got {err:?}")
     };
     assert!(

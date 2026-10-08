@@ -83,7 +83,7 @@ fn advertised_ids(config: Option<&Value>) -> String {
 }
 
 fn refusal(reason: String) -> HarnessError {
-    HarnessError::Refused { reason }
+    HarnessError::Selection { reason }
 }
 
 impl<R, W> Driver<R, W>

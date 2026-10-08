@@ -243,6 +243,21 @@ fn transport_errors_do_not_publish_peer_secrets() {
     assert!(why.contains("no answer accepted"));
 }
 
+/// Nika's own selection refusal reaches the author verbatim (the option,
+/// the value and the discovered offer) while adapter text stays withheld.
+#[test]
+fn a_selection_refusal_is_shown_in_nika_own_words() {
+    let reason = "the harness offers reasoning effort low · medium · high — `ultra` is not one \
+                  (no prompt was sent)";
+    let why = safe_error(&HarnessError::Selection {
+        reason: reason.into(),
+    });
+    assert_eq!(
+        why,
+        format!("ACP authoring refused: {reason}; no answer accepted")
+    );
+}
+
 /// The audit's loss hazard, ACP half: an explicit authoring effort rides the
 /// session request verbatim (the client then applies it through the session's
 /// own reasoning option and reads it back, or refuses before the prompt).

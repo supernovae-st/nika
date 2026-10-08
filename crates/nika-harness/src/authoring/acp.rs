@@ -15,6 +15,11 @@ fn safe_error(error: &HarnessError) -> String {
         }
         HarnessError::Unavailable { .. } => "ACP authoring unavailable: check the installed adapter, version and account; no fallback".into(),
         HarnessError::Refused { .. } => "ACP authoring refused: the audited claude-agent-acp 0.81.1 profile, selected model or text-only contract was not satisfied; no answer accepted".into(),
+        // Nika's own words about the offer (never adapter text): verbatim,
+        // so the author sees the exact option, value and discovered offer.
+        HarnessError::Selection { reason } => {
+            format!("ACP authoring refused: {reason}; no answer accepted")
+        }
         _ => "ACP authoring transport ended before a complete answer; no answer accepted".into(),
     }
 }

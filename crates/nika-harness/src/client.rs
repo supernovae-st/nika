@@ -445,7 +445,7 @@ where
                 self.observe(confirmed, ModelProvenance::ConfirmedSelection);
                 if self.observed_model.as_deref() != value.as_str() || self.observed_model.is_none()
                 {
-                    return Err(HarnessError::Refused {
+                    return Err(HarnessError::Selection {
                         reason: format!(
                             "the harness did not confirm requested model `{wanted}` after \
                              selection (it reports {}; name that exact id to accept it, no \
@@ -460,7 +460,7 @@ where
             } else if let Some(model_id) = seats::offered_model(session.models.as_ref(), &wanted) {
                 // A legacy selection answers no configuration: its efforts cannot be re-read.
                 if let Some(effort) = &request.requested_effort {
-                    return Err(HarnessError::Refused {
+                    return Err(HarnessError::Selection {
                         reason: format!(
                             "the harness selects `{wanted}` only through the legacy model list, \
                              which reports no refreshed options — reasoning effort `{effort}` \
@@ -484,7 +484,7 @@ where
                     .await?;
                 self.observe(Some(model_id), ModelProvenance::AcceptedRequest);
             } else {
-                return Err(HarnessError::Refused {
+                return Err(HarnessError::Selection {
                     reason: format!(
                         "the harness offers no model `{wanted}` — it offers: {} (name one of these on `model:`, or `default` for the harness's own choice)",
                         seats::offered_names(model_option, session.models.as_ref())
@@ -1016,7 +1016,7 @@ mod tests {
         let first = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
         agent.await.expect("scripted agent completes");
         match first {
-            Some(Err(HarnessError::Refused { reason })) => {
+            Some(Err(HarnessError::Selection { reason })) => {
                 assert!(
                     reason.contains("gpt-9") && reason.contains("k3"),
                     "{reason}"
