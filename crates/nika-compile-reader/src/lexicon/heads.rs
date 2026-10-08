@@ -228,6 +228,7 @@ pub(super) const EN_FR: &[(&str, Head)] = &[
     ("créez", Head::Effect(EffectVerb::Create)),
     ("créer", Head::Effect(EffectVerb::Create)),
     ("create", Head::Effect(EffectVerb::Create)),
+    ("creates", Head::Effect(EffectVerb::Create)),
     ("ouvre", Head::Effect(EffectVerb::Create)),
     ("ouvrez", Head::Effect(EffectVerb::Create)),
     ("ouvrir", Head::Effect(EffectVerb::Create)),
