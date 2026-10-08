@@ -48,6 +48,7 @@ pub type RunReviewed = Box<dyn Fn(&Path, &RunRequest, &Sender<String>) -> RunPro
 pub type RunReviewedObserved = Box<dyn Fn(&Path, &RunRequest, &dyn RunSink) -> RunProgress + Send>;
 use nika_session::intelligence::{IntelligenceCensus, UserIntelligencePreference};
 use nika_session::runtime::{ReasonerFactory, SessionRuntime, TurnOutcome};
+use nika_session::work;
 
 use crate::model::{
     Beat, Committed, Conversation, Handoff, Kind, Stopper, Stopping, Turn, Waiting,
@@ -363,7 +364,8 @@ impl Live {
         .into()
     }
 
-    /// What the runtime waits for, by the same reading as the plain loop.
+    /// What the runtime waits for: the Session's one precedence (the plain loop reads the same),
+    /// after the Run cost review this host still holds.
     fn waiting(&self) -> Waiting {
         if self.pending_run.is_some() {
             return Waiting::Question {
@@ -373,28 +375,18 @@ impl Live {
         let Some(runtime) = self.runtime.as_ref() else {
             return Waiting::Free;
         };
-        if runtime.waiting_cost_choice() {
-            Waiting::Question {
+        match runtime.waiting() {
+            work::Waiting::CostChoice => Waiting::Question {
                 key: "unknown_cost".into(),
+            },
+            work::Waiting::IntelligenceChoice => Waiting::Choosing,
+            work::Waiting::Consent { .. } => Waiting::Proposal,
+            work::Waiting::Gate { .. } => Waiting::Gate,
+            work::Waiting::Question { key } | work::Waiting::Activation { key } => {
+                Waiting::Question { key }
             }
-        } else if runtime.pending_choice() {
-            Waiting::Choosing
-        } else if runtime.pending_proposal().is_some() {
-            Waiting::Proposal
-        } else if runtime.waiting_gate().is_some() {
-            Waiting::Gate
-        } else if let Some(question) = runtime.pending_question() {
-            Waiting::Question {
-                key: question.key.clone(),
-            }
-        } else if runtime.pending_input().is_some() {
-            Waiting::Question { key: String::new() }
-        } else if let Some(key) = runtime.pending_activation() {
-            Waiting::Question {
-                key: key.to_owned(),
-            }
-        } else {
-            Waiting::Free
+            work::Waiting::Input { .. } => Waiting::Question { key: String::new() },
+            _ => Waiting::Free,
         }
     }
 
@@ -707,15 +699,6 @@ fn footer_beats(
         Beat::Rail(format!("{rail} (earlier {glyph})")),
         Beat::Status(status),
     ]
-}
-
-/// A consent line while no candidate is on screen.
-const NOTHING_SHOWN: &str = "no proposal is on screen to answer · nothing was applied · the proposal is shown again after this line";
-
-/// A line that leaves or declines: it applies nothing, shown or not.
-fn declines(line: &str) -> bool {
-    use nika_session::runtime::{DecisionAnswer, decision_answer};
-    matches!(line.trim(), "/quit" | "/exit") || decision_answer(line) == DecisionAnswer::Decline
 }
 
 /// The Run review, still waiting after a local command or an unknown line.
@@ -1069,28 +1052,21 @@ impl Live {
                     handoff: None,
                 };
             };
-            if runtime.waiting_cost_choice() {
-                runtime.turn(line)
-            } else if runtime.pending_choice() {
-                runtime.choose(line.trim())
-            } else if runtime.pending_proposal().is_some() {
-                // The line answers the candidate on screen, by its identity: a
-                // proposal that is not the one shown is refused as stale, and
-                // with none shown nothing is consented (leaving and declining
-                // apply nothing, and still go through).
-                match self.candidate.as_ref().filter(|shown| !shown.aside()) {
-                    Some(shown) => runtime.consent_to(shown.id(), line.trim()),
-                    None if declines(line) => runtime.consent(line.trim()),
-                    None => TurnOutcome::Refusal(nika_session::Refusal::new(
-                        nika_session::RefusalClass::WrongState,
-                        NOTHING_SHOWN,
-                    )),
+            // The Session routes the line to what waits, by the identity this host shows: the
+            // candidate on screen answers a consent (none shown: only leaving or declining goes
+            // through), and a gate answer names the gate that waits.
+            let shown = match runtime.waiting() {
+                work::Waiting::Consent { .. } => {
+                    match self.candidate.as_ref().filter(|shown| !shown.aside()) {
+                        Some(shown) => work::Waiting::Consent {
+                            proposal: shown.id().clone(),
+                        },
+                        None => work::Waiting::Free,
+                    }
                 }
-            } else if runtime.waiting_gate().is_some() {
-                runtime.answer_gate(line.trim())
-            } else {
-                runtime.turn(line)
-            }
+                waiting => waiting,
+            };
+            runtime.submit(line, &shown)
         };
         let (beats, handoff) = self.map(outcome);
         Turn { beats, handoff }
