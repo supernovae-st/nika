@@ -78,27 +78,47 @@ fn api(id: &str) -> ProviderProbe {
 
 const ACCESS: &str = "run:\n  access: { via: deepseek, protocol: api, fallback: none }\n";
 
-/// The model comes from the operator's `--var m`.
+/// The model comes from the operator's `--var m`; `run_block` is the run
+/// declaration (empty: none).
+fn from_input_under(verb: &str, run_block: &str) -> String {
+    format!(
+        "nika: dynamic\ninputs:\n  m: {{ type: string, required: true }}\npermits: {{}}\n\
+         {run_block}tasks:\n  ask:\n    {verb}: {{ prompt: hello, model: \"${{{{ inputs.m }}}}\" \
+         }}\n"
+    )
+}
+
+/// The model comes from an earlier task's output; `run_block` as above.
+fn from_task_under(verb: &str, run_block: &str) -> String {
+    format!(
+        "nika: dynamic\npermits: {{ exec: [\"true\"] }}\n{run_block}tasks:\n  pick:\n    exec: \
+         {{ command: [\"true\"] }}\n  ask:\n    with: {{ m: \"${{{{ tasks.pick.output }}}}\" \
+         }}\n    {verb}: {{ prompt: hello, model: \"${{{{ with.m }}}}\" }}\n"
+    )
+}
+
 fn from_input(verb: &str) -> String {
-    format!(
-        "nika: dynamic\ninputs:\n  m: {{ type: string, required: true }}\npermits: {{}}\n{ACCESS}\
-         tasks:\n  ask:\n    {verb}: {{ prompt: hello, model: \"${{{{ inputs.m }}}}\" }}\n"
-    )
+    from_input_under(verb, ACCESS)
 }
 
-/// The model comes from an earlier task's output.
 fn from_task(verb: &str) -> String {
-    format!(
-        "nika: dynamic\npermits: {{ exec: [\"true\"] }}\n{ACCESS}tasks:\n  pick:\n    exec: {{ \
-         command: [\"true\"] }}\n  ask:\n    with: {{ m: \"${{{{ tasks.pick.output }}}}\" }}\n    \
-         {verb}: {{ prompt: hello, model: \"${{{{ with.m }}}}\" }}\n"
-    )
+    from_task_under(verb, ACCESS)
 }
 
-/// Run `source` under the plan the door resolves for its declaration on a
-/// machine with BOTH providers ready; `model` is the `--var m` and the
-/// queued `exec` output. Returns the wire posts and agent-provider calls.
+/// [`run_pinned`] with no operator flag.
 async fn run(source: &str, model: &str) -> (RunOutcome, Vec<Event>, Vec<String>, usize) {
+    run_pinned(source, model, None).await
+}
+
+/// Run `source` under the plan the door resolves for its declaration (if
+/// any) and the operator's `--access` `pin`, on a machine with BOTH
+/// providers ready; `model` is the `--var m` and the queued `exec` output.
+/// Returns the wire posts and agent-provider calls.
+async fn run_pinned(
+    source: &str,
+    model: &str,
+    pin: Option<&str>,
+) -> (RunOutcome, Vec<Event>, Vec<String>, usize) {
     let wf = nika_schema::parse(
         source,
         nika_schema::FileId::new(0),
@@ -109,15 +129,14 @@ async fn run(source: &str, model: &str) -> (RunOutcome, Vec<Event>, Vec<String>,
     let requirement = wf
         .run
         .as_ref()
-        .and_then(|run| run.value.access_requirement())
-        .expect("declared");
+        .and_then(|run| run.value.access_requirement());
     let probes = [api("deepseek"), api("mistral")];
     let plan = nika_providers::resolve_execution_plan_declared(
         &[],
         &probes,
-        None,
+        pin,
         VerbNeeds::new(true, true),
-        Some(&requirement),
+        requirement.as_ref(),
     );
     assert!(plan.is_admitted(), "{:?}", plan.pin_refusal);
     let wire = Arc::new(Wire::default());
@@ -238,4 +257,62 @@ async fn a_rendered_model_on_the_declared_route_keeps_its_full_receipt() {
     assert_eq!(field(done, "access_id"), Some("deepseek"));
     assert_eq!(json_field(done, "access_requirement"), requirement);
     assert_eq!(json_field(done, "access_selection")["protocol"], "api");
+}
+
+/// The operator's `--access deepseek` on a file that declares nothing binds
+/// a rendered model exactly as the file's `via` would: another provider is
+/// refused before any request, and the pinned provider's call names its
+/// route. With neither flag nor declaration the run is today's, unchanged.
+#[tokio::test]
+async fn an_operator_pin_binds_a_rendered_model_and_no_selection_keeps_today() {
+    for (name, source) in [
+        ("infer from an input", from_input_under("infer", "")),
+        ("agent from a task", from_task_under("agent", "")),
+    ] {
+        let (outcome, events, posts, agent_calls) =
+            run_pinned(&source, OTHER, Some("deepseek")).await;
+        assert!(!outcome.ok, "{name}: {events:?}");
+        assert!(
+            posts.is_empty() && agent_calls == 0,
+            "{name}: {posts:?} · {agent_calls}"
+        );
+        let detail = field(terminal(&events, EventKind::TaskFailed), "detail")
+            .unwrap_or_default()
+            .to_owned();
+        assert!(
+            detail.contains("NIKA-1801")
+                && detail.contains("`--access deepseek`")
+                && detail.contains(OTHER),
+            "{name}: {detail}"
+        );
+    }
+    let (outcome, events, posts, _) =
+        run_pinned(&from_input_under("infer", ""), ROUTE, Some("deepseek")).await;
+    assert!(outcome.ok, "{events:?}");
+    assert!(
+        posts.len() == 1 && posts[0].contains("deepseek"),
+        "{posts:?}"
+    );
+    let done = terminal(&events, EventKind::TaskCompleted);
+    assert_eq!(
+        (field(done, "access"), field(done, "access_id")),
+        (Some("api"), Some("deepseek"))
+    );
+    assert_eq!(field(done, "access_requirement"), None, "no declaration");
+
+    let (outcome, events, posts, _) = run_pinned(&from_input_under("infer", ""), OTHER, None).await;
+    assert!(
+        outcome.ok,
+        "no flag, no declaration: today's run · {events:?}"
+    );
+    assert!(
+        posts.len() == 1 && posts[0].contains("mistral"),
+        "{posts:?}"
+    );
+    let done = terminal(&events, EventKind::TaskCompleted);
+    assert_eq!(
+        field(done, "access_id"),
+        None,
+        "today's prefix stamp, unchanged"
+    );
 }

@@ -476,3 +476,30 @@ fn an_undeclared_or_effort_only_plan_never_refuses_a_rendered_model() {
     assert_eq!((lane.access.as_str(), lane.pinned), ("mistral", false));
     assert_eq!(lane.requirement.as_deref(), Some(&effort));
 }
+
+/// An operator `--access` pin binds a rendered model like a static one:
+/// another provider is the pin judge's own 1801, the pinned provider
+/// yields its lane (no declaration, so no requirement rides it).
+#[test]
+fn a_rendered_model_is_bound_by_an_operator_pin() {
+    let probes = [api_probe("deepseek", true), api_probe("mistral", true)];
+    let pinned =
+        resolve_execution_plan_for(&[], &probes, Some("deepseek"), VerbNeeds::new(true, true));
+    assert!(pinned.is_admitted(), "{:?}", pinned.pin_refusal);
+    match pinned.task_lane("mistral/mistral-small-latest", VerbNeeds::new(true, false)) {
+        Err(PinRefusal::PinUnsatisfied { message }) => {
+            assert!(message.contains("`--access deepseek`"), "{message}");
+            assert!(
+                message.contains("mistral/mistral-small-latest"),
+                "{message}"
+            );
+        }
+        other => panic!("another provider must refuse under the pin: {other:?}"),
+    }
+    let lane = pinned
+        .task_lane("deepseek/deepseek-flash", VerbNeeds::new(true, false))
+        .expect("the pin serves it")
+        .expect("a lane");
+    assert_eq!((lane.access.as_str(), lane.pinned), ("deepseek", true));
+    assert!(lane.requirement.is_none(), "no declaration, no requirement");
+}

@@ -99,9 +99,10 @@ pub struct ExecutionAccessPlan {
     /// file declares none. `pin` stays the operator's flag alone, so a
     /// child workflow never inherits its parent file's route.
     pub requirement: Option<AccessRequirement>,
-    /// The probe rows a declared plan was resolved over, kept so a model
-    /// rendered at dispatch is judged by the same resolver on the same
-    /// rows ([`Self::task_lane`]); empty without a requirement.
+    /// The probe rows a pinned or declared plan was resolved over, kept so
+    /// a model rendered at dispatch is judged by the same resolver on the
+    /// same rows ([`Self::task_lane`]); empty for an unpinned, undeclared
+    /// plan.
     rows: Vec<ProviderProbe>,
 }
 
@@ -300,7 +301,12 @@ pub fn resolve_execution_plan_for(
 ) -> ExecutionAccessPlan {
     let statics: Vec<&ModelNeed> = needs.iter().filter(|n| !n.model.contains("${{")).collect();
     match pin {
-        Some(pin) => pinned_plan(&statics, probes, pin, verbs),
+        // A pinned plan keeps its rows: a model rendered at dispatch is then
+        // judged under the same pin on the same rows (`task_lane`).
+        Some(pin) => ExecutionAccessPlan {
+            rows: probes.to_vec(),
+            ..pinned_plan(&statics, probes, pin, verbs)
+        },
         None => resolved_plan(&statics, probes),
     }
 }

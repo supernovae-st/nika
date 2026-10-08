@@ -80,14 +80,14 @@ pub fn resolve_execution_plan_declared(
 impl ExecutionAccessPlan {
     /// The lane a task's EFFECTIVE model rides — its static lane, else
     /// (a model rendered at dispatch) one resolved NOW by the same
-    /// declared resolver over the rows and the route this plan froze, so
-    /// the file's `via`/`protocol` (or an admitted flag) bind a rendered
-    /// model exactly as a static one: `Err` is the refusal before any
-    /// request (never another route), and the lane carries the call's
-    /// receipt to the terminal. Under an effort-only declaration a
-    /// rendered model keeps today's provider path (its own provider,
-    /// never refused here), with the lane naming it. Without a
-    /// requirement: `Ok(None)` — today's dispatch-time resolution.
+    /// resolver over the rows and the route this plan froze: the file's
+    /// `via`/`protocol`, or an operator `--access` pin, binds a rendered
+    /// model exactly as a static one. `Err` is the refusal before any
+    /// request (never another route); the lane carries the call's receipt
+    /// to the terminal. Under an effort-only declaration a rendered model
+    /// keeps today's provider path (its own provider, never refused here),
+    /// with the lane naming it. No pin and no requirement: `Ok(None)` —
+    /// today's dispatch-time resolution, unchanged.
     ///
     /// # Errors
     /// The [`PinRefusal`] the plan-time judge returns for the same model.
@@ -99,10 +99,16 @@ impl ExecutionAccessPlan {
         if let Some(lane) = self.lane(model) {
             return Ok(Some(lane.plan.clone()));
         }
-        let Some(req) = self.requirement.as_ref() else {
-            return Ok(None);
-        };
         let need = [ModelNeed::new(model, verbs.infer, verbs.agent)];
+        let Some(req) = self.requirement.as_ref() else {
+            let Some(pin) = self.pin.as_deref() else {
+                return Ok(None);
+            };
+            return lane_or_refusal(
+                resolve_execution_plan_for(&need, &self.rows, Some(pin), verbs),
+                model,
+            );
+        };
         if !req.selects_path() && self.pin.is_none() {
             let plan =
                 resolve_execution_plan_for(&need, &self.rows, Some(provider_of(model)), verbs);
@@ -119,23 +125,32 @@ impl ExecutionAccessPlan {
             verbs,
             Some(req),
         );
-        if let Some(refusal) = plan.pin_refusal {
-            return Err(refusal);
-        }
-        match plan.lanes.get(model) {
-            Some(LaneVerdict::Admitted(lane)) => Ok(Some(lane.plan.clone())),
-            Some(LaneVerdict::Refused(refused)) => Err(PinRefusal::NoPath {
-                message: refused
-                    .rejected
-                    .iter()
-                    .map(nika_types::access::AccessRejection::witness_line)
-                    .fold(
-                        format!("`{model}` → no path under the declared route"),
-                        |line, w| format!("{line} · {w}"),
-                    ),
-            }),
-            None => Ok(None),
-        }
+        lane_or_refusal(plan, model)
+    }
+}
+
+/// One model's verdict in a plan resolved for it alone: its lane, or the
+/// plan's own refusal (a pin judge's, else the lane's witnesses).
+fn lane_or_refusal(
+    plan: ExecutionAccessPlan,
+    model: &str,
+) -> Result<Option<AccessPlan>, PinRefusal> {
+    if let Some(refusal) = plan.pin_refusal {
+        return Err(refusal);
+    }
+    match plan.lanes.get(model) {
+        Some(LaneVerdict::Admitted(lane)) => Ok(Some(lane.plan.clone())),
+        Some(LaneVerdict::Refused(refused)) => Err(PinRefusal::NoPath {
+            message: refused
+                .rejected
+                .iter()
+                .map(nika_types::access::AccessRejection::witness_line)
+                .fold(
+                    format!("`{model}` → no path under the selected route"),
+                    |line, w| format!("{line} · {w}"),
+                ),
+        }),
+        None => Ok(None),
     }
 }
 
