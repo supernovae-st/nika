@@ -243,21 +243,27 @@ fn name_start(items: &[(&str, Option<PathShape>)], at: usize) -> Option<usize> {
         }
         run = Some(index);
         // A capital opening the phrase or a sentence is the sentence's, not the name's.
-        let opens = index == 0 || items[index - 1].0.ends_with(['.', '!', '?', ':']);
-        if !opens && core.starts_with(char::is_uppercase) {
+        if !opens(items, index) && core.starts_with(char::is_uppercase) {
             capital = Some(index);
         }
     }
     // A relative compound file can have a lowercase directory prefix containing spaces.
     // Keep the ambiguous extent after a connector; never silently retain only its suffix.
-    // A sentence's first word still belongs to prose, just as for a capitalized opener.
+    // A sentence's first word still belongs to prose, just as for a capitalized opener
+    // (« … jamais zéro. Écris out/report.json » names `out/report.json`).
     capital.or_else(|| {
         let word = trim(items[at].0);
         (word.contains('/') && !rooted(word))
             .then_some(run)
             .flatten()
-            .filter(|from| *from > 0)
+            .filter(|from| !opens(items, *from))
     })
+}
+
+/// Whether the word at `index` opens the phrase or a sentence (it follows `.`, `!`, `?` or
+/// `:`): such a word is the sentence's, never the first word of a name.
+fn opens(items: &[(&str, Option<PathShape>)], index: usize) -> bool {
+    index == 0 || items[index - 1].0.ends_with(['.', '!', '?', ':'])
 }
 
 /// The material a read consumes when a request names a path: a file or a glob as
@@ -547,6 +553,40 @@ mod tests {
                 "{text}"
             );
         }
+    }
+
+    /// A sentence's first word is prose before a relative path, wherever the sentence starts:
+    /// the path is named alone, never glued to the verb that opens its sentence.
+    #[test]
+    fn a_sentence_opener_never_joins_the_relative_path_after_it() {
+        for (text, expected) in [
+            (
+                "Signale les articles sous leur seuil, jamais zéro. Écris out/report.json avec les alertes.",
+                vec![file("out/report.json")],
+            ),
+            (
+                "Keep the rows under the threshold. Save out/x.json with the totals.",
+                vec![file("out/x.json")],
+            ),
+            (
+                "Lis data/stock.json! Enregistre out/alerts.json ensuite",
+                vec![file("data/stock.json"), file("out/alerts.json")],
+            ),
+            (
+                "Deux étapes : Copie data/a.json vers out/b.json",
+                vec![file("data/a.json"), file("out/b.json")],
+            ),
+        ] {
+            assert_eq!(literals(text), expected, "{text}");
+        }
+        // After a connector the ambiguous extent is still kept whole.
+        assert_eq!(
+            literals("Copy the file project notes/input.json to project notes/output.json"),
+            vec![
+                open("project notes/input.json"),
+                open("project notes/output.json")
+            ]
+        );
     }
 
     #[test]
