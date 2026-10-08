@@ -278,6 +278,10 @@ pub struct Selected {
     pub ready: bool,
     /// Why it cannot, with the fix, when it cannot.
     pub refusal: Option<String>,
+    /// `conversation` when this conversation's own explicit choice (named by its opener, chosen
+    /// in it or kept by its history), held here only; `operator_default` when the operator's
+    /// kept choice.
+    pub scope: &'static str,
 }
 
 impl Selected {
@@ -292,7 +296,15 @@ impl Selected {
             locus: String::new(),
             ready: false,
             refusal: None,
+            scope: "operator_default",
         }
+    }
+
+    /// The same selection, this conversation's own choice.
+    #[must_use]
+    pub fn for_conversation(mut self) -> Self {
+        self.scope = "conversation";
+        self
     }
 
     /// The same selection with the model it names, where the context goes and whether this

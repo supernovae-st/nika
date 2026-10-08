@@ -387,6 +387,21 @@ fn the_calls_receipt_is_carried_as_reported_and_unknown_usage_stays_unknown() {
     assert_eq!(json["backend"]["observed_model"], "author-model-served");
 }
 
+/// A selection is the operator's kept default until this conversation names its own.
+#[test]
+fn a_selection_names_whose_choice_it_is() {
+    let kept = Selected::new("api", Some("deepseek".into()), None);
+    assert_eq!(
+        serde_json::to_value(&kept).expect("json")["scope"],
+        "operator_default"
+    );
+    let own = kept.for_conversation();
+    assert_eq!(
+        serde_json::to_value(&own).expect("json")["scope"],
+        "conversation"
+    );
+}
+
 #[test]
 fn the_intelligence_is_a_selection_and_says_so_on_the_wire() {
     let selected = Selected::new("harness", Some("claude-code".into()), Some("acp".into()))
@@ -420,7 +435,8 @@ fn the_intelligence_is_a_selection_and_says_so_on_the_wire() {
         serde_json::json!({
             "selected": {
                 "kind": "harness", "via": "claude-code", "transport": "acp", "model": null,
-                "locus": "through your Claude account", "ready": true, "refusal": null
+                "locus": "through your Claude account", "ready": true, "refusal": null,
+                "scope": "operator_default"
             },
             "author": {
                 "kind": "harness", "model": null, "seat": "claude-code", "transport": "acp",
