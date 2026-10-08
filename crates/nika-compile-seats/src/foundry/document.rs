@@ -66,7 +66,7 @@ pub struct Applied {
 
 /// The JSON schema of what a seat states over the document: the `operations` (every field a
 /// text, a value as its JSON text, so a strict structured-output dialect can carry it) and the
-/// whole `replace`ment.
+/// whole replacement (`replace`).
 #[must_use]
 pub fn answer_schema() -> (Value, Value) {
     let text = || json!({"type": "string"});

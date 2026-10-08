@@ -36,7 +36,14 @@ extend-ignore-identifiers-re = [
 # and revision phrases. Their component words remain checked everywhere else.
 # The Session's French cue for asking what examples exist (`modèles|exemples|templates`,
 # an alternation in nika-session's question patterns): only that alternation.
-extend-ignore-re = ["Remplace \\./sortie\\.txt par \\./revised\\.txt ou \\./reviewed\\.txt", "\\bcopie\\.txt\\b", "\\bgarde tout le reste\\b", "\\bcopie les octets dans autre\\.txt\\b", "« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente", "\"columnas\"", "\"limite\"", "\"limite \"", "pas de seconde action", "größer als", "o / oder", "\"falso\"", "`falso`", "Copie entree", "Copie\\ \\./data/input\\.csv\\ vers\\ \\./out/copy\\.csv\\.\\ Le\\ budget\\ est\\ de\\ 2\\ dollars\\.", "la copie", "copie-2\\.md", "copie\\.csv", "pas maintenant", "\"quantite\"", "colonne quantite", "\"remplace\"", "remplace explicitement", "salaire_confidentiel", "aout\\.csv", "\"wdth\"", "[123]thr=", "modèles\\|exemples\\|templates", "\\\\u\\{7f\\}ect", "\"thre\""]
+# Deliberate fixtures of the integrated candidate, as literals only: the Foundry reach
+# fixtures' French request (`les demandes`, `demandes-bilan`, `demandes-en-souffrance`,
+# `demandes bilan enregistre liste`), the reuse fixture's misspelled `"verison"` key, the
+# knowledge catalog test's French `additionne le reste`, the Session's French `copie-b.txt`,
+# the run-access did-you-mean fixtures and the doc that names one (`acess`, `protocl`,
+# `efort`), and the terminal view's `"ttached"` fragment assertion. Their words stay checked
+# everywhere else.
+extend-ignore-re = ["Remplace \\./sortie\\.txt par \\./revised\\.txt ou \\./reviewed\\.txt", "\\bcopie\\.txt\\b", "\\bgarde tout le reste\\b", "\\bcopie les octets dans autre\\.txt\\b", "« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente", "\"columnas\"", "\"limite\"", "\"limite \"", "pas de seconde action", "größer als", "o / oder", "\"falso\"", "`falso`", "Copie entree", "Copie\\ \\./data/input\\.csv\\ vers\\ \\./out/copy\\.csv\\.\\ Le\\ budget\\ est\\ de\\ 2\\ dollars\\.", "la copie", "copie-2\\.md", "copie\\.csv", "pas maintenant", "\"quantite\"", "colonne quantite", "\"remplace\"", "remplace explicitement", "salaire_confidentiel", "aout\\.csv", "\"wdth\"", "[123]thr=", "modèles\\|exemples\\|templates", "\\\\u\\{7f\\}ect", "\"thre\"", "les demandes", "demandes-bilan", "demandes-en-souffrance", "demandes bilan enregistre liste", "\"verison\"", "additionne le reste", "copie-b\\.txt", "\"acess\"", "\"protocl\"", "\"efort\"", "acess: \\{ via: codex \\}", "protocl: acp", "efort: high", "a typo'd `protocl:`", "\"ttached\""]
 
 [default.extend-words]
 # Speaches is a real project (speaches.ai · OpenAI-compat speech server), not a typo of "Speeches".
@@ -158,6 +165,10 @@ extend-exclude = [
   # `variant`, so allowlisting them would blind the gate across 57 crates
   # of public code. The DATA rows below the header stay English.
   "crates/nika-catalog/data/mcp-servers.toml",
+  # The embedded r2 knowledge release: issued bytes admitted against their snapshot digest,
+  # its patterns authored in French. They cannot be edited for a spell-check, and an English
+  # dictionary judging French prose is noise, not a gate.
+  "crates/nika-onboard/assets/knowledge-release-r2/",
   # The Compile core reads six languages by design: its cue tables, its closed rule
   # grammar and its intent fixtures are French, Spanish, Portuguese, German and
   # Italian literals (114 hits on the member split of 2026-09-21, none English).
@@ -168,7 +179,9 @@ extend-exclude = [
   "crates/nika-compile/",
   # ADR-140: the prior Compile multilingual exclusion follows only moved files.
   "crates/nika-compile-cognition/src/cognition.rs",
-  "crates/nika-compile-cognition/src/compose.rs",
+  # The candidate composer moved to the decision seats with its multilingual cue tables on
+  # 2026-10-08; the same exclusion follows it.
+  "crates/nika-compile-seats/src/compose.rs",
   "crates/nika-compile-seats/src/decide.rs",
   "crates/nika-compile-cognition/src/predicate.rs",
   "crates/nika-compile-cognition/src/cognition/backstops.rs",
