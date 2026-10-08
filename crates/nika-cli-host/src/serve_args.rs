@@ -111,7 +111,8 @@ pub struct ServeArgs {
     pub state_root: Option<PathBuf>,
     #[command(flatten)]
     pub authoring: NativeAuthoringArgs,
-    /// Explicit model invocation and physical-request ceiling per authoring round (default 1).
+    /// Explicit model invocation and physical-request ceiling per authoring round; absent, no
+    /// count bounds the round's requests (its repair preference and deadline still apply).
     #[arg(long, value_name = "N", requires = "model")]
     pub authoring_max_calls: Option<u32>,
     /// Seat the cost-review door (POST /v1 and /v2/cost-reviews · health `costReviewV1`/`V2`).
@@ -120,4 +121,9 @@ pub struct ServeArgs {
     /// Per-run spend ceiling of manual jobs in USD (default 1); `none` disarms it explicitly.
     #[arg(long, value_name = "USD|none", requires = "bind")]
     pub run_cost_ceiling: Option<String>,
+    /// Serve the project's native Session under /v1/sessions (health `sessionHost`): the same
+    /// Session bare `nika` opens, whose runs are this resident's jobs. A Session writes the
+    /// project's workflows only on a human's consent.
+    #[arg(long, requires = "bind")]
+    pub sessions: bool,
 }

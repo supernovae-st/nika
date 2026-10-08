@@ -71,7 +71,8 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
     let ceiling = args.run_cost_ceiling.as_deref();
     let http = nika_serve::server::seat_cost_review(http, args.cost_review, ceiling)
         .map_err(nika_serve::launch_operator_message)
-        .map_err(&fail)?;
+        .map_err(&fail)?
+        .map(|config| config.with_sessions(args.sessions));
     let now = instant(args.now.as_deref()).map_err(&fail)?;
     let until = instant(args.until.as_deref()).map_err(&fail)?;
     if now.is_some() && !args.once && until.is_none() {

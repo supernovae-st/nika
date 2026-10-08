@@ -631,6 +631,27 @@ fn native_candidate() -> String {
     "nika: clever-rewrite\nmodel: mock/echo\npermits:\n  tools: [\"nika:read\", \"nika:write\"]\n  fs:\n    read: [\"./a.md\"]\n    write: [\"./b.md\"]\ntasks:\n  read_source:\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"./a.md\" }\n  transform:\n    with: { text: \"${{ tasks.read_source.output }}\" }\n    infer:\n      max_tokens: 600\n      prompt: \"Rewrite this text in a clever way, inventing nothing: ${{ with.text }}\"\n  write_result:\n    with: { content: \"${{ tasks.transform.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./b.md\", content: \"${{ with.content }}\" }\n".to_owned()
 }
 
+/// `--sessions` serves the project's native Session (health `sessionHost`); a listener started
+/// without it advertises none.
+#[cfg(unix)]
+#[test]
+fn serve_sessions_advertises_the_session_host_only_when_named() {
+    for (flags, advertised) in [(&["--sessions"][..], true), (&[][..], false)] {
+        let dir = project("sessions-flag", DAILY_3AM, &[("doctor.nika", TRUE)]);
+        secure_token(&dir);
+        let address = free_address();
+        let mut child = native_serve(&dir, &address, flags, &[]);
+        let health = healthy(&address, &mut child);
+        assert_eq!(
+            health.contains("sessionHost"),
+            advertised,
+            "{flags:?}: {health}"
+        );
+        assert_eq!(terminate(&mut child), Some(0));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
 #[test]
 fn serve_help_names_the_native_authoring_seat_and_it_needs_the_listener() {
     let help = bin().args(["serve", "--help"]).output().expect("help");
