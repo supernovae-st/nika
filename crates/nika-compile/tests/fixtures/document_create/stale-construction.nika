@@ -1,0 +1,21 @@
+nika: stale-tickets-report
+permits:
+  fs: { read: ["./in/tickets.json"], write: ["./out/report.json"] }
+  tools: ["nika:read", "nika:jq", "nika:write"]
+tasks:
+  read_records:
+    invoke: { tool: "nika:read", args: { path: "./in/tickets.json" } }
+  parse_records:
+    with: { raw: "${{ tasks.read_records.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.raw }}", expression: "fromjson" } }
+  stale:
+    with: { rows: "${{ tasks.parse_records.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.rows }}", expression: "[.[] | select(.age_hours > 48)]" } }
+  report_text:
+    with: { stale: "${{ tasks.stale.output }}" }
+    invoke: { tool: "nika:jq", args: { input: { stale: "${{ with.stale }}" }, expression: "{count: (.stale | length), ids: [.stale[].id]} | tojson" } }
+  write_report:
+    with: { content: "${{ tasks.report_text.output }}" }
+    invoke: { tool: "nika:write", args: { path: "./out/report.json", content: "${{ with.content }}" } }
+outputs:
+  stale: ${{ tasks.stale.output }}
