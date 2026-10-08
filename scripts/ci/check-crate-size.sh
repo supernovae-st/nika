@@ -14,12 +14,14 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./_lib.sh
 . "$HERE/_lib.sh"
+# shellcheck source=./crate-size-policy.sh
+. "$HERE/crate-size-policy.sh"
 
 # Overridable ONLY so the hygiene dashboard's yellow band (vector 24 ·
 # scripts/hygiene/check-crate-size.sh) can reuse THIS ONE counter with a
 # lowered ceiling — two policies, one measure, zero duplication. CI never
-# sets the var: the default keeps the ratchet strictly binary at 15k.
-MAX="${CRATE_SIZE_MAX:-15000}"
+# sets the var: the reviewed per-crate ceilings apply by default.
+MAX="${CRATE_SIZE_MAX:-}"
 violations=0
 
 # The counter proves itself before it guards the wall — fail CLOSED, the same
@@ -55,6 +57,7 @@ $(git ls-files '*.jq' | grep -E '(^|/)src/' | grep -vE '(^|/)(tests|benches|exam
 while IFS= read -r manifest; do
   [ -z "$manifest" ] && continue
   crate_dir=$(dirname "$manifest")
+  limit=$(crate_size_limit "$crate_dir" "$MAX") || exit 2
   CRATE_FILES=$(printf '%s\n' "$PROD_FILES" | grep -- "^$crate_dir/src/" || true)
   if [ -z "$CRATE_FILES" ]; then
     # cargo-fuzz packages contain test targets outside src/, not production.
@@ -82,15 +85,15 @@ while IFS= read -r manifest; do
       | python3 "$HERE/prod-loc.py" \
       | awk -F'\t' '{ sum += $1 } END { print sum + 0 }'
   ) || exit 2
-  if [ "$total" -gt "$MAX" ]; then
-    printf 'FAIL  %s  %d LOC (max %d)\n' "$crate_dir" "$total" "$MAX"
+  if [ "$total" -gt "$limit" ]; then
+    printf 'FAIL  %s  %d LOC (max %d)\n' "$crate_dir" "$total" "$limit"
     violations=$((violations + 1))
   fi
 done <<<"$MANIFESTS"
 
 if [ "$violations" -gt 0 ]; then
-  printf '\n%d crate(s) over the %d-LOC limit.\n' "$violations" "$MAX" >&2
+  printf '\n%d crate(s) over their production-LOC limit.\n' "$violations" >&2
   exit 1
 fi
 
-echo "OK  all crates <= ${MAX} LOC"
+echo "OK  all crates within their reviewed production-LOC limits"

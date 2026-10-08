@@ -202,9 +202,18 @@ impl Composer {
     }
 
     /// Whether the composer holds the keys (the workspace may give them to
-    /// another region): the slash list shows and reads keys only then.
+    /// another region): the slash list shows and reads keys only then, and
+    /// the text area paints its cursor only then. Without the keys the cursor
+    /// takes the cursor line's own style, which `ratatui-textarea` draws as
+    /// no cursor; the draft, its cursor position and the selection stay.
     pub(crate) fn set_focused(&mut self, focused: bool) {
         self.chooser.focused = focused;
+        let cursor = if focused {
+            super::CURSOR
+        } else {
+            self.area.cursor_line_style()
+        };
+        self.area.set_cursor_style(cursor);
     }
 
     /// Open the palette over the draft, which waits untouched; open, close it.

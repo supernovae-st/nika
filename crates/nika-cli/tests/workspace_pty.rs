@@ -51,6 +51,7 @@ const WAIT: Duration = Duration::from_secs(30);
 const SETTLE: Duration = Duration::from_millis(400);
 
 const F6: &str = "\x1b[17~";
+const F4: &str = "\x1b[14~";
 const SHIFT_F6: &str = "\x1b[17;2~";
 const END: &str = "\x1b[F";
 const PAGE_UP: &str = "\x1b[5~";
@@ -200,8 +201,10 @@ struct Term {
     pty: OsSession,
     screen: vt::Screen,
     raw: Vec<u8>,
+    input_mark: usize,
     eof: bool,
     shots: Vec<(String, String)>,
+    replay: Vec<serde_json::Value>,
     started: Instant,
 }
 
@@ -218,8 +221,12 @@ impl Term {
             pty,
             screen,
             raw: Vec::new(),
+            input_mark: 0,
             eof: false,
             shots: Vec::new(),
+            replay: vec![serde_json::json!({
+                "type": "size", "offset": 0, "cols": cols, "rows": rows
+            })],
             started: Instant::now(),
         }
     }
@@ -274,6 +281,31 @@ impl Term {
         self.wait_until(needle, |screen| screen.contains(needle));
     }
 
+    /// The workspace paints its own caret. Ratatui emits Hide after the cell
+    /// diff and flushes it: a matching header alone can be a partial frame.
+    /// Capture the matching state only after that native frame boundary.
+    fn wait_workspace_frame(&mut self, what: &str, done: impl Fn(&vt::Screen) -> bool) {
+        let deadline = Instant::now() + WAIT;
+        loop {
+            let read = self.pump();
+            if self.raw.len() > self.input_mark
+                && self.raw.ends_with(b"\x1b[?25l")
+                && done(&self.screen)
+            {
+                self.shot(what);
+                return;
+            }
+            assert!(
+                !self.eof && Instant::now() <= deadline,
+                "{what}: complete workspace frame never reached.\n{}",
+                self.dump()
+            );
+            if read == 0 {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+    }
+
     fn settle(&mut self) {
         let deadline = Instant::now() + SETTLE;
         while Instant::now() < deadline && !self.eof {
@@ -284,6 +316,9 @@ impl Term {
     }
 
     fn send(&mut self, text: &str) {
+        if !text.is_empty() {
+            self.input_mark = self.raw.len();
+        }
         self.pty.write_all(text.as_bytes()).expect("write");
         self.pty.flush().expect("flush");
     }
@@ -296,6 +331,10 @@ impl Term {
 
     fn resize(&mut self, cols: u16, rows: u16) {
         self.pump();
+        self.input_mark = self.raw.len();
+        self.replay.push(serde_json::json!({
+            "type": "resize", "offset": self.raw.len(), "cols": cols, "rows": rows
+        }));
         self.screen.resize(cols, rows);
         self.pty
             .get_process_mut()
@@ -335,6 +374,13 @@ impl Term {
             "{label} · +{stamp} ms · {cols}x{rows} · alt {}",
             self.screen.on_alt()
         );
+        // Preserve byte offsets and sizes so a terminal emulator can replay
+        // the actual colors and cell positions, without restyling plain text.
+        self.replay.push(serde_json::json!({
+            "type": "frame", "offset": self.raw.len(), "cols": cols, "rows": rows,
+            "label": label, "text": self.text(),
+            "complete": self.raw.len() > self.input_mark && self.raw.ends_with(b"\x1b[?25l")
+        }));
         self.shots.push((head, self.text()));
     }
 
@@ -396,6 +442,9 @@ impl Drop for Term {
         };
         let _ = std::fs::create_dir_all(&dir);
         let _ = std::fs::write(dir.join(format!("{}.raw", self.tag)), &self.raw);
+        if let Ok(events) = serde_json::to_vec_pretty(&self.replay) {
+            let _ = std::fs::write(dir.join(format!("{}.events.json", self.tag)), events);
+        }
         let shots: Vec<String> = self
             .shots
             .iter()
@@ -435,7 +484,7 @@ fn wait_workspace(term: &mut Term) {
         screen.on_alt()
             && screen.contains("diamond.nika")
             && screen.contains("single.nika")
-            && screen.contains("/intelligence")
+            && screen.contains("Ctrl+O")
             && (screen.contains("nika ›") || screen.contains("nika >"))
     });
 }
@@ -531,12 +580,24 @@ fn every_face_of_the_selected_workflow_reads_the_same_bytes() {
         "left → join · value",
         "right → join · value",
     ] {
-        assert!(graph.contains(edge), "{edge}\n{graph}");
+        assert!(
+            !graph.contains(edge),
+            "the wired diamond repeats its edges: {edge}\n{graph}"
+        );
     }
+    assert_eq!(
+        graph.matches('▼').count(),
+        3,
+        "one entry per dependent task\n{graph}"
+    );
+    assert!(
+        graph.contains('┴') && graph.contains('┬'),
+        "the split and join\n{graph}"
+    );
     assert!(
         graph
             .lines()
-            .any(|line| line.contains("◆ left") && line.contains("◆ right")),
+            .any(|line| line.contains("│ left") && line.contains("│ right")),
         "the parallel tasks share a row\n{graph}"
     );
     assert!(!graph.contains("left → right"), "{graph}");
@@ -556,13 +617,218 @@ fn every_face_of_the_selected_workflow_reads_the_same_bytes() {
     term.keys("\r");
     let single = short_witness(SINGLE.as_bytes());
     term.wait_until("the single workflow", |s| {
-        s.contains("[source] plan graph check · single") && s.contains("message: only")
+        s.contains("single · [source] plan graph check") && s.contains("message: only")
     });
     let shown = term.text();
     assert!(shown.contains(&single), "{shown}");
     assert!(
         !shown.contains(&diamond) && !shown.contains("message: join"),
         "{shown}"
+    );
+    term.leave();
+}
+
+/// The exact unsent fixture draft occupies only its composer row.
+fn contextual_draft(screen: &vt::Screen) -> bool {
+    screen.lines().iter().any(|row| {
+        let Some((before, after)) = row.split_once("nika › unchanged draft") else {
+            return false;
+        };
+        before.chars().all(|c| c.is_whitespace() || c == '│')
+            && after
+                .split('│')
+                .next()
+                .is_some_and(|text| text.trim().is_empty())
+    })
+}
+
+/// Measure the painted conversation separator in display cells.
+fn contextual_edge(screen: &vt::Screen) -> Option<usize> {
+    use unicode_width::UnicodeWidthStr as _;
+    screen.lines().iter().find_map(|row| {
+        let prompt = "nika › unchanged draft";
+        let start = row.find(prompt)? + prompt.len();
+        let edge = start + row[start..].find('│')?;
+        Some(row[..edge].width())
+    })
+}
+
+/// The local action ends at the actual viewport's last display cell.
+fn action_at_width(screen: &vt::Screen, action: &str, cols: u16) -> bool {
+    use unicode_width::UnicodeWidthStr as _;
+    screen.lines().iter().any(|row| {
+        row.find(action)
+            .is_some_and(|byte| row[..byte].width() + action.width() == usize::from(cols))
+    })
+}
+
+/// Contextual expansion through bare `nika`, over one real, witnessed file.
+/// The saved source, graph face and exact unsent composer survive pointer,
+/// keyboard and native sizes. This calls no provider and starts no Run.
+#[test]
+fn the_selected_object_expands_without_leaving_the_real_conversation() {
+    use unicode_width::UnicodeWidthStr as _;
+    let rig = Rig::new("contextual");
+    let before = rig.tree();
+    let mut term = rig.spawn_with(
+        "20-contextual",
+        &[],
+        180,
+        48,
+        &[("NO_COLOR", "1"), ("NIKA_REDUCED_MOTION", "1")],
+    );
+    wait_workspace(&mut term);
+    open_entry(&mut term, 1);
+    to_object(&mut term);
+    term.keys(RIGHT);
+    term.keys(RIGHT);
+    let witness = short_witness(DIAMOND.as_bytes());
+    term.wait_workspace_frame("selected graph before expansion", |screen| {
+        screen.contains("[graph]")
+            && screen.contains(&witness)
+            && screen.contains("[+] Expand · F4")
+    });
+    term.keys(ESC);
+    term.send("unchanged draft");
+    for (cols, rows) in [(180, 48), (120, 40), (80, 24)] {
+        term.resize(cols, rows);
+        term.wait_workspace_frame(
+            &format!("selected graph restored {cols}x{rows}"),
+            |screen| {
+                action_at_width(screen, "[+] Expand · F4", cols)
+                    && screen.contains("[graph]")
+                    && contextual_draft(screen)
+                    && (screen.lines()[0].contains("[Conversation]") == (cols < 120))
+            },
+        );
+        let restored_rule = term.screen.row_of("── ◌ this conversation");
+        let restored_edge = contextual_edge(&term.screen);
+        let restored_title = term.screen.row_of("this conversation");
+        term.send(F4);
+        term.wait_workspace_frame(
+            &format!("selected graph expanded {cols}x{rows}"),
+            |screen| {
+                action_at_width(screen, "[-] Restore · F4", cols)
+                    && screen.contains("[graph]")
+                    && screen.contains(&witness)
+                    && contextual_draft(screen)
+                    && if cols < 100 {
+                        screen.row_of("── ◌ this conversation") > restored_rule
+                    } else {
+                        screen.row_of("── ◌ this conversation").is_none()
+                            && screen.row_of("this conversation") == restored_title
+                            && contextual_edge(screen)
+                                .zip(restored_edge)
+                                .is_some_and(|(expanded, restored)| expanded < restored)
+                    }
+            },
+        );
+        if cols < 100 {
+            assert!(term.screen.row_of("── ◌ this conversation") > restored_rule);
+        }
+        let lines = term.screen.lines();
+        let row = lines
+            .iter()
+            .position(|line| line.contains("[-] Restore · F4"))
+            .expect("restore action");
+        let byte = lines[row].find("[-] Restore · F4").expect("painted action");
+        let column = lines[row][..byte].width() + 2;
+        term.send(&format!(
+            "\x1b[<0;{column};{}M\x1b[<0;{column};{}m",
+            row + 1,
+            row + 1
+        ));
+        term.wait_workspace_frame(
+            &format!("pointer restored same graph {cols}x{rows}"),
+            |screen| {
+                action_at_width(screen, "[+] Expand · F4", cols)
+                    && contextual_draft(screen)
+                    && screen.row_of("── ◌ this conversation") == restored_rule
+                    && contextual_edge(screen) == restored_edge
+            },
+        );
+        assert!(!term.text().contains("Workbench"));
+        assert!(term.screen.hues().is_empty());
+    }
+    assert_eq!(
+        rig.tree(),
+        before,
+        "inspection never writes workflow or business files"
+    );
+    term.leave();
+    for mode in [1000, 1002, 1003, 1006] {
+        assert_eq!(term.screen.mode(mode), Some(false), "mouse mode {mode}");
+    }
+}
+
+/// Native colored output is recorded as bytes, with frame and resize offsets.
+/// Opening and resizing this graph stays read-only and preserves its source.
+#[test]
+fn the_native_workflow_uses_the_approved_palette_without_changing_source() {
+    let rig = Rig::new("colored-graph");
+    let before = rig.tree();
+    let mut term = rig.spawn_with(
+        "21-colored-graph",
+        &[],
+        180,
+        48,
+        &[("NIKA_REDUCED_MOTION", "1")],
+    );
+    wait_workspace(&mut term);
+    open_entry(&mut term, 1);
+    to_object(&mut term);
+    term.keys(RIGHT);
+    term.keys(RIGHT);
+    let witness = short_witness(DIAMOND.as_bytes());
+    term.wait_workspace_frame("colored workflow at 180x48", |screen| {
+        screen.contains("[graph]") && screen.contains(&witness) && screen.contains("join")
+    });
+    assert!(
+        term.screen.hues().contains("38;2;182;154;255"),
+        "the approved violet accent is emitted by the native renderer: {:?}",
+        term.screen.hues()
+    );
+    assert!(
+        term.screen.hues().contains("48;2;13;17;25"),
+        "the approved base surface is native, not added by a capture viewer"
+    );
+    for (cols, rows) in [(120, 40), (80, 24), (180, 48)] {
+        term.resize(cols, rows);
+        term.wait_workspace_frame(&format!("colored workflow at {cols}x{rows}"), |screen| {
+            screen.size() == (usize::from(cols), usize::from(rows))
+                && screen.contains("[graph]")
+                && screen.contains("nika ›")
+                && (screen.lines()[0].contains("[Object]") == (cols < 120))
+                && (cols != 80
+                    || (screen.contains("Compact graph")
+                        && !screen.contains("┌")
+                        && [
+                            "fetch · invoke",
+                            "left ← fetch · invoke",
+                            "right ← fetch · invoke",
+                            "join ← left, right · invoke",
+                        ]
+                        .iter()
+                        .all(|row| screen.lines().iter().any(|line| line.trim() == *row))
+                        && screen.contains("Structure checked · this file only")
+                        && screen.contains(&witness)))
+        });
+    }
+    term.keys(ESC);
+    term.send("Make the brief more concise");
+    term.wait_workspace_frame("unsent draft with Conversation focus", |screen| {
+        screen.contains("Make the brief more concise") && screen.contains("[graph]")
+    });
+    term.keys(F6);
+    term.wait_workspace_frame("same unsent draft with Object focus", |screen| {
+        screen.contains("Make the brief more concise")
+            && screen.contains("[graph]")
+            && screen.contains(&witness)
+    });
+    assert_eq!(
+        rig.tree(),
+        before,
+        "viewing the graph changed project files"
     );
     term.leave();
 }
@@ -632,7 +898,7 @@ fn the_workspace_follows_every_size_and_comes_back() {
     term.keys(RIGHT);
     term.keys(RIGHT);
     term.wait_until("the graph at 120x36", |s| {
-        s.contains("[graph]") && s.contains("◆ join")
+        s.contains("[graph]") && s.contains("│ join")
     });
     term.resize(80, 24);
     // Wait for the resized frame before End uses its object viewport.
@@ -641,7 +907,9 @@ fn the_workspace_follows_every_size_and_comes_back() {
     });
     term.keys(END);
     term.wait_until("the graph at 80x24", |s| {
-        s.contains("[graph]") && s.contains("◆ join") && s.contains("this conversation")
+        s.contains("[graph]")
+            && s.contains("join ← left, right · invoke")
+            && s.contains("this conversation")
     });
     term.resize(60, 18);
     term.wait_until("the stacked frame at 60x18", |s| {
@@ -649,7 +917,7 @@ fn the_workspace_follows_every_size_and_comes_back() {
     });
     term.keys(END);
     term.wait_until("the graph at 60x18", |s| {
-        s.contains("[graph]") && s.contains("◆ join")
+        s.contains("[graph]") && s.contains("join ← left, right · invoke")
     });
     for line in term.screen.lines() {
         assert!(
@@ -679,7 +947,7 @@ fn the_workspace_follows_every_size_and_comes_back() {
     term.shot("narrow focus frame");
     term.resize(120, 36);
     term.wait_until("the workspace back, object kept", |s| {
-        s.contains("[graph]") && s.contains("diamond.nika") && s.contains("◆ join")
+        s.contains("[graph]") && s.contains("diamond.nika") && s.contains("│ join")
     });
     // The folded aside at 80x24 is reachable over the object and opens.
     term.resize(80, 24);
@@ -691,7 +959,7 @@ fn the_workspace_follows_every_size_and_comes_back() {
     term.keys(DOWN);
     term.keys("\r");
     term.wait_until("single opened at 80x24", |s| {
-        s.contains("[source] plan graph check · single")
+        s.contains("single · [source] plan graph check")
     });
     term.keys(ESC);
     term.leave();
@@ -719,6 +987,26 @@ fn ascii_no_color_and_reduced_motion_keep_every_face_readable() {
         s.contains("[check]") && s.contains("IMPORTS")
     });
     assert_renderer_ascii(&term.text());
+    term.resize(80, 24);
+    term.keys(LEFT);
+    let witness = short_witness(DIAMOND.as_bytes());
+    term.wait_workspace_frame("the compact ASCII graph", |screen| {
+        screen.size() == (80, 24)
+            && screen.contains("Compact graph")
+            && screen.contains("[graph]")
+            && screen.contains("[Object]")
+            && screen.contains("Structure checked - this file only")
+            && screen.contains(&witness)
+            && [
+                "fetch - invoke",
+                "left <- fetch - invoke",
+                "right <- fetch - invoke",
+                "join <- left, right - invoke",
+            ]
+            .iter()
+            .all(|row| screen.lines().iter().any(|line| line.trim() == *row))
+    });
+    assert_renderer_ascii(&term.text());
     let raw = String::from_utf8_lossy(&term.raw).into_owned();
     for hue in ["\x1b[38;", "\x1b[48;", "\x1b[31m", "\x1b[32m", "\x1b[33m"] {
         assert!(!raw.contains(hue), "a colour under NO_COLOR: {hue:?}");
@@ -732,7 +1020,7 @@ fn assert_renderer_ascii(shown: &str) {
     // The lifecycle rail (`Draft ○ · Saved ○ …`) is the Session's own words,
     // drawn as given under --ascii in every presentation: not checked here.
     for glyph in [
-        '◆', '─', '│', '┬', '╰', '▶', '⑂', '◌', '▱', '⌄', '›', '✔', '…',
+        '◆', '─', '│', '┬', '╰', '▶', '⑂', '◌', '▱', '⌄', '›', '✔', '…', '←',
     ] {
         assert!(!shown.contains(glyph), "{glyph:?} under --ascii\n{shown}");
     }
@@ -862,7 +1150,7 @@ fn plain_and_pipe_stay_as_they_are() {
 
 /// 10 · Opening and reading every face sends nothing and grants nothing: the
 /// project's files are byte-identical, no proposal, save or run is said, and
-/// the lifecycle rail still says nothing was drafted, saved or run.
+/// the inline lifecycle rail still says nothing was drafted, saved or run.
 #[test]
 fn opening_a_viewer_sends_nothing_and_grants_nothing() {
     let rig = Rig::new("authority");
@@ -880,7 +1168,18 @@ fn opening_a_viewer_sends_nothing_and_grants_nothing() {
     for said in ["proposes", "saved", "Save?", "run it", "observed"] {
         assert!(!shown.contains(said), "{said}\n{shown}");
     }
-    assert!(shown.contains("Draft ○ · Saved ○ · Checked ○"), "{shown}");
+    // The workspace hides a rail whose five stages are all pending. Inspect
+    // the same retained state inline without sending a Session line.
+    term.keys("\x14");
+    term.wait_until("all five stages remain pending", |screen| {
+        !screen.on_alt()
+            && screen.contains("Draft ○ · Saved ○ · Checked ○ · Active ○ · Run ○")
+            && screen.contains("nika ›")
+    });
+    assert!(
+        !rig.path(".nika/traces").exists(),
+        "inspection starts no Run"
+    );
     term.leave();
     assert_eq!(rig.tree(), before, "the project is untouched");
 }

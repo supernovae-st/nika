@@ -21,6 +21,7 @@
 //! look grants nothing: it is not a consent, not a Save, not a Run, and it is
 //! never sent to a model. Later bytes need a new look.
 
+use std::fmt::Write as _;
 use std::sync::Arc;
 
 use nika_display::check_render::VerdictLayers;
@@ -29,7 +30,7 @@ use nika_display::theme::Role;
 use nika_tui_view::{Canvas, Face, Finding, Verdict, Workflow};
 use ratatui::text::{Line, Span};
 
-use super::text::{fit_head, marks};
+use super::text::{fit_head, marks, wrap};
 use crate::visual::role;
 
 /// What every audited look says it left out.
@@ -245,8 +246,9 @@ impl Inspected {
 
     /// One face of this look on a region `width` cells wide: its title row
     /// (the icon, the name, the faces with the one in view marked), then the
-    /// viewer's facts and notes, the witness of the bytes shown and how to
-    /// look again, then the face's body. Bytes nobody read show why, and no
+    /// face's body and evidence. The graph leads with its content, keeping
+    /// truncation notes above it and capture details below it. Bytes nobody
+    /// read show why, and no
     /// face is drawn over them. Pure: no file, no clock.
     #[must_use]
     pub fn face_lines(
@@ -255,6 +257,18 @@ impl Inspected {
         width: u16,
         ascii: bool,
         color: bool,
+    ) -> (Line<'static>, Vec<Line<'static>>) {
+        self.face_lines_in(face, width, ascii, color, false)
+    }
+
+    /// A short object uses exact dependency rows rather than partial cards.
+    pub(crate) fn face_lines_in(
+        &self,
+        face: Face,
+        width: u16,
+        ascii: bool,
+        color: bool,
+        compact: bool,
     ) -> (Line<'static>, Vec<Line<'static>>) {
         let (sep, cut) = marks(ascii);
         let cells = usize::from(width);
@@ -271,33 +285,189 @@ impl Inspected {
             return (title, body.collect());
         };
         let short: String = witness.chars().take(12).collect();
-        let read = format!("this file's bytes {short}, as last read{again}");
-        (title, self.judged_lines(face, width, ascii, color, &read))
+        let read = if face == Face::Graph {
+            format!("Read {short}{sep}Check for details")
+        } else {
+            format!("this file's bytes {short}, as last read{again}")
+        };
+        (
+            title,
+            self.judged_lines_in(face, width, ascii, color, &read, compact),
+        )
     }
 
-    /// One face of these bytes as the viewers render it: their facts and
-    /// notes, then `said` (one dim row: whose bytes these are), then the
-    /// face's body. Pure: no file, no clock.
-    pub(crate) fn judged_lines(
+    /// A viewport-specific projection over the same fixed graph and audit.
+    pub(crate) fn judged_lines_in(
         &self,
         face: Face,
         width: u16,
         ascii: bool,
         color: bool,
         said: &str,
+        compact: bool,
     ) -> Vec<Line<'static>> {
         let (_, cut) = marks(ascii);
         let findings: Vec<Finding<'_>> = self.findings.iter().map(Said::row).collect();
         let hints: Vec<Finding<'_>> = self.hints.iter().map(Said::row).collect();
         let canvas = Canvas::new(width, ascii, color);
-        let rendered = nika_tui_view::workflow(face, &self.workflow(&findings, &hints), canvas);
-        let mut body = rendered.head(canvas);
-        body.push(Line::from(Span::styled(
+        let mut rendered = nika_tui_view::workflow(face, &self.workflow(&findings, &hints), canvas);
+        let witness = Line::from(Span::styled(
             fit_head(said, usize::from(width), cut),
             role::style(Role::Dim, color),
-        )));
-        body.extend(rendered.lines);
-        body
+        ));
+        if face == Face::Graph {
+            // Keep material drawing limits beside the graph. Routine capture
+            // details follow it in this same scrollable object.
+            let facts = std::mem::take(&mut rendered.facts);
+            let mut body = rendered.head(canvas);
+            if compact
+                && rendered.notes.is_empty()
+                && let Some(rows) = self.compact_graph(canvas)
+            {
+                body.extend(rows);
+            } else {
+                body.push(Line::default());
+                body.append(&mut rendered.lines);
+            }
+            body.push(Line::default());
+            if let Some(summary) = self.graph_summary(width, ascii, color) {
+                body.extend(summary);
+            } else {
+                rendered.facts = facts;
+                rendered.notes.clear();
+                body.extend(rendered.head(canvas));
+            }
+            body.push(witness);
+            body
+        } else {
+            let mut body = rendered.head(canvas);
+            body.push(witness);
+            body.extend(rendered.lines);
+            body
+        }
+    }
+
+    /// A compact graph retains every node and each incoming edge from the
+    /// captured projection. No frames or implied connectors can be cut by
+    /// the viewport; longer rows wrap and remain reachable by scrolling.
+    fn compact_graph(&self, canvas: Canvas) -> Option<Vec<Line<'static>>> {
+        let (graph, waves) = self.graph()?;
+        // The graph viewer owns availability. Workflow-level facts also
+        // exist for refused graphs, so they cannot authorize this projection.
+        let checked = nika_tui_view::graph_cards(graph, waves, canvas, &|_| None);
+        if checked.facts.is_empty() || !checked.notes.is_empty() {
+            return None;
+        }
+        let Canvas {
+            width,
+            ascii,
+            color,
+            ..
+        } = canvas;
+        let columns = usize::from(width).checked_sub(2)?;
+        // Only plain value dependencies can be collapsed into an incoming
+        // list. Keep typed predicates, unsafe or shortened identities and
+        // all graph validation refusals in the original bounded viewer.
+        if graph
+            .edges
+            .iter()
+            .any(|edge| edge.kind != "value" || edge.predicate.is_some())
+            || graph.nodes.iter().any(|node| {
+                !node.id.bytes().all(|byte| byte.is_ascii_graphic())
+                    || node.id.len().saturating_add(1) > columns
+            })
+        {
+            return None;
+        }
+        let (sep, cut) = marks(ascii);
+        let arrow = if ascii { " <- " } else { " ← " };
+        let mut rows = vec![Line::styled(
+            fit_head(
+                &format!("Compact graph{sep}exact dependencies"),
+                usize::from(width),
+                cut,
+            ),
+            role::style(Role::Dim, color),
+        )];
+        for node in &graph.nodes {
+            let incoming: Vec<_> = graph
+                .edges
+                .iter()
+                .filter(|edge| edge.to == node.id)
+                .map(|edge| edge.from.as_str())
+                .collect();
+            let mut row = node.id.clone();
+            if !incoming.is_empty() {
+                row.push_str(arrow);
+                row.push_str(&incoming.join(", "));
+            }
+            let _ = write!(row, "{sep}{}", node.verb);
+            if node.kind == "finally" {
+                let _ = write!(row, "{sep}cleanup");
+            }
+            // Reserve a hanging indent so a wrapped source never reads as
+            // another node. Every identity, including a trailing comma, fits.
+            let wrapped = wrap(&row, columns, cut);
+            if rows.len().saturating_add(wrapped.len()) > canvas.limits.lines {
+                return None;
+            }
+            rows.extend(wrapped.into_iter().enumerate().map(|(index, line)| {
+                let line = if index == 0 {
+                    line
+                } else {
+                    format!("  {line}")
+                };
+                Line::styled(line, role::style(Role::Strong, color))
+            }));
+        }
+        Some(rows)
+    }
+
+    /// The definition's useful facts beside its cards. Full audit layers,
+    /// byte size and semantic identity remain on Source and Check; this
+    /// summary grants no readiness to a composed workflow or a future Run.
+    fn graph_summary(&self, width: u16, ascii: bool, color: bool) -> Option<Vec<Line<'static>>> {
+        let graph = self.graph.as_ref()?;
+        let (sep, cut) = marks(ascii);
+        let tasks = graph
+            .nodes
+            .iter()
+            .filter(|node| node.kind == "task")
+            .count();
+        let cleanup = graph
+            .nodes
+            .iter()
+            .filter(|node| node.kind == "finally")
+            .count();
+        let edges = graph.edges.len();
+        let task_word = if tasks == 1 { "task" } else { "tasks" };
+        let edge_word = if edges == 1 { "edge" } else { "edges" };
+        let mut facts = format!("Definition{sep}{tasks} {task_word}{sep}{edges} {edge_word}");
+        if cleanup > 0 {
+            let unit_word = if cleanup == 1 { "unit" } else { "units" };
+            let _ = write!(facts, "{sep}{cleanup} cleanup {unit_word}");
+        }
+        let mut rows: Vec<_> = wrap(&facts, usize::from(width), cut)
+            .into_iter()
+            .map(|line| Line::styled(line, role::style(Role::Dim, color)))
+            .collect();
+        if let Judged::ParentOnly(layers, _) = &self.judged {
+            let (words, tone) = if layers.valid {
+                ("Structure checked", Role::Good)
+            } else {
+                ("Structure needs attention", Role::Warn)
+            };
+            let mut verdict = format!("{words}{sep}this file only");
+            if !self.findings.is_empty() {
+                let _ = write!(verdict, "{sep}{} findings in Check", self.findings.len());
+            }
+            rows.extend(
+                wrap(&verdict, usize::from(width), cut)
+                    .into_iter()
+                    .map(|line| Line::styled(line, role::style(tone, color))),
+            );
+        }
+        Some(rows)
     }
 }
 
@@ -330,22 +500,23 @@ pub(crate) fn title_row(
     }
     let room = usize::from(width).saturating_sub(tab_width + sep.chars().count());
     let mut spans = Vec::new();
+    if room > 0 {
+        spans.push(Span::styled(
+            fit_head(name, room, cut),
+            role::style(Role::Strong, color),
+        ));
+        spans.push(Span::styled(sep, role::style(Role::Dim, color)));
+    }
     for (index, (tab, item)) in tabs.into_iter().zip(Face::ALL).enumerate() {
         if index > 0 {
             spans.push(Span::raw(" "));
         }
         let style = if item == face {
-            role::style(Role::Accent, color).patch(role::style(Role::Strong, color))
+            role::style(Role::Accent, color).add_modifier(ratatui::style::Modifier::BOLD)
         } else {
             role::style(Role::Dim, color)
         };
         spans.push(Span::styled(tab, style));
-    }
-    if room > 0 {
-        spans.push(Span::styled(
-            format!("{sep}{}", fit_head(name, room, cut)),
-            role::style(Role::Dim, color),
-        ));
     }
     Line::from(spans)
 }

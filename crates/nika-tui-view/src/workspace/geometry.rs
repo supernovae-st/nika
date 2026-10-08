@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Where each region of the workspace screen stands at a given size, in one
-//! of the two layouts of the same desk.
+//! Where each region of one workspace stands, restored or with its selected
+//! object expanded. The v1 layout names remain source-compatible internals.
 //!
-//! **Session** (the default) keeps the conversation comfortable: at 80×24 the
+//! The restored arrangement (v1 `Session`) keeps the conversation comfortable: at 80×24 the
 //! aside is folded and the conversation sits below the object; from 100
 //! columns the conversation stands beside the object; from 120 columns the
-//! project aside appears on the left. **Workbench** gives the object the room:
-//! it stands above a compact conversation whose composer stays in view, with
-//! the aside on the left from 120 columns. Every region is a whole rectangle,
+//! project aside appears on the left. Object expansion (v1 `Workbench`) gives it room:
+//! from 100 columns it takes every column but the narrowest conversation,
+//! which stays beside it with every row; on a narrower terminal it stands
+//! above a compact conversation whose composer stays in view. The aside
+//! keeps its column either way. Every region is a whole rectangle,
 //! no two overlap, and together they cover the screen exactly, so a resize or
-//! a layout switch never leaves a stale cell or cuts a region in the middle of
+//! expansion never leaves a stale cell or cuts a region in the middle of
 //! a row.
 //!
 //! The shares the human chose ([`Arrangement`]) are kept as chosen: each
@@ -37,11 +39,12 @@ pub const MIN_SIZE: (u16, u16) = (60, 16);
 pub const CONVERSATION_MIN_WIDTH: u16 = 40;
 /// The narrowest object a separator leaves beside the conversation.
 pub const OBJECT_MIN_WIDTH: u16 = 30;
-/// The fewest rows the Workbench conversation keeps under the object: its
+/// The fewest rows the conversation keeps under the expanded object: its
 /// title, a transcript row, its context row and the live area (status,
 /// composer, hint), so the composer never leaves the screen.
 pub const CONVERSATION_MIN_ROWS: u16 = 8;
-/// The fewest rows the Workbench object keeps: its title and five lines.
+/// The fewest rows the expanded object keeps above the conversation: its
+/// title and five lines.
 pub const OBJECT_MIN_ROWS: u16 = 6;
 /// The narrowest project aside a separator leaves.
 pub const ASIDE_MIN: u16 = 16;
@@ -56,24 +59,27 @@ pub const fn fits(size: (u16, u16)) -> bool {
     size.0 >= MIN_SIZE.0 && size.1 >= MIN_SIZE.1
 }
 
-/// The two layouts of the same desk: the same conversation, object, draft,
-/// selection and runs, arranged for talking or for working on the object.
-/// Switching between them is a view change only.
+/// The v1 names for the restored workspace and its expanded object. Both keep
+/// the same conversation, draft, selection and runs; changing one to the other
+/// changes presentation only. These names are not user-facing destinations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Layout {
     /// The project on the left, a comfortable conversation in the middle,
     /// the object on the right (the default).
     Session,
-    /// The object larger, above a compact conversation and its composer.
+    /// The object larger: beside the narrowest conversation from
+    /// [`SIDE_BY_SIDE_MIN_WIDTH`] columns, above a compact conversation and
+    /// its composer below.
     Workbench,
 }
 
 impl Layout {
-    /// Both layouts, in the order the switch names them.
+    /// Both v1 arrangements, restored first.
     pub const ALL: [Self; 2] = [Self::Session, Self::Workbench];
 
-    /// The layout's name on screen.
+    /// The legacy v1 name, retained for source compatibility. The workspace
+    /// exposes a contextual Expand/Restore action instead of these names.
     #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
@@ -105,10 +111,12 @@ pub struct Arrangement {
     /// layouts share it: switching never moves the project column.
     pub aside_width: Option<u16>,
     /// Session: the conversation's width beside the object, in thousandths
-    /// of the width right of the aside.
+    /// of the width right of the aside (beside the expanded object the
+    /// conversation is at its narrowest).
     pub conversation_width: Option<u16>,
-    /// Workbench: the conversation's height under the object, in thousandths
-    /// of the height between the header and the pinned row.
+    /// Workbench below [`SIDE_BY_SIDE_MIN_WIDTH`] columns: the conversation's
+    /// height under the object, in thousandths of the height between the
+    /// header and the pinned row.
     pub conversation_height: Option<u16>,
 }
 
@@ -156,7 +164,10 @@ impl Arrangement {
     /// This arrangement with `separator` leaving `cells` to the region it
     /// sizes on a frame of `area` (the aside's columns, the conversation's
     /// columns beside the object or its rows under it), within the bounds at
-    /// that size. Unchanged where that frame shows no such separator.
+    /// that size. Unchanged where that frame shows no such separator. Beside
+    /// the expanded object the conversation is at its narrowest: leaving it
+    /// more is manual sizing, which restores the object with the conversation
+    /// at that width; leaving it no more keeps the expansion.
     #[must_use]
     pub fn moved(self, separator: Separator, cells: u16, area: Rect, pinned: bool) -> Self {
         let Some(geometry) = Geometry::arranged(area, pinned, &self) else {
@@ -166,9 +177,18 @@ impl Arrangement {
             return self;
         }
         let (low, high, total) = geometry.bounds(separator);
-        let share = Some(thousandths(cells.clamp(low, high), total));
+        let cells = cells.clamp(low, high);
+        let share = Some(thousandths(cells, total));
         match separator {
             Separator::Aside => self.with_aside_width(share),
+            Separator::Beside if self.layout == Layout::Workbench => {
+                if cells == geometry.extent_of(separator) {
+                    self
+                } else {
+                    self.with_layout(Layout::Session)
+                        .with_conversation_width(share)
+                }
+            }
             Separator::Beside => self.with_conversation_width(share),
             Separator::Beneath => self.with_conversation_height(share),
         }
@@ -191,10 +211,11 @@ impl Arrangement {
 pub enum Separator {
     /// The project aside's right edge (both layouts, from 120 columns).
     Aside,
-    /// The edge between the conversation and the object beside it (Session,
-    /// from 100 columns).
+    /// The edge between the conversation and the object beside it (both
+    /// layouts, from 100 columns).
     Beside,
-    /// The conversation's title rule under the object (Workbench).
+    /// The conversation's title rule under the expanded object (below 100
+    /// columns).
     Beneath,
 }
 
@@ -238,8 +259,8 @@ impl Geometry {
     /// The regions of a frame of `area` as `arrangement` lays them out, with
     /// one pinned activity row when `pinned`; none when the terminal is
     /// smaller than [`MIN_SIZE`]. Each share applies within bounds: the
-    /// Session conversation keeps 40 columns beside an object of 30, the
-    /// Workbench conversation 8 rows under an object of 6.
+    /// conversation keeps 40 columns beside an object of 30 (exactly 40
+    /// beside the expanded object), 8 rows under an expanded object of 6.
     #[must_use]
     pub fn arranged(area: Rect, pinned: bool, arrangement: &Arrangement) -> Option<Self> {
         if !fits((area.width, area.height)) {
@@ -260,25 +281,19 @@ impl Geometry {
         let shift = aside_width.unwrap_or(0);
         let work = Rect::new(body.x + shift, body.y, body.width - shift, body.height);
         let layout = arrangement.layout;
-        let (object, conversation, stacked) = match layout {
-            Layout::Workbench => {
+        let stacked = area.width < SIDE_BY_SIDE_MIN_WIDTH;
+        let (object, conversation) = match layout {
+            Layout::Workbench if stacked => {
                 let talk = conversation_rows(work.height, arrangement.conversation_height);
-                let (object, conversation) = split_rows(work, talk);
-                (object, conversation, true)
+                split_rows(work, talk)
             }
-            Layout::Session if area.width < SIDE_BY_SIDE_MIN_WIDTH => {
-                // The conversation keeps at least half the rows: the composer is never squeezed out.
-                let (object, conversation) = split_rows(work, work.height.div_ceil(2));
-                (object, conversation, true)
-            }
+            // Every column but the narrowest conversation, which keeps its rows.
+            Layout::Workbench => split_columns(work, beside_bounds(work.width).0),
+            // The conversation keeps at least half the rows: the composer is never squeezed out.
+            Layout::Session if stacked => split_rows(work, work.height.div_ceil(2)),
             Layout::Session => {
                 let talk = conversation_width(work.width, arrangement.conversation_width);
-                let seen = work.width - talk;
-                (
-                    Rect::new(work.x + talk, work.y, seen, work.height),
-                    Rect::new(work.x, work.y, talk, work.height),
-                    false,
-                )
+                split_columns(work, talk)
             }
         };
         Some(Self {
@@ -322,9 +337,8 @@ impl Geometry {
             Separator::Beside => {
                 (!self.stacked).then(|| Rect::new(talk.right() - 2, talk.y, 2, talk.height))
             }
-            Separator::Beneath => {
-                (self.layout == Layout::Workbench).then(|| Rect::new(talk.x, talk.y, talk.width, 1))
-            }
+            Separator::Beneath => (self.stacked && self.layout == Layout::Workbench)
+                .then(|| Rect::new(talk.x, talk.y, talk.width, 1)),
         }
     }
 
@@ -380,6 +394,16 @@ fn split_rows(work: Rect, talk: u16) -> (Rect, Rect) {
     (
         Rect::new(work.x, work.y, work.width, seen),
         Rect::new(work.x, work.y + seen, work.width, talk),
+    )
+}
+
+/// `work` cut in two: the conversation's `talk` columns on the left, the
+/// object right of them.
+fn split_columns(work: Rect, talk: u16) -> (Rect, Rect) {
+    let seen = work.width - talk;
+    (
+        Rect::new(work.x + talk, work.y, seen, work.height),
+        Rect::new(work.x, work.y, talk, work.height),
     )
 }
 
@@ -552,8 +576,9 @@ mod tests {
                         if let Some(row) = g.pinned {
                             assert_eq!(row.bottom(), area.bottom(), "{what}");
                         }
-                        let side_by_side = arrangement.layout == Layout::Session
-                            && width >= SIDE_BY_SIDE_MIN_WIDTH;
+                        // Restored or expanded, the conversation stands beside the
+                        // object from 100 columns and under it below.
+                        let side_by_side = width >= SIDE_BY_SIDE_MIN_WIDTH;
                         assert_eq!(g.stacked, !side_by_side, "{what}");
                         if g.stacked {
                             assert_eq!(g.conversation.x, g.object.x, "{what}");
@@ -562,10 +587,15 @@ mod tests {
                             assert!(g.conversation.width >= CONVERSATION_MIN_WIDTH, "{what}");
                             assert!(g.object.width >= OBJECT_MIN_WIDTH, "{what}");
                             assert_eq!(g.conversation.right(), g.object.x, "{what}");
+                            assert_eq!(g.conversation.height, g.object.height, "{what}");
                         }
-                        if arrangement.layout == Layout::Workbench {
+                        if arrangement.layout == Layout::Workbench && g.stacked {
                             assert!(g.conversation.height >= CONVERSATION_MIN_ROWS, "{what}");
                             assert!(g.object.height >= OBJECT_MIN_ROWS, "{what}");
+                        }
+                        if arrangement.layout == Layout::Workbench && !g.stacked {
+                            // Beside the expanded object: the narrowest conversation.
+                            assert_eq!(g.conversation.width, CONVERSATION_MIN_WIDTH, "{what}");
                         }
                         if let Some(aside) = g.aside {
                             assert!((ASIDE_MIN..=ASIDE_MAX).contains(&aside.width), "{what}");
@@ -658,11 +688,12 @@ mod tests {
         }
     }
 
-    /// The Workbench at the three target sizes: the object above, larger; the
-    /// conversation and its composer under it; the project aside on the left
-    /// from 120 columns, as wide as in Session.
+    /// The expanded object at the three target sizes: above a compact
+    /// conversation at 80 columns; from 100 columns wider, the conversation
+    /// and its composer still beside it at their narrowest, every row kept;
+    /// the project aside on the left from 120 columns, as wide as restored.
     #[test]
-    fn the_workbench_gives_the_object_the_room_at_the_target_sizes() {
+    fn the_expanded_object_takes_the_room_at_the_target_sizes() {
         let workbench = Arrangement::of(Layout::Workbench);
         let arranged = |width, height| {
             Geometry::arranged(Rect::new(0, 0, width, height), true, &workbench).expect("fits")
@@ -673,24 +704,97 @@ mod tests {
         assert_eq!(small.conversation, Rect::new(0, 15, 80, 8));
         let large = arranged(120, 40);
         assert_eq!(large.aside, Some(Rect::new(0, 2, 21, 37)));
-        assert_eq!(large.object, Rect::new(21, 2, 99, 25));
-        assert_eq!(large.conversation, Rect::new(21, 27, 99, 12));
+        assert_eq!(large.conversation, Rect::new(21, 2, 40, 37));
+        assert_eq!(large.object, Rect::new(61, 2, 59, 37));
         let wide = arranged(180, 48);
         assert_eq!(wide.aside, Some(Rect::new(0, 2, 32, 45)));
-        assert_eq!(wide.object, Rect::new(32, 2, 148, 30));
-        assert_eq!(wide.conversation, Rect::new(32, 32, 148, 15));
+        assert_eq!(wide.conversation, Rect::new(32, 2, 40, 45));
+        assert_eq!(wide.object, Rect::new(72, 2, 108, 45));
         for (width, height) in [(80, 24), (120, 40), (180, 48)] {
             let session = at(width, height, true);
             let workbench = arranged(width, height);
             assert!(
                 cells_of(workbench.object) > cells_of(session.object),
-                "{width}x{height}: the Workbench object is larger"
+                "{width}x{height}: the expanded object is larger"
             );
-            assert!(workbench.conversation.height < session.conversation.height);
             assert_eq!(
                 workbench.aside, session.aside,
                 "the project column never moves"
             );
+            if width < SIDE_BY_SIDE_MIN_WIDTH {
+                assert!(workbench.conversation.height < session.conversation.height);
+            } else {
+                assert!(
+                    !workbench.stacked,
+                    "{width}x{height}: never under the object"
+                );
+                assert!(workbench.conversation.width < session.conversation.width);
+            }
+        }
+    }
+
+    /// From 100 columns, expanding the object widens it while the
+    /// conversation stays beside it, on the same rows and from the same
+    /// column, at its narrowest; the object keeps its rows and its right
+    /// edge. Below 100 columns the expanded object stands above the
+    /// conversation, which keeps its composer's rows.
+    #[test]
+    fn the_expanded_object_widens_beside_the_conversation_from_100_columns() {
+        let workbench = Arrangement::of(Layout::Workbench);
+        let wide = [
+            (100, 16),
+            (100, 32),
+            (119, 33),
+            (120, 16),
+            (120, 40),
+            (160, 48),
+            (180, 17),
+            (180, 48),
+            (240, 60),
+        ];
+        for (width, height) in wide {
+            for pinned in [false, true] {
+                let what = format!("{width}x{height} pinned={pinned}");
+                let area = Rect::new(0, 0, width, height);
+                let restored = at(width, height, pinned);
+                let g = Geometry::arranged(area, pinned, &workbench).expect("fits");
+                assert!(
+                    !g.stacked,
+                    "{what}: the conversation moved under the object"
+                );
+                assert_eq!(g.aside, restored.aside, "{what}");
+                assert_eq!(g.conversation.x, restored.conversation.x, "{what}");
+                assert_eq!(g.conversation.y, restored.conversation.y, "{what}");
+                assert_eq!(
+                    g.conversation.height, restored.conversation.height,
+                    "{what}"
+                );
+                assert_eq!(g.conversation.width, CONVERSATION_MIN_WIDTH, "{what}");
+                assert!(g.conversation.width < restored.conversation.width, "{what}");
+                assert_eq!(g.conversation.right(), g.object.x, "{what}");
+                assert_eq!(g.object.right(), restored.object.right(), "{what}");
+                assert_eq!(
+                    (g.object.y, g.object.height),
+                    (restored.object.y, restored.object.height),
+                    "{what}"
+                );
+                assert!(g.object.width > restored.object.width, "{what}");
+            }
+        }
+        for (width, height) in [(60, 18), (80, 24), (99, 30)] {
+            for pinned in [false, true] {
+                let what = format!("{width}x{height} pinned={pinned}");
+                let area = Rect::new(0, 0, width, height);
+                let restored = at(width, height, pinned);
+                let g = Geometry::arranged(area, pinned, &workbench).expect("fits");
+                assert!(g.stacked && restored.stacked, "{what}");
+                assert_eq!(g.object.bottom(), g.conversation.y, "{what}");
+                assert!(g.conversation.height >= CONVERSATION_MIN_ROWS, "{what}");
+                assert!(
+                    g.conversation.height <= restored.conversation.height,
+                    "{what}"
+                );
+            }
         }
     }
 
@@ -711,10 +815,18 @@ mod tests {
         assert_eq!(shrunk.extent_of(Separator::Aside), 18, "27/180 of 120");
         assert_eq!(shrunk.extent_of(Separator::Beside), 47, "71/153 of 102");
         arrangement = arrangement.with_layout(Layout::Workbench);
-        arrangement = arrangement.moved(Separator::Beneath, 20, area, false);
+        // The rows under the expanded object move where it stands above them.
+        let narrow = Rect::new(0, 0, 80, 40);
+        arrangement = arrangement.moved(Separator::Beneath, 20, narrow, false);
+        let under = Geometry::arranged(narrow, false, &arrangement).expect("fits");
+        assert_eq!(under.extent_of(Separator::Beneath), 20);
         let bench = Geometry::arranged(area, false, &arrangement).expect("fits");
-        assert_eq!(bench.extent_of(Separator::Beneath), 20);
         assert_eq!(bench.extent_of(Separator::Aside), 27, "the aside is shared");
+        assert_eq!(
+            bench.extent_of(Separator::Beside),
+            CONVERSATION_MIN_WIDTH,
+            "beside the expanded object the conversation is at its narrowest"
+        );
         arrangement = arrangement.with_layout(Layout::Session);
         let back = Geometry::arranged(area, false, &arrangement).expect("fits");
         assert_eq!(back, wide, "Session returns exactly as it was left");
@@ -735,10 +847,13 @@ mod tests {
             let g = Geometry::arranged(area, true, &moved).expect("fits");
             assert_eq!(g.extent_of(separator), kept, "{separator:?} asked {asked}");
         }
+        // The rows under the expanded object: below 100 columns, where it
+        // stands above the conversation.
+        let narrow = Rect::new(0, 0, 99, 40);
         let bench = Arrangement::of(Layout::Workbench);
         for (asked, kept) in [(0, CONVERSATION_MIN_ROWS), (500, 37 - OBJECT_MIN_ROWS)] {
-            let moved = bench.moved(Separator::Beneath, asked, area, true);
-            let g = Geometry::arranged(area, true, &moved).expect("fits");
+            let moved = bench.moved(Separator::Beneath, asked, narrow, true);
+            let g = Geometry::arranged(narrow, true, &moved).expect("fits");
             assert_eq!(g.extent_of(Separator::Beneath), kept, "asked {asked}");
         }
     }
@@ -757,13 +872,59 @@ mod tests {
             );
         }
         let bench = Arrangement::of(Layout::Workbench);
+        // Beside the expanded object no rule stands under it.
         assert_eq!(
-            bench.moved(Separator::Beside, 60, Rect::new(0, 0, 180, 48), false),
+            bench.moved(Separator::Beneath, 12, Rect::new(0, 0, 180, 48), false),
             bench
         );
         let chosen = bench.moved(Separator::Beneath, 12, small, false);
         assert_ne!(chosen, bench);
         assert_eq!(chosen.restored(Separator::Beneath), bench);
+    }
+
+    /// Beside the expanded object the conversation is at its narrowest and
+    /// its separator stays operable. Asking it for the narrowest again, or
+    /// less, moves nothing and keeps the object expanded; asking for a wider
+    /// conversation is manual sizing: the object is restored with the
+    /// conversation at the cells asked, every other share kept. Expanded
+    /// again, it restores to that width.
+    #[test]
+    fn the_separator_beside_the_expanded_object_restores_it_at_the_width_asked() {
+        let area = Rect::new(0, 0, 180, 48);
+        let expanded = Arrangement::of(Layout::Session)
+            .moved(Separator::Aside, 27, area, false)
+            .with_conversation_height(Some(300))
+            .with_layout(Layout::Workbench);
+        let wide = Geometry::arranged(area, false, &expanded).expect("fits");
+        let talk = wide.conversation;
+        assert_eq!(
+            wide.handle(Separator::Beside),
+            Some(Rect::new(talk.right() - 2, talk.y, 2, talk.height)),
+            "an operable separator beside the expanded object"
+        );
+        for asked in [0, CONVERSATION_MIN_WIDTH - 1, CONVERSATION_MIN_WIDTH] {
+            assert_eq!(
+                expanded.moved(Separator::Beside, asked, area, false),
+                expanded,
+                "asked {asked}"
+            );
+        }
+        let moved = expanded.moved(Separator::Beside, 46, area, false);
+        assert_eq!(moved.layout, Layout::Session, "manual sizing restores");
+        assert_eq!(
+            (moved.aside_width, moved.conversation_height),
+            (expanded.aside_width, expanded.conversation_height)
+        );
+        let restored = Geometry::arranged(area, false, &moved).expect("fits");
+        assert_eq!(restored.extent_of(Separator::Beside), 46);
+        assert_eq!(restored.extent_of(Separator::Aside), 27);
+        let again = moved.with_layout(Layout::Workbench);
+        let beside = Geometry::arranged(area, false, &again).expect("fits");
+        assert_eq!(beside.extent_of(Separator::Beside), CONVERSATION_MIN_WIDTH);
+        assert_eq!(
+            Geometry::arranged(area, false, &again.with_layout(Layout::Session)),
+            Some(restored)
+        );
     }
 
     /// The handles: the aside's edge column, the conversation's gutter and
@@ -791,19 +952,31 @@ mod tests {
             Some(Separator::Beside)
         );
         assert_eq!(session.separator_at(Position::new(65, 30)), None);
-        let bench = Geometry::arranged(
-            Rect::new(0, 0, 120, 40),
-            true,
-            &Arrangement::of(Layout::Workbench),
-        )
-        .expect("fits");
-        assert_eq!(bench.handle(Separator::Beside), None);
+        let expanded = Arrangement::of(Layout::Workbench);
+        let bench = Geometry::arranged(Rect::new(0, 0, 120, 40), true, &expanded).expect("fits");
+        // Beside the expanded object: the aside's edge, and the narrowest
+        // conversation's gutter and rule; no rule under the object.
         assert_eq!(
-            bench.handle(Separator::Beneath),
-            Some(Rect::new(21, 27, 99, 1))
+            bench.handle(Separator::Aside),
+            session.handle(Separator::Aside)
         );
         assert_eq!(
+            bench.handle(Separator::Beside),
+            Some(Rect::new(59, 2, 2, 37))
+        );
+        assert_eq!(bench.handle(Separator::Beneath), None);
+        assert_eq!(
             bench.separator_at(Position::new(60, 27)),
+            Some(Separator::Beside)
+        );
+        let under = Geometry::arranged(Rect::new(0, 0, 99, 40), true, &expanded).expect("fits");
+        assert_eq!(under.handle(Separator::Beside), None);
+        assert_eq!(
+            under.handle(Separator::Beneath),
+            Some(Rect::new(0, 27, 99, 1))
+        );
+        assert_eq!(
+            under.separator_at(Position::new(60, 27)),
             Some(Separator::Beneath)
         );
         let narrow = at(80, 24, false);

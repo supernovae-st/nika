@@ -43,10 +43,12 @@ default) and says what it cut.
   (`nika_session::review`), the graph drawn as shared `graph_cards` from the canonical
   projection and checked waves, and the check (the four layers, VALID alone for a proposal judged on its
   source, every finding by its code and place, the hints as advisory). It never audits, judges
-  or reads a permit. Graph cards colour the task type as identity; their separate status
-  row is populated only by a caller observation. Static cards say `definition`. The existing
-  `nika_display::wires` validator gates simple connectors; exact typed dependency rows remain
-  visible when a drawing would cross, skip or crowd wires. No new DAG or run state is derived.
+  or reads a permit. Compact graph cards show the task name and its verb/tool or model;
+  observed state belongs on the name row. A static graph says that no task state was
+  observed. Connectors stand in for value-edge prose only where every edge can be drawn
+  exactly between adjacent waves. Typed control, observation and recovery conditions
+  keep their words; crossing, skipped or crowded dependencies retain exact edge rows.
+  Cleanup tasks remain separate from ordinary task waves. No new DAG or run state is derived.
 - `artifact` classifies by declared type, then extension, then signature (`classify`; a
   disagreement is a note; a plain JSON declaration from `json_diff` reads as a JSON Patch) and
   shows JSON (a long document summarised by `nika_display::shape`), JSON Patch and merge patch

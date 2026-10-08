@@ -5,5 +5,5 @@
 //! (ADR-143), the one mapping the renderer and every viewer paint with:
 //! this path keeps the renderer's callers unchanged.
 
-pub(crate) use nika_tui_view::visual::role::surface;
+pub(crate) use nika_tui_view::visual::role::{border, selection, surface};
 pub use nika_tui_view::visual::role::{style, verb};

@@ -17,7 +17,7 @@
 
 mod qa_support;
 
-use nika_tui::workspace::geometry::{Arrangement, Geometry, Layout};
+use nika_tui::workspace::geometry::Geometry;
 use qa_support::vt::Screen;
 use qa_support::{
     ANSWER, APPLY, FREE, FREE_HINT, GATE, GATE_HINT, JOURNEY, PROPOSAL, QUESTION, REPLY, RESULT,
@@ -166,11 +166,11 @@ fn with_colour_the_gate_wears_the_warning_slot() {
     term.walk(&JOURNEY[..4]);
     let hues = term.screen.hues();
     assert!(
-        hues.contains("38;2;242;193;125"),
+        hues.contains("38;2;233;191;126"),
         "no warning hue at the gate: {hues:?}"
     );
     assert!(
-        hues.contains("38;2;140;177;255"),
+        hues.contains("38;2;182;154;255"),
         "no accent on the busy marker: {hues:?}"
     );
     leave(&mut term);
@@ -190,7 +190,7 @@ fn a_forced_colour_under_no_color_is_the_colour_the_terminal_sees() {
     term.walk(&JOURNEY[..4]);
     let hues = term.screen.hues();
     assert!(
-        hues.contains("38;2;242;193;125"),
+        hues.contains("38;2;233;191;126"),
         "no warning hue at the gate: {hues:?}"
     );
     leave(&mut term);
@@ -314,10 +314,10 @@ fn a_waiting_proposal_outlives_a_resize_and_its_consent_saves_it() {
     leave(&mut term);
 }
 
-/// The header's layout switch, the layout in view in brackets.
-const SESSION_SWITCH: &str = "[Session] Workbench · F4";
-const WORKBENCH_SWITCH: &str = "Session [Workbench] · F4";
-/// The conversation's title as the rule under the object (Workbench).
+/// The selected object's contextual expansion or restoration action.
+const EXPAND_CONTROL: &str = "[+] Expand · F4";
+const RESTORE_CONTROL: &str = "[-] Restore · F4";
+/// The conversation's title rule under the expanded object.
 const RULE: &str = "── ◌ this conversation";
 /// `F4`, `F6` and `Shift+F6` as an xterm sends them (never a lone `Esc`,
 /// which a mouse report right behind it could join).
@@ -341,22 +341,24 @@ fn click(term: &mut Term, at: (u16, u16)) {
 
 /// The column where `needle` starts on `row` (one cell per character there).
 fn column_of(row: &str, needle: &str) -> u16 {
+    use unicode_width::UnicodeWidthStr as _;
     let at = row.find(needle).expect("on the row");
-    u16::try_from(row[..at].chars().count()).expect("a column")
+    u16::try_from(row[..at].width()).expect("a column")
 }
 
-/// The Workbench rule's row.
+/// The conversation's rule under the expanded object.
 fn rule_row(screen: &Screen) -> Option<u16> {
     screen.row_of(RULE).and_then(|row| u16::try_from(row).ok())
 }
 
-/// The switch is right-aligned at this width. After a grow, old cells can
-/// remain visible at their old column until the new frame reaches us.
-fn switch_at_width(screen: &Screen, switch: &str, cols: u16) -> bool {
+/// The object action is right-aligned at this width. After a grow, old cells
+/// can remain visible at their old column until the new frame reaches us.
+fn control_at_width(screen: &Screen, control: &str, cols: u16) -> bool {
     use unicode_width::UnicodeWidthStr as _;
-    screen.lines().first().is_some_and(|row| {
-        row.find(switch)
-            .is_some_and(|at| row[..at].width() == usize::from(cols).saturating_sub(switch.width()))
+    screen.lines().iter().any(|row| {
+        row.find(control).is_some_and(|at| {
+            row[..at].width() == usize::from(cols).saturating_sub(control.width())
+        })
     })
 }
 
@@ -373,62 +375,86 @@ fn rule_at(screen: &Screen, x: u16, rows: std::ops::Range<u16>) -> bool {
 fn step_in_workspace(term: &mut Term, step: &Step) {
     term.send(step.send);
     let (shows, prompt) = (step.shows, step.prompt);
-    term.wait_until(shows, |screen| {
+    term.wait_workspace_frame(shows, |screen| {
         screen.seen(shows) && screen.contains(prompt)
     });
 }
 
-/// Every view change at 120x40 while `typed` sits in the composer: `F4`, a
-/// dragged Workbench rule, the keys that move it (`F6` to the object, `0`,
-/// `-`, `Shift+F6` back to the composer), the header's switch, a dragged
-/// Session rule and `0`, then three resizes. After each, the switch names
-/// the layout in view and the draft is still in the composer.
+/// Every view change at 120x40 while `typed` sits in the composer: expansion,
+/// a dragged rule, separator keys, the object's Restore action, a dragged
+/// vertical rule and three resizes. The current contextual action and exact
+/// draft remain visible; none of these actions answers the waiting decision.
 fn rearrange(term: &mut Term, typed: &str) {
     let area = Rect::new(0, 0, 120, 40);
-    term.send(F4);
-    // The whole frame, not its first rows: the rule is painted below the header.
-    term.wait_until("the Workbench", |s| {
-        s.contains(WORKBENCH_SWITCH) && rule_row(s).is_some() && s.contains(typed)
-    });
-    let rule = rule_row(&term.screen).expect("the Workbench rule");
-    drag(term, (60, rule), (60, rule - 3));
-    term.wait_until("the rule three rows up", |s| rule_row(s) == Some(rule - 3));
-    let workbench = Arrangement::of(Layout::Workbench);
-    let automatic = Geometry::arranged(area, false, &workbench).expect("fits");
-    term.send(F6);
-    term.send("0");
-    term.wait_until("the automatic rule", |s| {
-        rule_row(s) == Some(automatic.conversation.y)
-    });
-    term.send("--");
-    term.send(SHIFT_F6);
-    term.wait_until("two rows to the conversation", |s| {
-        rule_row(s) == Some(automatic.conversation.y - 2) && s.contains(typed)
-    });
-    let header = term.screen.lines()[0].clone();
-    click(term, (column_of(&header, "Session") + 2, 0));
     let session = Geometry::of(area, false).expect("fits");
     let edge = session.conversation.right() - 1;
     let rows = session.conversation.y..session.conversation.bottom();
-    term.wait_until("the Session", |s| {
-        s.contains(SESSION_SWITCH) && rule_at(s, edge, rows.clone()) && rule_row(s).is_none()
+    let expanded_edge = session.conversation.x + 40 - 1;
+    term.send(F4);
+    term.wait_workspace_frame("the expanded object", |s| {
+        s.contains(RESTORE_CONTROL)
+            && rule_row(s).is_none()
+            && rule_at(s, expanded_edge, rows.clone())
+            && s.contains(typed)
     });
-    drag(term, (edge, 20), (edge + 6, 21));
-    term.wait_until("the rule six columns right", |s| {
-        rule_at(s, edge + 6, rows.clone())
+    // A manual resize leaves automatic expansion and keeps the human's
+    // chosen proportion. The visible divider never becomes a dead control.
+    drag(term, (expanded_edge, 20), (expanded_edge + 3, 20));
+    term.wait_workspace_frame("manual sizing leaves automatic expansion", |s| {
+        s.contains(EXPAND_CONTROL) && rule_at(s, expanded_edge + 3, rows.clone())
+    });
+    term.send(F6);
+    term.send("0");
+    term.wait_workspace_frame("the automatic rule", |s| rule_at(s, edge, rows.clone()));
+    term.send("--");
+    term.send(SHIFT_F6);
+    term.wait_workspace_frame("four columns to the conversation", |s| {
+        rule_at(s, edge + 4, rows.clone()) && s.contains(typed)
+    });
+    term.send(F4);
+    term.wait_workspace_frame("expanded from keyboard proportions", |s| {
+        s.contains(RESTORE_CONTROL) && rule_at(s, expanded_edge, rows.clone())
+    });
+    let painted = term.screen.lines();
+    let at = painted
+        .iter()
+        .position(|row| row.contains(RESTORE_CONTROL))
+        .expect("restore action");
+    let column = column_of(&painted[at], RESTORE_CONTROL) + 2;
+    click(term, (column, u16::try_from(at).expect("action row")));
+    term.wait_workspace_frame("the restored workspace", |s| {
+        s.contains(EXPAND_CONTROL) && rule_at(s, edge + 4, rows.clone()) && rule_row(s).is_none()
+    });
+    drag(term, (edge + 4, 20), (edge + 10, 21));
+    term.wait_workspace_frame("the rule six columns right", |s| {
+        rule_at(s, edge + 10, rows.clone())
+    });
+    term.send(F4);
+    term.wait_workspace_frame("expanded from the chosen proportions", |s| {
+        s.contains(RESTORE_CONTROL)
+            && rule_row(s).is_none()
+            && rule_at(s, expanded_edge, rows.clone())
+            && s.contains(typed)
+    });
+    term.send(F4);
+    term.wait_workspace_frame("restore keeps the chosen proportions", |s| {
+        s.contains(EXPAND_CONTROL)
+            && rule_row(s).is_none()
+            && rule_at(s, edge + 10, rows.clone())
+            && s.contains(typed)
     });
     term.send(F6);
     term.send("0");
     term.send(SHIFT_F6);
-    term.wait_until("the automatic rule", |s| {
+    term.wait_workspace_frame("the automatic rule", |s| {
         rule_at(s, edge, rows.clone()) && s.contains(typed)
     });
     for (cols, rows) in [(80, 24), (180, 48), (120, 40)] {
         assert_eq!(term.screen.beyond(), 0, "before resize to {cols}x{rows}");
         term.resize(cols, rows);
-        term.wait_until("rearranged at the new size", |s| {
+        term.wait_workspace_frame("rearranged at the new size", |s| {
             s.size() == (usize::from(cols), usize::from(rows))
-                && switch_at_width(s, SESSION_SWITCH, cols)
+                && control_at_width(s, EXPAND_CONTROL, cols)
                 && s.contains(typed)
         });
         prove_settled_bounds(term, cols, rows);
@@ -451,14 +477,14 @@ fn prove_settled_bounds(term: &mut Term, cols: u16, rows: u16) {
 
 /// Layout changes are view changes: with a consent-shaped draft in the
 /// composer, neither the proposal nor the gate is answered by `F4`, the
-/// header's switch, a dragged separator, the separator keys or a resize; the
+/// object's control, a dragged separator, the separator keys or a resize; the
 /// draft stays unsent until `Enter`, and each decision is then the human's.
 #[test]
-fn layout_changes_keep_the_draft_unsent_and_the_decisions_waiting() {
+fn contextual_expansion_and_sizing_keep_the_draft_unsent_and_decisions_waiting() {
     let mut term = Term::proto(&[], 120, 40);
     term.wait_prompt(FREE);
     term.send("\x14");
-    term.wait_text(SESSION_SWITCH);
+    term.wait_text(EXPAND_CONTROL);
     for step in &JOURNEY[..2] {
         step_in_workspace(&mut term, step);
     }
@@ -475,9 +501,9 @@ fn layout_changes_keep_the_draft_unsent_and_the_decisions_waiting() {
         term.dump()
     );
     term.send("\r");
-    term.wait_until(SAVED, |s| s.seen(SAVED) && s.contains(FREE));
+    term.wait_workspace_frame(SAVED, |s| s.seen(SAVED) && s.contains(FREE));
     term.send("run it\r");
-    term.wait_until(GATE, |s| s.seen(GATE) && s.contains(ANSWER));
+    term.wait_workspace_frame(GATE, |s| s.seen(GATE) && s.contains(ANSWER));
     term.send("yes");
     rearrange(&mut term, "answer › yes");
     assert!(term.screen.seen(GATE), "the gate\n{}", term.dump());
@@ -487,28 +513,44 @@ fn layout_changes_keep_the_draft_unsent_and_the_decisions_waiting() {
         term.dump()
     );
     term.send("\r");
-    term.wait_until(RESULT, |s| s.seen(RESULT) && s.contains(FREE));
+    term.wait_workspace_frame(RESULT, |s| s.seen(RESULT) && s.contains(FREE));
     assert_eq!(term.screen.beyond(), 0, "addressed past the screen");
     leave(&mut term);
 }
 
-/// The minimum, the three target sizes and a short pane, in both layouts:
-/// the composer's prompt and the switch are on screen, without colour too.
+/// The minimum, three target sizes and a short pane, expanded and restored:
+/// the composer stays visible without colour. At the minimum size there is
+/// no room to grow; a restored object offers no ineffective Expand control.
 #[test]
-fn both_layouts_keep_the_composer_and_the_switch_at_every_size() {
+fn contextual_expansion_keeps_the_composer_and_action_at_every_size() {
     let mut term = Term::proto_with(&[], 120, 40, &[("NO_COLOR", "1")]);
     term.wait_prompt(FREE);
     term.send("\x14");
-    term.wait_text(SESSION_SWITCH);
+    term.wait_text(EXPAND_CONTROL);
     term.send("draft here");
-    for (switch, key) in [(SESSION_SWITCH, ""), (WORKBENCH_SWITCH, F4)] {
+    for (switch, key) in [(EXPAND_CONTROL, ""), (RESTORE_CONTROL, F4)] {
         term.send(key);
+        if !key.is_empty() {
+            // F4 must be read at the frame just observed. A resize to the
+            // minimum first would legitimately make expansion unavailable.
+            term.wait_workspace_frame("the expanded frame before resize", |s| {
+                s.contains(RESTORE_CONTROL) && s.contains("nika › draft here")
+            });
+        }
         for (cols, rows) in [(60, 16), (80, 24), (120, 40), (180, 48), (100, 32)] {
+            let mark = term.mark();
             term.resize(cols, rows);
-            term.wait_until(&format!("{switch} at {cols}x{rows}"), |s| {
+            term.spin_until_bytes(mark, b"\x1b[2J");
+            term.wait_workspace_frame(&format!("{switch} at {cols}x{rows}"), |s| {
                 s.size() == (usize::from(cols), usize::from(rows))
-                    && switch_at_width(s, switch, cols)
                     && s.contains("nika › draft here")
+                    && if (cols, rows) == (60, 16) && switch == EXPAND_CONTROL {
+                        !s.contains(EXPAND_CONTROL)
+                            && !s.contains("[+] F4")
+                            && s.lines()[0].ends_with("Project [Conversation] Object")
+                    } else {
+                        control_at_width(s, switch, cols)
+                    }
             });
         }
     }
@@ -516,31 +558,30 @@ fn both_layouts_keep_the_composer_and_the_switch_at_every_size() {
     // Below the minimum the focus view stands in: the draft stays, and F4
     // switches nothing there (no layout is drawn). The shell decides F4 at the
     // size it last drew, so F4 waits for a frame drawn at 59x15: the focus
-    // view's hint, its last row, which no Workbench paints (cropped by the
-    // resize, the 100-column Workbench can keep its composer row, never its
-    // switch).
+    // view's hint, its last row, which no expanded workspace paints. A
+    // cropped old frame can keep its composer row, but not this whole hint.
     term.resize(59, 15);
-    term.wait_until("the focus view", |s| {
+    term.wait_workspace_frame("the focus view", |s| {
         s.size() == (59, 15)
             && s.contains(FREE_HINT)
             && s.contains("nika › draft here")
-            && !s.contains("Workbench")
+            && !s.contains(RESTORE_CONTROL)
     });
     // Keys are read in order (one broker): the key typed after F4 shows in the
     // draft only once F4 was read, here, before the grow; erasing it gives back
     // the exact draft.
     term.send(F4);
     term.send("!");
-    term.wait_until("F4 read in the focus view", |s| {
+    term.wait_workspace_frame("F4 read in the focus view", |s| {
         s.lines().iter().any(|row| row == "nika › draft here!")
     });
     term.send("\x7f");
-    term.wait_until("the exact draft", |s| {
+    term.wait_workspace_frame("the exact draft", |s| {
         s.lines().iter().any(|row| row == "nika › draft here")
     });
     term.resize(120, 40);
-    term.wait_until("the same Workbench again", |s| {
-        s.contains(WORKBENCH_SWITCH) && s.contains("nika › draft here")
+    term.wait_workspace_frame("the same expanded object again", |s| {
+        s.contains(RESTORE_CONTROL) && s.contains("nika › draft here")
     });
     leave(&mut term);
 }

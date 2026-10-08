@@ -33,6 +33,8 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT" || exit 2
+# shellcheck source=scripts/ci/crate-size-policy.sh
+. "$REPO_ROOT/scripts/ci/crate-size-policy.sh"
 
 WARN_AT=12000
 
@@ -43,9 +45,8 @@ if [ "$STATUS" -ne 0 ]; then
   # The CI script exits 1 on violation; promote to RED (2) for hygiene.
   echo "$OUTPUT" | head -10
   echo ""
-  echo "Hint: split the over-budget crate into focused sub-crates per"
-  echo "ADR-022 / ADR-024. The 15k LOC cap is a Diamond invariant"
-  echo "(.claude/rules/nika-invariants.md)."
+  echo "Hint: review the over-budget crate's module boundaries per ADR-022 / ADR-024."
+  echo "The default ceiling is 15k; ADR-143 scopes the native TUI exception."
   exit 2
 fi
 
@@ -61,14 +62,19 @@ if [ "$BAND_STATUS" -ne 0 ]; then
   # and read, on the dashboard, exactly like a crate with 3000 to spare.
   # So the header carries the TIGHTEST crate and its remaining headroom.
   BAND_ROWS=$(echo "$BAND_OUTPUT" | grep '^FAIL' \
-    | sed -E 's/^FAIL  ([^ ]+)  ([0-9]+) LOC .*/\2 \1/' | LC_ALL=C sort -rn)
+    | while read -r _ crate loc _; do
+      limit=$(crate_size_limit "$crate") || exit 2
+      printf '%d %s %d %d\n' "$((limit - loc))" "$crate" "$loc" "$limit"
+    done | LC_ALL=C sort -n)
   BAND_N=$(printf '%s\n' "$BAND_ROWS" | grep -c .)
-  TIGHT_LOC=$(printf '%s\n' "$BAND_ROWS" | head -1 | cut -d' ' -f1)
+  TIGHT_LEFT=$(printf '%s\n' "$BAND_ROWS" | head -1 | cut -d' ' -f1)
   TIGHT_CRATE=$(printf '%s\n' "$BAND_ROWS" | head -1 | cut -d' ' -f2)
-  printf "YELLOW: %d crate(s) in the descent window · tightest %s at %d/15000 — %d LOC of headroom\n" \
-    "$BAND_N" "$TIGHT_CRATE" "$TIGHT_LOC" "$((15000 - TIGHT_LOC))"
+  TIGHT_LOC=$(printf '%s\n' "$BAND_ROWS" | head -1 | cut -d' ' -f3)
+  TIGHT_LIMIT=$(printf '%s\n' "$BAND_ROWS" | head -1 | cut -d' ' -f4)
+  printf "YELLOW: %d crate(s) in the descent window · tightest %s at %d/%d — %d LOC of headroom\n" \
+    "$BAND_N" "$TIGHT_CRATE" "$TIGHT_LOC" "$TIGHT_LIMIT" "$TIGHT_LEFT"
   printf '%s\n' "$BAND_ROWS" \
-    | awk '{ printf "  %s: %s LOC · %s left before the wall\n", $2, $1, 15000-$1 }'
+    | awk '{ printf "  %s: %s/%s LOC · %s left before the wall\n", $2, $3, $4, $1 }'
   echo ""
   echo "Hint: the wall is where a push BLOCKS — plan the descent in a calm"
   echo "window instead: one unit, two members, boundary drawn with an ADR"

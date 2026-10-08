@@ -18,6 +18,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::composer::chooser::Entry;
 use crate::model::Presentation;
+use crate::workspace::geometry::Layout;
 
 /// A command's name, effect, scope, help and search words.
 type Words = (
@@ -113,6 +114,9 @@ pub(crate) struct View {
     pub(crate) scrolled: bool,
     /// A summarized diagnostic exists, so the full one can be shown.
     pub(crate) diagnostic: bool,
+    /// What `F4` shows now: the object expanded (`Workbench`) or restored
+    /// (`Session`); `None` where it would change nothing, and is not offered.
+    pub(crate) object: Option<Layout>,
 }
 
 /// Everything to choose from: the conversation's `commands`, then the view
@@ -153,15 +157,31 @@ fn keys(view: View) -> Vec<Entry> {
     let none = KeyModifiers::NONE;
     let mut keys = Vec::new();
     if workspace {
-        // The desk's layout, one state for both arrangements (routed by the desk).
-        keys.push(Entry::key(
-            press(KeyCode::F(4), none),
-            "F4",
-            "Switch layout",
-            "Session / Workbench · view only",
-            "The same conversation, object, draft and runs, rearranged; nothing is sent or approved.",
-            "layout session workbench arrange rearrange switch view",
-        ));
+        // The object expanded or restored, from every region (routed by the
+        // desk), only where that changes it.
+        let words = view.object.map(|next| {
+            if next == Layout::Workbench {
+                (
+                    "Expand the object",
+                    "Gives the object more room; the conversation keeps its composer and your draft; nothing is sent.",
+                )
+            } else {
+                (
+                    "Restore the object",
+                    "Gives the conversation its room back; the object and your draft stay; nothing is sent.",
+                )
+            }
+        });
+        if let Some((effect, help)) = words {
+            keys.push(Entry::key(
+                press(KeyCode::F(4), none),
+                "F4",
+                effect,
+                "workspace · view only",
+                help,
+                "expand restore object larger room layout arrange view",
+            ));
+        }
         keys.push(Entry::key(
             press(KeyCode::F(6), none),
             "F6",
@@ -242,6 +262,7 @@ mod tests {
             fits: true,
             scrolled: false,
             diagnostic: false,
+            object: Some(Layout::Workbench),
         }
     }
 
@@ -329,5 +350,49 @@ mod tests {
         let inline = keys(view(Presentation::Inline));
         assert_eq!(inline[0].effect, "Full screen");
         assert_eq!(keys(view(Presentation::Focus))[1].effect, "Back inline");
+    }
+
+    /// `F4` names what it does now, view only: `Expand the object` where
+    /// expanding enlarges it, `Restore the object` on an expansion, and no
+    /// entry where it would change nothing (the object cannot grow there) or
+    /// below the minimum; its words name the object and no layout mode, and
+    /// choosing it presses `F4`. `F6` stays offered either way.
+    #[test]
+    fn the_f4_entry_names_what_it_does_now_and_only_where_it_acts() {
+        for (object, effect) in [
+            (Layout::Workbench, "Expand the object"),
+            (Layout::Session, "Restore the object"),
+        ] {
+            let entries = keys(View {
+                object: Some(object),
+                ..view(Presentation::Workspace)
+            });
+            let f4: Vec<&Entry> = entries.iter().filter(|entry| entry.name == "F4").collect();
+            assert_eq!(f4.len(), 1, "{effect}");
+            let f4 = f4[0];
+            let pressed = KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE);
+            assert_eq!(f4.act, Act::Press(pressed));
+            assert_eq!(f4.effect, effect);
+            assert_eq!(f4.scope, "workspace · view only");
+            for text in [&f4.effect, &f4.scope, &f4.help, &f4.words] {
+                let lower = text.to_lowercase();
+                assert!(
+                    !lower.contains("session") && !lower.contains("workbench"),
+                    "{text}"
+                );
+            }
+            assert!(f4.help.contains("nothing is sent"), "{}", f4.help);
+        }
+        let unchanged = keys(View {
+            object: None,
+            ..view(Presentation::Workspace)
+        });
+        assert!(unchanged.iter().all(|entry| entry.name != "F4"));
+        assert!(unchanged.iter().any(|entry| entry.name == "F6"));
+        let small = View {
+            fits: false,
+            ..view(Presentation::Workspace)
+        };
+        assert!(keys(small).iter().all(|entry| entry.name != "F4"));
     }
 }

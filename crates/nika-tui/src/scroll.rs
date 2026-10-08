@@ -15,8 +15,8 @@ fn area(state: &UiState, desk: &Desk, composer: &Composer) -> Rect {
     if state.presentation == Presentation::Workspace
         && let Some(geometry) = desk.geometry(state.size)
     {
-        let intelligence = desk.view.as_ref().and_then(|view| view.seat.as_deref());
-        return screen::panel_areas(&geometry, state, composer, intelligence)[1];
+        let shown = desk.screen(state.ascii);
+        return screen::panel_areas(&geometry, state, composer, &shown.thread)[1];
     }
     let live = live_rows(state, composer, area.width, area.height);
     let [transcript, _, _] = Layout::vertical([
@@ -161,7 +161,8 @@ mod tests {
                         .with_conversation_height(Some(250)),
                 );
                 let geometry = desk.geometry(size).expect("workspace");
-                let expected = screen::panel_areas(&geometry, &state, &composer, None)[1];
+                let thread = desk.screen(state.ascii).thread;
+                let expected = screen::panel_areas(&geometry, &state, &composer, &thread)[1];
                 assert_eq!(area(&state, &desk, &composer), expected);
                 state.focus_scroll = 0;
                 page(&mut state, &desk, &composer, true);
@@ -441,27 +442,26 @@ mod tests {
                 let geometry =
                     Geometry::of(Rect::new(0, 0, size.0, size.1), desk.pins()).expect("geometry");
                 let screen = desk.screen(ascii);
-                let measured = screen::panel_areas(
-                    &geometry,
-                    &state,
-                    &composer,
-                    screen.thread.intelligence.as_deref(),
-                );
+                let measured = screen::panel_areas(&geometry, &state, &composer, &screen.thread);
                 assert_eq!(area(&state, &desk, &composer), measured[1]);
                 assert!(measured[1].height >= 1);
-                if size.0 < 100 {
-                    assert_ne!(
-                        measured[1],
-                        screen::panel_areas(&geometry, &state, &composer, None)[1],
-                        "this case must exercise the extra selected-header rows"
-                    );
-                }
+                let unseated = screen.thread.clone().seated(None);
+                assert_eq!(
+                    measured,
+                    screen::panel_areas(&geometry, &state, &composer, &unseated),
+                    "the selection, said in the header, never moves the conversation's rows"
+                );
                 let mut terminal =
                     Terminal::new(TestBackend::new(size.0, size.1)).expect("terminal");
                 let (latest, full) = selected_frame(&mut terminal, &state, &desk, &composer);
-                for visible in ["Prepare with:", MODEL, "release.nika", DRAFT] {
+                for visible in ["release.nika", DRAFT] {
                     assert!(full.contains(visible), "{size:?} {visible}: {full}");
                 }
+                // The header is the selection's home: whole where its row has
+                // room, else cut beside `/status`, which says it whole.
+                let whole = format!("Prepare with: {MODEL}");
+                let cut = size.0 < 100 && full.contains("/status");
+                assert!(full.contains(&whole) || cut, "{size:?}: {full}");
                 assert!(latest.contains("question line 059"), "{size:?}: {latest}");
                 let mut saw_middle = latest.contains("question line 030");
                 for _ in 0..100 {

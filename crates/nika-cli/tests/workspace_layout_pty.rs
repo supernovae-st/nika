@@ -156,10 +156,10 @@ impl Drop for Term {
 }
 
 #[test]
-fn a_settled_layout_is_kept_and_reopened_without_submitting_the_draft() {
+fn an_expanded_object_is_kept_and_reopened_without_submitting_the_draft() {
     let room = Room::new();
     let mut term = room.spawn(180, 48);
-    term.wait("[Session]");
+    term.wait("[+] Expand");
     assert!(
         !room.preferences().exists(),
         "opening is read only for preferences"
@@ -169,16 +169,17 @@ fn a_settled_layout_is_kept_and_reopened_without_submitting_the_draft() {
     let session_record = room.project.path().join(".nika/session-state.json");
     let before = std::fs::read(&session_record).ok();
     term.keys(F4);
-    term.wait("[Workbench]");
+    term.wait("[-] Restore");
     term.wait("nika › keep this unsent draft");
-    // Focus the object: keyboard resizing must settle through the same host seam.
-    term.keys(&format!("{F6}+"));
+    // Size the project column while automatic object expansion remains in
+    // view: keyboard resizing settles through the same host seam.
+    term.keys(&format!("{F6}{F6}+"));
     let deadline = Instant::now() + WAIT;
     let kept = loop {
         term.pump();
         if let Ok(bytes) = std::fs::read(room.preferences())
             && let Ok(value) = serde_json::from_slice::<Value>(&bytes)
-            && value["conversation_height"].is_u64()
+            && value["aside_width"] == 189
         {
             break value;
         }
@@ -190,9 +191,12 @@ fn a_settled_layout_is_kept_and_reopened_without_submitting_the_draft() {
     };
     assert_eq!(kept["schema"], "nika/tui-layout@1");
     assert_eq!(kept["layout"], "workbench");
-    assert_eq!(kept["aside_width"], Value::Null);
+    assert_eq!(
+        kept["aside_width"], 189,
+        "34 of 180 columns, rounded to thousandths"
+    );
     assert_eq!(kept["conversation_width"], Value::Null);
-    assert!(kept["conversation_height"].as_u64().expect("share") <= 1000);
+    assert_eq!(kept["conversation_height"], Value::Null);
     assert_eq!(
         std::fs::read(&session_record).ok(),
         before,
@@ -203,7 +207,7 @@ fn a_settled_layout_is_kept_and_reopened_without_submitting_the_draft() {
     term.leave();
 
     let mut reopened = room.spawn(120, 40);
-    reopened.wait("[Workbench]");
+    reopened.wait("[-] Restore");
     assert_eq!(
         serde_json::from_slice::<Value>(&std::fs::read(room.preferences()).expect("kept bytes"))
             .expect("kept JSON"),
@@ -217,17 +221,17 @@ fn a_settled_layout_is_kept_and_reopened_without_submitting_the_draft() {
 }
 
 #[test]
-fn an_unknown_preference_file_stays_intact_while_the_layout_remains_usable() {
+fn an_unknown_preference_file_stays_intact_while_expansion_remains_usable() {
     let room = Room::new();
     let future = json!({"schema":"nika/tui-layout@999", "layout":"future"}).to_string();
     std::fs::write(room.preferences(), &future).expect("future preferences");
     let mut term = room.spawn(120, 40);
-    term.wait("[Session]");
+    term.wait("[+] Expand");
     // The exact notice wraps inside the conversation at 120 columns.
     term.wait("Stored preferences are");
     term.wait("left unchanged.");
     term.keys(F4);
-    term.wait("[Workbench]");
+    term.wait("[-] Restore");
     term.keys("still usable");
     term.wait("nika › still usable");
     term.leave();

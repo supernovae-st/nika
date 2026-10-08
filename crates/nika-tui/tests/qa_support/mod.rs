@@ -122,6 +122,8 @@ pub(crate) struct Term {
     pty: OsSession,
     pub(crate) screen: vt::Screen,
     raw: Vec<u8>,
+    /// The stream boundary before the most recent input or resize.
+    input_mark: usize,
     eof: bool,
 }
 
@@ -161,6 +163,7 @@ impl Term {
             pty,
             screen,
             raw: Vec::new(),
+            input_mark: 0,
             eof: false,
         }
     }
@@ -225,6 +228,31 @@ impl Term {
         self.wait_until(needle, |screen| screen.contains(needle));
     }
 
+    /// Await a complete native frame after the last input or resize. The
+    /// shell paints its own caret; Ratatui writes Hide after the cell diff.
+    /// A matching header in a partial diff or cells retained across a resize
+    /// cannot satisfy this witness. Use ordinary waits for inline streams.
+    pub(crate) fn wait_workspace_frame(&mut self, what: &str, done: impl Fn(&vt::Screen) -> bool) {
+        let deadline = Instant::now() + WAIT;
+        loop {
+            let read = self.pump();
+            if self.raw.len() > self.input_mark
+                && self.raw.ends_with(b"\x1b[?25l")
+                && done(&self.screen)
+            {
+                return;
+            }
+            assert!(
+                !self.eof && Instant::now() <= deadline,
+                "{what}: complete native frame never reached.\n{}",
+                self.dump()
+            );
+            if read == 0 {
+                std::thread::sleep(Duration::from_millis(2));
+            }
+        }
+    }
+
     /// Wait until a visible row starts with `prompt` (the live prompt row;
     /// an echoed line starts with its own marker instead).
     pub(crate) fn wait_prompt(&mut self, prompt: &str) {
@@ -247,6 +275,9 @@ impl Term {
 
     /// Type (or paste) `text` as the terminal would send it.
     pub(crate) fn send(&mut self, text: &str) {
+        if !text.is_empty() {
+            self.input_mark = self.raw.len();
+        }
         self.pty
             .write_all(text.as_bytes())
             .expect("write to the pty");
@@ -262,6 +293,7 @@ impl Term {
     /// new size), then the PTY, which sends `SIGWINCH`.
     pub(crate) fn resize(&mut self, cols: u16, rows: u16) {
         self.pump();
+        self.input_mark = self.raw.len();
         self.screen.resize(cols, rows);
         self.pty
             .get_process_mut()

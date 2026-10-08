@@ -192,19 +192,22 @@ fn a_resize_during_a_busy_turn_reaches_the_workspace_regions_at_once() {
     term.wait_text(BUSY);
     term.send("\x1b[17~");
     term.settle(SETTLE);
+    let mark = term.mark();
     term.resize(50, 14);
-    // The shell's own focus view (its frames drawn from the left edge), never the emulator's
-    // shrunk grid alone: dropping rows hides `release.nika` before the shell sees the new size,
-    // and keys typed then still reach the workspace's aside.
-    term.wait_until("the focus view below the minimum", |screen| {
-        screen.contains(BUSY)
+    // A fresh complete redraw proves the shell saw the new size; resized old
+    // cells alone could still route keys to the now-hidden workspace aside.
+    term.spin_until_bytes(mark, b"\x1b[2J");
+    term.wait_workspace_frame("the focus view below the minimum", |screen| {
+        screen.size() == (50, 14)
+            && screen.contains(BUSY)
             && !screen.contains("release.nika")
-            && screen.lines().iter().any(|line| line.starts_with('╭'))
+            && screen.lines().iter().any(|line| line.starts_with(FREE))
+            && screen.contains("Run: typing waits.")
     });
     term.send("xyz");
     term.settle(SETTLE);
     term.resize(160, 48);
-    term.wait_until("the workspace back at 160x48", |screen| {
+    term.wait_workspace_frame("the workspace back at 160x48", |screen| {
         screen.contains(BUSY) && screen.contains("release.nika")
     });
     release.open();

@@ -331,7 +331,7 @@ fn the_draft_shows_while_its_question_waits_and_answers_no_consent() {
     let (title, body) = shown.face_lines(Face::Source, 100, false, false);
     let title = title.to_string();
     assert!(
-        title.contains(" draft · ") && !title.contains("proposal"),
+        title.trim_start().starts_with("draft · ") && !title.contains("proposal"),
         "{title}"
     );
     let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
