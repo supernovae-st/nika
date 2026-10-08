@@ -5594,6 +5594,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-session-host"
+version = "0.122.0"
+dependencies = [
+ "blake3",
+ "bytes",
+ "getrandom 0.3.4",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "nika-catalog",
+ "nika-cli-host",
+ "nika-onboard",
+ "nika-session",
+ "nika-types",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "nika-source"
 version = "0.122.0"
 dependencies = [
