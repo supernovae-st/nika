@@ -1099,6 +1099,32 @@ a counted call, or stays pending. Serialized judgments are never read. The rehea
 semantic record's answered paths through the core's validated rebuild. Effectful agent tools,
 raw rejected-text capture on disk, host adapters and semantic EDIT remain open work.
 
+## Semantic revision links (R4 F)
+
+A revision of a base its semantic record binds reads the seat's typed links before any fill.
+
+- **The link laws come first.** They are read over the original duties with their kinds masked
+  (`revision::linked`, and the span law `revision::resolved`):
+  - a link names a clause of the original, stated once and never a prohibition, and a clause the
+    change states;
+  - no clause is linked twice;
+  - every change clause is accounted for once;
+  - no two replacement spans overlap or nest.
+
+  Links that break one are repaired within the round count, then refused with why. They never
+  leave for another route.
+- **A destination edit** (a destination replaced or added), once those laws hold, leaves for the
+  source laws with the same typed answer: no second revision call and no fill. Every other part
+  of the base is kept.
+- **Any other change the program's structure carries** (an added effect, a replaced effect or
+  gate) belongs to the change itself. It is restated over the complete document of the same base
+  only in a round the policy still grants (a counted round, never a free one). That statement and
+  its repairs continue the links rounds' count: they are asked from the round the links left, so
+  a repair those rounds spent is never spent again. The links rounds are journaled as
+  `recorded_attempt` and the base's record is kept as `revised_record`.
+- **With no round left,** the gap is named before any fill: the addition, and that no round is
+  left to state it over the whole document. The revision is never READY.
+
 ## Authoring answer observation (0.123 slice C-core)
 
 `observe::observe_authoring(sink, future)` scopes a host's observer (tokio task-local) around its
