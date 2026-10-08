@@ -289,7 +289,13 @@ pub async fn qualified_with(
         });
     folded.references = embedded.chain(pack.references.iter().cloned()).collect();
     folded.selection[FOLDED] = json!("folded into the pack and qualified with it");
+    // A lent catalogue opens the whole reach: the release's entries and the embedded templates.
+    let templates = crate::shelf::Templates;
     let (widened, listed) = catalog.map_or((Vec::new(), 0), |c| reach::widen(&mut folded, c));
+    let (shelved, shelf_listed) = match catalog {
+        Some(_) => reach::widen(&mut folded, &templates),
+        None => (Vec::new(), 0),
+    };
     let mut record = match seat {
         Some(seat) => {
             let qualified = qualify(intent, &folded, seat, "decision_seat");
@@ -306,9 +312,16 @@ pub async fn qualified_with(
         }),
     };
     let resolved = catalog.map_or(0, |c| {
-        reach::resolve_applicable(&mut folded, &mut record, &widened, c)
+        reach::resolve_applicable(&mut folded, &record, &widened, c)
     });
+    let shelf_resolved = reach::resolve_applicable(&mut folded, &record, &shelved, &templates);
+    let asked: Vec<String> = widened.iter().chain(&shelved).cloned().collect();
+    reach::annotate(&folded, &mut record, &asked);
     record["coverage"] = reach::coverage(catalog, listed, widened.len(), resolved);
+    if catalog.is_some() {
+        let account = reach::account(&templates, shelf_listed, shelved.len(), shelf_resolved);
+        record["coverage"]["embedded_templates"] = account;
+    }
     Some((request.clone().with_authoring_knowledge(folded), record))
 }
 
