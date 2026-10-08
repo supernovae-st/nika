@@ -444,12 +444,16 @@ pub fn components(catalog: Option<&dyn ComponentCatalog>) -> Value {
     Value::Array(rows)
 }
 
-/// The receipts a base's record carries for the components an earlier revision composed.
+/// The receipts a base's record carries for the components an earlier revision, or its
+/// creation, composed.
 #[must_use]
 pub fn carried(record: Option<&Value>) -> Vec<Value> {
-    (record.and_then(|r| r["document_revision"]["components"].as_array()))
-        .cloned()
-        .unwrap_or_default()
+    let components = |r: &Value| {
+        (r["document_revision"]["components"].as_array())
+            .or_else(|| r["document"]["components"].as_array())
+            .cloned()
+    };
+    record.and_then(components).unwrap_or_default()
 }
 
 /// The record a document revision leaves: it binds the revised bytes (as a source revision's

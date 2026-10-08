@@ -500,3 +500,45 @@ async fn refusals_cycling_between_two_statements_end_without_a_bound() {
         "A, B, then A again: nothing new"
     );
 }
+
+/// A created document's settled record is the history of its bytes, never an answer round of
+/// its creation: a change to them reaches the revision with the request they answer, the result
+/// is bound to the revised bytes, and that request is still the one the new record states.
+#[tokio::test]
+async fn a_change_to_a_created_documents_bytes_is_revised_with_its_request_known() {
+    let base = rich();
+    let created = "Rehearse the deployment and release the lock afterwards";
+    let record = json!({"strategy": "native",
+        "intent_sha256": nika_compile::intent_sha256(created), "source": base,
+        "questions": [], "gaps": [], "trigger": null,
+        "document_create": {"mode": "written", "request": created},
+        "document": {"version": 1, "candidate_sha256": nika_compile::surface::sha256(base),
+            "request": created, "base_sha256": null, "mode": "written", "components": []}});
+    let seat = Seat::new(operations(&[json!({"op": "set",
+        "path": "/inputs/drill/default", "value_json": "true",
+        "component": "", "version": "", "bindings_json": ""})]));
+    let change = "Rehearse the failure path by default";
+    let out = revised(base, change, Some(record), &seat).await;
+    assert_eq!(out.status, crate::CompileStatus::Ready, "{out:#?}");
+    assert!(
+        !out.diagnostics.iter().any(|d| d.target == "recorded_plan"),
+        "{:?}",
+        out.diagnostics
+    );
+    let candidate = out.candidate.clone().expect("a candidate");
+    assert_eq!(
+        changed_lines(base, &candidate),
+        [(
+            "    default: false".to_owned(),
+            "    default: true".to_owned()
+        )]
+    );
+    assert!(seat.told()[0].contains(created), "{}", seat.told()[0]);
+    let plan = out.provenance.plan.as_ref().expect("a record");
+    assert!(nika_compile_fidelity::sketch::kept::binds(plan, &candidate));
+    let original = nika_compile_fidelity::sketch::kept::original(plan).unwrap_or_default();
+    assert!(
+        original.contains(created) && original.contains(change),
+        "{original}"
+    );
+}

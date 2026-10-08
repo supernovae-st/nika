@@ -319,6 +319,9 @@ fn the_record_binds_the_revised_bytes_and_carries_the_receipts() {
     assert_eq!(record["document_revision"]["mode"], "operations");
     assert_eq!(carried(Some(&record)), applied.receipts);
     assert!(carried(None).is_empty());
+    // A created document's settled record carries the receipts of what its creation composed.
+    let created = json!({"document": {"components": applied.receipts}});
+    assert_eq!(carried(Some(&created)), applied.receipts);
 }
 
 #[test]

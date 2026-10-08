@@ -600,9 +600,12 @@ pub(in crate::cognition) fn historical() -> CompileOutcome {
 }
 
 /// The words the base answers for a source-anchored revision: the resolved words its source
-/// revision record states (the record binds the base in the core), else the request's own.
+/// revision record states (the record binds the base in the core), or the request its created
+/// document settled, else the request's own.
 fn source_original(request: &CompileRequest) -> Option<String> {
-    let recorded = (request.plan.as_ref()).and_then(|r| r["source_revision"]["resolved"].as_str());
+    let recorded = (request.plan.as_ref()).and_then(|r| {
+        (r["source_revision"]["resolved"].as_str()).or_else(|| r["document"]["request"].as_str())
+    });
     recorded
         .map(str::to_owned)
         .or_else(|| request.original_intent.clone())
