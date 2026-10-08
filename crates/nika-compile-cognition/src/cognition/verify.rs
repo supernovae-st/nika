@@ -1343,9 +1343,10 @@ pub(super) async fn judged_native<P: ProviderInferDyn>(
     (provider, decision): (&P, Option<&dyn DecisionSeat>),
     request: &CompileRequest,
     out: CompileOutcome,
+    observation: Option<&Value>,
 ) -> CompileOutcome {
     let seats = (provider, decision);
-    match native_verdict(intent, reading, policy, seats, request, out, 0, None).await {
+    match native_verdict(intent, reading, policy, seats, request, out, 0, observation).await {
         Ok(out) => out,
         Err(judged) => {
             let (out, verdict) = *judged;

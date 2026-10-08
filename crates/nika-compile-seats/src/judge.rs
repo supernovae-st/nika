@@ -7,7 +7,7 @@
 //! at that crate's size cap (2026-10-08). The engine facts a request may condition on (the
 //! catalogue a door was lent, what it composed) ride the same state as data ([`authoring`]).
 
-use nika_compile::surface::{EditChange, Input};
+use nika_compile::surface::{EditChange, Input, sha256};
 use nika_compile::{CompileOutcome, CompileRequest};
 use serde_json::{Value, json};
 
@@ -81,33 +81,37 @@ pub fn over_document(base: &mut Value, request: &CompileRequest, out: &CompileOu
     }
 }
 
-/// How many offered components the facts name; the rest are counted, never shown.
-const OFFERED: usize = 24;
+/// The sections of the native record a door that composes from a lent catalogue keeps: the
+/// document door's and the document revision's.
+const SECTIONS: [&str; 2] = ["document_create", "document_revision"];
 
 /// The engine facts of a door that composes from a lent catalogue, recorded once per settled
-/// attempt in the native record its rounds replay (`plan.document_create.facts`), so every round
-/// that judges these bytes shows the same ones ([`authoring`]):
+/// attempt in its section of the native record its rounds replay (`facts`), bound to the bytes
+/// they were witnessed on, so a round judging those bytes shows them ([`authoring`]) and a round
+/// judging other bytes (a new revision of them) never does:
 /// - `catalogue`: the identity of the release the door was lent, or null when none was;
-/// - `offered`: the admitted components it offered its author (`document::components`), each by
-///   identity, title, purpose, holes and effects, at most `OFFERED` of them, with their `total`
-///   (0: none offered, or no catalogue);
-/// - `composed`: each receipt the record holds, witnessed on the bytes this attempt made
-///   (`expanded`, `revised`, `invoked`, `absent`, `unreadable`); a receipt a whole rewrite left
-///   behind is `absent`, never current composition. Not stated when no bytes were made.
+/// - `offered`: every admitted component the door offered its author (`document::components`),
+///   by identity, title, purpose, holes and effects, with their `total` (0: none offered, or no
+///   catalogue);
+/// - `composed`: each receipt the section holds, witnessed on the bytes this attempt made
+///   (`expanded`, `revised`, `invoked`, `absent`, `unreadable`); a receipt a rewrite left behind
+///   is `absent`, never current composition;
+/// - `candidate_sha256`: those bytes. With no bytes made, no composition and no binding: no
+///   round shows the facts.
 ///
-/// The record keeps its receipts as they were (lineage). An outcome with no such record is
+/// The section keeps its receipts as they were (lineage). An outcome with no such section is
 /// unchanged.
 pub fn lent(catalog: Option<&dyn ComponentCatalog>, out: &mut CompileOutcome) {
     let release = catalog.map_or(Value::Null, |catalog| catalog.release().record());
     let offered = crate::foundry::document::components(catalog);
-    let rows = offered.as_array().map_or(&[][..], Vec::as_slice);
-    let mut facts = json!({
-        "catalogue": release,
-        "offered": {"total": rows.len(), "components": &rows[..rows.len().min(OFFERED)]},
-    });
+    let total = offered.as_array().map_or(0, Vec::len);
+    let mut facts = json!({"catalogue": release,
+        "offered": {"total": total, "components": offered}});
     let candidate = out.candidate.clone();
-    let record = out.provenance.plan.as_mut();
-    let Some(section) = record.and_then(|record| record.get_mut("document_create")) else {
+    let Some(section) = (out.provenance.plan.as_mut()).and_then(|record| {
+        let key = SECTIONS.into_iter().find(|key| record[*key].is_object())?;
+        record.get_mut(key)
+    }) else {
         return;
     };
     if let Some(bytes) = candidate.as_deref() {
@@ -122,25 +126,35 @@ pub fn lent(catalog: Option<&dyn ComponentCatalog>, out: &mut CompileOutcome) {
             })
             .collect();
         facts["composed"] = json!(composed);
+        facts["candidate_sha256"] = json!(sha256(bytes));
     }
     section["facts"] = facts;
 }
 
-/// The engine facts a request may condition on, beside the state (A5): exactly the facts the
-/// door recorded for these bytes ([`lent`]), read from the outcome's native record, else from the
-/// record a round replays (`request.plan`), so a replay shows its judge the facts its rejection
-/// was bound to. A judge reads them as data, never as instructions; they bind the context a
-/// rejection holds in, so another release, offer or composition is judged again. No recorded
-/// facts: none stated.
+/// The engine facts a request may condition on, beside the state (A5): the facts a door
+/// recorded on exactly the bytes being judged ([`lent`]), read from the outcome's native record,
+/// else from the record a round replays (`request.plan`), so a replay of those bytes shows the
+/// facts its rejection was bound to, while a revision of them (other bytes) never shows its
+/// base's facts. Shown as data, never as instructions, without the binding digest; they bind the
+/// context a rejection holds in, so another release, offer or composition is judged again. No
+/// facts witnessed on these bytes: none stated.
 pub fn authoring(base: &mut Value, request: &CompileRequest, out: &CompileOutcome) {
-    fn facts(record: Option<&Value>) -> Option<&Value> {
-        (record.and_then(|record| record.get("document_create")))
-            .and_then(|section| section.get("facts"))
-            .filter(|facts| facts.is_object())
+    fn facts<'a>(record: Option<&'a Value>, judged: &str) -> Option<&'a Value> {
+        let record = record?;
+        (SECTIONS.iter())
+            .filter_map(|key| record.get(*key)?.get("facts"))
+            .find(|facts| facts["candidate_sha256"] == judged)
     }
-    let recorded = facts(out.provenance.plan.as_ref()).or_else(|| facts(request.plan.as_ref()));
-    if let Some(facts) = recorded {
-        base["authoring"] = facts.clone();
+    let Some(judged) = out.candidate.as_deref().map(sha256) else {
+        return;
+    };
+    let recorded = facts(out.provenance.plan.as_ref(), &judged)
+        .or_else(|| facts(request.plan.as_ref(), &judged));
+    if let Some(mut shown) = recorded.cloned() {
+        if let Some(fields) = shown.as_object_mut() {
+            fields.remove("candidate_sha256");
+        }
+        base["authoring"] = shown;
     }
 }
 
@@ -148,10 +162,14 @@ pub fn authoring(base: &mut Value, request: &CompileRequest, out: &CompileOutcom
 mod tests {
     use super::{authoring, lent};
     use crate::foundry::{Component, ComponentCatalog, ComponentRef, Release, Unresolved};
+    use nika_compile::surface::sha256;
     use serde_json::{Value, json};
 
-    /// A catalogue of one release offering one admitted block, resolving none.
-    struct Lent;
+    /// A catalogue of one release offering `blocks` admitted blocks, the applicable `block:x`
+    /// last; it resolves none.
+    struct Lent {
+        blocks: usize,
+    }
 
     impl ComponentCatalog for Lent {
         fn release(&self) -> Release {
@@ -161,35 +179,45 @@ mod tests {
             Err(Unresolved::Unknown(reference.id.clone()))
         }
         fn entries(&self) -> Vec<Value> {
-            vec![
-                json!({"id": "block:x", "kind": "block", "title": "X", "purpose": "do x",
-                "holes": [], "effects": ["fs.write"]}),
-            ]
+            let row = |id: String, purpose: &str| {
+                json!({"id": id, "kind": "block", "title": purpose, "purpose": purpose,
+                    "holes": [], "effects": ["fs.write"]})
+            };
+            let mut rows: Vec<Value> = (1..self.blocks)
+                .map(|n| row(format!("block:decoy-{n}"), "an unrelated decoy"))
+                .collect();
+            rows.push(row("block:x".to_owned(), "do x"));
+            rows
         }
     }
 
-    /// An outcome showing `bytes`, its native record holding `entry` as the door's section.
-    fn recorded(entry: Option<Value>, bytes: Option<&str>) -> nika_compile::CompileOutcome {
+    /// An outcome showing `bytes`, its native record holding `entry` under `key`.
+    fn recorded(
+        key: &str,
+        entry: Option<Value>,
+        bytes: Option<&str>,
+    ) -> nika_compile::CompileOutcome {
         let mut out = nika_compile::initial();
         out.candidate = bytes.map(str::to_owned);
-        let section = |e: Value| json!({"strategy": "native", "document_create": e});
-        out.provenance.plan = Some(entry.map_or_else(|| json!({}), section));
+        let record = |e: Value| json!({"strategy": "native", key: e});
+        out.provenance.plan = Some(entry.map_or_else(|| json!({}), record));
         out
     }
 
-    /// The door records the lent release, what it offered and each receipt witnessed on the
-    /// attempt's own bytes (a receipt whose nodes these bytes lack is absent, never composed),
-    /// keeping the receipts as they were; the judge shows exactly those facts, from the outcome's
-    /// record or else from the record a round replays. No catalogue: null and nothing offered;
-    /// no bytes: no composition stated; no door record: no facts at all.
+    /// The door records the lent release, every component it offered (thirty here, the
+    /// applicable one last: no quota), each receipt witnessed on the attempt's own bytes (absent
+    /// when those bytes lack its nodes) and the digest of those bytes, keeping the receipts as
+    /// they were; the judge shows exactly those facts for those bytes, from the outcome's record
+    /// or else from the record a round replays, and none for other bytes.
     #[test]
     fn the_judge_reads_the_facts_the_door_recorded_on_its_own_bytes() {
         let request = nika_compile::CompileRequest::create("r");
         let receipt = json!({"component": {"id": "block:x", "release": {"version": "r1"}},
             "nodes": {"tasks": {"x": "digest"}}});
         let bytes = "nika: w\ntasks: {}\n";
-        let mut out = recorded(Some(json!({"components": [receipt.clone()]})), Some(bytes));
-        lent(Some(&Lent), &mut out);
+        let entry = json!({"components": [receipt.clone()]});
+        let mut out = recorded("document_create", Some(entry), Some(bytes));
+        lent(Some(&Lent { blocks: 30 }), &mut out);
         let section = &out.provenance.plan.as_ref().expect("record")["document_create"];
         assert_eq!(
             section["components"],
@@ -199,34 +227,77 @@ mod tests {
         let facts = &section["facts"];
         let release = json!({"version": "r1", "snapshot_sha256": "11", "profile": "profile/r1"});
         assert_eq!(facts["catalogue"], release);
-        assert_eq!(facts["offered"]["total"], 1);
+        assert_eq!(facts["offered"]["total"], 30);
+        let offered = facts["offered"]["components"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        assert_eq!(offered.len(), 30, "every offered component, none cut");
         assert_eq!(
-            facts["offered"]["components"][0]["component"]["id"],
-            "block:x"
+            offered[29]["component"]["id"], "block:x",
+            "the applicable one, last"
         );
-        let absent =
-            json!([{"component": "block:x", "release": {"version": "r1"}, "verdict": "absent"}]);
+        let absent = json!([{"component": "block:x", "release": {"version": "r1"},
+            "verdict": "absent"}]);
         assert_eq!(facts["composed"], absent);
+        assert_eq!(facts["candidate_sha256"], json!(sha256(bytes)));
+        let mut shown = facts.clone();
+        shown
+            .as_object_mut()
+            .expect("facts")
+            .remove("candidate_sha256");
         let mut base = json!({"request": "r"});
         authoring(&mut base, &request, &out);
-        assert_eq!(base["authoring"], *facts);
-        let replaying = request
-            .clone()
-            .with_plan(out.provenance.plan.clone().unwrap_or_default());
+        assert_eq!(base["authoring"], shown);
+        let plan = out.provenance.plan.clone().unwrap_or_default();
+        let replaying = request.clone().with_plan(plan.clone());
         let mut replayed = json!({"request": "r"});
-        authoring(&mut replayed, &replaying, &recorded(None, None));
-        assert_eq!(
-            replayed["authoring"], *facts,
-            "a replay reads the record it replays"
+        authoring(
+            &mut replayed,
+            &replaying,
+            &recorded("document_create", None, Some(bytes)),
         );
-        let mut none = recorded(Some(json!({"components": []})), None);
-        lent(None, &mut none);
-        authoring(&mut base, &request, &none);
-        let nothing = json!({"catalogue": null, "offered": {"total": 0, "components": []}});
+        assert_eq!(
+            replayed["authoring"], shown,
+            "a replay of the same bytes reads them"
+        );
+        let mut revised = json!({"request": "r"});
+        let other = recorded("document_revision", None, Some("nika: w2\ntasks: {}\n"));
+        authoring(&mut revised, &request.clone().with_plan(plan), &other);
+        assert_eq!(
+            revised,
+            json!({"request": "r"}),
+            "other bytes never read a base's facts"
+        );
+    }
+
+    /// A revision's own section is recorded the same way and read for its bytes; no catalogue
+    /// offers nothing; no bytes bind nothing; no door section, no facts at all.
+    #[test]
+    fn a_revision_records_its_own_facts_and_nothing_binds_without_bytes() {
+        let request = nika_compile::CompileRequest::create("r");
+        let bytes = "nika: v\ntasks: {}\n";
+        let mut revision = recorded(
+            "document_revision",
+            Some(json!({"components": []})),
+            Some(bytes),
+        );
+        lent(None, &mut revision);
+        let mut base = json!({"request": "r"});
+        authoring(&mut base, &request, &revision);
+        let nothing = json!({"catalogue": null, "offered": {"total": 0, "components": []},
+            "composed": []});
         assert_eq!(base["authoring"], nothing);
+        let mut unbound = recorded("document_create", Some(json!({"components": []})), None);
+        lent(None, &mut unbound);
+        let section = &unbound.provenance.plan.as_ref().expect("record")["document_create"];
+        assert!(
+            section["facts"].get("candidate_sha256").is_none(),
+            "{section:#}"
+        );
         let mut untouched = json!({"request": "r"});
-        let mut other = recorded(None, Some(bytes));
-        lent(Some(&Lent), &mut other);
+        let mut other = recorded("document_create", None, Some(bytes));
+        lent(Some(&Lent { blocks: 1 }), &mut other);
         assert_eq!(other.provenance.plan, Some(json!({})));
         authoring(&mut untouched, &request, &other);
         assert_eq!(untouched, json!({"request": "r"}));

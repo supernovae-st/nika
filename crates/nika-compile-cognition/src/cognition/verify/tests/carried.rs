@@ -107,7 +107,7 @@ async fn a_rejection_carried_from_an_earlier_round_is_never_asked_again() {
     // The native door withdraws it: the defect stands, nothing is READY.
     let reading = crate::lexicon::read(INTENT);
     let seats = (&judge, None);
-    let door = judged_native(INTENT, &reading, &policy(), seats, &request, ready()).await;
+    let door = judged_native(INTENT, &reading, &policy(), seats, &request, ready(), None).await;
     assert!(judge.told.lock().unwrap().is_empty(), "no call");
     assert_eq!(door.status, CompileStatus::Incomplete, "{door:#?}");
     assert!(door.candidate.is_none() && door.provenance.plan.is_none());
@@ -319,8 +319,10 @@ async fn a_rejection_binds_the_facts_it_was_judged_under_one_whole_question_each
         let composed: Vec<Value> = (verdict.into_iter())
             .map(|v| json!({"component": "block:x", "verdict": v}))
             .collect();
+        let bytes = out.candidate.as_deref().map(knowledge::sha256);
         let facts = json!({"catalogue": {"version": release},
-            "offered": {"total": 0, "components": []}, "composed": composed});
+            "offered": {"total": 0, "components": []}, "composed": composed,
+            "candidate_sha256": bytes});
         let section = json!({"components": [], "facts": facts});
         out.provenance.plan = Some(json!({"strategy": "native", "document_create": section}));
         out

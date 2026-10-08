@@ -1187,16 +1187,25 @@ Declared again, or with no round left, it is accepted, and the door surfaces it 
 dispose of (`gap.N`). A gap declared before any refusal stays the author's.
 
 The judge of a document also reads, as data beside the state, the engine facts a request may
-condition on (A5), as the door recorded them for the bytes it made
-(`nika_compile_seats::judge::{lent, authoring}`, in the native record its rounds replay):
+condition on (A5). The door records them for the bytes it made, and so does a document revision
+for its own bytes (`nika_compile_seats::judge::{lent, authoring}`, in the native record their
+rounds replay):
 - the catalogue release it was lent;
-- the admitted components it offered its author;
-- each receipt witnessed on those bytes, a receipt a whole rewrite left behind being `absent`.
+- every admitted component it offered its author;
+- each receipt witnessed on those bytes, a receipt a rewrite left behind being `absent`.
 
-A clause such as "use an admitted component when the catalogue provides one" is thus judged on
-what was offered and what the bytes compose. Whether an offered component applies remains the
-judge's decision, never asserted by the engine. The facts bind the context a rejection holds in:
-another release, offer or composition is judged again, while a replay of the same record is not.
+These facts are shown only to a judgment of the very bytes they were witnessed on, so a revision
+never shows its base's facts. A clause such as "use an admitted component when the catalogue
+provides one" is thus judged on what was offered and what the bytes compose. Whether an offered
+component applies remains the judge's decision, never asserted by the engine. The facts bind the
+context a rejection holds in: another release, offer or composition is judged again, while a
+replay of the same record is not.
+
+A document revision (`sketch/revise/document_route`) whose result is READY runs one trial of
+exactly its revised bytes in the room the compile was lent, then hands that observation to its
+judge. A whole-request doubt with no located defect can then be settled by the observed run,
+under the faithful law's own run questions. With no room, or a refused trial, the doubt stays
+held. The revision path takes the compile's rehearsals where it took only their catalogue.
 
 No Plan or Sketch round has to fail first. `sketch` keeps
 the sketch door and `off` the private Plan, which Rust assembles; a reading the reader

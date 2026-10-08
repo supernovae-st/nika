@@ -85,6 +85,11 @@ as an external consumer.
   instruction and answer schema, the bytes of its messages), `response_identity` (the text
   blocks an answered call returned, by digest and length; `null` for nothing) and `withheld`
   (a refused or ignored payload by digest, length and shape with its reason, never its text).
+  So is the journal of that call:
+  - `record_proposed`: the object an answer proposed, kept exactly when it decoded as the door's
+    closed shape, else withheld;
+  - `stamp_references`: the references a call's messages carried, on its entry;
+  - `journaled`: the number of calls journaled so far.
 - `judge` — the untrusted state a judging seat reads, apart from the compiler-owned reference
   every question also carries, held by `nika-compile-cognition` until its size cap
   (2026-10-08): `state` (the request as compiled and as first stated, its answers, the observed
@@ -92,20 +97,24 @@ as an external consumer.
   the base it revises, as history, never as its first statement) and `over_document` (a revision
   applied over the complete document, by its decision or by the record a round replays, shows
   the base whole). The engine facts a request may condition on (A5) also ride that state.
-  `lent` records them once per settled attempt of a document door, in the native record its
-  rounds replay (`plan.document_create.facts`):
+  `lent` records them once per settled attempt of a composing door (the document door's
+  `document_create` section, or a document revision's `document_revision` section), in the
+  native record its rounds replay (`facts`):
   - `catalogue`: the identity of the release the door was lent, or null when none was lent;
-  - `offered`: the admitted components the door offered its author (`document::components`),
-    by identity, title, purpose, holes and effects, at most 24 of them, with their `total`;
-  - `composed`: each receipt of the record, witnessed on the bytes that attempt made
-    (`foundry::witness`). A receipt a whole rewrite left behind is `absent`, never current
-    composition, and the record keeps its receipts as lineage.
+  - `offered`: every admitted component the door offered its author (`document::components`),
+    by identity, title, purpose, holes and effects, with their `total`, and no quota;
+  - `composed`: each receipt of the section, witnessed on the bytes that attempt made
+    (`foundry::witness`). A receipt a rewrite left behind is `absent`, never current
+    composition, and the section keeps its receipts as lineage;
+  - `candidate_sha256`: the bytes they were witnessed on. When no bytes were made, nothing binds.
 
-  `authoring` shows the judge exactly those facts, as data. It reads the outcome's record, or
-  else the record a round replays, so a replay shows the facts its rejection was bound to.
-  Another release, offer or composition is another context, judged again. Deciding whether an
-  offered component applies stays the judge's. The verifier that asks the questions and weighs
-  the answers stays in `nika-compile-cognition`.
+  `authoring` shows the judge, as data, only the facts witnessed on exactly the bytes being
+  judged, without that digest. It reads them from the outcome's record, or else from the record a
+  round replays. A replay of those bytes therefore shows the facts its rejection was bound to,
+  while a revision (other bytes) never shows its base's facts. Another release, offer or
+  composition is another context, judged again. Deciding whether an offered component applies
+  stays the judge's. The verifier that asks the questions and weighs the answers stays in
+  `nika-compile-cognition`.
 - `repairs` — the laws that end the verifier's work: `progressed` (a defect set is progress
   when it names a new part or narrows the last set) and `carry_declined` (the record of bytes a
   judge rejected keeps each rejection of them once per judge, context and request, so every

@@ -1,0 +1,61 @@
+nika: stale-tickets-report
+const:
+  source_path: "./in/tickets.json"
+  output_path: "./out/report.json"
+permits:
+  tools: ["nika:read", "nika:jq", "nika:write"]
+  fs:
+    read: ["./in/tickets.json"]
+    write: ["./out/report.json"]
+tasks:
+  read_source:
+    invoke:
+      tool: "nika:read"
+      args:
+        path: "${{ const.source_path }}"
+  parse_source:
+    with:
+      text: "${{ tasks.read_source.output }}"
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ with.text }}"
+        expression: "fromjson"
+  build_report:
+    with:
+      records: "${{ tasks.compute.output }}"
+    invoke:
+      tool: "nika:jq"
+      args:
+        input:
+          ${{ with.records }}
+        expression: '{count: length, ids: map(.id)}'
+  write_report:
+    with:
+      report: "${{ tasks.build_report.output }}"
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "${{ const.output_path }}"
+        content: "${{ with.report }}"
+        overwrite: true
+        create_dirs: true
+  compute:
+    invoke:
+      args:
+        expression: "[.[] | select(.age_hours > 72)]"
+        input:
+          ${{ with.records }}
+      tool: nika:jq
+    with:
+      records: ${{ tasks.parse_source.output }}
+outputs:
+  stale:
+    description: Selected records with age_hours strictly greater than 72, in input order.
+    type:
+      array:
+        additional: true
+        object:
+          age_hours: number
+          id: string
+    value: ${{ tasks.compute.output }}

@@ -17,6 +17,7 @@ use serde_json::{Value, json};
 
 use super::{Journal, Links, refuse, revision_change, source_original};
 use crate::cognition::native::{self, Answer};
+use crate::cognition::rehearsal::Rehearsals;
 use crate::cognition::{AuthoringPolicy, CompileOutcome, CompileRequest, Strategy};
 use crate::decide::DecisionSeat;
 use crate::fidelity::Diagnostic;
@@ -41,7 +42,7 @@ pub(super) async fn document_settled<P: ProviderInferDyn>(
     (intent, reading): (&str, &lexicon::Reading),
     (policy, provider, decision): (&AuthoringPolicy, &P, Option<&dyn DecisionSeat>),
     journal: Journal<'_>,
-    ((first, first_text), catalog): ((Links, String), Option<&dyn ComponentCatalog>),
+    ((first, first_text), rehearsals): ((Links, String), &mut Rehearsals<'_>),
     mut out: CompileOutcome,
 ) -> CompileOutcome {
     let Input::Edit { source: base, .. } = &request.input else {
@@ -61,7 +62,7 @@ pub(super) async fn document_settled<P: ProviderInferDyn>(
     talk.remember_under(policy);
     let (mut links, mut text) = (first, first_text);
     loop {
-        let why = match stated(base, &links, catalog, &carried) {
+        let why = match stated(base, &links, rehearsals.catalog(), &carried) {
             Ok(applied) => {
                 let done = finished(&applied.source);
                 if done.status == crate::CompileStatus::Ready || !done.questions.is_empty() {
@@ -73,7 +74,16 @@ pub(super) async fn document_settled<P: ProviderInferDyn>(
                     let parts = (base.as_str(), &applied, done);
                     let seated = (policy, provider, decision);
                     let journal = (&talk, sent.as_slice(), shown, &cold);
-                    return kept(request, (intent, reading), seated, journal, parts, out).await;
+                    return kept(
+                        request,
+                        (intent, reading),
+                        seated,
+                        journal,
+                        parts,
+                        rehearsals,
+                        out,
+                    )
+                    .await;
                 }
                 checked_refusal(&done)
             }
@@ -166,13 +176,16 @@ fn journaled(talk: &mut native::Talk, round: u32, links: &Links, why: &[String])
 }
 
 /// The revision kept: its record bound to the revised bytes, the talk journaled, the components
-/// the bytes hold witnessed, and, when READY, the round's judge reading it.
+/// the bytes hold witnessed, its own engine facts recorded on those bytes
+/// (`nika_compile_seats::judge::lent`), and, when READY, one trial of exactly those bytes in the
+/// room the compile was lent, then the round's judge reading them beside that observation.
 async fn kept<P: ProviderInferDyn>(
     request: &CompileRequest,
     (intent, reading): (&str, &lexicon::Reading),
     (policy, provider, decision): (&AuthoringPolicy, &P, Option<&dyn DecisionSeat>),
     (talk, sent, shown, cold): (&native::Talk, &[Value], Option<(&str, &str)>, &native::Cold),
     (base, applied, mut done): (&str, &document::Applied, CompileOutcome),
+    rehearsals: &mut Rehearsals<'_>,
     mut out: CompileOutcome,
 ) -> CompileOutcome {
     done.provenance.authoring = out.provenance.authoring.take();
@@ -196,9 +209,11 @@ async fn kept<P: ProviderInferDyn>(
     // What reuse the bytes really hold: each composed component witnessed on the candidate.
     let qualification = json!({"by": null, "why": "a revision: components are composed by operations, none is qualified here"});
     crate::cognition::knowledge::reused(request, qualification, &applied.receipts, &mut done);
+    nika_compile_seats::judge::lent(rehearsals.catalog(), &mut done);
     if done.status != crate::CompileStatus::Ready {
         return done;
     }
+    let observation = Box::pin(rehearsals.trial(request, &done)).await;
     crate::cognition::verify::judged_native(
         intent,
         reading,
@@ -206,6 +221,7 @@ async fn kept<P: ProviderInferDyn>(
         (provider, decision),
         request,
         done,
+        observation.as_ref(),
     )
     .await
 }

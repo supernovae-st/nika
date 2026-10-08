@@ -17,7 +17,9 @@ use crate::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileOutcome, DiagnosticKind,
 };
 /// A refused or ignored model payload as a record keeps it ([`withheld`](nika_compile_seats::reasoning::withheld)).
-pub(super) use nika_compile_seats::reasoning::withheld;
+pub(super) use nika_compile_seats::reasoning::{
+    journaled, record_proposed, stamp_references, withheld,
+};
 
 /// The observer of authoring calls, owned by the provider layer; this module produces its
 /// observations.
@@ -192,36 +194,6 @@ fn timeout_message(policy: &AuthoringPolicy) -> String {
     )
 }
 
-/// The semantic object a call's answer proposed, on that call's journal entry. An object that
-/// decoded as the door's closed shape (`known` are its keys) is kept exactly; a refused one is
-/// [`withheld`]: a model's arbitrary text never reaches the shared record. Data for forensics,
-/// never read back as a plan.
-pub(super) fn record_proposed(
-    out: &mut CompileOutcome,
-    object: &str,
-    decoded: bool,
-    known: &[&str],
-) {
-    if let Some(call) = out
-        .provenance
-        .authoring
-        .as_mut()
-        .and_then(|receipt| receipt.context.last_mut())
-    {
-        call["proposed"] = if decoded {
-            json!({
-                "decoded": true,
-                "sha256": super::knowledge::sha256(object),
-                "object": serde_json::from_str::<Value>(object).ok(),
-            })
-        } else {
-            let mut kept = withheld(object, known, "not the door's closed shape; never read");
-            kept["decoded"] = json!(false);
-            kept
-        };
-    }
-}
-
 /// The keys of the closed plan shape (`assets/plan_schema.json`): a refused proposal keeps only
 /// these names, by shape.
 pub(super) const PLAN_KEYS: &[&str] = &[
@@ -233,25 +205,6 @@ pub(super) const PLAN_KEYS: &[&str] = &[
     "regions",
     "approval_bypass",
 ];
-
-/// The references a call's messages actually carried, on the journal entry of the call made
-/// after `before` entries (R4 A11, E36): a call that was never journaled is left alone.
-pub(super) fn stamp_references(out: &mut CompileOutcome, before: usize, receipts: &Value) {
-    if let Some(receipt) = out.provenance.authoring.as_mut()
-        && receipt.context.len() > before
-        && let Some(entry) = receipt.context.last_mut()
-    {
-        entry["references"] = receipts.clone();
-    }
-}
-
-/// The number of journaled calls so far.
-pub(super) fn journaled(out: &CompileOutcome) -> usize {
-    out.provenance
-        .authoring
-        .as_ref()
-        .map_or(0, |receipt| receipt.context.len())
-}
 
 #[cfg(test)]
 mod tests {

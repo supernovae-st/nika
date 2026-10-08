@@ -2741,8 +2741,11 @@ pub mod nika_compile_seats::reasoning
 pub fn nika_compile_seats::reasoning::authoring_request(policy: &nika_compile::types::AuthoringPolicy, messages: alloc::vec::Vec<nika_kernel_ai::provider::Message>, schema: serde_json::value::Value, cap: u32) -> core::option::Option<nika_kernel_ai::provider::InferRequest>
 pub fn nika_compile_seats::reasoning::context_entry(role: &str, messages: &[nika_kernel_ai::provider::Message], schema: &serde_json::value::Value) -> serde_json::value::Value
 pub fn nika_compile_seats::reasoning::effort(reasoning: nika_compile::types::AuthoringReasoning) -> core::option::Option<nika_kernel_ai::provider::ReasoningEffort>
+pub fn nika_compile_seats::reasoning::journaled(out: &nika_compile::types::CompileOutcome) -> usize
 pub fn nika_compile_seats::reasoning::reasoning_record(configured: core::option::Option<nika_compile::types::AuthoringReasoning>, response: core::option::Option<&nika_kernel_ai::provider::InferResponse>) -> serde_json::value::Value
+pub fn nika_compile_seats::reasoning::record_proposed(out: &mut nika_compile::types::CompileOutcome, object: &str, decoded: bool, known: &[&str])
 pub fn nika_compile_seats::reasoning::response_identity(response: &nika_kernel_ai::provider::InferResponse) -> serde_json::value::Value
+pub fn nika_compile_seats::reasoning::stamp_references(out: &mut nika_compile::types::CompileOutcome, before: usize, receipts: &serde_json::value::Value)
 pub fn nika_compile_seats::reasoning::withheld(text: &str, known: &[&str], reason: &str) -> serde_json::value::Value
 pub mod nika_compile_seats::rehearse
 pub mod nika_compile_seats::rehearse::arguments

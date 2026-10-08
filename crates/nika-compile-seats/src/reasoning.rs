@@ -9,7 +9,7 @@
 //! crate's size cap (2026-10-08).
 
 use nika_compile::surface::sha256;
-use nika_compile::{AuthoringPolicy, AuthoringReasoning};
+use nika_compile::{AuthoringPolicy, AuthoringReasoning, CompileOutcome};
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, Message, ReasoningEffort, ResponseFormat, Role,
 };
@@ -143,4 +143,49 @@ pub fn authoring_request(
         infer.reasoning_effort = Some(effort(reasoning)?);
     }
     Some(infer)
+}
+
+/// The semantic object a call's answer proposed, on that call's journal entry. An object that
+/// decoded as the door's closed shape (`known` are its keys) is kept exactly; a refused one is
+/// [`withheld`]: a model's arbitrary text never reaches the shared record. Data for forensics,
+/// never read back as a plan.
+pub fn record_proposed(out: &mut CompileOutcome, object: &str, decoded: bool, known: &[&str]) {
+    if let Some(call) = out
+        .provenance
+        .authoring
+        .as_mut()
+        .and_then(|receipt| receipt.context.last_mut())
+    {
+        call["proposed"] = if decoded {
+            json!({
+                "decoded": true,
+                "sha256": sha256(object),
+                "object": serde_json::from_str::<Value>(object).ok(),
+            })
+        } else {
+            let mut kept = withheld(object, known, "not the door's closed shape; never read");
+            kept["decoded"] = json!(false);
+            kept
+        };
+    }
+}
+
+/// The references a call's messages actually carried, on the journal entry of the call made
+/// after `before` entries (R4 A11, E36): a call that was never journaled is left alone.
+pub fn stamp_references(out: &mut CompileOutcome, before: usize, receipts: &Value) {
+    if let Some(receipt) = out.provenance.authoring.as_mut()
+        && receipt.context.len() > before
+        && let Some(entry) = receipt.context.last_mut()
+    {
+        entry["references"] = receipts.clone();
+    }
+}
+
+/// The number of journaled calls so far.
+#[must_use]
+pub fn journaled(out: &CompileOutcome) -> usize {
+    out.provenance
+        .authoring
+        .as_ref()
+        .map_or(0, |receipt| receipt.context.len())
 }

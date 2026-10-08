@@ -195,7 +195,7 @@ async fn revise<P: ProviderInferDyn>(
         request,
         policy,
         (provider, cognition.seat),
-        rehearsals.catalog(),
+        rehearsals,
     ))
     .await
 }
@@ -311,13 +311,12 @@ async fn semantic_replayed<P: ProviderInferDyn>(
         let seat = (reading.authoring.as_ref())
             .filter(|p| super::revise_intent(reading).is_some() && policy_bounded(p))
             .zip(cognition.provider);
-        let lent = rehearsals.catalog();
         return Box::pin(sketch::revise::edit(
             raw,
             reading,
             seat,
             cognition.seat,
-            lent,
+            rehearsals,
         ))
         .await;
     };

@@ -32,6 +32,7 @@ use super::{
     judge_defects, native, next_round, prelude, reopen, repair, semantic_record, system_message,
     withhold_record, within,
 };
+use crate::cognition::rehearsal::Rehearsals;
 use crate::cognition::verify;
 use crate::cognition::{AuthoringPolicy, CompileOutcome, CompileRequest, DiagnosticKind, Strategy};
 use crate::decide::DecisionSeat;
@@ -122,7 +123,7 @@ pub(in crate::cognition) async fn edit<P: ProviderInferDyn>(
     reading: &CompileRequest,
     seat: Option<(&AuthoringPolicy, &P)>,
     decision: Option<&dyn DecisionSeat>,
-    catalog: Option<&dyn ComponentCatalog>,
+    rehearsals: &mut Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     let core = nika_compile::compile(raw)?;
     let unresolved = core
@@ -133,7 +134,7 @@ pub(in crate::cognition) async fn edit<P: ProviderInferDyn>(
         unresolved && policy.native != crate::cognition::NativeMode::Off
     };
     match seat.filter(open) {
-        Some((policy, provider)) => revise(reading, policy, (provider, decision), catalog).await,
+        Some((policy, provider)) => revise(reading, policy, (provider, decision), rehearsals).await,
         None => Ok(core),
     }
 }
@@ -450,7 +451,7 @@ async fn revise<P: ProviderInferDyn>(
     request: &CompileRequest,
     policy: &AuthoringPolicy,
     (provider, decision): (&P, Option<&dyn DecisionSeat>),
-    catalog: Option<&dyn ComponentCatalog>,
+    rehearsals: &mut Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     let mut out = crate::initial();
     let (
@@ -516,7 +517,7 @@ async fn revise<P: ProviderInferDyn>(
                 // links rounds kept paid and journaled in this very outcome.
                 let seats = (policy, provider, decision);
                 let refused = (why.as_slice(), next);
-                let over = recorded_over_document(&revising, base, seats, catalog, out, refused);
+                let over = recorded_over_document(&revising, base, seats, rehearsals, out, refused);
                 return Ok(over.await);
             }
         };
@@ -691,9 +692,16 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
     request: &CompileRequest,
     policy: &AuthoringPolicy,
     seats: (&P, Option<&dyn DecisionSeat>),
-    catalog: Option<&dyn ComponentCatalog>,
+    rehearsals: &mut Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
-    source_from(request, policy, seats, (catalog, true, 0), crate::initial()).await
+    source_from(
+        request,
+        policy,
+        seats,
+        (rehearsals, true, 0),
+        crate::initial(),
+    )
+    .await
 }
 
 /// A recorded base's change its fixed graph refused, stated over the complete document of the
@@ -705,13 +713,13 @@ async fn recorded_over_document<P: ProviderInferDyn>(
     revising: &CompileRequest,
     base: &Value,
     (policy, provider, decision): (&AuthoringPolicy, &P, Option<&dyn DecisionSeat>),
-    catalog: Option<&dyn ComponentCatalog>,
+    rehearsals: &mut Rehearsals<'_>,
     mut out: CompileOutcome,
     (why, next): (&[String], u32),
 ) -> CompileOutcome {
     let attempt = out.provenance.decision.take();
     let seats = (provider, decision);
-    let over = source_from(revising, policy, seats, (catalog, false, next), out);
+    let over = source_from(revising, policy, seats, (rehearsals, false, next), out);
     let mut done = match Box::pin(over).await {
         Ok(done) => done,
         Err(error) => {
@@ -735,7 +743,7 @@ async fn source_from<P: ProviderInferDyn>(
     request: &CompileRequest,
     policy: &AuthoringPolicy,
     (provider, decision): (&P, Option<&dyn DecisionSeat>),
-    (catalog, links, round): (Option<&dyn ComponentCatalog>, bool, u32),
+    (rehearsals, links, round): (&mut Rehearsals<'_>, bool, u32),
     mut out: CompileOutcome,
 ) -> Result<CompileOutcome, CompileError> {
     let kept = || {
@@ -769,7 +777,7 @@ async fn source_from<P: ProviderInferDyn>(
         ledger_of(original.as_deref().unwrap_or_default()),
         ledger_of(change),
     );
-    let lent = (destinations, catalog);
+    let lent = (destinations, rehearsals.catalog());
     let (mut talk, sent, shown) = source_opened(base, &intent, &reading, request, &ledgers, lent);
     let schema = if destinations {
         revision_schema()
@@ -796,7 +804,7 @@ async fn source_from<P: ProviderInferDyn>(
     let reading = (intent.as_str(), &reading);
     let seated = (policy, provider, decision);
     if linked.0.over_the_document() || !destinations {
-        let answer = (linked, catalog);
+        let answer = (linked, rehearsals);
         let settled =
             document_route::document_settled(request, reading, seated, journal, answer, out);
         return Ok(settled.await);
@@ -903,6 +911,7 @@ async fn source_settled<P: ProviderInferDyn>(
         (provider, decision),
         request,
         done,
+        None,
     )
     .await
 }

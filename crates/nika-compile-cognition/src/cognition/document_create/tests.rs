@@ -8,6 +8,11 @@
 //! (`nika_compile_seats::foundry::document::create`).
 
 use super::{DocumentAnswer, answer_schema};
+use crate::rehearse::{
+    Attempt, Bounds, CopyReceipt, Digest, EffectCounts, FinalReceipt, FinalState, Held,
+    LedgerFacts, Observation, Rehearsal, RehearsalFuture, RehearsalReport, Rehearse,
+    RehearsedOutput, RoomEvidence, Spent,
+};
 use nika_compile::surface::sha256;
 use nika_compile_seats::foundry::component::pinned;
 use nika_compile_seats::foundry::{
@@ -179,6 +184,10 @@ struct Scripted {
     /// Whether the whole request is judged from the transmitted engine facts alone: unfaithful
     /// when the catalogue offered a component and none is composed, else faithful.
     conditional: bool,
+    /// Whether the whole request is always doubted (`unfaithful`), every other question approved.
+    doubting: bool,
+    /// The kind of each verifier question asked: `whole`, `observed` or `part`.
+    asked: std::sync::Mutex<Vec<&'static str>>,
 }
 
 impl Scripted {
@@ -188,7 +197,23 @@ impl Scripted {
             openings: std::sync::Mutex::new(Vec::new()),
             states: std::sync::Mutex::new(Vec::new()),
             conditional: false,
+            doubting: false,
+            asked: std::sync::Mutex::new(Vec::new()),
         }
+    }
+
+    /// The same seat, always doubting the whole request and approving every other question.
+    fn doubting(answers: Vec<String>) -> Self {
+        Self {
+            doubting: true,
+            ..Self::new(answers)
+        }
+    }
+
+    /// How many verifier questions of `kind` were asked.
+    fn asked(&self, kind: &str) -> usize {
+        let asked = self.asked.lock().expect("asked");
+        asked.iter().filter(|k| **k == kind).count()
     }
 
     /// The same seat, judging the whole request from the engine facts it is shown.
@@ -270,7 +295,16 @@ impl nika_kernel::ai::provider::ProviderInferDyn for Scripted {
         } else {
             let state = state_of(&request);
             let whole = schema["properties"]["choice"]["enum"].to_string();
+            let kind = if whole.contains("\"unfaithful\"") {
+                "whole"
+            } else if whole.contains("\"unexercised\"") {
+                "observed"
+            } else {
+                "part"
+            };
+            self.asked.lock().expect("asked").push(kind);
             let choice = match &state {
+                Some(_) if self.doubting && kind == "whole" => "unfaithful",
                 Some(state) if self.conditional && whole.contains("\"unfaithful\"") => {
                     let facts = &state["authoring"];
                     let offered = facts["offered"]["total"].as_u64().unwrap_or(0) > 0;
@@ -336,6 +370,22 @@ async fn compiled_under(
         seat: None,
     };
     crate::compile_with_cognition_composed(request, cognition, None, Some(catalog))
+        .await
+        .expect("compiles")
+}
+
+/// The compile of `request` with `host`'s room and `catalog` lent.
+async fn compiled_with(
+    request: &crate::CompileRequest,
+    seat: &Scripted,
+    host: Option<&dyn Rehearse>,
+    catalog: Option<&dyn ComponentCatalog>,
+) -> crate::CompileOutcome {
+    let cognition = crate::Cognition {
+        provider: Some(seat),
+        seat: None,
+    };
+    crate::compile_with_cognition_composed(request, cognition, host, catalog)
         .await
         .expect("compiles")
 }
@@ -689,6 +739,207 @@ async fn the_conditional_foundry_clause_is_judged_on_what_the_catalogue_offered(
                 .filter(|c| c.starts_with("document"))
                 .count(),
             1
+        );
+    }
+}
+
+/// A revision is judged on its own facts, never its base's (A5): the creation composes the block
+/// (its judge shown it expanded), then a change in words rewrites the whole document with the
+/// block's tasks renamed away. The revision records its own facts on the revised bytes: the
+/// receipt it carries is shown absent there, beside the same lent release and offer, never the
+/// creation's expanded witness.
+#[tokio::test]
+async fn a_revision_is_judged_on_its_own_facts_never_its_bases() {
+    let author = Scripted::new(vec![door(ENVELOPE, &[compose(48)])]);
+    let created = compiled(&stale_request(), &author).await;
+    assert_eq!(
+        created.status,
+        crate::CompileStatus::Ready,
+        "{:#?}",
+        created.diagnostics
+    );
+    assert_eq!(author.judged_facts()["composed"][0]["verdict"], "expanded");
+    let base = created.candidate.clone().expect("the created bytes");
+    let record = created.provenance.plan.clone().expect("its record");
+    let renamed = [
+        ("read_records", "load_tickets"),
+        ("parse_records", "decode_tickets"),
+        ("report_text", "render_report"),
+        ("write_report", "save_report"),
+        ("value: 48 }", "value: 72 }"),
+    ];
+    let rewritten = renamed
+        .iter()
+        .fold(base.clone(), |text, (old, new)| text.replace(old, new));
+    assert_ne!(rewritten, base);
+    let answer = json!({"supersedes": [], "adds": [], "notes": "", "operations": [],
+        "replace": rewritten});
+    let editor = Scripted::new(vec![answer.to_string()]);
+    let edit = crate::CompileRequest::edit(base, "Raise the age threshold to 72 hours.")
+        .with_authoring_policy(policy())
+        .with_plan(record);
+    let revised = compiled(&edit, &editor).await;
+    assert_eq!(
+        revised.status,
+        crate::CompileStatus::Ready,
+        "{:#?}",
+        revised.diagnostics
+    );
+    assert_eq!(revised.candidate.as_deref(), Some(rewritten.as_str()));
+    let facts = editor.judged_facts();
+    assert_eq!(
+        facts["composed"][0]["component"],
+        "block:stale-filter-report"
+    );
+    assert_eq!(facts["composed"][0]["verdict"], "absent", "{facts:#}");
+    assert_eq!(facts["catalogue"], Shelf.release().record());
+    assert_eq!(facts["offered"]["total"], 1);
+}
+
+/// The tickets workflow a session saved after creating it, and the exact draft its author gave
+/// for raising the threshold from 48 to 72 hours (the source alone, no run or judgment kept).
+const SAVED: &str = include_str!("../../../tests/fixtures/edit_trial/base.nika");
+const DRAFT: &str = include_str!("../../../tests/fixtures/edit_trial/draft.nika");
+/// The tickets the room copies in, and the report the draft's run writes from them.
+const TICKETS: &str = r#"[{"id":"fresh-10","age_hours":10},{"id":"stale-60","age_hours":60},{"id":"boundary-72","age_hours":72},{"id":"stale-90","age_hours":90}]"#;
+const REPORT: &str = r#"{"count":1,"ids":["stale-90"]}"#;
+
+/// A room that runs each candidate it is shown to completion (the tickets copied in, the
+/// report written) and keeps every candidate it ran.
+#[derive(Default)]
+struct Room {
+    shown: std::sync::Mutex<Vec<String>>,
+}
+
+impl Rehearse for Room {
+    fn bound(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(10)
+    }
+    fn rehearse<'a>(&'a self, candidate: &'a str, inputs: &'a [String]) -> RehearsalFuture<'a> {
+        self.rehearse_reading(candidate, inputs, &[])
+    }
+    fn rehearse_reading<'a>(
+        &'a self,
+        candidate: &'a str,
+        _inputs: &'a [String],
+        _targets: &'a [String],
+    ) -> RehearsalFuture<'a> {
+        Box::pin(async move {
+            self.shown.lock().expect("shown").push(candidate.to_owned());
+            ran(candidate)
+        })
+    }
+}
+
+/// The room's report of one completed run of `candidate`, every receipt agreeing with the bytes
+/// it spent.
+fn ran(candidate: &str) -> RehearsalReport {
+    let (source, target) = ("./in/tickets.json", "./out/report.json");
+    let input = Digest::of(TICKETS.as_bytes());
+    let mut observed = Observation::none();
+    observed.bounds = Bounds::new(10_000, 1_048_576, 65_536);
+    let copy = CopyReceipt::new(
+        source,
+        input.clone(),
+        Some(input),
+        Held::Whole(TICKETS.to_owned()),
+    );
+    observed.copies = vec![copy];
+    let state = FinalState::File {
+        digest: Digest::of(REPORT.as_bytes()),
+        held: Held::Whole(REPORT.to_owned()),
+    };
+    observed.finals = vec![FinalReceipt::new(target, state)];
+    observed.ledger = LedgerFacts::clean(vec![target.into()]);
+    observed.spent = Spent::new(TICKETS.len() as u64, REPORT.len() as u64);
+    RehearsalReport::new(
+        Rehearsal::Passed {
+            outputs: vec![RehearsedOutput::new(target, REPORT)],
+        },
+        Attempt::Completed { elapsed_ms: 2 },
+        EffectCounts::none(),
+        sha256(candidate),
+    )
+    .with_admitted_digest("synthetic-admission")
+    .with_room(RoomEvidence::new(true, true))
+    .with_observation(observed)
+}
+
+/// A revision doubt only a run decides is settled by one trial of its exact bytes (the EDIT
+/// trial seam): the session's saved tickets workflow, changed in words under the request it was
+/// created from (whose stated paths the room's copy answers to), answered whole by the author's
+/// exact draft; the judge doubts the whole request, carries every part and finds
+/// nothing extra. With no room, nothing decides the doubt: held after one authoring call. That
+/// rejection carried to an unchanged round asks the judge nothing. With a room, the revision's
+/// exact bytes run once (the session's own world untouched: only the room's copy is read) and
+/// the judge, shown that run, finds it consistent: READY on the same draft, with no second
+/// authoring call, the carried round resuming with the one question over the run.
+#[tokio::test]
+async fn a_revision_doubt_is_settled_by_one_trial_of_its_exact_bytes() {
+    let change = "Keep the tickets whose age_hours is strictly greater than 72 instead of 48.";
+    let edit = crate::CompileRequest::edit(SAVED, change)
+        .with_original_intent(STALE_INTENT)
+        .with_authoring_policy(policy());
+    let answer = json!({"supersedes": [], "adds": [], "notes": "", "operations": [],
+        "replace": DRAFT})
+    .to_string();
+    let authored = |out: &crate::CompileOutcome| {
+        calls(out)
+            .iter()
+            .filter(|c| c.starts_with("revision"))
+            .count()
+    };
+    let author = Scripted::doubting(vec![answer.clone()]);
+    let held = compiled_with(&edit, &author, None, None).await;
+    assert_ne!(
+        held.status,
+        crate::CompileStatus::Ready,
+        "{:#?}",
+        held.diagnostics
+    );
+    assert_eq!(held.candidate.as_deref(), Some(DRAFT));
+    assert_eq!(
+        (
+            authored(&held),
+            author.asked("whole"),
+            author.asked("observed")
+        ),
+        (1, 1, 0)
+    );
+    let decision = held.provenance.decision.clone().unwrap_or_default();
+    let rejected = decision["semantic_verification"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let carried = edit.clone().with_declined(rejected);
+    let author = Scripted::doubting(vec![answer.clone()]);
+    let again = compiled_with(&carried, &author, None, None).await;
+    assert_ne!(again.status, crate::CompileStatus::Ready);
+    assert_eq!(
+        (author.asked("whole"), author.asked("part")),
+        (0, 0),
+        "nothing asked again"
+    );
+    for (request, whole) in [(&edit, 1), (&carried, 0)] {
+        let room = Room::default();
+        let author = Scripted::doubting(vec![answer.clone()]);
+        let out = compiled_with(request, &author, Some(&room), None).await;
+        assert_eq!(
+            out.status,
+            crate::CompileStatus::Ready,
+            "{:#?}",
+            out.diagnostics
+        );
+        assert_eq!(out.candidate.as_deref(), Some(DRAFT));
+        assert_eq!(authored(&out), 1, "no second authoring call");
+        assert_eq!(
+            (author.asked("whole"), author.asked("observed")),
+            (whole, 1)
+        );
+        let shown = room.shown.lock().expect("shown").clone();
+        assert!(
+            shown.iter().all(|ran| ran == DRAFT) && !shown.is_empty(),
+            "{shown:?}"
         );
     }
 }
