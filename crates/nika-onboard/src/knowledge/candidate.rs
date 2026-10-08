@@ -13,11 +13,14 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use nika_compile_seats::foundry::entry::role;
-use nika_compile_seats::foundry::reach::descriptor;
+use nika_compile_seats::foundry::reach::{descriptor, widen};
 use nika_compile_seats::foundry::release::canonical::jcs_json;
 use nika_compile_seats::foundry::release::r2;
-use nika_compile_seats::foundry::{ComponentCatalog, ComponentRef};
-use serde_json::Value;
+use nika_compile_seats::foundry::witness::{reuse, witness, witness_child};
+use nika_compile_seats::foundry::{
+    Binding, ComponentCatalog, ComponentRef, expand, instantiate, invoke,
+};
+use serde_json::{Value, json};
 
 use super::{Snapshot, TrustedIdentity};
 
@@ -185,4 +188,151 @@ fn every_candidate_row_reaches_the_consumer_whole_in_its_role() {
         );
     }
     assert!(unresolved <= entries.len());
+}
+
+/// The person's own document: their name, their boundary over their files.
+const PARENT: &str = r#"nika: orders-quarantine
+permits:
+  fs: { read: ["./in/orders.json", "./in/order.schema.json"], write: ["./out/rejected.json", "./out/total.txt"] }
+  tools: ["nika:read", "nika:jq", "nika:validate", "nika:write"]
+tasks: {}
+"#;
+
+/// The candidate block every hole of which the person's request states.
+const BLOCK: &str = "block:validate-quarantine-total";
+
+fn bindings() -> Vec<Binding> {
+    vec![
+        Binding::new("const.batch_path", json!("./in/orders.json")),
+        Binding::new("const.schema_path", json!("./in/order.schema.json")),
+        Binding::new("const.amount_field", json!("amount")),
+        Binding::new("const.quarantine_path", json!("./out/rejected.json")),
+        Binding::new("const.total_path", json!("./out/total.txt")),
+    ]
+}
+
+#[test]
+#[ignore = "a release candidate: needs NIKA_KNOWLEDGE_R2_PAYLOAD and NIKA_KNOWLEDGE_R2_RECORD at build time"]
+fn a_candidate_block_is_expanded_checked_and_witnessed_by_its_candidate_bound_receipt() {
+    let (snapshot, record) = admitted();
+    let row = snapshot.row(BLOCK).unwrap().clone();
+    assert_eq!(row["proof_level"], "CHECKED");
+    assert_eq!(row["check_receipt"]["sha256"], row["file_sha256"]);
+    assert_eq!(row["check_receipt"]["verdict"], "CURRENT_CHECKED");
+    let component = snapshot.resolve(&ComponentRef::new(BLOCK)).unwrap();
+    assert_eq!(component.release.profile, r2::PROFILE);
+    assert_eq!(
+        component.release.snapshot_sha256,
+        record["snapshot_sha256"].as_str().unwrap()
+    );
+    assert_eq!(component.contract, row);
+    let instance = instantiate(&component, &bindings()).unwrap();
+    let expansion = expand(PARENT, &instance).unwrap();
+    assert!(expansion.ready, "{:#}", expansion.receipt["check"]);
+    let receipt = &expansion.receipt;
+    assert_eq!(receipt["component"]["id"], BLOCK);
+    assert_eq!(receipt["component"]["file_sha256"], row["file_sha256"]);
+    assert_eq!(
+        receipt["component"]["release"]["snapshot_sha256"],
+        record["snapshot_sha256"]
+    );
+    assert_eq!(receipt["component"]["release"]["profile"], r2::PROFILE);
+    assert_eq!(receipt["authority"]["inherited"], false);
+    assert_eq!(
+        witness(receipt, &expansion.candidate)["verdict"],
+        "expanded"
+    );
+    assert_ne!(
+        witness(receipt, PARENT)["verdict"],
+        "expanded",
+        "no expansion, no reuse"
+    );
+    // The same component behind a child-workflow boundary, witnessed on both programs.
+    let call = invoke(
+        PARENT,
+        &instance,
+        "quarantine",
+        "./blocks/validate-quarantine-total.nika",
+    )
+    .unwrap();
+    assert_eq!(
+        witness(&call.receipt, &call.candidate)["verdict"],
+        "invoked"
+    );
+    assert_eq!(
+        witness_child(&call.receipt, &call.child)["verdict"],
+        "expanded"
+    );
+    // What the author was shown and what the candidate holds: one expanded, the rest consulted.
+    let boundary = snapshot.rows("counterexamples")[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let shown = [
+        snapshot.reference(BLOCK).unwrap(),
+        snapshot.reference(&boundary).unwrap(),
+    ];
+    let record = reuse(
+        &shown,
+        std::slice::from_ref(receipt),
+        Some(&expansion.candidate),
+    );
+    assert_eq!(record["expanded"], 1, "{record:#}");
+    assert_eq!(record["consulted"], 1, "{record:#}");
+}
+
+/// What one request costs the qualification on the candidate, measured, never projected: the
+/// pack the lexical and graph recall presents in full, then the entries the whole-catalog reach
+/// asks by descriptor in the same batch, and what presenting every asked entry in full would
+/// weigh. Written to `NIKA_KNOWLEDGE_R2_RECEIPT` when named at build time.
+#[test]
+#[ignore = "a release candidate: needs NIKA_KNOWLEDGE_R2_PAYLOAD and NIKA_KNOWLEDGE_R2_RECORD at build time"]
+fn the_qualification_cost_of_a_request_is_measured_on_the_candidate() {
+    let (snapshot, record) = admitted();
+    let intents = [
+        "Validate the orders of ./in/orders.json against ./in/order.schema.json, write the invalid ones to ./out/rejected.json and the total amount of the valid ones to ./out/total.txt",
+        "Read ./data/tickets.csv, keep the open tickets older than 48 hours and write a short report to ./out/report.md",
+        "Fetch https://api.example.com/items with retries and a timeout, then save the JSON to ./out/items.json",
+    ];
+    let mut measured = Vec::new();
+    for intent in intents {
+        let pack = snapshot.pack(intent, None).unwrap();
+        let mut by_kind: BTreeMap<String, (usize, usize)> = BTreeMap::new();
+        for reference in &pack.references {
+            let counted = by_kind.entry(reference.kind.clone()).or_default();
+            *counted = (counted.0 + 1, counted.1 + reference.text.len());
+        }
+        let pack_bytes: usize = pack.references.iter().map(|r| r.text.len()).sum();
+        let mut folded = pack.clone();
+        let (widened, listed) = widen(&mut folded, &snapshot);
+        let descriptor_bytes: usize = (folded.references.iter())
+            .filter(|r| widened.contains(&r.id))
+            .map(|r| r.text.len())
+            .sum();
+        let full_bytes: usize = (widened.iter())
+            .filter_map(|id| snapshot.reference(id))
+            .map(|r| r.text.len())
+            .sum();
+        assert_eq!(
+            folded.references.len(),
+            pack.references.len() + widened.len()
+        );
+        measured.push(json!({
+            "intent": intent,
+            "pack": {"references": pack.references.len(), "by_kind": by_kind, "bytes": pack_bytes,
+                     "repairs": pack.repairs.len()},
+            "catalogue": {"listed": listed, "asked_by_descriptor": widened.len(),
+                          "descriptor_bytes": descriptor_bytes,
+                          "bytes_if_every_asked_entry_applied": full_bytes},
+            "questions": folded.references.len(),
+        }));
+    }
+    let receipt = json!({
+        "snapshot_sha256": record["snapshot_sha256"],
+        "profile": r2::PROFILE,
+        "measured": measured,
+    });
+    if let Some(path) = option_env!("NIKA_KNOWLEDGE_R2_RECEIPT") {
+        std::fs::write(path, serde_json::to_string_pretty(&receipt).unwrap()).unwrap();
+    }
 }
