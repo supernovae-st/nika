@@ -31,6 +31,8 @@ const MODEL: &str = "openai/gpt-6-astra";
 struct ConfiguredSeat {
     requests: Mutex<Vec<HarnessRequest>>,
     refusal: Option<String>,
+    /// What the agent moved during the turn (`model=<v>` · `effort=<v>`).
+    moved: Vec<String>,
 }
 
 impl DynAgentBackend for ConfiguredSeat {
@@ -54,6 +56,7 @@ impl DynAgentBackend for ConfiguredSeat {
             selection.transmitted_effort.clone_from(&effort);
             selection.configured_effort = effort;
             selection.configured_effort_source = Some(ModelProvenance::ConfirmedSelection);
+            selection.changed_mid_turn.clone_from(&self.moved);
             outcome.selection = selection;
             Ok(
                 Box::pin(futures_util::stream::iter([Ok(HarnessEvent::Completed {
@@ -70,9 +73,20 @@ fn seated(
     AgentVerb<MockProvider, MockToolExecutor, MockToolDefinitionProvider>,
     Arc<ConfiguredSeat>,
 ) {
+    seated_moving(refusal, &[])
+}
+
+fn seated_moving(
+    refusal: Option<&str>,
+    moved: &[&str],
+) -> (
+    AgentVerb<MockProvider, MockToolExecutor, MockToolDefinitionProvider>,
+    Arc<ConfiguredSeat>,
+) {
     let seat = Arc::new(ConfiguredSeat {
         requests: Mutex::new(Vec::new()),
         refusal: refusal.map(str::to_owned),
+        moved: moved.iter().map(|m| (*m).to_owned()).collect(),
     });
     let verb = AgentVerb::new(
         Arc::new(MockProvider::new("mock")),
@@ -163,6 +177,27 @@ async fn without_a_requirement_no_effort_is_asked_and_no_receipt_rides() {
         None
     );
     assert!(out.selection.is_none());
+}
+
+/// `fallback: none` holds through the turn: a model the agent moved after
+/// it was applied refuses the answer (NIKA-1805); without a declaration the
+/// same move is no refusal.
+#[tokio::test]
+async fn a_model_moved_mid_turn_refuses_under_a_declaration() {
+    let (verb, _) = seated_moving(None, &["model=gpt-5.4"]);
+    let err = verb
+        .run(AgentInput::new("summarise").with_requirement(Some(&codex("xhigh"))))
+        .await
+        .expect_err("not produced under the selection");
+    assert!(matches!(err, VerbAgentError::Harness { .. }), "{err:?}");
+    assert_eq!(err.spec_code(), "NIKA-1805");
+    let text = err.to_string();
+    assert!(text.contains("model=gpt-5.4"), "{text}");
+    assert!(text.contains("an explicit selection is exact"), "{text}");
+    let (verb, _) = seated_moving(None, &["model=gpt-5.4"]);
+    verb.run(AgentInput::new("summarise"))
+        .await
+        .expect("an undeclared run keeps its answer");
 }
 
 fn native(
