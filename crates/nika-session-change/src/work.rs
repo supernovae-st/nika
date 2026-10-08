@@ -21,7 +21,7 @@ use serde::Serialize;
 use nika_onboard::compile::{CompileDiagnostic, CompileOutcome, CompileStatus, DiagnosticKind};
 
 use crate::change::{ProjectChange, ProjectChangeSet, Witness, WorkflowAudit};
-use crate::outcome::{GateId, ProposalId, QuestionId};
+use crate::outcome::{GateId, ProposalId, QuestionId, ReviewId};
 use crate::world::World;
 
 /// The version a host checks before reading a [`Work`].
@@ -33,16 +33,22 @@ fn question_witness<S: serde::Serializer>(id: &QuestionId, out: S) -> Result<S::
     out.serialize_str(id.as_str())
 }
 
-/// What the next line answers, by the session's one precedence: the one-time cost decision,
-/// the choice of intelligence, a proposal's consent, a run's gate, then the values a question,
-/// a run input or an activation asks. Hosts route a line through the session with it; none
-/// keeps a routing bit of its own.
+/// What the next line answers, by the session's one precedence: a requested run's cost review,
+/// the one-time cost decision, the choice of intelligence, a proposal's consent, a run's gate,
+/// then the values a question, a run input or an activation asks. Hosts route a line through the
+/// session with it; none keeps a routing bit of its own.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum Waiting {
     /// Nothing waits: the next line is a new turn.
     Free,
+    /// A requested run's child waits at its fresh cost review: one yes runs it once, a decline
+    /// sends nothing. The host holds the child; the review's screen and evidence stay with it.
+    RunReview {
+        /// The identity an answer names.
+        review: ReviewId,
+    },
     /// The one-time decision on an inference whose cost is unknown; nothing is sent before it.
     CostChoice,
     /// The first screen: the intelligence the human prepares with.

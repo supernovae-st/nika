@@ -22,7 +22,7 @@ use crate::guard::KnownWorld;
 use crate::intelligence::{
     IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence, UserIntelligencePreference,
 };
-use crate::outcome::{GateId, ProposalId, Refusal, RefusalClass};
+use crate::outcome::{GateId, ProposalId, Refusal, RefusalClass, ReviewId};
 use crate::reasoner::{ReasonError, SessionReasoner};
 use crate::snapshot::ProjectSnapshot;
 
@@ -52,13 +52,14 @@ mod question;
 mod recovery;
 mod rehearsed;
 mod restore;
+mod review;
 mod round;
 mod route;
 mod run_budget;
 mod unjudged;
 mod unknown_cost;
 mod work;
-pub use work::{GATE_NOT_SHOWN, NOTHING_SHOWN, VALUE_NOT_SHOWN};
+pub use work::{GATE_NOT_SHOWN, NOTHING_SHOWN, REVIEW_NOT_SHOWN, VALUE_NOT_SHOWN};
 
 pub use decision::{DecisionAnswer, decision_answer};
 use decision::{is_gate_token, is_no, is_yes, local_command_of};
@@ -152,6 +153,15 @@ pub enum TurnOutcome {
     /// An answer BESIDE what waits (« why? » under a question or a gate): said from the machine's
     /// own state; the question or the gate keeps waiting, nothing is consumed, decided or applied.
     Aside(String),
+    /// The human answered a requested run's cost review: the host answers the child it holds
+    /// under this review exactly once. `approve` runs it once; otherwise nothing is sent and the
+    /// child is dropped ([`SessionRuntime::run_review_asked`]).
+    RunReviewed {
+        /// The review the answer names.
+        review: ReviewId,
+        /// One yes runs it once; a decline, leaving or an interruption sends nothing.
+        approve: bool,
+    },
     /// The intelligence was chosen in the middle of a request: the
     /// choice's own fact, then the outcome of the line that waited for it,
     /// resumed exactly as the human typed it — never re-asked.
@@ -252,6 +262,10 @@ pub struct SessionRuntime {
     consented: Option<PathBuf>,
     /// The run this session requested last, with the reach of the bytes it asked to run.
     requested_run: Option<crate::work::RequestedRun>,
+    /// The cost review a requested run's child waits at, while the host holds that child.
+    run_review: Option<review::RunReview>,
+    /// How many cost reviews this session asked: a review's turn in its identity.
+    reviews_asked: u64,
     /// How the compile that proposed the pending candidate revised its document, as its record
     /// states it (`document_revision`): bound to the candidate's bytes by digest when read.
     proposed_revision: Option<serde_json::Value>,
@@ -368,6 +382,8 @@ impl SessionRuntime {
             saved_reach: None,
             consented: None,
             requested_run: None,
+            run_review: None,
+            reviews_asked: 0,
             proposed_revision: None,
             last_trace: None,
             kept_run: None,

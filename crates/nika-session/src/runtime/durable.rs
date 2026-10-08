@@ -865,6 +865,7 @@ fn outcome_kind(outcome: &TurnOutcome) -> &'static str {
         TurnOutcome::GateAsk { .. } => "gate_ask",
         TurnOutcome::ResumeRequested { .. } => "resume_requested",
         TurnOutcome::Aside(_) => "aside",
+        TurnOutcome::RunReviewed { .. } => "run_reviewed",
         TurnOutcome::Resumed { outcome, .. } => outcome_kind(outcome),
     }
 }
@@ -908,7 +909,9 @@ fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
             notice,
             outcome: Box::new(with_note(*outcome, note)),
         },
-        other @ (TurnOutcome::Quit | TurnOutcome::ResumeRequested { .. }) => other,
+        other @ (TurnOutcome::Quit
+        | TurnOutcome::ResumeRequested { .. }
+        | TurnOutcome::RunReviewed { .. }) => other,
     }
 }
 
