@@ -38,6 +38,12 @@ error enum. See the [kernel backend migration contract](../../docs/crate-specs/n
 and [TokioFs publication and cancellation limits](../../docs/crate-specs/nika-fs.md#exclusive-publication-and-backend-migration).
 Policy (sandbox roots, allow-lists) lives in `nika-policy` (L1.5), not here.
 
+`AnchoredFs::new(root)` is the same backend with relative paths resolved at
+`root`, the launch directory or admitted project its caller selected, instead
+of the process working directory. Absolute and empty paths pass verbatim,
+listings and error paths keep the caller's spelling, and it grants or confines
+nothing.
+
 ---
 
 AGPL-3.0-or-later · SuperNovae Studio · 🦋

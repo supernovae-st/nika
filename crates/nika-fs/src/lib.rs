@@ -68,6 +68,12 @@
 //! registered in the room's [`EffectLedger`] (phases, seal then drain,
 //! budgets, write evidence). It is the backend whose pin covers every
 //! component; [`TokioFs`]'s pin covers the final component only.
+//!
+//! [`AnchoredFs`] is [`TokioFs`] with relative paths resolved at a root its
+//! caller selected (a run's launch directory or admitted project) instead of
+//! the process working directory, which one process cannot hold for several
+//! runs at once. It moves coordinates only: no grant, no containment, the same
+//! symlink and pin semantics, and the caller's own spelling in what it reports.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -82,6 +88,8 @@ mod ledger;
 pub use ledger::{Drain, Drained, EffectLedger, LedgerRefusal, Phase, Reservation, RoomLimits};
 mod rooted;
 pub use rooted::{Capped, RootedFs, read_capped};
+mod anchored;
+pub use anchored::AnchoredFs;
 mod remove;
 mod write_new;
 
