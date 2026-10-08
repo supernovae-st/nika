@@ -8,6 +8,7 @@
 //! ceiling (restricted by the server's, never raised, a restart included) and the Session
 //! observes that job's end, its journal when the resident's runtime ran it; a workflow outside
 //! the served registry admits nothing.
+//! A run admits only the bytes the Session checked for it: rewritten since, or unnamed, nothing.
 //! A run this server reviews first waits in the Session's door: the approval admits that reviewed
 //! job once, a decline none. The Session is a scripted one over the test project (its reasoner is
 //! never asked; the intent reaches the deterministic compiler), so no HOME, census or provider of
@@ -15,6 +16,7 @@
 
 use std::sync::atomic::AtomicUsize;
 
+use nika_session::change::Witness;
 use nika_session::intelligence::{
     IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence, UserIntelligencePreference,
 };
@@ -136,6 +138,7 @@ struct Served {
     address: SocketAddr,
     opened: Arc<AtomicUsize>,
     backend: Arc<Witnessed>,
+    state: Arc<AppState>,
     shutdown: oneshot::Sender<()>,
     join: tokio::task::JoinHandle<Result<(), ServerError>>,
 }
@@ -193,6 +196,7 @@ async fn serve(
         "the operator's switch"
     );
     let address = bound.local_addr().expect("address");
+    let state = Arc::clone(&bound.state);
     let (shutdown, receiver) = oneshot::channel();
     let join = tokio::spawn(authority.serve_with_http(bound, async move {
         let _ = receiver.await;
@@ -201,8 +205,20 @@ async fn serve(
         address,
         opened,
         backend,
+        state,
         shutdown,
         join,
+    }
+}
+
+/// The run request a Session makes for `workflow` after checking `checked` (none: no check).
+fn checked_run(workflow: &str, checked: Option<&str>) -> RunRequest {
+    RunRequest {
+        workflow: PathBuf::from(workflow),
+        vars: Vec::new(),
+        max_cost_usd: 0.25,
+        access_pin: None,
+        bytes: checked.map(|source| Box::new(Witness::of(source.as_bytes()))),
     }
 }
 
@@ -531,6 +547,48 @@ async fn a_saved_workflow_outside_the_served_registry_is_never_admitted() {
     close(served, &session).await;
 }
 
+/// The admission seam between the Session's check and the job: the workflow rewritten after the
+/// Session checked it (a valid workflow still), or a request naming no checked bytes, admits
+/// nothing; the checked bytes admit their one job, which runs exactly them.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_run_admits_only_the_bytes_the_session_checked() {
+    let world = TestWorld::new();
+    let path = world.root.path().join("root.nika");
+    let rewritten = WORKFLOW.replace(r#"expression: ".""#, r#"expression: ". + 1""#);
+    assert_ne!(rewritten, WORKFLOW, "a different valid workflow");
+    std::fs::write(&path, &rewritten).expect("rewritten after the check");
+    let served = serve(&world, (true, Registry::Project), Some(1.0), Arc::default()).await;
+    let resident = Resident::lent(&served.state);
+    for run in [
+        checked_run("root.nika", Some(WORKFLOW)),
+        checked_run("root.nika", None),
+    ] {
+        let refused = resident.admit(&run).await;
+        assert!(
+            matches!(&refused, Err(words) if words.starts_with("the workflow on disk is not the bytes the Session checked")),
+            "{refused:?}"
+        );
+    }
+    assert!(served.backend.runs().is_empty(), "nothing was admitted");
+    std::fs::write(&path, WORKFLOW).expect("the checked bytes");
+    let admitted = resident
+        .admit(&checked_run("root.nika", Some(WORKFLOW)))
+        .await;
+    assert!(matches!(admitted, Ok(Admitted::Job(_))), "{admitted:?}");
+    let Ok(Admitted::Job(job)) = admitted else {
+        return;
+    };
+    let (exit, _journal) = resident.settled(&job).await.expect("its end");
+    assert_eq!(exit, 0);
+    assert_eq!(
+        served.backend.runs(),
+        [(WORKFLOW.to_owned(), Some(0.25))],
+        "exactly the checked bytes, once"
+    );
+    served.shutdown.send(()).ok();
+    served.join.await.expect("join").expect("clean stop");
+}
+
 /// A Session job still queued when the resident stops keeps its requested ceiling: the record
 /// binds it into its admission event (a widened or removed ceiling no longer opens), and the
 /// recovered run runs under it even when the restarted server disarmed its own.
@@ -601,14 +659,8 @@ async fn a_reviewed_run_is_admitted_once_on_approval_and_never_on_decline() {
     let (server, state) =
         super::cost_review::start(&world, lent, super::cost_review::disarmed(), true).await;
     let resident = Resident::lent(&state);
-    let run = |workflow: &str| RunRequest {
-        workflow: PathBuf::from(workflow),
-        vars: Vec::new(),
-        max_cost_usd: 0.25,
-        access_pin: None,
-        bytes: None,
-    };
-    let reviewed = run("review.nika");
+    let source = std::fs::read_to_string(world.workflows.join("review.nika")).expect("source");
+    let reviewed = checked_run("review.nika", Some(&source));
     let held = resident.admit(&reviewed).await;
     assert!(
         matches!(held, Ok(Admitted::Review { .. })),

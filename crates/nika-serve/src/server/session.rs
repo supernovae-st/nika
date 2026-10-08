@@ -121,6 +121,12 @@ impl Resident {
             Ok(admitted) => admitted,
             Err(refused) => return Err(refusal_words(refused).await),
         };
+        // Only the bytes the Session checked run: every admission below executes, or frames its
+        // review over, this very capture.
+        let snapshot = admitted.snapshot();
+        if !(snapshot.text(snapshot.root())).is_some_and(|source| run.admits(source)) {
+            return Err(UNCHECKED.to_owned());
+        }
         let pairs = (run.vars.iter()).map(|var| var.split_once('=').unwrap_or((var.as_str(), "")));
         let inputs = super::schedule_inputs::bind_literals(&admitted, pairs)
             .map_err(|refused| refused.message)?;
@@ -235,6 +241,9 @@ impl Resident {
         }
     }
 }
+
+/// Why a run whose captured bytes are not those the Session checked starts nothing.
+const UNCHECKED: &str = "the workflow on disk is not the bytes the Session checked for this run · nothing ran · ask for the run again so the Session checks it";
 
 /// A fresh admission identity for one Session run: its own key, the digest of its request.
 fn identity(body: &[u8]) -> Result<(IdempotencyKey, RequestDigest), String> {
