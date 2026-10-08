@@ -281,6 +281,33 @@ fn one_answer_is_one_bearer_request_and_missing_usage_stays_unknown() {
     );
 }
 
+/// A question refused alone is named by the closed code its refusal carries (`jev-1.13.0`
+/// answered both bodies with HTTP 400 on 2026-10-08), never by the body's words, and is never
+/// resent; a bare 400 stays its status alone.
+#[test]
+fn a_refusal_of_one_question_is_named_by_its_closed_code_only() {
+    for (body, named) in [
+        (
+            r#"{"detail": {"error_type": "max_tokens_exceeded", "message": "echo sentinel-text"}}"#,
+            "typesafe http status 400: max_tokens_exceeded, the request reads more tokens than the model's context holds",
+        ),
+        (
+            r#"{"detail": {"error_type": "api_usage_error", "message": "Invalid request."}}"#,
+            "typesafe http status 400: api_usage_error, the service refused the request as invalid",
+        ),
+        (r#"{"detail": "sentinel-text"}"#, "typesafe http status 400"),
+    ] {
+        let peer = Peer::start(vec![
+            Reply::Status(400, body.to_owned()),
+            Reply::Status(200, answer(None)),
+        ]);
+        let failure = exchange(&peer, json!("tickets")).expect_err("a refusal answered");
+        assert_eq!(failure.error.0, named, "{body}");
+        assert_eq!(failure.delivery, Delivery::Responded(400));
+        assert_eq!(peer.heads().len(), 1, "{body} was resent");
+    }
+}
+
 #[test]
 fn json_bytes_are_not_treated_as_a_model_context_limit() {
     let peer = Peer::start(vec![Reply::Status(200, answer(None))]);

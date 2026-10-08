@@ -13,7 +13,7 @@
 use super::super::wire_tests::{KEY, Peer, Reply};
 use super::*;
 use nika_onboard::compile::decide::system_one::{criteria, read_state, request};
-use nika_onboard::compile::decide::{Carried, ChoiceOption, DecisionSeat};
+use nika_onboard::compile::decide::{Carried, ChoiceOption, ChoiceQuestion, DecisionSeat};
 use serde_json::{Value, json};
 
 const MODEL: &str = "jev-1.13.0";
@@ -471,4 +471,407 @@ fn the_seats_batch_door_is_one_request_in_item_order() {
         .collect();
     assert_eq!(chosen, ["unrelated", "applies", "applies"]);
     assert_eq!(peer.heads().len(), 1);
+}
+
+/// What System One answered a request past its context capacity, as observed on `jev-1.13.0`
+/// (a bounded synthetic diagnosis, 2026-10-08, HTTP 400): its one capacity signal.
+const MAX_TOKENS: &str = r#"{"detail": {"error_type": "max_tokens_exceeded"}}"#;
+
+/// What it answered a question of a type it does not define in the same diagnosis: also 400.
+const INVALID: &str =
+    r#"{"detail": {"error_type": "api_usage_error", "message": "Invalid request."}}"#;
+
+const FIRST_HALF: &str = r#"{"input_tokens": 30500, "output_tokens": 8100}"#;
+const SECOND_HALF: &str = r#"{"input_tokens": 29900, "output_tokens": 7900}"#;
+
+fn over_capacity() -> Reply {
+    Reply::Status(400, MAX_TOKENS.to_owned())
+}
+
+/// The key item `k` is answered with: one of its options, by position.
+fn key(k: usize) -> &'static str {
+    ["applies", "unrelated", "none"][k % 3]
+}
+
+/// A response answering exactly the items at `at`, written last first, with `usage`.
+fn answering(
+    questions: &[ChoiceQuestion],
+    at: impl IntoIterator<Item = usize>,
+    usage: &str,
+) -> Reply {
+    let mut at: Vec<usize> = at.into_iter().collect();
+    at.reverse();
+    let answers: Vec<String> = (at.iter())
+        .map(|k| format!(r#""{}": {}"#, questions[*k].id, choice(key(*k))))
+        .collect();
+    reply(&answers.join(", "), usage)
+}
+
+/// The ids one request body asks, sorted.
+fn asked(body: &Value) -> Vec<String> {
+    let mut ids: Vec<String> = body["questions"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .cloned()
+        .collect();
+    ids.sort();
+    ids
+}
+
+fn ids(questions: &[ChoiceQuestion]) -> Vec<String> {
+    let mut ids: Vec<String> = questions.iter().map(|q| q.id.clone()).collect();
+    ids.sort();
+    ids
+}
+
+/// Every question `body` asks reads exactly the state, the words and the options it reads alone.
+fn carried_alone(body: &Value, questions: &[ChoiceQuestion]) {
+    for id in asked(body) {
+        let question = questions.iter().find(|q| q.id == id).unwrap();
+        assert_eq!(
+            read_state(body, &id).as_ref(),
+            Some(&question.state),
+            "{id}"
+        );
+        let batched = &body["questions"][id.as_str()];
+        let words = match &batched["instructions"] {
+            Value::String(words) => words.as_str(),
+            structured => structured["question"].as_str().unwrap(),
+        };
+        assert_eq!(words, question.instructions, "{id}");
+        assert_eq!(batched["criteria"], json!(criteria(question)), "{id}");
+    }
+}
+
+fn qualification(n: usize) -> Vec<ChoiceQuestion> {
+    (0..n)
+        .map(|k| reference(k, &format!("reference text {k}")))
+        .collect()
+}
+
+/// A 382-item qualification the service refuses as past its context capacity is asked again in
+/// its two halves, in item order: every original id exactly once across the halves, each
+/// question as it is asked alone, each answer bound to its own item, each half's usage counted
+/// once, and no request beyond the three (a resend would take the spare answer).
+#[test]
+fn a_capacity_refusal_asks_a_382_item_batch_again_in_ordered_halves() {
+    let questions = qualification(382);
+    let peer = Peer::start(vec![
+        over_capacity(),
+        answering(&questions, 0..191, FIRST_HALF),
+        answering(&questions, 191..382, SECOND_HALF),
+        answering(&questions, 0..382, USAGE),
+    ]);
+    let batch = ChoiceBatch::of("foundry-qualification", &questions);
+    let exchange = block_on(seat(&peer).exchange_each(&batch));
+    let bodies = peer.bodies();
+    assert_eq!(bodies.len(), 3, "the refused request and its two halves");
+    assert_eq!(asked(&bodies[0]), ids(&questions));
+    assert_eq!(asked(&bodies[1]), ids(&questions[..191]));
+    assert_eq!(asked(&bodies[2]), ids(&questions[191..]));
+    carried_alone(&bodies[1], &questions);
+    carried_alone(&bodies[2], &questions);
+    let chosen: Vec<&str> = (exchange.answers.iter())
+        .map(|a| a.as_ref().unwrap().choice.as_str())
+        .collect();
+    assert_eq!(
+        chosen,
+        (0..382).map(key).collect::<Vec<_>>(),
+        "an answer moved"
+    );
+    assert!(
+        (exchange.outcomes.iter()).all(|o| *o == "chosen" || *o == "none"),
+        "{:?}",
+        exchange.outcomes
+    );
+    let carried: Vec<(usize, u64)> = (exchange.answers.iter().enumerate())
+        .filter_map(|(k, a)| a.as_ref().ok().and_then(|a| a.input_tokens).map(|t| (k, t)))
+        .collect();
+    assert_eq!(
+        carried,
+        [(0, 30500), (191, 29900)],
+        "each request's usage rides its first answered item, once"
+    );
+    assert_eq!(
+        (exchange.usage.input_tokens, exchange.usage.output_tokens),
+        (None, None),
+        "the refused request reported no usage: the total stays unknown, never a partial sum"
+    );
+    assert_eq!(exchange.delivery, Delivery::Responded(200));
+    assert!(exchange.error.is_none() && exchange.unasked.is_empty());
+}
+
+/// Only the service's capacity code halves a request: a bare 400, an invalid request (also 400),
+/// the capacity word in another shape or field, the capacity code under another status, an auth
+/// or rate refusal are each ONE request whose items all fail with its status, never resent.
+#[test]
+fn only_the_capacity_code_ever_halves_a_request() {
+    let questions = references();
+    for (status, body) in [
+        (400_u16, "{}"),
+        (400, INVALID),
+        (400, r#"{"detail": "max_tokens_exceeded"}"#),
+        (400, r#"{"error_type": "max_tokens_exceeded"}"#),
+        (
+            400,
+            r#"{"detail": {"error_type": "api_usage_error", "message": "max_tokens_exceeded"}}"#,
+        ),
+        (400, "max_tokens_exceeded"),
+        (500, MAX_TOKENS),
+        (401, r#"{"detail": "invalid key"}"#),
+        (429, r#"{"detail": "rate limited"}"#),
+    ] {
+        let peer = Peer::start(vec![
+            Reply::Status(status, body.to_owned()),
+            answering(&questions, 0..3, USAGE),
+            answering(&questions, 0..3, USAGE),
+        ]);
+        let exchange = block_on(seat(&peer).exchange_each(&ChoiceBatch::of("b", &questions)));
+        assert_eq!(peer.heads().len(), 1, "{status} {body}: halved or resent");
+        assert_eq!(exchange.outcomes, ["failed", "failed", "failed"], "{body}");
+        assert_eq!(exchange.delivery, Delivery::Responded(status));
+        let error = exchange.error.as_ref().unwrap();
+        assert!(error.0.contains(&status.to_string()), "{error:?}");
+    }
+}
+
+/// A single question the service refuses for capacity is unresolved: explicitly over capacity,
+/// sent whole as it is asked alone, never truncated, halved or resent.
+#[test]
+fn a_single_question_refused_for_capacity_is_explicitly_over_capacity() {
+    let questions = references();
+    let peer = Peer::start(vec![over_capacity(), answering(&questions, 0..1, USAGE)]);
+    let exchange = block_on(seat(&peer).exchange_each(&ChoiceBatch::of("b", &questions[..1])));
+    assert_eq!(peer.heads().len(), 1, "the refused question was resent");
+    assert_eq!(peer.bodies()[0], alone(&questions[0]), "sent whole");
+    assert_eq!(exchange.outcomes, ["over_capacity"]);
+    let error = exchange.answers[0].as_ref().unwrap_err();
+    assert!(error.0.contains("max_tokens_exceeded"), "{error:?}");
+    assert_eq!(exchange.error.as_ref(), Some(error));
+}
+
+/// One question too large alone amid three that fit: halving isolates it, the three are answered
+/// and it alone ends over capacity. Fewer siblings never claim to cure it.
+#[test]
+fn one_oversized_question_amid_small_ones_ends_alone_over_capacity() {
+    let questions = qualification(4);
+    let peer = Peer::start(vec![
+        over_capacity(),
+        answering(&questions, 0..2, FIRST_HALF),
+        over_capacity(),
+        over_capacity(),
+        answering(&questions, 3..4, SECOND_HALF),
+        answering(&questions, 0..4, USAGE),
+    ]);
+    let exchange = block_on(seat(&peer).exchange_each(&ChoiceBatch::of("b", &questions)));
+    let sent: Vec<Vec<String>> = peer.bodies().iter().map(asked).collect();
+    let expected = [
+        ids(&questions),
+        ids(&questions[..2]),
+        ids(&questions[2..]),
+        ids(&questions[2..3]),
+        ids(&questions[3..]),
+    ];
+    assert_eq!(sent, expected, "the halving order");
+    assert_eq!(
+        exchange.outcomes,
+        ["chosen", "chosen", "over_capacity", "chosen"]
+    );
+    let chosen: Vec<Option<&str>> = (exchange.answers.iter())
+        .map(|a| a.as_ref().ok().map(|a| a.choice.as_str()))
+        .collect();
+    assert_eq!(
+        chosen,
+        [Some("applies"), Some("unrelated"), None, Some("applies")]
+    );
+    let tokens: Vec<Option<u64>> = (exchange.answers.iter())
+        .map(|a| a.as_ref().ok().and_then(|a| a.input_tokens))
+        .collect();
+    assert_eq!(
+        tokens,
+        [Some(30500), None, None, Some(29900)],
+        "each answered request's usage once, on its first answered item"
+    );
+    assert_eq!(
+        exchange.usage.input_tokens, None,
+        "three refusals reported none"
+    );
+}
+
+/// An id asked twice is refused before any subdivision: two items that would fall in different
+/// halves never become sendable, and the unique items are halved around them.
+#[test]
+fn an_id_asked_twice_stays_unsent_across_halves() {
+    let mut questions = qualification(6);
+    questions[4].id = questions[1].id.clone();
+    let peer = Peer::start(vec![
+        over_capacity(),
+        answering(&questions, [0, 2], FIRST_HALF),
+        answering(&questions, [3, 5], SECOND_HALF),
+        answering(&questions, [0, 2, 3, 5], USAGE),
+    ]);
+    let exchange = block_on(seat(&peer).exchange_each(&ChoiceBatch::of("b", &questions)));
+    let sent: Vec<Vec<String>> = peer.bodies().iter().map(asked).collect();
+    let unique = |at: &[usize]| ids(&at.iter().map(|k| questions[*k].clone()).collect::<Vec<_>>());
+    assert_eq!(
+        sent,
+        [unique(&[0, 2, 3, 5]), unique(&[0, 2]), unique(&[3, 5])]
+    );
+    assert_eq!(
+        exchange.outcomes,
+        ["chosen", "not_sent", "none", "chosen", "not_sent", "none"]
+    );
+    assert!(
+        exchange.answers[4]
+            .as_ref()
+            .unwrap_err()
+            .0
+            .contains("more than once")
+    );
+}
+
+/// A half's partial, repeated, unasked or lost answers fail only its own items and are never
+/// resent: a missing id is unanswered, a repeated one repeated, an id no request asked is kept as
+/// unasked, a malformed 200 fails its own half alone, and a half left without a response is
+/// unknown.
+#[test]
+fn a_halfs_partial_or_failed_reply_fails_only_its_items_and_is_never_resent() {
+    let questions = qualification(6);
+    let partial = reply(
+        &format!(
+            r#""reference-2": {}, "reference-99": {}, "reference-0": {}, "reference-2": {}"#,
+            choice("applies"),
+            choice("applies"),
+            choice("applies"),
+            choice("unrelated")
+        ),
+        FIRST_HALF,
+    );
+    let peer = Peer::start(vec![
+        over_capacity(),
+        partial,
+        Reply::Close,
+        answering(&questions, 3..6, USAGE),
+    ]);
+    let exchange = block_on(seat(&peer).exchange_each(&ChoiceBatch::of("b", &questions)));
+    assert_eq!(peer.heads().len(), 3, "a failed half was resent");
+    assert_eq!(
+        exchange.outcomes,
+        [
+            "chosen",
+            "unanswered",
+            "repeated",
+            "failed",
+            "failed",
+            "failed"
+        ]
+    );
+    assert_eq!(exchange.unasked, ["reference-99"]);
+    assert_eq!(
+        exchange.delivery,
+        Delivery::Unknown,
+        "a sent half may be billed"
+    );
+    let malformed = format!(r#"{{"answers": {{}}, "usage": {SECOND_HALF}}}"#);
+    let peer = Peer::start(vec![
+        over_capacity(),
+        answering(&questions, 0..3, FIRST_HALF),
+        Reply::Status(200, malformed),
+        answering(&questions, 3..6, USAGE),
+    ]);
+    let exchange = block_on(seat(&peer).exchange_each(&ChoiceBatch::of("b", &questions)));
+    assert_eq!(peer.heads().len(), 3, "a malformed half was resent");
+    assert_eq!(&exchange.outcomes[..3], ["chosen", "chosen", "none"]);
+    assert_eq!(&exchange.outcomes[3..], ["failed", "failed", "failed"]);
+}
+
+/// Stop withholds every later request of a batch: requested while the refused request is out,
+/// no half leaves and every item is withheld as stopped; requested before the batch, nothing
+/// leaves at all.
+#[test]
+fn stop_withholds_every_later_request_of_a_batch() {
+    use nika_providers::authoring::preparation::PreparationCosts;
+    let questions = references();
+    let mut costs = PreparationCosts::default();
+    let raised = costs.begin_turn();
+    let _scope = costs.enter();
+    let peer = Peer::start_with(
+        vec![
+            over_capacity(),
+            answering(&questions, 0..1, USAGE),
+            answering(&questions, 1..3, USAGE),
+        ],
+        move || raised.cancel(),
+    );
+    let exchange = block_on(seat(&peer).exchange_each(&ChoiceBatch::of("b", &questions)));
+    assert_eq!(peer.heads().len(), 1, "a half left after Stop");
+    assert_eq!(exchange.outcomes, ["stopped", "stopped", "stopped"]);
+    assert!((exchange.answers.iter()).all(|a| a.as_ref().is_err_and(|e| e.0.contains("stopped"))));
+    let peer = Peer::start(vec![answering(&questions, 0..3, USAGE)]);
+    let exchange = block_on(seat(&peer).exchange_each(&ChoiceBatch::of("b", &questions)));
+    assert!(peer.heads().is_empty(), "a request left after Stop");
+    assert_eq!(exchange.outcomes, ["stopped", "stopped", "stopped"]);
+    assert_eq!(exchange.delivery, Delivery::NotSent);
+}
+
+/// An ordinary 12-item batch within capacity is still ONE request, exactly the body written for
+/// the batch, its usage on its first answered item only.
+#[test]
+fn an_ordinary_12_item_batch_is_still_one_request() {
+    let questions = qualification(12);
+    let peer = Peer::start(vec![
+        answering(&questions, 0..12, USAGE),
+        answering(&questions, 0..12, USAGE),
+    ]);
+    let exchange =
+        block_on(seat(&peer).exchange_each(&ChoiceBatch::of("verify-parts", &questions)));
+    assert_eq!(peer.heads().len(), 1);
+    let all: Vec<&ChoiceQuestion> = questions.iter().collect();
+    assert_eq!(peer.bodies()[0], request(MODEL, &all));
+    let tokens: Vec<Option<u64>> = (exchange.answers.iter())
+        .map(|a| a.as_ref().ok().and_then(|a| a.input_tokens))
+        .collect();
+    assert_eq!(tokens[0], Some(300));
+    assert_eq!(tokens.iter().flatten().count(), 1, "usage counted once");
+    assert_eq!(exchange.delivery, Delivery::Responded(200));
+}
+
+/// Whatever the JSON kind of the states (nested, arrays, scalars, null, a key missing or null),
+/// each half is exactly the request written for its questions, every one read as it is asked
+/// alone, and the halves ask every id once.
+#[test]
+fn every_half_carries_each_question_exactly_as_it_is_asked_alone() {
+    for states in corpus() {
+        let questions = over(&states);
+        let half = questions.len() / 2;
+        let answer = |at: std::ops::Range<usize>| {
+            let answers: Vec<String> = at
+                .map(|k| format!(r#""q{k}": {}"#, choice("first")))
+                .collect();
+            reply(&answers.join(", "), USAGE)
+        };
+        let peer = Peer::start(vec![
+            over_capacity(),
+            answer(0..half),
+            answer(half..questions.len()),
+            answer(0..questions.len()),
+        ]);
+        let exchange = block_on(seat(&peer).exchange_each(&ChoiceBatch::of("b", &questions)));
+        let bodies = peer.bodies();
+        assert_eq!(bodies.len(), 3, "{states:?}");
+        for (body, part) in bodies[1..]
+            .iter()
+            .zip([&questions[..half], &questions[half..]])
+        {
+            assert_eq!(asked(body), ids(part), "{states:?}");
+            assert_eq!(
+                *body,
+                request(MODEL, &part.iter().collect::<Vec<_>>()),
+                "{states:?}"
+            );
+            carried_alone(body, &questions);
+        }
+        assert!(exchange.answers.iter().all(Result::is_ok), "{states:?}");
+    }
 }
