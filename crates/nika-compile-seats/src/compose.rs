@@ -28,6 +28,7 @@ use std::cmp::Reverse;
 use nika_compile::Hit;
 use nika_compile_reader::cardinality;
 use nika_compile_reader::lexicon::Reading;
+use nika_compile_reader::objects;
 use nika_compile_reader::plan::{Binding, EffectPolicy, EffectVerb, Op, Plan, Step};
 use serde_json::{Value, json};
 
@@ -376,8 +377,7 @@ pub fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Result<(), V
         let words = nika_compile_reader::lexicon::effect_words(&lower, &columns);
         let asked = read.is_empty()
             || words.iter().any(|w| family(*w) == family(effect.verb))
-            || (effect.verb == EffectVerb::Write
-                && nika_compile_reader::objects::has_literal(&effect.evidence))
+            || (effect.verb == EffectVerb::Write && objects::has_literal(&effect.evidence))
             || (family(effect.verb) == Family::Outbound
                 && (lower.contains("http://")
                     || lower.contains("https://")
