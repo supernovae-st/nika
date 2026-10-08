@@ -20,26 +20,51 @@
 //! (strict parse and Check) and the round's judge; a refused operation names why, and nothing
 //! of a refused revision is applied. Reuse grants nothing: a component's permits, model and
 //! name are never inherited, and what the document needs is Check's to say.
+//!
+//! This module applies the operations and states their record; the revision door of
+//! `nika-compile-cognition` asks the seat for them, finishes the result and has it judged.
 
-use nika_compile_seats::foundry::{self, Binding, ComponentCatalog, ComponentRef};
+use super::{Binding, ComponentCatalog, ComponentRef, edit_literal, expand, instantiate, revise};
 use serde_json::{Value, json};
 
 /// The route a document revision records.
-pub(in crate::cognition) const ROUTE: &str = "edit: document revision over the complete base";
+pub const ROUTE: &str = "edit: document revision over the complete base";
 
 /// What the seat is told it may state beside destination links: operations over the complete
 /// base document, or its whole revised source.
-pub(in crate::cognition) const OPERATIONS: &str = "Any change the destination links cannot state is stated as `operations` over the complete base document (`base_document` lists every literal node with its path, `base_source` is the exact text), applied in order: {\"op\": \"set\", \"path\": \"/const/name\", \"value\": <JSON literal>} replaces the literal at that path (a typed constant's value, an input's default, a task argument, a retry count, a threshold); {\"op\": \"compose\", \"component\": {\"id\": \"block:<name>\", \"version\": \"<release version>\"}, \"bindings\": {\"<hole path>\": <JSON literal>}} adds an admitted component of `components` with every hole bound; {\"op\": \"rebind\", \"component\": {\"id\": \"block:<name>\"}, \"bindings\": {\"<hole path>\": <JSON literal>}} changes the values bound in a component an earlier revision composed (`composed`). Every other byte of the base is kept. Only when no operation can state the change, give the whole revised source in `replace` instead: it is checked like any workflow and nothing of the base is promised to survive. State only what the request and the change ask; never invent a value they leave open.";
+pub const OPERATIONS: &str = "Any change the destination links cannot state is stated as `operations` over the complete base document (`base_document` lists every literal node with its path, `base_source` is the exact text), applied in order: {\"op\": \"set\", \"path\": \"/const/name\", \"value\": <JSON literal>} replaces the literal at that path (a typed constant's value, an input's default, a task argument, a retry count, a threshold); {\"op\": \"compose\", \"component\": {\"id\": \"block:<name>\", \"version\": \"<release version>\"}, \"bindings\": {\"<hole path>\": <JSON literal>}} adds an admitted component of `components` with every hole bound; {\"op\": \"rebind\", \"component\": {\"id\": \"block:<name>\"}, \"bindings\": {\"<hole path>\": <JSON literal>}} changes the values bound in a component an earlier revision composed (`composed`). Every other byte of the base is kept. Only when no operation can state the change, give the whole revised source in `replace` instead: it is checked like any workflow and nothing of the base is promised to survive. State only what the request and the change ask; never invent a value they leave open.";
 
 /// What the operations made of the base: the revised source, what changed, the receipts of the
 /// components the revised source holds (new, rebound or carried), and whether the whole source
 /// was replaced.
 #[derive(Debug)]
-pub(in crate::cognition) struct Applied {
-    pub(in crate::cognition) source: String,
-    pub(in crate::cognition) changed: Vec<String>,
-    pub(in crate::cognition) receipts: Vec<Value>,
-    pub(in crate::cognition) replaced: bool,
+#[non_exhaustive]
+pub struct Applied {
+    /// The revised source.
+    pub source: String,
+    /// The node paths and components changed, in the operations' order.
+    pub changed: Vec<String>,
+    /// The receipts of the components the revised source holds.
+    pub receipts: Vec<Value>,
+    /// The whole source was replaced: no preservation is claimed.
+    pub replaced: bool,
+}
+
+/// The JSON schema of what a seat states over the document: the `operations` (every field a
+/// text, a value as its JSON text, so a strict structured-output dialect can carry it) and the
+/// whole `replace`ment.
+#[must_use]
+pub fn answer_schema() -> (Value, Value) {
+    let text = || json!({"type": "string"});
+    let operations = json!({"type": "array", "items": {
+    "type": "object", "additionalProperties": false,
+    "required": ["op"],
+    "properties": {
+        "op": {"type": "string", "enum": ["set", "compose", "rebind"]},
+        "path": text(), "value_json": text(),
+        "component": text(), "version": text(), "bindings_json": text(),
+    }}});
+    (operations, text())
 }
 
 /// Apply `operations` to `base` in order, or take `replace` as the whole revised source.
@@ -48,7 +73,7 @@ pub(in crate::cognition) struct Applied {
 ///
 /// # Errors
 /// Every operation refused, each named with its index; nothing of a refused revision applies.
-pub(in crate::cognition) fn apply(
+pub fn apply(
     base: &str,
     (operations, replace): (&[Value], Option<&str>),
     catalog: Option<&dyn ComponentCatalog>,
@@ -180,7 +205,7 @@ fn set(applied: &mut Applied, operation: &Value) -> Result<(), String> {
     let value = operation
         .get("value")
         .ok_or_else(|| format!("`set {path}` states no `value`"))?;
-    applied.source = foundry::edit_literal(&applied.source, &path, value)
+    applied.source = edit_literal(&applied.source, &path, value)
         .map_err(|refusal| format!("`set {path}`: {refusal}"))?;
     applied.changed.push(path);
     Ok(())
@@ -199,10 +224,8 @@ fn compose(
         .resolve(&reference)
         .map_err(|error| error.to_string())?;
     let bindings = bindings(&operation["bindings"])?;
-    let instance =
-        foundry::instantiate(&component, &bindings).map_err(|error| error.to_string())?;
-    let expansion =
-        foundry::expand(&applied.source, &instance).map_err(|error| error.to_string())?;
+    let instance = instantiate(&component, &bindings).map_err(|error| error.to_string())?;
+    let expansion = expand(&applied.source, &instance).map_err(|error| error.to_string())?;
     applied.source = expansion.candidate;
     applied.changed.push(format!("component {}", reference.id));
     applied.receipts.push(expansion.receipt);
@@ -237,9 +260,8 @@ fn rebind(
         .resolve(&pinned)
         .map_err(|error| error.to_string())?;
     let changes = bindings(&operation["bindings"])?;
-    let (source, carried) =
-        foundry::revise(&applied.source, &applied.receipts[at], &component, &changes)
-            .map_err(|error| error.to_string())?;
+    let (source, carried) = revise(&applied.source, &applied.receipts[at], &component, &changes)
+        .map_err(|error| error.to_string())?;
     applied.source = source;
     applied.receipts[at] = carried;
     applied
@@ -293,7 +315,8 @@ fn dotted(path: &str) -> Result<String, String> {
 
 /// Every literal node of the document as the seat reads it: `[{"path": "/…", "value": …}]`, the
 /// leaves of the parser's literal projection in document order. `None` when it cannot be read.
-pub(in crate::cognition) fn nodes(source: &str) -> Option<Value> {
+#[must_use]
+pub fn nodes(source: &str) -> Option<Value> {
     let projection = nika_compile::surface::literal_projection(source)?;
     let mut rows = Vec::new();
     leaves(&projection, &mut String::new(), &mut rows);
@@ -325,7 +348,8 @@ fn leaves(value: &Value, at: &mut String, rows: &mut Vec<Value>) {
 
 /// The components a revision may compose: each admitted executable entry of the catalogue by its
 /// reference, purpose and holes (as its row states them). Empty without a catalogue.
-pub(in crate::cognition) fn components(catalog: Option<&dyn ComponentCatalog>) -> Value {
+#[must_use]
+pub fn components(catalog: Option<&dyn ComponentCatalog>) -> Value {
     let Some(catalog) = catalog else {
         return json!([]);
     };
@@ -350,7 +374,8 @@ pub(in crate::cognition) fn components(catalog: Option<&dyn ComponentCatalog>) -
 }
 
 /// The receipts a base's record carries for the components an earlier revision composed.
-pub(in crate::cognition) fn carried(record: Option<&Value>) -> Vec<Value> {
+#[must_use]
+pub fn carried(record: Option<&Value>) -> Vec<Value> {
     (record.and_then(|r| r["document_revision"]["components"].as_array()))
         .cloned()
         .unwrap_or_default()
@@ -359,7 +384,8 @@ pub(in crate::cognition) fn carried(record: Option<&Value>) -> Vec<Value> {
 /// The record a document revision leaves: it binds the revised bytes (as a source revision's
 /// record does, so a saved file keeps it) under the words they now answer, and states the
 /// operations' mode, what changed and the receipts of the components the bytes hold.
-pub(in crate::cognition) fn record(
+#[must_use]
+pub fn record(
     (base, revised): (&str, &str),
     resolved: &str,
     intent_sha256: &str,

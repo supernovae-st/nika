@@ -39,7 +39,7 @@ use crate::fidelity::Diagnostic;
 use crate::sketch::{Sketch, revision};
 use crate::types::{EditChange, Input};
 use crate::{CompileError, lexicon};
-use nika_compile_seats::foundry::ComponentCatalog;
+use nika_compile_seats::foundry::{ComponentCatalog, document};
 use nika_kernel::ai::provider::{Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
@@ -699,21 +699,14 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
 /// value travels as its JSON text) so a strict structured-output dialect can carry it.
 fn revision_schema() -> Value {
     let mut schema = revision::links_schema();
-    let text = || json!({"type": "string"});
-    schema["properties"]["operations"] = json!({"type": "array", "items": {
-    "type": "object", "additionalProperties": false,
-    "required": ["op"],
-    "properties": {
-        "op": {"type": "string", "enum": ["set", "compose", "rebind"]},
-        "path": text(), "value_json": text(),
-        "component": text(), "version": text(), "bindings_json": text(),
-    }}});
-    schema["properties"]["replace"] = text();
+    let (operations, replace) = document::answer_schema();
+    schema["properties"]["operations"] = operations;
+    schema["properties"]["replace"] = replace;
     schema
 }
 
 /// The change stated over the complete document: applied in order to the base
-/// ([`crate::cognition::document::apply`]), the result bound to its record and checked by the
+/// ([`document::apply`]), the result bound to its record and checked by the
 /// strict parser and Check, then judged against the whole request by the round's judge — never
 /// another seat call. Links stated where no destination edit applies are refused, never guessed
 /// into operations. A refusal leaves no candidate and names every reason.
@@ -725,7 +718,6 @@ async fn document_settled<P: ProviderInferDyn>(
     ((links, text), catalog): ((Links, String), Option<&dyn ComponentCatalog>),
     mut out: CompileOutcome,
 ) -> CompileOutcome {
-    use crate::cognition::document;
     let Input::Edit { source: base, .. } = &request.input else {
         return out;
     };
@@ -931,10 +923,10 @@ fn source_opened<'a>(
             .unwrap_or_default()
     );
     opening["base_source"] = json!(base);
-    opening["base_document"] = crate::cognition::document::nodes(base).unwrap_or_default();
-    opening["components"] = crate::cognition::document::components(catalog);
+    opening["base_document"] = document::nodes(base).unwrap_or_default();
+    opening["components"] = document::components(catalog);
     opening["composed"] = json!(
-        (crate::cognition::document::carried(request.plan.as_ref()).iter())
+        (document::carried(request.plan.as_ref()).iter())
             .map(|receipt| json!({"component": receipt["component"]["id"],
                 "bindings": receipt["bindings"]}))
             .collect::<Vec<_>>()
@@ -947,7 +939,7 @@ fn source_opened<'a>(
         REVISE_DOCUMENT
     });
     system.push_str("\n\n");
-    system.push_str(crate::cognition::document::OPERATIONS);
+    system.push_str(document::OPERATIONS);
     // The opening is the machine-readable facts alone (hosts read it); what to answer is the
     // system's to say.
     let first = opening.to_string();
@@ -1018,3 +1010,7 @@ fn revising_of(request: &CompileRequest, base: &Value, original: &str) -> Compil
         .collect();
     revising
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod document_tests;

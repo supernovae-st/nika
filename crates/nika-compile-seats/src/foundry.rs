@@ -17,12 +17,15 @@
 //! Executable reuse is another fact, established by the candidate's own bytes: a checked block
 //! of an admitted release is resolved by id and release ([`component`]), bound at its holes by
 //! literal edits the parser proves ([`bind`]), expanded into the document and checked as a whole
-//! ([`instance`]); the [`witness`] re-derives the expansion's nodes from the candidate. A shown
-//! reference no receipt names is consulted, never reused. [`trace`] keeps only the lexical
+//! ([`instance`]); the [`witness`] re-derives the expansion's nodes from the candidate. The
+//! operations a revision states over a complete document (a literal set, a component composed
+//! or rebound through its receipt, a whole replacement) apply through the same edits
+//! ([`document`]). A shown reference no receipt names is consulted, never reused. [`trace`] keeps only the lexical
 //! overlap of shown code with the candidate: a measure, never evidence of reuse.
 
 pub mod bind;
 pub mod component;
+pub mod document;
 pub mod instance;
 pub mod invoke;
 pub mod reach;

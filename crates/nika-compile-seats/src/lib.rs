@@ -18,7 +18,8 @@
 //! - [`foundry`] · recalled Foundry knowledge qualified by a decision seat against the request
 //!   before an author reads it, and the record of what was found, shown and discarded; an
 //!   admitted release's executable components resolved, bound, expanded into the document and
-//!   checked, with the reuse witness re-derived from the candidate's bytes.
+//!   checked, with the reuse witness re-derived from the candidate's bytes; and the operations a
+//!   document revision states over a complete base, applied with their record.
 //! - [`remote`] · what a door that holds no project admits from its caller's engine to prepare
 //!   as `nika compile` does: the observation of the stated files and the trial inputs a room is
 //!   built from.

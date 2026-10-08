@@ -5,11 +5,9 @@
 //! byte, refusals that apply nothing, a component composed and rebound through its receipt, a
 //! whole replacement that claims no preservation, and the record a saved file keeps.
 
+use crate::foundry::component::pinned;
+use crate::foundry::{Component, ComponentCatalog, ComponentRef, Hole, Release, Unresolved};
 use nika_compile::surface::sha256;
-use nika_compile_seats::foundry::component::pinned;
-use nika_compile_seats::foundry::{
-    Component, ComponentCatalog, ComponentRef, Hole, Release, Unresolved,
-};
 use serde_json::{Value, json};
 
 use super::{Applied, apply, carried, components, nodes, record};
@@ -147,17 +145,6 @@ permits:
 tasks: {}
 "#;
 
-/// The person's saved workflow a revision starts from: valid and checked, one task of its own.
-const SAVED: &str = r#"nika: stale-tickets-report
-# The person's own boundary: the files the request names.
-permits:
-  fs: { read: ["./in/tickets.json"], write: ["./out/report.json"] }
-  tools: ["nika:read", "nika:jq", "nika:write", "nika:log"]
-tasks:
-  announce:
-    invoke: { tool: "nika:log", args: { level: info, message: "stale tickets report" } }
-"#;
-
 const VERSION: &str = "fixture-document-r1";
 const SNAPSHOT: &str = "2222222222222222222222222222222222222222222222222222222222222222";
 
@@ -222,7 +209,7 @@ fn compose_expands_an_admitted_component_with_its_receipt() {
     assert_eq!(receipt["component"]["id"], "block:stale-filter-report");
     assert_eq!(receipt["component"]["release"]["version"], VERSION);
     assert_eq!(receipt["candidate_sha256"], sha256(&applied.source));
-    let witnessed = nika_compile_seats::foundry::witness::witness(receipt, &applied.source);
+    let witnessed = crate::foundry::witness::witness(receipt, &applied.source);
     assert_eq!(witnessed["verdict"], "expanded", "{witnessed}");
     // Every line of the person's document stays, in order, but the empty `tasks: {}` the
     // component's tasks now fill: the merge inserts, it never rewrites what was there.
@@ -292,7 +279,7 @@ fn rebind_changes_the_bound_value_and_carries_the_receipt() {
         .find(|row| row["path"] == "const.max_age_hours")
         .expect("the bound hole");
     assert_eq!(bound["bound"], 72);
-    let witnessed = nika_compile_seats::foundry::witness::witness(receipt, &second.source);
+    let witnessed = crate::foundry::witness::witness(receipt, &second.source);
     assert_eq!(witnessed["verdict"], "expanded", "{witnessed}");
     // A rebind with no receipt to revise is refused.
     let lone = json!({"op": "rebind", "component": {"id": "block:stale-filter-report"},
@@ -355,238 +342,4 @@ fn the_seat_reads_every_literal_node_and_the_lent_components() {
         json!({"id": "block:stale-filter-report", "version": VERSION})
     );
     assert_eq!(components(None), json!([]));
-}
-
-/// A seat answering the revision call with its scripted `revision`, and every judge question
-/// favourably (the judge's own laws are tested elsewhere); every call is counted by role.
-struct Seat {
-    revision: Value,
-    roles: std::sync::Mutex<Vec<String>>,
-}
-
-impl Seat {
-    fn new(revision: Value) -> Self {
-        Self {
-            revision,
-            roles: std::sync::Mutex::new(Vec::new()),
-        }
-    }
-
-    fn roles(&self) -> Vec<String> {
-        self.roles.lock().expect("roles").clone()
-    }
-}
-
-impl nika_kernel::ai::provider::ProviderInferDyn for Seat {
-    async fn infer(
-        &self,
-        request: nika_kernel::ai::provider::InferRequest,
-    ) -> Result<nika_kernel::ai::provider::InferResponse, nika_kernel::ai::provider::ProviderError>
-    {
-        use nika_kernel::ai::provider::{
-            ContentBlock, InferResponse, ProviderError, ResponseFormat, StopReason, TokenUsage,
-        };
-        let ResponseFormat::JsonSchema(schema) = &request.response_format else {
-            return Err(ProviderError::Other {
-                reason: "a structured answer was expected".to_owned(),
-            });
-        };
-        let answer = if schema["properties"]["operations"].is_object() {
-            self.roles
-                .lock()
-                .expect("roles")
-                .push("revision".to_owned());
-            self.revision.to_string()
-        } else {
-            self.roles.lock().expect("roles").push("judge".to_owned());
-            let keys = schema["properties"]["choice"]["enum"].to_string();
-            let choice = if keys.contains("\"faithful\"") {
-                "faithful"
-            } else if keys.contains("\"only_requested\"") {
-                "only_requested"
-            } else if keys.contains("\"consistent\"") {
-                "consistent"
-            } else if keys.contains("\"no_task\"") {
-                "omitted"
-            } else {
-                "carried"
-            };
-            json!({"choice": choice}).to_string()
-        };
-        Ok(InferResponse::new(
-            vec![ContentBlock::Text { text: answer }],
-            TokenUsage::new(10, 5),
-            StopReason::EndTurn,
-        ))
-    }
-}
-
-fn policy() -> crate::AuthoringPolicy {
-    crate::AuthoringPolicy::new("mock/authoring", 4096, std::time::Duration::from_secs(2))
-        .with_native(crate::NativeMode::Escalate)
-}
-
-/// The revision answer with no destination link: operations only, in the strict text form.
-fn operations(operations: &[Value]) -> Value {
-    json!({"supersedes": [], "adds": [], "notes": "", "operations": operations, "replace": ""})
-}
-
-async fn revised(
-    base: &str,
-    change: &str,
-    plan: Option<Value>,
-    seat: &Seat,
-) -> crate::CompileOutcome {
-    let mut request = crate::CompileRequest::edit(base, change).with_authoring_policy(policy());
-    request.plan = plan;
-    crate::compile_with_cognition_composed(
-        &request,
-        crate::Cognition {
-            provider: Some(seat),
-            seat: None,
-        },
-        None,
-        Some(&Shelf),
-    )
-    .await
-    .expect("compiles")
-}
-
-fn route(out: &crate::CompileOutcome) -> Vec<String> {
-    (out.provenance.decision.as_ref())
-        .and_then(|d| d["route"].as_array().cloned())
-        .unwrap_or_default()
-        .iter()
-        .filter_map(|step| step.as_str().map(str::to_owned))
-        .collect()
-}
-
-/// A rich hand-written base no record binds used to be kept as it is, no seat asked (the
-/// change was no destination edit). It is now revised over the whole document: the seat states
-/// two literal edits, the bytes outside them are the base's, the result is checked and judged,
-/// and the record binds the revised bytes.
-#[tokio::test]
-async fn a_rich_record_less_base_is_revised_in_place_and_judged() {
-    let base = rich();
-    let seat = Seat::new(operations(&[
-        json!({"op": "set", "path": "/inputs/drill/default", "value_json": "true",
-            "component": "", "version": "", "bindings_json": ""}),
-        json!({"op": "set", "path": "/tasks/release_lock/timeout", "value_json": "\"30s\"",
-            "component": "", "version": "", "bindings_json": ""}),
-    ]));
-    let out = revised(
-        base,
-        "Rehearse the failure path by default and give the lock release thirty seconds",
-        None,
-        &seat,
-    )
-    .await;
-    assert_eq!(out.status, crate::CompileStatus::Ready, "{out:#?}");
-    let candidate = out.candidate.clone().expect("a candidate");
-    assert_eq!(
-        changed_lines(base, &candidate),
-        [
-            (
-                "    default: false".to_owned(),
-                "    default: true".to_owned()
-            ),
-            (
-                "    timeout: \"10s\"".to_owned(),
-                "    timeout: \"30s\"".to_owned()
-            ),
-        ]
-    );
-    assert!(
-        route(&out).iter().any(|s| s == super::ROUTE),
-        "{:?}",
-        route(&out)
-    );
-    let decision = out.provenance.decision.as_ref().expect("decision");
-    assert_eq!(decision["document_revision"]["mode"], "operations");
-    assert_eq!(
-        decision["document_revision"]["changed"],
-        json!(["inputs.drill.default", "tasks.release_lock.timeout"])
-    );
-    assert_eq!(decision["forensic"]["door"]["name"], "document_revision");
-    let plan = out.provenance.plan.as_ref().expect("a record");
-    assert!(nika_compile_fidelity::sketch::kept::binds(plan, &candidate));
-    let roles = seat.roles();
-    assert_eq!(roles.first().map(String::as_str), Some("revision"));
-    assert_eq!(
-        roles.iter().filter(|r| *r == "revision").count(),
-        1,
-        "one revision call: {roles:?}"
-    );
-    assert!(roles.iter().any(|r| r == "judge"), "judged: {roles:?}");
-}
-
-/// A component composed in one revision is rebound in the next, through the record the first
-/// left: 48 hours, then 72, the receipt following the bytes, nothing else changed.
-#[tokio::test]
-async fn a_composed_component_is_rebound_in_the_next_revision() {
-    let compose_48 = Seat::new(operations(&[json!({"op": "compose",
-        "component": "block:stale-filter-report", "version": VERSION,
-        "bindings_json": "{\"const.records_path\": \"./in/tickets.json\", \"const.report_path\": \"./out/report.json\", \"const.max_age_hours\": 48}",
-        "path": "", "value_json": ""})]));
-    let first = revised(
-        SAVED,
-        "Report the tickets older than 48 hours",
-        None,
-        &compose_48,
-    )
-    .await;
-    assert_eq!(first.status, crate::CompileStatus::Ready, "{first:#?}");
-    let candidate = first.candidate.clone().expect("composed");
-    let reuse =
-        &first.provenance.decision.as_ref().expect("decision")["knowledge_qualification"]["reuse"];
-    assert_eq!(reuse["expanded"], 1, "{reuse}");
-
-    let rebind_72 = Seat::new(operations(&[json!({"op": "rebind",
-        "component": "block:stale-filter-report",
-        "bindings_json": "{\"const.max_age_hours\": 72}",
-        "path": "", "value_json": "", "version": ""})]));
-    let second = revised(
-        &candidate,
-        "Use 72 hours instead",
-        first.provenance.plan.clone(),
-        &rebind_72,
-    )
-    .await;
-    assert_eq!(second.status, crate::CompileStatus::Ready, "{second:#?}");
-    let revised_source = second.candidate.clone().expect("rebound");
-    assert_eq!(
-        changed_lines(&candidate, &revised_source),
-        [(
-            "  max_age_hours: { type: integer, value: 48 }".to_owned(),
-            "  max_age_hours: { type: integer, value: 72 }".to_owned()
-        )]
-    );
-    let plan = second.provenance.plan.as_ref().expect("a record");
-    let receipts = carried(Some(plan));
-    let [receipt] = receipts.as_slice() else {
-        panic!("one carried receipt: {plan}");
-    };
-    assert_eq!(receipt["revises"], sha256(&candidate));
-    assert_eq!(receipt["candidate_sha256"], sha256(&revised_source));
-    assert_eq!(
-        nika_compile_fidelity::sketch::kept::original(plan),
-        Some("Report the tickets older than 48 hours\nChange: Use 72 hours instead")
-    );
-}
-
-/// An operation the document refuses leaves no candidate: the base is kept and every reason
-/// is named; nothing is judged.
-#[tokio::test]
-async fn a_refused_revision_keeps_the_base_and_names_why() {
-    let seat = Seat::new(operations(&[json!({"op": "set", "path": "/const/absent",
-        "value_json": "1", "component": "", "version": "", "bindings_json": ""})]));
-    let out = revised(rich(), "Set the absent constant to one", None, &seat).await;
-    assert_ne!(out.status, crate::CompileStatus::Ready, "{out:#?}");
-    assert!(out.candidate.is_none(), "{out:#?}");
-    assert!(
-        (out.diagnostics.iter())
-            .any(|d| d.message.contains("The revision is not kept: operation 0")),
-        "{out:#?}"
-    );
-    assert_eq!(seat.roles(), ["revision"], "nothing judged");
 }

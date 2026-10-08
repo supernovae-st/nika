@@ -66,7 +66,11 @@ as an external consumer.
   unqualified stay as hypotheses), `qualified` (the embedded recall folded into the attached
   pack, then qualified; no seat: shown unqualified and said so), `trace` (which shown code
   lines a candidate kept, a lexical trace, never causal proof) and `traced` (the record on
-  the outcome, `decision.knowledge_qualification`).
+  the outcome, `decision.knowledge_qualification`). `foundry::document` applies the
+  operations a revision states over a complete base no semantic record binds (`set` a
+  literal, `compose` an admitted component, `rebind` one through its receipt, or a whole
+  `replace` that claims no preservation) and states their record; the revision door that
+  asks for them and judges the result stays in `nika-compile-cognition`.
 
 `remote` is what a door that holds no project admits from its caller's
 engine: `admit_observation` (the host observer's document only, rows about

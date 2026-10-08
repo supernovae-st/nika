@@ -38,7 +38,6 @@ use agenda::Action;
 mod instructions;
 use instructions::INSTRUCTIONS;
 mod backstops;
-mod document;
 mod forensic;
 pub(super) mod knowledge;
 mod native;

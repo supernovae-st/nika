@@ -130,7 +130,9 @@ fn door(
         // A revision names its own door before any record it binds is read as a replay.
         _ if has(EDIT_KEPT) => ("none", "record_less_base_kept"),
         _ if has(super::sketch::revise::ROUTE) => ("sketch", "nonconstant_revision"),
-        _ if has(super::document::ROUTE) => ("document_revision", "record_less_document_revision"),
+        _ if has(nika_compile_seats::foundry::document::ROUTE) => {
+            ("document_revision", "record_less_document_revision")
+        }
         _ if has(super::sketch::revise::SOURCE_ROUTE) => {
             ("source_revision", "record_less_source_revision")
         }
