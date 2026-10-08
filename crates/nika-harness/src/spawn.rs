@@ -391,7 +391,7 @@ pub struct SpawnedHarness {
     adapter: HarnessAdapter,
     /// The audited one-shot completion profile this seat serves, if any:
     /// isolated scratch cwd, admitted identity, strict options, judged beats.
-    completion: Option<crate::authoring::acp::Completion>,
+    completion: Option<crate::authoring::acp::OneShot>,
 }
 
 impl SpawnedHarness {
@@ -400,10 +400,22 @@ impl SpawnedHarness {
         args: &[String],
         purpose: &str,
     ) -> Result<ProbeOutput, HarnessError> {
+        let command = self.adapter.command.clone();
+        self.run_bounded(&command, args, purpose).await
+    }
+
+    /// [`Self::run_bounded_probe`] for another program of the same adapter (the codex its
+    /// ACP package bundles), under the same composed environment and bounds.
+    async fn run_bounded(
+        &self,
+        command: &str,
+        args: &[String],
+        purpose: &str,
+    ) -> Result<ProbeOutput, HarnessError> {
         let parent: BTreeMap<String, String> = std::env::vars().collect();
         let env = compose_env(&parent, &self.adapter.passthrough_env);
-        let command_line = format!("{} {}", self.adapter.command, args.join(" "));
-        let mut child = tokio::process::Command::new(&self.adapter.command)
+        let command_line = format!("{command} {}", args.join(" "));
+        let mut child = tokio::process::Command::new(command)
             .args(args)
             .env_clear()
             .envs(&env)
@@ -497,9 +509,31 @@ impl SpawnedHarness {
         }
     }
 
-    pub(crate) fn for_completion(mut self, completion: crate::authoring::acp::Completion) -> Self {
-        self.completion = Some(completion);
-        self
+    /// Serve one audited one-shot `role` under this adapter's completion profile.
+    ///
+    /// # Errors
+    /// The adapter has no audited completion profile.
+    pub(crate) fn for_completion(
+        mut self,
+        role: crate::authoring::acp::Completion,
+    ) -> Result<Self, HarnessError> {
+        let profile =
+            crate::authoring::acp::Profile::for_seat(&self.adapter.id).ok_or_else(|| {
+                HarnessError::Refused {
+                    reason: format!(
+                        "{} has no audited completion profile for adapter `{}`; no fallback",
+                        role.label(),
+                        self.adapter.id
+                    ),
+                }
+            })?;
+        self.completion = Some(crate::authoring::acp::OneShot { role, profile });
+        Ok(self)
+    }
+
+    /// The audited one-shot this seat serves, if any.
+    pub(crate) const fn one_shot(&self) -> Option<crate::authoring::acp::OneShot> {
+        self.completion
     }
 
     /// Spawn the adapter child — piped stdio · composed env ·
@@ -507,6 +541,7 @@ impl SpawnedHarness {
     fn spawn_child(
         &self,
         cwd: Option<&std::path::Path>,
+        profile_env: &[(String, String)],
     ) -> Result<tokio::process::Child, HarnessError> {
         let parent: BTreeMap<String, String> = std::env::vars().collect();
         let env = compose_env(&parent, &self.adapter.passthrough_env);
@@ -520,6 +555,7 @@ impl SpawnedHarness {
         cmd.args(&self.adapter.args)
             .env_clear()
             .envs(&env)
+            .envs(profile_env.iter().map(|(name, value)| (name, value)))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -571,6 +607,70 @@ impl SpawnedHarness {
         let seen = crate::probe::judge_version(&self.adapter.id, &text, pin)?;
         self.probe_command_shape().await?;
         Ok(Some(seen))
+    }
+
+    /// The Codex completion profile, proven on the exact codex the adapter will run before
+    /// any session opens: the MCP servers the configuration defines (plugins off), then the
+    /// whole profile read back — every tool feature off, no MCP server enabled. Returns the
+    /// child environment carrying it (`CODEX_CONFIG`) and pinning that binary (`CODEX_PATH`).
+    async fn codex_profile_env(&self) -> Result<Vec<(String, String)>, HarnessError> {
+        use crate::authoring::acp::codex;
+        let parent: BTreeMap<String, String> = std::env::vars().collect();
+        let env = compose_env(&parent, &self.adapter.passthrough_env);
+        let binary = codex::bundled_codex(&self.adapter.command, &env)
+            .map_err(|reason| HarnessError::Unavailable { reason })?;
+        let binary = binary.to_string_lossy().into_owned();
+        let not_effective = |reason: String| HarnessError::Refused {
+            reason: format!(
+                "the Codex ACP completion profile is not effective: {reason}; no session was \
+                 opened; no fallback"
+            ),
+        };
+        let listing = |overrides: &[String], tail: &[&str]| -> Vec<String> {
+            overrides
+                .iter()
+                .flat_map(|o| ["-c".to_owned(), o.clone()])
+                .chain(tail.iter().map(|word| (*word).to_owned()))
+                .collect()
+        };
+        let plugins_off = ["features.plugins=false".to_owned()];
+        let defined = self
+            .run_bounded(
+                &binary,
+                &listing(&plugins_off, &["mcp", "list", "--json"]),
+                "codex mcp list",
+            )
+            .await?;
+        if !defined.status.success() {
+            return Err(not_effective(format!(
+                "codex mcp list exited {}",
+                defined.status
+            )));
+        }
+        let config =
+            codex::config(&codex::defined_servers(&defined.stdout).map_err(not_effective)?);
+        let overrides = codex::overrides(&config);
+        let features = self
+            .run_bounded(
+                &binary,
+                &listing(&overrides, &["features", "list"]),
+                "codex features list",
+            )
+            .await?;
+        crate::infer::tool_free::judge_features(&String::from_utf8_lossy(&features.stdout))
+            .map_err(|refused| not_effective(refused.to_string()))?;
+        let servers = self
+            .run_bounded(
+                &binary,
+                &listing(&overrides, &["mcp", "list", "--json"]),
+                "codex mcp list",
+            )
+            .await?;
+        codex::judge_servers(&servers.stdout).map_err(not_effective)?;
+        Ok(vec![
+            ("CODEX_CONFIG".to_owned(), config.to_string()),
+            ("CODEX_PATH".to_owned(), binary),
+        ])
     }
 
     /// Prove a registry-declared command shape after identity/version.
@@ -759,7 +859,14 @@ impl AgentBackendDyn for SpawnedHarness {
         // refuses HERE, with the version named — never as a protocol
         // confusion three frames into a session.
         self.probe_version().await?;
-        let mut child = self.spawn_child(self.completion.map(|_| request.cwd.as_path()))?;
+        let profile_env = match self.completion {
+            Some(one_shot) if one_shot.profile == crate::authoring::acp::Profile::Codex => {
+                self.codex_profile_env().await?
+            }
+            _ => Vec::new(),
+        };
+        let mut child =
+            self.spawn_child(self.completion.map(|_| request.cwd.as_path()), &profile_env)?;
         let stdout = child.stdout.take().ok_or_else(|| HarnessError::Session {
             reason: "the child's stdout was not piped".to_owned(),
         })?;
@@ -787,7 +894,7 @@ fn drive_with_child(
     stdin: tokio::process::ChildStdin,
     request: HarnessRequest,
     child: tokio::process::Child,
-    completion: Option<crate::authoring::acp::Completion>,
+    completion: Option<crate::authoring::acp::OneShot>,
 ) -> HarnessEventStream {
     let inner = if completion.is_some() {
         crate::client::drive_profile(
@@ -1113,7 +1220,7 @@ else:
         let adapter =
             HarnessAdapter::new("ghost", "/nonexistent/ghost-bin-2026").expect("id is fine");
         let spawned = SpawnedHarness::new(adapter);
-        let err = spawned.spawn_child(None).expect_err("no such binary");
+        let err = spawned.spawn_child(None, &[]).expect_err("no such binary");
         let HarnessError::Unavailable { reason } = &err else {
             panic!("an absent binary is Unavailable, got {err:?}");
         };

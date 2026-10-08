@@ -99,6 +99,8 @@ async fn claude_peer(mut r: Reader, mut w: Writer, seen: Arc<Mutex<Vec<Value>>>)
 /// The lent transport: the REAL completion-profile client over a duplex;
 /// `opened` counts sessions (zero proves a refusal before any spawn).
 struct Scripted {
+    /// The route whose completion profile this transport drives.
+    seat: &'static str,
     opened: AtomicUsize,
     seen: Arc<Mutex<Vec<Value>>>,
 }
@@ -117,13 +119,9 @@ impl DynAgentBackend for Scripted {
             peer_write,
             Arc::clone(&self.seen),
         ));
-        Box::pin(async move {
-            Ok(nika_harness::drive_one_shot(
-                client_read,
-                client_write,
-                request,
-            ))
-        })
+        // The lent transport drives the profile of the route it stands for.
+        let one_shot = nika_harness::meet_acp_one_shot(self.seat).expect("attested");
+        Box::pin(async move { Ok(one_shot.drive(client_read, client_write, request)) })
     }
 }
 
@@ -149,7 +147,13 @@ fn verb(transport: Arc<dyn DynAgentBackend>) -> InferVerb {
 }
 
 fn scripted() -> Arc<Scripted> {
+    scripted_as("claude-code")
+}
+
+/// A scripted claude-agent-acp peer behind the completion profile of `seat`.
+fn scripted_as(seat: &'static str) -> Arc<Scripted> {
     Arc::new(Scripted {
+        seat,
         opened: AtomicUsize::new(0),
         seen: Arc::new(Mutex::new(Vec::new())),
     })
@@ -211,20 +215,43 @@ async fn a_declared_acp_infer_rides_the_one_shot_and_keeps_its_receipt() {
 }
 
 #[tokio::test]
-async fn codex_acp_infer_refuses_before_any_session() {
+async fn a_route_without_a_profile_refuses_before_any_session() {
     let transport = scripted();
     let err = verb(transport.clone())
-        .run_on_harness("codex", ask("codex", "high"))
+        .run_on_harness("gemini-cli", ask("gemini-cli", "high"))
         .await
-        .expect_err("not qualified");
+        .expect_err("no audited profile");
     let text = err.to_string();
     assert!(
         matches!(err, VerbInferError::HarnessAccess { .. })
-            && text.contains("no qualified tool-free ACP one-shot profile yet")
+            && text.contains("no audited ACP one-shot completion profile")
             && text.contains("nothing was sent"),
         "{text}"
     );
     assert_eq!(transport.opened.load(Ordering::SeqCst), 0);
+}
+
+/// The Codex route rides ITS profile: a session answering as another
+/// adapter (here the scripted claude-agent-acp) is refused at initialize,
+/// typed (NIKA-1805), before any prompt.
+#[tokio::test]
+async fn the_codex_route_admits_only_codex_acp() {
+    let transport = scripted_as("codex");
+    let err = verb(transport.clone())
+        .run_on_harness("codex", ask("codex", "high"))
+        .await
+        .expect_err("another adapter answered");
+    assert_eq!(err.nika_code().to_string(), "NIKA-1805", "{err}");
+    assert!(
+        err.to_string()
+            .contains("requires the audited @agentclientprotocol/codex-acp 1.13.1 profile"),
+        "{err}"
+    );
+    let seen = transport.seen.lock().expect("seen").clone();
+    assert!(
+        seen.iter().all(|r| r["method"] != "session/prompt"),
+        "zero prompts: {seen:?}"
+    );
 }
 
 #[tokio::test]

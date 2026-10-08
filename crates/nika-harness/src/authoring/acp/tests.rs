@@ -5,6 +5,14 @@ use super::*;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream, ReadHalf, WriteHalf};
 
+/// The authoring role under the Claude Code profile.
+fn claude() -> OneShot {
+    OneShot {
+        role: Completion::Authoring,
+        profile: Profile::ClaudeCode,
+    }
+}
+
 fn identity() -> Value {
     json!({"protocolVersion":1,"agentInfo":{"name":NAME,"version":VERSION}})
 }
@@ -29,30 +37,31 @@ fn the_profile_disables_builtins_disk_settings_and_other_mcp_before_query() {
     assert_eq!(options["maxTurns"], 1);
     assert_eq!(options["allowDangerouslySkipPermissions"], false);
     assert_eq!(options["persistSession"], false);
-    assert!(admit(&identity(), Completion::Authoring).is_ok());
+    assert!(admit(&identity(), claude()).is_ok());
     for value in [
         json!({}),
         json!({"protocolVersion":1,"agentInfo":{"name":NAME,"version":"0.23.1"}}),
         json!({"protocolVersion":1,"agentInfo":{"name":"Codex","version":VERSION}}),
     ] {
-        assert!(admit(&value, Completion::Authoring).is_err());
+        assert!(admit(&value, claude()).is_err());
     }
 }
 
 #[test]
 fn text_only_and_configured_identity_never_become_served_or_free() {
     for tag in ["tool_call", "tool_call_update", "unexpected"] {
-        assert!(judge_update(&json!({"sessionUpdate":tag}), Completion::Authoring).is_err());
+        assert!(judge_update(&json!({"sessionUpdate":tag}), claude()).is_err());
     }
-    assert!(judge_update(&json!({"sessionUpdate":"agent_message_chunk","content":{"type":"image","data":"ignored"}}), Completion::Authoring).is_err());
+    assert!(judge_update(&json!({"sessionUpdate":"agent_message_chunk","content":{"type":"image","data":"ignored"}}), claude()).is_err());
     assert!(
         judge_update(
             &json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"whole"}}),
-            Completion::Authoring
+            claude()
         )
         .is_ok()
     );
     let d = descriptor(
+        Profile::ClaudeCode,
         "claude-code",
         Some("claude-code/test"),
         "claude-code/test",
@@ -61,6 +70,21 @@ fn text_only_and_configured_identity_never_become_served_or_free() {
     assert!(d["served_model"].is_null());
     assert!(d["billed_cost_usd"].is_null());
     assert_eq!(d["numeric_usage_reported"], false);
+    assert!(
+        d["tools_exposed"]
+            .as_str()
+            .is_some_and(|t| t.starts_with("none"))
+    );
+    // The Codex receipt names its residue: never « none », never empty tools.
+    let codex = descriptor(Profile::Codex, "codex", None, "session", &[]);
+    let tools = codex["tools_exposed"].as_str().expect("text");
+    assert!(
+        tools.starts_with("apply_patch only, confined to the per-call scratch")
+            && tools.contains("not an empty-tools profile")
+            && tools.contains("any tool beat refuses the answer"),
+        "{tools}"
+    );
+    assert_eq!(codex["adapter_version"], "1.13.1");
 }
 
 #[tokio::test]
@@ -84,7 +108,7 @@ async fn unsupported_identity_stops_before_session_or_prompt() {
         w,
         HarnessRequest::new("private prompt", "/tmp"),
         Duration::from_secs(1),
-        Some(Completion::Authoring),
+        Some(claude()),
     );
     let first = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
     assert!(matches!(first, Some(Err(HarnessError::Refused { .. }))));
@@ -128,7 +152,7 @@ async fn admitted_wire_carries_strict_options_and_keeps_the_whole_answer() {
         w,
         HarnessRequest::new("private prompt", "/tmp"),
         Duration::from_secs(1),
-        Some(Completion::Authoring),
+        Some(claude()),
     );
     let mut answer = None;
     while let Some(event) = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await {
@@ -192,7 +216,7 @@ async fn refuses_after_prompt(mode: &str) {
         w,
         HarnessRequest::new("private prompt", "/tmp"),
         Duration::from_secs(1),
-        Some(Completion::Authoring),
+        Some(claude()),
     );
     let first = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
     assert!(

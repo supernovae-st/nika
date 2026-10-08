@@ -13,10 +13,10 @@
 //! the backend, the adapter, the observed model, whether usage was reported and the cost basis
 //! (a subscription: no token meter is fabricated).
 //!
-//! Codex is the exception, and the same rule the Session door applies: its ACP adapter has no
-//! attested pre-execution empty-tools profile (measured: through codex-acp the shell, file and
-//! MCP tools ran without one permission ask), so `codex/<model>` seats the native infer-grade
-//! transport under its measured profile instead, never the ACP agent.
+//! Codex is the exception, and the same rule the Session door applies: its ACP completion
+//! profile is not an empty-tools profile (`apply_patch` stays callable inside the scratch), so
+//! `codex/<model>` seats the native infer-grade transport under its measured empty-tools
+//! profile instead, never the ACP agent.
 use crate::authoring::HarnessAuthoring;
 use crate::{SpawnedHarness, seat_from_id};
 use nika_kernel::ai::harness::{
@@ -31,7 +31,7 @@ use serde_json::{Value, json};
 use std::sync::Mutex;
 
 /// One harness seat for the length of a compile: one ACP session per authoring call, or the
-/// native tool-free transport where ACP has no attested empty-tools profile (Codex).
+/// native tool-free transport where the ACP profile is not empty-tools (Codex).
 pub struct HarnessSeat {
     seat: Backend,
     runtime: HarnessRuntime,

@@ -7,8 +7,9 @@
 //! asserts every configuration payload. The terminal frames carry the
 //! authored requirement and the call's receipt; the API provider beside
 //! the seat is never dialed; an unoffered effort refuses with ZERO
-//! prompts; an `infer:` over the ACP route refuses before task 1; and a
-//! changed effort changes the resume identity.
+//! prompts; an `infer:` over the codex ACP route is admitted at the gate
+//! (its completion profile is attested); and a changed effort changes the
+//! resume identity.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -384,26 +385,15 @@ async fn an_effort_the_selected_model_does_not_offer_refuses_with_zero_prompts()
     );
 }
 
-#[tokio::test]
-async fn an_infer_task_over_the_acp_route_refuses_before_task_one() {
+/// The infer role over the codex ACP route is admitted at the gate: its
+/// completion profile is attested (the turn itself is proven by the
+/// harness's scripted Codex peers and the live qualification).
+#[test]
+fn an_infer_task_over_the_codex_acp_route_is_admitted_at_the_gate() {
     let wf = workflow("high", "infer");
-    let report = nika_check::check(&wf);
     let plan = plan(&wf, true);
-    assert!(!plan.is_admitted(), "the infer role has no ACP one-shot");
-    let api = Arc::new(MockProvider::new("mock").enqueue_text("never asked"));
-    let runtime = runtime(Arc::clone(&api)).with_access_plan(plan);
-    let mut sink = VecSink::new();
-    let err = runtime
-        .run(&wf, &report, &mut DeterministicStamper::new(), &mut sink)
-        .await
-        .expect_err("refused at admission");
-    assert!(
-        err.to_string()
-            .contains("`infer:` tasks cannot ride `codex`"),
-        "{err}"
-    );
-    assert!(sink.events().is_empty(), "zero events, zero spend");
-    assert!(api.captured_requests().is_empty());
+    assert!(plan.is_admitted(), "{:?}", plan.pin_refusal);
+    assert_eq!(plan.seat.as_deref(), Some("codex"));
 }
 
 #[test]

@@ -292,27 +292,43 @@ mod seats {
         );
     }
 
-    /// Spec fixture 014 · an `infer:` task over codex ACP has no qualified
-    /// one-shot: refused before task 1, the role and the open gap named, no
-    /// seat spawned.
+    /// Spec fixture 014 · an `infer:` task over an ACP route with no
+    /// audited completion profile refuses before task 1, the role named,
+    /// no seat spawned.
     #[test]
     fn an_infer_task_over_an_acp_route_without_a_one_shot_refuses() {
+        let probes = vec![harness_probe("gemini-cli", &["gemini"], true, true)];
+        let req = AccessRequirement::new()
+            .with_via(Some("gemini-cli".into()))
+            .with_protocol(Some(AccessProtocol::Acp))
+            .with_fallback(Some(AccessFallback::None));
+        let needs = [infer("gemini/gemini-2.5-pro")];
+        let plan = plan(&needs, &probes, None, &req);
+        assert!(!plan.is_admitted(), "refused before task 1");
+        let (_, message) = refusal(&plan);
+        assert!(
+            message.contains("gemini-cli")
+                && (message.contains("not infer-grade")
+                    || message.contains("no audited ACP one-shot completion profile")),
+            "{message}"
+        );
+        assert_eq!(plan.seat, None);
+    }
+
+    /// The codex route serves `infer:` over ACP through its completion
+    /// profile: the same declaration seats codex for both roles.
+    #[test]
+    fn an_infer_task_rides_the_codex_completion_profile() {
         let probes = vec![
             api_probe("openai", true),
             harness_probe("codex", &["openai"], true, true),
         ];
-        let needs = [infer("openai/gpt-5.5")];
+        let needs = [infer("openai/gpt-6-astra"), agent("openai/gpt-6-astra")];
         let plan = plan(&needs, &probes, None, &codex_route());
-        let (code, message) = refusal(&plan);
-        assert_eq!(code, "1800");
-        assert!(
-            message.contains("`infer:` tasks cannot ride `codex`")
-                && message.contains("no qualified tool-free ACP one-shot profile yet")
-                && message.contains("CODEX_CONFIG")
-                && message.contains("run.access.protocol: acp"),
-            "{message}"
-        );
-        assert_eq!(plan.seat, None);
+        assert!(plan.is_admitted(), "{:?}", plan.pin_refusal);
+        assert_eq!(plan.seat.as_deref(), Some("codex"));
+        let lane = plan.lane("openai/gpt-6-astra").expect("admitted");
+        assert_eq!(lane.plan.chosen, AccessClass::Harness);
     }
 
     /// `via: claude-code, protocol: acp` seats the route for `infer:` too:

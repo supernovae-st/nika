@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! The audited Claude ACP completion profile, never a generic agent permission.
+//! The audited ACP completion profiles (Claude Code · Codex), never a generic agent permission.
 use futures_core::Stream;
 use nika_kernel::ai::harness::{AgentBackendDyn, HarnessError, HarnessEvent, HarnessRequest};
 use serde_json::{Value, json};
 use std::{fmt::Write as _, pin::Pin};
+
+pub(crate) mod codex;
 
 fn safe_error(error: &HarnessError) -> String {
     // Neither adapter stderr nor JSON-RPC error text is a safe user-facing diagnostic. A lost
@@ -14,7 +16,7 @@ fn safe_error(error: &HarnessError) -> String {
             "ACP authoring unavailable: the app's sign-in has expired or was revoked; sign in again in that app, then retry; no fallback".into()
         }
         HarnessError::Unavailable { .. } => "ACP authoring unavailable: check the installed adapter, version and account; no fallback".into(),
-        HarnessError::Refused { .. } => "ACP authoring refused: the audited claude-agent-acp 0.81.1 profile, selected model or text-only contract was not satisfied; no answer accepted".into(),
+        HarnessError::Refused { .. } => "ACP authoring refused: the audited ACP completion profile, selected model or text-only contract was not satisfied; no answer accepted".into(),
         // Nika's own words about the offer (never adapter text): verbatim,
         // so the author sees the exact option, value and discovered offer.
         HarnessError::Selection { reason } => {
@@ -48,6 +50,70 @@ impl Completion {
     }
 }
 
+/// Whose audited profile a one-shot runs under: each adapter closes its tool surface its own
+/// way before the prompt (Claude Code through its SDK options, Codex through its config,
+/// proven at spawn, and a read-only session mode).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Profile {
+    /// claude-agent-acp 0.81.1.
+    ClaudeCode,
+    /// codex-acp 1.13.1 (codex 0.156.1).
+    Codex,
+}
+
+impl Profile {
+    /// The profile a registry seat carries, when it has one.
+    pub(crate) fn for_seat(seat: &str) -> Option<Self> {
+        match seat {
+            "claude-code" => Some(Self::ClaudeCode),
+            "codex" => Some(Self::Codex),
+            _ => None,
+        }
+    }
+
+    const fn identity(self) -> (&'static str, &'static str) {
+        match self {
+            Self::ClaudeCode => (NAME, VERSION),
+            Self::Codex => (codex::NAME, codex::VERSION),
+        }
+    }
+}
+
+/// One audited one-shot: the role that asked and the adapter profile it runs under.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OneShot {
+    pub(crate) role: Completion,
+    pub(crate) profile: Profile,
+}
+
+impl OneShot {
+    /// The subject of every refusal this one-shot speaks.
+    pub(crate) const fn label(self) -> &'static str {
+        self.role.label()
+    }
+
+    /// The options sent with `session/new` before any prompt, when the profile has any.
+    pub(crate) fn session_meta(self) -> Option<Value> {
+        match self.profile {
+            Profile::ClaudeCode => Some(profile()),
+            Profile::Codex => None,
+        }
+    }
+
+    /// The session mode applied and read back before the prompt, when the profile needs one.
+    pub(crate) const fn required_mode(self) -> Option<&'static str> {
+        match self.profile {
+            Profile::ClaudeCode => None,
+            Profile::Codex => Some(codex::MODE),
+        }
+    }
+
+    /// The exact adapter version the profile was audited on.
+    pub(crate) const fn version(self) -> &'static str {
+        self.profile.identity().1
+    }
+}
+
 pub(crate) fn refusal(reason: &str) -> HarnessError {
     HarnessError::Refused {
         reason: reason.into(),
@@ -56,14 +122,15 @@ pub(crate) fn refusal(reason: &str) -> HarnessError {
 
 /// Exact local admission, checked on the active connection before session/new.
 /// A future version requires a renewed contract test; a name alone grants nothing.
-pub(crate) fn admit(init: &Value, completion: Completion) -> Result<(), HarnessError> {
-    if init.pointer("/agentInfo/name").and_then(Value::as_str) != Some(NAME)
-        || init.pointer("/agentInfo/version").and_then(Value::as_str) != Some(VERSION)
+pub(crate) fn admit(init: &Value, one_shot: OneShot) -> Result<(), HarnessError> {
+    let (name, version) = one_shot.profile.identity();
+    if init.pointer("/agentInfo/name").and_then(Value::as_str) != Some(name)
+        || init.pointer("/agentInfo/version").and_then(Value::as_str) != Some(version)
         || init.get("protocolVersion").and_then(Value::as_u64) != Some(1)
     {
         return Err(refusal(&format!(
-            "{} requires the audited claude-agent-acp 0.81.1 profile; no native or API fallback",
-            completion.label()
+            "{} requires the audited {name} {version} profile; no native or API fallback",
+            one_shot.label()
         )));
     }
     Ok(())
@@ -81,7 +148,7 @@ pub(crate) fn profile() -> Value {
 
 /// No tool/media-bearing answer is accepted, even from an admitted implementation.
 /// This is a second check, never the source of pre-execution authority.
-pub(crate) fn judge_update(update: &Value, completion: Completion) -> Result<(), HarnessError> {
+pub(crate) fn judge_update(update: &Value, completion: OneShot) -> Result<(), HarnessError> {
     match update.get("sessionUpdate").and_then(Value::as_str) {
         Some("agent_message_chunk")
             if update.pointer("/content/type").and_then(Value::as_str) == Some("text")
@@ -99,28 +166,59 @@ pub(crate) fn judge_update(update: &Value, completion: Completion) -> Result<(),
             | "session_info_update"
             | "available_commands_update",
         ) => Ok(()),
-        _ => Err(refusal(&format!(
-            "{} emitted a tool, media or unsupported event; no answer accepted",
-            completion.label()
-        ))),
+        tag => {
+            // Name the beat in protocol words only (the update type, an ACP tool kind),
+            // never its titles or paths.
+            let kind = update.get("kind").and_then(Value::as_str);
+            let beat = match (protocol_word(tag), protocol_word(kind)) {
+                (Some(tag), Some(kind)) => format!(" (`{tag}` · kind `{kind}`)"),
+                (Some(tag), None) => format!(" (`{tag}`)"),
+                _ => String::new(),
+            };
+            Err(refusal(&format!(
+                "{} emitted a tool, media or unsupported event{beat}; no answer accepted",
+                completion.label()
+            )))
+        }
     }
 }
 
+/// A protocol word (an update type, an ACP tool kind) fit to name in a refusal: never a
+/// title, a path or free text.
+fn protocol_word(value: Option<&str>) -> Option<&str> {
+    value.filter(|word| {
+        !word.is_empty()
+            && word.len() <= 40
+            && word.chars().all(|c| c.is_ascii_lowercase() || c == '_')
+    })
+}
+
 pub(crate) fn descriptor(
+    profile: Profile,
     adapter: &str,
     requested: Option<&str>,
     forwarded: &str,
     observed: &[Value],
 ) -> Value {
+    let (tools, bounds) = match profile {
+        Profile::ClaudeCode => (
+            "none; audited empty tools and strict empty MCP",
+            "one prompt per call; SDK maxTurns 1; the call's own deadline; 512 KiB answer",
+        ),
+        Profile::Codex => (
+            "apply_patch only, confined to the per-call scratch removed after the call (not an empty-tools profile); tool features, plugins and every configured MCP server disabled and read back at spawn; read-only mode: no network, every approval denied; any tool beat refuses the answer",
+            "one prompt per call; the call's own deadline; 512 KiB answer",
+        ),
+    };
     json!({"kind":"harness_infer", "transport":"acp", "adapter":adapter, "requested_model":requested,
         "forwarded_model":forwarded, "observed":observed,
         "cost_basis":"subscription-backed/unknown", "billed_cost_usd":null,
-        "numeric_usage_reported":false, "tools_exposed":"none; audited empty tools and strict empty MCP",
+        "numeric_usage_reported":false, "tools_exposed":tools,
         "context_exposed":"compiler messages only; fresh isolated scratch; wrapped ACP prompt",
         "token_ceiling":"requested by Compiler; ACP does not enforce token cap",
-        "bounds":"one prompt per call; SDK maxTurns 1; the call's own deadline; 512 KiB answer",
+        "bounds":bounds,
         "schema":"schema included in request; whole returned text judged by Compiler",
-        "served_model":null, "adapter_version":VERSION})
+        "served_model":null, "adapter_version":profile.identity().1})
 }
 
 /// The session request one completion sends: the wrapped prompt, the selected model when one
@@ -163,7 +261,8 @@ pub(crate) async fn run(
                     "model_evidence":outcome.observed_model_source.map(nika_kernel::ai::harness::ModelProvenance::as_str),
                     "effort_option":selection.effort_option, "transmitted_effort":selection.transmitted_effort,
                     "configured_effort":selection.configured_effort,
-                    "served_model":null, "usage_observed":outcome.usage.is_some(), "attested_version":VERSION});
+                    "served_model":null, "usage_observed":outcome.usage.is_some(),
+                    "attested_version":seat.one_shot().map_or(VERSION, OneShot::version)});
                 return Ok((outcome.output, metadata));
             }
             HarnessEvent::PermissionAsked { reply, .. } => {

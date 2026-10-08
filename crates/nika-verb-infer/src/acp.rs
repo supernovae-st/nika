@@ -20,7 +20,7 @@ use nika_kernel::ai::harness::{DynAgentBackend, HarnessRequest};
 use crate::{HarnessInferOutput, InferInput, InferVerb, VerbInferError, selection};
 
 /// A lent ACP one-shot transport (an embedder's or a test's). It must drive
-/// the completion profile ([`nika_harness::drive_one_shot`]); without one,
+/// the route's completion profile ([`nika_harness::AcpOneShot::drive`]); without one,
 /// the route's registry adapter is spawned under that profile.
 #[derive(Clone)]
 pub(crate) struct AcpTransport(pub(crate) Arc<dyn DynAgentBackend>);
