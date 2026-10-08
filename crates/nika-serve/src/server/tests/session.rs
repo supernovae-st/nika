@@ -175,7 +175,7 @@ async fn serve(
     std::fs::create_dir_all(&served).expect("registry");
     let opened = Arc::new(AtomicUsize::new(0));
     let (root, count) = (world.root.path().to_path_buf(), Arc::clone(&opened));
-    let session_opener: Opener = Arc::new(move || {
+    let session_opener: Opener = Arc::new(move |_| {
         count.fetch_add(1, Ordering::SeqCst);
         Ok((scripted(&root), Vec::new()))
     });
@@ -366,7 +366,7 @@ async fn the_session_door_is_off_unless_the_operator_seats_it() {
     assert!(
         !capabilities(&health)
             .iter()
-            .any(|word| word == "sessionHost")
+            .any(|word| word == "sessionHost" || word == "sessionIntelligence")
     );
     let refused = wire_request(served.address, &post("/v1/sessions", "", true)).await;
     assert_eq!(refused.status, 404);
@@ -393,10 +393,11 @@ async fn a_seated_session_saves_then_runs_exactly_the_saved_bytes_once_as_a_job(
     let seated = (true, Registry::Project);
     let served = serve(&world, seated, Some(DEFAULT_MAX_COST_USD), backend).await;
     let health = wire_request(served.address, &get("/health")).await.json();
+    let words = capabilities(&health);
+    assert!(words.iter().any(|word| word == "sessionHost"), "{words:?}");
     assert!(
-        capabilities(&health)
-            .iter()
-            .any(|word| word == "sessionHost")
+        words.iter().any(|word| word == "sessionIntelligence"),
+        "{words:?}"
     );
     let contract = wire_request(served.address, &get("/v1/openapi.json"))
         .await

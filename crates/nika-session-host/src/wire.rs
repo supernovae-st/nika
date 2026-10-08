@@ -18,6 +18,10 @@ pub const CONTRACT: &str = "nika/session-host@1";
 /// The capability word an engine that serves [`CONTRACT`] advertises.
 pub const CAPABILITY: &str = "sessionHost";
 
+/// The capability word of a door whose opener may name the conversation's intelligence (the
+/// census's own words, held for that conversation only, never saved).
+pub const SELECTION_CAPABILITY: &str = "sessionIntelligence";
+
 /// The longest command identity a client may choose.
 const MAX_COMMAND: usize = 128;
 

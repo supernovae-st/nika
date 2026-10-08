@@ -38,10 +38,24 @@ use nika_cli_host::lines::{PerCallLines, read_burst};
 /// frame said why).
 #[must_use]
 pub fn run_machine(jq: Option<nika_onboard::compile::room::JqHelper>) -> u8 {
+    run_machine_with(jq, None)
+}
+
+/// `nika session --json [--intelligence <words>]`: the census's first-screen words select for
+/// this conversation only, never saved. `None` when `argv` is not that invocation (the front
+/// door goes on); otherwise its exit, as [`run_machine`].
+#[must_use]
+pub fn machine_entry(argv: &[std::ffi::OsString]) -> Option<u8> {
+    let selection = nika_session_host::open::machine_selection(argv)?;
+    let jq = (std::env::current_exe().ok()).map(nika_onboard::compile::room::JqHelper::new);
+    Some(run_machine_with(jq, selection.as_deref()))
+}
+
+fn run_machine_with(jq: Option<nika_onboard::compile::room::JqHelper>, words: Option<&str>) -> u8 {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let home = nika_cli_host::probe::home_dir();
     let exe = std::env::current_exe().ok();
-    match nika_session_host::open::run_stdio(&cwd, home.as_deref(), jq, exe) {
+    match nika_session_host::open::run_stdio(&cwd, home.as_deref(), jq, exe, words) {
         Ok(()) => exit::OK,
         Err(_) => exit::ENV,
     }

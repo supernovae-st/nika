@@ -12,7 +12,13 @@
                 "type": "object",
                 "additionalProperties": false,
                 "required": ["contract"],
-                "properties": {"contract": {"const": "nika/session-host@1"}}
+                "properties": {
+                  "contract": {"const": "nika/session-host@1"},
+                  "intelligence": {
+                    "type": "string",
+                    "description": "The intelligence this conversation selects, in the census's own first-screen words (`1 [acp:]<app>[/<model>]`, `2 [<provider>[/<model>]]`, `3 [<engine>[/<model>]]`, `4`), resolved against this server's census and configuration. It holds for this conversation only: the server's kept choice is neither read nor written. Words the census does not read answer 409 `session_unavailable` with its fix. Never an endpoint or a key."
+                  }
+                }
               }
             }
           }

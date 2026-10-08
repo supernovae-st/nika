@@ -26,4 +26,4 @@ pub mod run;
 pub mod wire;
 
 pub use host::{Dispatch, SessionHost};
-pub use wire::{CAPABILITY, CONTRACT, Command, Frame, Refused};
+pub use wire::{CAPABILITY, CONTRACT, Command, Frame, Refused, SELECTION_CAPABILITY};
