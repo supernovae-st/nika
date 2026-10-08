@@ -12,13 +12,16 @@ pub(super) fn compile(
     transport: nika_types::access::HarnessTransport,
     request: &CompileRequest,
     decision: Option<super::decision::SessionSeat>,
-    host: Option<&dyn nika_onboard::compile::rehearse::Rehearse>,
+    (host, catalog): (
+        Option<&dyn nika_onboard::compile::rehearse::Rehearse>,
+        Option<&dyn nika_compile_seats::foundry::ComponentCatalog>,
+    ),
 ) -> Result<CompileOutcome, AuthoringError> {
     let harness =
         nika_harness::authoring::HarnessAuthoring::meet_with_transport(adapter, model, transport)
             .map_err(AuthoringError::Seat)?;
     let mut out = super::complete(Box::pin(
-        nika_onboard::compile::compile_with_cognition_rehearsed(
+        nika_compile_cognition::compile_with_cognition_composed(
             request,
             nika_onboard::compile::Cognition {
                 provider: Some(&harness),
@@ -27,6 +30,7 @@ pub(super) fn compile(
                     .map(|s| s as &dyn nika_onboard::compile::decide::DecisionSeat),
             },
             host,
+            catalog,
         ),
     ))??;
     super::decision::finish(&mut out, request, decision);
@@ -43,7 +47,10 @@ pub(super) fn compile(
     _: nika_types::access::HarnessTransport,
     _: &CompileRequest,
     _: Option<super::decision::SessionSeat>,
-    _: Option<&dyn nika_onboard::compile::rehearse::Rehearse>,
+    _: (
+        Option<&dyn nika_onboard::compile::rehearse::Rehearse>,
+        Option<&dyn nika_compile_seats::foundry::ComponentCatalog>,
+    ),
 ) -> Result<CompileOutcome, AuthoringError> {
     Err(AuthoringError::Seat(format!(
         "subscription authoring `{adapter}` requires access-harness in this build"

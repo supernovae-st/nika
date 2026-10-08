@@ -433,6 +433,41 @@ fn the_saved_reach_belongs_to_the_bytes_a_consent_saved_never_to_a_workflow_only
     );
 }
 
+/// The work snapshot names how the proposing compile revised the candidate's document only
+/// while the record binds the candidate's exact bytes; any other bytes are never described by it.
+#[test]
+fn a_document_revision_describes_only_the_bytes_its_record_binds() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    let _ = proposal(s.turn(COPY));
+    let bytes = s
+        .candidate()
+        .and_then(|c| {
+            c.set
+                .changes
+                .iter()
+                .find(|c| c.is_workflow())
+                .map(|c| c.content().to_owned())
+        })
+        .expect("the pending workflow");
+    let record = |candidate: &str| {
+        serde_json::json!({"mode": "operations", "base_sha256": "base",
+            "candidate_sha256": candidate, "changed": ["tasks.copy.invoke.args.path"],
+            "preservation": "by construction", "components": []})
+    };
+    s.proposed_revision = Some(record(&nika_compile::surface::sha256(&bytes)));
+    let revision = (s.work().candidate)
+        .and_then(|c| c.revision)
+        .expect("the record binds these bytes");
+    assert_eq!(revision.mode, "operations");
+    assert_eq!(revision.changed, ["tasks.copy.invoke.args.path"]);
+    s.proposed_revision = Some(record("another candidate's digest"));
+    assert!(
+        s.work().candidate.and_then(|c| c.revision).is_none(),
+        "a record of other bytes describes nothing here"
+    );
+}
+
 /// The rail's « Saved » is the consent's fact: a workflow only named for a run is not saved here
 /// and shows no check, while naming the saved one again keeps that consent's facts.
 #[test]

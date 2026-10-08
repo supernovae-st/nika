@@ -7,8 +7,9 @@
 //! of keeping a routing bit of their own; what a line may decide stays the session's.
 
 use super::{SessionRuntime, TurnOutcome};
+use crate::change::{ProjectChange, ProjectChangeSet};
 use crate::outcome::{Refusal, RefusalClass};
-use crate::work::{Candidate, Request, Run, Saved, Waiting, Work};
+use crate::work::{Candidate, DocumentRevision, Request, Run, Saved, Waiting, Work};
 
 /// Said when a line arrives while a proposal waits but the host showed none: nothing that
 /// was not seen is consented.
@@ -123,9 +124,10 @@ impl SessionRuntime {
     /// Reading it audits nothing, reads no file and decides nothing.
     #[must_use]
     pub fn work(&self) -> Work {
-        let candidate = self
-            .candidate()
-            .map(|c| Candidate::of(c.id, c.set, c.aside, c.rehearsed.is_some()));
+        let candidate = self.candidate().map(|c| {
+            let revision = self.document_revision(c.set);
+            Candidate::of(c.id, c.set, c.aside, c.rehearsed.is_some()).with_revision(revision)
+        });
         let saved = self.last_workflow.clone().map(|workflow| {
             // The reach belongs to the bytes the last consent saved, not to a workflow only run.
             let world = (self.saved_reach.as_ref())
@@ -159,6 +161,34 @@ impl SessionRuntime {
             run,
             (&self.lifecycle()).into(),
         )
+    }
+}
+
+impl SessionRuntime {
+    /// How the pending candidate's workflow was revised over its complete document, while the
+    /// proposing compile's record binds its bytes (the same description its work snapshot holds).
+    #[must_use]
+    pub fn pending_revision(&self) -> Option<DocumentRevision> {
+        self.candidate().and_then(|c| self.document_revision(c.set))
+    }
+
+    /// How the proposing compile revised the candidate's workflow over its complete document,
+    /// only when its record binds one of the set's workflow bytes (a later or earlier candidate
+    /// is never described by it), each composed component witnessed on those bytes.
+    fn document_revision(&self, set: &ProjectChangeSet) -> Option<DocumentRevision> {
+        let record = self.proposed_revision.as_ref()?;
+        let bound = record["candidate_sha256"].as_str()?;
+        let bytes = (set.changes.iter())
+            .filter(|change| change.is_workflow())
+            .map(ProjectChange::content)
+            .find(|content| nika_compile::surface::sha256(content) == bound)?;
+        let witnesses: Vec<String> = (record["components"].as_array().into_iter().flatten())
+            .map(|receipt| {
+                let seen = nika_compile_seats::foundry::witness::witness(receipt, bytes);
+                seen["verdict"].as_str().unwrap_or("unwitnessed").to_owned()
+            })
+            .collect();
+        DocumentRevision::of(record, &witnesses)
     }
 }
 

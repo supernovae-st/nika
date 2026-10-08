@@ -33,9 +33,11 @@ use std::collections::BTreeMap;
 mod money_restatement_tests;
 use std::sync::Arc;
 
+use nika_compile_cognition::compile_with_cognition_composed;
+use nika_compile_seats::foundry::ComponentCatalog;
 use nika_onboard::compile::{
     AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome, CompileQuestion,
-    CompileRequest, NativeMode, compile, compile_with_cognition_rehearsed, revise_intent, round,
+    CompileRequest, NativeMode, compile, revise_intent, round,
 };
 // The records a compile outcome carries live beside the snapshot door (C7 · D1).
 use nika_onboard::compile::rehearse::Rehearse;
@@ -692,6 +694,13 @@ fn compile_attached(
     if let Some(pack) = &pack {
         request = request.with_authoring_knowledge(pack.clone());
     }
+    // The release the session pinned, lent as executable components: a pack is qualified over
+    // the whole catalogue, and a revision may compose or rebind an admitted component. A pin
+    // that no longer reopens lends nothing (a composition is then refused, and says why).
+    let catalog = context.knowledge().and_then(|pin| pin.reopen().ok());
+    let lent = catalog
+        .as_ref()
+        .map(|snapshot| snapshot as &dyn ComponentCatalog);
     let mut out = match seat {
         AuthoringSeat::Harness {
             seat,
@@ -705,9 +714,15 @@ fn compile_attached(
             context
                 .decision()
                 .map(|s| s.consult(decision::admit(admission))),
-            host,
+            (host, lent),
         )?,
-        _ => seated(&model, &request, admission, context.decision(), host)?,
+        _ => seated(
+            &model,
+            &request,
+            admission,
+            context.decision(),
+            (host, lent),
+        )?,
     };
     let knowledge = match (attach, &pack, context.knowledge()) {
         (Attach::Compose(_), Some(pack), Some(pin)) => Some(composed_record(pin, pack, &out)),
@@ -731,7 +746,7 @@ fn seated(
     request: &CompileRequest,
     admission: Option<&nika_providers::InferenceAdmission>,
     selected: Option<&DecisionSetup>,
-    host: Option<&dyn Rehearse>,
+    (host, catalog): (Option<&dyn Rehearse>, Option<&dyn ComponentCatalog>),
 ) -> Result<CompileOutcome, AuthoringError> {
     // The operator-selected decision seat for this ONE compile: consulted by the compiler only
     // for a finite ambiguity (WARM), charged only on the no-budget observation; a need met under
@@ -751,7 +766,7 @@ fn seated(
         .map_err(|e| AuthoringError::Seat(e.to_string()))?;
     // The compile future carries a whole `CompileOutcome`: boxed so this
     // frame stays small (clippy::large_futures), as the CLI host does.
-    let mut out = complete(Box::pin(compile_with_cognition_rehearsed(
+    let mut out = complete(Box::pin(compile_with_cognition_composed(
         request,
         Cognition {
             provider: Some(&provider),
@@ -760,6 +775,7 @@ fn seated(
                 .map(|seat| seat as &dyn nika_onboard::compile::decide::DecisionSeat),
         },
         host,
+        catalog,
     )))??;
     decision::finish(&mut out, request, consulted);
     // The receipt names its backend as the CLI's does, with the host the

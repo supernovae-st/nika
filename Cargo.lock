@@ -5544,6 +5544,8 @@ dependencies = [
  "nika-catalog",
  "nika-cli-host",
  "nika-compile",
+ "nika-compile-cognition",
+ "nika-compile-seats",
  "nika-dap",
  "nika-display",
  "nika-error",

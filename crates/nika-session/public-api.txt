@@ -1770,6 +1770,8 @@ pub fn nika_session::runtime::SessionRuntime::monetary_decision(&self) -> core::
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::observe_declined_run(&mut self) -> nika_session::runtime::TurnOutcome
 impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::pending_revision(&self) -> core::option::Option<nika_session_change::work::DocumentRevision>
+impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::phase(&self) -> nika_session::turn::SessionPhase
 pub fn nika_session::runtime::SessionRuntime::routes(&self) -> &[nika_session::turn::RouteRecord]
 pub fn nika_session::runtime::SessionRuntime::with_classifier(&mut self, classifier: alloc::boxed::Box<dyn nika_session::turn::TurnClassifier>)
@@ -3255,6 +3257,8 @@ impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::monetary_decision(&self) -> core::option::Option<&nika_session::money::MonetaryDecision>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::observe_declined_run(&mut self) -> nika_session::runtime::TurnOutcome
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::pending_revision(&self) -> core::option::Option<nika_session_change::work::DocumentRevision>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::phase(&self) -> nika_session::turn::SessionPhase
 pub fn nika_session::runtime::SessionRuntime::routes(&self) -> &[nika_session::turn::RouteRecord]

@@ -22,6 +22,8 @@ mod carried;
 mod connection;
 mod continuous_preparation;
 mod decision_seat;
+/// A workflow the person already has, named in a change, revised over its complete document.
+mod document_revision;
 mod interrupted;
 mod judge_trials;
 mod legacy;

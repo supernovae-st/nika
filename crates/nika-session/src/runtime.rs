@@ -252,6 +252,9 @@ pub struct SessionRuntime {
     consented: Option<PathBuf>,
     /// The run this session requested last, with the reach of the bytes it asked to run.
     requested_run: Option<crate::work::RequestedRun>,
+    /// How the compile that proposed the pending candidate revised its document, as its record
+    /// states it (`document_revision`): bound to the candidate's bytes by digest when read.
+    proposed_revision: Option<serde_json::Value>,
     /// The trace the last observed run left (`/proof` reads it).
     last_trace: Option<PathBuf>,
     /// The last observed run HOME history keeps (`KeptRun`): evidence, never authority.
@@ -365,6 +368,7 @@ impl SessionRuntime {
             saved_reach: None,
             consented: None,
             requested_run: None,
+            proposed_revision: None,
             last_trace: None,
             kept_run: None,
             authoring: None,

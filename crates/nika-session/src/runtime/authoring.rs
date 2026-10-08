@@ -235,10 +235,14 @@ impl SessionRuntime {
         TurnOutcome::Refusal(Refusal::new(RefusalClass::NotAllowed, text))
     }
 
-    /// A saved file or unfinished goal gives a change its context. The classifier sees that
-    /// earlier request, never this line substituted for it; `NEW_WORK` inherits none of it.
+    /// A saved file, a workflow of the project the line names, or an unfinished goal gives a
+    /// change its context. The classifier sees that earlier request, never this line substituted
+    /// for it; `NEW_WORK` inherits none of it.
     fn beside_goal(&mut self, intent: &str, earlier: Option<String>) -> Option<TurnOutcome> {
-        if self.last_workflow.is_none() && earlier.is_none() {
+        if self.last_workflow.is_none()
+            && earlier.is_none()
+            && self.named_workflow(intent).is_none()
+        {
             return None;
         }
         let current = std::mem::replace(&mut self.intent.goal, earlier);
@@ -267,12 +271,39 @@ impl SessionRuntime {
     /// restriction (no keep or exclusion lead): the correction's first phrase, which the frame
     /// labels, is judged for what it asks.
     fn revise_current(&mut self, change: &str) -> Option<TurnOutcome> {
+        // A workflow of the project the change names is the document it revises, whether this
+        // session saved it or not: it is read whole and revised in place (never rebuilt from a
+        // request it may not answer).
+        if let Some(named) = self.named_workflow(change) {
+            // Another file than this session's own carries none of its request: the record that
+            // binds it, when one does, says what it answers.
+            if self.last_workflow.as_ref() != Some(&named) {
+                self.intent.goal = None;
+            }
+            return Some(self.revise_saved(&named, change));
+        }
         if let Some(saved) = self.last_workflow.clone() {
             return Some(self.revise_saved(&saved, change));
         }
         let original = self.intent.goal.as_ref()?;
         let intent = format!("Original request:\n{original}\n{CORRECTION_FRAME}\n{change}");
         Some(self.restate_request(intent, change))
+    }
+
+    /// The one workflow file of the project a line names (`stock.nika`), when it names exactly
+    /// one that exists under the root; a line naming several, or none, names no base.
+    fn named_workflow(&self, line: &str) -> Option<PathBuf> {
+        let root = &self.snapshot.root;
+        let mut named = (super::named_files(line).into_iter())
+            .filter(|name| {
+                std::path::Path::new(name)
+                    .extension()
+                    .is_some_and(|e| e == "nika")
+            })
+            .map(PathBuf::from)
+            .filter(|path| root.join(path).is_file());
+        let first = named.next()?;
+        named.next().is_none().then_some(first)
     }
 
     /// The same Compile, under the seat the human permitted, for work the
@@ -876,6 +907,11 @@ impl SessionRuntime {
                 // « activate » declares it once the program is saved.
                 self.pending_trigger.clone_from(&out.requested_trigger);
                 self.bind_proposal_money(&id);
+                // What the compiler did to the document, read back by the work snapshot only
+                // while it binds the pending bytes.
+                self.proposed_revision = (out.provenance.decision.as_ref())
+                    .and_then(|decision| decision.get("document_revision"))
+                    .cloned();
                 self.pending = Some(set);
                 TurnOutcome::Proposal { id, preview }
             }
