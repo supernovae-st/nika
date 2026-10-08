@@ -56,6 +56,12 @@ fn the_palette_diagnostic_returns_without_sending_while_a_turn_is_still_held() {
                 && screen.contains(child::BUSY)
                 && screen.contains("keep this held draft")
         });
+        term.settle(Duration::from_millis(200));
+        assert!(
+            !term.screen.contains("Enter sends"),
+            "Enter passed through the reader into the busy composer: {}",
+            term.dump()
+        );
         assert!(!term.screen.seen(child::DONE), "{}", term.dump());
         release.open();
         term.wait_text(child::DONE);

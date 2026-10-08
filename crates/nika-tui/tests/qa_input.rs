@@ -541,7 +541,7 @@ fn a_view_key_chosen_acts_from_the_region_that_held_the_keys() {
         screen.contains("nika › /status") && !screen.contains(ASIDE)
     });
     term.send("\x7f");
-    term.wait_text("nika › /statu");
+    term.wait_text(&format!("nika › {}", "/status".trim_end_matches('s')));
     nothing_sent(&mut term, "choosing in the palette");
     leave(&mut term);
 }
