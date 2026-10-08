@@ -1479,61 +1479,9 @@ pub fn nika_session::reasoner::ScriptedReasoner::reason_with_admission(&mut self
 pub fn nika_session::reasoner::ScriptedReasoner::supports_admission(&self) -> bool
 pub mod nika_session::runtime
 pub use nika_session::runtime::ActivityHook
+pub use nika_session::runtime::DecisionAnswer
 pub use nika_session::runtime::HELP
-#[non_exhaustive] pub enum nika_session::runtime::DecisionAnswer
-pub nika_session::runtime::DecisionAnswer::Approve
-pub nika_session::runtime::DecisionAnswer::Decline
-pub nika_session::runtime::DecisionAnswer::Details
-pub nika_session::runtime::DecisionAnswer::Unknown
-impl core::clone::Clone for nika_session::runtime::DecisionAnswer
-pub fn nika_session::runtime::DecisionAnswer::clone(&self) -> nika_session::runtime::DecisionAnswer
-impl core::cmp::Eq for nika_session::runtime::DecisionAnswer
-impl core::cmp::PartialEq for nika_session::runtime::DecisionAnswer
-pub fn nika_session::runtime::DecisionAnswer::eq(&self, other: &nika_session::runtime::DecisionAnswer) -> bool
-impl core::fmt::Debug for nika_session::runtime::DecisionAnswer
-pub fn nika_session::runtime::DecisionAnswer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for nika_session::runtime::DecisionAnswer
-impl core::marker::StructuralPartialEq for nika_session::runtime::DecisionAnswer
-impl<D> owo_colors::OwoColorize for nika_session::runtime::DecisionAnswer
-impl<Q, K> equivalent::Equivalent<K> for nika_session::runtime::DecisionAnswer where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_session::runtime::DecisionAnswer::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_session::runtime::DecisionAnswer where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_session::runtime::DecisionAnswer::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_session::runtime::DecisionAnswer where U: core::convert::From<T>
-pub fn nika_session::runtime::DecisionAnswer::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_session::runtime::DecisionAnswer where U: core::convert::Into<T>
-pub type nika_session::runtime::DecisionAnswer::Error = core::convert::Infallible
-pub fn nika_session::runtime::DecisionAnswer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_session::runtime::DecisionAnswer where U: core::convert::TryFrom<T>
-pub type nika_session::runtime::DecisionAnswer::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_session::runtime::DecisionAnswer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_session::runtime::DecisionAnswer where T: core::clone::Clone
-pub type nika_session::runtime::DecisionAnswer::Owned = T
-pub fn nika_session::runtime::DecisionAnswer::clone_into(&self, target: &mut T)
-pub fn nika_session::runtime::DecisionAnswer::to_owned(&self) -> T
-impl<T> core::any::Any for nika_session::runtime::DecisionAnswer where T: 'static + ?core::marker::Sized
-pub fn nika_session::runtime::DecisionAnswer::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_session::runtime::DecisionAnswer where T: ?core::marker::Sized
-pub fn nika_session::runtime::DecisionAnswer::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_session::runtime::DecisionAnswer where T: ?core::marker::Sized
-pub fn nika_session::runtime::DecisionAnswer::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_session::runtime::DecisionAnswer where T: core::clone::Clone
-pub unsafe fn nika_session::runtime::DecisionAnswer::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_session::runtime::DecisionAnswer
-pub fn nika_session::runtime::DecisionAnswer::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_session::runtime::DecisionAnswer where T: core::clone::Clone
-pub fn nika_session::runtime::DecisionAnswer::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_session::runtime::DecisionAnswer where T: 'static
-pub fn nika_session::runtime::DecisionAnswer::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_session::runtime::DecisionAnswer where T: core::marker::Copy
-pub fn nika_session::runtime::DecisionAnswer::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::runtime::DecisionAnswer where T: ?core::marker::Sized
-pub fn nika_session::runtime::DecisionAnswer::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_session::runtime::DecisionAnswer::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_session::runtime::DecisionAnswer
-impl<T> tracing::instrument::WithSubscriber for nika_session::runtime::DecisionAnswer
-impl<T> typenum::type_operators::Same for nika_session::runtime::DecisionAnswer
-pub type nika_session::runtime::DecisionAnswer::Output = T
+pub use nika_session::runtime::decision_answer
 #[non_exhaustive] pub enum nika_session::runtime::TurnOutcome
 pub nika_session::runtime::TurnOutcome::Aside(alloc::string::String)
 pub nika_session::runtime::TurnOutcome::Ask(alloc::string::String)
@@ -1747,7 +1695,6 @@ pub fn nika_session::runtime::SessionRuntime::pending_question_id(&self) -> core
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::authoring_context(&self) -> &nika_session::authoring::AuthoringContext
 pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_session::authoring::AuthoringSeat
-pub fn nika_session::runtime::SessionRuntime::pending_input(&self) -> core::option::Option<&str>
 pub fn nika_session::runtime::SessionRuntime::pending_question(&self) -> core::option::Option<&nika_compile::types::CompileQuestion>
 pub fn nika_session::runtime::SessionRuntime::set_authoring_context(&mut self, context: nika_session::authoring::AuthoringContext)
 impl nika_session::runtime::SessionRuntime
@@ -1777,6 +1724,8 @@ impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::monetary_decision(&self) -> core::option::Option<&nika_session::money::MonetaryDecision>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::observe_declined_run(&mut self) -> nika_session::runtime::TurnOutcome
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::pending_input(&self) -> core::option::Option<&str>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::pending_revision(&self) -> core::option::Option<nika_session_change::work::DocumentRevision>
 impl nika_session::runtime::SessionRuntime
@@ -1827,7 +1776,6 @@ pub const nika_session::runtime::NOTHING_SHOWN: &str
 pub const nika_session::runtime::REVIEW_NOT_SHOWN: &str
 pub const nika_session::runtime::SLASH_COMMANDS: &[&str]
 pub const nika_session::runtime::VALUE_NOT_SHOWN: &str
-pub fn nika_session::runtime::decision_answer(line: &str) -> nika_session::runtime::DecisionAnswer
 pub type nika_session::runtime::ProgressHook = nika_display::activity::TextHook
 pub type nika_session::runtime::ReasonerFactory = alloc::boxed::Box<(dyn core::ops::function::Fn(&nika_session::intelligence::ResolvedSessionIntelligence) -> alloc::boxed::Box<dyn nika_session::reasoner::SessionReasoner> + core::marker::Send)>
 pub mod nika_session::snapshot
@@ -3244,7 +3192,6 @@ pub fn nika_session::runtime::SessionRuntime::pending_question_id(&self) -> core
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::authoring_context(&self) -> &nika_session::authoring::AuthoringContext
 pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_session::authoring::AuthoringSeat
-pub fn nika_session::runtime::SessionRuntime::pending_input(&self) -> core::option::Option<&str>
 pub fn nika_session::runtime::SessionRuntime::pending_question(&self) -> core::option::Option<&nika_compile::types::CompileQuestion>
 pub fn nika_session::runtime::SessionRuntime::set_authoring_context(&mut self, context: nika_session::authoring::AuthoringContext)
 impl nika_session::runtime::SessionRuntime
@@ -3274,6 +3221,8 @@ impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::monetary_decision(&self) -> core::option::Option<&nika_session::money::MonetaryDecision>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::observe_declined_run(&mut self) -> nika_session::runtime::TurnOutcome
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::pending_input(&self) -> core::option::Option<&str>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::pending_revision(&self) -> core::option::Option<nika_session_change::work::DocumentRevision>
 impl nika_session::runtime::SessionRuntime

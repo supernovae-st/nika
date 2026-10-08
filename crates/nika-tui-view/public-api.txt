@@ -145,6 +145,8 @@ pub const nika_tui_view::visual::logomark::SOURCE_PATH: &str
 pub const nika_tui_view::visual::logomark::SOURCE_SHA256: &str
 pub fn nika_tui_view::visual::logomark::revealing(elapsed: core::time::Duration, reduced_motion: bool) -> bool
 pub mod nika_tui_view::visual::role
+pub fn nika_tui_view::visual::role::border(color: bool) -> ratatui_core::style::Style
+pub fn nika_tui_view::visual::role::selection(color: bool) -> ratatui_core::style::Style
 pub fn nika_tui_view::visual::role::style(role: nika_display::theme::Role, color: bool) -> ratatui_core::style::Style
 pub fn nika_tui_view::visual::role::surface(color: bool, raised: bool) -> ratatui_core::style::Style
 pub fn nika_tui_view::visual::role::verb(word: &str, color: bool) -> ratatui_core::style::Style
@@ -927,6 +929,7 @@ impl<T> tracing::instrument::Instrument for nika_tui_view::workspace::object::Pa
 impl<T> tracing::instrument::WithSubscriber for nika_tui_view::workspace::object::Paint
 impl<T> typenum::type_operators::Same for nika_tui_view::workspace::object::Paint
 pub type nika_tui_view::workspace::object::Paint::Output = T
+pub fn nika_tui_view::workspace::object::content_rows(lines: usize, height: u16) -> u16
 pub fn nika_tui_view::workspace::object::length(object: &nika_tui_view::workspace::object::Object) -> usize
 pub fn nika_tui_view::workspace::object::lines(object: &nika_tui_view::workspace::object::Object, width: u16, height: u16, paint: nika_tui_view::workspace::object::Paint) -> alloc::vec::Vec<ratatui_core::text::line::Line<'static>>
 pub fn nika_tui_view::workspace::object::lines_from(object: &nika_tui_view::workspace::object::Object, width: u16, height: u16, paint: nika_tui_view::workspace::object::Paint, scroll: usize) -> alloc::vec::Vec<ratatui_core::text::line::Line<'static>>

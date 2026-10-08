@@ -2295,6 +2295,7 @@ pub const nika_tui::workspace::live::FILES_READ: usize
 pub mod nika_tui::workspace::object
 pub use nika_tui::workspace::object::Object
 pub use nika_tui::workspace::object::Paint
+pub use nika_tui::workspace::object::content_rows
 pub use nika_tui::workspace::object::length
 pub use nika_tui::workspace::object::lines
 pub use nika_tui::workspace::object::lines_from
