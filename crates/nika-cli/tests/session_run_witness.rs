@@ -52,7 +52,7 @@ fn the_native_child_runs_only_the_bytes_the_session_checked() {
     )
     .expect("replaced");
     let (step, said) = run(root, &request("own.nika", Some(CHECKED)));
-    let RunStep::Observed { exit, trace } = step else {
+    let RunStep::Observed { exit, trace, .. } = step else {
         panic!("the child answered: {step:?}\n{said}");
     };
     assert_ne!(exit, 0, "{said}");
@@ -69,7 +69,7 @@ fn the_native_child_runs_only_the_bytes_the_session_checked() {
     // The checked bytes back in place: they run, and only they.
     std::fs::write(&workflow, CHECKED).expect("checked bytes");
     let (step, said) = run(root, &request("own.nika", Some(CHECKED)));
-    let RunStep::Observed { exit, trace } = step else {
+    let RunStep::Observed { exit, trace, .. } = step else {
         panic!("the child answered: {step:?}\n{said}");
     };
     assert_eq!(exit, 0, "{said}");

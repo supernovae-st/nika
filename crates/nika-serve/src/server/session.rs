@@ -16,7 +16,9 @@ use hyper::body::Incoming;
 use hyper::{Method, Request, Response};
 use nika_cli_host::output::exit;
 use nika_session_host::http::{Doors, Sessions, job_id, refusal_words};
-use nika_session_host::run::{Admitted, JobDoor, JobFuture, Jobs, NoRunDoor, RunDoor, RunRequest};
+use nika_session_host::run::{
+    Admitted, JobDoor, JobEnd, JobFuture, Jobs, NoRunDoor, RunDoor, RunRequest,
+};
 use sha2::{Digest as _, Sha256};
 
 use super::error::{ApiError, ResponseBody};
@@ -102,7 +104,7 @@ impl Jobs for Resident {
         Box::pin(self.decided(review, approve))
     }
 
-    fn settled<'a>(&'a self, id: &'a str) -> JobFuture<'a, Result<(u8, Option<PathBuf>), String>> {
+    fn settled<'a>(&'a self, id: &'a str) -> JobFuture<'a, Result<JobEnd, String>> {
         Box::pin(self.ended(id))
     }
 }
@@ -205,7 +207,7 @@ impl Resident {
 
     /// The job's end once it settled or paused, as the exit `nika run` gives for that end, and
     /// its journal; an interrupted job's effects are unknown, never an observed end.
-    async fn ended(&self, id: &str) -> Result<(u8, Option<PathBuf>), String> {
+    async fn ended(&self, id: &str) -> Result<JobEnd, String> {
         let state = self.state()?;
         let id = JobId::parse(id).map_err(|_| "not a job of this resident".to_owned())?;
         let notify = state.store.event_notify();
@@ -237,7 +239,12 @@ impl Resident {
             };
             let journal = (state.journal_dir.as_deref())
                 .and_then(|dir| super::trace_verdict::JournalKey::of(dir, &record));
-            return Ok((exit, journal.and_then(|key| key.path())));
+            let end = JobEnd::new(exit, journal.and_then(|key| key.path()));
+            // The receipt's opaque identities: the trace one the job's trace door resolves.
+            let named = |id: Option<&str>| id.map(str::to_owned);
+            let head = record.receipt().and_then(crate::JobReceipt::chain_head);
+            let receipt = (named(record.execution_id()), named(record.trace_id()));
+            return Ok(end.with_receipt(receipt.0, receipt.1, named(head)));
         }
     }
 }

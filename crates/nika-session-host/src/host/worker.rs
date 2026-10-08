@@ -156,8 +156,13 @@ impl Turn<'_> {
         };
         self.shared.phase(self.command, TurnPhase::Settling);
         match step {
-            RunStep::Observed { exit, trace } => {
-                let observed = runtime.observe_run(exit, trace.as_deref());
+            RunStep::Observed { exit, trace, leg } => {
+                // What the run named of itself rides the observation (its trace kept when the
+                // door names one): the Session keeps it as the run's identity.
+                let observed = match leg {
+                    Some(leg) => runtime.observe_run_leg(exit, trace.as_deref(), leg),
+                    None => runtime.observe_run(exit, trace.as_deref()),
+                };
                 let mut again = Vec::new();
                 project(observed, wire, &mut again);
                 if !again.is_empty() {

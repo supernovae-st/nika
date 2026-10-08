@@ -54,11 +54,14 @@ impl Jobs for Scripted {
         })
     }
 
-    fn settled<'a>(&'a self, id: &'a str) -> JobFuture<'a, Result<(u8, Option<PathBuf>), String>> {
+    fn settled<'a>(&'a self, id: &'a str) -> JobFuture<'a, Result<JobEnd, String>> {
         Box::pin(async move {
             match &self.lost {
                 Some(why) => Err(why.clone()),
-                None => Ok((4, Some(PathBuf::from(format!(".nika/traces/{id}.ndjson"))))),
+                None => Ok(JobEnd::new(
+                    4,
+                    Some(PathBuf::from(format!(".nika/traces/{id}.ndjson"))),
+                )),
             }
         })
     }
@@ -111,11 +114,12 @@ fn a_run_is_one_admission_by_name_then_its_observed_end() {
     let (_runtime, mut door) = door(&jobs);
     let told = Told::default();
     let step = on_worker(|| door.run(Path::new("/project"), &request(), &told));
-    let RunStep::Observed { exit, trace } = step else {
+    let RunStep::Observed { exit, trace, leg } = step else {
         panic!("observed: {step:?}");
     };
     assert_eq!(exit, 4, "the resident's end, as the exit nika run gives");
     assert_eq!(trace, Some(PathBuf::from(".nika/traces/job-1.ndjson")));
+    assert_eq!(leg, None, "a receipt naming nothing names no identity");
     let admitted = jobs.admitted.lock().expect("admitted").clone();
     assert_eq!(
         admitted,
@@ -220,4 +224,141 @@ fn a_review_left_waiting_is_declined_when_replaced_or_dropped() {
         [("rev-1".to_owned(), false), ("rev-2".to_owned(), false)],
         "a superseded review and the one held at the end are declined, never left pending"
     );
+}
+
+const EXEC: &str = "01a0ef11-0212-70de-a8b3-99de9427fccc";
+const OTHER: &str = "01a0ef11-0212-70de-a8b3-99de94270000";
+
+/// One journal line (or lane frame) of `exec`: the runtime's own event, its chain field kept.
+fn event_line(exec: &str, n: u32, kind: &str, fields: &str) -> String {
+    format!(
+        r#"{{"chain":"ab","correlation":null,"execution":{{"uuid":"{exec}"}},"fields":[{fields}],"id":{{"uuid":"01a0ef11-03a7-74fb-bba0-{n:012x}"}},"kind":"{kind}","run":null,"timestamp":{n}}}"#
+    )
+}
+
+fn started(exec: &str, n: u32, hash: &str) -> String {
+    let fields = format!(r#"{{"key":"workflow_sha256","value":"{hash}"}}"#);
+    event_line(exec, n, "workflow_started", &fields)
+}
+
+/// A job's end names its receipt's opaque identities and the source hash its own journal
+/// started with, only when that journal is the receipt's execution; a receipt naming no
+/// execution names no identity.
+#[test]
+fn a_job_end_names_its_receipt_and_its_own_journals_one_start() {
+    let dir = tempfile::tempdir().expect("dir");
+    let journal = dir.path().join("run.ndjson");
+    let done = event_line(EXEC, 2, "workflow_completed", "");
+    std::fs::write(&journal, format!("{}\n{done}\n", started(EXEC, 1, "aa"))).expect("journal");
+    let receipt = |execution: &str| {
+        JobEnd::new(0, Some(journal.clone())).with_receipt(
+            Some(format!("exe-{execution}")),
+            Some("trace-of-job-1".to_owned()),
+            Some("cd".to_owned()),
+        )
+    };
+    let leg = receipt(EXEC).leg().expect("an observed identity");
+    assert_eq!(
+        leg.execution.as_deref(),
+        Some(EXEC),
+        "as the run's frames name it"
+    );
+    assert_eq!(leg.workflow_sha256.as_deref(), Some("aa"));
+    assert_eq!(leg.trace.as_deref(), Some("trace-of-job-1"));
+    assert!(
+        leg.trace_opaque,
+        "the receipt's trace is an identity, never a path to read"
+    );
+    assert_eq!(
+        (leg.chain_head.as_deref(), leg.chain_len),
+        (Some("cd"), None)
+    );
+    let other = receipt(OTHER).leg().expect("the receipt's identity");
+    assert_eq!(other.execution.as_deref(), Some(OTHER));
+    assert_eq!(
+        other.workflow_sha256, None,
+        "another execution's journal names no source"
+    );
+    assert_eq!(JobEnd::new(0, Some(journal.clone())).leg(), None);
+    let unspelled =
+        JobEnd::new(0, Some(journal.clone())).with_receipt(Some(EXEC.to_owned()), None, None);
+    assert_eq!(
+        unspelled.leg(),
+        None,
+        "a receipt execution of another spelling names none"
+    );
+    let missing = JobEnd::new(0, Some(dir.path().join("gone.ndjson"))).with_receipt(
+        Some(format!("exe-{EXEC}")),
+        None,
+        None,
+    );
+    let missing = missing.leg().expect("the receipt's identity");
+    assert_eq!((missing.workflow_sha256, missing.trace), (None, None));
+    assert!(!missing.trace_opaque);
+}
+
+/// A resumed leg is its own execution: without a start of its own it names no source hash,
+/// never the paused leg's and never one derived from the bytes it was asked to run.
+#[test]
+fn a_resumed_leg_without_its_own_start_names_no_source() {
+    let door = LaneRunDoor::new(PathBuf::from("nika"));
+    let told = Told::default();
+    let folding = Folding {
+        sink: &told,
+        identity: &door.identity,
+    };
+    folding.frame(RunFrame::decode(&started(EXEC, 1, "aa")).expect("the paused leg's start"));
+    door.fresh();
+    let resumed = event_line(
+        OTHER,
+        2,
+        "task_completed",
+        r#"{"key":"task","value":"approve"}"#,
+    );
+    folding.frame(RunFrame::decode(&resumed).expect("the resumed leg's event"));
+    let leg = door.leg().expect("the resumed execution");
+    assert_eq!(leg.execution.as_deref(), Some(OTHER));
+    assert_eq!(leg.workflow_sha256, None, "deliberately unproven");
+}
+
+/// Every frame a lane child relays reaches the turn's sink and is folded on the way: the run's
+/// execution, its one start's source hash and its settlement's receipt, as the Session keeps it.
+#[test]
+fn the_lane_fold_relays_every_frame_and_keeps_the_runs_identity() {
+    #[derive(Default)]
+    struct Relayed(Mutex<(Vec<String>, usize)>);
+    impl RunSink for Relayed {
+        fn said(&self, line: String) {
+            self.0.lock().expect("relayed").0.push(line);
+        }
+        fn frame(&self, _frame: RunFrame) {
+            self.0.lock().expect("relayed").1 += 1;
+        }
+    }
+    let relayed = Relayed::default();
+    let identity = Mutex::default();
+    let folding = Folding {
+        sink: &relayed,
+        identity: &identity,
+    };
+    folding.said("running · copy.nika".to_owned());
+    let settled = format!(
+        r#"{{"kind":"run_settled","status":"succeeded","cause":"normal","execution":{{"uuid":"{EXEC}"}},"spend":{{"priced_calls":0,"qualifier":"unmetered","unpriced_calls":0}},"evidence":"unsealed","receipt":{{"trace_path":".nika/traces/t.ndjson","chain_head":"cd","chain_len":7}}}}"#
+    );
+    for line in [started(EXEC, 1, "aa"), started(OTHER, 2, "bb"), settled] {
+        folding.frame(RunFrame::decode(&line).expect("a frame"));
+    }
+    assert_eq!(
+        *relayed.0.lock().expect("relayed"),
+        (vec!["running · copy.nika".to_owned()], 3)
+    );
+    let leg = kept(&identity.lock().expect("identity")).expect("an identity");
+    assert_eq!(leg.execution.as_deref(), Some(EXEC));
+    assert_eq!(leg.workflow_sha256.as_deref(), Some("aa"));
+    assert_eq!(
+        (leg.chain_head.as_deref(), leg.chain_len),
+        (Some("cd"), Some(7))
+    );
+    assert_eq!(leg.trace, None, "the Session adds the trace it was told");
+    assert_eq!(kept(&RunIdentity::new()), None);
 }
