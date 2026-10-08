@@ -234,7 +234,7 @@ fn block_scalar(header: &str, lines: &[&str]) -> Result<String, ExpandError> {
     }
     let mut content = lines.to_vec();
     if !indicators.contains('+') {
-        while content.last().is_some_and(|line| line.trim().is_empty()) {
+        while content.last().is_some_and(|line| blank(line)) {
             content.pop();
         }
     }
@@ -254,7 +254,8 @@ pub struct Entry {
     /// The entry's key.
     pub name: String,
     /// Its value's exact text: an inline value (for a block scalar, its header line and then its
-    /// content lines re-indented to zero), or the block under the key, re-indented to zero.
+    /// content lines re-indented to zero, the blank lines a keep indicator keeps included), or
+    /// the block under the key, re-indented to zero. Every line counts, the last blank ones too.
     pub text: String,
 }
 
@@ -288,17 +289,19 @@ impl Instance {
                     value.push(next);
                 }
                 let indent = (value.iter())
-                    .filter(|l| !l.trim().is_empty())
-                    .map(|l| l.len() - l.trim_start().len())
+                    .filter(|l| !blank(l))
+                    .map(|l| spaces(l))
                     .min()
                     .unwrap_or(0);
                 let block: Vec<&str> = value
                     .iter()
                     .map(|l| l.get(indent..).unwrap_or(""))
                     .collect();
-                let header = inline.trim();
+                // The separation after the colon is spaces and tabs; a no-break space is content.
+                let header = inline.trim_matches([' ', '\t']);
                 let text = if header.is_empty() {
-                    block.join("\n").trim_end().to_owned()
+                    let joined = block.join("\n");
+                    joined.trim_end_matches([' ', '\n']).to_owned()
                 } else if header.starts_with(['|', '>']) {
                     block_scalar(header, &block)?
                 } else {
@@ -500,24 +503,43 @@ fn section_body(source: &str, key: &str) -> Result<Vec<String>, ExpandError> {
         return Err(unproven("is written in flow form"));
     }
     let body = &source[found.header_end..found.body_end];
-    let indent = body
-        .lines()
-        .find(|line| !line.trim().is_empty())
-        .map_or(0, |line| line.len() - line.trim_start().len());
+    let indent = body.lines().find(|line| !blank(line)).map_or(0, spaces);
     let mut kept: Vec<String> = Vec::new();
     for line in body.lines() {
-        if line.trim().is_empty() {
-            kept.push(String::new());
-        } else if line.len() - line.trim_start().len() < indent {
+        if blank(line) {
+            // A space past the indentation may be a block scalar's own: kept.
+            kept.push(line.get(indent..).unwrap_or_default().to_owned());
+        } else if spaces(line) < indent {
             return Err(unproven("is less indented than its first entry"));
         } else {
             kept.push(line[indent..].to_owned());
         }
     }
-    while kept.last().is_some_and(String::is_empty) {
-        kept.pop();
+    // The blank lines that end the section are layout, unless a value keeps them (a block
+    // scalar's keep indicator): the parser decides, from the values both read.
+    let mut trimmed = kept.clone();
+    while trimmed.last().is_some_and(|line| blank(line)) {
+        trimmed.pop();
     }
-    Ok(kept)
+    let read = |lines: &[String]| {
+        let indented: Vec<String> = lines.iter().map(|line| format!("  {line}")).collect();
+        literal_projection(&format!("{key}:\n{}\n", indented.join("\n")))
+    };
+    if trimmed.len() < kept.len() && read(&trimmed) != read(&kept) {
+        return Ok(kept);
+    }
+    Ok(trimmed)
+}
+
+/// The indentation of a line: YAML indents with ASCII spaces only, never another white space
+/// (a no-break space is content).
+fn spaces(line: &str) -> usize {
+    line.len() - line.trim_start_matches(' ').len()
+}
+
+/// A line of ASCII spaces only, or none.
+fn blank(line: &str) -> bool {
+    line.bytes().all(|byte| byte == b' ')
 }
 
 /// `source` with the whole section `text` (its key line included) placed where the envelope's
@@ -588,12 +610,12 @@ pub(super) fn merge_section(
     let body_text = &source[found.header_end..found.body_end];
     let indent = body_text
         .lines()
-        .find(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
-        .map_or(2, |line| line.len() - line.trim_start().len());
+        .find(|line| !blank(line) && !line.trim_start_matches(' ').starts_with('#'))
+        .map_or(2, spaces);
     // After the last line of the body that is not blank: trailing blank lines stay after.
     let last = lines(body_text)
         .into_iter()
-        .filter(|(_, line)| !line.trim().is_empty())
+        .filter(|(_, line)| !blank(line))
         .map(|(offset, line)| offset + line.len())
         .next_back()
         .map_or(found.header_end, |end| found.header_end + end);

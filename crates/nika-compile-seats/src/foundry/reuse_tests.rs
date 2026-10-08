@@ -828,7 +828,8 @@ fn insert(entries: &[Entry]) -> String {
             "const" => &mut doc,
             _ => &mut outputs,
         };
-        let mut lines = entry.text.lines();
+        // Every line of the text, the blank ones a keep indicator ends with included.
+        let mut lines = entry.text.split('\n');
         if entry.section == "tasks" {
             let _ = writeln!(target, "    {}:", entry.name);
         } else {
@@ -917,4 +918,43 @@ fn an_insert_is_never_adopted_where_the_expansion_is_refused() {
     assert_eq!(expand(PARENT, &instance).unwrap_err(), refused);
     let candidate = insert(&instance.entries().unwrap());
     assert_eq!(adopt(&candidate, &instance).unwrap_err(), refused);
+}
+
+#[test]
+fn an_exact_insert_keeps_no_break_spaces_and_the_blank_lines_a_scalar_keeps() {
+    // A no-break space is content, never indentation; a keep indicator keeps the blank lines
+    // that end the section.
+    let source = with_const(concat!(
+        "  greeting: |\n    \u{a0}Hello\n    team\n",
+        "  signature: Regards\u{a0}\n",
+        "  folded: >+\n    one\n    two\n\n",
+        "  tail: |+\n    kept\n\n\n",
+    ));
+    let instance = instantiate(&component(&source), &bound(48)).unwrap();
+    let entries = instance.entries().unwrap();
+    let text = |name: &str| (entries.iter().find(|e| e.name == name)).map(|e| e.text.clone());
+    assert_eq!(text("greeting").as_deref(), Some("|\n\u{a0}Hello\nteam"));
+    assert_eq!(text("signature").as_deref(), Some("Regards\u{a0}"));
+    assert_eq!(text("folded").as_deref(), Some(">+\none\ntwo\n"));
+    assert_eq!(text("tail").as_deref(), Some("|+\nkept\n\n"));
+    let expanded = expand(PARENT, &instance).unwrap();
+    let candidate = insert(&entries);
+    let adopted = adopt(&candidate, &instance).unwrap();
+    assert_eq!(adopted.receipt["nodes"], expanded.receipt["nodes"]);
+    let constants = |doc: &str| literal_projection(doc).unwrap()["const"].clone();
+    let (inserted, merged, stated) = (
+        constants(&candidate),
+        constants(&expanded.candidate),
+        constants(&source),
+    );
+    for (name, decoded) in [
+        ("greeting", "\u{a0}Hello\nteam\n"),
+        ("signature", "Regards\u{a0}"),
+        ("folded", "one two\n\n"),
+        ("tail", "kept\n\n\n"),
+    ] {
+        assert_eq!(stated[name], decoded, "{name} as the component states it");
+        assert_eq!(merged[name], decoded, "{name} expanded");
+        assert_eq!(inserted[name], decoded, "{name} inserted");
+    }
 }
