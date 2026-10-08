@@ -20,6 +20,8 @@ fn only_the_authoring_doors_calls_read_knowledge() {
     for call in [
         "native",
         "native-repair",
+        "document",
+        "document-repair",
         "sketch",
         "sketch-repair",
         "fill",
@@ -29,7 +31,14 @@ fn only_the_authoring_doors_calls_read_knowledge() {
     ] {
         assert!(reads_knowledge(call), "{call}");
     }
-    for call in ["plan", "repair", "transform", "natives", "revisions"] {
+    for call in [
+        "plan",
+        "repair",
+        "transform",
+        "natives",
+        "documents",
+        "revisions",
+    ] {
         assert!(!reads_knowledge(call), "{call}");
     }
 }

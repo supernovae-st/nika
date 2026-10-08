@@ -457,10 +457,11 @@ pub fn composed_record(
 }
 
 /// The calls of the native door — the only ones whose instruction carries the
-/// pack: the native candidate, the sketch and its fills, a revision, and their repairs.
+/// pack: the native candidate, the document, the sketch and its fills, a revision, and their
+/// repairs.
 #[must_use]
 pub fn reads_knowledge(call: &str) -> bool {
-    ["native", "sketch", "fill", "revision"]
+    ["native", "document", "sketch", "fill", "revision"]
         .iter()
         .any(|door| call == *door || call.starts_with(&format!("{door}-")))
 }
