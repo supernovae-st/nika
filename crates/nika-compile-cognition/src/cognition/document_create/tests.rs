@@ -477,25 +477,7 @@ async fn a_lent_component_is_expanded_at_creation_and_witnessed_on_the_final_byt
         ]
     );
     assert_eq!(created["reuse"]["expanded"], 1, "{created:#}");
-    // The qualification record tells the expansion apart from what was only shown: the skill
-    // and the folded recall are consulted, the component alone is expanded.
-    let qualification = &decision["knowledge_qualification"];
-    assert_eq!(qualification["reuse"]["expanded"], 1, "{qualification:#}");
-    let rows = qualification["reuse"]["references"]
-        .as_array()
-        .expect("rows");
-    let used = |id: &str| rows.iter().find(|r| r["id"] == id).map(|r| &r["use"]);
-    let block = used("block:stale-filter-report");
-    assert_eq!(block, Some(&json!("expanded")), "{qualification:#}");
-    let skill = used("skill:report-writing");
-    assert_eq!(skill, Some(&json!("consulted")), "shown, never reused");
-    let consulted = rows.iter().filter(|r| r["use"] == "consulted").count();
-    assert_eq!(qualification["reuse"]["consulted"], json!(consulted));
-    assert_eq!(
-        rows.len(),
-        consulted + 1,
-        "nothing else is claimed: {rows:#?}"
-    );
+    only_the_component_is_expanded(&decision["knowledge_qualification"]);
     let read = nika_compile::surface::literal_projection(&candidate).expect("literal");
     let boundary = json!({"fs": {"read": ["./in/tickets.json"], "write": ["./out/report.json"]},
         "tools": ["nika:read", "nika:jq", "nika:write"]});
@@ -523,6 +505,27 @@ async fn a_lent_component_is_expanded_at_creation_and_witnessed_on_the_final_byt
     let wire = nika_compile::outcome_document(&out);
     assert_eq!(wire["provenance"]["plan"]["document"], plan["document"]);
     assert_eq!(wire["provenance"]["decision"]["document_create"], *created);
+}
+
+/// The qualification record tells the expansion apart from what was only shown: the skill and
+/// the folded recall are consulted, the component alone is expanded.
+fn only_the_component_is_expanded(qualification: &Value) {
+    assert_eq!(qualification["reuse"]["expanded"], 1, "{qualification:#}");
+    let rows = qualification["reuse"]["references"]
+        .as_array()
+        .expect("rows");
+    let used = |id: &str| rows.iter().find(|r| r["id"] == id).map(|r| &r["use"]);
+    let block = used("block:stale-filter-report");
+    assert_eq!(block, Some(&json!("expanded")), "{qualification:#}");
+    let skill = used("skill:report-writing");
+    assert_eq!(skill, Some(&json!("consulted")), "shown, never reused");
+    let consulted = rows.iter().filter(|r| r["use"] == "consulted").count();
+    assert_eq!(qualification["reuse"]["consulted"], json!(consulted));
+    assert_eq!(
+        rows.len(),
+        consulted + 1,
+        "nothing else is claimed: {rows:#?}"
+    );
 }
 
 /// The created document as a session keeps it: remembered beside its exact bytes, given back for
