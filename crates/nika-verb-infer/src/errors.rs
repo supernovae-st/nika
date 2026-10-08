@@ -28,6 +28,20 @@ pub enum VerbInferError {
         detail: String,
     },
 
+    /// The ACP session of a declared `run.access.protocol: acp` one-shot
+    /// failed the task, typed by its own class (NIKA-1803 unavailable ·
+    /// NIKA-1804 the session died, the one transient row · NIKA-1805
+    /// refused: an unoffered model or effort, a read-back that does not
+    /// hold, a tool beat). The `agent:` twin under the same declaration
+    /// speaks the same codes; never erased into a provider failure.
+    #[error("infer harness: {source}")]
+    #[diagnostic(code(nika::access::infer_harness))]
+    Harness {
+        /// The harness's typed failure.
+        #[source]
+        source: nika_kernel::ai::harness::HarnessError,
+    },
+
     /// The provider call failed (HTTP error, refusal, rate limit, …).
     #[error("provider call failed during `infer`: {source}")]
     #[diagnostic(code(nika::verb::infer_provider_call))]
@@ -179,6 +193,7 @@ impl VerbInferError {
             | Self::EmptyAnswer { spend, .. }
             | Self::SchemaValidation { spend, .. } => spend.has_signal().then_some(spend),
             Self::HarnessAccess { .. }
+            | Self::Harness { .. }
             | Self::InvalidParam { .. }
             | Self::ModelResolution { .. } => None,
         }
@@ -197,6 +212,7 @@ impl NikaErrorCode for VerbInferError {
             Self::SchemaValidation { .. } => codes::NIKA_431,
             Self::InvalidParam { .. } => codes::NIKA_432,
             Self::ModelResolution { .. } => codes::NIKA_433,
+            Self::Harness { source } => source.nika_code(),
         }
     }
 
@@ -218,7 +234,7 @@ impl NikaErrorCode for VerbInferError {
             Self::UsageUnmetered { .. } => "NIKA-INFER-003".to_owned(),
             Self::EmptyAnswer { .. } => "NIKA-INFER-004".to_owned(),
             Self::SchemaValidation { .. } => "NIKA-INFER-002".to_owned(),
-            Self::InvalidParam { .. } => self.nika_code().to_string(),
+            Self::InvalidParam { .. } | Self::Harness { .. } => self.nika_code().to_string(),
         }
     }
 
@@ -229,6 +245,8 @@ impl NikaErrorCode for VerbInferError {
             // spent backoff keeps it: the floor is not the author's ceiling.
             Self::ProviderCall { source, .. } => source.is_transient(),
             Self::ProviderCallExhausted { source, .. } => source.as_ref().is_transient(),
+            // Only a session death heals on retry — of the SAME route.
+            Self::Harness { source } => source.is_transient(),
             // An empty answer at the SAME budget re-asks for the identical
             // failure — the remedy is `max_tokens`, never a retry (#651); a
             // seat that refused the schema at the door refuses it again.
@@ -483,5 +501,50 @@ mod tests {
             }
             .is_transient()
         );
+    }
+
+    /// The ACP one-shot keeps the harness's own access class (the `agent:`
+    /// twin's codes): its wire form is that code, it carries no spend, and
+    /// only a session death is transient.
+    #[test]
+    fn a_harness_failure_keeps_its_access_class() {
+        use nika_kernel::ai::harness::HarnessError;
+        let cases = [
+            (
+                HarnessError::Unavailable {
+                    reason: "absent".to_owned(),
+                },
+                codes::NIKA_1803,
+                false,
+            ),
+            (
+                HarnessError::Session {
+                    reason: "pipe closed".to_owned(),
+                },
+                codes::NIKA_1804,
+                true,
+            ),
+            (
+                HarnessError::Refused {
+                    reason: "a tool beat".to_owned(),
+                },
+                codes::NIKA_1805,
+                false,
+            ),
+            (
+                HarnessError::Selection {
+                    reason: "an unoffered effort".to_owned(),
+                },
+                codes::NIKA_1805,
+                false,
+            ),
+        ];
+        for (source, code, transient) in cases {
+            let err = VerbInferError::Harness { source };
+            assert_eq!(err.nika_code(), code, "{err}");
+            assert_eq!(err.spec_code(), code.to_string(), "{err}");
+            assert_eq!(err.is_transient(), transient, "{err}");
+            assert!(err.spend().is_none(), "{err}");
+        }
     }
 }

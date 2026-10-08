@@ -14,6 +14,8 @@ mod access_refused;
 mod boot_manifest;
 #[cfg(feature = "access-harness")]
 mod declared_access;
+#[cfg(feature = "access-harness")]
+mod declared_acp_infer;
 mod declared_dynamic;
 mod declared_free_receipt;
 mod dynamic_model_admission;

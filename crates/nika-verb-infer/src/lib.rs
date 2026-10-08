@@ -53,6 +53,8 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+#[cfg(feature = "access-harness")]
+mod acp;
 mod coerce;
 mod errors;
 mod selection;
@@ -278,6 +280,9 @@ pub struct InferVerb<H = nika_providers::NoHttp> {
     registry: Arc<ProviderRegistry<H>>,
     default_model: String,
     schema_retry_budget: u8,
+    /// A lent ACP one-shot transport; `None` spawns the route's adapter.
+    #[cfg(feature = "access-harness")]
+    acp_transport: Option<acp::AcpTransport>,
 }
 
 impl<H> InferVerb<H> {
@@ -288,7 +293,23 @@ impl<H> InferVerb<H> {
             registry,
             default_model: default_model.into(),
             schema_retry_budget: DEFAULT_SCHEMA_RETRY_BUDGET,
+            #[cfg(feature = "access-harness")]
+            acp_transport: None,
         }
+    }
+
+    /// Lend the transport a declared `run.access.protocol: acp` `infer:`
+    /// runs over (a test · an embedder owning the adapter process). It
+    /// MUST drive the completion profile ([`nika_harness::drive_one_shot`]);
+    /// without one, each call spawns the route's registry adapter under it.
+    #[cfg(feature = "access-harness")]
+    #[must_use]
+    pub fn with_acp_transport(
+        mut self,
+        transport: Arc<dyn nika_kernel::ai::harness::DynAgentBackend>,
+    ) -> Self {
+        self.acp_transport = Some(acp::AcpTransport(transport));
+        self
     }
 
     /// Override the schema-validation retry budget (0 = single shot).
@@ -321,6 +342,11 @@ impl<H> InferVerb<H> {
         input: InferInput,
     ) -> Result<HarnessInferOutput, VerbInferError> {
         validate_params(&input)?;
+        // A declared `acp` is the protocol, not the program: the route's
+        // ACP one-shot, never the direct one below.
+        if selection::declares_acp(input.requirement.as_ref()) {
+            return self.run_on_acp(seat_id, input).await;
+        }
         let validator = match input.schema.as_ref() {
             Some(schema) => Some(structured::compile_schema(schema).map_err(|detail| {
                 VerbInferError::InvalidParam {
