@@ -206,22 +206,7 @@ async fn an_entry_no_word_reaches_is_asked_resolved_in_full_bound_and_witnessed(
             .map(|b| b.contains("never a proven incompatibility")),
         Some(true)
     );
-    let coverage = &record["coverage"];
-    assert_eq!(coverage["complete"], true);
-    assert_eq!(
-        [
-            &coverage["admitted_entries"],
-            &coverage["already_in_pack"],
-            &coverage["asked_by_descriptor"],
-            &coverage["resolved_in_full"]
-        ],
-        [&json!(3), &json!(1), &json!(2), &json!(1)]
-    );
-    assert_eq!(coverage["recalled_asked_by_descriptor"], 1);
-    assert_eq!(
-        coverage["recalled_shown_in_full"], 0,
-        "the distractor is discarded"
-    );
+    every_entry_is_covered(&record["coverage"]);
     assert_eq!(record["questions"], json!(asked.len()));
     // The selected entry is an executable component: resolved, bound, expanded, witnessed.
     let component = Release1
@@ -249,6 +234,27 @@ async fn an_entry_no_word_reaches_is_asked_resolved_in_full_bound_and_witnessed(
         .find(|r| r["id"] == "block:stale-filter-report")
         .unwrap();
     assert_eq!(used["use"], "expanded");
+}
+
+/// The coverage of the release the reach above settled: all three admitted entries, one already
+/// in the pack, two asked by descriptor and one resolved in full; of the recalled ones, one was
+/// asked by descriptor and none is shown in full (the distractor is discarded).
+fn every_entry_is_covered(coverage: &Value) {
+    assert_eq!(coverage["complete"], true);
+    assert_eq!(
+        [
+            &coverage["admitted_entries"],
+            &coverage["already_in_pack"],
+            &coverage["asked_by_descriptor"],
+            &coverage["resolved_in_full"]
+        ],
+        [&json!(3), &json!(1), &json!(2), &json!(1)]
+    );
+    assert_eq!(coverage["recalled_asked_by_descriptor"], 1);
+    assert_eq!(
+        coverage["recalled_shown_in_full"], 0,
+        "the distractor is discarded"
+    );
 }
 
 #[tokio::test]
