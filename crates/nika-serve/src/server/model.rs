@@ -232,6 +232,7 @@ impl HttpAdapterIdentity {
                 .chain(trials.then_some(TRIAL_CAPABILITY))
                 .chain(COST_REVIEW_CAPABILITIES.into_iter().filter(|_| cost_review))
                 .chain(sessions.then_some(nika_session_host::CAPABILITY))
+                .chain(sessions.then_some(nika_session_host::SELECTION_CAPABILITY))
                 .collect(),
         }
     }

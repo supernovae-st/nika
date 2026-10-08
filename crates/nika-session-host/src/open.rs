@@ -62,19 +62,34 @@ pub fn default_model(provider: &str) -> String {
 }
 
 /// The Session over `cwd`, opened as bare `nika` opens it, with the notices its opening said:
-/// the banner, the history's recovery notice and what the restored state says.
+/// the banner, the history's recovery notice and what the restored state says. A `selection`
+/// the opener names (the census's own first-screen words) holds for this conversation: the
+/// operator's kept choice is then neither read nor written.
 ///
 /// # Errors
-/// The Session refused its history (held by another Session of this project, corrupt, or
-/// unreadable): the refusal's words. No Session is usable then.
+/// The selection is not a choice this census reads (its own words and fix), or the Session
+/// refused its history (held by another Session of this project, corrupt, or unreadable): the
+/// refusal's words. No Session is usable then.
 pub fn open_bare(
     cwd: &Path,
     home: Option<&Path>,
     jq: Option<JqHelper>,
+    selection: Option<&str>,
 ) -> Result<(SessionRuntime, Vec<String>), String> {
     let census = IntelligenceCensus::take();
-    let mut session = match home.and_then(UserIntelligencePreference::load) {
-        Some(pref) => SessionRuntime::open_with(cwd, census, &pref, home, Box::new(reasoner_for)),
+    let chosen = match selection {
+        Some(words) => Some(census.choose(words)?),
+        None => home.and_then(UserIntelligencePreference::load),
+    };
+    let mut session = match chosen {
+        Some(pref) => {
+            let mut session =
+                SessionRuntime::open_with(cwd, census, &pref, home, Box::new(reasoner_for));
+            if selection.is_some() {
+                session.hold_for_conversation(pref);
+            }
+            session
+        }
         None => SessionRuntime::open_unchosen(cwd, census, home, Box::new(reasoner_for)),
     };
     session.enable_continuous_preparation();
@@ -93,9 +108,41 @@ pub fn open_bare(
     Ok((session, notices))
 }
 
+/// The selection a command line names for the native machine door: `None` when it is not
+/// exactly `session --json` (beside the display flags the front door ignores) with at most one
+/// `--intelligence <words>`; otherwise the census words it names, if any.
+#[must_use]
+pub fn machine_selection(argv: &[std::ffi::OsString]) -> Option<Option<String>> {
+    let (mut session, mut json, mut selection) = (false, false, None);
+    let mut rest = argv.iter();
+    while let Some(arg) = rest.next() {
+        match arg.to_str()? {
+            "session" if !session => session = true,
+            "--json" => json = true,
+            "--ascii" | "--plain" | "--fix" => {}
+            "--color" | "--hyperlink" => {
+                rest.next()?;
+            }
+            flag if flag.starts_with("--color=") || flag.starts_with("--hyperlink=") => {}
+            "--intelligence" if selection.is_none() => {
+                selection = Some(rest.next()?.to_str()?.to_owned());
+            }
+            flag if flag.starts_with("--intelligence=") && selection.is_none() => {
+                selection = flag.strip_prefix("--intelligence=").map(str::to_owned);
+            }
+            _ => return None,
+        }
+    }
+    (session && json).then_some(selection)
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests;
+
 /// The native machine door on this process's stdio (`nika session --json`): the Session opened
-/// as bare `nika` in `cwd`, its runs through `exe` (this binary's machine lane), until its log
-/// closes.
+/// as bare `nika` in `cwd` (with the conversation's `selection`, when the opener names one), its
+/// runs through `exe` (this binary's machine lane), until its log closes.
 ///
 /// # Errors
 /// The Session could not open (one `refused` frame said why on stdout), or stdio failed.
@@ -104,9 +151,10 @@ pub fn run_stdio(
     home: Option<&Path>,
     jq: Option<JqHelper>,
     exe: Option<PathBuf>,
+    selection: Option<&str>,
 ) -> Result<(), String> {
     let output = Arc::new(Mutex::new(std::io::stdout()));
-    let (runtime, notices) = match open_bare(cwd, home, jq) {
+    let (runtime, notices) = match open_bare(cwd, home, jq, selection) {
         Ok(opened) => opened,
         Err(why) => {
             let frame = Frame::refused("", Refused::SessionUnavailable, &why, None, None, None);

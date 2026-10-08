@@ -35,9 +35,11 @@ pub const OPENAPI: &str = include_str!("http/openapi.json");
 /// The body type every route answers with (the server's own).
 pub type ResponseBody = UnsyncBoxBody<Bytes, Infallible>;
 
-/// How the server opens its project's Session: the runtime and its opening notices, or the
+/// How the server opens its project's Session, with the conversation's selection when the
+/// opener names one (the census's own words): the runtime and its opening notices, or the
 /// Session's refusal.
-pub type Opener = Arc<dyn Fn() -> Result<(SessionRuntime, Vec<String>), String> + Send + Sync>;
+pub type Opener =
+    Arc<dyn Fn(Option<&str>) -> Result<(SessionRuntime, Vec<String>), String> + Send + Sync>;
 
 /// The run door each opened Session is lent.
 pub type Doors = Box<dyn Fn() -> Box<dyn RunDoor> + Send + Sync>;
@@ -55,11 +57,14 @@ impl std::fmt::Debug for Sessions {
     }
 }
 
-/// The opening request: nothing, or the contract it speaks.
+/// The opening request: nothing, or the contract it speaks and, optionally, the intelligence
+/// this conversation selects (the census's own first-screen words; never an endpoint or a key).
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Open {
     contract: String,
+    #[serde(default)]
+    intelligence: Option<String>,
 }
 
 impl Sessions {
@@ -124,10 +129,10 @@ impl Sessions {
     /// ([`crate::open::open_bare`]: its HOME, its census, this binary as the jq helper).
     #[must_use]
     pub fn bare(root: PathBuf, doors: Doors) -> Self {
-        let opener: Opener = Arc::new(move || {
+        let opener: Opener = Arc::new(move |selection| {
             let home = nika_cli_host::probe::home_dir();
             let jq = std::env::current_exe().ok().map(JqHelper::new);
-            crate::open::open_bare(&root, home.as_deref(), jq)
+            crate::open::open_bare(&root, home.as_deref(), jq, selection)
         });
         Self::new(opener, doors)
     }
@@ -148,14 +153,17 @@ impl Sessions {
 
     /// Open the project's Session, unless one is live: then its identity, to attach to.
     async fn open(&self, body: &[u8]) -> Response<ResponseBody> {
+        let mut selection = None;
         if !body.is_empty() {
-            let stated = (serde_json::from_slice::<Open>(body).ok()).map(|open| open.contract);
-            if stated.as_deref() != Some(CONTRACT) {
-                let message =
-                    format!("open a Session with no body or {{\"contract\":\"{CONTRACT}\"}}");
+            let stated = serde_json::from_slice::<Open>(body).ok();
+            let Some(open) = stated.filter(|open| open.contract == CONTRACT) else {
+                let message = format!(
+                    "open a Session with no body or {{\"contract\":\"{CONTRACT}\"}}, optionally with \"intelligence\""
+                );
                 let frame = Frame::refused("", Refused::Malformed, message, None, None, None);
                 return respond(&frame);
-            }
+            };
+            selection = open.intelligence;
         }
         let mut live = self.live.lock().await;
         if let Some(host) = live.as_ref().filter(|host| !host.is_closed()) {
@@ -170,7 +178,8 @@ impl Sessions {
             return respond(&frame);
         }
         let session_opener = Arc::clone(&self.opener);
-        let made = match tokio::task::spawn_blocking(move || session_opener()).await {
+        let opened = move || session_opener(selection.as_deref());
+        let made = match tokio::task::spawn_blocking(opened).await {
             Ok(made) => made,
             Err(error) => Err(format!("the Session could not open: {error}")),
         };

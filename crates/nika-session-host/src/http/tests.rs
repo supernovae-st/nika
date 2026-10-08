@@ -41,9 +41,51 @@ pub(super) fn after_resync_point(session: &str) {
     }
 }
 
+/// An opener's selection, as the door hands it over: the census's words, or none; words the
+/// census does not read are its refusal, answered 409 `session_unavailable` with its words.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_open_body_hands_the_conversations_selection_to_the_opener() {
+    let root = world();
+    let asked = Arc::new(Mutex::new(Vec::new()));
+    let (path, seen) = (root.path().to_path_buf(), Arc::clone(&asked));
+    let session_opener: Opener = Arc::new(move |selection: Option<&str>| {
+        seen.lock()
+            .expect("asked")
+            .push(selection.map(str::to_owned));
+        match selection {
+            Some("9") => Err("`9` is not a choice".to_owned()),
+            _ => Ok((runtime(&path), Vec::new())),
+        }
+    });
+    let doors: Doors = Box::new(|| Box::new(NoRunDoor::new("none")));
+    let address = listen(Arc::new(Sessions::new(session_opener, doors))).await;
+    let refused = format!(r#"{{"contract":"{CONTRACT}","intelligence":"9"}}"#);
+    let (status, frame) = call(address, "POST", "/v1/sessions", &refused).await;
+    assert_eq!(
+        (status, frame["error"].as_str()),
+        (409, Some("session_unavailable"))
+    );
+    assert!(
+        frame["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("not a choice"))
+    );
+    let unknown = format!(r#"{{"contract":"{CONTRACT}","endpoint":"https://x"}}"#);
+    let (status, frame) = call(address, "POST", "/v1/sessions", &unknown).await;
+    assert_eq!((status, frame["error"].as_str()), (400, Some("malformed")));
+    let named = format!(r#"{{"contract":"{CONTRACT}","intelligence":"4"}}"#);
+    let (status, opened) = call(address, "POST", "/v1/sessions", &named).await;
+    assert_eq!((status, opened["frame"].as_str()), (201, Some("opened")));
+    assert_eq!(
+        *asked.lock().expect("asked"),
+        [Some("9".to_owned()), Some("4".to_owned())],
+        "a malformed body reaches no opener"
+    );
+}
+
 fn sessions(root: &Path) -> Arc<Sessions> {
     let root = root.to_path_buf();
-    let opener: Opener = Arc::new(move || Ok((runtime(&root), Vec::new())));
+    let opener: Opener = Arc::new(move |_| Ok((runtime(&root), Vec::new())));
     let doors: Doors = Box::new(|| Box::new(NoRunDoor::new("none")));
     Arc::new(Sessions::new(opener, doors))
 }
@@ -650,7 +692,7 @@ async fn http_run_review(root: &Path) -> (Arc<Reviewing>, Vec<(String, Value, Va
     let root = root.to_path_buf();
     let jobs = Arc::new(Reviewing::default());
     let lent = Arc::clone(&jobs);
-    let session_opener: Opener = Arc::new(move || Ok((runtime(&root), Vec::new())));
+    let session_opener: Opener = Arc::new(move |_| Ok((runtime(&root), Vec::new())));
     let doors: Doors = Box::new(move || {
         let handle = tokio::runtime::Handle::current();
         Box::new(JobDoor::new(handle, Arc::clone(&lent) as Arc<dyn Jobs>))

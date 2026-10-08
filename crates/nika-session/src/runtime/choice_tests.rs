@@ -87,7 +87,7 @@ fn an_unchosen_session_asks_in_context_and_resumes_the_waiting_line() {
         panic!("the choice resumes the waiting line");
     };
     assert!(
-        notice.contains("codex") && notice.contains("kept"),
+        notice.contains("codex") && notice.contains("holds for this conversation"),
         "{notice}"
     );
     assert!(
@@ -95,7 +95,10 @@ fn an_unchosen_session_asks_in_context_and_resumes_the_waiting_line() {
         "the waiting line ran under the chosen intelligence: {outcome:?}"
     );
     assert!(s.intelligence_chosen() && !s.pending_choice());
-    assert!(UserIntelligencePreference::load(home.path()).is_some());
+    assert!(
+        UserIntelligencePreference::load(home.path()).is_none(),
+        "held for this conversation, never written as the operator's default"
+    );
     // Chosen, the session never asks again on its own.
     assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Reply(_)));
 }
@@ -171,19 +174,19 @@ fn an_ambiguous_app_choice_waits_without_saving_or_resuming() {
     };
     assert!(matches!(*outcome, TurnOutcome::Reply(ref t) if t.contains("seated")));
     assert_eq!(selections.load(Ordering::SeqCst), 1);
-    let kept = UserIntelligencePreference::load(home.path()).expect("named choice kept");
+    assert!(
+        UserIntelligencePreference::load(home.path()).is_none(),
+        "held for this conversation, never written"
+    );
     assert!(matches!(s.turn("/intelligence"), TurnOutcome::Ask(_)));
     let seated = s.status();
     assert!(matches!(s.choose("1"), TurnOutcome::Ask(_)));
     assert_eq!(s.status(), seated, "the kept app and model stand");
-    assert_eq!(
-        UserIntelligencePreference::load(home.path()),
-        Some(kept.clone())
-    );
+    assert!(UserIntelligencePreference::load(home.path()).is_none());
     assert!(s.pending_choice());
     assert!(matches!(s.choose("cancel"), TurnOutcome::Facts(_)));
     assert!(!s.pending_choice());
-    assert_eq!(UserIntelligencePreference::load(home.path()), Some(kept));
+    assert!(UserIntelligencePreference::load(home.path()).is_none());
     assert_eq!(selections.load(Ordering::SeqCst), 1);
 }
 
@@ -419,6 +422,8 @@ fn a_kept_choice_that_cannot_answer_asks_in_context_and_resumes_the_line() {
         None,
     );
     pref.save(home.path()).expect("the kept choice");
+    let operator = UserIntelligencePreference::path_under(home.path());
+    let before = std::fs::read(&operator).expect("the operator's kept choice");
     let calls = Arc::new(AtomicUsize::new(0));
     let seat_calls = Arc::clone(&calls);
     let factory: ReasonerFactory = Box::new(move |resolved| match &resolved.kind {
@@ -462,7 +467,7 @@ fn a_kept_choice_that_cannot_answer_asks_in_context_and_resumes_the_line() {
         panic!("the choice resumes the waiting line");
     };
     assert!(
-        notice.contains("local") && notice.contains("kept"),
+        notice.contains("local") && notice.contains("holds for this conversation"),
         "{notice}"
     );
     assert!(
@@ -470,12 +475,16 @@ fn a_kept_choice_that_cannot_answer_asks_in_context_and_resumes_the_line() {
         "{outcome:?}"
     );
     assert!(s.intelligence.ready && !s.pending_choice());
-    let back = UserIntelligencePreference::load(home.path()).expect("kept");
     assert_eq!(
-        back.kind,
+        s.intelligence.kind,
         IntelligenceKind::Local {
             provider: "ollama".to_owned()
         }
+    );
+    let after = std::fs::read(&operator).expect("the operator's kept choice");
+    assert_eq!(
+        after, before,
+        "the operator's kept choice is never rewritten"
     );
 }
 
@@ -658,7 +667,7 @@ fn the_intelligence_can_be_rechosen_in_session() {
         panic!("the choice is kept");
     };
     assert!(
-        chosen.contains("codex") && chosen.contains("kept"),
+        chosen.contains("codex") && chosen.contains("holds for this conversation"),
         "{chosen}"
     );
     assert!(
@@ -666,9 +675,12 @@ fn the_intelligence_can_be_rechosen_in_session() {
         "a reasoner without the authoring capability cannot claim it: {chosen}"
     );
     assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Reply(ref t) if t.contains("seated")));
-    let back = UserIntelligencePreference::load(home.path()).expect("kept under the home");
+    assert!(
+        UserIntelligencePreference::load(home.path()).is_none(),
+        "held for this conversation, never written"
+    );
     assert_eq!(
-        back.kind,
+        s.intelligence.kind,
         IntelligenceKind::Harness {
             seat: "codex".to_owned(),
             transport: nika_types::access::HarnessTransport::Native,
@@ -806,4 +818,189 @@ fn failed_before_call_is_inspectable_without_claiming_a_blank_model_answer() {
     assert!(!details.contains("answer failed") && !details.contains("model was asked"));
     assert!(session.last_outcome.is_none());
     assert!(!dir.path().join(COPY_DEST).exists());
+}
+
+/// The selection the work names: kind, via, scope and whether this machine serves it.
+fn selected(s: &SessionRuntime) -> (String, Option<String>, &'static str, bool) {
+    let selected = (s.work().intelligence.and_then(|i| i.selected)).expect("a selection");
+    (selected.kind, selected.via, selected.scope, selected.ready)
+}
+
+/// A choice holds for this conversation only: `/intelligence <words>` chooses at once and the
+/// work names it the conversation's own, while the operator's kept choice is never rewritten.
+/// The conversation's history resumes it on a later open over the operator's choice, kept as
+/// chosen even where this machine no longer serves it (unready, its fix said), never replaced;
+/// an opener that names another replaces it, and that one is what the history keeps next.
+#[test]
+fn a_choice_holds_for_this_conversation_and_resumes_with_it() {
+    let dir = tree();
+    let home = tempfile::tempdir().expect("home");
+    let census = |codex: bool| IntelligenceCensus {
+        seats: (codex.then(|| crate::intelligence::SeatSeen {
+            id: "codex".to_owned(),
+            product_present: true,
+            configured: true,
+            answers_here: true,
+        }))
+        .into_iter()
+        .collect(),
+        api_keys: vec![],
+        locals: vec!["ollama".to_owned()],
+        provider_context: Vec::new(),
+    };
+    let factory = || -> ReasonerFactory {
+        Box::new(|resolved| match &resolved.kind {
+            IntelligenceKind::None => Box::new(NoReasoner),
+            _ => Box::new(ScriptedReasoner::new(vec!["seated".to_owned()])),
+        })
+    };
+    let local = IntelligenceKind::Local {
+        provider: "ollama".to_owned(),
+    };
+    let operator = UserIntelligencePreference::new(local, None);
+    operator
+        .save(home.path())
+        .expect("the operator's kept choice");
+    let kept = UserIntelligencePreference::path_under(home.path());
+    let before = std::fs::read(&kept).expect("the operator's bytes");
+    let open = |codex: bool, pref: &UserIntelligencePreference| {
+        let census = census(codex);
+        SessionRuntime::open_with(dir.path(), census, pref, Some(home.path()), factory())
+    };
+    let mut s = open(true, &operator);
+    s.enable_history(home.path()).expect("history");
+    assert_eq!(selected(&s).2, "operator_default");
+    let TurnOutcome::Facts(notice) = s.turn("/intelligence 1 codex") else {
+        panic!("chosen at once");
+    };
+    assert!(notice.contains("holds for this conversation"), "{notice}");
+    let chosen = selected(&s);
+    assert_eq!(
+        (chosen.0.as_str(), chosen.1.as_deref(), chosen.2),
+        ("harness", Some("codex"), "conversation")
+    );
+    drop(s);
+    let mut again = open(true, &operator);
+    again.enable_history(home.path()).expect("history");
+    let resumed = selected(&again);
+    assert_eq!(
+        (resumed.1.as_deref(), resumed.2, resumed.3),
+        (Some("codex"), "conversation", true)
+    );
+    drop(again);
+    let mut gone = open(false, &operator);
+    gone.enable_history(home.path()).expect("history");
+    let kept_unserved = selected(&gone);
+    assert_eq!(
+        (kept_unserved.1.as_deref(), kept_unserved.2, kept_unserved.3),
+        (Some("codex"), "conversation", false),
+        "kept as chosen, never the operator's default"
+    );
+    assert!(
+        gone.status().contains('⚠'),
+        "its fix said: {}",
+        gone.status()
+    );
+    drop(gone);
+    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let mut named = open(true, &none);
+    named.hold_for_conversation(none.clone());
+    named.enable_history(home.path()).expect("history");
+    assert_eq!(
+        selected(&named).0,
+        "none",
+        "the opener's choice replaces the kept one"
+    );
+    assert!(matches!(
+        named.turn("what workflows are here?"),
+        TurnOutcome::Facts(_)
+    ));
+    drop(named);
+    let mut last = open(true, &operator);
+    last.enable_history(home.path()).expect("history");
+    assert_eq!(
+        (selected(&last).0.as_str(), selected(&last).2),
+        ("none", "conversation")
+    );
+    assert_eq!(std::fs::read(&kept).expect("the operator's bytes"), before);
+}
+
+/// An opener's selection its history cannot record opens nothing: the open says why, and no
+/// conversation goes on as if its choice were kept.
+#[test]
+fn an_opener_selection_its_history_cannot_record_opens_nothing() {
+    let dir = tree();
+    let home = tempfile::tempdir().expect("home");
+    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let factory: ReasonerFactory = Box::new(|_| Box::new(NoReasoner));
+    let census = IntelligenceCensus::empty();
+    let mut s = SessionRuntime::open_with(dir.path(), census, &none, Some(home.path()), factory);
+    s.hold_for_conversation(none);
+    super::history::REFUSE_APPEND.with(|refuse| refuse.set(true));
+    let opened = s.enable_history(home.path());
+    super::history::REFUSE_APPEND.with(|refuse| refuse.set(false));
+    assert!(
+        opened.is_err(),
+        "an unrecorded opener's choice opened: {:?}",
+        opened.ok()
+    );
+}
+
+/// A kept choice its history can no longer read stays this conversation's: unavailable with its
+/// reason, never the operator's default in its place, and kept unchanged until chosen again.
+#[test]
+fn an_unreadable_kept_choice_stays_unavailable_never_the_default() {
+    use super::history::{AuthorityState, EffectState, History, Operation, RunState, Saved};
+    let dir = tree();
+    let home = tempfile::tempdir().expect("home");
+    let unread = serde_json::json!({
+        "kind": {"kind": "telepathy"}, "model": null, "chosen_at": "2026-10-08T00:00:00Z"
+    });
+    let mut history = History::open(home.path(), dir.path()).expect("history");
+    let state = Saved {
+        selection: Some(unread.clone()),
+        ..Saved::default()
+    };
+    history.begin(Operation::Turn, "kept").expect("begin");
+    let ends = (
+        RunState::Idle,
+        AuthorityState::None,
+        EffectState::NoUncertaintyReported,
+    );
+    (history.complete(state, ends.0, ends.1, "facts".to_owned(), ends.2)).expect("complete");
+    drop(history);
+    let local = IntelligenceKind::Local {
+        provider: "ollama".to_owned(),
+    };
+    let operator = UserIntelligencePreference::new(local, None);
+    let census = IntelligenceCensus {
+        seats: vec![],
+        api_keys: vec![],
+        locals: vec!["ollama".to_owned()],
+        provider_context: Vec::new(),
+    };
+    let factory: ReasonerFactory = Box::new(|resolved| match &resolved.kind {
+        IntelligenceKind::None => Box::new(NoReasoner),
+        _ => Box::new(ScriptedReasoner::new(vec!["seated".to_owned()])),
+    });
+    let mut s =
+        SessionRuntime::open_with(dir.path(), census, &operator, Some(home.path()), factory);
+    s.enable_history(home.path()).expect("history");
+    let selected = (s.work().intelligence.and_then(|i| i.selected)).expect("selected");
+    assert_eq!(
+        (selected.kind.as_str(), selected.scope, selected.ready),
+        ("none", "conversation", false)
+    );
+    assert!(
+        selected
+            .refusal
+            .is_some_and(|why| why.contains("unreadable"))
+    );
+    assert!(
+        !matches!(s.turn(SMALL_TALK), TurnOutcome::Reply(_)),
+        "never the operator's default"
+    );
+    drop(s);
+    let kept = History::open(home.path(), dir.path()).expect("history");
+    assert_eq!(kept.state.selection, Some(unread), "kept unchanged");
 }

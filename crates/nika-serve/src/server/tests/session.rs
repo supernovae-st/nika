@@ -175,7 +175,7 @@ async fn serve(
     std::fs::create_dir_all(&served).expect("registry");
     let opened = Arc::new(AtomicUsize::new(0));
     let (root, count) = (world.root.path().to_path_buf(), Arc::clone(&opened));
-    let session_opener: Opener = Arc::new(move || {
+    let session_opener: Opener = Arc::new(move |_| {
         count.fetch_add(1, Ordering::SeqCst);
         Ok((scripted(&root), Vec::new()))
     });
@@ -366,7 +366,7 @@ async fn the_session_door_is_off_unless_the_operator_seats_it() {
     assert!(
         !capabilities(&health)
             .iter()
-            .any(|word| word == "sessionHost")
+            .any(|word| word == "sessionHost" || word == "sessionIntelligence")
     );
     let refused = wire_request(served.address, &post("/v1/sessions", "", true)).await;
     assert_eq!(refused.status, 404);
@@ -393,10 +393,11 @@ async fn a_seated_session_saves_then_runs_exactly_the_saved_bytes_once_as_a_job(
     let seated = (true, Registry::Project);
     let served = serve(&world, seated, Some(DEFAULT_MAX_COST_USD), backend).await;
     let health = wire_request(served.address, &get("/health")).await.json();
+    let words = capabilities(&health);
+    assert!(words.iter().any(|word| word == "sessionHost"), "{words:?}");
     assert!(
-        capabilities(&health)
-            .iter()
-            .any(|word| word == "sessionHost")
+        words.iter().any(|word| word == "sessionIntelligence"),
+        "{words:?}"
     );
     let contract = wire_request(served.address, &get("/v1/openapi.json"))
         .await
@@ -748,4 +749,35 @@ async fn a_reviewed_run_is_admitted_once_on_approval_and_never_on_decline() {
         .json();
     assert_eq!(view["state"], "declined", "{view}");
     server.stop().await.expect("stop");
+}
+
+/// One real resident run through the Session door, written for the client SDK: the opened
+/// frame, the run's reply (its `work.run` named by what the run observed of itself) and the
+/// sha256 of the bytes it ran. Under the system temporary directory; prints where.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "writes a fixture for the client SDK; run on demand"]
+async fn record_a_resident_run_fixture() {
+    use std::io::Write as _;
+    let world = TestWorld::new();
+    std::fs::write(world.root.path().join("root.nika"), WORKFLOW).expect("workflow");
+    let backend = Arc::new(Witnessed::producing(world.root.path()));
+    let served = serve(&world, (true, Registry::Project), Some(1.0), backend).await;
+    let opened = wire_request(served.address, &post("/v1/sessions", "", true)).await;
+    let opened = opened.json();
+    let session = opened["session"].as_str().expect("session").to_owned();
+    let snapshot = &opened["snapshot"]["snapshot"];
+    let ran = run_line(&served, &session, snapshot, "run root.nika").await;
+    let fixture = serde_json::json!({
+        "workflow": WORKFLOW,
+        "workflow_sha256": format!("{:x}", Sha256::digest(WORKFLOW.as_bytes())),
+        "opened": opened,
+        "ran": ran,
+    });
+    let out = std::env::temp_dir().join(format!("nika-serve-resident-run-{}", std::process::id()));
+    std::fs::create_dir_all(&out).expect("fixture dir");
+    let text = serde_json::to_string_pretty(&fixture).expect("json");
+    std::fs::write(out.join("http-resident-run.json"), text).expect("fixture file");
+    close(served, &session).await;
+    let mut stdout = std::io::stdout().lock();
+    writeln!(stdout, "fixture written to {}", out.display()).expect("stdout");
 }
