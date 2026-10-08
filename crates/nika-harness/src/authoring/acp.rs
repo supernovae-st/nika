@@ -28,6 +28,26 @@ pub(crate) const MAX_ANSWER: usize = 512 * 1024;
 const NAME: &str = "@agentclientprotocol/claude-agent-acp";
 const VERSION: &str = "0.81.1";
 
+/// Which one-shot the audited profile serves. Only the words of a refusal
+/// differ: the identity, options and judgments are the same for both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Completion {
+    /// A conversational or Compiler authoring round.
+    Authoring,
+    /// One Run `infer:` task declared over `run.access.protocol: acp`.
+    Infer,
+}
+
+impl Completion {
+    /// The subject of every refusal this profile speaks.
+    pub(crate) const fn label(self) -> &'static str {
+        match self {
+            Self::Authoring => "ACP authoring",
+            Self::Infer => "ACP infer",
+        }
+    }
+}
+
 pub(crate) fn refusal(reason: &str) -> HarnessError {
     HarnessError::Refused {
         reason: reason.into(),
@@ -36,14 +56,15 @@ pub(crate) fn refusal(reason: &str) -> HarnessError {
 
 /// Exact local admission, checked on the active connection before session/new.
 /// A future version requires a renewed contract test; a name alone grants nothing.
-pub(crate) fn admit(init: &Value) -> Result<(), HarnessError> {
+pub(crate) fn admit(init: &Value, completion: Completion) -> Result<(), HarnessError> {
     if init.pointer("/agentInfo/name").and_then(Value::as_str) != Some(NAME)
         || init.pointer("/agentInfo/version").and_then(Value::as_str) != Some(VERSION)
         || init.get("protocolVersion").and_then(Value::as_u64) != Some(1)
     {
-        return Err(refusal(
-            "ACP authoring requires the audited claude-agent-acp 0.81.1 profile; no native or API fallback",
-        ));
+        return Err(refusal(&format!(
+            "{} requires the audited claude-agent-acp 0.81.1 profile; no native or API fallback",
+            completion.label()
+        )));
     }
     Ok(())
 }
@@ -60,7 +81,7 @@ pub(crate) fn profile() -> Value {
 
 /// No tool/media-bearing answer is accepted, even from an admitted implementation.
 /// This is a second check, never the source of pre-execution authority.
-pub(crate) fn judge_update(update: &Value) -> Result<(), HarnessError> {
+pub(crate) fn judge_update(update: &Value, completion: Completion) -> Result<(), HarnessError> {
     match update.get("sessionUpdate").and_then(Value::as_str) {
         Some("agent_message_chunk")
             if update.pointer("/content/type").and_then(Value::as_str) == Some("text")
@@ -78,9 +99,10 @@ pub(crate) fn judge_update(update: &Value) -> Result<(), HarnessError> {
             | "session_info_update"
             | "available_commands_update",
         ) => Ok(()),
-        _ => Err(refusal(
-            "ACP authoring emitted a tool, media or unsupported event; no answer accepted",
-        )),
+        _ => Err(refusal(&format!(
+            "{} emitted a tool, media or unsupported event; no answer accepted",
+            completion.label()
+        ))),
     }
 }
 

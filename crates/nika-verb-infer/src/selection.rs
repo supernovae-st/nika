@@ -104,3 +104,54 @@ pub(crate) fn direct_evidence(requested: &str, observed: Option<String>) -> Sele
         .with_model(SelectedValue::new().requested(Some(requested.to_owned())))
         .with_responder(observed, "cli_reported")
 }
+
+/// Whether the workflow declares the ACP protocol: its `infer:` then rides
+/// the route's ACP one-shot, never the direct CLI one.
+#[cfg(feature = "access-harness")]
+pub(crate) fn declares_acp(requirement: Option<&AccessRequirement>) -> bool {
+    requirement.is_some_and(|r| r.protocol == Some(AccessProtocol::Acp))
+}
+
+/// The ACP one-shot's receipt, from what the client sent and read back —
+/// the law of the `agent:` receipt on the same session: an ACK without an
+/// echoed value is no read-back (`configured: null` beside its
+/// `accepted_request` evidence), and the responder stays unknown (an ACP
+/// prompt result names none).
+#[cfg(feature = "access-harness")]
+pub(crate) fn acp_evidence(
+    requirement: &AccessRequirement,
+    requested_model: &str,
+    outcome: &nika_kernel::ai::harness::HarnessOutcome,
+) -> SelectionEvidence {
+    let selection = &outcome.selection;
+    let source = outcome
+        .observed_model_source
+        .map(nika_kernel::ai::harness::ModelProvenance::as_str);
+    let configured = outcome
+        .observed_model
+        .clone()
+        .filter(|_| source != Some("accepted_request"));
+    let model = SelectedValue::new()
+        .requested(Some(requested_model.to_owned()))
+        .transmitted(
+            selection.model_option.clone(),
+            selection.transmitted_model.clone(),
+        )
+        .configured(configured, source.map(str::to_owned));
+    let effort = SelectedValue::new()
+        .requested(requirement.effort.clone())
+        .transmitted(
+            selection.effort_option.clone(),
+            selection.transmitted_effort.clone(),
+        )
+        .configured(
+            selection.configured_effort.clone(),
+            selection
+                .configured_effort_source
+                .map(|source| source.as_str().to_owned()),
+        );
+    SelectionEvidence::new(Some(AccessProtocol::Acp))
+        .with_model(model)
+        .with_effort(effort)
+        .with_changes(selection.changed_mid_turn.clone())
+}

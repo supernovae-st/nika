@@ -101,7 +101,7 @@ impl InferGradeAttestation {
         }
     }
 
-    fn failed(self, need: StructuredOutputGrade) -> Vec<&'static str> {
+    pub(crate) fn failed(self, need: StructuredOutputGrade) -> Vec<&'static str> {
         let mut failed = Vec::new();
         if !self.single_turn {
             failed.push("single_turn");
@@ -1476,5 +1476,5 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":999,"output_toke
     }
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod effort_tests;

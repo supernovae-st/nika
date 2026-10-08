@@ -292,8 +292,9 @@ mod seats {
         );
     }
 
-    /// Spec fixture 014 · an `infer:` task over codex ACP has no attested
-    /// one-shot: refused before task 1, the role named, no seat spawned.
+    /// Spec fixture 014 · an `infer:` task over codex ACP has no qualified
+    /// one-shot: refused before task 1, the role and the open gap named, no
+    /// seat spawned.
     #[test]
     fn an_infer_task_over_an_acp_route_without_a_one_shot_refuses() {
         let probes = vec![
@@ -306,11 +307,38 @@ mod seats {
         assert_eq!(code, "1800");
         assert!(
             message.contains("`infer:` tasks cannot ride `codex`")
-                && message.contains("codex exec")
+                && message.contains("no qualified tool-free ACP one-shot profile yet")
+                && message.contains("CODEX_CONFIG")
                 && message.contains("run.access.protocol: acp"),
             "{message}"
         );
         assert_eq!(plan.seat, None);
+    }
+
+    /// `via: claude-code, protocol: acp` seats the route for `infer:` too:
+    /// its audited completion profile is the attested ACP one-shot, so the
+    /// same declaration serves both roles over the same seat.
+    #[test]
+    fn an_infer_task_rides_the_attested_claude_code_one_shot() {
+        let probes = vec![
+            api_probe("anthropic", true),
+            harness_probe("claude-code", &["anthropic"], true, true),
+        ];
+        let req = AccessRequirement::new()
+            .with_via(Some("claude-code".into()))
+            .with_protocol(Some(AccessProtocol::Acp))
+            .with_effort(Some("max".into()));
+        let needs = [
+            infer("anthropic/claude-opus-5-5"),
+            agent("anthropic/claude-opus-5-5"),
+        ];
+        let plan = plan(&needs, &probes, None, &req);
+        assert!(plan.is_admitted(), "{:?}", plan.pin_refusal);
+        assert_eq!(plan.seat.as_deref(), Some("claude-code"));
+        let lane = plan.lane("anthropic/claude-opus-5-5").expect("admitted");
+        assert_eq!(lane.plan.chosen, AccessClass::Harness);
+        assert_eq!(lane.plan.access, "claude-code");
+        assert_eq!(lane.plan.requirement.as_deref(), Some(&req));
     }
 
     /// Spec fixture 012 · the ACP speaker is absent while the key and the

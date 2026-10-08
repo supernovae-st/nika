@@ -1156,3 +1156,6 @@ async fn local_vision_file_becomes_a_data_url_part() {
 }
 
 mod selection_e2e;
+
+#[cfg(feature = "access-harness")]
+mod acp;

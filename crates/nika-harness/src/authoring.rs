@@ -61,7 +61,7 @@ impl HarnessAuthoring {
             Connection::Acp(
                 crate::seat_from_id(adapter)?
                     .ok_or_else(|| "ACP adapter is unavailable".to_owned())?
-                    .for_authoring(),
+                    .for_completion(acp::Completion::Authoring),
             )
         } else {
             // One rule for every door: the native seat is the infer-grade row.

@@ -87,7 +87,7 @@ where
     R: AsyncRead + Unpin + Send + 'static,
     W: AsyncWrite + Unpin + Send + 'static,
 {
-    drive_profile(reader, writer, request, idle, false)
+    drive_profile(reader, writer, request, idle, None)
 }
 
 pub(crate) fn drive_profile<R, W>(
@@ -95,7 +95,7 @@ pub(crate) fn drive_profile<R, W>(
     writer: W,
     request: HarnessRequest,
     idle: std::time::Duration,
-    authoring: bool,
+    completion: Option<crate::authoring::acp::Completion>,
 ) -> HarnessEventStream
 where
     R: AsyncRead + Unpin + Send + 'static,
@@ -114,7 +114,7 @@ where
             observed_source: None,
             selection: HarnessSelection::default(),
             media: crate::media::MediaState::default(),
-            authoring,
+            completion,
         };
         if let Err(e) = driver.run(request).await {
             let e = driver.media.no_replay(e);
@@ -154,7 +154,8 @@ struct Driver<R, W> {
     /// What was sent to configure the session and what it read back (`effort.rs`).
     selection: HarnessSelection,
     media: crate::media::MediaState,
-    authoring: bool,
+    /// The audited one-shot completion profile this session runs under, if any.
+    completion: Option<crate::authoring::acp::Completion>,
 }
 
 impl<R, W> Driver<R, W>
@@ -173,8 +174,8 @@ where
         )
         .await?;
         let value: Value = self.await_response(ID_INITIALIZE, "initialize").await?;
-        if self.authoring {
-            crate::authoring::acp::admit(&value)?;
+        if let Some(completion) = self.completion {
+            crate::authoring::acp::admit(&value, completion)?;
         }
         let init: wire::InitializeResult = parse_payload(value, "initialize")?;
         if init.protocol_version != wire::PROTOCOL_V1 {
@@ -192,7 +193,7 @@ where
             mcp_servers: Vec::new(),
         })
         .map_err(session_err)?;
-        if self.authoring {
+        if self.completion.is_some() {
             params["_meta"] = crate::authoring::acp::profile();
         }
         self.send_request(ID_SESSION_NEW, wire::METHOD_SESSION_NEW, &params)
@@ -240,8 +241,13 @@ where
                         Incoming::Response { id: ID_PROMPT, result } => {
                             let done: PromptResult = parse_payload(result, "session/prompt")?;
                             self.media.check_stop(&done.stop_reason)?;
-                            if self.authoring && done.stop_reason != "end_turn" {
-                                return Err(crate::authoring::acp::refusal("ACP authoring did not complete a turn"));
+                            if let Some(completion) = self.completion
+                                && done.stop_reason != "end_turn"
+                            {
+                                return Err(crate::authoring::acp::refusal(&format!(
+                                    "{} did not complete a turn",
+                                    completion.label()
+                                )));
                             }
                             let outcome = self.close_turn(&done, request);
                             let _ = self
@@ -264,15 +270,23 @@ where
                         // flight · reader leniency).
                         Incoming::Response { .. } | Incoming::Notification { .. } => {}
                         Incoming::Request { id, method, params } if method == wire::METHOD_REQUEST_PERMISSION => {
-                            if self.authoring {
+                            if let Some(completion) = self.completion {
                                 let line = wire::response_line(&id, &serde_json::json!({"outcome":{"outcome":"cancelled"}})).map_err(session_err)?;
                                 self.write_line(&line).await?;
-                                return Err(crate::authoring::acp::refusal("ACP authoring requested a tool; no answer accepted"));
+                                return Err(crate::authoring::acp::refusal(&format!(
+                                    "{} requested a tool; no answer accepted",
+                                    completion.label()
+                                )));
                             }
                             self.on_permission_ask(id, params, &ptx).await?;
                         }
                         Incoming::Request { id, .. } => {
-                            if self.authoring { return Err(crate::authoring::acp::refusal("ACP authoring requested an unsupported client action")); }
+                            if let Some(completion) = self.completion {
+                                return Err(crate::authoring::acp::refusal(&format!(
+                                    "{} requested an unsupported client action",
+                                    completion.label()
+                                )));
+                            }
                             // An unknown agent request refuses politely —
                             // JSON-RPC method-not-found keeps the wire honest.
                             let line = wire::response_line(
@@ -298,8 +312,8 @@ where
         if update.session_id != session_id {
             return Ok(()); // another session's beat — observed, never ours
         }
-        if self.authoring {
-            crate::authoring::acp::judge_update(&update.update)?;
+        if let Some(completion) = self.completion {
+            crate::authoring::acp::judge_update(&update.update, completion)?;
         }
         if update.update.get("sessionUpdate").and_then(Value::as_str)
             == Some("config_option_update")
@@ -321,12 +335,13 @@ where
                 .await;
         }
         if let Some(text) = wire::agent_chunk_text(&update.update) {
-            if self.authoring
+            if let Some(completion) = self.completion
                 && self.output.len().saturating_add(text.len()) > crate::authoring::acp::MAX_ANSWER
             {
-                return Err(crate::authoring::acp::refusal(
-                    "ACP authoring answer exceeded its byte limit",
-                ));
+                return Err(crate::authoring::acp::refusal(&format!(
+                    "{} answer exceeded its byte limit",
+                    completion.label()
+                )));
             }
             self.output.push_str(&text);
             let _ = self
@@ -606,14 +621,19 @@ where
                     });
                 }
                 Incoming::Notification { method, params }
-                    if self.authoring && method == wire::METHOD_SESSION_UPDATE =>
+                    if method == wire::METHOD_SESSION_UPDATE =>
                 {
-                    crate::authoring::acp::judge_update(&params["update"])?;
+                    if let Some(completion) = self.completion {
+                        crate::authoring::acp::judge_update(&params["update"], completion)?;
+                    }
                 }
-                Incoming::Request { .. } if self.authoring => {
-                    return Err(crate::authoring::acp::refusal(
-                        "ACP authoring requested a client action before the prompt",
-                    ));
+                Incoming::Request { .. } => {
+                    if let Some(completion) = self.completion {
+                        return Err(crate::authoring::acp::refusal(&format!(
+                            "{} requested a client action before the prompt",
+                            completion.label()
+                        )));
+                    }
                 }
                 _ => {} // interleaved beats before the handshake settles
             }

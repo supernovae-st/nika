@@ -158,6 +158,11 @@ pub(crate) async fn run_on_harness(
                 store_image(*image, images, observer).await?;
             }
             Some(Ok(HarnessEvent::Completed { outcome })) => {
+                // Under a declaration the selection is exact: a model or an
+                // effort the agent moved after it was applied refuses.
+                if typed && let Some(refusal) = outcome.selection.moved_refusal() {
+                    return Err(harness_err(refusal, typed));
+                }
                 return Ok(completed_output(*outcome, &input));
             }
             Some(Ok(_)) => {
