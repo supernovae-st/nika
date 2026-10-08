@@ -1,0 +1,42 @@
+# Secret sources and egress forms, an ambient run: envelope options a
+# revision of one task must leave exactly as written.
+nika: envelope-variants
+
+secrets:
+  vault_token:
+    source: vault
+    key: "kv/data/app#token"
+  signing:
+    source: file
+    path: "~/.keys/signing.pem"
+  api:
+    source: env
+    key: API_TOKEN
+    egress:
+      - to: "nika:fetch"
+        host: "example.invalid"
+      - to: exec
+  callback:
+    source: env
+    key: CALLBACK_URL
+    egress:
+      - to: "nika:fetch"
+        host_from_self: true
+
+run:
+  entropy: ambient
+  clock: system
+
+permits:
+  tools: ["nika:fetch"]
+  net:
+    http: ["example.invalid"]
+
+tasks:
+  call:
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "https://example.invalid/"
+        headers:
+          authorization: "Bearer ${{ secrets.api }}"

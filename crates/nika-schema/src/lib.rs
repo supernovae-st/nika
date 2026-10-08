@@ -34,6 +34,7 @@
     )
 )]
 
+pub mod document;
 pub mod error;
 /// The `${{ }}` expression language — DESCENDED to `nika-tmpl` (2026-07-10 ·
 /// the 15k crate-size wall · the trace→dap precedent). Re-exported verbatim:
