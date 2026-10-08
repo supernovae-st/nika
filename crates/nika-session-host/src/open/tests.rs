@@ -44,7 +44,8 @@ fn an_opener_selection_holds_for_this_conversation_and_writes_nothing() {
 }
 
 /// The machine door's command line: exactly `session --json`, the display flags the front door
-/// ignores, at most one `--intelligence` with its words; anything else is not this door.
+/// ignores, at most one `--intelligence` with its words; anything else is not this door, and a
+/// misplaced `--fix` stays the front door's to teach.
 #[test]
 fn the_machine_door_reads_its_one_selection_and_nothing_else() {
     let argv = |words: &[&str]| -> Vec<std::ffi::OsString> {
@@ -78,6 +79,7 @@ fn the_machine_door_reads_its_one_selection_and_nothing_else() {
             "4",
         ],
         &["session", "--json", "--verbose"],
+        &["session", "--json", "--fix"],
         &["session", "session", "--json"],
     ] {
         assert_eq!(named(other), None, "{other:?}");
