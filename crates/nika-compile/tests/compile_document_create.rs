@@ -989,3 +989,67 @@ async fn the_same_defects_in_new_bytes_end_the_door_with_the_preview_kept() {
         "{route:?}"
     );
 }
+
+// ── An UNJUDGED document: withdrawn, its record kept for a later round (pinned follow-up) ─────
+
+/// A judge double whose every verifier call fails; authoring calls go to the scripted author.
+struct Unreachable<'a> {
+    author: &'a Author,
+}
+
+impl ProviderInferDyn for Unreachable<'_> {
+    async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+        let ResponseFormat::JsonSchema(schema) = &request.response_format else {
+            return self.author.infer(request).await;
+        };
+        let keys = (schema["properties"]["choice"]["enum"].as_array())
+            .cloned()
+            .unwrap_or_default();
+        if APPROVALS.iter().any(|a| keys.iter().any(|k| k == *a)) {
+            return Err(ProviderError::Other {
+                reason: "the judge is unreachable".to_owned(),
+            });
+        }
+        self.author.infer(request).await
+    }
+}
+
+/// Pinned on purpose, a follow-up and not a decision: a document whose judge never answered is
+/// withdrawn, its replayable record kept with `verify_resume`, the signal a host resumes on, so
+/// a later round asks the judge again on the same bytes. COLD showed such a draft as the
+/// preview; whether the document door keeps it visible too is an open product question, and
+/// this witness turns red when that contract changes.
+#[tokio::test]
+async fn an_unjudged_document_is_withdrawn_with_its_record_kept_for_a_later_round() {
+    let author = Author::new(vec![written(RICH)]);
+    let judge = Unreachable { author: &author };
+    let cognition = Cognition {
+        provider: Some(&judge),
+        seat: None,
+    };
+    let request =
+        CompileRequest::create(RICH_INTENT).with_authoring_policy(policy(NativeMode::Escalate));
+    let out = compile_with_cognition_composed(&request, cognition, None, None)
+        .await
+        .unwrap();
+    assert_eq!(author.count(), 1);
+    assert_eq!(
+        out.status,
+        CompileStatus::Incomplete,
+        "{:#?}",
+        out.diagnostics
+    );
+    assert!(out.candidate.is_none(), "withdrawn: the open follow-up");
+    let record = out.provenance.plan.as_ref().expect("the record kept");
+    assert_eq!(record["source"], RICH, "the bytes a later round replays");
+    assert!(
+        (out.diagnostics.iter()).any(|d| d.target == "verify_resume"),
+        "{:#?}",
+        out.diagnostics
+    );
+    let route = route(&out);
+    assert!(
+        route.iter().any(|s| s == "verify: unjudged, record kept"),
+        "{route:?}"
+    );
+}
