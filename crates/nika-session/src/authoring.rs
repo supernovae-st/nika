@@ -323,6 +323,19 @@ impl AuthoringRound {
         (self.continuation, self.knowledge, self.authoring_receipt) = (None, None, None);
     }
 
+    /// Replace the plan this round replays with the record `held` kept, with its judge's
+    /// rejections (A3), when the next seat brings its own judge (`own_judge`, no separate decision
+    /// seat): that seat replays those bytes to its judge, never to the one that declined them
+    /// (R6), and authors nothing. A decision seat that declined them would decide nothing, and a
+    /// held outcome that kept no record (a semantic one) has none: the round writes afresh.
+    pub(crate) fn retain_held(&mut self, held: &CompileOutcome, own_judge: bool) {
+        self.forget_plan();
+        if let Some(settled) = round::settled(held).filter(|_| own_judge) {
+            self.continuation = Some(settled.plan);
+            (self.knowledge, self.authoring_receipt) = (settled.knowledge, settled.receipt);
+        }
+    }
+
     /// The intent the compiler reads for this round: a revision's original
     /// request and change, folded; an answered `intent.clarification` replaces
     /// the request (the compiler's own law), else the request as stated.

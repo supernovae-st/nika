@@ -343,14 +343,14 @@ impl SessionRuntime {
             }
             break out;
         };
-        // A replayed candidate its verifier did not accept (held, no defect to write again from)
-        // is never replayed to it again (R6): every compile of this round after this one, the
-        // stronger seat's among them, authors afresh under the answers already given.
+        // A replayed candidate its verifier did not accept is never asked of it again (R6): the
+        // round keeps the record held with that rejection, so a stronger seat's own judge decides
+        // those bytes with no authoring call; under a decision seat, the round writes afresh.
         if let Ok(held) = &out
             && round.replays()
             && nika_onboard::compile::round::verify_held(held)
         {
-            round.forget_plan();
+            round.retain_held(held, self.authoring_context.decision().is_none());
         }
         match out {
             Ok(out) if nika_onboard::compile::round::awaiting_judge(&out) => {

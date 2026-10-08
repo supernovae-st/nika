@@ -347,6 +347,8 @@ pub(super) const DOUBTED: &str = "The workflow is built but not proposed: the ve
 /// The compiler's `verify_held` finding on a candidate its verifier rejected with no defect
 /// located.
 pub(super) const HELD: &str = "The candidate was judged and not accepted, with no defect a repair could start from: it is shown, never offered, and nothing was written. A correction of the request or another verifier can decide it.";
+/// Why no trial decided the held bytes, as the held text names it (A4): the room refused them.
+pub(super) const UNTRIED: &str = " No trial of these bytes ran: the rehearsal room refused them before any attempt (./entree.txt is read but not observed: the room holds the observed inputs only).";
 /// The applied `verify_held` findings of an outcome, in order.
 pub(super) fn held_findings(out: &nika_onboard::compile::CompileOutcome) -> Vec<&str> {
     (out.diagnostics.iter())
@@ -428,17 +430,23 @@ fn a_replayed_doubt_no_part_settles_is_never_written_again() {
         ),
         (&json!(true), &json!(true), &json!(false))
     );
-    assert_eq!(held_findings(held), [HELD]);
+    let untried = format!("{HELD}{UNTRIED}");
+    assert_eq!(held_findings(held), [untried.as_str()]);
     let route = &held.provenance.decision.as_ref().expect("decision")["route"];
     let last = route.as_array().and_then(|steps| steps.last());
     assert_eq!(last, Some(&json!("verify: doubted, not replayable")));
-    // No record of the doubted bytes is kept: no later line replays them to the same judge.
-    assert!(held.provenance.plan.is_none());
+    // The doubted bytes' record is kept with the judge's rejection (A3): a later line that
+    // replays them asks that judge nothing, and a kept round replays exactly that record.
+    let declined = (held.provenance.plan.as_ref()).and_then(|plan| plan["declined"].as_array());
+    assert!(
+        declined.is_some_and(|d| !d.is_empty()),
+        "{:?}",
+        held.provenance.plan
+    );
     assert!(!s.judgment_waits());
     assert!(
-        s.authoring
-            .as_ref()
-            .is_none_or(|r| r.continuation.is_none())
+        (s.authoring.as_ref())
+            .is_none_or(|r| r.continuation.as_ref() == held.provenance.plan.as_ref())
     );
     // `/meaning` says it was judged and not accepted, part by part, never « not judged yet ».
     assert_eq!(meaning(&mut s), HELD_MEANING);
@@ -492,13 +500,12 @@ fn judged_sha(body: &Value) -> Option<String> {
     let candidate = state["candidate_nika"].as_str()?;
     Some(nika_event::source_id::sha256_hex(candidate.as_bytes()))
 }
-/// A replayed candidate its verifier rejected with no defect located is held, and the stronger
-/// seat's retry that follows authors afresh under the answers already given: its first request
-/// is an authoring call of the stronger model, the held bytes are judged in the three questions
-/// of the doubted verdict and in no later request, and the stronger seat's own candidate, other
-/// bytes, is judged once and proposed (R6: no replay sends the held bytes to a verifier again).
+/// A replayed candidate its verifier rejected with no defect located is held with that rejection
+/// (A3), and the stronger seat's retry that follows decides the very same bytes with its own
+/// judge (S1): no authoring call, the declining judge asked nothing more after its three
+/// questions, and the held bytes, now accepted by another judge, proposed.
 #[test]
-fn the_stronger_retry_after_a_held_replay_authors_afresh_and_never_rejudges_the_held_bytes() {
+fn the_stronger_retry_after_a_held_replay_judges_the_held_bytes_with_its_own_judge() {
     let peer = Peer::start(first_script());
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
@@ -511,68 +518,32 @@ fn the_stronger_retry_after_a_held_replay_authors_afresh_and_never_rejudges_the_
     assert!(matches!(s.turn(WORK), TurnOutcome::Facts(_)));
     kept(&s);
     let held_sha = first_judged(&peer);
-    assert!(
-        (peer.bodies().iter()).all(|body| body["model"] == "deepseek-flash"),
-        "the unnamed default authored the kept candidate"
-    );
-    // The replay's verdict on the held bytes, then the stronger seat's own authoring round over
-    // other bytes (its tasks named otherwise), judged and approved.
-    let mut script = vec![
+    // The replay's verdict on the held bytes, then the stronger seat's own judge on those bytes.
+    let script = vec![
         (200, response(r#"{"choice":"unfaithful"}"#)),
         (200, response(r#"{"choice":"carried"}"#)),
         (200, response(r#"{"choice":"only_requested"}"#)),
+        (200, response(JUDGE_APPROVES)),
     ];
-    let renamed = semantic_create().map(|text| {
-        text.replace("read_source", "read_entree")
-            .replace("write_output", "write_sortie")
-    });
-    script.extend(renamed.iter().map(|text| (200, response(text))));
-    script.push((200, response(JUDGE_APPROVES)));
     let again = Peer::start(script);
     let _again = test_transport::install(&again.url);
     let out = s.turn("RePrEnD");
     assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
     let bodies = again.bodies();
-    assert_eq!(
-        bodies.len(),
-        3 + CREATE_CALLS,
-        "the doubt, then one fresh round"
-    );
     let models: Vec<&Value> = bodies.iter().map(|body| &body["model"]).collect();
     let (flash, pro) = (json!("deepseek-flash"), json!("deepseek-v4-pro"));
-    assert_eq!(models, [&flash, &flash, &flash, &pro, &pro]);
+    assert_eq!(models, [&flash, &flash, &flash, &pro], "no authoring call");
     let judged: Vec<Option<String>> = bodies.iter().map(judged_sha).collect();
     let held = Some(held_sha.clone());
-    assert_eq!(judged[..3], [held.clone(), held.clone(), held.clone()]);
-    let authored = 3 + CREATE_CALLS - 1;
-    assert!(
-        judged[3..authored].iter().all(Option::is_none),
-        "authoring calls, no judge question"
-    );
-    let fresh = judged[authored]
-        .clone()
-        .expect("the stronger seat's candidate judged");
-    assert_ne!(fresh, held_sha, "other bytes");
+    assert_eq!(judged, [held.clone(), held.clone(), held.clone(), held]);
     let proposed = s.candidate().expect("proposed").set.changes[0]
         .content()
         .to_owned();
     assert_eq!(
         nika_event::source_id::sha256_hex(proposed.as_bytes()),
-        fresh
+        held_sha,
+        "the held bytes, decided by another judge"
     );
-    let (whole, verdicts) = asked(&bodies[authored]).expect("the whole request judged");
-    assert_eq!(whole["request"], WORK);
-    assert_eq!(verdicts, ["faithful", "unfaithful", "none"]);
-    let outcome = s.last_outcome.as_ref().expect("the proposed outcome");
-    let attempts =
-        &outcome.provenance.decision.as_ref().expect("decision")["semantic_verification"];
-    assert_eq!(attempts.as_array().map(Vec::len), Some(1), "{attempts:#}");
-    assert_eq!(
-        attempts[0]["judge"],
-        json!({"seat": "deepseek/deepseek-v4-pro", "kind": "authoring_provider"})
-    );
-    assert_eq!(attempts[0]["candidate_sha256"], json!(fresh));
-    assert_eq!(attempts[0]["settled_by"], "verify-request");
     assert!(
         !dir.path().join("sortie.txt").exists(),
         "proposed, never run"

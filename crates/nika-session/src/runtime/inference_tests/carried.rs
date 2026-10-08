@@ -6,7 +6,7 @@
 //! them; it repeats the verdict with no call (`carried`), and the bytes stay held. A correction
 //! is another request: the verdict binds to the request it judged, so the corrected request is
 //! asked again. New work carries none. No provider qualification, no paid call.
-use super::unjudged::{DOUBTED, HELD, asked, held_findings};
+use super::unjudged::{DOUBTED, HELD, UNTRIED, asked, held_findings};
 use super::*;
 use crate::authoring::decision::tests::{KEY, Peer as SystemOne, Reply, SEAT};
 use crate::authoring::{AuthoringContext, AuthoringSeat, DecisionSetup};
@@ -188,7 +188,8 @@ fn the_stronger_retry_that_authors_the_held_bytes_again_never_asks_their_verifie
         .collect();
     assert_eq!(asked_roles, ["judge_request", "judge_part", "judge_extra"]);
     let held = s.last_outcome.as_ref().expect("the held outcome");
-    assert_eq!(held_findings(held), [HELD]);
+    let untried = format!("{HELD}{UNTRIED}");
+    assert_eq!(held_findings(held), [untried.as_str()]);
     assert_eq!(
         verify_steps(&s),
         [CARRIED, "verify: not ready, candidate held"]
