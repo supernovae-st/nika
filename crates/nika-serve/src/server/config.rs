@@ -346,6 +346,7 @@ pub struct ServerConfig {
     allow_remote: bool,
     native: Option<super::NativeAuthoring>,
     cost_review: bool,
+    sessions: bool,
     /// An explicit startup ceiling (`Some(None)` is the explicit disarm), kept
     /// apart from the default it replaces.
     run_cost_ceiling: Option<ServerLimits>,
@@ -367,6 +368,7 @@ impl ServerConfig {
             allow_remote: false,
             native: None,
             cost_review: false,
+            sessions: false,
             run_cost_ceiling: None,
         }
     }
@@ -404,6 +406,18 @@ impl ServerConfig {
 
     pub(crate) const fn cost_review(&self) -> bool {
         self.cost_review
+    }
+
+    /// Serve the project's native Session under `/v1/sessions` (health `sessionHost`): off
+    /// unless called. A Session writes the project's workflows on a human's consent.
+    #[must_use]
+    pub const fn with_sessions(mut self, sessions: bool) -> Self {
+        self.sessions = sessions;
+        self
+    }
+
+    pub(crate) const fn sessions(&self) -> bool {
+        self.sessions
     }
 
     /// The resident limits this listener's startup options ask for, when any.

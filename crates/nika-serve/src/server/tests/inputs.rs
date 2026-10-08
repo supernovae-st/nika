@@ -398,7 +398,7 @@ async fn queued_inputs_survive_restart_without_live_source_and_tampering_is_dete
             "root.nika".to_owned(),
             &admitted.snapshot().encode().expect("world"),
             None,
-            inputs,
+            (inputs, None),
         )
         .expect("persist queued");
     let id = admission.record().id().as_str().to_owned();

@@ -31,10 +31,15 @@ impl JournalKey {
         })
     }
 
+    /// The journal's path, when one exists (blocking · the fs).
+    pub(super) fn path(&self) -> Option<PathBuf> {
+        nika_dap::store::locate_trace(&self.dir, &self.execution, &self.trace)
+    }
+
     /// Locate the journal and verify it (blocking · the fs). `None` when no
     /// journal exists for this job — the route's `unavailable`.
     pub(super) fn verify(&self) -> Option<Value> {
-        let path = nika_dap::store::locate_trace(&self.dir, &self.execution, &self.trace)?;
+        let path = self.path()?;
         Some(nika_trace::trace_verify::door_verdict(&path, &self.trace))
     }
 }

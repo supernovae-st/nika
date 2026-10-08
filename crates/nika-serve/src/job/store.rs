@@ -45,6 +45,8 @@ const STATE_FILE: &str = "state.json";
 const LEGACY_STATE_VERSION: u32 = 2;
 pub(crate) const STATE_VERSION: u32 = 3;
 const EVENT_HASH_DOMAIN: &[u8] = b"nika.job-event.chain\0v1\0";
+/// A requested per-job ceiling is a finite, non-negative USD amount (zero binds).
+const UNBOUND_CEILING: &str = "a requested per-job ceiling must be a finite, non-negative amount";
 const IDENTITY_HASH_DOMAIN: &[u8] = b"nika.job-identity.binding\0v1\0";
 
 /// Monotonic authority for one-shot approval-decision history.
@@ -252,7 +254,8 @@ impl JobStore {
         max_jobs: usize,
         workflow: String,
     ) -> Result<Admission, JobStoreError> {
-        self.create_or_replay_inner(key, digest, max_jobs, workflow, None, None, BTreeMap::new())
+        let unbound = (BTreeMap::new(), None);
+        self.create_or_replay_inner(key, digest, max_jobs, workflow, None, None, unbound)
     }
 
     /// Create or replay while persisting the POST-time execution world.
@@ -278,7 +281,7 @@ impl JobStore {
             workflow,
             Some(world),
             None,
-            BTreeMap::new(),
+            (BTreeMap::new(), None),
         )
     }
 
@@ -302,7 +305,7 @@ impl JobStore {
             workflow,
             Some(world),
             access_pin,
-            BTreeMap::new(),
+            (BTreeMap::new(), None),
         )
     }
 
@@ -314,7 +317,7 @@ impl JobStore {
         workflow: String,
         world: &str,
         access_pin: Option<String>,
-        inputs: BTreeMap<String, Value>,
+        (inputs, max_cost_usd): (BTreeMap<String, Value>, Option<f64>),
     ) -> Result<Admission, JobStoreError> {
         self.create_or_replay_inner(
             key,
@@ -323,7 +326,7 @@ impl JobStore {
             workflow,
             Some(world),
             access_pin,
-            inputs,
+            (inputs, max_cost_usd),
         )
     }
 
@@ -335,8 +338,15 @@ impl JobStore {
         workflow: String,
         world: Option<&str>,
         access_pin: Option<String>,
-        inputs: BTreeMap<String, Value>,
+        (inputs, max_cost_usd): (BTreeMap<String, Value>, Option<f64>),
     ) -> Result<Admission, JobStoreError> {
+        let max_cost_usd = match max_cost_usd {
+            Some(usd) => Some(
+                (serde_json::Number::from_f64(usd).filter(|_| usd >= 0.0))
+                    .ok_or_else(|| JobStoreError::Corrupt(UNBOUND_CEILING.to_owned()))?,
+            ),
+            None => None,
+        };
         key.validate()?;
         digest.validate()?;
         if let Some(world) = world
@@ -376,6 +386,7 @@ impl JobStore {
             workflow,
             access_pin,
             inputs,
+            max_cost_usd,
             execution_id: String::new(),
             trace_id: String::new(),
             snapshot_digest: String::new(),
@@ -399,9 +410,9 @@ impl JobStore {
             identity_digest: None,
             terminal_sequence: None,
         };
-        // Bind caller values before execution, including during durable queue recovery.
-        // The payload carries no values; the event preimage binds the input map.
-        if !record.inputs.is_empty() {
+        // Bind caller values and a requested ceiling before execution, including during durable
+        // queue recovery. The payload carries no values; the event preimage binds them.
+        if !record.inputs.is_empty() || record.max_cost_usd.is_some() {
             let queued = serde_json::json!({"kind": crate::JobEventKind::Queued, "status": JobStatus::Queued});
             let batch = ValidatedEventBatch::for_transition(std::slice::from_ref(&queued))?;
             stored.append_payloads(&batch, &self.now())?;
@@ -1209,9 +1220,13 @@ fn unique_job_id(state: &PersistedState) -> JobId {
 }
 
 fn validate_events(job: &StoredJob) -> Result<(), JobStoreError> {
-    if !job.record.inputs.is_empty() && job.events.is_empty() {
+    if job.record.max_cost_usd().is_some_and(|usd| usd < 0.0) {
+        return Err(JobStoreError::Corrupt(UNBOUND_CEILING.to_owned()));
+    }
+    if (!job.record.inputs.is_empty() || job.record.max_cost_usd.is_some()) && job.events.is_empty()
+    {
         return Err(JobStoreError::Corrupt(
-            "input bindings require an admission event".to_owned(),
+            "input bindings and a requested ceiling require an admission event".to_owned(),
         ));
     }
     if usize::try_from(job.event_count).ok() != Some(job.events.len())

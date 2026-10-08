@@ -463,6 +463,8 @@ mod pause_boundary;
 #[cfg(test)]
 mod request_lifecycle;
 #[cfg(test)]
+mod session;
+#[cfg(test)]
 mod shutdown;
 #[cfg(test)]
 mod trace_journal;

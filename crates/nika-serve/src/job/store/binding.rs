@@ -105,6 +105,9 @@ pub(super) fn hash_execution_identity(record: &JobRecord) -> Result<EventHash, J
         preimage["inputs"] = serde_json::to_value(&record.inputs)
             .map_err(|_| JobStoreError::Corrupt("input binding cannot be encoded".to_owned()))?;
     }
+    if let Some(ceiling) = &record.max_cost_usd {
+        preimage["max_cost_usd"] = Value::Number(ceiling.clone());
+    }
     let canonical = serde_json::to_vec(&preimage)
         .map_err(|_| JobStoreError::Corrupt("identity preimage cannot be encoded".to_owned()))?;
     let mut hasher = Sha256::new();
@@ -183,6 +186,9 @@ pub(super) fn hash_event(
     if !record.inputs.is_empty() {
         preimage["inputs"] = serde_json::to_value(&record.inputs)
             .map_err(|_| JobStoreError::Corrupt("input binding cannot be encoded".to_owned()))?;
+    }
+    if let Some(ceiling) = &record.max_cost_usd {
+        preimage["max_cost_usd"] = Value::Number(ceiling.clone());
     }
     let canonical = serde_json::to_vec(&preimage)
         .map_err(|_| JobStoreError::Corrupt("event preimage cannot be encoded".to_owned()))?;

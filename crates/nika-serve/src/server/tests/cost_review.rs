@@ -237,7 +237,7 @@ async fn the_door_exists_only_when_the_operator_seats_it() {
         .request(&get_request("/v1/openapi.json"))
         .await
         .json();
-    assert_eq!(contract, super::openapi::served(false, true));
+    assert_eq!(contract, super::openapi::served(false, true, false));
     for path in [
         "/v1/cost-reviews",
         "/v1/cost-reviews/{id}",
@@ -666,14 +666,14 @@ async fn the_public_review_never_shows_the_endpoint_path_or_the_nonce() {
 fn the_served_contract_pins_the_door_s_enforced_words() {
     use nika_dap::cost_journal::{REVIEW_TTL as TTL, REVIEWS_RETAINED as RETAINED};
     assert_eq!(
-        super::openapi::served(false, false),
+        super::openapi::served(false, false, false),
         super::openapi::live(false)
     );
     assert_eq!(
-        super::openapi::served(true, false),
+        super::openapi::served(true, false, false),
         super::openapi::live(true)
     );
-    let served = super::openapi::served(false, true);
+    let served = super::openapi::served(false, true, false);
     let review = &served["components"]["schemas"]["CostReview"];
     let text = review["description"].as_str().expect("description");
     assert!(
