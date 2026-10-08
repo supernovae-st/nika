@@ -97,11 +97,15 @@ impl SessionRuntime {
         let elsewhere = !id.asked_by(&self.questions.asker);
         match self.pending_question_id() {
             Some(waiting) if waiting == *id => {
-                if self.pending_choice || self.pending.is_some() || self.pending_gate.is_some() {
+                if self.waiting_review().is_some()
+                    || self.pending_choice
+                    || self.pending.is_some()
+                    || self.pending_gate.is_some()
+                {
                     return refused(
                         RefusalClass::WrongState,
                         format!(
-                            "another prompt owns the next line (the intelligence choice, a proposal or a paused run) — answer it first; the question {id} keeps waiting"
+                            "another prompt owns the next line (a run's cost review, the intelligence choice, a proposal or a paused run) — answer it first; the question {id} keeps waiting"
                         ),
                     );
                 }

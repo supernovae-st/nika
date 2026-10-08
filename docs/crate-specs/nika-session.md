@@ -179,7 +179,13 @@ authoring question, a run input or an activation asks, else a new turn. `submit(
 routes that line to what waits, by the identity the host displayed: a consent answers the
 proposal shown (`consent_to`), a gate answer names the gate shown (`answer_gate_for`). With no
 proposal shown, a declining or leaving line still declines and any other line is refused with
-`NOTHING_SHOWN`: nothing is consented that was not seen. `work()` builds the typed snapshot
+`NOTHING_SHOWN`: nothing is consented that was not seen. With nothing waiting, only a line typed
+at a free prompt is a new turn: one typed for a question, gate, proposal or cost review shown
+goes to that state's identity door and is refused there as answered, decided or stale, and a
+value or choice no longer asked takes nothing, so an answer is never read as a new request;
+leaving and the read-only commands still pass. An authoring question's own identity
+(`answer_question_for`) is refused as the wrong state while a run's cost review owns the next
+line, and the question keeps waiting. `work()` builds the typed snapshot
 (`nika_session_change::work`) from the session's own state; it audits nothing, reads no file and
 decides nothing. The reach it shows for the requested run and the saved workflow comes from the
 check that cleared the run request or landed the consent, kept beside them when they happen. Its

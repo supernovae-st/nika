@@ -35,6 +35,10 @@ pub const VALUE_NOT_SHOWN: &str = "this line was not typed for the value asked n
 /// line was typed for something else, so it decides nothing there and the review keeps waiting.
 pub const REVIEW_NOT_SHOWN: &str = "a run's cost review is waiting that this line was not typed for · nothing was sent · the review is shown again after this line";
 
+/// Said when nothing waits but the host showed a value or a choice when the line was typed:
+/// the line was typed for that, so it answers nothing and is no new request either.
+const SHOWN_NO_LONGER_WAITS: &str = "this line was typed for something that no longer waits · nothing was answered or sent · type it again at the prompt if it is a new request";
+
 /// A line that leaves or declines: it applies nothing, whether a proposal was shown or not.
 fn declines(line: &str) -> bool {
     matches!(line.trim(), "/quit" | "/exit")
@@ -99,7 +103,10 @@ impl SessionRuntime {
     /// review takes the line only under the identity it was shown with: one yes runs the child
     /// once, a decline sends nothing ([`Self::run_review_asked`]). Leaving and the session's
     /// read-only commands go through whatever waits; what waits keeps waiting after a refusal.
-    /// With nothing waiting, the line is a new turn.
+    /// With nothing waiting, a line typed at a free prompt is a new turn; one typed for what
+    /// the host showed goes to that state's identity door, which refuses it as answered,
+    /// decided or stale, and a value or a choice no longer asked takes nothing: an answer is
+    /// never read as a new request.
     pub fn submit(&mut self, line: &str, shown: &Waiting) -> TurnOutcome {
         match self.waiting() {
             Waiting::RunReview { review } => match shown {
@@ -145,7 +152,19 @@ impl SessionRuntime {
             {
                 self.cost_choice_evidence()
             }
-            // The one-time cost decision reads its answer in a turn, as does a free line.
+            Waiting::Free => match shown {
+                Waiting::Free => self.turn(line),
+                _ if beside_any_answer(line) => self.turn(line),
+                Waiting::RunReview { review } => self.answer_run_review(review, line),
+                Waiting::Consent { proposal } => self.consent_to(proposal, line.trim()),
+                Waiting::Gate { gate } => self.answer_gate_for(gate, line.trim()),
+                Waiting::Question { id, .. } => self.answer_question_for(id, line),
+                _ => TurnOutcome::Refusal(Refusal::new(
+                    RefusalClass::StaleRevision,
+                    SHOWN_NO_LONGER_WAITS,
+                )),
+            },
+            // The one-time cost decision reads its answer in a turn.
             _ => self.turn(line),
         }
     }

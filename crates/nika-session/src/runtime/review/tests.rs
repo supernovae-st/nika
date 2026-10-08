@@ -63,11 +63,12 @@ fn one_yes_shown_runs_the_child_once_and_the_review_is_gone() {
             "{yes:?}"
         );
         assert_eq!(s.waiting(), Waiting::Free);
-        // A second yes has nothing left to approve.
-        assert!(!matches!(
-            s.submit(yes, &shown(&review)),
-            TurnOutcome::RunReviewed { .. }
-        ));
+        // A second yes has nothing left to approve, and it is no new request either.
+        let TurnOutcome::Refusal(again) = s.submit(yes, &shown(&review)) else {
+            panic!("a decided review takes no second answer: {yes:?}");
+        };
+        assert_eq!(again.class, RefusalClass::StaleRevision, "{again}");
+        assert!(again.text.ends_with("nothing was sent"), "{again}");
     }
 }
 

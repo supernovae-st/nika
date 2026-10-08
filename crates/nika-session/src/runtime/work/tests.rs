@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use nika_onboard::compile::{CompileRequest, compile};
 
-use super::{GATE_NOT_SHOWN, NOTHING_SHOWN, VALUE_NOT_SHOWN};
+use super::{GATE_NOT_SHOWN, NOTHING_SHOWN, SHOWN_NO_LONGER_WAITS, VALUE_NOT_SHOWN};
 use crate::authoring::AuthoringRound;
 use crate::change::Witness;
 use crate::intelligence::{DataLocus, IntelligenceKind, ResolvedSessionIntelligence};
@@ -172,6 +172,12 @@ fn a_gate_answer_names_the_gate_shown_and_the_run_keeps_its_identity() {
         panic!("the shown gate resumes");
     };
     assert_eq!(answer, "approve=true");
+    assert_eq!(s.waiting(), Waiting::Free);
+    // The same answer arriving again (a repeated key, a second host) decides nothing more.
+    let TurnOutcome::Refusal(again) = s.submit("yes", &shown) else {
+        panic!("an answered gate takes no second answer");
+    };
+    assert_eq!(again.class, RefusalClass::AlreadyConsumed, "{again}");
     assert_eq!(s.waiting(), Waiting::Free);
 }
 
@@ -339,6 +345,66 @@ fn a_question_takes_only_the_answer_typed_at_its_own_identity() {
     let _ = s.submit("\"EUR\"", &shown);
     assert!(bound(&s, "\"EUR\""), "the shown question binds its answer");
     assert_ne!(s.waiting(), shown, "an answered question waits no more");
+}
+
+#[test]
+fn a_line_typed_at_a_question_dropped_since_answers_nothing_and_opens_no_turn() {
+    let dir = tempfile::tempdir().expect("root");
+    let mut s = literal(dir.path());
+    at_a_question(&mut s);
+    let shown = s.waiting();
+    assert!(matches!(shown, Waiting::Question { .. }), "{shown:?}");
+    // The round is dropped before the line typed at its question arrives.
+    assert!(
+        matches!(s.submit("cancel", &shown), TurnOutcome::Facts(ref t) if t.starts_with("authoring discarded")),
+        "the cancel word drops the round"
+    );
+    assert_eq!(s.waiting(), Waiting::Free);
+    let remembered = s.recent.len();
+
+    // Nothing waits now, but the line was typed for that question: it is not a new request.
+    let TurnOutcome::Refusal(stale) = s.submit("\"EUR\"", &shown) else {
+        panic!("a line typed at a dropped question answers nothing");
+    };
+    assert_eq!(stale.class, RefusalClass::AlreadyConsumed, "{stale}");
+    assert_eq!(s.recent.len(), remembered, "nothing was read or remembered");
+    assert_eq!(s.waiting(), Waiting::Free);
+    // A value shown that never waited here answers nothing either.
+    let input = Waiting::Input {
+        name: "currency".to_owned(),
+    };
+    let TurnOutcome::Refusal(gone) = s.submit("EUR", &input) else {
+        panic!("a value no longer asked takes no line");
+    };
+    assert_eq!(gone.class, RefusalClass::StaleRevision, "{gone}");
+    assert_eq!(gone.text, SHOWN_NO_LONGER_WAITS);
+    assert_eq!(s.recent.len(), remembered);
+    // Leaving and the read-only commands still go through.
+    assert!(matches!(s.submit("/status", &shown), TurnOutcome::Facts(_)));
+}
+
+#[test]
+fn a_run_review_owns_the_next_line_even_against_the_question_s_own_identity() {
+    let dir = tempfile::tempdir().expect("root");
+    let mut s = literal(dir.path());
+    at_a_question(&mut s);
+    let id = s.pending_question_id().expect("a question waits");
+    let review = s.run_review_asked("Fresh Run cost decision", "the evidence");
+    let reviewing = Waiting::RunReview {
+        review: review.clone(),
+    };
+    assert_eq!(s.waiting(), reviewing, "the review answers first");
+    let TurnOutcome::Refusal(owned) = s.answer_question_for(&id, "\"EUR\"") else {
+        panic!("the review owns the next line");
+    };
+    assert_eq!(owned.class, RefusalClass::WrongState, "{owned}");
+    assert!(!bound(&s, "\"EUR\""), "the question took nothing");
+    assert_eq!(
+        s.pending_question_id(),
+        Some(id),
+        "the question keeps waiting"
+    );
+    assert_eq!(s.waiting(), reviewing, "the review keeps waiting");
 }
 
 #[test]
