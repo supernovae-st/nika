@@ -79,6 +79,7 @@ pub mod recipes;
 pub mod rehearsal;
 pub mod remote_door;
 pub mod routing;
+pub mod run_line;
 pub mod wizard;
 
 /// A finished verb's text + exit code — the shape the composition root

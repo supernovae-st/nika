@@ -148,13 +148,9 @@ impl RunDoor for LaneRunDoor {
     fn run(&mut self, root: &Path, run: &RunRequest, sink: &dyn RunSink) -> RunStep {
         // A new run replaces a review still held: dropping it ends its child, nothing is sent.
         self.held = None;
-        let args = lane::run_args_with_access(
-            root,
-            &run.workflow,
-            run.max_cost_usd,
-            &run.vars,
-            run.access_pin.as_deref(),
-        );
+        // The child runs only the bytes the Session checked: it compares their witness with the
+        // source it captures, and other bytes (or a request that recorded none) run nothing.
+        let args = run.args(root);
         match lane::drive_reviewed_child_observed(&self.exe, &args, root, sink, &self.slot) {
             RunProgress::Complete((exit, trace, _)) => RunStep::Observed { exit, trace },
             RunProgress::Review(pending) => {

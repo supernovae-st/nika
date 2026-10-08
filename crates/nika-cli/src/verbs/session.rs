@@ -302,7 +302,9 @@ fn run_once(
         Some(run.max_cost_usd),
         false,
         false,
-        None,
+        // Bound to the bytes the Session checked: this capture runs, or nothing does.
+        nika_cli_host::lane::RunHostOptions::from(None)
+            .with_expected_source(Some(run.expected_source())),
     );
     (verdict.code, verdict.trace)
 }
@@ -352,13 +354,7 @@ fn run_tapped(
 ) -> (u8, Option<std::path::PathBuf>, Vec<String>) {
     use nika_tui::session::Work;
     let args = match work {
-        Work::Run(run) => nika_cli_host::lane::run_args_with_access(
-            root,
-            &run.workflow,
-            run.max_cost_usd,
-            &run.vars,
-            run.access_pin.as_deref(),
-        ),
+        Work::Run(run) => run.args(root),
         Work::Resume {
             workflow,
             trace,
@@ -443,13 +439,7 @@ pub fn run_tui(theme: Theme, jq: Option<nika_onboard::compile::room::JqHelper>) 
             run_tapped(root, work, busy, &tapped)
         }))
         .with_run_review_observed(Box::new(move |root, run, busy| {
-            let args = nika_cli_host::lane::run_args_with_access(
-                root,
-                &run.workflow,
-                run.max_cost_usd,
-                &run.vars,
-                run.access_pin.as_deref(),
-            );
+            let args = run.args(root);
             match std::env::current_exe() {
                 Ok(exe) => nika_cli_host::lane::drive_reviewed_child_observed(
                     &exe, &args, root, busy, &slot,

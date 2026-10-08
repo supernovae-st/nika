@@ -120,6 +120,9 @@ pub fn run_with_inputs_json(
     .code
 }
 
+/// Said when a run's captured bytes are not the ones a Session checked for it.
+const UNCHECKED_BYTES: &str = "nika run: refused: not the bytes its check judged; nothing ran";
+
 pub(super) fn capture_checked_source(
     file: &str,
     repair_target: Option<nika_display::check_render::RepairTarget>,
@@ -181,6 +184,12 @@ pub(crate) fn run_verdict(
             Ok(checked) => checked,
             Err(verdict) => return *verdict,
         };
+    // A Session's run is bound to the bytes its check judged; admission runs only this capture.
+    let captured = nika_session::Witness::of(source.source().as_bytes()).0;
+    if (host.expected_source.as_deref()).is_some_and(|expected| expected != captured) {
+        epilogue::emit_diagnostic(UNCHECKED_BYTES, output_json || json);
+        return RunVerdict::bare(exit::ENV);
+    }
     let file_owned = source.logical_path().to_owned();
     let file = file_owned.as_str();
     if require_signature && let Err(code) = require_signature_gate(&source, output_json || json) {

@@ -156,12 +156,36 @@ pub struct RunRequest {
     pub bytes: Option<Box<Witness>>,
 }
 
+/// What a request that recorded no checked bytes binds a child run to: no source has it.
+const UNBOUND: &str = "unchecked";
+
 impl RunRequest {
     /// Whether `source`, the bytes a door captured to run, is exactly what the Session checked
     /// for this run; a request that recorded none admits nothing.
     #[must_use]
     pub fn admits(&self, source: &str) -> bool {
         self.bytes.as_deref() == Some(&Witness::of(source.as_bytes()))
+    }
+
+    /// The witness a run of this request must capture: the checked bytes', or one no source has
+    /// when the request recorded none.
+    #[must_use]
+    pub fn expected_source(&self) -> String {
+        self.bytes
+            .as_deref()
+            .map_or(UNBOUND, |bytes| bytes.0.as_str())
+            .to_owned()
+    }
+
+    /// The child `nika run` line for this request under `root`, bound to the checked bytes: the
+    /// child compares them with the source it captures and runs nothing else.
+    #[must_use]
+    pub fn args(&self, root: &Path) -> Vec<String> {
+        use nika_onboard::run_line::{EXPECT_SOURCE, run_args_with_access};
+        let (vars, pin) = (&self.vars, self.access_pin.as_deref());
+        let mut args = run_args_with_access(root, &self.workflow, self.max_cost_usd, vars, pin);
+        args.extend([EXPECT_SOURCE.to_owned(), self.expected_source()]);
+        args
     }
 }
 

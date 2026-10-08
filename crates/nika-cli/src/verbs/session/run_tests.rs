@@ -17,13 +17,15 @@ const GATE: &str = "nika: session-gate\npermits: { tools: [\"nika:prompt\"] }\nt
 const COPY: &str = "Read ./notes/brief.md and write it to ./out/copy.md";
 const BRIEF: &str = "# Brief\n\nThe launch moves to October.\n";
 
-fn request(workflow: &str) -> RunRequest {
+/// A request for `workflow` under `root`, bound to its bytes as they stand now (none when absent).
+fn request(root: &Path, workflow: &str) -> RunRequest {
+    let bytes = std::fs::read(root.join(workflow)).ok();
     RunRequest {
         workflow: PathBuf::from(workflow),
         vars: Vec::new(),
         max_cost_usd: 0.1,
         access_pin: None,
-        bytes: None,
+        bytes: bytes.map(|bytes| Box::new(nika_session::Witness::of(&bytes))),
     }
 }
 
@@ -33,7 +35,7 @@ fn theme() -> Theme {
 
 fn foreign_latest(root: &Path) -> PathBuf {
     std::fs::write(root.join("foreign.nika"), ECHO).expect("fixture");
-    let (code, trace) = run_once(root, &request("foreign.nika"), theme());
+    let (code, trace) = run_once(root, &request(root, "foreign.nika"), theme());
     assert_eq!(code, exit::OK);
     let trace = trace.expect("foreign trace");
     let future = SystemTime::now() + Duration::from_secs(3600);
@@ -55,7 +57,7 @@ fn run_observes_its_exact_trace_even_when_another_sorts_first() {
         ECHO.replace("exact-session-result", "only-this-session-result"),
     )
     .expect("workflow");
-    let (code, trace) = run_once(root.path(), &request("own.nika"), theme());
+    let (code, trace) = run_once(root.path(), &request(root.path(), "own.nika"), theme());
     assert_eq!(code, exit::OK);
     let trace = trace.expect("this execution's trace, independent of latest");
     assert_ne!(trace, foreign);
@@ -65,11 +67,40 @@ fn run_observes_its_exact_trace_even_when_another_sorts_first() {
 }
 
 #[test]
+fn a_workflow_replaced_after_its_check_runs_nothing() {
+    let root = tempfile::tempdir().expect("project");
+    let _cwd = crate::cwd::enter(root.path()).expect("isolated cwd");
+    let foreign = foreign_latest(root.path());
+    let own = root.path().join("own.nika");
+    std::fs::write(&own, ECHO).expect("the checked bytes");
+    let run = request(root.path(), "own.nika");
+    // Another valid workflow lands at the same path after the check: refused before any task.
+    let replaced = ECHO.replace("exact-session-result", "replaced-after-check");
+    std::fs::write(&own, replaced).expect("replaced");
+    let (code, trace) = run_once(root.path(), &run, theme());
+    assert_eq!(code, exit::ENV);
+    assert!(trace.is_none(), "nothing ran, so no trace");
+    assert_eq!(nika_trace::trace::manage::latest(), Some(foreign));
+    // A request that names no checked bytes runs nothing either.
+    let unbound = RunRequest {
+        bytes: None,
+        ..run.clone()
+    };
+    assert_eq!(run_once(root.path(), &unbound, theme()).0, exit::ENV);
+    // The checked bytes back in place: they run.
+    std::fs::write(&own, ECHO).expect("the checked bytes again");
+    let (code, trace) = run_once(root.path(), &run, theme());
+    assert_eq!(code, exit::OK);
+    let evidence = std::fs::read_to_string(trace.expect("its own trace")).expect("trace");
+    assert!(evidence.contains("exact-session-result"));
+}
+
+#[test]
 fn refused_run_never_borrows_an_existing_trace() {
     let root = tempfile::tempdir().expect("project");
     let _cwd = crate::cwd::enter(root.path()).expect("isolated cwd");
     let foreign = foreign_latest(root.path());
-    let (code, trace) = run_once(root.path(), &request("missing.nika"), theme());
+    let (code, trace) = run_once(root.path(), &request(root.path(), "missing.nika"), theme());
     assert_eq!(code, exit::ENV);
     assert!(trace.is_none());
     assert_eq!(nika_trace::trace::manage::latest(), Some(foreign));
@@ -81,7 +112,7 @@ fn paused_and_resumed_legs_return_their_own_traces() {
     let _cwd = crate::cwd::enter(root.path()).expect("isolated cwd");
     let foreign = foreign_latest(root.path());
     std::fs::write(root.path().join("gate.nika"), GATE).expect("workflow");
-    let (code, trace) = run_once(root.path(), &request("gate.nika"), theme());
+    let (code, trace) = run_once(root.path(), &request(root.path(), "gate.nika"), theme());
     assert_eq!(code, exit::PAUSED);
     let paused = trace.expect("exact paused trace");
     assert_ne!(paused, foreign);
@@ -208,7 +239,7 @@ fn the_plain_session_runner_refuses_an_explicit_bad_pin_without_a_fallback() {
     let _cwd = crate::cwd::enter(root.path()).expect("isolated cwd");
     let foreign = foreign_latest(root.path());
     std::fs::write(root.path().join("pinned.nika"), ECHO).expect("workflow");
-    let mut run = request("pinned.nika");
+    let mut run = request(root.path(), "pinned.nika");
     run.access_pin = Some("not-a-real-access-pin".into());
     let (code, trace) = run_once(root.path(), &run, theme());
     assert_ne!(

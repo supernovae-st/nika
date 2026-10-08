@@ -417,6 +417,9 @@ struct RunArgs {
     /// Negotiate a fresh one-use local cost review over stdio; never approves a charge.
     #[arg(long, requires = "json", conflicts_with_all = ["inputs_json", "resume", "dry_run"])]
     cost_review_stdio: bool,
+    /// Run only a source with this BLAKE3 witness: the bytes a Session checked (machine lane).
+    #[arg(long, value_name = "BLAKE3", hide = true)]
+    expect_source: Option<String>,
     /// Print the typed `outputs:` as ONE JSON object on stdout
     /// (progress → stderr) · the export contract · powers
     /// `exec: nika run sub.yaml --output json` + `capture: stdout`.
@@ -1028,7 +1031,8 @@ fn run_verb(
         args.no_gc,
         args.require_signature,
         nika_cli_host::lane::RunHostOptions::from(repair_target)
-            .with_cost_review_stdio(args.cost_review_stdio),
+            .with_cost_review_stdio(args.cost_review_stdio)
+            .with_expected_source(args.expect_source.clone()),
     )
 }
 
@@ -1225,6 +1229,25 @@ mod tests {
                 "--max-cost-usd help must name `{limit}`"
             );
         }
+    }
+
+    /// The line a Session's run request hands its child parses, with the witness it binds.
+    #[test]
+    fn a_session_run_line_parses_and_binds_its_checked_witness() {
+        let run = nika_session::RunRequest {
+            workflow: "flow.nika".into(),
+            vars: Vec::new(),
+            max_cost_usd: 0.5,
+            access_pin: Some("api".into()),
+            bytes: Some(Box::new(nika_session::Witness::of(b"checked"))),
+        };
+        let line = std::iter::once("nika".to_owned()).chain(run.args(std::path::Path::new("/p")));
+        let parsed = Cli::try_parse_from(line).expect("parses").command;
+        let witness = Some(run.expected_source());
+        assert!(
+            matches!(&parsed, Some(Command::Run(r)) if r.expect_source == witness),
+            "the child line is a run bound to its witness"
+        );
     }
 
     /// The LSP-host convention flags parse as no-ops. Refusing them was
