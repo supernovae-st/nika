@@ -265,6 +265,32 @@ pub struct HarnessSelection {
     pub changed_mid_turn: Vec<String>,
 }
 
+impl HarnessSelection {
+    /// The refusal an EXACT selection owes an answer during which the agent moved a model or
+    /// an effort the client had applied (`fallback: none` — the answer was not produced under
+    /// it). `None` when nothing applied moved: a move of a dimension nobody set stays a fact
+    /// of the receipt, never a refusal.
+    #[must_use]
+    pub fn moved_refusal(&self) -> Option<HarnessError> {
+        let moved: Vec<&str> = self
+            .changed_mid_turn
+            .iter()
+            .filter(|change| {
+                (change.starts_with("model=") && self.transmitted_model.is_some())
+                    || (change.starts_with("effort=") && self.transmitted_effort.is_some())
+            })
+            .map(String::as_str)
+            .collect();
+        (!moved.is_empty()).then(|| HarnessError::Selection {
+            reason: format!(
+                "the route moved {} during the turn; an explicit selection is exact, so no \
+                 answer is accepted",
+                moved.join(" · ")
+            ),
+        })
+    }
+}
+
 /// Where a harness-reported model identity comes from. None of these is an
 /// attestation that a response was produced by that model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -461,6 +487,29 @@ mod tests {
         _assert_send::<HarnessOutcome>();
         _assert_send::<HarnessError>();
         _assert_send::<PermissionReply>();
+    }
+
+    /// Under an exact selection only a move of an APPLIED dimension refuses;
+    /// a dimension nobody set stays a receipt fact.
+    #[test]
+    fn only_a_move_of_an_applied_dimension_refuses() {
+        let mut selection = HarnessSelection {
+            changed_mid_turn: vec!["model=sonnet".into(), "effort=low".into()],
+            ..HarnessSelection::default()
+        };
+        assert!(selection.moved_refusal().is_none(), "nothing was applied");
+        let reason = |selection: &HarnessSelection| match selection.moved_refusal() {
+            Some(HarnessError::Selection { reason }) => reason,
+            _ => String::new(),
+        };
+        selection.transmitted_effort = Some("max".into());
+        let effort_only = reason(&selection);
+        assert!(effort_only.contains("effort=low"), "{effort_only}");
+        assert!(!effort_only.contains("model=sonnet"), "{effort_only}");
+        selection.transmitted_model = Some("opus".into());
+        let both = reason(&selection);
+        assert!(both.contains("model=sonnet · effort=low"), "{both}");
+        assert!(both.contains("an explicit selection is exact"), "{both}");
     }
 
     #[test]
