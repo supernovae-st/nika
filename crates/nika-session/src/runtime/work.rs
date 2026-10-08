@@ -9,9 +9,14 @@
 use std::fmt::Write as _;
 
 use super::{SessionRuntime, TurnOutcome};
+use crate::authoring::AuthoringSeat;
 use crate::change::{ProjectChange, ProjectChangeSet};
+use crate::intelligence::IntelligenceKind;
 use crate::outcome::{Refusal, RefusalClass};
-use crate::work::{Authoring, Candidate, DocumentRevision, Request, Run, Saved, Waiting, Work};
+use crate::work::{
+    Author, Authoring, Candidate, DecisionSeat, DocumentRevision, Intelligence, Request, Run,
+    Saved, Selected, Waiting, Work,
+};
 
 /// Said when a line arrives while a proposal waits but the host showed none: nothing that
 /// was not seen is consented.
@@ -189,6 +194,52 @@ impl SessionRuntime {
             (&self.lifecycle()).into(),
         )
         .with_authoring(self.last_outcome.as_ref().map(Authoring::of))
+        .with_intelligence(Some(self.intelligence_work()))
+    }
+
+    /// Who prepares with this session, as selected and resolved here: the configured facts a
+    /// host shows, never a call receipt (that one is the compiler's, in [`Authoring`]).
+    fn intelligence_work(&self) -> Intelligence {
+        let chosen = &self.intelligence;
+        let selected = match &chosen.kind {
+            IntelligenceKind::Harness { seat, transport } => Selected::new(
+                "harness",
+                Some(seat.clone()),
+                Some(transport.to_string().to_lowercase()),
+            ),
+            IntelligenceKind::Api { provider } => {
+                Selected::new("api", Some(provider.clone()), None)
+            }
+            IntelligenceKind::Local { provider } => {
+                Selected::new("local", Some(provider.clone()), None)
+            }
+            IntelligenceKind::None => Selected::new("none", None, None),
+        }
+        .resolved(
+            chosen.model.clone(),
+            chosen.locus.line(),
+            chosen.why.clone(),
+            chosen.ready,
+        );
+        let author = match self.authoring_seat() {
+            AuthoringSeat::Provider { model } => Author::new("provider", Some(model.clone()), None),
+            AuthoringSeat::Harness {
+                seat,
+                model,
+                transport,
+            } => Author::new("harness", model.clone(), None)
+                .through(seat.clone(), transport.to_string().to_lowercase()),
+            AuthoringSeat::Deterministic { why } => Author::new("deterministic", None, why.clone()),
+            AuthoringSeat::Unavailable { why } => {
+                Author::new("unavailable", None, Some(why.clone()))
+            }
+        };
+        let context = self.authoring_context();
+        let decision = (context.decision())
+            .map(|seat| DecisionSeat::new(seat.model().to_owned(), seat.refusal().map(Into::into)));
+        let effort = context.reasoning().map(|level| level.word().to_owned());
+        let selected = self.intelligence_chosen().then_some(selected);
+        Intelligence::new(selected, author, decision, effort)
     }
 }
 

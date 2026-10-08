@@ -593,3 +593,122 @@ fn work_the_compiler_cannot_settle_keeps_its_reasons_in_the_snapshot() {
         assert_eq!(note.message, diagnostic.message, "carried as written");
     }
 }
+
+/// A reasoner that authors with one named model; projecting the work must never ask it.
+struct Authors;
+
+impl crate::reasoner::SessionReasoner for Authors {
+    fn name(&self) -> String {
+        "fixture connection".to_owned()
+    }
+
+    fn reason(&mut self, _: &str) -> Result<crate::reasoner::Reply, crate::reasoner::ReasonError> {
+        panic!("projecting the work must not ask a model")
+    }
+
+    fn authoring_model(&self) -> Option<String> {
+        Some("deepseek/deepseek-chat".to_owned())
+    }
+}
+
+#[test]
+fn the_snapshot_names_who_prepares_apart_from_any_call_receipt() {
+    use crate::authoring::{AuthoringContext, DecisionSetup};
+    use crate::intelligence::{IntelligenceCensus, UserIntelligencePreference};
+
+    const JEV: &str = "typesafe/jev-1.13.0";
+    let dir = tree();
+    let mut census = IntelligenceCensus::empty();
+    census.api_keys.push("deepseek".into());
+    let api = IntelligenceKind::Api {
+        provider: "deepseek".into(),
+    };
+    let mut s = SessionRuntime::open_with(
+        dir.path(),
+        census,
+        &UserIntelligencePreference::new(api, None),
+        None,
+        Box::new(|_| Box::new(Authors)),
+    );
+    // The host's own context, never the environment of whoever runs the suite.
+    s.set_authoring_context(AuthoringContext::default());
+    let work = s.work();
+    let intelligence = work.intelligence.expect("every snapshot names it");
+    let selected = intelligence
+        .selected
+        .expect("chosen when the session opened");
+    assert_eq!(
+        (selected.kind.as_str(), selected.via.as_deref()),
+        ("api", Some("deepseek"))
+    );
+    assert_eq!(
+        selected.transport, None,
+        "only a harness seat has a transport"
+    );
+    assert!(selected.ready && selected.refusal.is_none(), "{selected:?}");
+    assert_eq!(selected.locus, s.intelligence.locus.line());
+    assert_eq!(intelligence.author.kind, "provider");
+    assert_eq!(
+        intelligence.author.model.as_deref(),
+        Some("deepseek/deepseek-chat")
+    );
+    assert_eq!(intelligence.decision, None);
+    assert_eq!(
+        intelligence.effort, None,
+        "no explicit level: each route's own"
+    );
+    assert!(
+        work.authoring.is_none(),
+        "a selection is not a call: no receipt yet"
+    );
+
+    s.set_authoring_context(
+        AuthoringContext::default().with_decision(Some(DecisionSetup::with_key(JEV, None, None))),
+    );
+    let json = serde_json::to_value(s.work()).expect("serializes");
+    assert_eq!(json["intelligence"]["decision"]["model"], JEV);
+    assert!(
+        json["intelligence"]["decision"]["refusal"].is_string(),
+        "a keyless seat says why it cannot answer: {}",
+        json["intelligence"]
+    );
+    assert_eq!(json["intelligence"]["author"]["kind"], "provider");
+}
+
+#[test]
+fn a_harness_session_names_its_seat_and_transport_as_the_session_holds_them() {
+    use crate::authoring::AuthoringSeat;
+
+    let dir = tree();
+    let s = ready_with(dir.path(), vec![]);
+    let intelligence = s.work().intelligence.expect("every snapshot names it");
+    let selected = intelligence
+        .selected
+        .expect("chosen when the session opened");
+    assert_eq!(
+        (selected.kind.as_str(), selected.via.as_deref()),
+        ("harness", Some("codex"))
+    );
+    assert_eq!(selected.transport.as_deref(), Some("native"));
+    assert_eq!(
+        selected.model, None,
+        "the harness default is never named for it"
+    );
+    // A scripted reasoner never authors: the projection says what the session holds, and why.
+    let author = intelligence.author;
+    match s.authoring_seat() {
+        AuthoringSeat::Unavailable { why } => {
+            assert_eq!(author.kind, "unavailable");
+            assert_eq!(author.why.as_deref(), Some(why.as_str()));
+        }
+        AuthoringSeat::Deterministic { why } => {
+            assert_eq!(author.kind, "deterministic");
+            assert_eq!(&author.why, why);
+        }
+        other => panic!("a scripted reasoner never authors: {other:?}"),
+    }
+    assert_eq!(
+        author.model, None,
+        "no model is invented for a seat that cannot author"
+    );
+}

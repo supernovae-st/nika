@@ -3,9 +3,10 @@
 
 //! The work a session holds, typed once for every host (ADR-133 · the portable session): what
 //! the next line answers, with the identity an answer names, and one snapshot of the request,
-//! the compiler's last word on it, the candidate under review, the saved workflow, the run
-//! requested last and the last observed run, each workflow with the reach its exact bytes
-//! declare. The session builds
+//! the compiler's last word on it (its draft and its calls' receipt included), the intelligence
+//! selected to prepare it, the candidate under review with its exact bytes, the saved workflow,
+//! the run requested last and the last observed run, each workflow with the reach its exact
+//! bytes declare. The session builds
 //! it from its own state; a terminal, the plain loop or a remote door renders it and decides
 //! nothing from it. It serializes so a remote door can carry the same facts, and it grants
 //! nothing: a consent, an answer or a run still goes through the session's own doors.
@@ -18,7 +19,9 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
-use nika_onboard::compile::{CompileDiagnostic, CompileOutcome, CompileStatus, DiagnosticKind};
+use nika_onboard::compile::{
+    AuthoringReceipt, CompileDiagnostic, CompileOutcome, CompileStatus, DiagnosticKind,
+};
 
 use crate::change::{ProjectChange, ProjectChangeSet, Witness, WorkflowAudit};
 use crate::outcome::{GateId, ProposalId, QuestionId, ReviewId};
@@ -107,6 +110,9 @@ pub struct Work {
     pub request: Request,
     /// The compiler's last word on the request, when the session holds one ([`Work::with_authoring`]).
     pub authoring: Option<Authoring>,
+    /// The intelligence the session prepares with, as selected and resolved: configured facts,
+    /// never a receipt of what a call served ([`Work::with_intelligence`]).
+    pub intelligence: Option<Intelligence>,
     /// What the next line answers.
     pub waiting: Waiting,
     /// The candidate under review, when one is.
@@ -161,10 +167,16 @@ pub struct Authoring {
     pub diagnostics: Vec<AuthoringNote>,
     /// The witness of the candidate bytes the compiler built, proposed or not.
     pub candidate: Option<Witness>,
+    /// Those bytes themselves: the draft a host shows while a question waits. Showing it
+    /// consents to nothing; only a [`Candidate`] is consentable.
+    pub draft: Option<String>,
+    /// What the compile's authoring calls reported, when it made any: the one actual-call
+    /// evidence of the snapshot, beside the [`Intelligence`] that was only selected.
+    pub calls: Option<AuthoringCalls>,
 }
 
 impl Authoring {
-    /// What a host shows of a compile outcome; the candidate's bytes stay with the session.
+    /// What a host shows of a compile outcome: its word, its draft and its calls' receipt.
     #[must_use]
     pub fn of(outcome: &CompileOutcome) -> Self {
         Self {
@@ -172,7 +184,190 @@ impl Authoring {
             questions: outcome.questions.iter().map(|q| q.key.clone()).collect(),
             diagnostics: outcome.diagnostics.iter().map(AuthoringNote::of).collect(),
             candidate: (outcome.candidate.as_deref()).map(|source| Witness::of(source.as_bytes())),
+            draft: outcome.candidate.clone(),
+            calls: (outcome.provenance.authoring.as_ref()).map(AuthoringCalls::of),
         }
+    }
+}
+
+/// What the authoring calls of one compile reported, read from its receipt and never re-derived:
+/// the model they asked for, how many were sent, the usage the provider reported (unknown stays
+/// unknown) and the backend that answered, as its transport named it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct AuthoringCalls {
+    /// The model the calls asked for; what served them is the backend's to say.
+    pub requested_model: String,
+    /// The provider calls attempted.
+    pub calls: u32,
+    /// Reported input tokens; `None` when the provider omitted usage.
+    pub input_tokens: Option<u64>,
+    /// Reported output tokens; `None` when the provider omitted usage.
+    pub output_tokens: Option<u64>,
+    /// The wall time spent awaiting the provider.
+    pub elapsed_ms: u64,
+    /// The backend that answered as its transport reported it (`direct_api`, or `acp_harness`
+    /// with the model it observed); `None` when the transport said nothing.
+    pub backend: Option<serde_json::Value>,
+}
+
+impl AuthoringCalls {
+    fn of(receipt: &AuthoringReceipt) -> Self {
+        Self {
+            requested_model: receipt.model.clone(),
+            calls: receipt.calls,
+            input_tokens: receipt.input_tokens,
+            output_tokens: receipt.output_tokens,
+            elapsed_ms: receipt.elapsed_ms,
+            backend: receipt.backend.clone(),
+        }
+    }
+}
+
+/// The intelligence a session prepares with, as the human selected it and this machine resolved
+/// it: who authors, the decision seat selected for finite choices and the reasoning effort the
+/// authoring calls ask. Configured facts only: the compiler's [`AuthoringCalls`] are the actual
+/// calls, and a selected decision seat is not one that answered.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct Intelligence {
+    /// The human's selection as resolved here; `None` before one was made.
+    pub selected: Option<Selected>,
+    /// The seat that authors under that selection.
+    pub author: Author,
+    /// The decision seat selected for finite choices, when one is.
+    pub decision: Option<DecisionSeat>,
+    /// The explicit reasoning effort every authoring call asks; `None` keeps each route's own
+    /// default.
+    pub effort: Option<String>,
+}
+
+impl Intelligence {
+    /// The intelligence from its parts.
+    #[must_use]
+    pub fn new(
+        selected: Option<Selected>,
+        author: Author,
+        decision: Option<DecisionSeat>,
+        effort: Option<String>,
+    ) -> Self {
+        Self {
+            selected,
+            author,
+            decision,
+            effort,
+        }
+    }
+}
+
+/// The human's selection, as this machine resolved it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct Selected {
+    /// `harness` (an AI app the human has) · `api` (a metered provider) · `local` · `none`.
+    pub kind: String,
+    /// The harness seat or the provider (`claude-code` · `deepseek`); `None` for `none`.
+    pub via: Option<String>,
+    /// How a harness seat is reached (`native` · `acp`); `None` for every other kind.
+    pub transport: Option<String>,
+    /// The model the selection names; `None` lets the provider choose.
+    pub model: Option<String>,
+    /// Where the context goes, in the words the human read before the first turn.
+    pub locus: String,
+    /// This machine can serve the selection now.
+    pub ready: bool,
+    /// Why it cannot, with the fix, when it cannot.
+    pub refusal: Option<String>,
+}
+
+impl Selected {
+    /// A selection of `kind` through `via`, as resolved here.
+    #[must_use]
+    pub fn new(kind: &str, via: Option<String>, transport: Option<String>) -> Self {
+        Self {
+            kind: kind.to_owned(),
+            via,
+            transport,
+            model: None,
+            locus: String::new(),
+            ready: false,
+            refusal: None,
+        }
+    }
+
+    /// The same selection with the model it names, where the context goes and whether this
+    /// machine can serve it (or why not).
+    #[must_use]
+    pub fn resolved(
+        mut self,
+        model: Option<String>,
+        locus: String,
+        refusal: Option<String>,
+        ready: bool,
+    ) -> Self {
+        self.model = model;
+        self.locus = locus;
+        self.refusal = refusal;
+        self.ready = ready;
+        self
+    }
+}
+
+/// The seat that authors: a provider model, a harness seat, the deterministic reading, or a
+/// selection this host cannot honor.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct Author {
+    /// `provider` · `harness` · `deterministic` · `unavailable`.
+    pub kind: String,
+    /// The model it authors with, when one is named (`<provider>/<name>`).
+    pub model: Option<String>,
+    /// The harness seat, for a harness (`codex` · `claude-code`).
+    pub seat: Option<String>,
+    /// How the harness seat is reached (`native` · `acp`).
+    pub transport: Option<String>,
+    /// Why no model authors here, or why the selection cannot be honored.
+    pub why: Option<String>,
+}
+
+impl Author {
+    /// An author of `kind` with the model it names and why it reads as it does.
+    #[must_use]
+    pub fn new(kind: &str, model: Option<String>, why: Option<String>) -> Self {
+        Self {
+            kind: kind.to_owned(),
+            model,
+            seat: None,
+            transport: None,
+            why,
+        }
+    }
+
+    /// The same author reached through a harness `seat` over `transport`.
+    #[must_use]
+    pub fn through(mut self, seat: String, transport: String) -> Self {
+        self.seat = Some(seat);
+        self.transport = Some(transport);
+        self
+    }
+}
+
+/// The decision seat selected for finite choices. Selected is not consulted: whether it answered
+/// is the compile's own decision record.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct DecisionSeat {
+    /// The seat's model.
+    pub model: String,
+    /// Why it cannot answer here, when it cannot.
+    pub refusal: Option<String>,
+}
+
+impl DecisionSeat {
+    /// A selected seat and its refusal, if any.
+    #[must_use]
+    pub fn new(model: String, refusal: Option<String>) -> Self {
+        Self { model, refusal }
     }
 }
 
@@ -420,6 +615,9 @@ pub struct CandidateFile {
     pub workflow: bool,
     /// The witness of the exact bytes the yes lands.
     pub bytes: Witness,
+    /// Those exact bytes, as the session holds them: what a host renders, parses or hashes
+    /// without a second read of anything.
+    pub content: String,
     /// The witness of the bytes an update replaces.
     pub replaces: Option<Witness>,
     /// The audit of a workflow's exact bytes, when the set carries one.
@@ -438,6 +636,7 @@ impl CandidateFile {
             },
             workflow: change.is_workflow(),
             bytes: Witness::of(change.content().as_bytes()),
+            content: change.content().to_owned(),
             replaces: change.witness().cloned(),
             audit,
             path,
@@ -720,6 +919,7 @@ impl Work {
             root,
             request,
             authoring: None,
+            intelligence: None,
             waiting,
             candidate,
             saved,
@@ -733,6 +933,13 @@ impl Work {
     #[must_use]
     pub fn with_authoring(mut self, authoring: Option<Authoring>) -> Self {
         self.authoring = authoring;
+        self
+    }
+
+    /// The same snapshot with the intelligence the session prepares with.
+    #[must_use]
+    pub fn with_intelligence(mut self, intelligence: Option<Intelligence>) -> Self {
+        self.intelligence = intelligence;
         self
     }
 }
