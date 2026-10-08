@@ -17,7 +17,6 @@
 use super::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileError, CompileOutcome,
     CompileRequest, DiagnosticKind, HotPolicy, NativeMode, QuestionType, Strategy,
-    compose::{self, Candidate},
     decide::{ChoiceOption, ChoiceQuestion, DecisionSeat, NONE_OPTION},
     gates::backstop,
     lexicon::{self, Reading},
@@ -28,6 +27,7 @@ use super::{
     admit_hot, intent_sha256, lexical_rest_is_explicit, plan_record, record_ledger,
     record_retrieval, record_route, replay, unresolved,
 };
+use nika_compile_seats::compose::{self, Candidate};
 use nika_compile_seats::foundry::ComponentCatalog;
 use nika_kernel::ai::provider::{InferRequest, InferResponse, Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};

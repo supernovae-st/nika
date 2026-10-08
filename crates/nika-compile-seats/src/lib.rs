@@ -7,6 +7,9 @@
 //! - [`decide`] · the bounded decision seats (the WARM strategy): one closed choice among
 //!   options Nika already found admissible, or NONE; a provider seated through a JSON-schema
 //!   enum; the answer revalidated before use and projected for provenance.
+//! - [`compose`] · the admissible options themselves: the distinct private plans the COLD
+//!   proposals give, each judged by a deterministic feasibility filter against the reading
+//!   before any seat sees them, with the dimensions the recalled candidates suggest.
 //! - [`rehearse`] · the rehearsal port: a host that runs a candidate in a safe room built from
 //!   the observed world says what the run did, and the report maps to the behavioural judge's
 //!   run.
@@ -32,6 +35,7 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+pub mod compose;
 pub mod decide;
 pub mod foundry;
 pub mod objects;

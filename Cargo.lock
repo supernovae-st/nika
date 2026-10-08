@@ -4794,6 +4794,7 @@ version = "0.122.0"
 dependencies = [
  "nika-compile",
  "nika-compile-fidelity",
+ "nika-compile-reader",
  "nika-kernel",
  "nika-pack",
  "serde",

@@ -32,7 +32,8 @@ choice and admission context remain host-owned and explicit.
 `cognition` owns the orchestration ladder; its children own proposal decoding, native
 answers/judgment/repairs, sketch filling, verified transforms and knowledge references.
 `compose`, `predicate` and `decide` moved here with their complete tests (`decide` descended
-again to `nika-compile-seats` with ADR-146); `predicate` keeps the seat's wire decoding of a typed computation, whose law descended to `nika-compile-fidelity`
+again to `nika-compile-seats` with ADR-146, `compose` and the document operations with
+ADR-147); `predicate` keeps the seat's wire decoding of a typed computation, whose law descended to `nika-compile-fidelity`
 (`predicate::typed_rule`, shared with the replay, 2026-09-28). The deterministic
 native record application and replay stay in core and are shared by accepted candidates
 and answer rounds. Candidate, fidelity and sketch laws come from `nika-compile-fidelity`

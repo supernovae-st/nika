@@ -1713,5 +1713,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-147",
+      "title": "Descend the candidate composer and the document operations to nika-compile-seats",
+      "status": "proposed",
+      "date": "2026-10-08",
+      "filename": "adr-147-nika-compile-seats-composer-and-document-operations.md",
+      "tags": ["architecture","crates","size-cap","compile"],
+      "affects_crates": ["nika-compile-cognition","nika-compile-seats"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-140","ADR-145","ADR-146"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }

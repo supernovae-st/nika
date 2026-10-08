@@ -16,8 +16,8 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 use nika_compile_reader::{
-    cardinality, columns, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules, shape,
-    structure, text, unknowns,
+    columns, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules, shape, structure, text,
+    unknowns,
 };
 
 // The proposal merge's word tables, at the path the merge has always read them (ADR-145).
@@ -54,9 +54,7 @@ mod support {
 }
 /// The core's retrieval index.
 mod retrieve {
-    #[cfg(test)]
-    pub(crate) use nika_compile::HitKind;
-    pub(crate) use nika_compile::{Hit, retrieve};
+    pub(crate) use nika_compile::retrieve;
 }
 /// The core's request input shape.
 mod types {
@@ -70,7 +68,6 @@ mod laws {
 
 pub mod authority;
 mod cognition;
-mod compose;
 /// The bounded decision seats ([`decide`]) and the rehearsal port ([`rehearse`]), the two
 /// capabilities a host lends a preparation, are owned by the size-cap member below the seats'
 /// doors since 2026-10-07 (ADR-146): `nika_compile_seats::{decide, rehearse}`. These paths are

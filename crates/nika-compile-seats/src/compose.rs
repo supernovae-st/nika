@@ -15,6 +15,9 @@
 //! (`expressible: false`) and yield no variant: a variant nobody can assemble is not
 //! composed, and a source nothing produces is not declared.
 //!
+//! The candidates are the options a decision seat may be asked to choose among (the WARM
+//! strategy): the composer runs before any seat and grants it nothing.
+//!
 //! Feasibility is a hard filter against the deterministic reading (the floor) and the
 //! request text. Every failure is a recorded reason; an infeasible candidate stays in
 //! provenance and is never offered to a seat. Nothing here calls a provider, writes
@@ -22,10 +25,10 @@
 
 use std::cmp::Reverse;
 
-use super::cardinality;
-use super::lexicon::Reading;
-use super::plan::{Binding, EffectPolicy, EffectVerb, Op, Plan, Step};
-use super::retrieve::Hit;
+use nika_compile::Hit;
+use nika_compile_reader::cardinality;
+use nika_compile_reader::lexicon::Reading;
+use nika_compile_reader::plan::{Binding, EffectPolicy, EffectVerb, Op, Plan, Step};
 use serde_json::{Value, json};
 
 /// Topologies the assembler expresses from a private plan today: one linear chain per
@@ -76,15 +79,19 @@ const DIMENSIONS: &[DimensionSpec] = &[
 /// Where one candidate came from. Pattern variants and ambiguity readings would be
 /// further sources; neither exists today (see the module doc), so neither is declared.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum CandidateSource {
+#[non_exhaustive]
+pub enum CandidateSource {
     /// The admissible plan first proposed by this COLD sample.
     ColdSample(usize),
 }
 
 /// One composed candidate.
 #[derive(Clone, Debug)]
-pub(super) struct Candidate {
+#[non_exhaustive]
+pub struct Candidate {
+    /// The private plan.
     pub plan: Plan,
+    /// Where it came from.
     pub source: CandidateSource,
     /// Sorted operation words, `effect:verb:policy` words and obligation words.
     pub signature: Vec<String>,
@@ -93,18 +100,21 @@ pub(super) struct Candidate {
 }
 
 impl Candidate {
-    pub(super) fn feasible(&self) -> bool {
+    #[must_use]
+    pub fn feasible(&self) -> bool {
         self.feasibility.is_ok()
     }
     /// The COLD sample this candidate came from.
-    pub(super) fn sample(&self) -> usize {
+    #[must_use]
+    pub fn sample(&self) -> usize {
         match self.source {
             CandidateSource::ColdSample(index) => index,
         }
     }
     /// The provenance projection: private, observational, never authority. The plan is
     /// recorded so an oracle can judge every candidate, not only the selected one.
-    pub(super) fn to_json(&self, index: usize) -> Value {
+    #[must_use]
+    pub fn to_json(&self, index: usize) -> Value {
         json!({
             "index": index,
             "source": match self.source {
@@ -120,7 +130,9 @@ impl Candidate {
 
 /// A topology dimension the recalled candidates suggest.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Dimension {
+#[non_exhaustive]
+pub struct Dimension {
+    /// The dimension's name (`fan_out`, `fan_in`).
     pub name: &'static str,
     /// Recalled candidates whose pattern words name it.
     pub hits: Vec<String>,
@@ -131,7 +143,8 @@ pub(super) struct Dimension {
 }
 
 impl Dimension {
-    pub(super) fn to_json(&self) -> Value {
+    #[must_use]
+    pub fn to_json(&self) -> Value {
         json!({
             "dimension": self.name,
             "hits": self.hits,
@@ -142,8 +155,11 @@ impl Dimension {
 }
 
 /// What [`compose`] produced: the candidates and the dimension record.
-pub(super) struct Composition {
+#[non_exhaustive]
+pub struct Composition {
+    /// The distinct candidates, in first-seen order.
     pub candidates: Vec<Candidate>,
+    /// The dimensions the recalled candidates suggest.
     pub dimensions: Vec<Dimension>,
 }
 
@@ -151,7 +167,8 @@ pub(super) struct Composition {
 /// sample order), the deterministic reading (the floor) and the recalled candidates.
 /// Two samples with the same signature and the same feasibility verdict are one
 /// candidate; a feasible twin of an infeasible signature stays visible.
-pub(super) fn compose(
+#[must_use]
+pub fn compose(
     samples: &[(usize, Plan)],
     reading: &Reading,
     hits: &[Hit],
@@ -293,7 +310,10 @@ fn shares_literal(a: &str, b: &str) -> bool {
 ///     sent, a report published, a note created…) has a draft, extract or compute step, or
 ///     a source step under a copy cue;
 /// 11. recheckable revision — a revision check has a lookup to reread.
-pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Result<(), Vec<String>> {
+///
+/// # Errors
+/// Every reason a hard filter refuses, in filter order.
+pub fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Result<(), Vec<String>> {
     let mut why: Vec<String> = Vec::new();
     if !candidate.anchored(intent) {
         why.push(
@@ -330,7 +350,7 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
     let carried_by_an_operation = candidate
         .constraints
         .iter()
-        .filter(|c| !super::structure::binds_no_operation(c))
+        .filter(|c| !nika_compile_reader::structure::binds_no_operation(c))
         .filter(|c| !restated(candidate, floor, c))
         .filter(|c| !carried_by_an_obligation(candidate, c))
         .count();
@@ -343,7 +363,7 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
     // effect's family (a file word or a path for a write, an outbound word or an endpoint
     // for a send, a money word for a refund) was read into the request, never out of it;
     // a prohibition is anchored by the ban it states.
-    let columns = super::columns::columns_hint(intent);
+    let columns = nika_compile_reader::columns::columns_hint(intent);
     for effect in &candidate.effects {
         if effect.policy == EffectPolicy::Forbidden {
             continue;
@@ -352,11 +372,12 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
         // Only an excerpt the lexicon can read is judged: one whose effect words all belong
         // to another family, or whose only effect word is a listed column (`name, email e
         // city`). An excerpt in a language the lexicon does not read carries no verdict.
-        let read = super::lexicon::effect_words(&lower, &[]);
-        let words = super::lexicon::effect_words(&lower, &columns);
+        let read = nika_compile_reader::lexicon::effect_words(&lower, &[]);
+        let words = nika_compile_reader::lexicon::effect_words(&lower, &columns);
         let asked = read.is_empty()
             || words.iter().any(|w| family(*w) == family(effect.verb))
-            || (effect.verb == EffectVerb::Write && super::objects::has_literal(&effect.evidence))
+            || (effect.verb == EffectVerb::Write
+                && nika_compile_reader::objects::has_literal(&effect.evidence))
             || (family(effect.verb) == Family::Outbound
                 && (lower.contains("http://")
                     || lower.contains("https://")
@@ -393,9 +414,9 @@ pub(super) fn feasibility(candidate: &Plan, floor: &Plan, intent: &str) -> Resul
     // Rule 10: an effect that names content needs a step that produces it (the HOT law,
     // applied to every candidate: a proposal that kept the write, the send or the notify
     // and dropped the draft is not feasible).
-    super::hot::unproduced_content(candidate, &mut why);
+    nika_compile_reader::hot::unproduced_content(candidate, &mut why);
     // Rule 11: a revision check needs a lookup to reread.
-    super::hot::unrecheckable_revision(candidate, &mut why);
+    nika_compile_reader::hot::unrecheckable_revision(candidate, &mut why);
     why.dedup();
     if why.is_empty() { Ok(()) } else { Err(why) }
 }
@@ -439,17 +460,17 @@ fn written_computation(candidate: &Plan, step: &Step, intent: &str) -> bool {
     }
     let lower = intent.to_lowercase();
     let clause = step.evidence.trim().to_lowercase();
-    super::lexicon::split_sentences(&lower)
+    nika_compile_reader::lexicon::split_sentences(&lower)
         .into_iter()
         .filter(|sentence| sentence.contains(&clause))
         .any(|sentence| {
             candidate.effects.iter().any(|e| {
                 e.verb == EffectVerb::Write
-                    && super::paths::literals(&e.target)
+                    && nika_compile_reader::paths::literals(&e.target)
                         .into_iter()
-                        .chain(super::paths::literals(&e.evidence))
+                        .chain(nika_compile_reader::paths::literals(&e.evidence))
                         .any(|shape| match shape {
-                            super::paths::PathShape::File(path) => {
+                            nika_compile_reader::paths::PathShape::File(path) => {
                                 sentence.contains(&path.to_lowercase())
                             }
                             _ => false,
@@ -475,7 +496,7 @@ fn same_family(a: Op, b: Op) -> bool {
 /// carried by that obligation's machinery — the admit task, the retry, the recheck — never
 /// by a prompt.
 fn carried_by_an_obligation(candidate: &Plan, constraint: &str) -> bool {
-    let folded = super::shape::fold(constraint);
+    let folded = nika_compile_reader::shape::fold(constraint);
     candidate.obligations.iter().any(|o| {
         let cues: &[&str] = match o.kind.word() {
             "dedup" => &[
@@ -705,17 +726,18 @@ fn number_word_covers(intent: &str, number: &str) -> bool {
     if n < 2 {
         return false;
     }
-    super::shape::fold(intent)
+    nika_compile_reader::shape::fold(intent)
         .split(|c: char| !c.is_alphanumeric())
         .any(|w| {
-            super::cardinality::NUMBER_WORDS
+            nika_compile_reader::cardinality::NUMBER_WORDS
                 .iter()
                 .any(|(word, value)| *value == n && *word == w)
         })
 }
 
 /// A plan's structural signature: operation words, effect verb:policy words, obligation words.
-pub(super) fn signature(plan: &Plan) -> Vec<String> {
+#[must_use]
+pub fn signature(plan: &Plan) -> Vec<String> {
     let mut items: Vec<String> = plan
         .steps
         .iter()
@@ -748,7 +770,8 @@ fn similarity(a: &[String], b: &[String]) -> isize {
 }
 
 /// Where distinct signatures differ: operations, effects, obligations.
-pub(super) fn classify_disagreement(distinct: &[Vec<String>]) -> Vec<String> {
+#[must_use]
+pub fn classify_disagreement(distinct: &[Vec<String>]) -> Vec<String> {
     let mut kinds = Vec::new();
     for prefix in ["op:", "effect:", "obligation:"] {
         let sets: Vec<Vec<&String>> = distinct
@@ -766,7 +789,8 @@ pub(super) fn classify_disagreement(distinct: &[Vec<String>]) -> Vec<String> {
 /// the candidate closest to every accepted sample under the symmetric-difference
 /// similarity (a medoid weighted by sample support, a candidate's own sample excluded);
 /// a tie keeps the earliest candidate. Returns an index into `candidates`.
-pub(super) fn rank(
+#[must_use]
+pub fn rank(
     candidates: &[Candidate],
     feasible: &[usize],
     samples: &[(usize, Plan)],
@@ -793,7 +817,8 @@ pub(super) fn rank(
 
 /// The seat's description of one feasible candidate: its signature and what differs
 /// from the other feasible candidates.
-pub(super) fn describe(candidates: &[Candidate], feasible: &[usize], k: usize) -> String {
+#[must_use]
+pub fn describe(candidates: &[Candidate], feasible: &[usize], k: usize) -> String {
     let Some(candidate) = candidates.get(k) else {
         return String::new();
     };
@@ -844,9 +869,11 @@ pub(super) fn describe(candidates: &[Candidate], feasible: &[usize], k: usize) -
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)]
-    use super::super::plan::{Binding, Effect, EffectVerb, Obligation, ObligationKind, Op, Step};
-    use super::super::retrieve::HitKind;
     use super::*;
+    use nika_compile::HitKind;
+    use nika_compile_reader::plan::{
+        Binding, Effect, EffectVerb, Obligation, ObligationKind, Op, Step,
+    };
 
     const INTENT: &str = "Fetch https://example.com/pricing, classify the page, then draft a note. Ask me before any refund of 100 EUR; never retry more than 3 times.";
 

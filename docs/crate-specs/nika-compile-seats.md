@@ -44,6 +44,11 @@ as an external consumer.
   state once, an answer schema keyed by item id; `decoded_each`: each item's key bound by its
   id, an item left without one of its keys failing alone, a failed request failing every item,
   the request's usage and reasoning riding the first item's answer only).
+- `compose` — the candidate composer (ADR-147): the distinct admissible
+  COLD plans in first-seen order, each judged by the deterministic `feasibility` filter against
+  the reading's floor and the request before any seat sees it, the topology dimensions recalled
+  candidates suggest (`Dimension`), the structural `signature`, the seatless `rank`, `describe`
+  and `classify_disagreement`; nothing calls a provider or grants authority.
 - `rehearse` — the port a host answers (`Rehearse`, `RehearsalFuture`), the report
   (`RehearsalReport`, `Rehearsal`, `Attempt`, `RoomEvidence`, `EffectCounts`, `RehearsedOutput`),
   the host's observation of the copied world (`observed`: copies, final states, the ledger, the
