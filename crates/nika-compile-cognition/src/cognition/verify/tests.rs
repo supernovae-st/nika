@@ -861,3 +861,82 @@ fn an_unparsed_or_absent_candidate_selects_no_contract() {
     assert!(none.text.contains("# Output conventions"));
     assert!(!none.text.contains("does not parse"));
 }
+
+/// Counts the seat's questions asked alone and in a batch, answering `carried` to all.
+#[derive(Default)]
+struct Counting {
+    alone: AtomicUsize,
+    batched: AtomicUsize,
+}
+
+impl crate::decide::DecisionSeat for Counting {
+    fn name(&self) -> &'static str {
+        "double/counting"
+    }
+    fn choose<'a>(
+        &'a self,
+        _question: &'a crate::decide::ChoiceQuestion,
+    ) -> crate::decide::ChoiceFuture<'a> {
+        Box::pin(async move {
+            self.alone.fetch_add(1, Ordering::SeqCst);
+            Ok(crate::decide::ChoiceAnswer::new("carried", "double-1.0"))
+        })
+    }
+    fn choose_each<'a>(
+        &'a self,
+        batch: &'a crate::decide::ChoiceBatch,
+    ) -> crate::decide::BatchFuture<'a> {
+        Box::pin(async move {
+            self.batched.fetch_add(batch.items.len(), Ordering::SeqCst);
+            (batch.items.iter())
+                .map(|_| Ok(crate::decide::ChoiceAnswer::new("carried", "double-1.0")))
+                .collect()
+        })
+    }
+}
+
+/// A prefetched answer used to be taken by any later question with the same id, so a question
+/// revised over other bytes (same id, other state) read an answer given to its earlier form.
+/// It is now bound to the whole question it was asked for: the revised one is asked anew and
+/// the original still takes its own prefetched answer.
+#[tokio::test]
+async fn a_prefetched_answer_serves_only_the_very_question_it_was_asked_for() {
+    use crate::decide::{ChoiceOption, ChoiceQuestion};
+    let seat = Counting::default();
+    let judge = super::Judge::<crate::cognition::NoProvider>::Seat(&seat);
+    let question = |candidate: &str| {
+        ChoiceQuestion::new(
+            "verify-part-0",
+            "Does the candidate carry this part?",
+            json!({"candidate": candidate}),
+            vec![
+                ChoiceOption::new("carried", "the candidate carries it"),
+                ChoiceOption::new("missing", "no task performs it"),
+            ],
+        )
+    };
+    let (first, second) = (question("bytes v1"), question("bytes v1, second part"));
+    let mut verdict = super::Verdict::default();
+    super::prefetch(
+        &judge,
+        "verify-parts",
+        &[first.clone(), second],
+        &mut verdict,
+    )
+    .await;
+    assert_eq!(seat.batched.load(Ordering::SeqCst), 2, "one batch of two");
+    let mut out = crate::initial();
+    let revised = question("bytes v2");
+    let _ = super::ask(&judge, &revised, "judge_part", &mut verdict, &mut out).await;
+    assert_eq!(
+        seat.alone.load(Ordering::SeqCst),
+        1,
+        "the revised question is asked, never served the earlier answer"
+    );
+    let _ = super::ask(&judge, &first, "judge_part", &mut verdict, &mut out).await;
+    assert_eq!(
+        seat.alone.load(Ordering::SeqCst),
+        1,
+        "the question asked in the batch takes its own answer"
+    );
+}

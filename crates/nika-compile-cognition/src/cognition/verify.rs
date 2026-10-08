@@ -137,9 +137,10 @@ pub(super) struct Verdict {
     pub(super) earlier: Vec<Value>,
     /// The answers read back from `earlier`.
     pub(super) read_back: u32,
-    /// What a decision seat answered the questions of one step asked together (A1), by
-    /// question id: each taken in its turn as the verdict asks that question.
-    pub(super) prefetched: Vec<(String, Result<ChoiceAnswer, DecisionError>)>,
+    /// What a decision seat answered the questions of one step asked together (A1), each with
+    /// the whole question it answered (id, instructions, state, options): taken only by that
+    /// very question in its turn, never by another one that reuses its id.
+    pub(super) prefetched: Vec<(ChoiceQuestion, Result<ChoiceAnswer, DecisionError>)>,
 }
 
 /// What the judge's admitted answers did to a candidate's bytes, by strength.
@@ -371,7 +372,7 @@ async fn ask<P: ProviderInferDyn>(
     verdict.attempted += 1;
     let (returned, answer) = match judge {
         Judge::Seat(seat) => {
-            let at = (verdict.prefetched.iter()).position(|(id, _)| *id == question.id);
+            let at = (verdict.prefetched.iter()).position(|(asked, _)| asked == question);
             let answer = match at {
                 Some(at) => verdict.prefetched.remove(at).1,
                 None => seat.choose(question).await,
@@ -437,18 +438,17 @@ async fn prefetch<P: ProviderInferDyn>(
         let answers = seat
             .choose_each(&decide::ChoiceBatch::of(step, &open))
             .await;
-        let ids = open.into_iter().map(|question| question.id);
-        verdict.prefetched.extend(ids.zip(answers));
+        verdict.prefetched.extend(open.into_iter().zip(answers));
     }
 }
 
 /// The answers a seat gave questions the verdict never reached (it stopped first): sent, so each
 /// is recorded and counted, never read.
 fn unread(verdict: &mut Verdict) {
-    for (id, answer) in std::mem::take(&mut verdict.prefetched) {
+    for (question, answer) in std::mem::take(&mut verdict.prefetched) {
         verdict.attempted += 1;
         verdict.returned += u32::from(answer.is_ok());
-        let record = json!({"question": id, "role": "unread", "answered": answer.is_ok()});
+        let record = json!({"question": question.id, "role": "unread", "answered": answer.is_ok()});
         verdict.records.push(record);
     }
 }
