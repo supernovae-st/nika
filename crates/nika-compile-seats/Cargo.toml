@@ -24,6 +24,7 @@ publish                = false  # member of the nika-onboard unit — never on c
 nika-compile          = { path = "../nika-compile", version = "0.122.0" }          # AuthoringReasoning — the reasoning level a decision call is asked for (ONE unit, several members · ADR-146)
 nika-compile-reader   = { path = "../nika-compile-reader", version = "0.122.0" }   # plan · lexicon::Reading — what the candidate composer judges a COLD plan against (lateral seats → reader, never back)
 nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.122.0" } # behavior — the behavioural judge's run a rehearsal report is mapped to
+nika-schema           = { path = "../nika-schema", version = "0.122.0" }           # document — the editor a document revision's edits go through, re-read and byte-proven
 nika-kernel           = { path = "../nika-kernel", version = "0.122.0" }           # the provider seam a decision seat asks through, never a vendor
 nika-pack             = { path = "../nika-pack", version = "0.122.0" }             # the skeletons and the stdlib page the shelf cuts a seat's references from
 serde      = { workspace = true } # IgnoredAny · DeserializeOwned: a seat's answer shapes; a remote door's repeated-key law

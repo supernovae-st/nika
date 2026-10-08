@@ -343,3 +343,90 @@ fn the_seat_reads_every_literal_node_and_the_lent_components() {
     );
     assert_eq!(components(None), json!([]));
 }
+
+/// A stock report whose filter is a multi-line jq expression in a `|` block scalar, the usual
+/// form of a long expression (the live threshold correction stopped here).
+const BLOCK: &str = r#"nika: stock-alerts
+# Items under their threshold are reported.
+permits:
+  fs: { read: ["./stock.json"], write: ["./out/alerts.json"] }
+  tools: ["nika:read", "nika:jq", "nika:write"]
+tasks:
+  read_stock:
+    invoke: { tool: "nika:read", args: { path: "./stock.json" } }
+  evaluate:
+    with: { rows: "${{ tasks.read_stock.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: "${{ with.rows }}"
+        expression: |
+          fromjson
+          | map(select(.stock < .threshold))
+  write_alerts:
+    with: { alerts: "${{ tasks.evaluate.output }}" }
+    invoke: { tool: "nika:write", args: { path: "./out/alerts.json", content: "${{ with.alerts }}" } }
+"#;
+
+#[test]
+fn a_block_scalar_expression_is_set_in_place_and_proven() {
+    nika_compile::parse(BLOCK).expect("the base parses");
+    let set = json!({"op": "set", "path": "/tasks/evaluate/invoke/args/expression",
+        "value_json": "\"fromjson\\n| map(select(.stock <= .threshold))\\n\"",
+        "component": "", "version": "", "bindings_json": "", "key": "", "text": "", "to": ""});
+    let applied = apply(BLOCK, (&[set], None), None, &[]).expect("the editor sets it");
+    assert_eq!(
+        changed_lines(BLOCK, &applied.source),
+        [(
+            "          | map(select(.stock < .threshold))".to_owned(),
+            "          | map(select(.stock <= .threshold))".to_owned()
+        )],
+        "only the filter line changes, the block scalar kept"
+    );
+    assert_eq!(applied.changed, ["tasks.evaluate.invoke.args.expression"]);
+    assert_eq!((applied.verified, applied.constructed), (1, 0));
+    let revised = record((BLOCK, &applied.source), "the request", "intent", &applied);
+    assert!(
+        (revised["document_revision"]["preservation"].as_str())
+            .is_some_and(|claim| claim.starts_with("verified")),
+        "{revised}"
+    );
+}
+
+#[test]
+fn a_typed_constant_named_whole_is_set_at_its_value() {
+    let base = "nika: window\nconst:\n  max_age_hours: { type: integer, value: 48 } # hours\ntasks:\n  t:\n    exec:\n      command: [\"echo\", \"${{ const.max_age_hours }}\"]\n";
+    let set = json!({"op": "set", "path": "/const/max_age_hours", "value": 72});
+    let applied = apply(base, (&[set], None), None, &[]).expect("set at its value");
+    assert_eq!(
+        applied.source,
+        base.replace("value: 48 }", "value: 72 }"),
+        "the type and the comment stay"
+    );
+    assert_eq!(applied.changed, ["const.max_age_hours.value"]);
+}
+
+#[test]
+fn a_task_renamed_takes_its_references_and_nothing_else() {
+    let base = "nika: chain\ntasks:\n  first:\n    invoke: { tool: \"nika:log\", args: { message: \"first of all\" } }\n  second:\n    with: { prior: \"${{ tasks.first.output }}\" }\n    invoke: { tool: \"nika:log\", args: { message: \"${{ with.prior }}\" } }\n";
+    let rename = json!({"op": "rename", "path": "tasks.first", "to": "opening"});
+    let applied = apply(base, (&[rename], None), None, &[]).expect("renamed");
+    assert!(
+        applied.source.contains("  opening:\n"),
+        "{}",
+        applied.source
+    );
+    assert!(applied.source.contains("${{ tasks.opening.output }}"));
+    assert!(
+        applied.source.contains("message: \"first of all\""),
+        "text that only spells the name is kept"
+    );
+    assert_eq!(applied.verified, 1);
+}
+
+#[test]
+fn a_field_of_another_operation_is_refused_never_dropped() {
+    let set = json!({"op": "set", "path": "/tasks/first", "value": 1, "to": "x"});
+    let why = apply("nika: x\ntasks: {}\n", (&[set], None), None, &[]).expect_err("refused");
+    assert!(why[0].contains("carries no `to`"), "{why:?}");
+}

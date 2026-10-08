@@ -40,8 +40,9 @@ the visibilities the move changes:
 
 - `foundry::document` · the operations a revision states over a complete base no semantic record
   binds (`set` a literal, `compose` or `rebind` an admitted component, a whole `replace` that
-  claims no preservation), their record and their answer schema. They use only `foundry` itself
-  and `nika-compile`; the revision door and the forensic summary read `apply`, `nodes`,
+  claims no preservation), their record and their answer schema. They use `foundry` itself,
+  `nika-compile` and, for every document edit, the `nika-schema` document editor (re-read and
+  byte-proven); the revision door and the forensic summary read `apply`, `nodes`,
   `components`, `carried`, `record`, `answer_schema`, `ROUTE` and `OPERATIONS`.
 - `compose` · the candidate composer: the admissible options a WARM decision seat is offered, the
   distinct COLD plans judged by the deterministic feasibility filter before any seat sees them.

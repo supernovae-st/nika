@@ -1198,9 +1198,11 @@ pub fn nika_compile_seats::foundry::component::pinned(reference: &nika_compile_s
 pub mod nika_compile_seats::foundry::document
 #[non_exhaustive] pub struct nika_compile_seats::foundry::document::Applied
 pub nika_compile_seats::foundry::document::Applied::changed: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_seats::foundry::document::Applied::constructed: usize
 pub nika_compile_seats::foundry::document::Applied::receipts: alloc::vec::Vec<serde_json::value::Value>
 pub nika_compile_seats::foundry::document::Applied::replaced: bool
 pub nika_compile_seats::foundry::document::Applied::source: alloc::string::String
+pub nika_compile_seats::foundry::document::Applied::verified: usize
 impl core::fmt::Debug for nika_compile_seats::foundry::document::Applied
 pub fn nika_compile_seats::foundry::document::Applied::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::document::Applied

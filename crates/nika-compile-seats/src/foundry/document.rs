@@ -6,8 +6,12 @@
 //! the destination links of the source-anchored revision, the seat may state operations over
 //! the base's own nodes, in order:
 //!
-//! - `set` a literal at a path (`/const/window_hours` or `const.window_hours`), the bounded edit
-//!   the parser's literal projection proves, every other byte kept;
+//! - a document edit (`set` a value, `insert` a key or `insert_text` its exact YAML, `push` an
+//!   item, `remove` a node, `rename` an entry with every reference its owners hold) at a path
+//!   (`/const/window_hours` or `const.window_hours`), made by the document editor
+//!   ([`nika_schema::document`]), which re-reads the result with the strict parser and replays
+//!   every byte outside the edit's span as the base's; a typed constant named whole is set at
+//!   its `value`;
 //! - `compose` an admitted component of the catalogue the host lent, by its reference and the
 //!   literals bound at its holes: resolved by id and version or release digest, bound, expanded
 //!   into the document and checked as a whole, its receipt kept;
@@ -24,7 +28,8 @@
 //! This module applies the operations and states their record; the revision door of
 //! `nika-compile-cognition` asks the seat for them, finishes the result and has it judged.
 
-use super::{Binding, ComponentCatalog, ComponentRef, edit_literal, expand, instantiate, revise};
+use super::{Binding, ComponentCatalog, ComponentRef, expand, instantiate, revise};
+use nika_schema::document::{Document, Edit, Path};
 use serde_json::{Value, json};
 
 /// The route a document revision records.
@@ -32,7 +37,7 @@ pub const ROUTE: &str = "edit: document revision over the complete base";
 
 /// What the seat is told it may state beside destination links: operations over the complete
 /// base document, or its whole revised source.
-pub const OPERATIONS: &str = "Any change the destination links cannot state is stated as `operations` over the complete base document (`base_document` lists every literal node with its path, `base_source` is the exact text), applied in order: {\"op\": \"set\", \"path\": \"/const/name\", \"value\": <JSON literal>} replaces the literal at that path (a typed constant's value, an input's default, a task argument, a retry count, a threshold); {\"op\": \"compose\", \"component\": {\"id\": \"block:<name>\", \"version\": \"<release version>\"}, \"bindings\": {\"<hole path>\": <JSON literal>}} adds an admitted component of `components` with every hole bound; {\"op\": \"rebind\", \"component\": {\"id\": \"block:<name>\"}, \"bindings\": {\"<hole path>\": <JSON literal>}} changes the values bound in a component an earlier revision composed (`composed`). Every other byte of the base is kept. Only when no operation can state the change, give the whole revised source in `replace` instead: it is checked like any workflow and nothing of the base is promised to survive. State only what the request and the change ask; never invent a value they leave open.";
+pub const OPERATIONS: &str = "Any change the destination links cannot state is stated as `operations` over the complete base document (`base_document` lists every literal node with its path, `base_source` is the exact text), applied in order: {\"op\": \"set\", \"path\": \"/tasks/<task>/invoke/args/<arg>\", \"value\": <JSON value>} replaces the value at that path (a typed constant is set at its `value`; a multi-line text is one JSON string); {\"op\": \"insert\", \"path\": <mapping>, \"key\": \"<new key>\", \"value\": <JSON value>} adds a key; {\"op\": \"insert_text\", \"path\": <mapping>, \"key\": \"<new key>\", \"text\": \"<its YAML>\"} adds a key whose value is that exact YAML (a new task); {\"op\": \"push\", \"path\": <sequence>, \"value\": <JSON value>} appends an item; {\"op\": \"remove\", \"path\": <entry or item>} removes it; {\"op\": \"rename\", \"path\": <entry>, \"to\": \"<new name>\"} renames a task, input, constant, secret or binding and every reference to it; {\"op\": \"compose\", \"component\": {\"id\": \"block:<name>\", \"version\": \"<release version>\"}, \"bindings\": {\"<hole path>\": <JSON literal>}} adds an admitted component of `components` with every hole bound; {\"op\": \"rebind\", \"component\": {\"id\": \"block:<name>\"}, \"bindings\": {\"<hole path>\": <JSON literal>}} changes the values bound in a component an earlier revision composed (`composed`). In the text form a value travels as its JSON text in `value_json` or `bindings_json`. Every other byte of the base is kept. Only when no operation can state the change, give the whole revised source in `replace` instead: it is checked like any workflow and nothing of the base is promised to survive. State only what the request and the change ask; never invent a value they leave open.";
 
 /// What the operations made of the base: the revised source, what changed, the receipts of the
 /// components the revised source holds (new, rebound or carried), and whether the whole source
@@ -48,6 +53,11 @@ pub struct Applied {
     pub receipts: Vec<Value>,
     /// The whole source was replaced: no preservation is claimed.
     pub replaced: bool,
+    /// How many document edits the editor proved (re-read, and every byte outside the edit's
+    /// span replayed as the base's).
+    pub verified: usize,
+    /// How many component operations were made by construction (entries inserted or rebound).
+    pub constructed: usize,
 }
 
 /// The JSON schema of what a seat states over the document: the `operations` (every field a
@@ -60,8 +70,9 @@ pub fn answer_schema() -> (Value, Value) {
     "type": "object", "additionalProperties": false,
     "required": ["op"],
     "properties": {
-        "op": {"type": "string", "enum": ["set", "compose", "rebind"]},
-        "path": text(), "value_json": text(),
+        "op": {"type": "string", "enum": [
+            "set", "insert", "insert_text", "push", "remove", "rename", "compose", "rebind"]},
+        "path": text(), "value_json": text(), "key": text(), "text": text(), "to": text(),
         "component": text(), "version": text(), "bindings_json": text(),
     }}});
     (operations, text())
@@ -95,6 +106,8 @@ pub fn apply(
             changed: vec!["the whole source (replaced)".to_owned()],
             receipts: carried.to_vec(),
             replaced: true,
+            verified: 0,
+            constructed: 0,
         });
     }
     if operations.is_empty() {
@@ -105,6 +118,8 @@ pub fn apply(
         changed: Vec::new(),
         receipts: carried.to_vec(),
         replaced: false,
+        verified: 0,
+        constructed: 0,
     };
     let mut why = Vec::new();
     for (at, operation) in operations.iter().enumerate() {
@@ -127,9 +142,9 @@ fn one(
 ) -> Result<(), String> {
     let operation = canonical(operation)?;
     match operation["op"].as_str() {
-        Some("set") => set(applied, &operation),
         Some("compose") => compose(applied, &operation, catalog),
-        _ => rebind(applied, &operation, catalog),
+        Some("rebind") => rebind(applied, &operation, catalog),
+        _ => edit(applied, &operation),
     }
 }
 
@@ -142,15 +157,28 @@ const FIELDS: &[&str] = &[
     "path",
     "value",
     "value_json",
+    "key",
+    "text",
+    "to",
     "component",
     "version",
     "bindings",
     "bindings_json",
 ];
 
-/// An operation in its one canonical form, `{op, path, value}` or `{op, component: {id,
-/// version?}, bindings}`, from either form; an unknown field or a value that is not JSON is
-/// refused, never guessed.
+/// The fields each document edit carries beside `op` and `path`, as the editor reads them.
+const EDITS: &[(&str, &[&str])] = &[
+    ("set", &["value"]),
+    ("insert", &["key", "value"]),
+    ("insert_text", &["key", "text"]),
+    ("push", &["value"]),
+    ("remove", &[]),
+    ("rename", &["to"]),
+];
+
+/// An operation in its one canonical form, the editor's `{op, path, ...}` with the path a
+/// pointer, or `{op, component: {id, version?}, bindings}`, from either form; an unknown field, a
+/// field of another operation or a value that is not JSON is refused, never guessed.
 fn canonical(operation: &Value) -> Result<Value, String> {
     let object = operation.as_object().ok_or("an operation is an object")?;
     if let Some(key) = object.keys().find(|key| !FIELDS.contains(&key.as_str())) {
@@ -173,11 +201,28 @@ fn canonical(operation: &Value) -> Result<Value, String> {
         }
     };
     let op = present("op").and_then(Value::as_str).unwrap_or_default();
-    match op {
-        "set" => {
-            let value = either("value", "value_json")?.ok_or("`set` states no value")?;
-            Ok(json!({"op": "set", "path": present("path"), "value": value}))
+    if let Some((_, fields)) = EDITS.iter().find(|(name, _)| *name == op) {
+        let carried = |key: &str| {
+            key == "op"
+                || key == "path"
+                || fields.contains(&key)
+                || (key == "value_json" && fields.contains(&"value"))
+        };
+        if let Some(extra) = (object.keys()).find(|key| present(key).is_some() && !carried(key)) {
+            return Err(format!("a `{op}` operation carries no `{extra}`"));
         }
+        let path = pointer(present("path").and_then(Value::as_str).unwrap_or_default())?;
+        let mut edit = json!({"op": op, "path": path});
+        for field in *fields {
+            let value = match *field {
+                "value" => either("value", "value_json")?,
+                _ => present(field).cloned(),
+            };
+            edit[*field] = value.ok_or_else(|| format!("`{op}` states no `{field}`"))?;
+        }
+        return Ok(edit);
+    }
+    match op {
         "compose" | "rebind" => {
             let component = match present("component") {
                 Some(Value::String(id)) => {
@@ -194,20 +239,35 @@ fn canonical(operation: &Value) -> Result<Value, String> {
             Ok(json!({"op": op, "component": component, "bindings": bindings}))
         }
         _ => Err(format!(
-            "`{op}` is not an operation (set · compose · rebind)"
+            "`{op}` is not an operation (set · insert · insert_text · push · remove · rename · \
+             compose · rebind)"
         )),
     }
 }
 
-/// The literal at a path replaced by the bounded edit the parser proves.
-fn set(applied: &mut Applied, operation: &Value) -> Result<(), String> {
-    let path = dotted(operation["path"].as_str().unwrap_or_default())?;
-    let value = operation
-        .get("value")
-        .ok_or_else(|| format!("`set {path}` states no `value`"))?;
-    applied.source = edit_literal(&applied.source, &path, value)
-        .map_err(|refusal| format!("`set {path}`: {refusal}"))?;
-    applied.changed.push(path);
+/// One document edit, made by the editor: re-read by the strict parser and every byte outside
+/// its span replayed as the base's, or refused with the source kept. A typed constant named
+/// whole (`/const/<name>`) is set at its `value`, never replaced by a bare literal.
+fn edit(applied: &mut Applied, operation: &Value) -> Result<(), String> {
+    let document = Document::parse(applied.source.clone())
+        .map_err(|refusal| format!("the document cannot be edited: {refusal}"))?;
+    let mut edit = Edit::from_json(operation)?;
+    if edit.op() == "set"
+        && let [scope, name] = edit.path().segments()
+        && scope == "const"
+        && let Some(at) = document.constant_path(name).filter(|at| at != edit.path())
+    {
+        edit = Edit::set(at, edit.to_json()["value"].clone());
+    }
+    let named = format!("{} {}", edit.op(), dotted(edit.path()));
+    let done = (document.apply(std::slice::from_ref(&edit)))
+        .map_err(|refusal| format!("`{named}`: {refusal}"))?;
+    if !done.bytes_preserved(&applied.source) {
+        return Err(format!("`{named}` would change bytes outside its span"));
+    }
+    applied.changed.extend(done.changed().iter().map(dotted));
+    done.document().source().clone_into(&mut applied.source);
+    applied.verified += 1;
     Ok(())
 }
 
@@ -229,6 +289,7 @@ fn compose(
     applied.source = expansion.candidate;
     applied.changed.push(format!("component {}", reference.id));
     applied.receipts.push(expansion.receipt);
+    applied.constructed += 1;
     Ok(())
 }
 
@@ -267,6 +328,7 @@ fn rebind(
     applied
         .changed
         .extend(changes.iter().map(|change| change.path.clone()));
+    applied.constructed += 1;
     Ok(())
 }
 
@@ -290,27 +352,27 @@ fn bindings(value: &Value) -> Result<Vec<Binding>, String> {
     }
 }
 
-/// A node path in the dotted form the bounded edit reads: an RFC 6901 pointer (`/a/b/0`) or a
-/// dotted path (`a.b.0`). A key holding a dot has no dotted spelling: refused, never guessed.
-fn dotted(path: &str) -> Result<String, String> {
+/// A node path as the editor's RFC 6901 pointer: a pointer as given (`/a/b/0`), or a dotted
+/// path (`a.b.0`) whose keys hold no dot.
+fn pointer(path: &str) -> Result<String, String> {
     let path = path.trim();
     if path.is_empty() || path == "/" {
         return Err("an operation names no path".to_owned());
     }
-    let Some(pointer) = path.strip_prefix('/') else {
+    if path.starts_with('/') {
         return Ok(path.to_owned());
-    };
-    let mut segments = Vec::new();
-    for raw in pointer.split('/') {
-        let segment = raw.replace("~1", "/").replace("~0", "~");
-        if segment.is_empty() || segment.contains('.') {
-            return Err(format!(
-                "the path `{path}` names a key this edit cannot address (empty or holding a dot)"
-            ));
-        }
-        segments.push(segment);
     }
-    Ok(segments.join("."))
+    let mut pointer = String::new();
+    for segment in path.split('.') {
+        pointer.push('/');
+        pointer.push_str(&segment.replace('~', "~0").replace('/', "~1"));
+    }
+    Ok(pointer)
+}
+
+/// A node path in the dotted form the record states.
+fn dotted(path: &Path) -> String {
+    path.segments().join(".")
 }
 
 /// Every literal node of the document as the seat reads it: `[{"path": "/…", "value": …}]`, the
@@ -405,14 +467,26 @@ pub fn record(
             "base_sha256": sha(base),
             "candidate_sha256": sha(revised),
             "changed": applied.changed,
-            "preservation": if applied.replaced {
-                "none claimed: the whole source was replaced"
-            } else {
-                "by construction: each edited literal replaced in its own span and each component's entries inserted; not yet re-verified byte by byte"
-            },
+            "preservation": preservation(applied),
             "components": applied.receipts,
         },
     })
+}
+
+/// What the record claims of the base's bytes: what each operation proved, never more.
+fn preservation(applied: &Applied) -> &'static str {
+    match (applied.replaced, applied.verified, applied.constructed) {
+        (true, _, _) => "none claimed: the whole source was replaced",
+        (false, _, 0) => {
+            "verified: each edit was re-read by the strict parser and every byte outside its span replayed as the base's"
+        }
+        (false, 0, _) => {
+            "by construction: each component's entries inserted or rebound in place; not re-verified byte by byte"
+        }
+        _ => {
+            "edits verified byte by byte; each component's entries inserted or rebound by construction"
+        }
+    }
 }
 
 #[cfg(test)]

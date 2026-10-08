@@ -4797,6 +4797,7 @@ dependencies = [
  "nika-compile-reader",
  "nika-kernel",
  "nika-pack",
+ "nika-schema",
  "serde",
  "serde_json",
  "thiserror 2.0.20",

@@ -72,9 +72,11 @@ as an external consumer.
   pack, then qualified; no seat: shown unqualified and said so), `trace` (which shown code
   lines a candidate kept, a lexical trace, never causal proof) and `traced` (the record on
   the outcome, `decision.knowledge_qualification`). `foundry::document` applies the
-  operations a revision states over a complete base no semantic record binds (`set` a
-  literal, `compose` an admitted component, `rebind` one through its receipt, or a whole
-  `replace` that claims no preservation) and states their record; the revision door that
+  operations a revision states over a complete base no semantic record binds (document edits
+  made by the `nika-schema` document editor, each re-read and byte-proven: `set`, `insert`,
+  `insert_text`, `push`, `remove`, `rename`; `compose` an admitted component, `rebind` one
+  through its receipt; or a whole `replace` that claims no preservation) and states their
+  record, whose preservation claim says what each operation proved; the revision door that
   asks for them and judges the result stays in `nika-compile-cognition`.
 
 `remote` is what a door that holds no project admits from its caller's

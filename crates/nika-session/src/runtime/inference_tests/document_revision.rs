@@ -106,7 +106,8 @@ fn a_named_workflow_is_revised_in_place_shown_and_saved_with_every_other_byte() 
     );
     let revision = candidate.revision.expect("the document revision is shown");
     assert_eq!(revision.mode, "operations");
-    assert_eq!(revision.changed, ["const.max_age_hours"]);
+    // The typed constant named whole is edited at its value, the node the record names.
+    assert_eq!(revision.changed, ["const.max_age_hours.value"]);
     assert!(revision.components.is_empty());
 
     assert!(matches!(s.consent_to(&id, "yes"), TurnOutcome::Facts(_)));
