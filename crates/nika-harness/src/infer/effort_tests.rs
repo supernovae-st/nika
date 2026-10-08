@@ -6,6 +6,10 @@
 //! so it refuses BEFORE the seat is spawned (the authoring loss the access
 //! audit named: `InferRequest.reasoning_effort` used to vanish here).
 
+// The scripted seats are shell scripts: unix only, declared under plain
+// `cfg(test)` so the production-file filter reads this module as a test.
+#![cfg(unix)]
+
 use nika_kernel::ai::provider::{InferRequest, Message, ProviderInferDyn, ReasoningEffort, Role};
 
 use super::tests::scripted_codex;

@@ -1476,5 +1476,5 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":999,"output_toke
     }
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod effort_tests;
