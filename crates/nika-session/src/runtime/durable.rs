@@ -389,7 +389,7 @@ impl SessionRuntime {
                     let _ = write!(
                         notice,
                         "\n  the run paused at `{task}` no longer waits: its trace `{}` carries no pause",
-                        trace.display()
+                        super::shown_trace(&self.snapshot.root, &trace)
                     );
                 }
             }

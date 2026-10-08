@@ -230,6 +230,26 @@ fn under(root: &Path, trace: &Path) -> PathBuf {
     }
 }
 
+/// A trace as every host shows it: relative to the project root when the project holds it (as a
+/// native run names it), else `<journal>` (the trace verify door's own word), never a host's
+/// absolute layout. Display only: a trace is read through [`under`], on its real path.
+fn shown_trace(root: &Path, trace: &Path) -> String {
+    let within = |base: &Path, path: &Path| path.strip_prefix(base).ok().map(Path::to_path_buf);
+    let held = if trace.is_absolute() {
+        within(root, trace)
+            .or_else(|| within(&root.canonicalize().ok()?, &trace.canonicalize().ok()?))
+    } else {
+        Some(trace.to_path_buf())
+    };
+    let contained = |path: &PathBuf| {
+        use std::path::Component::{CurDir, Normal};
+        path.components()
+            .all(|part| matches!(part, Normal(_) | CurDir))
+    };
+    held.filter(contained)
+        .map_or_else(|| "<journal>".to_owned(), |path| path.display().to_string())
+}
+
 /// How a door builds the reasoner for a resolved choice (`Send`: a host may
 /// hold the runtime on a worker thread while its terminal stays live).
 pub type ReasonerFactory =
@@ -1266,9 +1286,8 @@ impl SessionRuntime {
         match crate::run_view::RunFacts::read(&under(&self.snapshot.root, trace)) {
             Some(facts) => TurnOutcome::Facts(facts.proof(&self.snapshot.root)),
             None => TurnOutcome::Facts(format!(
-                "the trace `{}` cannot be read now · `nika trace verify {}` judges it from the shell",
-                trace.display(),
-                trace.display()
+                "the trace `{shown}` cannot be read now · `nika trace verify {shown}` judges it from the shell",
+                shown = shown_trace(&self.snapshot.root, trace)
             )),
         }
     }
@@ -1356,7 +1375,7 @@ impl SessionRuntime {
         let line = match trace {
             Some(t) => format!(
                 "run observed · exit {exit} · {meaning} · trace `{}`",
-                t.display()
+                shown_trace(&self.snapshot.root, t)
             ),
             None => format!("run observed · exit {exit} · {meaning}"),
         };
@@ -1452,6 +1471,9 @@ mod semantic_basis_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod trace_display_tests;
 
 #[cfg(test)]
 pub(crate) mod inference_tests;
