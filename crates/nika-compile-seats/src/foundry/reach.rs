@@ -5,7 +5,10 @@
 //!
 //! Every admitted entry the pack does not already hold is put to the same decision seat, in the
 //! same batch, by its descriptor — what it is for, its version, holes, effects and interfaces,
-//! never its code. The seat's answer then decides the form the author reads:
+//! never its code. So is every entry the pack recalled that the catalogue lists
+//! ([`describe_recalled`]): the seat judges relevance from descriptors, and the author still
+//! reads a recalled entry whole unless the seat discards it ([`restore`]). The seat's answer then
+//! decides the form the author reads:
 //! - an entry it finds applicable joins the pack in full, resolved from the admitted release;
 //! - one it cannot judge (NONE, a failed call) stays a descriptor, a hypothesis to explore;
 //! - one it judges unrelated stays out, its answer kept in the record. That is a judgment, never
@@ -15,12 +18,13 @@
 //! admitted entries were asked, and how. Only a catalogue that lists the release's entries makes
 //! the pass complete; without one the record says that only the recalled pack was asked.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use nika_compile::{AuthoringKnowledge, KnowledgeReference};
 use serde_json::{Value, json};
 
 use super::component::ComponentCatalog;
+use super::entry::{role_line, sources_line};
 use super::recall::{block_metadata, text_of};
 
 /// The law the coverage account states.
@@ -30,13 +34,44 @@ pub const REACH: &str = "every admitted entry the catalogue lists is a candidate
 pub const DESCRIPTOR: &str =
     "[descriptor of an admitted entry; its full text is resolved when it applies]";
 
-/// An admitted entry's descriptor: its title and purpose, then the metadata that keeps it from
-/// being misused (version, holes, effects, authority, interfaces, callables, known failures).
+/// The fields that say what an entry is for, whatever its kind: a block's or pattern's purpose, a
+/// family's need, an example's intent, a counterexample's difference and why it is wrong, a
+/// callable's description, a construct's what and when, a skill's scope, a diagnostic's failure
+/// and teaching, a repair's symptom and strategy, a skeleton's how, a facet's values.
+const PURPOSE: [&str; 16] = [
+    "purpose",
+    "need",
+    "intent",
+    "difference",
+    "why_wrong",
+    "description",
+    "what",
+    "when",
+    "when_not",
+    "scope",
+    "failure",
+    "teach",
+    "symptom",
+    "strategy",
+    "how",
+    "values",
+];
+
+/// An admitted entry's descriptor: its role, title and purpose, then the metadata that keeps it
+/// from being misused (version, holes, effects, authority, interfaces, callables, known
+/// failures) and the sources it derives from.
 #[must_use]
 pub fn descriptor(row: &Value) -> String {
     let title = text_of(row, &["title"]);
-    let purpose = text_of(row, &["purpose", "need", "intent", "strategy"]);
-    let text = format!("{DESCRIPTOR}\n{title} — {purpose}\n{}", block_metadata(row));
+    let purpose = text_of(row, &PURPOSE);
+    let role = role_line(row)
+        .map(|line| format!("{line}\n"))
+        .unwrap_or_default();
+    let sources = sources_line(row).unwrap_or_default();
+    let text = format!(
+        "{DESCRIPTOR}\n{role}{title} — {purpose}\n{}{sources}",
+        block_metadata(row)
+    );
     text.trim_end().to_owned()
 }
 
@@ -64,6 +99,46 @@ pub fn widen(
         widened.push(id.to_owned());
     }
     (widened, entries.len())
+}
+
+/// The references `pack` recalled that `catalog` lists, each to be asked by its descriptor
+/// instead of its full text: their full texts by id, which [`restore`] gives back after the
+/// qualification to every one the seat did not discard. A reference the catalogue does not list
+/// keeps its text.
+pub fn describe_recalled(
+    pack: &mut AuthoringKnowledge,
+    catalog: &dyn ComponentCatalog,
+) -> BTreeMap<String, String> {
+    let entries: BTreeMap<String, Value> = (catalog.entries().into_iter())
+        .filter_map(|row| Some((row["id"].as_str()?.to_owned(), row)))
+        .collect();
+    let mut full = BTreeMap::new();
+    for reference in &mut pack.references {
+        if reference.text.starts_with(DESCRIPTOR) || full.contains_key(&reference.id) {
+            continue;
+        }
+        if let Some(row) = entries.get(&reference.id) {
+            let described = descriptor(row);
+            full.insert(
+                reference.id.clone(),
+                std::mem::replace(&mut reference.text, described),
+            );
+        }
+    }
+    full
+}
+
+/// After qualification: the exact full text of every recalled reference asked by its descriptor
+/// and still in the pack. Applicable or undecided, the author reads it whole. Returns how many.
+pub fn restore(pack: &mut AuthoringKnowledge, full: &BTreeMap<String, String>) -> usize {
+    let mut restored = 0;
+    for reference in &mut pack.references {
+        if let Some(text) = full.get(&reference.id) {
+            reference.text.clone_from(text);
+            restored += 1;
+        }
+    }
+    restored
 }
 
 /// After qualification: each entry `catalog` widened that the seat found applicable, resolved in

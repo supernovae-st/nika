@@ -150,7 +150,8 @@ async fn an_entry_no_word_reaches_is_asked_resolved_in_full_bound_and_witnessed(
         .await
         .unwrap();
     let pack = shown.authoring_knowledge.as_ref().unwrap();
-    // Asked: the shortlist in full, the two entries it lacked by descriptor, in one batch.
+    // Asked in one batch, all by descriptor: the two entries the shortlist lacked, and the
+    // recalled one the catalogue lists.
     let asked = judge.0.lock().unwrap().clone();
     let state = |id: &str| {
         let question = asked
@@ -164,7 +165,7 @@ async fn an_entry_no_word_reaches_is_asked_resolved_in_full_bound_and_witnessed(
     };
     assert!(state("block:stale-filter-report").starts_with(DESCRIPTOR));
     assert!(!state("block:stale-filter-report").contains("tasks:"));
-    assert!(!state("block:demandes-bilan").starts_with(DESCRIPTOR));
+    assert!(state("block:demandes-bilan").starts_with(DESCRIPTOR));
     // Shown: the applicable entry in full, the undecided one as its descriptor, not the distractor.
     let text = |id: &str| {
         pack.references
@@ -215,6 +216,11 @@ async fn an_entry_no_word_reaches_is_asked_resolved_in_full_bound_and_witnessed(
             &coverage["resolved_in_full"]
         ],
         [&json!(3), &json!(1), &json!(2), &json!(1)]
+    );
+    assert_eq!(coverage["recalled_asked_by_descriptor"], 1);
+    assert_eq!(
+        coverage["recalled_shown_in_full"], 0,
+        "the distractor is discarded"
     );
     assert_eq!(record["questions"], json!(asked.len()));
     // The selected entry is an executable component: resolved, bound, expanded, witnessed.
@@ -308,4 +314,106 @@ async fn without_a_catalogue_or_a_seat_the_record_says_what_was_never_asked() {
     assert_eq!(record["coverage"]["complete"], true);
     assert_eq!(record["coverage"]["resolved_in_full"], 0);
     assert_eq!(record["by"], Value::Null);
+}
+
+/// A recalled reference as the lexical pack presents it: its full text, never a descriptor.
+fn recalled(id: &str, kind: &str) -> KnowledgeReference {
+    KnowledgeReference {
+        kind: kind.to_owned(),
+        id: id.to_owned(),
+        text: format!("{id} in full: the body the pack recalled"),
+    }
+}
+
+#[tokio::test]
+async fn a_recalled_entry_is_judged_by_its_descriptor_and_read_whole_unless_discarded() {
+    // Recalled: an applicable entry, an undecided one, a discarded one, one the seat fails on
+    // (absent from its script), and one the catalogue does not list.
+    let pack = AuthoringKnowledge {
+        references: vec![
+            recalled("block:stale-filter-report", "block"),
+            recalled("pattern:filter-by-age", "pattern"),
+            recalled("block:demandes-bilan", "block"),
+            recalled("example:elsewhere", "example"),
+        ],
+        ..AuthoringKnowledge::default()
+    };
+    let request = CompileRequest::create(INTENT).with_authoring_knowledge(pack.clone());
+    let judge = Judge(Mutex::new(Vec::new()));
+    let (shown, record) = qualified_with(INTENT, &request, Some(&judge), Some(&Release1))
+        .await
+        .unwrap();
+    let asked = judge.0.lock().unwrap().clone();
+    let state = |id: &str| {
+        (asked.iter().find(|q| q.state["reference"]["id"] == id))
+            .and_then(|q| q.state["reference"]["text"].as_str().map(str::to_owned))
+            .unwrap()
+    };
+    for id in [
+        "block:stale-filter-report",
+        "pattern:filter-by-age",
+        "block:demandes-bilan",
+    ] {
+        assert!(
+            state(id).starts_with(DESCRIPTOR),
+            "{id} asked by its descriptor"
+        );
+        assert!(!state(id).contains("the body the pack recalled"), "{id}");
+    }
+    assert_eq!(
+        state("example:elsewhere"),
+        "example:elsewhere in full: the body the pack recalled"
+    );
+    // Read: the applicable, the undecided and the failed one whole, exactly as recalled; the
+    // discarded one out.
+    let reader = shown.authoring_knowledge.as_ref().unwrap();
+    let text = |id: &str| (reader.references.iter().find(|r| r.id == id)).map(|r| r.text.clone());
+    for id in [
+        "block:stale-filter-report",
+        "pattern:filter-by-age",
+        "example:elsewhere",
+    ] {
+        assert_eq!(
+            text(id),
+            Some(format!("{id} in full: the body the pack recalled")),
+            "{id}"
+        );
+    }
+    assert_eq!(text("block:demandes-bilan"), None);
+    let shown_as = |id: &str| {
+        let found = row(&record, id);
+        (
+            found["verdict"].clone(),
+            found["asked"].clone(),
+            found["shown"].clone(),
+        )
+    };
+    assert_eq!(
+        shown_as("block:stale-filter-report"),
+        (json!("applies"), json!("descriptor"), json!("full"))
+    );
+    assert_eq!(
+        shown_as("pattern:filter-by-age"),
+        (json!("unqualified"), json!("descriptor"), json!("full"))
+    );
+    assert_eq!(
+        shown_as("example:elsewhere"),
+        (json!("unqualified"), json!("full"), json!("full"))
+    );
+    assert_eq!(row(&record, "block:demandes-bilan")["asked"], "descriptor");
+    assert_eq!(record["coverage"]["recalled_asked_by_descriptor"], 3);
+    assert_eq!(record["coverage"]["recalled_shown_in_full"], 2);
+    // Without a seat nothing is judged, and every recalled entry is read whole as recalled.
+    let (unjudged, _) = qualified_with(INTENT, &request, None, Some(&Release1))
+        .await
+        .unwrap();
+    let unjudged = unjudged.authoring_knowledge.unwrap();
+    for reference in &pack.references {
+        let kept = unjudged
+            .references
+            .iter()
+            .find(|r| r.id == reference.id)
+            .unwrap();
+        assert_eq!(kept.text, reference.text, "{}", reference.id);
+    }
 }

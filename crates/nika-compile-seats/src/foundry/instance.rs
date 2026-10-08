@@ -165,14 +165,7 @@ pub fn expand(parent: &str, instance: &Instance) -> Result<Expansion, ExpandErro
     let base = literal_projection(parent).ok_or(ExpandError::Parent)?;
     let bound = literal_projection(&instance.source)
         .ok_or_else(|| ExpandError::Unproven("the bound component cannot be read".to_owned()))?;
-    if bound.get("secrets").is_some() {
-        return Err(ExpandError::Unmergeable("secrets".to_owned()));
-    }
-    if let Some(run) = bound.get("run")
-        && base.get("run") != Some(run)
-    {
-        return Err(ExpandError::Unmergeable("run".to_owned()));
-    }
+    compatible(&base, &bound)?;
     let mut expected = base.clone();
     let mut candidate = parent.to_owned();
     for section in MERGED {
@@ -213,6 +206,44 @@ pub fn expand(parent: &str, instance: &Instance) -> Result<Expansion, ExpandErro
     Ok(checked(candidate, instance, &bound))
 }
 
+/// Whether the component's whole-program sections fit the document: a component's `secrets`
+/// never merge, and its `run` must be the document's own. Both the expansion and the adoption of
+/// another editor's insert judge it, so neither carries a component the other refuses.
+fn compatible(document: &Value, bound: &Value) -> Result<(), ExpandError> {
+    if bound.get("secrets").is_some() {
+        return Err(ExpandError::Unmergeable("secrets".to_owned()));
+    }
+    if let Some(run) = bound.get("run")
+        && document.get("run") != Some(run)
+    {
+        return Err(ExpandError::Unmergeable("run".to_owned()));
+    }
+    Ok(())
+}
+
+/// A block scalar's exact text: its header line (`|`, `>-`, a comment after it), then its content
+/// lines re-indented to zero, the trailing blank lines kept when its header keeps them (`+`). An
+/// explicit indentation indicator counts from the key's own column, which an editor chooses:
+/// unproven, never a text that would read otherwise.
+fn block_scalar(header: &str, lines: &[&str]) -> Result<String, ExpandError> {
+    let indicators = header.split('#').next().unwrap_or_default().trim();
+    if indicators.chars().any(|c| c.is_ascii_digit()) {
+        return Err(ExpandError::Unproven(format!(
+            "the block scalar `{header}` states an indentation indicator"
+        )));
+    }
+    let mut content = lines.to_vec();
+    if !indicators.contains('+') {
+        while content.last().is_some_and(|line| blank(line)) {
+            content.pop();
+        }
+    }
+    Ok(std::iter::once(header)
+        .chain(content)
+        .collect::<Vec<_>>()
+        .join("\n"))
+}
+
 /// One entry an expansion adds: its section, its name, and its value as the component writes it
 /// (its lines without their indentation), for a document editor that inserts exact text.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -222,7 +253,9 @@ pub struct Entry {
     pub section: String,
     /// The entry's key.
     pub name: String,
-    /// Its value's exact text: an inline value, or the block under the key, re-indented to zero.
+    /// Its value's exact text: an inline value (for a block scalar, its header line and then its
+    /// content lines re-indented to zero, the blank lines a keep indicator keeps included), or
+    /// the block under the key, re-indented to zero. Every line counts, the last blank ones too.
     pub text: String,
 }
 
@@ -232,7 +265,8 @@ impl Instance {
     /// entries is not carried here ([`expand`] keeps it).
     ///
     /// # Errors
-    /// [`ExpandError::Unproven`] when a section is not written in block form.
+    /// [`ExpandError::Unproven`] when a section is not written in block form, or a block scalar
+    /// states an indentation indicator.
     pub fn entries(&self) -> Result<Vec<Entry>, ExpandError> {
         let mut entries = Vec::new();
         for key in MERGED {
@@ -255,17 +289,23 @@ impl Instance {
                     value.push(next);
                 }
                 let indent = (value.iter())
-                    .filter(|l| !l.trim().is_empty())
-                    .map(|l| l.len() - l.trim_start().len())
+                    .filter(|l| !blank(l))
+                    .map(|l| spaces(l))
                     .min()
                     .unwrap_or(0);
                 let block: Vec<&str> = value
                     .iter()
                     .map(|l| l.get(indent..).unwrap_or(""))
                     .collect();
-                let text = match inline.trim() {
-                    "" => block.join("\n").trim_end().to_owned(),
-                    inline => inline.to_owned(),
+                // The separation after the colon is spaces and tabs; a no-break space is content.
+                let header = inline.trim_matches([' ', '\t']);
+                let text = if header.is_empty() {
+                    let joined = block.join("\n");
+                    joined.trim_end_matches([' ', '\n']).to_owned()
+                } else if header.starts_with(['|', '>']) {
+                    block_scalar(header, &block)?
+                } else {
+                    header.to_owned()
                 };
                 entries.push(Entry {
                     section: key.to_owned(),
@@ -284,7 +324,8 @@ impl Instance {
 /// receipts its own.
 ///
 /// # Errors
-/// [`ExpandError`]: open holes, or an entry the candidate does not hold as bound.
+/// [`ExpandError`]: open holes, a section the component cannot merge (its `secrets`, a `run`
+/// the candidate does not share), or an entry the candidate does not hold as bound.
 pub fn adopt(candidate: &str, instance: &Instance) -> Result<Expansion, ExpandError> {
     if !instance.open.is_empty() {
         return Err(ExpandError::Binding(BindingError::Unbound(
@@ -294,6 +335,7 @@ pub fn adopt(candidate: &str, instance: &Instance) -> Result<Expansion, ExpandEr
     let document = literal_projection(candidate).ok_or(ExpandError::Parent)?;
     let bound = literal_projection(&instance.source)
         .ok_or_else(|| ExpandError::Unproven("the bound component cannot be read".to_owned()))?;
+    compatible(&document, &bound)?;
     for section in MERGED {
         for (name, value) in bound
             .get(section)
@@ -461,24 +503,43 @@ fn section_body(source: &str, key: &str) -> Result<Vec<String>, ExpandError> {
         return Err(unproven("is written in flow form"));
     }
     let body = &source[found.header_end..found.body_end];
-    let indent = body
-        .lines()
-        .find(|line| !line.trim().is_empty())
-        .map_or(0, |line| line.len() - line.trim_start().len());
+    let indent = body.lines().find(|line| !blank(line)).map_or(0, spaces);
     let mut kept: Vec<String> = Vec::new();
     for line in body.lines() {
-        if line.trim().is_empty() {
-            kept.push(String::new());
-        } else if line.len() - line.trim_start().len() < indent {
+        if blank(line) {
+            // A space past the indentation may be a block scalar's own: kept.
+            kept.push(line.get(indent..).unwrap_or_default().to_owned());
+        } else if spaces(line) < indent {
             return Err(unproven("is less indented than its first entry"));
         } else {
             kept.push(line[indent..].to_owned());
         }
     }
-    while kept.last().is_some_and(String::is_empty) {
-        kept.pop();
+    // The blank lines that end the section are layout, unless a value keeps them (a block
+    // scalar's keep indicator): the parser decides, from the values both read.
+    let mut trimmed = kept.clone();
+    while trimmed.last().is_some_and(|line| blank(line)) {
+        trimmed.pop();
     }
-    Ok(kept)
+    let read = |lines: &[String]| {
+        let indented: Vec<String> = lines.iter().map(|line| format!("  {line}")).collect();
+        literal_projection(&format!("{key}:\n{}\n", indented.join("\n")))
+    };
+    if trimmed.len() < kept.len() && read(&trimmed) != read(&kept) {
+        return Ok(kept);
+    }
+    Ok(trimmed)
+}
+
+/// The indentation of a line: YAML indents with ASCII spaces only, never another white space
+/// (a no-break space is content).
+fn spaces(line: &str) -> usize {
+    line.len() - line.trim_start_matches(' ').len()
+}
+
+/// A line of ASCII spaces only, or none.
+fn blank(line: &str) -> bool {
+    line.bytes().all(|byte| byte == b' ')
 }
 
 /// `source` with the whole section `text` (its key line included) placed where the envelope's
@@ -549,12 +610,12 @@ pub(super) fn merge_section(
     let body_text = &source[found.header_end..found.body_end];
     let indent = body_text
         .lines()
-        .find(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
-        .map_or(2, |line| line.len() - line.trim_start().len());
+        .find(|line| !blank(line) && !line.trim_start_matches(' ').starts_with('#'))
+        .map_or(2, spaces);
     // After the last line of the body that is not blank: trailing blank lines stay after.
     let last = lines(body_text)
         .into_iter()
-        .filter(|(_, line)| !line.trim().is_empty())
+        .filter(|(_, line)| !blank(line))
         .map(|(offset, line)| offset + line.len())
         .next_back()
         .map_or(found.header_end, |end| found.header_end + end);
