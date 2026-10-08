@@ -85,7 +85,7 @@ fn one_logical_line_can_wrap_past_the_terminal_coordinate_range() {
     let text = "abc ".repeat(140_000) + "FINAL";
     let lines = vec![Line::styled(text, Style::new().fg(Color::Cyan))];
     let width = 8;
-    let total = super::super::content_rows(&lines, width);
+    let total = height(&lines, width);
     assert!(total > usize::from(u16::MAX));
     let area = Rect::new(0, 0, width, 3);
     let mut buffer = Buffer::empty(area);

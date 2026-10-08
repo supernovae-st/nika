@@ -72,8 +72,11 @@ default) and says what it cut.
 
 The member also owns the unit's pure visual vocabulary and workspace views
 (`visual`, `workspace`): geometry, header, listing, pinned row, object and
-conversation chrome, and text fitting. The native renderer keeps compatibility
-source paths while Desk/input/event/Session/host ownership stays native. These
+conversation chrome, text fitting, and the windows over arbitrarily long wrapped text
+(`workspace::wrapped`: the content height, the visible rows and the bounded scrollback pages,
+measured in content rows, moved from the native renderer on 2026-10-08 for the 15k wall). The
+native renderer keeps compatibility source paths while Desk/input/event/Session/host
+ownership stays native. These
 views use passed facts, bounds and elapsed time; they never acquire a project,
 read the clock or change consent. Native-project integration tests stay at the
 native boundary rather than adding an edge back. The brand provenance test uses

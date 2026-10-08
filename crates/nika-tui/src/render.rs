@@ -17,9 +17,8 @@
 mod chooser;
 #[cfg(test)]
 mod chooser_tests;
-mod wrapped;
 
-pub(crate) use wrapped::{pages, paint_page, window};
+pub(crate) use nika_tui_view::workspace::wrapped::{height, pages, paint_page, window};
 
 use nika_display::theme::Role;
 use ratatui::Frame;
@@ -162,7 +161,7 @@ pub fn wrapped_rows(lines: &[Line<'_>], width: u16) -> u16 {
 
 /// The complete content height, before any terminal-coordinate conversion.
 pub(crate) fn content_rows(lines: &[Line<'_>], width: u16) -> usize {
-    wrapped::height(lines, width)
+    height(lines, width)
 }
 
 /// Draw a block into a buffer (the `insert_before` callback).

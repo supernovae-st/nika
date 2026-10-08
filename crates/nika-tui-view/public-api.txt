@@ -997,6 +997,11 @@ pub fn nika_tui_view::workspace::text::fit_head(text: &str, width: usize, cut: &
 pub const fn nika_tui_view::workspace::text::marks(ascii: bool) -> (&'static str, &'static str)
 pub fn nika_tui_view::workspace::text::twins(text: &str, ascii: bool) -> alloc::string::String
 pub fn nika_tui_view::workspace::text::wrap(text: &str, width: usize, cut: &str) -> alloc::vec::Vec<alloc::string::String>
+pub mod nika_tui_view::workspace::wrapped
+pub fn nika_tui_view::workspace::wrapped::height(lines: &[ratatui_core::text::line::Line<'_>], width: u16) -> usize
+pub fn nika_tui_view::workspace::wrapped::pages<'a, E>(lines: &'a [ratatui_core::text::line::Line<'_>], width: u16, height: u16, draw: impl core::ops::function::FnMut(&[ratatui_core::text::line::Line<'a>]) -> core::result::Result<(), E>) -> core::result::Result<(), E>
+pub fn nika_tui_view::workspace::wrapped::paint_page(lines: &[ratatui_core::text::line::Line<'_>], buffer: &mut ratatui_core::buffer::buffer::Buffer)
+pub fn nika_tui_view::workspace::wrapped::window(lines: &[ratatui_core::text::line::Line<'_>], area: ratatui_core::layout::rect::Rect, skip: usize, buffer: &mut ratatui_core::buffer::buffer::Buffer)
 #[non_exhaustive] pub enum nika_tui_view::Availability
 pub nika_tui_view::Availability::Changed
 pub nika_tui_view::Availability::Missing

@@ -22,3 +22,4 @@ pub mod header;
 pub mod object;
 pub mod pinned;
 pub mod text;
+pub mod wrapped;

@@ -36,7 +36,8 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span, StyledGrapheme};
 
 /// Measure the same wrapped stream without retaining off-screen rows.
-pub(crate) fn height(lines: &[Line<'_>], width: u16) -> usize {
+#[must_use]
+pub fn height(lines: &[Line<'_>], width: u16) -> usize {
     let mut rows = 0usize;
     visit(lines, width.max(1), |_, _| {
         rows += 1;
@@ -46,7 +47,7 @@ pub(crate) fn height(lines: &[Line<'_>], width: u16) -> usize {
 }
 
 /// Draw only the visible rows. Neither the content offset nor height is narrowed to u16.
-pub(crate) fn window(lines: &[Line<'_>], area: Rect, skip: usize, buffer: &mut Buffer) {
+pub fn window(lines: &[Line<'_>], area: Rect, skip: usize, buffer: &mut Buffer) {
     if area.is_empty() {
         return;
     }
@@ -68,7 +69,7 @@ pub(crate) fn window(lines: &[Line<'_>], area: Rect, skip: usize, buffer: &mut B
 }
 
 /// Paint a page of already wrapped rows without applying a second truncation policy.
-pub(crate) fn paint_page(lines: &[Line<'_>], buffer: &mut Buffer) {
+pub fn paint_page(lines: &[Line<'_>], buffer: &mut Buffer) {
     let area = buffer.area;
     for (line, y) in lines.iter().zip(area.y..area.bottom()) {
         let glyphs = line.styled_graphemes(Style::default()).collect::<Vec<_>>();
@@ -114,7 +115,10 @@ fn paint_row(glyphs: &[StyledGrapheme<'_>], alignment: Alignment, area: Rect, bu
 
 /// Inline scrollback uses bounded terminal buffers, with no omitted tail or rewrapping.
 /// The visitor can fail once; it is never retried and no later page is emitted.
-pub(crate) fn pages<'a, E>(
+///
+/// # Errors
+/// The first error `draw` returns; no later page is drawn.
+pub fn pages<'a, E>(
     lines: &'a [Line<'_>],
     width: u16,
     height: u16,

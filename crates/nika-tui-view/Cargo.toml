@@ -31,3 +31,4 @@ nika-display  = { path = "../nika-display", version = "0.122.0" }   # the theme 
 [dev-dependencies]
 nika-cli-host = { path = "../nika-cli-host", version = "0.122.0", default-features = false }   # the faces tests stand in for the owner of the check facts (oracle::audit_source, once per fixture)
 sha2 = { workspace = true }   # the relocated brand rendition provenance proof
+ratatui = { workspace = true, features = ["unstable-rendered-line-info"] }   # the wrapping tests compare the window with the Paragraph's own line count
