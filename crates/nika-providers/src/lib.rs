@@ -57,6 +57,7 @@ mod retry_tests;
 pub mod route_identity;
 pub mod spend;
 mod sse;
+pub mod stamp;
 #[cfg(test)]
 mod test_support;
 pub mod wire;
