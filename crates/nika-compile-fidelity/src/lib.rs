@@ -16,7 +16,6 @@
 //! - [`sketch`] · the constrained intermediate a seat proposes (tasks, edges, gates, stated
 //!   paths and hosts), its structural laws, its typed holes and the document it states.
 //! - [`candidate`] · the plan a candidate document states, and a revision's delta.
-//! - [`document`] · the complete document at its exact revision; a stale change is refused.
 //! - [`behavior`] · the behavioural contract a request states, independent of any candidate,
 //!   and its typed judgment over what a round of rehearsals consumed and wrote.
 
@@ -36,7 +35,6 @@ pub mod behavior;
 pub mod binding;
 pub mod candidate;
 pub mod decimal;
-pub mod document;
 pub mod fidelity;
 pub mod grounding;
 pub mod literal;
