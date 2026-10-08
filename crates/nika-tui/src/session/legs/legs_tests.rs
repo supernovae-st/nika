@@ -597,6 +597,29 @@ fn a_kept_journal_lends_its_written_names_only_on_a_current_adoption() {
     let _ = std::fs::remove_dir_all(&base);
 }
 
+/// A kept run whose trace is a receipt's opaque identity keeps its identity and names no
+/// journal: nothing is ever read at that name.
+#[test]
+fn a_kept_opaque_trace_is_never_restored_as_a_journal() {
+    let mut run = nika_session::KeptRun::new();
+    run.execution = Some(EXEC.to_owned());
+    run.trace = Some("01a11bc6d9d775e3b6f53a184c031914".to_owned());
+    run.trace_opaque = true;
+    run.workflow_sha256 = Some("aa".to_owned());
+    let mut legs = Legs::default();
+    let execution = legs.kept(&run).expect("a kept leg");
+    let leg = legs.find(&execution).expect("kept");
+    assert_eq!(leg.trace(), None, "no journal to read");
+    assert_eq!(leg.workflow_sha256(), Some("aa"));
+    run.trace_opaque = false;
+    let execution = legs.kept(&run).expect("a kept leg");
+    let leg = legs.find(&execution).expect("kept");
+    assert_eq!(
+        leg.trace().as_deref(),
+        Some("01a11bc6d9d775e3b6f53a184c031914")
+    );
+}
+
 /// A kept leg adopts the child relations its journal names, by the live rule
 /// (a new attempt drops one), from the reading captured last only; a new
 /// capture forgets them, and its commitments never move.

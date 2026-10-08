@@ -276,7 +276,11 @@ impl Legs {
     pub(crate) fn kept(&mut self, run: &KeptRun) -> Option<ExecutionId> {
         let execution = execution_of(run)?;
         let mut leg = Leg::new(execution);
-        let trace = run.trace.as_deref().map(std::path::PathBuf::from);
+        // A receipt's opaque trace identity is resolved by the door that ran the run, never
+        // read here as a journal path.
+        let trace = (run.trace.as_deref())
+            .filter(|_| !run.trace_opaque)
+            .map(std::path::PathBuf::from);
         let receipt = (run.chain_head.clone(), run.chain_len);
         leg.identity =
             RunIdentity::restored(execution, run.workflow_sha256.clone(), trace, receipt);
