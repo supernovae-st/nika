@@ -235,3 +235,21 @@ fn a_yes_with_no_candidate_on_screen_lands_nothing() {
         words(&turn.beats)
     );
 }
+
+/// The face used to say what the workflow does when it runs but not where its bytes reach, so
+/// a local contract server and a connected service read alike. It now states the Session's
+/// declared reach of the exact pending bytes: a copy between project files reaches nothing
+/// outside this machine.
+#[test]
+fn the_face_states_where_the_pending_bytes_reach_as_declared() {
+    let room = Room::new("reach");
+    let mut live = live(&room.0);
+    let _ = live.submit(COPY);
+    let candidate = live.candidate().expect("the proposal is folded");
+    let (_, body) = candidate.face_lines(Face::Source, 120, false, false);
+    let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
+    let reach = (rows.iter())
+        .find(|row| row.contains("reaches, as declared"))
+        .unwrap_or_else(|| panic!("a reach row: {rows:?}"));
+    assert!(reach.contains("local only"), "{reach}");
+}

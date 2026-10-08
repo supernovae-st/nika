@@ -37,6 +37,9 @@ pub struct Proposed {
     aside: bool,
     changes: Vec<String>,
     effects: Option<Vec<String>>,
+    /// Where each audited workflow reaches as declared, and whether that leaves this machine
+    /// (or cannot be told): `(words, outside)`.
+    world: Vec<(String, bool)>,
     rehearsed: Option<String>,
     unshown: usize,
     look: Inspected,
@@ -51,6 +54,7 @@ impl PartialEq for Proposed {
             && self.aside == other.aside
             && self.changes == other.changes
             && self.effects == other.effects
+            && self.world == other.world
             && self.rehearsed == other.rehearsed
             && self.unshown == other.unshown
             && self.look == other.look
@@ -68,6 +72,7 @@ impl Proposed {
             aside,
             changes: Vec::new(),
             effects: None,
+            world: Vec::new(),
             rehearsed: None,
             unshown: 0,
             look,
@@ -84,6 +89,13 @@ impl Proposed {
     /// `None` when the Session audited no workflow of it (a project file).
     pub(crate) fn reaching(mut self, effects: Option<Vec<String>>) -> Self {
         self.effects = effects;
+        self
+    }
+
+    /// With where each audited workflow reaches as the check declares it, and whether that
+    /// leaves this machine (or cannot be told).
+    pub(crate) fn declaring(mut self, world: Vec<(String, bool)>) -> Self {
+        self.world = world;
         self
     }
 
@@ -179,6 +191,10 @@ impl Proposed {
                     .map(|effect| (format!("when it runs{sep}{effect}"), Role::Dim)),
             ),
         }
+        rows.extend(self.world.iter().map(|(words, outside)| {
+            let role = if *outside { Role::Warn } else { Role::Dim };
+            (format!("reaches, as declared{sep}{words}"), role)
+        }));
         match &self.rehearsed {
             Some(words) => rows.extend(
                 words

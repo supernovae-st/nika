@@ -54,12 +54,35 @@ pub(crate) fn take(runtime: &SessionRuntime, kept: Option<&Proposed>) -> Option<
             .find(|audit| audit.path == shown.path())
             .map(|audit| audit.effects.clone())
     };
+    // Where each audited workflow's bytes reach, as the check declares it (never observed):
+    // a local contract server is told apart from a connected service before any yes.
+    let several = set.audits.len() > 1;
+    let world = (set.audits.iter())
+        .filter(|audit| several || audit.path == shown.path())
+        .map(|audit| {
+            let summary = audit.world.summary();
+            let words = if several {
+                format!("{} · {summary}", audit.path.display())
+            } else {
+                summary
+            };
+            (words, reaches_outside(audit.world.reach))
+        })
+        .collect();
     let fold = Proposed::new(candidate.id.clone(), candidate.aside, look)
         .changing(set.changes.iter().map(words).collect())
         .reaching(effects)
+        .declaring(world)
         .unshown(set.changes.len().saturating_sub(1))
         .rehearsed(candidate.rehearsed.map(str::to_owned));
     Some(fold)
+}
+
+/// Whether a reach leaves this machine or cannot say where it leads: a connected service, a
+/// remote model, an MCP tool or a program. Such a row is shown as a warning.
+fn reaches_outside(reach: nika_session::world::Reach) -> bool {
+    use nika_session::world::Reach;
+    !matches!(reach, Reach::Local | Reach::LocalServices)
 }
 
 /// One change in words: what it creates or replaces, where, how long, and
