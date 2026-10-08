@@ -22,6 +22,7 @@ mod effects;
 mod es;
 mod gating;
 mod heads;
+mod indecision;
 mod it;
 mod lines;
 mod literals;
@@ -41,7 +42,7 @@ pub(crate) use cues::{ARTICLES, OBJECT_CONNECTORS};
 use cues::{
     CONSTRAINT_OPENERS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER, NAMED_GATE_MARKERS,
     NEGATION_OPENERS, REVISION_MARKERS, SECOND_WORD_FILLERS, STOP_MARKERS, STRONG_CONNECTORS,
-    UNDECIDED_MARKERS, WEAK_CONNECTORS,
+    WEAK_CONNECTORS,
 };
 pub use effects::effect_words;
 pub(crate) use effects::kindred;
@@ -639,24 +640,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         reading.plan.constraints.push(clause.to_owned());
         return;
     }
-    // Explicit indecision about an effect.
-    if let Some((pos, marker)) = earliest(text, UNDECIDED_MARKERS) {
-        read_prefix(prefix_before(text, pos), clause, reading, state);
-        let target = text
-            .get(pos + marker.len()..)
-            .unwrap_or_default()
-            .split([';', '.'])
-            .next()
-            .unwrap_or_default()
-            .trim();
-        let verb = effect_words(target, &reading.columns)
-            .first()
-            .copied()
-            .unwrap_or(EffectVerb::Other);
-        push_effect(
-            &mut reading.plan,
-            Effect::new(verb, target, clause, EffectPolicy::Undecided),
-        );
+    if indecision::declared(text, clause, reading, state) {
         return;
     }
     if (open.contains("pas encore décidé")
