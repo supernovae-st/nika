@@ -344,3 +344,105 @@ impl SelectionEvidence {
         row
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_protocol_vocabulary_is_closed_and_admits_by_class() {
+        assert_eq!(AccessProtocol::parse("acp"), Some(AccessProtocol::Acp));
+        assert_eq!(AccessProtocol::parse("api"), Some(AccessProtocol::Api));
+        for word in ["ACP", "cli", "native", ""] {
+            assert_eq!(AccessProtocol::parse(word), None, "{word}");
+        }
+        assert!(AccessProtocol::Acp.admits(AccessClass::Harness));
+        assert!(!AccessProtocol::Acp.admits(AccessClass::Api));
+        for class in [AccessClass::Api, AccessClass::Local, AccessClass::Mock] {
+            assert!(AccessProtocol::Api.admits(class), "{class}");
+        }
+        assert!(!AccessProtocol::Api.admits(AccessClass::Harness));
+        assert!(!AccessProtocol::Api.admits(AccessClass::Oauth));
+        assert!(!AccessProtocol::Acp.admits(AccessClass::Oauth));
+        assert_eq!(AccessFallback::parse("none"), Some(AccessFallback::None));
+        assert_eq!(AccessFallback::parse("api"), None);
+    }
+
+    #[test]
+    fn the_requirement_keeps_a_stable_identity_without_its_fallback() {
+        let req = AccessRequirement::new()
+            .with_via(Some("codex".into()))
+            .with_protocol(Some(AccessProtocol::Acp))
+            .with_fallback(Some(AccessFallback::None))
+            .with_effort(Some("ultra".into()));
+        assert!(req.selects_path());
+        assert_eq!(req.identity(), "via=codex;protocol=acp;effort=ultra");
+        assert!(
+            !AccessRequirement::new()
+                .with_effort(Some("high".into()))
+                .selects_path()
+        );
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn the_requirement_receipt_names_only_the_authored_words() {
+        let req = AccessRequirement::new()
+            .with_via(Some("codex".into()))
+            .with_protocol(Some(AccessProtocol::Acp))
+            .with_fallback(Some(AccessFallback::None))
+            .with_effort(Some("ultra".into()));
+        assert_eq!(
+            req.to_json(),
+            serde_json::json!({"via":"codex","protocol":"acp","fallback":"none","effort":"ultra"})
+        );
+        let effort_only = AccessRequirement::new().with_effort(Some("high".into()));
+        assert_eq!(effort_only.to_json(), serde_json::json!({"effort":"high"}));
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn the_call_receipt_keeps_requested_sent_configured_and_responder_apart() {
+        let acp = SelectionEvidence::new(Some(AccessProtocol::Acp)).with_effort(
+            SelectedValue::new()
+                .requested(Some("max".into()))
+                .transmitted(Some("effort".into()), Some("max".into()))
+                .configured(Some("max".into()), Some("confirmed_selection".into())),
+        );
+        let json = acp.to_json();
+        assert_eq!(json["schema"], SelectionEvidence::SCHEMA);
+        assert_eq!(json["protocol"], "acp");
+        assert_eq!(
+            json["effort"],
+            serde_json::json!({"requested":"max","option":"effort","transmitted":"max",
+                "configured":"max","configured_source":"confirmed_selection"})
+        );
+        assert_eq!(
+            json["responder"],
+            serde_json::json!({"model": null, "evidence": "unknown"})
+        );
+        assert!(
+            json.get("changed_mid_turn").is_none(),
+            "absent unless something moved"
+        );
+        let api = SelectionEvidence::new(Some(AccessProtocol::Api))
+            .with_responder(Some("served-model".into()), "api_response")
+            .with_changes(vec!["model=other".into()]);
+        let json = api.to_json();
+        assert_eq!(
+            json["responder"],
+            serde_json::json!({"model": "served-model", "evidence": "api_response"})
+        );
+        assert_eq!(json["changed_mid_turn"], serde_json::json!(["model=other"]));
+        let unnamed = SelectionEvidence::new(None).with_responder(None, "api_response");
+        assert_eq!(unnamed.to_json()["responder"]["evidence"], "unknown");
+        // An absent fact stays a visible null, never omitted nor copied from another.
+        let asked = SelectionEvidence::new(Some(AccessProtocol::Api))
+            .with_model(SelectedValue::new().requested(Some("deepseek/deepseek-flash".into())));
+        assert_eq!(
+            asked.to_json()["model"],
+            serde_json::json!({"requested":"deepseek/deepseek-flash","option":null,
+                "transmitted":null,"configured":null,"configured_source":null})
+        );
+    }
+}
