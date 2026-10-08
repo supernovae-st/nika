@@ -734,6 +734,7 @@ fn a_run_is_observed_from_its_request_to_its_frames() {
         resume,
         typed,
         look,
+        world,
     }) = seen.first()
     else {
         panic!("the request comes first: {seen:?}\n{}", joined(&turn.beats));
@@ -741,6 +742,14 @@ fn a_run_is_observed_from_its_request_to_its_frames() {
     assert_eq!(
         (workflow.as_str(), *resume, *typed),
         ("two.nika", false, true)
+    );
+    let world = world
+        .as_ref()
+        .expect("the check that cleared the request declared its reach");
+    assert_eq!(
+        world.summary(),
+        "local only · nothing outside the process",
+        "a log-only workflow reaches nothing"
     );
     let look = look
         .as_ref()

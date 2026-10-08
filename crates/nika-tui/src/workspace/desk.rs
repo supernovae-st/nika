@@ -265,12 +265,19 @@ impl Desk {
                     resume,
                     typed,
                     look,
+                    world,
                 } => {
                     if let Some(leg) = self.live.take() {
                         self.past.insert(0, leg);
                         self.past.truncate(PAST_LEGS);
                     }
-                    self.live = Some(LiveRun::asked(workflow, resume, typed, look.map(|l| *l)));
+                    // The last run of the same workflow observed here: a fresh run does every
+                    // effect it declares again (a resumed leg continues its own run).
+                    let earlier = (self.past.iter())
+                        .find(|leg| !resume && leg.workflow() == workflow)
+                        .map(LiveRun::named);
+                    let leg = LiveRun::asked(workflow, resume, typed, look.map(|l| *l));
+                    self.live = Some(leg.reaching(world.map(|w| *w)).after(earlier));
                     self.opened = Some(Target::Live);
                     self.run_face = RunFace::Run;
                     self.pick = Pick::new();

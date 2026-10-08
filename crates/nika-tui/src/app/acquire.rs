@@ -207,6 +207,7 @@ mod tests {
                     resume: false,
                     typed: true,
                     look: None,
+                    world: None,
                 },
                 frame(1, "workflow_started", ""),
                 frame(2, "task_started", r#"{"key":"task","value":"call"}"#),
@@ -618,6 +619,7 @@ mod kept_tests {
             resume: false,
             typed: true,
             look: None,
+            world: None,
         };
         let frames =
             (raw.lines()).map(|line| Observed::Frame(RunFrame::decode(line).expect("a frame")));

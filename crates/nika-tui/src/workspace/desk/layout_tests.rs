@@ -71,6 +71,7 @@ fn with_run() -> Desk {
             resume: false,
             typed: true,
             look: None,
+            world: None,
         },
         frame(1, "workflow_started", ""),
     ];

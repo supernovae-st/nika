@@ -410,6 +410,7 @@ fn an_asked_run_is_the_object_and_the_pinned_row() {
         resume,
         typed: true,
         look: None,
+        world: None,
     };
     assert!(!desk.observe(std::iter::empty()));
     assert!(desk.observe(std::iter::once(asked(false))));
@@ -466,6 +467,7 @@ fn closing_a_turn_folds_the_settlement_already_queued() {
         resume: false,
         typed: true,
         look: None,
+        world: None,
     })
     .expect("queued");
     for frame in frames {
@@ -561,6 +563,7 @@ fn a_run_face_is_acquired_outside_the_frame_and_read_again_on_demand() {
                 resume: false,
                 typed: true,
                 look: None,
+                world: None,
             },
             frame(1, "workflow_started", ""),
             frame(2, "task_started", starting),
@@ -643,6 +646,7 @@ fn long_list() -> Desk {
             resume: false,
             typed: true,
             look: None,
+            world: None,
         },
         frame(1, "workflow_started", ""),
     ];
@@ -732,6 +736,7 @@ fn observed_run(workflow: &str, uuid: &str, task: &str) -> Vec<Observed> {
             resume: false,
             typed: true,
             look: None,
+            world: None,
         },
         frame(1, "workflow_started", ""),
         frame(2, "task_started", &started),
@@ -806,4 +811,73 @@ fn an_earlier_run_reopens_by_its_execution_and_the_current_one_returns() {
         panic!("the current run is in view");
     };
     assert!(title.to_string().contains("02b0ef110212"), "{title}");
+}
+
+/// The run object states where the asked bytes reach as the Session declared it, and a fresh run
+/// of a workflow already run here names that earlier run: until a run can tell an effect already
+/// done, it does every declared effect again (a warning when a service may be touched). A resumed
+/// leg continues its own run and says nothing of the kind.
+#[test]
+fn a_repeated_run_names_the_earlier_one_beside_its_declared_reach() {
+    let tasks = vec!["post".to_owned()];
+    let world =
+        nika_session::world::World::declared([("net.http", "127.0.0.1", tasks.as_slice())], []);
+    let asked = |resume| Observed::Asked {
+        workflow: "stock.nika".to_owned(),
+        resume,
+        typed: true,
+        look: None,
+        world: Some(Box::new(world.clone())),
+    };
+    let settled = |execution: &str| {
+        let started = format!(
+            r#"{{"correlation":null,"execution":{{"uuid":"{execution}"}},"fields":[{{"key":"workflow","value":"stock"}}],"id":{{"uuid":"01a0ef11-03a1-73d9-a2bc-2548bdab1943"}},"kind":"workflow_started","run":null,"timestamp":1}}"#
+        );
+        let done = format!(
+            r#"{{"kind":"run_settled","status":"succeeded","cause":"normal","execution":{{"uuid":"{execution}"}},"spend":{{"priced_calls":0,"qualifier":"unmetered","unpriced_calls":0}},"evidence":"none"}}"#
+        );
+        [started, done].map(|line| Observed::Frame(RunFrame::decode(&line).expect("a frame")))
+    };
+    let rows = |desk: &mut Desk| {
+        desk.prepare(WIDE, false, false);
+        let Object::Workflow { body, .. } = desk.screen(false).object else {
+            panic!("the run is in view");
+        };
+        body.iter().map(ToString::to_string).collect::<Vec<_>>()
+    };
+    let mut desk = demo();
+    desk.observe(
+        std::iter::once(asked(false)).chain(settled("01a0ef11-0212-70de-a8b3-99de9427fccc")),
+    );
+    let first = rows(&mut desk).join(" ");
+    assert!(
+        first.contains(
+            "reaches, as declared · local services only: 127.0.0.1 · no connected service"
+        ),
+        "{first}"
+    );
+    assert!(
+        !first.contains("again ·"),
+        "a first run repeats nothing: {first}"
+    );
+
+    desk.observe(
+        std::iter::once(asked(false)).chain(settled("01a0ef12-0212-70de-a8b3-99de9427fccc")),
+    );
+    let second = rows(&mut desk).join(" ");
+    assert!(
+        second.contains("again · after run 01a0ef110212 of this workflow (settled · succeeded)"),
+        "{second}"
+    );
+    assert!(
+        second.contains("a run does every effect it declares again"),
+        "{second}"
+    );
+
+    desk.observe(std::iter::once(asked(true)));
+    let resumed = rows(&mut desk).join(" ");
+    assert!(
+        !resumed.contains("again ·"),
+        "a resumed leg continues its own run: {resumed}"
+    );
 }

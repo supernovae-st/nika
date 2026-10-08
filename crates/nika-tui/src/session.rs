@@ -526,11 +526,12 @@ impl Live {
             Work::Resume { workflow, .. } => (workflow.display().to_string(), true),
         };
         let look = (self.runtime.as_ref()).and_then(|r| look::take(&r.snapshot, &workflow));
+        let world = (self.runtime.as_ref()).and_then(|r| asked_world(&r.work(), &workflow));
         let Some(runner) = self.runner(work) else {
             return Vec::new();
         };
         let typed = runner.typed();
-        feed.asked(workflow, resume, typed, look);
+        feed.asked(workflow, resume, typed, (look, world));
         let progress = match (runner, work) {
             (Runner::ReviewTyped(review), Work::Run(run)) => review(&root, run, &feed),
             (Runner::Review(review), Work::Run(run)) => review(&root, run, feed.busy()),
@@ -1237,6 +1238,24 @@ mod look;
 mod selection;
 
 /// The one audit fold of a look, for the workspace's own tests.
+/// Where an asked workflow reaches, as the Session declared it: the requested run's check when it
+/// names this workflow, else the bytes the last consent saved there. A workflow only named carries
+/// none.
+fn asked_world(
+    work: &nika_session::work::Work,
+    workflow: &str,
+) -> Option<nika_session::world::World> {
+    let named = |path: &Path| path == Path::new(workflow);
+    (work.requested.as_ref())
+        .filter(|requested| named(&requested.workflow))
+        .map(|requested| requested.world.clone())
+        .or_else(|| {
+            (work.saved.as_ref())
+                .filter(|saved| named(&saved.workflow))
+                .and_then(|saved| saved.world.clone())
+        })
+}
+
 #[cfg(test)]
 pub(crate) fn judge_for_tests(path: &str, witness: String, source: &str) -> Inspected {
     look::judge(path.to_owned(), witness, source.to_owned())

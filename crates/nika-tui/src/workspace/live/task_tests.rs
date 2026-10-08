@@ -95,6 +95,7 @@ pub(super) fn asked(look: Option<Inspected>, resume: bool) -> Observed {
         resume,
         typed: true,
         look: look.map(Box::new),
+        world: None,
     }
 }
 

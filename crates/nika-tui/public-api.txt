@@ -1273,6 +1273,7 @@ pub nika_tui::session::feed::Observed::Asked::look: core::option::Option<alloc::
 pub nika_tui::session::feed::Observed::Asked::resume: bool
 pub nika_tui::session::feed::Observed::Asked::typed: bool
 pub nika_tui::session::feed::Observed::Asked::workflow: alloc::string::String
+pub nika_tui::session::feed::Observed::Asked::world: core::option::Option<alloc::boxed::Box<nika_session_change::world::World>>
 pub nika_tui::session::feed::Observed::Frame(nika_display::run_story::RunFrame)
 impl core::fmt::Debug for nika_tui::session::feed::Observed
 pub fn nika_tui::session::feed::Observed::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result

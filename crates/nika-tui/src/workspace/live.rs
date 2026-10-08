@@ -36,6 +36,7 @@ use ratatui::text::{Line, Span};
 use super::inspect::Inspected;
 use crate::session::acquire::{Fetched, Proven};
 use nika_session::KeptRun;
+use nika_session::world::{Reach, World};
 
 mod child;
 mod faces;
@@ -92,6 +93,10 @@ pub struct LiveRun {
     fetched: Vec<Fetched>,
     proven: Option<Proven>,
     kept: Option<KeptRun>,
+    /// Where the asked bytes reach, as the Session declared it (never observed).
+    world: Option<World>,
+    /// The last run of the same workflow observed here, as it is named: its label and standing.
+    earlier: Option<(String, String)>,
     /// How many times what was acquired was forgotten: a reading's key.
     generation: u64,
     /// How many times each task's child relation changed (set, replaced or
@@ -145,10 +150,31 @@ impl LiveRun {
             fetched: Vec::new(),
             proven: None,
             kept: None,
+            world: None,
+            earlier: None,
             generation: 0,
             relations: BTreeMap::new(),
             revision: 0,
         }
+    }
+
+    /// The same leg, with where its bytes reach as the Session declared it.
+    #[must_use]
+    pub(crate) fn reaching(mut self, world: Option<World>) -> Self {
+        self.world = world;
+        self
+    }
+
+    /// The same leg, after `earlier`: the last run of the same workflow observed here.
+    #[must_use]
+    pub(crate) fn after(mut self, earlier: Option<(String, String)>) -> Self {
+        self.earlier = earlier;
+        self
+    }
+
+    /// Its label and standing words, as a later run of the same workflow names it.
+    pub(crate) fn named(&self) -> (String, String) {
+        (self.label(), self.standing().1)
     }
 
     /// The last run HOME history kept from an earlier session, as the leg of
@@ -371,6 +397,26 @@ impl LiveRun {
             format!("{}{sep}{leg}{sep}{words}", self.workflow),
             Role::Strong,
         )];
+        if let Some(world) = &self.world {
+            let leaves = !matches!(world.reach, Reach::Local | Reach::LocalServices);
+            let role = if leaves { Role::Warn } else { Role::Dim };
+            rows.push((
+                format!("reaches, as declared{sep}{}", world.summary()),
+                role,
+            ));
+        }
+        if let Some((label, words)) = &self.earlier {
+            // Until a run can tell an effect already done, a repeated run does it again: a
+            // warning wherever the bytes may touch a service (or nobody audited them).
+            let services = (self.world.as_ref()).is_none_or(|w| w.reach != Reach::Local);
+            let role = if services { Role::Warn } else { Role::Dim };
+            rows.push((
+                format!(
+                    "again{sep}after {label} of this workflow ({words}){sep}a run does every effect it declares again"
+                ),
+                role,
+            ));
+        }
         let witness: String = (self.look.as_ref())
             .and_then(Inspected::witness)
             .unwrap_or("")
