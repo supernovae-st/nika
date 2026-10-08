@@ -690,3 +690,39 @@ fn a_hole_in_the_components_authority_is_never_bound_and_never_open() {
     assert!(expansion.ready, "{:#}", expansion.receipt["check"]);
     assert!(!expansion.candidate.contains("./data/tickets.json"));
 }
+
+#[test]
+fn a_literal_with_quotes_newlines_and_other_scripts_round_trips_through_the_proof() {
+    for value in [
+        json!("say \"hi\"\nthen 'bye'"),
+        json!("Écarte les lignes — 東京 ✓"),
+        json!("a: b, [c] {d} # not a comment"),
+        json!(["./in/a.json", "./in/b.json"]),
+        json!({"type": "object", "required": ["id"]}),
+    ] {
+        let source = format!(
+            "nika: x\nconst:\n  target: {}\n  other: kept # a comment\ntasks: {{}}\n",
+            if value.is_string() {
+                "./data/tickets.json".to_owned()
+            } else {
+                value_like(&value)
+            }
+        );
+        let edited = edit_literal(&source, "const.target", &value).unwrap();
+        let projection = literal_projection(&edited).unwrap();
+        assert_eq!(projection["const"]["target"], value, "{edited}");
+        assert!(
+            edited.ends_with("  other: kept # a comment\ntasks: {}\n"),
+            "{edited}"
+        );
+    }
+}
+
+/// A held literal of the same kind as `value`, written in flow form.
+fn value_like(value: &Value) -> String {
+    if value.is_array() {
+        "[\"./data/x.json\"]".to_owned()
+    } else {
+        "{ type: string }".to_owned()
+    }
+}
