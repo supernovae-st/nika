@@ -481,7 +481,10 @@ async fn a_session_runs_its_saved_copy_workflow_in_the_residents_runtime() {
 }
 
 /// The project's own workflow, run by the resident's own runtime through the same Session: the
-/// job's journal is the one the Session reads back for its observation.
+/// job's journal is the one the Session reads back for its observation, and the run names what
+/// it observed of itself (the source hash its journal started with, its job's execution and the
+/// job's opaque trace identity, which the job's own trace door resolves), never the resident's
+/// path.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_session_run_executes_in_the_residents_runtime_and_reads_its_journal() {
     let world = TestWorld::new();
@@ -491,6 +494,11 @@ async fn a_session_run_executes_in_the_residents_runtime_and_reads_its_journal()
     let opened = wire_request(served.address, &post("/v1/sessions", "", true)).await;
     let opened = opened.json();
     let session = opened["session"].as_str().expect("session").to_owned();
+    let (address, stream) = (
+        served.address,
+        get(&format!("/v1/sessions/{session}/events")),
+    );
+    let events = tokio::spawn(async move { wire_request(address, &stream).await });
     let ran = run_line(
         &served,
         &session,
@@ -505,14 +513,32 @@ async fn a_session_run_executes_in_the_residents_runtime_and_reads_its_journal()
     assert_eq!(served.backend.runs(), [(source, Some(0.25))]);
     let run = &ran["snapshot"]["work"]["run"];
     assert_eq!(run["end"], serde_json::json!({"end": "succeeded"}), "{run}");
-    let trace = run["trace"]
-        .as_str()
-        .expect("the journal the resident wrote");
-    assert!(
-        std::path::Path::new(trace).starts_with(world.root.path().join(".nika")),
-        "{trace}"
+    let saved = format!("{:x}", Sha256::digest(WORKFLOW.as_bytes()));
+    assert_eq!(run["workflow_sha256"], saved.as_str(), "{run}");
+    close_session(&served, &session).await;
+    let log = events.await.expect("events");
+    let notes = frames(&log.body);
+    let job = (notes.iter())
+        .filter_map(|frame| frame["note"].as_str())
+        .find_map(|note| note.strip_prefix("run admitted as job "))
+        .expect("the admitted job")
+        .to_owned();
+    let view = wire_request(served.address, &get(&format!("/v1/jobs/{job}"))).await;
+    let view = view.json();
+    let execution = run["execution"].as_str().expect("the run's execution");
+    assert_eq!(
+        view["execution_id"],
+        format!("exe-{execution}"),
+        "{run} {view}"
     );
-    close(served, &session).await;
+    let trace = run["trace"].as_str().expect("the job's trace identity");
+    assert_eq!(view["trace_id"], trace, "{run} {view}");
+    assert!(!trace.contains('/'), "never the resident's path: {trace}");
+    let verify = get(&format!("/v1/jobs/{job}/trace/verify"));
+    let verdict = wire_request(served.address, &verify).await;
+    assert_eq!(verdict.status, 200);
+    assert_eq!(verdict.json()["trace_id"], trace);
+    stop(served).await;
 }
 
 /// The job runs under the run's own ceiling, restricted by the server's per-run ceiling and
@@ -590,7 +616,7 @@ async fn a_run_admits_only_the_bytes_the_session_checked() {
     let Ok(Admitted::Job(job)) = admitted else {
         return;
     };
-    let (exit, _journal) = resident.settled(&job).await.expect("its end");
+    let exit = resident.settled(&job).await.expect("its end").exit;
     assert_eq!(exit, 0);
     assert_eq!(
         served.backend.runs(),
@@ -695,7 +721,7 @@ async fn a_reviewed_run_is_admitted_once_on_approval_and_never_on_decline() {
     );
     let job = resident.decide(&review, true).await;
     let job = job.expect("approved").expect("the reviewed job");
-    let (exit, _journal) = resident.settled(&job).await.expect("its end");
+    let exit = resident.settled(&job).await.expect("its end").exit;
     assert_eq!(exit, 0);
     assert_eq!(backend.runs.lock().expect("runs").len(), 1, "admitted once");
     assert!(

@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 use std::io::Write as _;
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Mutex, mpsc};
 use std::time::Duration;
 
@@ -21,7 +21,7 @@ use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use super::*;
 use crate::host::tests::{COPY, Gate, runtime, world};
 use crate::machine::tests::Lines;
-use crate::run::{Admitted, JobDoor, JobFuture, Jobs, NoRunDoor, RunRequest};
+use crate::run::{Admitted, JobDoor, JobEnd, JobFuture, Jobs, NoRunDoor, RunRequest};
 
 const WAIT: Duration = Duration::from_secs(60);
 
@@ -639,8 +639,8 @@ impl Jobs for Reviewing {
         })
     }
 
-    fn settled<'a>(&'a self, _id: &'a str) -> JobFuture<'a, Result<(u8, Option<PathBuf>), String>> {
-        Box::pin(async { Ok((0, None)) })
+    fn settled<'a>(&'a self, _id: &'a str) -> JobFuture<'a, Result<JobEnd, String>> {
+        Box::pin(async { Ok(JobEnd::new(0, None)) })
     }
 }
 
