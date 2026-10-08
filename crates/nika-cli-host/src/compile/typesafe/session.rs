@@ -21,13 +21,14 @@
 //! Every attempt is journaled before its request can leave and settled after it; the journal
 //! rides the session's persisted `inference_observations` ([`DECISION_SCHEMA`]), outside any
 //! allowance and outside the no-budget priced subtotal: its cost is unknown, never zero. An
-//! attempt is one physical request: a batch of independent questions asked in one request is
-//! ONE attempt (`batch`, its `items` and their outcomes, the request's `usage` once).
+//! attempt is one physical request: a batch's request is ONE attempt (`batch`, the `items` it
+//! carried and their outcomes, its `usage` once). A request the service refuses for capacity
+//! keeps its own attempt (`halved`), and each half of it asked again is another, naming the
+//! attempt it `halves`; items no request carries are one attempt never sent.
 
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 
-use super::batch::BatchExchange;
 use super::{Delivery, Exchange, ExchangeError, TypesafeSeat};
 use nika_onboard::compile::decide::{
     BatchFuture, ChoiceAnswer, ChoiceBatch, ChoiceFuture, ChoiceQuestion, DecisionError,
@@ -289,46 +290,6 @@ impl SessionSeat {
     }
 }
 
-/// The settled attempt of a batch's ONE request: how far it went, its items' outcomes and the
-/// request's usage once, whatever its items came to.
-fn settled_batch(batch: &ChoiceBatch, exchange: &BatchExchange) -> Value {
-    let items: Vec<Value> = (batch.items.iter().zip(&exchange.answers))
-        .zip(&exchange.outcomes)
-        .map(|((item, answer), outcome)| {
-            let mut record = json!({"question": item.question.id,
-                "options": item.question.keys(), "outcome": outcome});
-            match answer {
-                Ok(answer) => {
-                    record["choice"] = json!(answer.choice);
-                    record["confidence"] = json!(answer.confidence);
-                }
-                Err(error) => record["error"] = json!(error.0),
-            }
-            record
-        })
-        .collect();
-    let (outcome, status) = match exchange.delivery {
-        Delivery::Responded(status) if exchange.error.is_none() => ("answered", json!(status)),
-        Delivery::Responded(status) => ("http_error", json!(status)),
-        Delivery::NotSent => ("not_sent", Value::Null),
-        _ => ("transport_error", Value::Null),
-    };
-    let mut settled = json!({
-        "batch": batch.id,
-        "sent": exchange.delivery != Delivery::NotSent,
-        "outcome": outcome,
-        "status": status,
-        "model": exchange.model,
-        "usage": exchange.usage.record(),
-        "items": items,
-        "unasked": exchange.unasked,
-    });
-    if let Some(error) = &exchange.error {
-        settled["error"] = json!(error.0);
-    }
-    settled
-}
-
 fn push(observation: &mut Value, attempt: Value) -> usize {
     if let Some(attempts) = observation["attempts"].as_array_mut() {
         attempts.push(attempt);
@@ -386,9 +347,9 @@ impl DecisionSeat for SessionSeat {
         })
     }
 
-    /// The batch in ONE request ([`TypesafeSeat::exchange_each`]), journaled as ONE attempt
+    /// The batch's requests ([`TypesafeSeat::exchange_each`]), each journaled as ONE attempt
     /// before it can leave (one call sent, its cost unknown) and settled with its items'
-    /// outcomes and the request's usage once. An empty batch asks nothing and records nothing.
+    /// outcomes and its usage once. An empty batch asks nothing and records nothing.
     fn choose_each<'a>(&'a self, batch: &'a ChoiceBatch) -> BatchFuture<'a> {
         Box::pin(async move {
             if batch.items.is_empty() {
@@ -400,22 +361,7 @@ impl DecisionSeat for SessionSeat {
             let Some(seat) = self.seat.clone() else {
                 return self.refused(batch, "not consulted: the seat is unavailable");
             };
-            let items: Vec<Value> = (batch.items.iter())
-                .map(|item| {
-                    json!({"question": item.question.id,
-                    "options": item.question.keys(), "outcome": "in_flight"})
-                })
-                .collect();
-            let in_flight =
-                json!({"batch": batch.id, "items": items, "sent": true, "outcome": "in_flight"});
-            let settle = |exchange: &BatchExchange| settled_batch(batch, exchange);
-            match self
-                .attempt(in_flight, seat.exchange_each(batch), settle)
-                .await
-            {
-                Some(exchange) => exchange.answers,
-                None => vec![Err(DecisionError(UNAVAILABLE.into())); batch.items.len()],
-            }
+            seat.exchanged(batch, self).await.answers
         })
     }
 }
@@ -426,24 +372,33 @@ const UNAVAILABLE: &str = "decision journal unavailable; nothing sent";
 impl SessionSeat {
     /// One attempt journaled `in_flight` BEFORE its request can leave (one call sent, its cost
     /// unknown; an interruption leaves « may have been sent »), then settled with what `settle`
-    /// makes of the result. A request the adapter refused before any byte left is not a sent
-    /// call after all. `None`: the journal is unavailable and nothing was sent.
+    /// makes of the result. `None`: the journal is unavailable and nothing was sent.
     async fn attempt<T>(
         &self,
         in_flight: Value,
         send: impl Future<Output = T>,
         settle: impl FnOnce(&T) -> Value,
     ) -> Option<T> {
-        let slot = self.record(|o| {
+        let slot = self.begin_attempt(in_flight)?;
+        let result = send.await;
+        self.settle_attempt(slot, settle(&result));
+        Some(result)
+    }
+
+    /// Journal an attempt in flight: one call sent, its cost unknown. `None`: unavailable.
+    fn begin_attempt(&self, in_flight: Value) -> Option<usize> {
+        self.record(|o| {
             bump(o, "calls_sent");
             bump(o, "unknown_calls");
             let slot = push(o, in_flight);
             settle_state(o);
             slot
-        })?;
-        let result = send.await;
+        })
+    }
+
+    /// Settle the attempt at `slot`: a request refused before any byte left is no sent call.
+    fn settle_attempt(&self, slot: usize, settled: Value) {
         self.record(|o| {
-            let settled = settle(&result);
             if settled["sent"] != true {
                 unbump(o, "calls_sent");
                 unbump(o, "unknown_calls");
@@ -453,7 +408,19 @@ impl SessionSeat {
             }
             settle_state(o);
         });
-        Some(result)
+    }
+}
+
+/// The Session journals each physical request of a batch as its own attempt.
+impl super::batch::Requests for SessionSeat {
+    fn sending(&self, record: Value) -> Result<usize, DecisionError> {
+        (self.begin_attempt(record)).ok_or_else(|| DecisionError(UNAVAILABLE.into()))
+    }
+    fn settled(&self, slot: usize, record: Value) {
+        self.settle_attempt(slot, record);
+    }
+    fn unsent(&self, record: Value) {
+        self.record(|o| push(o, record));
     }
 }
 

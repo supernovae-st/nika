@@ -3,10 +3,11 @@
 
 //! A `TypeSafe` System One seat behind the compiler's bounded-decision capability.
 //!
-//! One unary `POST /v1/systemone` per question, or per batch of independent questions
-//! ([`batch`]), in the wire form of `decide::system_one` (this seat owns only the transport):
-//! each a Choice with a `none` criterion, no SDK retry loop, no fallback. The key rides only in the
-//! Authorization header; [`TypesafeSeat::from_env`] reads it from `TYPESAFE_API_KEY` only after
+//! One unary `POST /v1/systemone` per question, or per request of a batch of independent
+//! questions ([`batch`]: one, or its halves after a refusal for capacity), in the wire form of
+//! `decide::system_one` (this seat owns only the transport): each a Choice with a `none`
+//! criterion, no SDK retry loop, no fallback. The key rides only in the Authorization header;
+//! [`TypesafeSeat::from_env`] reads it from `TYPESAFE_API_KEY` only after
 //! a door named the seat, and nothing prints it (the seat has no `Debug`). The seat returns the
 //! selected key, the reported distribution, the concentration statistic and the returned model
 //! identity; the compiler revalidates the choice against the options it offered. `nika compile`
@@ -183,9 +184,8 @@ impl TypesafeSeat {
                 delivery: Delivery::Responded(status),
                 usage,
             };
-            if !(200..300).contains(&status) {
-                let message = format!("typesafe http status {status}");
-                return Err(answered(message, Usage::default()));
+            if let Some(refusal) = system_one::refusal(status, &response.body) {
+                return Err(answered(refusal.to_string(), Usage::default()));
             }
             let parsed: Value = serde_json::from_slice(&response.body)
                 .map_err(|e| answered(format!("response is not JSON: {e}"), Usage::default()))?;
@@ -264,7 +264,7 @@ impl DecisionSeat for TypesafeSeat {
                 .map_err(|failure| failure.error)
         })
     }
-    /// The batch in ONE request ([`TypesafeSeat::exchange_each`]): each item bound by its id.
+    /// The batch's requests ([`TypesafeSeat::exchange_each`]): each item bound by its id.
     fn choose_each<'a>(&'a self, batch: &'a ChoiceBatch) -> BatchFuture<'a> {
         Box::pin(async move { self.exchange_each(batch).await.answers })
     }
