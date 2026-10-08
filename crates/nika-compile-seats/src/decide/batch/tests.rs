@@ -14,7 +14,24 @@ use super::super::{
     ChoiceAnswer, ChoiceFuture, ChoiceOption, ChoiceQuestion, DecisionError, DecisionSeat,
     ProviderChoice,
 };
-use super::ChoiceBatch;
+use super::{Bound, ChoiceBatch, WrittenKeys, bind};
+
+/// A reply keyed by id binds each asked id to its one answer, nothing to an id answered twice or
+/// not at all, and lists the ids nobody asked once each, in the order first written.
+#[test]
+fn a_keyed_reply_binds_by_id_and_records_what_nobody_asked() {
+    let text = r#"{"z": 1, "a": 2, "b": 3, "a": 4, "y": 5, "z": 6}"#;
+    let written: WrittenKeys = serde_json::from_str(text).unwrap();
+    assert_eq!(written.keys, ["z", "a", "b", "a", "y", "z"]);
+    let reply: Value = serde_json::from_str(text).unwrap();
+    let (bound, unasked) = bind(&["a", "b", "c"], reply.as_object().unwrap(), &written);
+    assert_eq!(
+        bound,
+        [Bound::Repeated, Bound::Answer(&json!(3)), Bound::Unanswered]
+    );
+    assert_eq!(unasked, ["z", "y"]);
+    assert!(serde_json::from_str::<WrittenKeys>("[1, 2]").is_err());
+}
 
 /// The shared reference, then each question's own words.
 const REFERENCE: &str = "REFERENCE: how the compiler writes.\n\nJudge ONE clause.";
@@ -163,4 +180,35 @@ async fn a_provider_seat_settles_a_batch_in_one_request_bound_by_id() {
         .map(|a| a.as_ref().ok().and_then(|a| a.input_tokens))
         .collect();
     assert_eq!(usage, [Some(100), None, None]);
+}
+
+/// A provider answering every request with `text`.
+fn answering(text: &str) -> Provider {
+    Provider {
+        text: text.to_owned(),
+        requests: Mutex::new(Vec::new()),
+    }
+}
+
+/// A reply that decides no item still accounts for its request: the seat's receipt names the
+/// questions the ONE request carried and keeps the usage its response reported, once.
+#[tokio::test]
+async fn a_reply_that_decides_nothing_still_accounts_for_its_request() {
+    let questions = [part(0, "a"), part(1, "b")];
+    let batch = ChoiceBatch::of("verify-parts", &questions);
+    let provider = answering("not one JSON object");
+    let seat = ProviderChoice::new(&provider, "test/model", Duration::from_secs(5), 512);
+    let answers = seat.choose_each(&batch).await;
+    assert!(answers.iter().all(Result::is_err), "{answers:?}");
+    let receipts = seat.requests();
+    assert_eq!(receipts.len(), 1, "one physical request");
+    assert_eq!(
+        receipts[0],
+        json!({"questions": ["verify-part-0", "verify-part-1"], "outcome": "answered",
+            "usage": {"input_tokens": 100, "output_tokens": 20}})
+    );
+    // A single question's request is receipted the same way, decided or not.
+    assert!(seat.choose(&questions[0]).await.is_err());
+    assert_eq!(seat.requests().len(), 2);
+    assert_eq!(seat.requests()[1]["questions"], json!(["verify-part-0"]));
 }

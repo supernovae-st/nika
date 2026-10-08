@@ -20,13 +20,18 @@
 //!
 //! Every attempt is journaled before its request can leave and settled after it; the journal
 //! rides the session's persisted `inference_observations` ([`DECISION_SCHEMA`]), outside any
-//! allowance and outside the no-budget priced subtotal: its cost is unknown, never zero.
+//! allowance and outside the no-budget priced subtotal: its cost is unknown, never zero. An
+//! attempt is one physical request: a batch of independent questions asked in one request is
+//! ONE attempt (`batch`, its `items` and their outcomes, the request's `usage` once).
 
+use std::future::Future;
 use std::sync::{Arc, Mutex};
 
-use super::{Delivery, TypesafeSeat};
+use super::batch::BatchExchange;
+use super::{Delivery, Exchange, ExchangeError, TypesafeSeat};
 use nika_onboard::compile::decide::{
-    ChoiceFuture, ChoiceQuestion, DecisionError, DecisionSeat, NONE_OPTION,
+    BatchFuture, ChoiceAnswer, ChoiceBatch, ChoiceFuture, ChoiceQuestion, DecisionError,
+    DecisionSeat, NONE_OPTION,
 };
 use serde_json::{Value, json};
 
@@ -264,6 +269,64 @@ impl SessionSeat {
         });
         DecisionError(format!("decision seat {} {why}", self.word))
     }
+
+    /// Record a batch the seat was refused for as ONE attempt that never left, and return each
+    /// item's error.
+    fn refused(&self, batch: &ChoiceBatch, why: &str) -> Vec<Result<ChoiceAnswer, DecisionError>> {
+        self.record(|o| {
+            let items: Vec<Value> = (batch.items.iter())
+                .map(|item| json!({"question": item.question.id, "options": item.question.keys()}))
+                .collect();
+            push(
+                o,
+                json!({"batch": batch.id, "items": items, "sent": false, "outcome": "refused",
+                    "error": why}),
+            );
+            o["refused"] = json!(why);
+        });
+        let error = DecisionError(format!("decision seat {} {why}", self.word));
+        vec![Err(error); batch.items.len()]
+    }
+}
+
+/// The settled attempt of a batch's ONE request: how far it went, its items' outcomes and the
+/// request's usage once, whatever its items came to.
+fn settled_batch(batch: &ChoiceBatch, exchange: &BatchExchange) -> Value {
+    let items: Vec<Value> = (batch.items.iter().zip(&exchange.answers))
+        .zip(&exchange.outcomes)
+        .map(|((item, answer), outcome)| {
+            let mut record = json!({"question": item.question.id,
+                "options": item.question.keys(), "outcome": outcome});
+            match answer {
+                Ok(answer) => {
+                    record["choice"] = json!(answer.choice);
+                    record["confidence"] = json!(answer.confidence);
+                }
+                Err(error) => record["error"] = json!(error.0),
+            }
+            record
+        })
+        .collect();
+    let (outcome, status) = match exchange.delivery {
+        Delivery::Responded(status) if exchange.error.is_none() => ("answered", json!(status)),
+        Delivery::Responded(status) => ("http_error", json!(status)),
+        Delivery::NotSent => ("not_sent", Value::Null),
+        _ => ("transport_error", Value::Null),
+    };
+    let mut settled = json!({
+        "batch": batch.id,
+        "sent": exchange.delivery != Delivery::NotSent,
+        "outcome": outcome,
+        "status": status,
+        "model": exchange.model,
+        "usage": exchange.usage.record(),
+        "items": items,
+        "unasked": exchange.unasked,
+    });
+    if let Some(error) = &exchange.error {
+        settled["error"] = json!(error.0);
+    }
+    settled
 }
 
 fn push(observation: &mut Value, attempt: Value) -> usize {
@@ -307,93 +370,141 @@ impl DecisionSeat for SessionSeat {
                 return Err(self.unsent(question, "refused", &format!("not consulted: {why}")));
             }
             let Some(seat) = self.seat.clone() else {
-                return Err(self.unsent(
-                    question,
-                    "refused",
-                    "not consulted: the seat is unavailable",
-                ));
+                let why = "not consulted: the seat is unavailable";
+                return Err(self.unsent(question, "refused", why));
             };
-            // Journaled BEFORE the request can leave: an interruption leaves « may have been sent ».
-            let slot = self
-                .record(|o| {
-                    bump(o, "calls_sent");
-                    bump(o, "unknown_calls");
-                    let slot = push(
-                        o,
-                        json!({
-                            "question": question.id,
-                            "options": question.keys(),
-                            "sent": true,
-                            "outcome": "in_flight",
-                        }),
-                    );
-                    settle_state(o);
-                    slot
-                })
-                .ok_or_else(|| {
-                    DecisionError("decision journal unavailable; nothing sent".into())
-                })?;
-            let result = seat.exchange(question).await;
-            self.record(|o| {
-                let settled = match &result {
-                    Ok(exchange) => {
-                        let answer = &exchange.answer;
-                        let outcome = if answer.choice == NONE_OPTION {
-                            "none"
-                        } else if question.keys().contains(&answer.choice) {
-                            "chosen"
-                        } else {
-                            "outside_options"
-                        };
-                        json!({
-                            "question": question.id,
-                            "options": question.keys(),
-                            "sent": true,
-                            "outcome": outcome,
-                            "status": exchange.status,
-                            "choice": answer.choice,
-                            "model": answer.model,
-                            "confidence": answer.confidence,
-                            "usage": {
-                                "input_tokens": answer.input_tokens,
-                                "output_tokens": answer.output_tokens,
-                                "billing_units": exchange.billing_units,
-                            },
-                        })
-                    }
-                    Err(failure) => json!({
-                        "question": question.id,
-                        "options": question.keys(),
-                        "sent": failure.delivery != Delivery::NotSent,
-                        "outcome": match failure.delivery {
-                            Delivery::Responded(_) => "http_error",
-                            Delivery::NotSent => "not_sent",
-                            _ => "transport_error",
-                        },
-                        "status": match failure.delivery {
-                            Delivery::Responded(status) => json!(status),
-                            _ => Value::Null,
-                        },
-                        "error": failure.error.0,
-                    }),
-                };
-                let left = settled["sent"] == true;
-                if let Some(attempts) = o["attempts"].as_array_mut()
-                    && let Some(attempt) = attempts.get_mut(slot)
-                {
-                    *attempt = settled;
-                }
-                if !left {
-                    // refused by the adapter before any byte left: not a sent call after all
-                    unbump(o, "calls_sent");
-                    unbump(o, "unknown_calls");
-                }
-                settle_state(o);
-            });
+            let in_flight = json!({"question": question.id, "options": question.keys(),
+                "sent": true, "outcome": "in_flight"});
+            let settle = |result: &Result<Exchange, ExchangeError>| settled_one(question, result);
+            let result = (self
+                .attempt(in_flight, seat.exchange(question), settle)
+                .await)
+                .ok_or_else(|| DecisionError(UNAVAILABLE.into()))?;
             result
                 .map(|exchange| exchange.answer)
                 .map_err(|failure| failure.error)
         })
+    }
+
+    /// The batch in ONE request ([`TypesafeSeat::exchange_each`]), journaled as ONE attempt
+    /// before it can leave (one call sent, its cost unknown) and settled with its items'
+    /// outcomes and the request's usage once. An empty batch asks nothing and records nothing.
+    fn choose_each<'a>(&'a self, batch: &'a ChoiceBatch) -> BatchFuture<'a> {
+        Box::pin(async move {
+            if batch.items.is_empty() {
+                return Vec::new();
+            }
+            if let Err(why) = &self.allowed {
+                return self.refused(batch, &format!("not consulted: {why}"));
+            }
+            let Some(seat) = self.seat.clone() else {
+                return self.refused(batch, "not consulted: the seat is unavailable");
+            };
+            let items: Vec<Value> = (batch.items.iter())
+                .map(|item| {
+                    json!({"question": item.question.id,
+                    "options": item.question.keys(), "outcome": "in_flight"})
+                })
+                .collect();
+            let in_flight =
+                json!({"batch": batch.id, "items": items, "sent": true, "outcome": "in_flight"});
+            let settle = |exchange: &BatchExchange| settled_batch(batch, exchange);
+            match self
+                .attempt(in_flight, seat.exchange_each(batch), settle)
+                .await
+            {
+                Some(exchange) => exchange.answers,
+                None => vec![Err(DecisionError(UNAVAILABLE.into())); batch.items.len()],
+            }
+        })
+    }
+}
+
+/// Why nothing was sent when the journal cannot record the attempt first.
+const UNAVAILABLE: &str = "decision journal unavailable; nothing sent";
+
+impl SessionSeat {
+    /// One attempt journaled `in_flight` BEFORE its request can leave (one call sent, its cost
+    /// unknown; an interruption leaves « may have been sent »), then settled with what `settle`
+    /// makes of the result. A request the adapter refused before any byte left is not a sent
+    /// call after all. `None`: the journal is unavailable and nothing was sent.
+    async fn attempt<T>(
+        &self,
+        in_flight: Value,
+        send: impl Future<Output = T>,
+        settle: impl FnOnce(&T) -> Value,
+    ) -> Option<T> {
+        let slot = self.record(|o| {
+            bump(o, "calls_sent");
+            bump(o, "unknown_calls");
+            let slot = push(o, in_flight);
+            settle_state(o);
+            slot
+        })?;
+        let result = send.await;
+        self.record(|o| {
+            let settled = settle(&result);
+            if settled["sent"] != true {
+                unbump(o, "calls_sent");
+                unbump(o, "unknown_calls");
+            }
+            if let Some(attempt) = o["attempts"].as_array_mut().and_then(|a| a.get_mut(slot)) {
+                *attempt = settled;
+            }
+            settle_state(o);
+        });
+        Some(result)
+    }
+}
+
+/// The settled attempt of one question's request: its outcome, status, choice and usage, or how
+/// far it went and why it failed (a malformed reply keeps the usage it reported).
+fn settled_one(question: &ChoiceQuestion, result: &Result<Exchange, ExchangeError>) -> Value {
+    match result {
+        Ok(exchange) => {
+            let answer = &exchange.answer;
+            let outcome = if answer.choice == NONE_OPTION {
+                "none"
+            } else if question.keys().contains(&answer.choice) {
+                "chosen"
+            } else {
+                "outside_options"
+            };
+            json!({
+                "question": question.id,
+                "options": question.keys(),
+                "sent": true,
+                "outcome": outcome,
+                "status": exchange.status,
+                "choice": answer.choice,
+                "model": answer.model,
+                "confidence": answer.confidence,
+                "usage": {
+                    "input_tokens": answer.input_tokens,
+                    "output_tokens": answer.output_tokens,
+                    "billing_units": exchange.billing_units,
+                },
+            })
+        }
+        Err(failure) => {
+            let (outcome, status) = match failure.delivery {
+                Delivery::Responded(status) => ("http_error", json!(status)),
+                Delivery::NotSent => ("not_sent", Value::Null),
+                _ => ("transport_error", Value::Null),
+            };
+            let mut failed = json!({
+                "question": question.id,
+                "options": question.keys(),
+                "sent": failure.delivery != Delivery::NotSent,
+                "outcome": outcome,
+                "status": status,
+                "error": failure.error.0,
+            });
+            if failure.usage.reported() {
+                failed["usage"] = failure.usage.record();
+            }
+            failed
+        }
     }
 }
 
@@ -402,6 +513,9 @@ impl Drop for SessionSeat {
         self.close();
     }
 }
+
+#[cfg(test)]
+mod batch_tests;
 
 #[cfg(test)]
 mod tests {
