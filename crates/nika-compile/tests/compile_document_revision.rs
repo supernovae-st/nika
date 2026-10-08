@@ -13,8 +13,9 @@
     clippy::disallowed_methods
 )]
 
+use nika_compile::surface::sha256;
 use nika_compile::{CompileRequest, CompileStatus, compile, finish, initial};
-use nika_compile_fidelity::document::{
+use nika_schema::document::{
     Document, DocumentRevision, Edit, Origin, Path, Refusal, Revision, RevisionRefusal,
 };
 use serde_json::json;
@@ -45,7 +46,7 @@ fn codes(document: &Document) -> Vec<String> {
 #[test]
 fn a_rich_revision_is_judged_by_the_door_every_candidate_takes() {
     let base = fixture("rich-revision.nika");
-    let first = DocumentRevision::import(base.clone()).expect("import");
+    let first = DocumentRevision::import(base.clone(), sha256).expect("import");
     let mut judged = initial();
     finish(base.clone(), &mut judged);
     assert_eq!(
@@ -79,7 +80,7 @@ fn a_rich_revision_is_judged_by_the_door_every_candidate_takes() {
         "an unrelated value keeps the requested boundary"
     );
     assert_eq!(second.parent(), Some(first.revision()));
-    assert_eq!(second.revision(), &Revision::of(second.source()));
+    assert_eq!(second.revision(), &Revision::new(sha256(second.source())));
     // A correction typed against the first revision cannot overwrite the second.
     let late = second
         .apply(
@@ -136,7 +137,7 @@ fn the_constant_door_and_the_document_edit_agree() {
 #[test]
 fn an_exact_component_joins_the_document_and_checks_clean() {
     let base = fixture("rich-revision.nika");
-    let first = DocumentRevision::import(base).expect("import");
+    let first = DocumentRevision::import(base, sha256).expect("import");
     let component = "# a reused notice, its bytes kept\nafter: { persist: success }\ninvoke:\n  tool: \"nika:log\"\n  args: { message: \"window ${{ const.window_hours }}h done\" }\n";
     let second = first
         .apply(
@@ -191,7 +192,7 @@ fn negatives() -> Vec<(String, String, String)> {
 fn every_negative_program_stays_negative_after_an_unrelated_revision() {
     let mut revised = 0;
     for (name, body, code) in negatives() {
-        let first = match DocumentRevision::import(body) {
+        let first = match DocumentRevision::import(body, sha256) {
             Ok(first) => first,
             // Refused by the strict parser, for its declared reason: no
             // revision can make it a candidate.
@@ -245,7 +246,7 @@ fn every_clean_pack_program_stays_clean_after_an_unrelated_revision() {
     }
     let mut clean = 0;
     for (name, source) in programs {
-        let Ok(first) = DocumentRevision::import(source) else {
+        let Ok(first) = DocumentRevision::import(source, sha256) else {
             continue;
         };
         if !nika_check::check(first.document().workflow()).is_clean() {
