@@ -293,3 +293,57 @@ fn a_revision_names_what_changed_and_warns_on_a_rewrite_or_a_moved_component() {
         )]
     );
 }
+
+/// An exact skeleton the compiler drafts whole and then asks one value of before it proposes.
+const ASKS: &str = "aggregate-by-key";
+
+#[test]
+fn the_draft_shows_while_its_question_waits_and_answers_no_consent() {
+    let room = Room::new("draft");
+    let mut live = live(&room.0);
+    let turn = live.submit(ASKS);
+    let draft = {
+        let runtime = live.runtime.as_ref().expect("runtime");
+        assert!(
+            matches!(
+                runtime.waiting(),
+                nika_session::work::Waiting::Question { .. }
+            ),
+            "{}",
+            words(&turn.beats)
+        );
+        assert!(runtime.pending_proposal().is_none(), "nothing is proposed");
+        (runtime.work().authoring)
+            .and_then(|authoring| authoring.draft)
+            .expect("the compiler drafted before it asked")
+    };
+    let shown = live
+        .candidate()
+        .expect("the draft is folded while its question waits");
+    assert!(
+        shown.draft() && shown.aside(),
+        "a draft is never consentable"
+    );
+    assert_eq!(
+        shown.witness(),
+        Some(Witness::of(draft.as_bytes()).0.as_str())
+    );
+    let (title, body) = shown.face_lines(Face::Source, 100, false, false);
+    let title = title.to_string();
+    assert!(
+        title.contains(" draft · ") && !title.contains("proposal"),
+        "{title}"
+    );
+    let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
+    assert!(rows[0].starts_with("draft · "), "{rows:?}");
+    let first = draft.lines().next().expect("a first line");
+    assert!(rows.iter().any(|row| row.contains(first)), "{rows:?}");
+    assert!(
+        !rows.iter().any(|row| row.contains("what a yes answers")),
+        "{rows:?}"
+    );
+    // The draft lives only while its question waits: dropping the question takes it away.
+    let turn = live.submit("cancel");
+    assert!(live.candidate().is_none(), "{}", words(&turn.beats));
+    assert!(!room.0.join(DEST).exists(), "a draft writes nothing");
+}

@@ -35,6 +35,8 @@ use crate::visual::role;
 pub struct Proposed {
     id: ProposalId,
     aside: bool,
+    /// The compiler's draft while its question waits: no proposal yet, nothing to consent.
+    draft: bool,
     changes: Vec<String>,
     effects: Option<Vec<String>>,
     /// How its workflow was revised over the complete document and which components it holds,
@@ -55,6 +57,7 @@ impl PartialEq for Proposed {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
             && self.aside == other.aside
+            && self.draft == other.draft
             && self.changes == other.changes
             && self.effects == other.effects
             && self.revision == other.revision
@@ -74,6 +77,7 @@ impl Proposed {
         Self {
             id,
             aside,
+            draft: false,
             changes: Vec::new(),
             effects: None,
             revision: Vec::new(),
@@ -82,6 +86,14 @@ impl Proposed {
             unshown: 0,
             look,
         }
+    }
+
+    /// The compiler's draft while its question waits, before any proposal: set aside, it names
+    /// no consent, lands nothing and was neither audited nor rehearsed.
+    pub(crate) fn drafted(mut self) -> Self {
+        self.aside = true;
+        self.draft = true;
+        self
     }
 
     /// With every change it lands, in words.
@@ -135,6 +147,12 @@ impl Proposed {
         self.aside
     }
 
+    /// Whether it is the compiler's draft at a question rather than a proposal.
+    #[must_use]
+    pub fn draft(&self) -> bool {
+        self.draft
+    }
+
     /// Where its workflow would land, relative to the project's root.
     #[must_use]
     pub fn path(&self) -> &str {
@@ -164,13 +182,19 @@ impl Proposed {
     /// How the aside and the conversation panel name it.
     #[must_use]
     pub fn label(&self) -> String {
-        format!("proposal {}", self.path())
+        let kind = if self.draft { "draft" } else { "proposal" };
+        format!("{kind} {}", self.path())
     }
 
     /// The facts above every face: the identity and what a yes answers, the
     /// changes, what the workflow reaches, the rehearsal; each with its role.
     fn head(&self, ascii: bool) -> Vec<(String, Role)> {
         let (sep, _) = marks(ascii);
+        if self.draft {
+            // Before any proposal: no identity, no audit, no rehearsal to state.
+            let first = format!("draft{sep}the compiler's question waits{sep}not a proposal yet");
+            return vec![(first, Role::Strong)];
+        }
         let id = self.id.to_string();
         let standing = if self.aside {
             format!("set aside while the revision's question waits{sep}not consentable now")
@@ -239,7 +263,8 @@ impl Proposed {
         color: bool,
     ) -> (Line<'static>, Vec<Line<'static>>) {
         let (sep, cut) = marks(ascii);
-        let name = format!("proposal{sep}{}", self.look.title());
+        let kind = if self.draft { "draft" } else { "proposal" };
+        let name = format!("{kind}{sep}{}", self.look.title());
         let title = title_row(&name, face, width, ascii, color);
         let mut body = Vec::new();
         for (row, tone) in self.head(ascii) {
@@ -248,8 +273,7 @@ impl Proposed {
             }
         }
         let short: String = self.witness().unwrap_or("").chars().take(12).collect();
-        let said =
-            format!("these bytes {short}, the proposal's own{sep}Left/Right change the face");
+        let said = format!("these bytes {short}, the {kind}'s own{sep}Left/Right change the face");
         body.extend(self.look.judged_lines(face, width, ascii, color, &said));
         (title, body)
     }

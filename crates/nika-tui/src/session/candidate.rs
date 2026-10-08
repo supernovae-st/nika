@@ -15,8 +15,9 @@
 //! witnesses, what the workflow reaches, the rehearsal, the standing) is taken
 //! from the Session anew. The fold grants nothing and joins no consent.
 
-use nika_session::SessionRuntime;
 use nika_session::change::{ProjectChange, Witness};
+use nika_session::work::Waiting;
+use nika_session::{ProposalId, SessionRuntime};
 
 use super::look::judge;
 use crate::workspace::candidate::Proposed;
@@ -24,7 +25,9 @@ use crate::workspace::inspect::Inspected;
 
 /// The runtime's candidate, folded; `kept` is the previous fold.
 pub(crate) fn take(runtime: &SessionRuntime, kept: Option<&Proposed>) -> Option<Proposed> {
-    let candidate = runtime.candidate()?;
+    let Some(candidate) = runtime.candidate() else {
+        return draft(runtime, kept);
+    };
     let set = candidate.set;
     let shown = (set.changes.iter().find(|c| c.is_workflow())).or_else(|| set.changes.first())?;
     let path = shown.path().display().to_string();
@@ -81,6 +84,25 @@ pub(crate) fn take(runtime: &SessionRuntime, kept: Option<&Proposed>) -> Option<
         .unshown(set.changes.len().saturating_sub(1))
         .rehearsed(candidate.rehearsed.map(str::to_owned));
     Some(fold)
+}
+
+/// Where the draft's look is named: it lands nowhere until a proposal says where.
+const DRAFT: &str = "draft.nika";
+
+/// The compiler's draft while its question waits and nothing is proposed, read from the Session's
+/// own work snapshot (the bytes every host reads) and judged once like a candidate: it names no
+/// consent, so a `yes` can never answer it.
+fn draft(runtime: &SessionRuntime, kept: Option<&Proposed>) -> Option<Proposed> {
+    if !matches!(runtime.waiting(), Waiting::Question { .. }) {
+        return None;
+    }
+    let source = runtime.work().authoring?.draft?;
+    let witness = Witness::of(source.as_bytes()).0;
+    let look = match kept.map(Proposed::look) {
+        Some(look) if look.witness() == Some(witness.as_str()) => look.clone(),
+        _ => judge(DRAFT.to_owned(), witness, source.clone()),
+    };
+    Some(Proposed::new(ProposalId::of(&source), true, look).drafted())
 }
 
 /// How the pending workflow was revised over its complete document, as the compile record states
