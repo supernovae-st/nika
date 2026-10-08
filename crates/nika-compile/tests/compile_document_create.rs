@@ -18,6 +18,9 @@ mod common;
 use common::Judged;
 use nika_compile::surface::{literal_projection, sha256};
 use nika_compile::{AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, NativeMode};
+use nika_compile_cognition::rehearse::{
+    Attempt, Closure, Composed, EffectCounts, Rehearsal, RehearsalFuture, RehearsalReport, Rehearse,
+};
 use nika_compile_cognition::{Cognition, compile_with_cognition_composed};
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, ResponseFormat,
@@ -988,6 +991,199 @@ async fn the_same_defects_in_new_bytes_end_the_door_with_the_preview_kept() {
         route.iter().any(|s| s == "native: no progress"),
         "{route:?}"
     );
+}
+
+// ── A native child call a host checked composed: only a clean closure of these bytes lifts it ─
+
+/// A host that runs nothing and answers its read-only composition check: `Some(answer)` as
+/// given, else a clean closure of whatever bytes it is asked about (a faithful clean room).
+/// Every candidate it was asked about is kept.
+struct Composing {
+    answer: Option<Composed>,
+    asked: Mutex<Vec<String>>,
+}
+
+impl Composing {
+    fn new(answer: Option<Composed>) -> Self {
+        Self {
+            answer,
+            asked: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn asked(&self) -> Vec<String> {
+        self.asked.lock().unwrap().clone()
+    }
+}
+
+impl Rehearse for Composing {
+    fn rehearse<'a>(&'a self, candidate: &'a str, _inputs: &'a [String]) -> RehearsalFuture<'a> {
+        Box::pin(async move {
+            let outcome = Rehearsal::NotRun {
+                reason: "no room in this test".to_owned(),
+            };
+            let none = EffectCounts::none();
+            RehearsalReport::new(outcome, Attempt::NeverAttempted, none, sha256(candidate))
+        })
+    }
+    fn bound(&self) -> Duration {
+        Duration::from_secs(1)
+    }
+    fn compose(&self, candidate: &str) -> Composed {
+        self.asked.lock().unwrap().push(sha256(candidate));
+        self.answer.clone().unwrap_or_else(|| {
+            let units = vec![
+                ("compose-pipeline.nika".to_owned(), sha256(candidate)),
+                ("10-compose-child.nika".to_owned(), sha256(CHILD)),
+            ];
+            let at = "compose-pipeline.nika";
+            Composed::Clean(Closure::new(sha256(candidate), at, ("closure", 1), units))
+        })
+    }
+}
+
+/// The pack's child, beside its parent.
+const CHILD: &str = "nika: compose-child\n";
+
+/// The pack's own parent: a native child call, Check clean alone.
+fn parent() -> &'static str {
+    nika_pack::example("10-compose-pipeline").expect("the pack ships 10")
+}
+
+/// The child-pipeline request, its document the pack's parent, composed under `host` (or no
+/// host), its whole-request judgment approved.
+async fn with_child(request: &CompileRequest, host: Option<&Composing>) -> (CompileOutcome, usize) {
+    let author = Author::new(vec![written(parent())]);
+    let judged = Judged::approving(&author);
+    let cognition = Cognition {
+        provider: Some(&judged),
+        seat: None,
+    };
+    let host = host.map(|h| h as &dyn Rehearse);
+    let out = compile_with_cognition_composed(request, cognition, host, None)
+        .await
+        .unwrap();
+    (out, author.count())
+}
+
+fn child_request() -> CompileRequest {
+    CompileRequest::create(CHILD_INTENT).with_authoring_policy(policy(NativeMode::Escalate))
+}
+
+/// The source-only hold `finish` states on the child call.
+fn held_child(out: &CompileOutcome) -> bool {
+    (out.diagnostics.iter())
+        .any(|d| d.target == "call" && d.message.contains("cannot resolve this child workflow"))
+}
+
+#[tokio::test]
+async fn a_child_call_the_host_checked_clean_with_these_bytes_is_ready_and_bound() {
+    let host = Composing::new(None);
+    let (out, calls) = with_child(&child_request(), Some(&host)).await;
+    assert_eq!(calls, 1);
+    assert_eq!(out.status, CompileStatus::Ready, "{:#?}", out.diagnostics);
+    assert_eq!(
+        out.candidate.as_deref(),
+        Some(parent()),
+        "the bytes are the author's"
+    );
+    assert!(!held_child(&out), "{:#?}", out.diagnostics);
+    assert_eq!(
+        host.asked(),
+        [sha256(parent())],
+        "checked once, on these bytes"
+    );
+    let record = &decision(&out)["composition"];
+    assert_eq!(record["verdict"], "clean", "{record:#}");
+    assert_eq!(record["discharged"], json!(["call"]));
+    assert_eq!(record["candidate_sha256"], json!(sha256(parent())));
+    assert_eq!(record["logical_root"], "compose-pipeline.nika");
+    let bound = &out.provenance.plan.as_ref().unwrap()["document"];
+    assert_eq!(
+        bound["candidate_sha256"],
+        json!(sha256(parent())),
+        "{bound:#}"
+    );
+}
+
+#[tokio::test]
+async fn a_child_call_no_clean_closure_of_these_bytes_covers_stays_held_with_why() {
+    let other = Closure::new(
+        sha256("nika: other\n"),
+        "p.nika",
+        ("closure", 1),
+        Vec::new(),
+    );
+    for (answer, verdict) in [
+        (
+            Composed::Refused {
+                reason: "checked at `compose-pipeline.nika`: NIKA-COMP-001 missing".to_owned(),
+            },
+            "refused",
+        ),
+        (
+            Composed::Unresolved {
+                reason: "no location".to_owned(),
+            },
+            "unresolved",
+        ),
+        (Composed::Unoffered, "unoffered"),
+        (Composed::Clean(other.clone()), "clean"),
+    ] {
+        let host = Composing::new(Some(answer));
+        let (out, _) = with_child(&child_request(), Some(&host)).await;
+        assert_ne!(out.status, CompileStatus::Ready, "{verdict}");
+        assert!(held_child(&out), "{verdict}: {:#?}", out.diagnostics);
+        let record = &decision(&out)["composition"];
+        assert_eq!(record["verdict"], verdict, "{record:#}");
+        assert_eq!(record["discharged"], json!([]), "{verdict}");
+        if verdict == "refused" {
+            assert!(record["reason"].as_str().unwrap().contains("NIKA-COMP-001"));
+        }
+        let plan = out.provenance.plan.as_ref().unwrap();
+        assert!(plan.get("document").is_none(), "{verdict}: nothing bound");
+    }
+}
+
+#[tokio::test]
+async fn every_replay_checks_the_child_again_and_never_trusts_a_recorded_check() {
+    // A source-only round keeps its record; the replay's host checks the replayed bytes.
+    let (first, _) = with_child(&child_request(), None).await;
+    assert!(held_child(&first) && first.status != CompileStatus::Ready);
+    let record = first
+        .provenance
+        .plan
+        .clone()
+        .expect("the continuation record");
+    let host = Composing::new(None);
+    let replay = child_request().with_plan(record);
+    let (lifted, calls) = with_child(&replay, Some(&host)).await;
+    assert_eq!(calls, 0, "a replay makes no authoring call");
+    assert_eq!(
+        lifted.status,
+        CompileStatus::Ready,
+        "{:#?}",
+        lifted.diagnostics
+    );
+    assert!(!host.asked().is_empty());
+    assert!(host.asked().iter().all(|sha| *sha == sha256(parent())));
+    // A record whose check was clean is no witness for a later round: the child is asked again,
+    // and a host that now refuses it keeps the hold.
+    let clean = lifted.provenance.plan.clone().expect("the bound record");
+    let refusing = Composing::new(Some(Composed::Refused {
+        reason: "checked at `compose-pipeline.nika`: NIKA-COMP-001 the child is gone".to_owned(),
+    }));
+    let (stale, _) = with_child(&child_request().with_plan(clean), Some(&refusing)).await;
+    assert!(!refusing.asked().is_empty());
+    assert!(refusing.asked().iter().all(|sha| *sha == sha256(parent())));
+    assert_ne!(
+        stale.status,
+        CompileStatus::Ready,
+        "{:#?}",
+        stale.diagnostics
+    );
+    assert!(held_child(&stale));
+    assert_eq!(decision(&stale)["composition"]["verdict"], "refused");
 }
 
 // ── An UNJUDGED document: withdrawn, its record kept for a later round (pinned follow-up) ─────

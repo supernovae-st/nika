@@ -813,6 +813,7 @@ impl<T> typenum::type_operators::Same for nika_compile::surface::Ledger
 pub type nika_compile::surface::Ledger::Output = T
 pub const nika_compile::surface::LINES: &str
 pub const nika_compile::surface::SELECT_BY_FIELD: &str
+pub const nika_compile::surface::UNJUDGED_DEPENDENCY: &str
 pub fn nika_compile::surface::admit_hot(intent: &str, reading: &nika_compile_reader::lexicon::Reading, hot: nika_compile::HotPolicy) -> core::result::Result<(), nika_compile::surface::AdmissionError>
 pub fn nika_compile::surface::finding(out: &mut nika_compile::CompileOutcome, kind: nika_compile::DiagnosticKind, target: &str, message: impl core::convert::Into<alloc::string::String>)
 pub fn nika_compile::surface::finish(source: alloc::string::String, out: &mut nika_compile::CompileOutcome)
@@ -826,6 +827,7 @@ pub fn nika_compile::surface::output_caps(model: &str) -> core::option::Option<s
 pub fn nika_compile::surface::parse(source: &str) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, nika_schema::error::SchemaError>
 pub fn nika_compile::surface::plan_record(plan: &nika_compile_reader::plan::Plan, strategy: core::option::Option<nika_compile::Strategy>) -> serde_json::value::Value
 pub fn nika_compile::surface::question(out: &mut nika_compile::CompileOutcome, key: &str, label: &str, answer_type: nika_compile::QuestionType)
+pub fn nika_compile::surface::ready_by_law(out: &nika_compile::CompileOutcome, clean: bool) -> bool
 pub fn nika_compile::surface::record_ledger(out: &mut nika_compile::CompileOutcome, ledger: &nika_compile::surface::Ledger)
 pub fn nika_compile::surface::record_retrieval(out: &mut nika_compile::CompileOutcome, intent: &str, plan: core::option::Option<&nika_compile_reader::plan::Plan>)
 pub fn nika_compile::surface::record_route(out: &mut nika_compile::CompileOutcome, route: &[alloc::string::String])
@@ -2230,6 +2232,7 @@ pub fn nika_compile::TriggerRequirement::as_any(&self) -> &(dyn core::any::Any +
 impl<T> typenum::type_operators::Same for nika_compile::TriggerRequirement
 pub type nika_compile::TriggerRequirement::Output = T
 pub const nika_compile::COMPILE_WIRE_VERSION: u32
+pub const nika_compile::UNJUDGED_DEPENDENCY: &str
 pub fn nika_compile::basis(decision: core::option::Option<&serde_json::value::Value>, fresh: core::option::Option<&serde_json::value::Value>, intent: &str) -> nika_compile::Basis
 pub fn nika_compile::basis_for(request: &nika_compile::CompileRequest, decision: core::option::Option<&serde_json::value::Value>, fresh: core::option::Option<&serde_json::value::Value>) -> nika_compile::Basis
 pub fn nika_compile::compile(request: &nika_compile::CompileRequest) -> core::result::Result<nika_compile::CompileOutcome, nika_compile::CompileError>
@@ -2243,6 +2246,7 @@ pub fn nika_compile::materialize_ready(outcome: &nika_compile::CompileOutcome, d
 pub fn nika_compile::outcome_document(out: &nika_compile::CompileOutcome) -> serde_json::value::Value
 pub fn nika_compile::parse(source: &str) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, nika_schema::error::SchemaError>
 pub fn nika_compile::question(out: &mut nika_compile::CompileOutcome, key: &str, label: &str, answer_type: nika_compile::QuestionType)
+pub fn nika_compile::ready_by_law(out: &nika_compile::CompileOutcome, clean: bool) -> bool
 pub fn nika_compile::retrieve(query: &str, k: usize) -> alloc::vec::Vec<nika_compile::Hit>
 pub fn nika_compile::retrieve_by_ops(ops: &[&str], k: usize) -> alloc::vec::Vec<nika_compile::Hit>
 pub fn nika_compile::revise_intent(request: &nika_compile::CompileRequest) -> core::option::Option<alloc::string::String>

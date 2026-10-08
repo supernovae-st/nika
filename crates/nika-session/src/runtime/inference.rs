@@ -217,7 +217,9 @@ impl SessionRuntime {
         let declined = self.declined.carried(self.intent.goal.as_ref());
         let out = if seat.has_model() {
             let intent = round.effective_intent();
-            self.rehearse_dispatch(&intent, |this, host| {
+            // A revision's answer round is saved over its file: its children are checked there.
+            let target = round.target.clone().map(|(path, _)| path);
+            self.rehearse_dispatch_at(&intent, target, |this, host| {
                 this.seated(seat, |account| {
                     round.compile_rehearsed(seat, &context, (account, Some(host)), declined)
                 })

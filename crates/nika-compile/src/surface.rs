@@ -41,7 +41,9 @@ pub mod observed {
 pub mod admitted {
     pub use crate::admitted::{read, reading, record, refused, replacement};
 }
-pub use crate::{finding, finish, initial, literal_answer, parse, question};
+pub use crate::{
+    UNJUDGED_DEPENDENCY, finding, finish, initial, literal_answer, parse, question, ready_by_law,
+};
 
 /// The sketch door's semantic record (slice C): the request basis read before any proposal, and
 /// the caller basis read at a compile's entry, which a replay must match.

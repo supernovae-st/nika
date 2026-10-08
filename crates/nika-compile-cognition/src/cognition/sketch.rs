@@ -892,6 +892,8 @@ pub(super) async fn examine<P: ProviderInferDyn>(
     (next, last): (u32, Option<u32>),
     (attempts, exit): (Option<u32>, Exit),
 ) -> Step {
+    // A child workflow the host checked composed with these bytes no longer holds them (R5).
+    rehearsals.composed(&mut done);
     let (found, record) = evidence::examined(rehearsals, request, intent, &done, attempts).await;
     if !record.is_null() {
         // The evidence of the candidate the last round produced, in the journal this attempt

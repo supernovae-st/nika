@@ -110,6 +110,7 @@ pub fn nika_onboard::compile::copy::native::Scoped::finish(self) -> nika_onboard
 pub fn nika_onboard::compile::copy::native::Scoped::new(root: std::path::PathBuf, host: alloc::boxed::Box<dyn nika_compile_seats::rehearse::Rehearse>, allowance: nika_onboard::compile::copy::Allowance) -> Self
 impl nika_compile_seats::rehearse::Rehearse for nika_onboard::compile::copy::native::Scoped
 pub fn nika_onboard::compile::copy::native::Scoped::bound(&self) -> core::time::Duration
+pub fn nika_onboard::compile::copy::native::Scoped::compose(&self, candidate: &str) -> nika_compile_seats::rehearse::Composed
 pub fn nika_onboard::compile::copy::native::Scoped::rehearse<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
 pub fn nika_onboard::compile::copy::native::Scoped::rehearse_reading<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String], targets: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
 impl<D> owo_colors::OwoColorize for nika_onboard::compile::copy::native::Scoped
@@ -578,7 +579,9 @@ pub const nika_onboard::compile::room::ObservedRoom::COPY_BOUND: u64
 pub const nika_onboard::compile::room::ObservedRoom::LOGICAL_ROOT: &'static str
 pub const nika_onboard::compile::room::ObservedRoom::PREVIEW_BOUND: u64
 pub fn nika_onboard::compile::room::ObservedRoom::jq_helper(&self) -> core::option::Option<&nika_service_execution::rehearsal::isolated_jq::JqHelper>
+pub fn nika_onboard::compile::room::ObservedRoom::located(self, locate: impl core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String> + core::marker::Send + core::marker::Sync + 'static) -> Self
 pub fn nika_onboard::compile::room::ObservedRoom::new(root: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_onboard::compile::room::ObservedRoom::recompose(&self, out: &nika_compile::types::CompileOutcome, at: &str) -> core::result::Result<(), alloc::string::String>
 pub fn nika_onboard::compile::room::ObservedRoom::root(&self) -> &std::path::Path
 pub fn nika_onboard::compile::room::ObservedRoom::scratch_parent(&self) -> core::option::Option<&std::path::Path>
 pub fn nika_onboard::compile::room::ObservedRoom::with_bound(self, bound: core::time::Duration) -> Self
@@ -590,6 +593,7 @@ impl core::fmt::Debug for nika_onboard::compile::room::ObservedRoom
 pub fn nika_onboard::compile::room::ObservedRoom::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl nika_compile_seats::rehearse::Rehearse for nika_onboard::compile::room::ObservedRoom
 pub fn nika_onboard::compile::room::ObservedRoom::bound(&self) -> core::time::Duration
+pub fn nika_onboard::compile::room::ObservedRoom::compose(&self, candidate: &str) -> nika_compile_seats::rehearse::Composed
 pub fn nika_onboard::compile::room::ObservedRoom::rehearse<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
 pub fn nika_onboard::compile::room::ObservedRoom::rehearse_reading<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String], targets: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
 impl<D> owo_colors::OwoColorize for nika_onboard::compile::room::ObservedRoom

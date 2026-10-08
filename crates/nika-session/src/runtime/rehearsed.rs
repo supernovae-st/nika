@@ -35,7 +35,7 @@ use nika_onboard::compile::room::{JqHelper, ObservedRoom};
 
 use super::{SessionRuntime, TurnOutcome};
 use crate::authoring::{AuthoringError, AuthoringRound};
-use nika_onboard::compile::{CompileOutcome, CompileStatus};
+use nika_onboard::compile::{CompileOutcome, CompileRequest, CompileStatus};
 
 use crate::change::ProjectChangeSet;
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
@@ -133,17 +133,30 @@ fn room(world: &Path, jq: Option<&JqHelper>) -> Box<dyn Rehearse> {
 }
 
 impl SessionRuntime {
+    /// [`Self::compile_request_at`] of bytes no file is named for: a proposal of them lands where
+    /// `review::destination` puts it, and their children are checked there.
+    pub(super) fn compile_request(
+        &mut self,
+        request: &CompileRequest,
+        intent: &str,
+    ) -> Result<CompileOutcome, AuthoringError> {
+        self.compile_request_at(request, intent, None)
+    }
+
     /// A single dispatch returns its account even on a compiler/admission error. Only its live
     /// final-candidate preview may reach the subsequent proposal; JSON provenance is not proof.
-    pub(super) fn rehearse_dispatch(
+    /// Its bytes will be saved at `target` (the file a revision rewrites), else where a proposal
+    /// of them lands (`review::destination`): the room checks their child workflows there.
+    pub(super) fn rehearse_dispatch_at(
         &mut self,
         intent: &str,
+        target: Option<PathBuf>,
         compile: impl FnOnce(&Self, &dyn Rehearse) -> Result<CompileOutcome, AuthoringError>,
     ) -> Result<CompileOutcome, AuthoringError> {
         self.rehearsals.clear_native();
         let scoped = native::Scoped::new(
             self.snapshot.root.clone(),
-            self.native_host(),
+            self.native_host(target),
             Allowance::new(ROUND, TURN, self.rehearsals.turn),
         );
         let out = compile(self, &scoped);
@@ -171,12 +184,38 @@ impl SessionRuntime {
         Ok(out)
     }
 
-    fn native_host(&self) -> Box<dyn Rehearse> {
+    fn native_host(&self, target: Option<PathBuf>) -> Box<dyn Rehearse> {
         #[cfg(test)]
         if let Some(host) = self.rehearsals.host.as_ref() {
             return host(&self.snapshot.root);
         }
-        room(&self.snapshot.root, self.rehearsals.jq.as_ref())
+        let project = self.snapshot.root.clone();
+        let saved = target.map(|path| path.display().to_string());
+        // The one destination rule the proposal itself follows, never a second copy of it.
+        let room = ObservedRoom::new(&project).located(move |candidate| {
+            let landing = || crate::review::destination(&project, candidate);
+            (saved.clone()).or_else(|| Some(landing()?.display().to_string()))
+        });
+        Box::new(match self.rehearsals.jq.as_ref() {
+            Some(helper) => room.with_jq_helper(helper.clone()),
+            None => room,
+        })
+    }
+
+    /// A proposal lands where its child workflows were checked (R5): a candidate whose hold was
+    /// lifted at another path than `set`'s is checked again at the proposed one, and a hold that
+    /// does not lift there refuses the proposal; nothing is written.
+    fn composed_at(&self, set: &ProjectChangeSet, out: &CompileOutcome) -> Result<(), TurnOutcome> {
+        let workflows = set.workflows();
+        let Some(at) = workflows.first() else {
+            return Ok(());
+        };
+        let room = ObservedRoom::new(&self.snapshot.root);
+        let held = room.recompose(out, &at.display().to_string());
+        held.map_err(|why| {
+            let text = format!("{why} · nothing was proposed or written");
+            TurnOutcome::Refusal(Refusal::new(RefusalClass::AuthoringRefused, text))
+        })
     }
 
     /// The copy door over a creation round that compiled Ready. `Ok(None)` when it is no closed
@@ -232,12 +271,13 @@ impl SessionRuntime {
     /// proof.
     pub(super) fn bind_rehearsal(
         &mut self,
-        id: &ProposalId,
+        (id, set): (&ProposalId, &ProjectChangeSet),
         qualified: Option<&Qualified>,
         round: &AuthoringRound,
         out: &CompileOutcome,
         preview: &mut String,
     ) -> Result<(), TurnOutcome> {
+        self.composed_at(set, out)?;
         let native = self.rehearsals.native.take();
         let proof = if let Some(q) = qualified {
             // Copy may have replaced the native candidate. Its witness wins, its cost does not

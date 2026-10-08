@@ -575,6 +575,16 @@ the laws keep from READY (a question open, a check refusal) is returned as it
 is, and no judge is asked of it. A record never carries a judgment, so the
 round that finishes the bytes judges them.
 
+A source-only `finish` cannot resolve a dependency it does not read: a child
+workflow, an MCP registry entry or a skill. It states `UNJUDGED_DEPENDENCY` on
+the task, which keeps the round from READY. Only a host that checked the
+dependency may lift that finding. Cognition does so for a child workflow
+covered by a clean closure of the exact bytes, then settles READY by
+`ready_by_law`, the same law `finish` applies: nothing refused, asked or
+unresolved, and Check clean. `native_answered_paths` proves which paths the
+answers supplied. It still requires the same bytes and a clean Check, and it
+ignores that hold, which concerns resolution, not the bytes.
+
 The core does not judge unrestricted meaning. A clause split across two named
 elements can require judgment, and the model's approval remains bounded
 evidence. A typed or answered witness is evidence for its particular duty, not

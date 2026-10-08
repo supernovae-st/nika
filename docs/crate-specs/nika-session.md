@@ -1145,3 +1145,20 @@ The intelligence census retains the same host probe's effective provider endpoin
 for the reply guard. Conversation and proposal discussion both pass these facts to
 `KnownWorld::audit_over`; missing context keeps the profile-default check. These
 facts grant no authority, contain no API key values, and are not model context.
+
+### Child workflows checked where the proposal lands
+
+An authoring round's room checks a candidate's child workflows where the bytes will be saved:
+
+- a revision checks them at the file it rewrites;
+- a fresh candidate checks them where `review::destination` lands its proposal (the destination
+  rule itself, never a copy of it);
+- the scope forwards that read-only check (`Scoped::compose`).
+
+Before a proposal is bound, every candidate whose hold was lifted is checked again where the
+change set lands it (`ObservedRoom::recompose`). The closure must be clean there and its child
+units (path and digest) must be the ones the compile recorded, so a child rewritten or removed
+since, even at the same path, refuses the proposal with both places and the changed child
+named; nothing is proposed or written. The check runs no child. Run keeps its own
+current-world admission: the composed check before a run judges the children again
+(`check_on_disk`).

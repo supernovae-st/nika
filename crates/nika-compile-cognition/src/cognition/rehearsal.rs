@@ -91,6 +91,14 @@ impl<'a> Rehearsals<'a> {
         self.catalog
     }
 
+    /// The host's composition check of `out`'s candidate, which lifts the source-only hold on
+    /// its child workflows only for a clean closure of these bytes (R5); no host checks none.
+    pub(super) fn composed(&self, out: &mut CompileOutcome) {
+        if let Some(host) = self.host {
+            crate::rehearse::composed(host, out);
+        }
+    }
+
     /// The same journal, serving this compile.
     pub(super) fn serving(mut self, serves: Serves) -> Self {
         self.serves = Some(serves);

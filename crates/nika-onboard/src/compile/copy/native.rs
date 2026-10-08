@@ -12,8 +12,8 @@ use std::time::Duration;
 
 use super::{Admission, Allowance, Budget, RunEnd, Usage, Witness, WorldBefore};
 use nika_compile_cognition::rehearse::{
-    Attempt, EffectCounts, Observation, Refusal, Rehearsal, RehearsalFuture, RehearsalReport,
-    Rehearse, judged_run,
+    Attempt, Composed, EffectCounts, Observation, Refusal, Rehearsal, RehearsalFuture,
+    RehearsalReport, Rehearse, judged_run,
 };
 use nika_event::source_id::sha256_hex;
 
@@ -257,6 +257,12 @@ impl Rehearse for Scoped {
     ) -> RehearsalFuture<'a> {
         Box::pin(self.observe(candidate, inputs, targets))
     }
+
+    /// The host's own read-only composition check, where its host saves the bytes: a scope adds
+    /// no location and spends no rehearsal on it.
+    fn compose(&self, candidate: &str) -> Composed {
+        self.host.compose(candidate)
+    }
 }
 
 fn refused(candidate: &str, reason: String, refusal: Refusal) -> RehearsalReport {
@@ -322,6 +328,50 @@ mod tests {
         .into_parts();
         assert_eq!(charged, spent);
         assert!(matches!(result, Err(why) if why == "another rehearsal has not drained"));
+    }
+
+    /// A host whose only answer is its composition check.
+    struct Composing(Composed);
+
+    impl Rehearse for Composing {
+        fn rehearse<'a>(&'a self, candidate: &'a str, _: &'a [String]) -> RehearsalFuture<'a> {
+            Box::pin(async move {
+                let outcome = Rehearsal::NotRun {
+                    reason: "no room in this test".into(),
+                };
+                let digest = sha256_hex(candidate.as_bytes());
+                RehearsalReport::new(
+                    outcome,
+                    Attempt::NeverAttempted,
+                    EffectCounts::none(),
+                    digest,
+                )
+            })
+        }
+        fn bound(&self) -> Duration {
+            Duration::from_secs(1)
+        }
+        fn compose(&self, _candidate: &str) -> Composed {
+            self.0.clone()
+        }
+    }
+
+    #[test]
+    fn a_scope_forwards_its_hosts_composition_check_and_spends_no_rehearsal() {
+        let limits = super::super::Limits::new(1, 1, 1024, 1_000);
+        let nothing = Usage::new(0, 0, 0, 0, 0);
+        let refused = Composed::Refused {
+            reason: "NIKA-COMP-001 the child is missing".into(),
+        };
+        let host = Box::new(Composing(refused.clone()));
+        let scoped = Scoped::new(
+            PathBuf::from("."),
+            host,
+            Allowance::new(limits, limits, nothing),
+        );
+        assert_eq!(scoped.compose("nika: x\n"), refused);
+        let (spent, _) = scoped.finish().into_parts();
+        assert_eq!(spent, nothing, "no rehearsal was spent");
     }
 
     #[test]

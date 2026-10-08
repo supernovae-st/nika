@@ -137,7 +137,7 @@ fn observed(
     out: CompileOutcome,
     error: bool,
 ) -> Result<CompileOutcome, AuthoringError> {
-    s.rehearse_dispatch(&round.effective_intent(), |_, host| {
+    s.rehearse_dispatch_at(&round.effective_intent(), None, |_, host| {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -303,7 +303,7 @@ fn a_live_preview_cannot_follow_changed_returned_bytes() {
     let (mut s, calls) = session(root.path(), Mode::Passed);
     let mut out = prepared(&s);
     let request = AuthoringRound::new(INTENT);
-    let result = s.rehearse_dispatch(&request.effective_intent(), |_, host| {
+    let result = s.rehearse_dispatch_at(&request.effective_intent(), None, |_, host| {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -360,4 +360,49 @@ fn a_source_only_dispatch_discards_an_earlier_live_preview_but_keeps_spending() 
     assert!(s.rehearsals.native.is_none());
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     assert_eq!(s.rehearsals.turn.attempts, 1);
+}
+
+/// The pack's parent and its child, as a project holds them.
+const PARENT: &str =
+    include_str!("../../../../../nika-pack/pack/examples/10-compose-pipeline.nika");
+const CHILD: &str = include_str!("../../../../../nika-pack/pack/examples/10-compose-child.nika");
+
+/// A child workflow rewritten at the same path after the compile checked the parent composed:
+/// the proposal's own check reads the child again and refuses, naming it, so READY never lands
+/// over a closure nobody checked. Unchanged, the proposal holds there. The record is a real one:
+/// `finish`'s hold on the child call, lifted by a real room's clean closure of these bytes.
+#[test]
+fn a_child_rewritten_after_its_check_refuses_the_proposal_at_the_same_path() {
+    use crate::change::ProjectChangeSet;
+    let root = tempfile::tempdir().expect("project");
+    write(root.path(), "10-compose-child.nika", CHILD);
+    let (s, _) = session(root.path(), Mode::Passed);
+    let mut out = nika_compile::surface::initial();
+    nika_compile::surface::finish(PARENT.to_owned(), &mut out);
+    let project = root.path().canonicalize().expect("canonical");
+    let checker = ObservedRoom::new(project).located(|_| Some("compose-pipeline.nika".to_owned()));
+    nika_compile_seats::rehearse::composed(&checker, &mut out);
+    assert_eq!(out.status, CompileStatus::Ready, "{:#?}", out.diagnostics);
+    let at = "compose-pipeline.nika";
+    let set = ProjectChangeSet::workflow_at(root.path(), "create", at, PARENT.to_owned())
+        .expect("a legal set");
+    assert!(
+        s.composed_at(&set, &out).is_ok(),
+        "unchanged, it holds where it lands"
+    );
+    write(
+        root.path(),
+        "10-compose-child.nika",
+        &CHILD.replace("default: \"the DAG\"", "default: \"the graph\""),
+    );
+    let why = refused(
+        s.composed_at(&set, &out)
+            .expect_err("a rewritten child refuses"),
+    );
+    assert!(why.text.contains("`10-compose-child.nika`"), "{}", why.text);
+    assert!(
+        why.text.contains("nothing was proposed or written"),
+        "{}",
+        why.text
+    );
 }

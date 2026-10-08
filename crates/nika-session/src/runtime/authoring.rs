@@ -81,11 +81,13 @@ impl SessionRuntime {
     /// its change) through the seat under the session's context, its pack
     /// composed for `intent`, bracketed like every other dispatch. Like a
     /// round's, it is handed the verdicts that rejected candidate bytes in the
-    /// goal's earlier compiles and keeps the ones it records (R6).
-    pub(super) fn compile_request(
+    /// goal's earlier compiles and keeps the ones it records (R6). `target` is the file the
+    /// result rewrites, when it rewrites one: its child workflows are checked there.
+    pub(super) fn compile_request_at(
         &mut self,
         request: &CompileRequest,
         intent: &str,
+        target: Option<PathBuf>,
     ) -> Result<CompileOutcome, AuthoringError> {
         self.rehearsals.clear_native();
         let context = self.project_context();
@@ -96,7 +98,7 @@ impl SessionRuntime {
         let request = &request.clone().with_declined(declined);
         let seat = self.seat.clone();
         let out = if seat.has_model() {
-            self.rehearse_dispatch(intent, |this, host| {
+            self.rehearse_dispatch_at(intent, target, |this, host| {
                 this.seated(&seat, |account| {
                     crate::authoring::compile_in_rehearsed(
                         &seat,
@@ -537,7 +539,8 @@ impl SessionRuntime {
         round.money = change_money(change.trim(), !self.money.admitted.is_empty());
         let request = round.request();
         let revised = revise_intent(&request).unwrap_or_else(|| goal.clone());
-        let out = match self.compile_request(&request, &revised) {
+        let target = round.target.clone().map(|(path, _)| path);
+        let out = match self.compile_request_at(&request, &revised, target) {
             Ok(out) => out,
             Err(e) => return self.machinery(&e),
         };
@@ -575,8 +578,9 @@ impl SessionRuntime {
         set: crate::change::ProjectChangeSet,
         change: &str,
     ) -> TurnOutcome {
-        self.revise_pending_with(set, change, |this, request, intent| {
-            this.compile_request(request, intent)
+        let target = updated_target(&set).map(|(path, _)| path);
+        self.revise_pending_with(set, change, move |this, request, intent| {
+            this.compile_request_at(request, intent, target)
         })
     }
 
@@ -894,7 +898,7 @@ impl SessionRuntime {
                 self.bind_basis(&id, &set, compiled(round.request(), out), out);
                 let mut preview = self.draft_review(&set, out, &bytes);
                 if let Err(refused) =
-                    self.bind_rehearsal(&id, qualified.as_ref(), round, out, &mut preview)
+                    self.bind_rehearsal((&id, &set), qualified.as_ref(), round, out, &mut preview)
                 {
                     return refused;
                 }

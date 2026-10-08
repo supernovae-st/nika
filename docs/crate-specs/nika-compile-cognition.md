@@ -1093,6 +1093,22 @@ public constructor, `Debug` or serialization. `NoResponse` is not evidence of
 zero spend, and a dropped scope promises no closing observation. These additions
 do not persist raw answers or implement the private writer and host adapters.
 
+## Child workflows checked composed (R5)
+
+A candidate that invokes a child workflow is held source-only by the core (`finish`) until a
+host checks it. `Rehearsals::composed` asks the lent host (`Rehearse::compose`, read-only) at
+every place a candidate is settled or rebuilt:
+
+- before `examine`, so the evidence and the whole-request judgment see a READY candidate;
+- after each reconstruction in `verify::replayed`, including the one after its verdict;
+- after `compile_judged` in `verify::semantic`.
+
+Every check is a fresh capture: a recorded composition is never read back as a witness, and a
+child may change between rounds. Only a clean closure of these exact bytes lifts the hold. The
+answer is kept on `decision.composition`: the verdict, the tasks held and discharged, the
+reason, and for a clean closure the logical root, the snapshot identity and the units. With no
+host, or a host that does not offer the check, the source-only behavior stands.
+
 ## Semantic CREATE and resolved questions
 
 A fresh creation with an author under `escalate` or `only` reaches the document door at

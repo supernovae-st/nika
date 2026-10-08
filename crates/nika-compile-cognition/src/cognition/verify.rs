@@ -1201,6 +1201,8 @@ pub(super) async fn replayed<P: ProviderInferDyn>(
     let before = out.clone();
     let mut out = out;
     crate::replay_judged(intent, saved, request, &[], whole, &mut out)?;
+    // Each reconstruction states the source-only child hold again: the host checks it afresh.
+    rehearsals.composed(&mut out);
     let open = out
         .provenance
         .decision
@@ -1230,11 +1232,13 @@ pub(super) async fn replayed<P: ProviderInferDyn>(
     record(&mut pre, &judge, &verdict, 0);
     if verdict.settled() {
         crate::replay_judged(intent, saved, request, &verdict.judgments, whole, &mut pre)?;
+        rehearsals.composed(&mut pre);
         route(&mut pre, &format!("verify: judged ({})", judge.kind()));
         return Ok(pre);
     }
     // The clauses the judge carried stay settled; what it did not carry keeps READY closed.
     crate::replay_judged(intent, saved, request, &verdict.judgments, whole, &mut pre)?;
+    rehearsals.composed(&mut pre);
     route(&mut pre, "verify: not ready");
     blocked(&mut pre, &verdict, 0);
     unreplayed(&mut pre, &verdict);
@@ -1291,6 +1295,7 @@ pub(super) async fn semantic<P: ProviderInferDyn>(
         out.status = CompileStatus::Incomplete;
         return Ok(out);
     }
+    rehearsals.composed(&mut out);
     let open = (out.provenance.decision.as_ref())
         .and_then(|d| d["pending"]["open"].as_array())
         .is_some_and(|open| !open.is_empty());
@@ -1311,6 +1316,7 @@ pub(super) async fn semantic<P: ProviderInferDyn>(
     let settled = verdict.settled();
     // The core's READY law weighs the judgments made; what the judge did not carry stays open.
     let mut done = nika_compile::compile_judged(raw, &verdict.judgments)?;
+    rehearsals.composed(&mut done);
     done.provenance.authoring = pre.provenance.authoring.take();
     done.provenance.cognition = pre.provenance.cognition;
     if let (Some(decision), Some(verified)) =

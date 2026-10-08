@@ -13,6 +13,12 @@
 
 use std::{future::Future, pin::Pin, time::Duration};
 
+use nika_compile::surface::{UNJUDGED_DEPENDENCY, parse, ready_by_law, sha256};
+use nika_compile::{CompileOutcome, CompileStatus, DiagnosticKind};
+use serde_json::json;
+
+#[cfg(test)]
+mod composed_tests;
 mod judged;
 #[cfg(test)]
 mod judged_tests;
@@ -268,6 +274,164 @@ impl RehearsalReport {
 /// The object-safe future a rehearsal answers with.
 pub type RehearsalFuture<'a> = Pin<Box<dyn Future<Output = RehearsalReport> + Send + 'a>>;
 
+/// What a host's read-only composition check found of one candidate: the candidate checked with
+/// every child workflow it invokes, at the place its bytes will be saved, nothing run.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Composed {
+    /// The host offers no composition check: the source-only hold on a child stands.
+    Unoffered,
+    /// The host cannot say where these bytes will be saved, so their relative children are not
+    /// resolved; nothing was read.
+    Unresolved {
+        /// Why the location is not known.
+        reason: String,
+    },
+    /// The closure could not be captured, or one of its workflows failed its composed Check.
+    Refused {
+        /// The capture or Check reason, its codes included.
+        reason: String,
+    },
+    /// The closure was captured at its location and every captured workflow checked clean.
+    Clean(Closure),
+}
+
+/// The closure a clean composition check captured: the bytes checked, where, and every workflow
+/// read with them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Closure {
+    /// The SHA-256 of the candidate bytes checked.
+    pub candidate_sha256: String,
+    /// The project-relative path the candidate was checked at: where its bytes will be saved.
+    pub logical_root: String,
+    /// The snapshot identity of the captured closure: SHA-256 over the snapshot's own framing of
+    /// its format, root, unit roles, paths and bytes (no file's digest).
+    pub snapshot_identity: String,
+    /// The snapshot format that framing follows.
+    pub snapshot_format: u32,
+    /// Every captured unit: its project-relative path and the SHA-256 of its exact bytes.
+    pub units: Vec<(String, String)>,
+}
+
+impl Closure {
+    /// The closure of `candidate_sha256` checked at `logical_root`, captured as `snapshot`
+    /// (its identity and format) with these `units`.
+    #[must_use]
+    pub fn new(
+        candidate_sha256: impl Into<String>,
+        logical_root: impl Into<String>,
+        snapshot: (impl Into<String>, u32),
+        units: Vec<(String, String)>,
+    ) -> Self {
+        Self {
+            candidate_sha256: candidate_sha256.into(),
+            logical_root: logical_root.into(),
+            snapshot_identity: snapshot.0.into(),
+            snapshot_format: snapshot.1,
+            units,
+        }
+    }
+}
+
+/// The child units (every captured unit but the root) on whose digest `closure` and the
+/// `decision.composition` `record` of an earlier check disagree, a unit gone or new included,
+/// each path quoted: what changed between that check and this capture.
+#[must_use]
+pub fn changed_children(record: &serde_json::Value, closure: &Closure) -> Vec<String> {
+    use std::collections::{BTreeMap, BTreeSet};
+    let units = (record["units"].as_array().into_iter().flatten())
+        .filter_map(|unit| Some((unit[0].as_str()?.to_owned(), unit[1].as_str()?.to_owned())));
+    let recorded: BTreeMap<String, String> = units
+        .filter(|(path, _)| record["logical_root"] != path.as_str())
+        .collect();
+    let fresh: BTreeMap<String, String> = (closure.units.iter())
+        .filter(|(path, _)| *path != closure.logical_root)
+        .cloned()
+        .collect();
+    let paths: BTreeSet<&String> = recorded.keys().chain(fresh.keys()).collect();
+    (paths.into_iter())
+        .filter(|path| recorded.get(*path) != fresh.get(*path))
+        .map(|path| format!("`{path}`"))
+        .collect()
+}
+
+/// The tasks of `out`'s candidate that invoke a child workflow and still carry the source-only
+/// hold the core states on them ([`UNJUDGED_DEPENDENCY`]).
+#[must_use]
+pub fn held_children(out: &CompileOutcome) -> Vec<String> {
+    use nika_schema::raw::{RawAction, RawInvokeTarget};
+    let Some(wf) = out.candidate.as_deref().and_then(|c| parse(c).ok()) else {
+        return Vec::new();
+    };
+    let held = |id: &str| {
+        (out.diagnostics.iter()).any(|d| {
+            d.kind == DiagnosticKind::Unknown && d.target == id && d.message == UNJUDGED_DEPENDENCY
+        })
+    };
+    (wf.tasks.iter())
+        .filter(|t| match &t.value.action {
+            RawAction::Invoke(invoke) => matches!(invoke.target, RawInvokeTarget::Workflow(_)),
+            _ => false,
+        })
+        .map(|t| t.value.id.value.clone())
+        .filter(|id| held(id))
+        .collect()
+}
+
+/// Lift the source-only hold on the children `closure` checked composed with `out`'s candidate:
+/// only on the tasks [`held_children`] names, only when the closure names the outcome's own
+/// bytes, its Check is clean and nothing is refused; READY then follows the core's own law. An
+/// MCP tool, a skill, a question or any other finding keeps its hold. Returns the tasks lifted.
+pub fn discharge_children(out: &mut CompileOutcome, closure: &Closure) -> Vec<String> {
+    let clean = (out.check_preview.as_ref()).is_some_and(|preview| preview.report.is_clean());
+    let same = (out.candidate.as_deref()).is_some_and(|c| sha256(c) == closure.candidate_sha256);
+    if !(clean && same) || out.status == CompileStatus::Refused {
+        return Vec::new();
+    }
+    let lifted = held_children(out);
+    (out.diagnostics).retain(|d| d.message != UNJUDGED_DEPENDENCY || !lifted.contains(&d.target));
+    if !lifted.is_empty() && ready_by_law(out, clean) {
+        out.status = CompileStatus::Ready;
+    }
+    lifted
+}
+
+/// The composition check `host` makes of `out`'s candidate when it holds a child workflow
+/// source-only (R5): a fresh capture on every call (a child may change between rounds), recorded
+/// on `decision.composition`. A clean closure of these exact bytes lifts the hold; any other
+/// answer keeps it and says why.
+pub fn composed(host: &dyn Rehearse, out: &mut CompileOutcome) {
+    let held = held_children(out);
+    let Some(candidate) = out.candidate.clone().filter(|_| !held.is_empty()) else {
+        return;
+    };
+    let mut record = json!({"candidate_sha256": sha256(&candidate), "held": held,
+        "discharged": [], "reason": null, "logical_root": null});
+    match host.compose(&candidate) {
+        Composed::Clean(closure) => {
+            record["verdict"] = json!("clean");
+            record["logical_root"] = json!(closure.logical_root);
+            record["snapshot_identity"] = json!(closure.snapshot_identity);
+            record["snapshot_format"] = json!(closure.snapshot_format);
+            record["units"] = json!(closure.units);
+            record["discharged"] = json!(discharge_children(out, &closure));
+        }
+        Composed::Refused { reason } => {
+            record["verdict"] = json!("refused");
+            record["reason"] = json!(reason);
+        }
+        Composed::Unresolved { reason } => {
+            record["verdict"] = json!("unresolved");
+            record["reason"] = json!(reason);
+        }
+        Composed::Unoffered => record["verdict"] = json!("unoffered"),
+    }
+    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+    decision["composition"] = record;
+    out.provenance.decision = Some(decision);
+}
+
 /// A host that can rehearse a candidate in a safe room built from the observed world.
 pub trait Rehearse: Send + Sync {
     /// Rehearse `candidate` (the exact bytes every law passed) over `inputs` (the observed
@@ -287,5 +451,12 @@ pub trait Rehearse: Send + Sync {
         _targets: &'a [String],
     ) -> RehearsalFuture<'a> {
         self.rehearse(candidate, inputs)
+    }
+    /// Check `candidate` read-only with every child workflow it invokes, at the place its bytes
+    /// will be saved: the closure captured from the project and each captured workflow checked
+    /// composed, nothing run. A host that keeps this default offers none.
+    fn compose(&self, candidate: &str) -> Composed {
+        let _ = candidate;
+        Composed::Unoffered
     }
 }

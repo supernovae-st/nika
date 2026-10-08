@@ -777,3 +777,21 @@ default, as preparation context, and asks over it only when the run proves whole
 copy door (`copy::qualify`) judges by exact bytes, and no verifier reads its runs. The room's
 isolation, receipts and bounds (`COPY_BOUND`, `PREVIEW_BOUND`) are unchanged and are not
 session-wide creation quotas; a trial run grants no live `.nika` Run authority.
+
+### Child workflows checked composed
+
+`ObservedRoom::located` tells the room where its host will save each candidate's bytes, as a
+project-relative path. Its `Rehearse::compose` then captures the candidate with every child
+workflow it invokes, at that place, through `ExecutionSnapshot::capture_root_bytes`:
+
+- the candidate is injected without being written, and the children are read through held
+  directories;
+- every captured workflow is checked composed, and nothing runs;
+- the answer is a clean `Closure`, or a `Refused` that names the capture or Check reason.
+
+A room told no place resolves no relative child (`Unresolved`). `Scoped` forwards the check to
+its host and spends no rehearsal on it. `ObservedRoom::recompose` asks whether a candidate whose
+hold a check lifted still holds where a proposal lands. It captures the same bytes again there,
+even at the very path checked, and holds only for a clean closure whose child units (path and
+digest) are the ones `decision.composition` recorded. A child changed or removed since refuses,
+named; nothing recorded is trusted.

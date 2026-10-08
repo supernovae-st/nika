@@ -58,6 +58,15 @@ as an external consumer.
   `trial_shown` (the candidate's sha256, each input read and output read back with its text,
   `read_whole` and `written`), `trial_whole` (at least one output, each written by the run, every
   text read whole) and `trial_receipts` (each text's role, path, size and sha256, never the text).
+  A host may also offer a read-only composition check, `Rehearse::compose`. It answers
+  `Composed`: `Unoffered` (the default), `Unresolved` or `Refused` with the reason, or a clean
+  `Closure`. The closure binds the candidate's sha256, the project-relative path it was checked at,
+  the snapshot identity and format, and every captured unit's digest. `composed` asks the host
+  about a candidate that holds a child workflow source-only (`held_children`, which reads the
+  core's `UNJUDGED_DEPENDENCY` finding on a parsed `invoke.workflow` task) and records the answer
+  on `decision.composition`. `discharge_children` lifts that hold only for a clean closure of
+  these exact bytes and then settles READY by the core's own law (`ready_by_law`). An MCP or
+  skill hold, a mandatory question or a refusal stays as it is.
 - `reasoning` — `effort` (the provider level an authoring level names) and `reasoning_record`
   (one call's reasoning, each fact apart), shared with every authoring call of the doors.
 - `objects` — the JSON objects of a seat's text (`first_json_object`, `answer_objects` and

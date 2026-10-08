@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 
 use serde_json::Value;
 
-use crate::{CompileRequest, CompileStatus, Input};
+use crate::{CompileRequest, Input};
 
 #[cfg(test)]
 mod tests;
@@ -108,13 +108,13 @@ pub fn native_answered_paths(
     }
     let mut out = crate::initial();
     let paths = super::apply_native(view.as_ref().unwrap_or(record), request, &mut out);
-    (out.status == CompileStatus::Ready
-        && out.candidate.as_deref() == Some(candidate)
-        && out
-            .check_preview
-            .as_ref()
-            .is_some_and(|p| p.report.is_clean()))
-    .then_some(paths)
+    let clean = (out.check_preview.as_ref()).is_some_and(|p| p.report.is_clean());
+    // A dependency this source-only rebuild cannot resolve (a child workflow a host may have
+    // checked) holds READY, never the bytes or the paths the answers supplied.
+    out.diagnostics
+        .retain(|d| d.message != crate::UNJUDGED_DEPENDENCY);
+    (crate::ready_by_law(&out, clean) && out.candidate.as_deref() == Some(candidate))
+        .then_some(paths)
 }
 
 fn inferred(value: &nika_check::InferredPermits, write: bool) -> BTreeSet<String> {

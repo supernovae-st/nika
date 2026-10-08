@@ -24,10 +24,10 @@ use std::time::{Duration, Instant};
 
 use nika_compile::surface::sha256;
 use nika_compile_cognition::rehearse::{
-    Attempt, Bounds, CopyReceipt, EffectCounts, FinalReceipt, Refusal, Rehearsal, RehearsalFuture,
-    RehearsalReport, Rehearse, RoomEvidence,
+    Attempt, Bounds, Closure, Composed, CopyReceipt, EffectCounts, FinalReceipt, Refusal,
+    Rehearsal, RehearsalFuture, RehearsalReport, Rehearse, RoomEvidence, changed_children,
 };
-use nika_execution::ExecutionService;
+use nika_execution::{ExecutionService, ExecutionSnapshot, SnapshotLimits};
 use nika_fs::{EffectLedger, OwnedDir, RoomLimits, RootedFs};
 use nika_service_execution::{
     DeniedTally, ExecutionAccessPlan, IsolatedJq, ServiceExecutionDriver,
@@ -47,6 +47,21 @@ pub struct ObservedRoom {
     bound: Duration,
     scratch_parent: Option<PathBuf>,
     jq: Option<JqHelper>,
+    locate: Option<Locator>,
+}
+
+/// Where the host will save a candidate's bytes, relative to the project root (`None`: it cannot
+/// say), by the host's own destination rule.
+#[derive(Clone)]
+struct Locator(Arc<Locate>);
+
+/// The host's destination rule over a candidate's bytes.
+type Locate = dyn Fn(&str) -> Option<String> + Send + Sync;
+
+impl std::fmt::Debug for Locator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Locator")
+    }
 }
 
 impl ObservedRoom {
@@ -74,7 +89,20 @@ impl ObservedRoom {
             bound: Self::BOUND,
             scratch_parent: None,
             jq: None,
+            locate: None,
         }
+    }
+
+    /// The same room, told where its host will save each candidate's bytes (a path relative to
+    /// the project root, `None` when it cannot say): the composition check resolves the
+    /// candidate's relative children there. A room told nothing resolves none.
+    #[must_use]
+    pub fn located(
+        mut self,
+        locate: impl Fn(&str) -> Option<String> + Send + Sync + 'static,
+    ) -> Self {
+        self.locate = Some(Locator(Arc::new(locate)));
+        self
     }
 
     /// The same room, its candidates' `nika:jq` steps run by `helper`: one bounded process of
@@ -117,11 +145,84 @@ impl ObservedRoom {
     pub fn scratch_parent(&self) -> Option<&Path> {
         self.scratch_parent.as_deref()
     }
+
+    /// Whether `out`'s candidate still holds the child workflows a composition check lifted,
+    /// saved at `at` (project-relative): these exact bytes are captured again at `at`, and hold
+    /// only for a clean closure with the child units (path and digest) the check recorded.
+    ///
+    /// # Errors
+    /// Where they were checked, `at`, and the changed children or the capture or Check reason.
+    pub fn recompose(&self, out: &nika_compile::CompileOutcome, at: &str) -> Result<(), String> {
+        let composition = out.provenance.decision.as_ref().map(|d| &d["composition"]);
+        let lifted = (composition.and_then(|c| c["discharged"].as_array()))
+            .is_some_and(|discharged| !discharged.is_empty());
+        let (Some(record), Some(candidate), true) = (composition, out.candidate.as_deref(), lifted)
+        else {
+            return Ok(());
+        };
+        let checked = &record["logical_root"];
+        let why = match self.composed_at(candidate, at) {
+            Composed::Clean(closure) if closure.candidate_sha256 == sha256(candidate) => {
+                let changed = changed_children(record, &closure);
+                if changed.is_empty() {
+                    return Ok(());
+                }
+                format!("changed since their check: {}", changed.join(", "))
+            }
+            Composed::Refused { reason } | Composed::Unresolved { reason } => reason,
+            _ => "no clean check of these bytes there".to_owned(),
+        };
+        Err(format!(
+            "its child workflows were checked at {checked}; where the proposal lands, at `{at}`, they do not hold ({why})"
+        ))
+    }
+
+    /// The candidate captured with its children as saved at `at` (the closure read through held
+    /// directories, nothing written or run), every captured workflow checked composed by the
+    /// execution snapshot's own validation.
+    fn composed_at(&self, candidate: &str, at: &str) -> Composed {
+        let refused = |why: String| Composed::Refused {
+            reason: format!("checked at `{at}`: {why}"),
+        };
+        let project = match OwnedDir::open(&self.root) {
+            Ok(project) => project,
+            Err(error) => return refused(format!("the project cannot be read: {error}")),
+        };
+        let (place, bytes) = (Path::new(at), candidate.as_bytes());
+        match ExecutionSnapshot::capture_root_bytes(
+            &project,
+            place,
+            bytes,
+            SnapshotLimits::default(),
+        ) {
+            Ok(snapshot) => {
+                let units = (snapshot.units())
+                    .map(|unit| (unit.logical_path().to_owned(), unit.digest().to_owned()))
+                    .collect();
+                let identity = (snapshot.digest(), snapshot.format_version());
+                let root = snapshot.root();
+                Composed::Clean(Closure::new(sha256(candidate), root, identity, units))
+            }
+            Err(error) => refused(error.to_string()),
+        }
+    }
 }
 
 impl Rehearse for ObservedRoom {
     fn rehearse<'a>(&'a self, candidate: &'a str, inputs: &'a [String]) -> RehearsalFuture<'a> {
         self.rehearse_reading(candidate, inputs, &[])
+    }
+
+    /// The candidate checked composed where its host will save it ([`ObservedRoom::located`]);
+    /// a room told nothing resolves no relative child.
+    fn compose(&self, candidate: &str) -> Composed {
+        let Some(at) = (self.locate.as_ref()).and_then(|locate| (locate.0)(candidate)) else {
+            let reason = "the host does not say where these bytes will be saved, so their relative children are not resolved";
+            return Composed::Unresolved {
+                reason: reason.to_owned(),
+            };
+        };
+        self.composed_at(candidate, &at)
     }
 
     fn bound(&self) -> Duration {
