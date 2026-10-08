@@ -3,11 +3,14 @@
 
 use std::path::{Path, PathBuf};
 
-use nika_onboard::compile::{CompileRequest, CompileStatus, DiagnosticKind, compile};
+use nika_onboard::compile::{
+    AuthoringReceipt, CompileRequest, CompileStatus, DiagnosticKind, compile,
+};
 
 use super::{
-    Audit, Authoring, AuthoringStatus, CONTRACT, Candidate, Landing, NoteKind, Rail, Request,
-    RequestedRun, Run, RunEnd, Saved, Stage, Waiting, Work,
+    Audit, Author, Authoring, AuthoringStatus, CONTRACT, Candidate, DecisionSeat, Intelligence,
+    Landing, NoteKind, Rail, Request, RequestedRun, Run, RunEnd, Saved, Selected, Stage, Waiting,
+    Work,
 };
 use crate::change::{
     ProjectChange, ProjectChangeSet, RunRequest, Witness, WorkflowAudit, check_on_disk,
@@ -48,6 +51,7 @@ fn set_with(
             vars: Vec::new(),
             max_cost_usd: 1.0,
             access_pin: None,
+            bytes: None,
         }),
         repairs: Vec::new(),
         audits,
@@ -109,6 +113,8 @@ fn a_candidate_names_each_landing_its_bytes_and_where_a_workflow_reaches() {
     assert_eq!(workflow.landing, Landing::Update);
     assert!(workflow.workflow);
     assert_eq!(workflow.bytes, Witness::of(SINK.as_bytes()));
+    assert_eq!(workflow.content, SINK, "the exact bytes, not a rendering");
+    assert_eq!(Witness::of(workflow.content.as_bytes()), workflow.bytes);
     assert_eq!(workflow.replaces.as_ref(), Some(&base));
     let audit = workflow.audit.as_ref().expect("the workflow's audit");
     assert_eq!(audit.world.basis, Basis::Declared);
@@ -116,6 +122,7 @@ fn a_candidate_names_each_landing_its_bytes_and_where_a_workflow_reaches() {
 
     assert_eq!(notes.landing, Landing::Create);
     assert!(!notes.workflow);
+    assert_eq!(notes.content, "threshold notes");
     assert_eq!(notes.replaces, None);
     assert_eq!(notes.audit, None, "only workflows are audited");
     assert_eq!(candidate.worlds().count(), 1);
@@ -243,6 +250,7 @@ fn an_unaudited_workflow_keeps_no_reach() {
         hints: Vec::new(),
         effects: Vec::new(),
         world: World::default(),
+        bytes: None,
     });
     assert!(!audit.clean);
     assert_eq!(audit.world.basis, Basis::NotAudited);
@@ -320,6 +328,12 @@ fn the_compilers_last_word_keeps_its_status_questions_notes_and_candidate_bytes(
     assert_eq!(seen.status, AuthoringStatus::Ready);
     assert!(seen.questions.is_empty(), "{:?}", seen.questions);
     assert_eq!(seen.candidate, Some(Witness::of(source.as_bytes())));
+    assert_eq!(
+        seen.draft.as_deref(),
+        Some(source),
+        "the draft is those very bytes"
+    );
+    assert_eq!(seen.calls, None, "the deterministic reading made no call");
     assert_eq!(seen.diagnostics.len(), ready.diagnostics.len());
     for (note, diagnostic) in seen.diagnostics.iter().zip(&ready.diagnostics) {
         assert_eq!(note.kind, NoteKind::from(diagnostic.kind));
@@ -337,6 +351,84 @@ fn the_compilers_last_word_keeps_its_status_questions_notes_and_candidate_bytes(
     assert_eq!(
         seen.questions, keys,
         "every question, by key, in the compiler's order"
+    );
+    assert_eq!(
+        seen.draft, asking.candidate,
+        "a waiting question keeps the draft it is asked about, exact or absent"
+    );
+}
+
+#[test]
+fn the_calls_receipt_is_carried_as_reported_and_unknown_usage_stays_unknown() {
+    let mut outcome = compile(&CompileRequest::create(
+        "Read ./notes/brief.md and write it to ./out/copy.md",
+    ))
+    .expect("compiles");
+    let mut receipt = AuthoringReceipt::new("acme/author-model");
+    receipt.calls = 3;
+    receipt.output_tokens = Some(812);
+    receipt.elapsed_ms = 4_200;
+    receipt.backend = Some(serde_json::json!({
+        "transport": "acp_harness", "adapter": "claude-code", "observed_model": "author-model-served"
+    }));
+    outcome.provenance.authoring = Some(receipt);
+    let calls = Authoring::of(&outcome)
+        .calls
+        .expect("the receipt rides the snapshot");
+    assert_eq!(calls.requested_model, "acme/author-model");
+    assert_eq!((calls.calls, calls.elapsed_ms), (3, 4_200));
+    assert_eq!((calls.input_tokens, calls.output_tokens), (None, Some(812)));
+    let json = serde_json::to_value(&calls).expect("serializes");
+    assert_eq!(
+        json["input_tokens"],
+        serde_json::Value::Null,
+        "unknown is never zero"
+    );
+    assert_eq!(json["backend"]["observed_model"], "author-model-served");
+}
+
+#[test]
+fn the_intelligence_is_a_selection_and_says_so_on_the_wire() {
+    let selected = Selected::new("harness", Some("claude-code".into()), Some("acp".into()))
+        .resolved(None, "through your Claude account".into(), None, true);
+    let author = Author::new("harness", None, None).through("claude-code".into(), "acp".into());
+    let decision = DecisionSeat::new("typesafe/jev-1.13.0".into(), Some("no key".into()));
+    let intelligence =
+        Intelligence::new(Some(selected), author, Some(decision), Some("max".into()));
+    let work = Work::new(
+        PathBuf::from("/project"),
+        Request::default(),
+        Waiting::Free,
+        None,
+        None,
+        None,
+        None,
+        Rail {
+            draft: Stage::Pending,
+            saved: Stage::Pending,
+            checked: Stage::Pending,
+            active: Stage::Pending,
+            run: Stage::Pending,
+        },
+    );
+    let bare = serde_json::to_value(&work).expect("serializes");
+    assert_eq!(bare["intelligence"], serde_json::Value::Null);
+    let json =
+        serde_json::to_value(work.with_intelligence(Some(intelligence))).expect("serializes");
+    assert_eq!(
+        json["intelligence"],
+        serde_json::json!({
+            "selected": {
+                "kind": "harness", "via": "claude-code", "transport": "acp", "model": null,
+                "locus": "through your Claude account", "ready": true, "refusal": null
+            },
+            "author": {
+                "kind": "harness", "model": null, "seat": "claude-code", "transport": "acp",
+                "why": null
+            },
+            "decision": {"model": "typesafe/jev-1.13.0", "refusal": "no key"},
+            "effort": "max"
+        })
     );
 }
 
@@ -369,5 +461,27 @@ fn every_compiler_status_and_note_kind_has_one_name_on_the_wire() {
     for (kind, named, wire) in kinds {
         assert_eq!(NoteKind::from(kind), named);
         assert_eq!(serde_json::to_value(named).expect("serializes"), wire);
+    }
+}
+
+#[test]
+fn only_spending_decisions_require_a_line_typed_after_they_were_shown() {
+    use crate::outcome::ReviewId;
+    let review = Waiting::RunReview {
+        review: ReviewId::new(1, "Fresh Run cost decision", "challenge n-1"),
+    };
+    assert!(review.requires_fresh_input());
+    assert!(Waiting::CostChoice.requires_fresh_input());
+    for other in [
+        Waiting::Free,
+        Waiting::IntelligenceChoice,
+        Waiting::Input {
+            name: "base".to_owned(),
+        },
+        Waiting::Activation {
+            key: "project.timezone".to_owned(),
+        },
+    ] {
+        assert!(!other.requires_fresh_input(), "{other:?}");
     }
 }

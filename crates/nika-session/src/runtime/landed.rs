@@ -85,7 +85,11 @@ impl SessionRuntime {
                 .iter()
                 .any(|c| c.path() == std::path::Path::new("nika.yaml"));
         match set.run {
-            Some(run) if all_clean => {
+            Some(mut run) if all_clean => {
+                // The run is bound to the bytes the on-disk check just judged clean.
+                run.bytes = (audits.iter())
+                    .find(|audit| audit.path == run.workflow)
+                    .and_then(|audit| audit.bytes.clone().map(Box::new));
                 self.last_workflow = Some(run.workflow.clone());
                 self.requested_run = world_of(&run.workflow)
                     .map(|world| RequestedRun::new(run.workflow.clone(), &run.vars, world));

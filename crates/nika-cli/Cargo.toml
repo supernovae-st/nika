@@ -16,6 +16,7 @@ tempfile = { workspace = true }  # each try owns a fresh room, removed after its
 nika-event  = { path = "../nika-event", version = "0.122.0" }  # the REAL event taxonomy (the fold input)
 nika-cli-host = { path = "../nika-cli-host", version = "0.122.0" } # the host-integration member (the 15k wall · ADR-110 · one unit, two members)
 nika-session = { path = "../nika-session", version = "0.122.0", default-features = false }  # the native session (bare `nika` on a terminal · ADR-125)
+nika-session-host = { path = "../nika-session-host", version = "0.122.0", default-features = false }  # the native machine door `nika session --json` and the one reasoner factory (ADR-148 · lateral L4)
 nika-tui     = { path = "../nika-tui", version = "0.122.0" }  # the session behind the terminal renderer (`nika --tui` · ADR-139 · UX-2)
 nika-types  = { path = "../nika-types", version = "0.122.0" }  # Timestamp · KeyValue · ids
 nika-schema = { path = "../nika-schema", version = "0.122.0" } # parse (check · inspect · graph · run)
@@ -79,7 +80,7 @@ metal       = ["local-infer", "nika-models/metal"]
 # The harness access class (D-2026-08-04-N1 · P3): `infer:`/`agent:`
 # may delegate to the user's own agentic CLI. On by default so the
 # official install.sh binary can pin `--access claude-code`.
-access-harness = ["nika-runtime/access-harness", "nika-cli-host/access-harness", "nika-session/access-harness"]
+access-harness = ["nika-runtime/access-harness", "nika-cli-host/access-harness", "nika-session/access-harness", "nika-session-host/access-harness"]
 
 [[bin]]
 # The public executable is BORN `nika` (ADR-135): the same name from

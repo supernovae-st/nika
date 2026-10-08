@@ -37,7 +37,7 @@ pub const ROUTE: &str = "edit: document revision over the complete base";
 
 /// What the seat is told it may state beside destination links: operations over the complete
 /// base document, or its whole revised source.
-pub const OPERATIONS: &str = "Any change the destination links cannot state is stated as `operations` over the complete base document (`base_document` lists every literal node with its path, `base_source` is the exact text), applied in order: {\"op\": \"set\", \"path\": \"/tasks/<task>/invoke/args/<arg>\", \"value\": <JSON value>} replaces the value at that path (a typed constant is set at its `value`; a multi-line text is one JSON string); {\"op\": \"insert\", \"path\": <mapping>, \"key\": \"<new key>\", \"value\": <JSON value>} adds a key; {\"op\": \"insert_text\", \"path\": <mapping>, \"key\": \"<new key>\", \"text\": \"<its YAML>\"} adds a key whose value is that exact YAML (a new task); {\"op\": \"push\", \"path\": <sequence>, \"value\": <JSON value>} appends an item; {\"op\": \"remove\", \"path\": <entry or item>} removes it; {\"op\": \"rename\", \"path\": <entry>, \"to\": \"<new name>\"} renames a task, input, constant, secret or binding and every reference to it; {\"op\": \"compose\", \"component\": {\"id\": \"block:<name>\", \"version\": \"<release version>\"}, \"bindings\": {\"<hole path>\": <JSON literal>}} adds an admitted component of `components` with every hole bound; {\"op\": \"rebind\", \"component\": {\"id\": \"block:<name>\"}, \"bindings\": {\"<hole path>\": <JSON literal>}} changes the values bound in a component an earlier revision composed (`composed`). A composed component grants nothing: its permits are never inherited, so state beside it the `push` or `set` that extends the document's `permits` to every file it reads or writes and every tool it uses (its `effects`), and nothing more. In the text form a value travels as its JSON text in `value_json` or `bindings_json`. Every other byte of the base is kept. Only when no operation can state the change, give the whole revised source in `replace` instead: it is checked like any workflow and nothing of the base is promised to survive. State only what the request and the change ask; never invent a value they leave open.";
+pub const OPERATIONS: &str = "A change is stated as `operations` over the complete base document (`base_document` lists every literal node with its path, `base_source` is the exact text), applied in order: {\"op\": \"set\", \"path\": \"/tasks/<task>/invoke/args/<arg>\", \"value\": <JSON value>} replaces the value at that path (a typed constant is set at its `value`; a multi-line text is one JSON string); {\"op\": \"insert\", \"path\": <mapping>, \"key\": \"<new key>\", \"value\": <JSON value>} adds a key; {\"op\": \"insert_text\", \"path\": <mapping>, \"key\": \"<new key>\", \"text\": \"<its YAML>\"} adds a key whose value is that exact YAML (a new task); {\"op\": \"push\", \"path\": <sequence>, \"value\": <JSON value>} appends an item; {\"op\": \"remove\", \"path\": <entry or item>} removes it; {\"op\": \"rename\", \"path\": <entry>, \"to\": \"<new name>\"} renames a task, input, constant, secret or binding and every reference to it; {\"op\": \"compose\", \"component\": {\"id\": \"block:<name>\", \"version\": \"<release version>\"}, \"bindings\": {\"<hole path>\": <JSON literal>}} adds an admitted component of `components` with every hole bound; {\"op\": \"rebind\", \"component\": {\"id\": \"block:<name>\"}, \"bindings\": {\"<hole path>\": <JSON literal>}} changes the values bound in a component an earlier revision composed (`composed`). A composed component grants nothing: its permits are never inherited, so state beside it the `push` or `set` that extends the document's `permits` to every file it reads or writes and every tool it uses (its `effects`), and nothing more. In the text form a value travels as its JSON text in `value_json` or `bindings_json`. Every other byte of the base is kept. Only when no operation can state the change, give the whole revised source in `replace` instead: it is checked like any workflow and nothing of the base is promised to survive. State only what the request and the change ask; never invent a value they leave open.";
 
 /// What the operations made of the base: the revised source, what changed, the receipts of the
 /// components the revised source holds (new, rebound or carried), and whether the whole source
@@ -189,8 +189,17 @@ fn canonical(operation: &Value) -> Result<Value, String> {
             .get(key)
             .filter(|value| !value.is_null() && value.as_str() != Some(""))
     };
+    // A value given directly is the value, null and the empty string or list included; only a
+    // text-form field (every field a text) reads an empty text as absent.
+    let direct = |key: &str| {
+        if key == "value" {
+            object.get(key)
+        } else {
+            present(key)
+        }
+    };
     let either = |plain: &str, text: &str| -> Result<Option<Value>, String> {
-        match (present(plain), present(text)) {
+        match (direct(plain), present(text)) {
             (Some(_), Some(_)) => Err(format!("state `{plain}` or `{text}`, never both")),
             (Some(value), None) => Ok(Some(value.clone())),
             (None, Some(Value::String(json))) => serde_json::from_str(json)
@@ -208,7 +217,7 @@ fn canonical(operation: &Value) -> Result<Value, String> {
                 || fields.contains(&key)
                 || (key == "value_json" && fields.contains(&"value"))
         };
-        if let Some(extra) = (object.keys()).find(|key| present(key).is_some() && !carried(key)) {
+        if let Some(extra) = (object.keys()).find(|key| direct(key).is_some() && !carried(key)) {
             return Err(format!("a `{op}` operation carries no `{extra}`"));
         }
         let path = pointer(present("path").and_then(Value::as_str).unwrap_or_default())?;
@@ -435,12 +444,16 @@ pub fn components(catalog: Option<&dyn ComponentCatalog>) -> Value {
     Value::Array(rows)
 }
 
-/// The receipts a base's record carries for the components an earlier revision composed.
+/// The receipts a base's record carries for the components an earlier revision, or its
+/// creation, composed.
 #[must_use]
 pub fn carried(record: Option<&Value>) -> Vec<Value> {
-    (record.and_then(|r| r["document_revision"]["components"].as_array()))
-        .cloned()
-        .unwrap_or_default()
+    let components = |r: &Value| {
+        (r["document_revision"]["components"].as_array())
+            .or_else(|| r["document"]["components"].as_array())
+            .cloned()
+    };
+    record.and_then(components).unwrap_or_default()
 }
 
 /// The record a document revision leaves: it binds the revised bytes (as a source revision's

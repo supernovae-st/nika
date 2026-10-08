@@ -305,7 +305,15 @@ async fn semantic_replayed<P: ProviderInferDyn>(
         let seat = (reading.authoring.as_ref())
             .filter(|p| super::revise_intent(reading).is_some() && policy_bounded(p))
             .zip(cognition.provider);
-        return Box::pin(sketch::revise::edit(raw, reading, seat, cognition.seat)).await;
+        let lent = rehearsals.catalog();
+        return Box::pin(sketch::revise::edit(
+            raw,
+            reading,
+            seat,
+            cognition.seat,
+            lent,
+        ))
+        .await;
     };
     let mut assembly = reading.clone();
     let clarified = (assembly.answers.remove("intent.clarification"))
@@ -623,10 +631,13 @@ async fn compose<P: ProviderInferDyn>(
     if unbounded(policy, &mut out) {
         return Ok(out);
     }
-    // The pack the request carries, qualified as before. Whole-catalogue reach
-    // (`foundry::qualified_with`) asks the decision seat about every admitted entry the pack does
-    // not hold: a change of the questions and calls a creation makes, wired once it is measured.
-    let qualified = knowledge::qualified(intent, request, cognition.seat).await;
+    // The pack the request carries, qualified over the whole catalogue the host lent (none: the
+    // pack alone, as before): every admitted entry the pack lacks is asked by its descriptor, and
+    // so is every recalled entry the catalogue lists, read whole unless the seat discards it. The
+    // host lends the catalogue of its request, so a held-out corpus stays out (measured: same
+    // questions, about 69% fewer bytes to the seat on the r2 candidate).
+    let qualified =
+        knowledge::qualified_with(intent, request, cognition.seat, rehearsals.catalog()).await;
     let shown = qualified
         .as_ref()
         .map_or(request, |(qualified, _)| qualified);

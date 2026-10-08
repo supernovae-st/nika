@@ -18,12 +18,11 @@
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
-use nika_session::intelligence::{IntelligenceKind, UserIntelligencePreference};
-use nika_session::reasoner::{NoReasoner, ProviderReasoner, SessionReasoner};
+use nika_session::intelligence::UserIntelligencePreference;
 use nika_session::work::Waiting;
-use nika_session::{
-    IntelligenceCensus, ResolvedSessionIntelligence, RunRequest, SessionRuntime, TurnOutcome,
-};
+use nika_session::{IntelligenceCensus, RunRequest, SessionRuntime, TurnOutcome};
+// The one reasoner factory every door builds a Session's reasoner with (ADR-148).
+use nika_session_host::open::reasoner_for;
 
 use crate::verbs::run::RenderMode;
 use nika_dap::resume::ResumeRequest;
@@ -33,43 +32,19 @@ use crate::verbs::exit;
 use nika_cli_host::lane::{ChildSlot, RunSink, drive_child_observed};
 use nika_cli_host::lines::{PerCallLines, read_burst};
 
-/// The reasoner for a resolved choice — the seat, the provider, or none.
-fn reasoner_for(resolved: &ResolvedSessionIntelligence) -> Box<dyn SessionReasoner> {
-    match &resolved.kind {
-        #[cfg(feature = "access-harness")]
-        IntelligenceKind::Harness { seat, transport } => Box::new(
-            nika_session::reasoner::HarnessReasoner { seat: seat.clone() }
-                .with_transport(resolved.model.clone(), *transport),
-        ),
-        #[cfg(not(feature = "access-harness"))]
-        IntelligenceKind::Harness { .. } => Box::new(NoReasoner),
-        IntelligenceKind::Api { provider } => Box::new(ProviderReasoner {
-            model: resolved
-                .model
-                .clone()
-                .unwrap_or_else(|| default_model(provider)),
-            label: format!("{provider} API"),
-        }),
-        IntelligenceKind::Local { provider } => Box::new(ProviderReasoner {
-            model: resolved
-                .model
-                .clone()
-                .unwrap_or_else(|| default_model(provider)),
-            label: format!("{provider} · local"),
-        }),
-        _ => Box::new(NoReasoner),
+/// The native machine door, `nika session --json` (nika-session-host · ADR-148): the same
+/// Session as bare `nika` in this directory, NDJSON on stdio, its runs through this binary's
+/// machine lane. Exit 0 once its log closed; 3 when the Session could not open (one `refused`
+/// frame said why).
+#[must_use]
+pub fn run_machine(jq: Option<nika_onboard::compile::room::JqHelper>) -> u8 {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let home = nika_cli_host::probe::home_dir();
+    let exe = std::env::current_exe().ok();
+    match nika_session_host::open::run_stdio(&cwd, home.as_deref(), jq, exe) {
+        Ok(()) => exit::OK,
+        Err(_) => exit::ENV,
     }
-}
-
-/// The provider's first cataloged model when the human named none.
-fn default_model(provider: &str) -> String {
-    nika_catalog::all_providers()
-        .iter()
-        .find(|p| p.id.eq_ignore_ascii_case(provider))
-        .map_or_else(
-            || format!("{provider}/default"),
-            |p| format!("{provider}/{}", p.default_model),
-        )
 }
 
 /// The session loop over any reader and writer, with no jq helper (the tests drive it with a
@@ -536,6 +511,8 @@ pub fn run(theme: Theme, jq: Option<nika_onboard::compile::room::JqHelper>) -> u
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use std::io::Cursor;
+
+    use nika_session::intelligence::IntelligenceKind;
 
     use super::*;
 

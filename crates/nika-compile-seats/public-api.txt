@@ -1488,6 +1488,372 @@ pub fn nika_compile_seats::foundry::recall::interleave(sources: &[alloc::vec::Ve
 pub fn nika_compile_seats::foundry::recall::rank<'a>(query: &str, rows: impl core::iter::traits::collect::IntoIterator<Item = &'a serde_json::value::Value>, text: impl core::ops::function::Fn(&serde_json::value::Value) -> alloc::string::String) -> alloc::vec::Vec<(alloc::string::String, f64)>
 pub fn nika_compile_seats::foundry::recall::text_of(row: &serde_json::value::Value, fields: &[&str]) -> alloc::string::String
 pub fn nika_compile_seats::foundry::recall::tokens(text: &str) -> alloc::vec::Vec<alloc::string::String>
+pub mod nika_compile_seats::foundry::release
+pub mod nika_compile_seats::foundry::release::canonical
+#[non_exhaustive] pub enum nika_compile_seats::foundry::release::canonical::StrictJsonError
+pub nika_compile_seats::foundry::release::canonical::StrictJsonError::DuplicateKey(alloc::string::String)
+pub nika_compile_seats::foundry::release::canonical::StrictJsonError::Malformed(alloc::string::String)
+impl core::clone::Clone for nika_compile_seats::foundry::release::canonical::StrictJsonError
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::clone(&self) -> nika_compile_seats::foundry::release::canonical::StrictJsonError
+impl core::cmp::Eq for nika_compile_seats::foundry::release::canonical::StrictJsonError
+impl core::cmp::PartialEq for nika_compile_seats::foundry::release::canonical::StrictJsonError
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::eq(&self, other: &nika_compile_seats::foundry::release::canonical::StrictJsonError) -> bool
+impl core::fmt::Debug for nika_compile_seats::foundry::release::canonical::StrictJsonError
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_compile_seats::foundry::release::canonical::StrictJsonError
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::foundry::release::canonical::StrictJsonError
+impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::release::canonical::StrictJsonError
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::foundry::release::canonical::StrictJsonError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::foundry::release::canonical::StrictJsonError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::foundry::release::canonical::StrictJsonError where U: core::convert::From<T>
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::foundry::release::canonical::StrictJsonError where U: core::convert::Into<T>
+pub type nika_compile_seats::foundry::release::canonical::StrictJsonError::Error = core::convert::Infallible
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::foundry::release::canonical::StrictJsonError where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::foundry::release::canonical::StrictJsonError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::foundry::release::canonical::StrictJsonError where T: core::clone::Clone
+pub type nika_compile_seats::foundry::release::canonical::StrictJsonError::Owned = T
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_compile_seats::foundry::release::canonical::StrictJsonError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_compile_seats::foundry::release::canonical::StrictJsonError where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::foundry::release::canonical::StrictJsonError where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::foundry::release::canonical::StrictJsonError where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::foundry::release::canonical::StrictJsonError where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::foundry::release::canonical::StrictJsonError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::foundry::release::canonical::StrictJsonError
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::foundry::release::canonical::StrictJsonError where T: core::clone::Clone
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::release::canonical::StrictJsonError where T: 'static
+pub fn nika_compile_seats::foundry::release::canonical::StrictJsonError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::release::canonical::StrictJsonError
+pub type nika_compile_seats::foundry::release::canonical::StrictJsonError::Output = T
+pub const nika_compile_seats::foundry::release::canonical::MAX_DEPTH: usize
+pub const nika_compile_seats::foundry::release::canonical::MAX_SAFE_INTEGER: u64
+pub fn nika_compile_seats::foundry::release::canonical::canonical_json(value: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_seats::foundry::release::canonical::es_number(value: f64) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_seats::foundry::release::canonical::holds_number(value: &serde_json::value::Value) -> bool
+pub fn nika_compile_seats::foundry::release::canonical::jcs_json(value: &serde_json::value::Value) -> alloc::string::String
+pub fn nika_compile_seats::foundry::release::canonical::jcs_number(number: &serde_json::number::Number) -> alloc::string::String
+pub fn nika_compile_seats::foundry::release::canonical::jcs_row_digest(row: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_seats::foundry::release::canonical::row_digest(row: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_seats::foundry::release::canonical::strict_json(text: &str, max_values: usize) -> core::result::Result<serde_json::value::Value, nika_compile_seats::foundry::release::canonical::StrictJsonError>
+pub fn nika_compile_seats::foundry::release::canonical::strict_line(line: &str, max_values: usize) -> core::result::Result<serde_json::value::Value, nika_compile_seats::foundry::release::canonical::StrictJsonError>
+pub mod nika_compile_seats::foundry::release::grammar
+pub const nika_compile_seats::foundry::release::grammar::FORBIDDEN: [(char, char); 31]
+pub fn nika_compile_seats::foundry::release::grammar::base_name(path: &str) -> alloc::string::String
+pub fn nika_compile_seats::foundry::release::grammar::blank(text: &str) -> bool
+pub fn nika_compile_seats::foundry::release::grammar::file_text(bytes: &[u8], max: usize) -> bool
+pub fn nika_compile_seats::foundry::release::grammar::hex64(value: &serde_json::value::Value) -> bool
+pub fn nika_compile_seats::foundry::release::grammar::id_name(name: &str) -> bool
+pub fn nika_compile_seats::foundry::release::grammar::line(text: &str) -> bool
+pub fn nika_compile_seats::foundry::release::grammar::lower_hex(text: &str, len: usize) -> bool
+pub fn nika_compile_seats::foundry::release::grammar::policy_token(text: &str) -> bool
+pub fn nika_compile_seats::foundry::release::grammar::printable(c: char, multiline: bool) -> bool
+pub fn nika_compile_seats::foundry::release::grammar::safe_relative(path: &str) -> bool
+pub fn nika_compile_seats::foundry::release::grammar::spec_sha(value: &serde_json::value::Value) -> bool
+pub fn nika_compile_seats::foundry::release::grammar::stem(path: &str) -> alloc::string::String
+pub fn nika_compile_seats::foundry::release::grammar::text(text: &str, max: usize, maybe: bool) -> bool
+pub fn nika_compile_seats::foundry::release::grammar::token(text: &str, max: usize, rest: impl core::ops::function::Fn(char) -> bool) -> bool
+pub mod nika_compile_seats::foundry::release::r2
+pub mod nika_compile_seats::foundry::release::r2::profile
+pub struct nika_compile_seats::foundry::release::r2::profile::Kind
+impl nika_compile_seats::foundry::release::r2::profile::Kind
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::body_directory(&self) -> core::option::Option<&str>
+pub const fn nika_compile_seats::foundry::release::r2::profile::Kind::executable(&self) -> bool
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::file(&self) -> &str
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::name(&self) -> &str
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::prefix(&self) -> &str
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::role(&self) -> &str
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::stem(&self) -> &str
+impl core::clone::Clone for nika_compile_seats::foundry::release::r2::profile::Kind
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::clone(&self) -> nika_compile_seats::foundry::release::r2::profile::Kind
+impl core::cmp::Eq for nika_compile_seats::foundry::release::r2::profile::Kind
+impl core::cmp::PartialEq for nika_compile_seats::foundry::release::r2::profile::Kind
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::eq(&self, other: &nika_compile_seats::foundry::release::r2::profile::Kind) -> bool
+impl core::fmt::Debug for nika_compile_seats::foundry::release::r2::profile::Kind
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::foundry::release::r2::profile::Kind
+impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::release::r2::profile::Kind
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::foundry::release::r2::profile::Kind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::foundry::release::r2::profile::Kind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::foundry::release::r2::profile::Kind where U: core::convert::From<T>
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::foundry::release::r2::profile::Kind where U: core::convert::Into<T>
+pub type nika_compile_seats::foundry::release::r2::profile::Kind::Error = core::convert::Infallible
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::foundry::release::r2::profile::Kind where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::foundry::release::r2::profile::Kind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::foundry::release::r2::profile::Kind where T: core::clone::Clone
+pub type nika_compile_seats::foundry::release::r2::profile::Kind::Owned = T
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::foundry::release::r2::profile::Kind where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::foundry::release::r2::profile::Kind where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::foundry::release::r2::profile::Kind where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::foundry::release::r2::profile::Kind where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::foundry::release::r2::profile::Kind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::foundry::release::r2::profile::Kind
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::foundry::release::r2::profile::Kind where T: core::clone::Clone
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::release::r2::profile::Kind where T: 'static
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::release::r2::profile::Kind
+pub type nika_compile_seats::foundry::release::r2::profile::Kind::Output = T
+pub struct nika_compile_seats::foundry::release::r2::profile::Profile
+impl nika_compile_seats::foundry::release::r2::profile::Profile
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::kind_of_id(&self, id: &str) -> core::option::Option<&nika_compile_seats::foundry::release::r2::profile::Kind>
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::kind_of_prefix(&self, prefix: &str) -> core::option::Option<&nika_compile_seats::foundry::release::r2::profile::Kind>
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::kinds(&self) -> &[nika_compile_seats::foundry::release::r2::profile::Kind]
+impl core::fmt::Debug for nika_compile_seats::foundry::release::r2::profile::Profile
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::release::r2::profile::Profile
+impl<T, U> core::convert::Into<U> for nika_compile_seats::foundry::release::r2::profile::Profile where U: core::convert::From<T>
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::foundry::release::r2::profile::Profile where U: core::convert::Into<T>
+pub type nika_compile_seats::foundry::release::r2::profile::Profile::Error = core::convert::Infallible
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::foundry::release::r2::profile::Profile where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::foundry::release::r2::profile::Profile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_seats::foundry::release::r2::profile::Profile where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::foundry::release::r2::profile::Profile where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::foundry::release::r2::profile::Profile where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_seats::foundry::release::r2::profile::Profile
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::release::r2::profile::Profile where T: 'static
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::release::r2::profile::Profile
+pub type nika_compile_seats::foundry::release::r2::profile::Profile::Output = T
+pub const nika_compile_seats::foundry::release::r2::profile::EXPORT: &str
+pub const nika_compile_seats::foundry::release::r2::profile::EXPORT_SHA256: &str
+pub fn nika_compile_seats::foundry::release::r2::profile::profile() -> core::result::Result<&'static nika_compile_seats::foundry::release::r2::profile::Profile, &'static str>
+#[non_exhaustive] pub struct nika_compile_seats::foundry::release::r2::Admitted
+pub nika_compile_seats::foundry::release::r2::Admitted::files: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<u8>>
+pub nika_compile_seats::foundry::release::r2::Admitted::manifest: serde_json::value::Value
+pub nika_compile_seats::foundry::release::r2::Admitted::pins: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_compile_seats::foundry::release::r2::Admitted::relations: alloc::vec::Vec<serde_json::value::Value>
+pub nika_compile_seats::foundry::release::r2::Admitted::rows: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<serde_json::value::Value>>
+impl core::fmt::Debug for nika_compile_seats::foundry::release::r2::Admitted
+pub fn nika_compile_seats::foundry::release::r2::Admitted::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::release::r2::Admitted
+impl<T, U> core::convert::Into<U> for nika_compile_seats::foundry::release::r2::Admitted where U: core::convert::From<T>
+pub fn nika_compile_seats::foundry::release::r2::Admitted::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::foundry::release::r2::Admitted where U: core::convert::Into<T>
+pub type nika_compile_seats::foundry::release::r2::Admitted::Error = core::convert::Infallible
+pub fn nika_compile_seats::foundry::release::r2::Admitted::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::foundry::release::r2::Admitted where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::foundry::release::r2::Admitted::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::foundry::release::r2::Admitted::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_seats::foundry::release::r2::Admitted where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::Admitted::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::foundry::release::r2::Admitted where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::Admitted::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::foundry::release::r2::Admitted where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::Admitted::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_seats::foundry::release::r2::Admitted
+pub fn nika_compile_seats::foundry::release::r2::Admitted::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::release::r2::Admitted where T: 'static
+pub fn nika_compile_seats::foundry::release::r2::Admitted::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::release::r2::Admitted
+pub type nika_compile_seats::foundry::release::r2::Admitted::Output = T
+pub struct nika_compile_seats::foundry::release::r2::Kind
+impl nika_compile_seats::foundry::release::r2::profile::Kind
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::body_directory(&self) -> core::option::Option<&str>
+pub const fn nika_compile_seats::foundry::release::r2::profile::Kind::executable(&self) -> bool
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::file(&self) -> &str
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::name(&self) -> &str
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::prefix(&self) -> &str
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::role(&self) -> &str
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::stem(&self) -> &str
+impl core::clone::Clone for nika_compile_seats::foundry::release::r2::profile::Kind
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::clone(&self) -> nika_compile_seats::foundry::release::r2::profile::Kind
+impl core::cmp::Eq for nika_compile_seats::foundry::release::r2::profile::Kind
+impl core::cmp::PartialEq for nika_compile_seats::foundry::release::r2::profile::Kind
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::eq(&self, other: &nika_compile_seats::foundry::release::r2::profile::Kind) -> bool
+impl core::fmt::Debug for nika_compile_seats::foundry::release::r2::profile::Kind
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::foundry::release::r2::profile::Kind
+impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::release::r2::profile::Kind
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::foundry::release::r2::profile::Kind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::foundry::release::r2::profile::Kind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::foundry::release::r2::profile::Kind where U: core::convert::From<T>
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::foundry::release::r2::profile::Kind where U: core::convert::Into<T>
+pub type nika_compile_seats::foundry::release::r2::profile::Kind::Error = core::convert::Infallible
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::foundry::release::r2::profile::Kind where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::foundry::release::r2::profile::Kind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::foundry::release::r2::profile::Kind where T: core::clone::Clone
+pub type nika_compile_seats::foundry::release::r2::profile::Kind::Owned = T
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::foundry::release::r2::profile::Kind where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::foundry::release::r2::profile::Kind where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::foundry::release::r2::profile::Kind where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::foundry::release::r2::profile::Kind where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::foundry::release::r2::profile::Kind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::foundry::release::r2::profile::Kind
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::foundry::release::r2::profile::Kind where T: core::clone::Clone
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::release::r2::profile::Kind where T: 'static
+pub fn nika_compile_seats::foundry::release::r2::profile::Kind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::release::r2::profile::Kind
+pub type nika_compile_seats::foundry::release::r2::profile::Kind::Output = T
+pub struct nika_compile_seats::foundry::release::r2::Policy<'a>
+pub nika_compile_seats::foundry::release::r2::Policy::id: &'a str
+pub nika_compile_seats::foundry::release::r2::Policy::sha256: &'a str
+impl<'a> core::clone::Clone for nika_compile_seats::foundry::release::r2::Policy<'a>
+pub fn nika_compile_seats::foundry::release::r2::Policy<'a>::clone(&self) -> nika_compile_seats::foundry::release::r2::Policy<'a>
+impl<'a> core::fmt::Debug for nika_compile_seats::foundry::release::r2::Policy<'a>
+pub fn nika_compile_seats::foundry::release::r2::Policy<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Copy for nika_compile_seats::foundry::release::r2::Policy<'a>
+impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::release::r2::Policy<'a>
+impl<T, U> core::convert::Into<U> for nika_compile_seats::foundry::release::r2::Policy<'a> where U: core::convert::From<T>
+pub fn nika_compile_seats::foundry::release::r2::Policy<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::foundry::release::r2::Policy<'a> where U: core::convert::Into<T>
+pub type nika_compile_seats::foundry::release::r2::Policy<'a>::Error = core::convert::Infallible
+pub fn nika_compile_seats::foundry::release::r2::Policy<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::foundry::release::r2::Policy<'a> where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::foundry::release::r2::Policy<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::foundry::release::r2::Policy<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::foundry::release::r2::Policy<'a> where T: core::clone::Clone
+pub type nika_compile_seats::foundry::release::r2::Policy<'a>::Owned = T
+pub fn nika_compile_seats::foundry::release::r2::Policy<'a>::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::foundry::release::r2::Policy<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::foundry::release::r2::Policy<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::Policy<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::foundry::release::r2::Policy<'a> where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::Policy<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::foundry::release::r2::Policy<'a> where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::Policy<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::foundry::release::r2::Policy<'a> where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::foundry::release::r2::Policy<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::foundry::release::r2::Policy<'a>
+pub fn nika_compile_seats::foundry::release::r2::Policy<'a>::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::foundry::release::r2::Policy<'a> where T: core::clone::Clone
+pub fn nika_compile_seats::foundry::release::r2::Policy<'a>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::release::r2::Policy<'a> where T: 'static
+pub fn nika_compile_seats::foundry::release::r2::Policy<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_seats::foundry::release::r2::Policy<'a> where T: core::marker::Copy
+pub fn nika_compile_seats::foundry::release::r2::Policy<'a>::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::release::r2::Policy<'a>
+pub type nika_compile_seats::foundry::release::r2::Policy<'a>::Output = T
+pub struct nika_compile_seats::foundry::release::r2::Profile
+impl nika_compile_seats::foundry::release::r2::profile::Profile
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::kind_of_id(&self, id: &str) -> core::option::Option<&nika_compile_seats::foundry::release::r2::profile::Kind>
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::kind_of_prefix(&self, prefix: &str) -> core::option::Option<&nika_compile_seats::foundry::release::r2::profile::Kind>
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::kinds(&self) -> &[nika_compile_seats::foundry::release::r2::profile::Kind]
+impl core::fmt::Debug for nika_compile_seats::foundry::release::r2::profile::Profile
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::release::r2::profile::Profile
+impl<T, U> core::convert::Into<U> for nika_compile_seats::foundry::release::r2::profile::Profile where U: core::convert::From<T>
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::foundry::release::r2::profile::Profile where U: core::convert::Into<T>
+pub type nika_compile_seats::foundry::release::r2::profile::Profile::Error = core::convert::Infallible
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::foundry::release::r2::profile::Profile where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::foundry::release::r2::profile::Profile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_seats::foundry::release::r2::profile::Profile where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::foundry::release::r2::profile::Profile where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::foundry::release::r2::profile::Profile where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_seats::foundry::release::r2::profile::Profile
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::release::r2::profile::Profile where T: 'static
+pub fn nika_compile_seats::foundry::release::r2::profile::Profile::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::release::r2::profile::Profile
+pub type nika_compile_seats::foundry::release::r2::profile::Profile::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::foundry::release::r2::Refusal
+pub nika_compile_seats::foundry::release::r2::Refusal::code: &'static str
+pub nika_compile_seats::foundry::release::r2::Refusal::detail: alloc::string::String
+pub nika_compile_seats::foundry::release::r2::Refusal::step: &'static str
+impl nika_compile_seats::foundry::release::r2::Refusal
+pub fn nika_compile_seats::foundry::release::r2::Refusal::new(step: &'static str, code: &'static str, detail: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_compile_seats::foundry::release::r2::Refusal
+pub fn nika_compile_seats::foundry::release::r2::Refusal::clone(&self) -> nika_compile_seats::foundry::release::r2::Refusal
+impl core::cmp::Eq for nika_compile_seats::foundry::release::r2::Refusal
+impl core::cmp::PartialEq for nika_compile_seats::foundry::release::r2::Refusal
+pub fn nika_compile_seats::foundry::release::r2::Refusal::eq(&self, other: &nika_compile_seats::foundry::release::r2::Refusal) -> bool
+impl core::fmt::Debug for nika_compile_seats::foundry::release::r2::Refusal
+pub fn nika_compile_seats::foundry::release::r2::Refusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::foundry::release::r2::Refusal
+impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::release::r2::Refusal
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::foundry::release::r2::Refusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::Refusal::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::foundry::release::r2::Refusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::Refusal::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::foundry::release::r2::Refusal where U: core::convert::From<T>
+pub fn nika_compile_seats::foundry::release::r2::Refusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::foundry::release::r2::Refusal where U: core::convert::Into<T>
+pub type nika_compile_seats::foundry::release::r2::Refusal::Error = core::convert::Infallible
+pub fn nika_compile_seats::foundry::release::r2::Refusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::foundry::release::r2::Refusal where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::foundry::release::r2::Refusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::foundry::release::r2::Refusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::foundry::release::r2::Refusal where T: core::clone::Clone
+pub type nika_compile_seats::foundry::release::r2::Refusal::Owned = T
+pub fn nika_compile_seats::foundry::release::r2::Refusal::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::foundry::release::r2::Refusal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::foundry::release::r2::Refusal where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::Refusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::foundry::release::r2::Refusal where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::Refusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::foundry::release::r2::Refusal where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::release::r2::Refusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::foundry::release::r2::Refusal where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::foundry::release::r2::Refusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::foundry::release::r2::Refusal
+pub fn nika_compile_seats::foundry::release::r2::Refusal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::foundry::release::r2::Refusal where T: core::clone::Clone
+pub fn nika_compile_seats::foundry::release::r2::Refusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::release::r2::Refusal where T: 'static
+pub fn nika_compile_seats::foundry::release::r2::Refusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::release::r2::Refusal
+pub type nika_compile_seats::foundry::release::r2::Refusal::Output = T
+pub const nika_compile_seats::foundry::release::r2::CODES: [&str; 38]
+pub const nika_compile_seats::foundry::release::r2::DIRECTORIES: [&str; 6]
+pub const nika_compile_seats::foundry::release::r2::MANIFEST_PATH: &str
+pub const nika_compile_seats::foundry::release::r2::MAX_BYTES: u64
+pub const nika_compile_seats::foundry::release::r2::MAX_ENTRIES: usize
+pub const nika_compile_seats::foundry::release::r2::MAX_FILES: usize
+pub const nika_compile_seats::foundry::release::r2::MAX_MANIFEST_BYTES: u64
+pub const nika_compile_seats::foundry::release::r2::NOTICE_PATH: &str
+pub const nika_compile_seats::foundry::release::r2::PROFILE: &str
+pub const nika_compile_seats::foundry::release::r2::RELATIONS_PATH: &str
+pub const nika_compile_seats::foundry::release::r2::RELEASE_FORMAT: &str
+pub fn nika_compile_seats::foundry::release::r2::admit(manifest: &[u8], files: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<u8>>, policy: nika_compile_seats::foundry::release::r2::Policy<'_>, sha256: fn(&[u8]) -> alloc::string::String) -> core::result::Result<nika_compile_seats::foundry::release::r2::Admitted, nika_compile_seats::foundry::release::r2::Refusal>
+pub fn nika_compile_seats::foundry::release::r2::profile() -> core::result::Result<&'static nika_compile_seats::foundry::release::r2::profile::Profile, &'static str>
 pub mod nika_compile_seats::foundry::witness
 pub const nika_compile_seats::foundry::witness::REUSE: &str
 pub fn nika_compile_seats::foundry::witness::reuse(shown: &[nika_compile::types::KnowledgeReference], receipts: &[serde_json::value::Value], candidate: core::option::Option<&str>) -> serde_json::value::Value

@@ -179,6 +179,9 @@ pub struct Hole {
     pub owner: String,
     /// The producer's note, when it states one.
     pub note: Option<String>,
+    /// The hole as its row states it, whole (its type, the question it asks, its unit and
+    /// domain, where it sits); `null` for a hole stated here.
+    pub contract: Value,
 }
 
 impl Hole {
@@ -189,6 +192,7 @@ impl Hole {
             name: name.into(),
             owner: owner.into(),
             note,
+            contract: Value::Null,
         }
     }
 
@@ -272,6 +276,10 @@ pub struct Component {
     pub status: String,
     /// The row's proof level (`CHECKED`).
     pub proof_level: String,
+    /// The row as admitted, whole: its provenance, guarantees, class, topology, constructs,
+    /// known failure modes and check receipt beside the facts above; `null` for a component
+    /// stated here.
+    pub contract: Value,
 }
 
 impl Component {
@@ -299,6 +307,7 @@ impl Component {
             interfaces: Vec::new(),
             status: String::new(),
             proof_level: String::new(),
+            contract: Value::Null,
         }
     }
 
@@ -332,11 +341,9 @@ impl Component {
         component.holes = (row["holes"].as_array().into_iter().flatten())
             .filter_map(|hole| {
                 let note = hole["note"].as_str().map(str::to_owned);
-                Some(Hole::new(
-                    hole["name"].as_str()?,
-                    hole["owner"].as_str()?,
-                    note,
-                ))
+                let mut stated = Hole::new(hole["name"].as_str()?, hole["owner"].as_str()?, note);
+                stated.contract = hole.clone();
+                Some(stated)
             })
             .collect();
         component.effects = lines("effects");
@@ -345,6 +352,7 @@ impl Component {
         component.interfaces = lines("interfaces");
         component.status = text("status");
         component.proof_level = text("proof_level");
+        component.contract = row.clone();
         Ok(component)
     }
 

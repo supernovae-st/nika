@@ -940,3 +940,49 @@ async fn a_prefetched_answer_serves_only_the_very_question_it_was_asked_for() {
         "the question asked in the batch takes its own answer"
     );
 }
+
+/// A revision of a base whose own request is unknown is judged over that base: the state shows
+/// the base whole and the instructions say the base's behaviour is kept, never extra. With the
+/// earlier request known, that request is the history and the base is not repeated.
+#[test]
+fn a_record_less_revision_is_judged_over_its_base() {
+    let base = "nika: base\ntasks: {}\n";
+    let request = crate::CompileRequest::edit(base, "change it");
+    let state = super::state("the workflow — change it", &request, "nika: x\n");
+    assert_eq!(state["revision"]["base_nika"], base);
+    let told = super::faithful::told(&state, "", "WHOLE");
+    assert!(told.contains("whose own request is unknown"), "{told}");
+    let known = crate::CompileRequest::edit(base, "change it").with_original_intent("a base");
+    let state = super::state("a base — change it", &known, "nika: x\n");
+    assert!(state["revision"].get("base_nika").is_none(), "{state}");
+    assert!(!super::faithful::told(&state, "", "WHOLE").contains("whose own request"));
+}
+
+/// A revision the compiler applied over the complete document is judged as the base with exactly
+/// the change, even when the request the base answers is known: the base is shown whole and the
+/// earlier request is history the change takes precedence over. A revision with no such record
+/// keeps its own instructions.
+#[test]
+fn a_document_revision_with_a_known_request_is_judged_over_its_base() {
+    let base = "nika: base\ntasks: {}\n";
+    let known =
+        crate::CompileRequest::edit(base, "keep three days").with_original_intent("two days");
+    let intent = "two days\nChange: keep three days";
+    let mut out = crate::initial();
+    let mut state = super::state(intent, &known, "nika: x\n");
+    super::over_document(&mut state, &known, &out);
+    assert!(
+        state["revision"].get("base_nika").is_none(),
+        "no document record: {state}"
+    );
+    out.provenance.decision =
+        Some(serde_json::json!({"document_revision": {"mode": "operations"}}));
+    super::over_document(&mut state, &known, &out);
+    assert_eq!(state["revision"]["base_nika"], base);
+    let told = super::faithful::told(&state, "", "WHOLE");
+    assert!(
+        told.contains("applied over its complete document"),
+        "{told}"
+    );
+    assert!(told.contains("the change takes precedence"), "{told}");
+}

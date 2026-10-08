@@ -140,7 +140,7 @@ async fn an_absent_variant_refuses_without_selection_or_prompt_even_when_its_bas
         .expect_err("unoffered variant refuses");
         peer.await.expect("scripted peer sees EOF");
         match error {
-            HarnessError::Refused { reason } => {
+            HarnessError::Selection { reason } => {
                 assert!(reason.contains(HIGH) && reason.contains(BASE), "{reason}");
             }
             other => panic!("expected a model refusal, got {other}"),

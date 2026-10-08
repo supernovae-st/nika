@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The strict knowledge door: the admission of a Foundry knowledge release payload
-//! ([`RELEASE_FORMAT`], profile [`ADMISSION_PROFILE`]) before any byte reaches a seat. Every
-//! product door (`nika compile`, the session, serve) reads knowledge through this one admission.
-//! It implements the r1 profile's shared contract (cited below as "the r1 contract §N"), the
-//! contract the producer writes to. Both sides pass the same vectors (`tests/knowledge-r1`).
+//! The strict knowledge door: the admission of a Foundry knowledge release payload before any
+//! byte reaches a seat. Every product door (`nika compile`, the session, serve) reads knowledge
+//! through this one admission. The trusted identity names the profile, and the door applies that
+//! profile's rules, never another's:
+//! - profile r1 ([`ADMISSION_PROFILE`], format [`RELEASE_FORMAT`]), frozen: its shared contract
+//!   (cited below as "the r1 contract §N") is implemented here, against `tests/knowledge-r1`;
+//! - profile r2 ([`r2::PROFILE`], format [`r2::RELEASE_FORMAT`]): every kind in its role, RFC 8785
+//!   numbers. Its rules after the manifest's identity live below this door
+//!   (`nika_compile_seats::foundry::release::r2`), against `tests/knowledge-r2`.
+//!
+//! The producer writes to both contracts, and both sides pass the same vectors.
 //!
 //! There is no permissive mode and no partial load. A refusal is exactly one typed
 //! [`RefusalCode`]: the first rule broken in admission order. The order is:
@@ -30,8 +36,9 @@ use nika_event::source_id::sha256_hex;
 use serde_json::{Map, Value};
 
 use super::canonical::strict_json;
-use collect::Files;
 pub(super) use collect::Stage;
+use collect::{Files, Layout};
+use nika_compile_seats::foundry::release::r2;
 use profile::{
     KINDS, LICENCES, block_path, hex64, licence_path, line, lower_hex, policy_token, safe_relative,
     spec_sha, token,
@@ -155,10 +162,12 @@ pub enum RefusalCode {
     Relation,
     /// The notices are not a non-blank text of their grammar and bound.
     NoticeInvalid,
+    /// An example or counterexample of a split or exposure a release does not carry (profile r2).
+    Split,
 }
 
 impl RefusalCode {
-    /// Every code, in the contract's admission order.
+    /// Every code of profile r1, in its contract's admission order.
     pub const ALL: [Self; 38] = [
         Self::Untrusted,
         Self::PathNotAbsolute,
@@ -199,6 +208,57 @@ impl RefusalCode {
         Self::Relation,
         Self::NoticeInvalid,
     ];
+
+    /// Every code of profile r2, in its contract's admission order: r1's, without the target pin
+    /// (an r2 row keeps its own derivation pin) and with the split.
+    pub const ALL_R2: [Self; 38] = [
+        Self::Untrusted,
+        Self::PathNotAbsolute,
+        Self::RootInvalid,
+        Self::Symlink,
+        Self::NotRegular,
+        Self::Io,
+        Self::TooLarge,
+        Self::ManifestMissing,
+        Self::IdentityMismatch,
+        Self::ManifestNotStrict,
+        Self::ManifestShape,
+        Self::UnsupportedFormat,
+        Self::ProfileMismatch,
+        Self::PolicyMismatch,
+        Self::KindCoverage,
+        Self::UnsafePath,
+        Self::MissingFile,
+        Self::ExtraFile,
+        Self::PinMismatch,
+        Self::UnexpectedFile,
+        Self::RowMalformed,
+        Self::DuplicateKey,
+        Self::CountMismatch,
+        Self::RowKind,
+        Self::DuplicateId,
+        Self::RowOrder,
+        Self::RowDigest,
+        Self::UnknownField,
+        Self::MissingField,
+        Self::FieldType,
+        Self::Vocabulary,
+        Self::Evidence,
+        Self::Split,
+        Self::Licence,
+        Self::RowFile,
+        Self::Lineage,
+        Self::Relation,
+        Self::NoticeInvalid,
+    ];
+
+    /// The code a stable word names, under either profile.
+    #[must_use]
+    pub fn of_word(word: &str) -> Option<Self> {
+        (Self::ALL.iter().chain(&Self::ALL_R2))
+            .find(|code| code.as_str() == word)
+            .copied()
+    }
 
     /// The code's stable word, shared with the producer.
     #[must_use]
@@ -242,6 +302,7 @@ impl RefusalCode {
             Self::Lineage => "ROW_LINEAGE",
             Self::Relation => "RELATION_INVALID",
             Self::NoticeInvalid => "NOTICE_INVALID",
+            Self::Split => "ROW_SPLIT",
         }
     }
 }
@@ -252,9 +313,9 @@ impl std::fmt::Display for RefusalCode {
     }
 }
 
-/// The identity a trusted embedder expects of a release, under this reader's profile
-/// ([`ADMISSION_PROFILE`]): the release's `SNAPSHOT_SHA256` (the sha256 of its manifest's exact
-/// bytes) and its policy `{id, sha256}`.
+/// The identity a trusted embedder expects of a release: the profile it is admitted under (r1,
+/// [`ADMISSION_PROFILE`], or r2, [`r2::PROFILE`]), the release's `SNAPSHOT_SHA256` (the sha256 of
+/// its manifest's exact bytes) and its policy `{id, sha256}`.
 ///
 /// It comes from the embedder's own trusted record: the release pin of the build that vendors
 /// the bytes, or a qualified release record a host holds. It never comes from the payload, its
@@ -265,30 +326,48 @@ impl std::fmt::Display for RefusalCode {
 /// ([`RefusalCode::Untrusted`]) before it collects anything.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrustedIdentity {
+    profile: &'static str,
     snapshot_sha256: String,
     policy_id: String,
     policy_sha256: String,
 }
 
 impl TrustedIdentity {
-    /// An expected identity under this reader's profile. `None` when a part is not of its shape
-    /// (a sha256 is 64 lowercase hex, a policy id `[a-z0-9][a-z0-9-]{0,63}`): the door then has
-    /// no identity, and refuses the source as it refuses one named without any.
+    /// An expected identity under profile r1 ([`ADMISSION_PROFILE`]). `None` when a part is not
+    /// of its shape (a sha256 is 64 lowercase hex, a policy id `[a-z0-9][a-z0-9-]{0,63}`): the
+    /// door then has no identity, and refuses the source as it refuses one named without any.
     #[must_use]
     pub fn new(snapshot_sha256: &str, policy_id: &str, policy_sha256: &str) -> Option<Self> {
+        Self::under(ADMISSION_PROFILE, snapshot_sha256, policy_id, policy_sha256)
+    }
+
+    /// An expected identity under profile r2 ([`r2::PROFILE`]), of the same shape as
+    /// [`Self::new`]'s.
+    #[must_use]
+    pub fn r2(snapshot_sha256: &str, policy_id: &str, policy_sha256: &str) -> Option<Self> {
+        Self::under(r2::PROFILE, snapshot_sha256, policy_id, policy_sha256)
+    }
+
+    fn under(
+        profile: &'static str,
+        snapshot_sha256: &str,
+        policy_id: &str,
+        policy_sha256: &str,
+    ) -> Option<Self> {
         let shaped = lower_hex(snapshot_sha256, 64)
             && policy_token(policy_id)
             && lower_hex(policy_sha256, 64);
         shaped.then(|| Self {
+            profile,
             snapshot_sha256: snapshot_sha256.to_owned(),
             policy_id: policy_id.to_owned(),
             policy_sha256: policy_sha256.to_owned(),
         })
     }
 
-    /// The identity a release record states (the r1 contract §2): exactly
-    /// `{profile, snapshot_sha256, policy: {id, sha256}}`, its profile this reader's. `None`
-    /// for anything else.
+    /// The identity a release record states (the r1 contract §2, unchanged in r2): exactly
+    /// `{profile, snapshot_sha256, policy: {id, sha256}}`, its profile r1 or r2. `None` for
+    /// anything else.
     #[must_use]
     pub fn from_json(value: &Value) -> Option<Self> {
         let record = value.as_object().filter(|record| record.len() == 3)?;
@@ -296,20 +375,32 @@ impl TrustedIdentity {
             .get("policy")?
             .as_object()
             .filter(|policy| policy.len() == 2)?;
-        if record.get("profile")?.as_str()? != ADMISSION_PROFILE {
-            return None;
-        }
-        Self::new(
+        let profile = match record.get("profile")?.as_str()? {
+            ADMISSION_PROFILE => ADMISSION_PROFILE,
+            r2::PROFILE => r2::PROFILE,
+            _ => return None,
+        };
+        Self::under(
+            profile,
             record.get("snapshot_sha256")?.as_str()?,
             policy.get("id")?.as_str()?,
             policy.get("sha256")?.as_str()?,
         )
     }
 
-    /// The profile this identity is under: this reader's.
+    /// The profile this identity is under, whose rules the door applies.
     #[must_use]
     pub const fn profile(&self) -> &'static str {
-        ADMISSION_PROFILE
+        self.profile
+    }
+
+    /// The collection this identity's profile admits.
+    fn layout(&self) -> Layout {
+        if self.profile == r2::PROFILE {
+            collect::R2
+        } else {
+            collect::R1
+        }
     }
 
     /// The expected `SNAPSHOT_SHA256`.
@@ -368,7 +459,7 @@ pub(super) fn admit(
     probe: &mut dyn FnMut(Stage, &str),
 ) -> Checked<Admitted> {
     let identity = trusted(identity)?;
-    let files = collect::read_root(root, probe)?;
+    let files = collect::read_root(root, identity.layout(), probe)?;
     admit_collected(files, identity)
 }
 
@@ -379,7 +470,7 @@ pub(super) fn admit_memory(
     identity: Option<&TrustedIdentity>,
 ) -> Checked<Admitted> {
     let identity = trusted(identity)?;
-    collect::check_memory(&files)?;
+    collect::check_memory(&files, identity.layout())?;
     admit_collected(files, identity)
 }
 
@@ -394,7 +485,8 @@ fn trusted(identity: Option<&TrustedIdentity>) -> Checked<&TrustedIdentity> {
     })
 }
 
-/// C through H, on the collected files (every path under the root, the manifest's included).
+/// C through H, on the collected files (every path under the root, the manifest's included): C
+/// here for both profiles, then the identity's profile's rules.
 fn admit_collected(mut files: Files, identity: &TrustedIdentity) -> Checked<Admitted> {
     let Some(manifest_bytes) = files.remove(MANIFEST_PATH) else {
         return refuse("C1", RefusalCode::ManifestMissing, MANIFEST_PATH);
@@ -410,9 +502,52 @@ fn admit_collected(mut files: Files, identity: &TrustedIdentity) -> Checked<Admi
             ),
         );
     }
+    if identity.profile() == r2::PROFILE {
+        return admit_r2(&manifest_bytes, files, identity, manifest_sha256);
+    }
     let (manifest, pins) = manifest(&manifest_bytes, identity)?;
     inventory(&files, &pins)?;
     rows::admit_rows(manifest, manifest_sha256, pins, files)
+}
+
+/// D through H of profile r2, by its rules below this door; the rows kept by row-file stem, as
+/// profile r1 keeps them.
+fn admit_r2(
+    manifest: &[u8],
+    files: Files,
+    identity: &TrustedIdentity,
+    manifest_sha256: String,
+) -> Checked<Admitted> {
+    let policy = r2::Policy {
+        id: identity.policy_id(),
+        sha256: identity.policy_sha256(),
+    };
+    let mut admitted = r2::admit(manifest, files, policy, sha256_hex).map_err(|refusal| {
+        let code = RefusalCode::of_word(refusal.code).unwrap_or(RefusalCode::Untrusted);
+        Refusal(refusal.step, code, refusal.detail)
+    })?;
+    let tables =
+        r2::profile().map_err(|why| Refusal("A1", RefusalCode::Untrusted, why.to_owned()))?;
+    let mut rows = BTreeMap::new();
+    let mut row_files = BTreeMap::new();
+    let files = (tables.kinds().iter().map(r2::Kind::file)).chain([r2::RELATIONS_PATH]);
+    for file in files {
+        let pin = admitted.pins.get(file).cloned().unwrap_or_default();
+        row_files.insert(profile::base_name(file), pin);
+    }
+    for kind in tables.kinds() {
+        let kept = admitted.rows.remove(kind.name()).unwrap_or_default();
+        rows.insert(kind.stem().to_owned(), kept);
+    }
+    Ok(Admitted {
+        manifest: admitted.manifest,
+        manifest_sha256,
+        pins: admitted.pins,
+        files: admitted.files,
+        rows,
+        relations: admitted.relations,
+        row_files,
+    })
 }
 
 // ── D · the manifest: strict, the format, the trusted profile and policy, closed shape ──────────
@@ -755,3 +890,6 @@ mod tests;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod vectors;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod vectors_r2;

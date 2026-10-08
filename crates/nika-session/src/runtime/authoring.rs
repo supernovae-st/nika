@@ -733,8 +733,9 @@ impl SessionRuntime {
     /// are named); a compiler failure is a refusal that names it; an
     /// authoring configuration that cannot be honored blocks the refused
     /// workflow-authoring call before dispatch — never authored without the
-    /// knowledge it names. Only that call is said unsent: earlier routing of
-    /// the same line may already have used the selected intelligence.
+    /// knowledge it names. Only that call is said unsent: earlier routing or
+    /// authoring calls for the same line may already have used the selected
+    /// intelligence.
     pub(super) fn machinery(&mut self, error: &AuthoringError) -> TurnOutcome {
         match error {
             AuthoringError::Cancelled => TurnOutcome::Cancelled(error.to_string()),
@@ -913,6 +914,7 @@ impl SessionRuntime {
                     .and_then(|decision| decision.get("document_revision"))
                     .cloned();
                 self.pending = Some(set);
+                self.revision_words(&mut preview);
                 TurnOutcome::Proposal { id, preview }
             }
             // The saved file moved since the revision read it: nothing proposed, nothing written.
@@ -1236,6 +1238,7 @@ impl SessionRuntime {
             needed,
             given,
             world: audit.world,
+            bytes: audit.bytes,
         };
         self.remember(input, "(run requested)");
         self.request_or_ask(inputs)
@@ -1279,6 +1282,7 @@ impl SessionRuntime {
                 vars: inputs.given,
                 max_cost_usd: inputs.max_cost_usd,
                 access_pin: inputs.access_pin,
+                bytes: inputs.bytes.map(Box::new),
             },
         }
     }
@@ -1349,6 +1353,8 @@ pub(super) struct RunInputs {
     given: Vec<String>,
     /// Where the bytes the check cleared for this request reach (`work().requested`).
     world: crate::world::World,
+    /// The witness of those exact bytes: the run is bound to them.
+    bytes: Option<Witness>,
 }
 
 impl RunInputs {

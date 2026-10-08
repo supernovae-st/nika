@@ -180,3 +180,97 @@ fn a_destination_keeps_its_own_law() {
     });
     assert_eq!(unrealized(intent, &doc, Some(&observed)), ["summary.csv"]);
 }
+
+/// A native child call, with no filesystem permission invented for its static target.
+fn child_call(target: &str) -> Value {
+    json!({"nika": "child-path", "tasks": {"call": {"invoke": {"workflow": target}}}})
+}
+
+#[test]
+fn an_exact_native_child_target_realizes_its_stated_path_without_fs_permission() {
+    let path = "./10-compose-child.nika";
+    let doc = child_call(path);
+    assert!(doc.get("permits").is_none());
+    let mut out = Vec::new();
+    laws_observed(
+        &format!("Call the existing child {path} through invoke.workflow."),
+        &Plan::default(),
+        &doc,
+        &[],
+        &[],
+        &[],
+        None,
+        &mut out,
+    );
+    assert_eq!(out, Vec::<Diagnostic>::new());
+}
+
+#[test]
+fn a_wrong_or_omitted_child_target_keeps_the_named_path_unrealized() {
+    let intent = "Call the existing child ./10-compose-child.nika through invoke.workflow.";
+    for doc in [
+        child_call("./another-child.nika"),
+        child_call("./nested/10-compose-child.nika"),
+        child_call("./10-Compose-child.nika"),
+        json!({"nika": "child-path", "tasks": {"empty": {"invoke": {
+            "tool": "nika:jq", "args": {"input": null, "expression": "."}
+        }}}}),
+    ] {
+        assert_eq!(unrealized(intent, &doc, None), ["./10-compose-child.nika"]);
+    }
+}
+
+#[test]
+fn mentioning_a_child_path_or_using_an_invalid_target_does_not_call_it() {
+    let path = "./10-compose-child.nika";
+    let intent = format!("Call the existing child {path} through invoke.workflow.");
+    for doc in [
+        json!({"nika": "child-path", "tasks": {"echo": {"infer": {"prompt": path}}}}),
+        json!({"nika": "child-path", "tasks": {"echo": {"invoke": {
+            "tool": "nika:jq", "args": {"input": {"workflow": path}, "expression": "."}
+        }}}}),
+        json!({"nika": "child-path", "tasks": {"call": {"invoke": {
+            "tool": "nika:jq", "workflow": path
+        }}}}),
+    ] {
+        assert_eq!(unrealized(&intent, &doc, None), [path]);
+    }
+}
+
+#[test]
+fn a_child_call_does_not_realize_other_stated_files_or_a_write_destination() {
+    let doc = child_call("./10-compose-child.nika");
+    assert_eq!(
+        unrealized(
+            "Call ./10-compose-child.nika and read ./input.json.",
+            &doc,
+            None
+        ),
+        ["./input.json"]
+    );
+    assert_eq!(
+        unrealized("Write the report to ./10-compose-child.nika.", &doc, None),
+        ["./10-compose-child.nika"]
+    );
+}
+
+#[test]
+fn an_unstated_native_child_target_is_still_an_invented_literal() {
+    let mut out = Vec::new();
+    laws_observed(
+        "Call an existing child workflow.",
+        &Plan::default(),
+        &child_call("./10-compose-child.nika"),
+        &[],
+        &[],
+        &[],
+        None,
+        &mut out,
+    );
+    assert_eq!(out.len(), 1, "{out:?}");
+    assert_eq!(out[0].kind, "literal");
+    assert_eq!(
+        out[0].message,
+        "INVENTED LITERAL: `./10-compose-child.nika` is not in the request. Use the request's own path or host, or declare a `const:` placeholder and ask for it."
+    );
+}

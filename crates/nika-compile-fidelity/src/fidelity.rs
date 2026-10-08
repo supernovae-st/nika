@@ -13,6 +13,7 @@
 use crate::plan::{Effect, EffectPolicy, EffectVerb, Plan};
 use nika_compile_reader::objects;
 use nika_compile_reader::paths::{self, PathShape};
+use nika_schema::{FileId, ParseMode, raw::RawAction};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -248,10 +249,10 @@ fn granted(doc: &Value, axis: &str, path: &str) -> bool {
 }
 
 /// Law 1: every path the request names is under the boundary (`permits.fs.read` or
-/// `permits.fs.write`): the boundary is what a candidate can open, and a path the request
-/// names that the boundary does not cover is a dropped clause, whatever a prompt says about
-/// it. (The reader's source/destination split is a hint for the seat, never the law: a
-/// destination it reads as a source must still be opened one way or the other.)
+/// `permits.fs.write`) or is invoked as an exact native child dependency. The boundary
+/// states what a candidate can open; without either, the path is a dropped clause,
+/// whatever a prompt says about it. (The reader's source/destination split is a hint for
+/// the seat, never the law: a destination it reads as a source must still be opened.)
 ///
 /// A path the boundary does not cover is judged at each place the request writes it, in the
 /// role the reader gives that place (a destination connector before it makes it a
@@ -261,6 +262,7 @@ fn granted(doc: &Value, axis: &str, path: &str) -> bool {
 /// - as a source, through the whole name the human typed for the source question when the
 ///   candidate reads it (the reader cuts `Notes équipe.txt` opening a sentence to
 ///   `équipe.txt`);
+/// - as a native child dependency, by the exact parsed `invoke.workflow` target;
 /// - as a destination, only by write permission covering the literal the reader read there
 ///   (`dans Copie équipe.txt`), never by a source answer.
 ///
@@ -327,6 +329,15 @@ fn stated_paths_in(
         intent,
         literals.iter().filter(|name| granted(doc, "write", name)),
     );
+    // A native child target realizes its dependency, never an fs write or a free literal.
+    let calls = nika_schema::parse(&doc.to_string(), FileId::new(0), ParseMode::Strict)
+        .into_iter()
+        .flat_map(|wf| wf.tasks)
+        .filter_map(|task| match task.value.action {
+            RawAction::Invoke(invoke) => invoke.workflow().map(|target| target.value.clone()),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
     let lower = intent.to_lowercase();
     for path in &stated {
         if waived.contains(path) || granted(doc, "read", path) || granted(doc, "write", path) {
@@ -352,7 +363,7 @@ fn stated_paths_in(
                 || if destination {
                     held(&written)
                 } else {
-                    observed || held(&typed)
+                    observed || held(&typed) || calls.contains(path)
                 }
         };
         let found = occurrences(intent, path);
@@ -360,7 +371,7 @@ fn stated_paths_in(
             let boundary = doc
                 .pointer("/permits/fs")
                 .map_or_else(|| "none".to_owned(), Value::to_string);
-            out.push(Diagnostic { kind: "path", message: format!("UNREALIZED PATH: the request names `{path}`; no `permits.fs.read` or `permits.fs.write` entry covers it (permits.fs = {boundary}), so no task opens it. Read it (nika:read / nika:glob + fs.read) or write it (nika:write + fs.write) as the request means, or name it in `gaps` if it cannot be reached.") });
+            out.push(Diagnostic { kind: "path", message: format!("UNREALIZED PATH: the request names `{path}`; that occurrence is not realized by a `permits.fs.read` or `permits.fs.write` entry (permits.fs = {boundary}) or an exact native `invoke.workflow` dependency. Read it (nika:read / nika:glob + fs.read), write it (nika:write + fs.write), or invoke the stated child workflow as the request means; name it in `gaps` if it cannot be reached.") });
         }
     }
 }

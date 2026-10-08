@@ -117,19 +117,31 @@ impl ComponentCatalog for Shelf {
     }
 }
 
-/// A seat answering the revision call with its scripted `revision`, and every judge question
-/// favourably (the judge's own laws are tested elsewhere); every call is counted by role.
+/// A seat answering each revision call with its next scripted answer (the last one repeats),
+/// and every judge question favourably (the judge's own laws are tested elsewhere); every call
+/// is counted by role, and every request it received is kept.
 struct Seat {
-    revision: Value,
+    revisions: std::sync::Mutex<Vec<Value>>,
     roles: std::sync::Mutex<Vec<String>>,
+    asked: std::sync::Mutex<Vec<String>>,
 }
 
 impl Seat {
     fn new(revision: Value) -> Self {
+        Self::sequence(vec![revision])
+    }
+
+    fn sequence(revisions: Vec<Value>) -> Self {
         Self {
-            revision,
+            revisions: std::sync::Mutex::new(revisions),
             roles: std::sync::Mutex::new(Vec::new()),
+            asked: std::sync::Mutex::new(Vec::new()),
         }
+    }
+
+    /// The last message of each revision call, in order.
+    fn told(&self) -> Vec<String> {
+        self.asked.lock().expect("asked").clone()
     }
 
     fn roles(&self) -> Vec<String> {
@@ -156,7 +168,17 @@ impl nika_kernel::ai::provider::ProviderInferDyn for Seat {
                 .lock()
                 .expect("roles")
                 .push("revision".to_owned());
-            self.revision.to_string()
+            let last = (request.messages.last())
+                .map(|message| format!("{message:?}"))
+                .unwrap_or_default();
+            self.asked.lock().expect("asked").push(last);
+            let mut queue = self.revisions.lock().expect("revisions");
+            let next = if queue.len() > 1 {
+                queue.remove(0)
+            } else {
+                queue[0].clone()
+            };
+            next.to_string()
         } else {
             self.roles.lock().expect("roles").push("judge".to_owned());
             let keys = schema["properties"]["choice"]["enum"].to_string();
@@ -350,5 +372,173 @@ async fn a_refused_revision_keeps_the_base_and_names_why() {
             .any(|d| d.message.contains("The revision is not kept: operation 0")),
         "{out:#?}"
     );
-    assert_eq!(seat.roles(), ["revision"], "nothing judged");
+    assert_eq!(
+        seat.roles(),
+        ["revision", "revision"],
+        "told back once; the same refusal again brings nothing new, nothing judged"
+    );
+}
+
+/// A refused operation is told back to the same seat, the base intact: its next statement holds
+/// and only that statement's edit reaches the bytes, then the round's judge reads them.
+#[tokio::test]
+async fn a_refused_operation_is_told_back_and_the_restatement_is_kept() {
+    let refused = json!({"op": "set", "path": "/const/absent", "value_json": "1",
+        "component": "", "version": "", "bindings_json": ""});
+    let valid = json!({"op": "set", "path": "/inputs/drill/default", "value_json": "true",
+        "component": "", "version": "", "bindings_json": ""});
+    let seat = Seat::sequence(vec![operations(&[refused]), operations(&[valid])]);
+    let out = revised(rich(), "Rehearse the failure path by default", None, &seat).await;
+    assert_eq!(out.status, crate::CompileStatus::Ready, "{out:#?}");
+    let candidate = out.candidate.clone().expect("a candidate");
+    assert_eq!(
+        changed_lines(rich(), &candidate),
+        [(
+            "    default: false".to_owned(),
+            "    default: true".to_owned()
+        )]
+    );
+    let roles = seat.roles();
+    assert_eq!(roles[..2], ["revision", "revision"], "{roles:?}");
+    assert!(roles[2..].iter().all(|role| role == "judge"), "{roles:?}");
+    let told = seat.told();
+    assert!(
+        told[1].contains("operation 0") && told[1].contains("the base is unchanged"),
+        "the refusal itself is told back: {}",
+        told[1]
+    );
+    // The refused first attempt was paid and stays in the receipt beside the one kept.
+    let receipt = out
+        .provenance
+        .authoring
+        .as_ref()
+        .expect("the authoring receipt");
+    let revisions = (receipt.context.iter())
+        .filter(|call| {
+            call["call"]
+                .as_str()
+                .is_some_and(|r| r.starts_with("revision"))
+        })
+        .count();
+    assert_eq!(revisions, 2, "{:?}", receipt.context);
+    assert!(receipt.calls >= 2, "{receipt:?}");
+}
+
+/// Destination links stated where no destination edit applies are told back, never guessed into
+/// operations; the operations stated next are kept.
+#[tokio::test]
+async fn links_where_none_apply_are_told_back_and_operations_are_kept() {
+    let links = json!({"supersedes": [{"replaces": "a", "by": "b"}], "adds": [], "notes": "",
+        "operations": [], "replace": ""});
+    let valid = json!({"op": "set", "path": "/tasks/release_lock/timeout",
+        "value_json": "\"30s\"", "component": "", "version": "", "bindings_json": ""});
+    let seat = Seat::sequence(vec![links, operations(&[valid])]);
+    let out = revised(rich(), "Give the lock release thirty seconds", None, &seat).await;
+    assert_eq!(out.status, crate::CompileStatus::Ready, "{out:#?}");
+    assert!(
+        seat.told()[1].contains("destination links where no destination edit applies"),
+        "{:?}",
+        seat.told()
+    );
+}
+
+/// A result Check refuses is told back in Check's own words, the base intact: a write to a path
+/// the base does not grant is refused; the next statement also grants it and is kept.
+#[tokio::test]
+async fn a_result_check_refuses_is_told_back_with_its_words() {
+    let base = r#"nika: one-write
+permits:
+  fs: { write: ["./out/a.json"] }
+  tools: ["nika:write"]
+tasks:
+  save:
+    invoke: { tool: "nika:write", args: { path: "./out/a.json", content: "{}" } }
+"#;
+    let moved = json!({"op": "set", "path": "/tasks/save/invoke/args/path",
+        "value_json": "\"./out/b.json\"", "component": "", "version": "", "bindings_json": ""});
+    let granted = json!({"op": "push", "path": "/permits/fs/write",
+        "value_json": "\"./out/b.json\"", "component": "", "version": "", "bindings_json": ""});
+    let seat = Seat::sequence(vec![
+        operations(std::slice::from_ref(&moved)),
+        operations(&[moved, granted]),
+    ]);
+    let out = revised(base, "Save to ./out/b.json instead", None, &seat).await;
+    assert_eq!(out.status, crate::CompileStatus::Ready, "{out:#?}");
+    let candidate = out.candidate.clone().expect("a candidate");
+    // READY means Check found the write granted: the path is both written and permitted.
+    assert_eq!(candidate.matches("./out/b.json").count(), 2, "{candidate}");
+    assert!(
+        candidate.contains("./out/a.json\""),
+        "the earlier grant is kept: {candidate}"
+    );
+    let told = seat.told();
+    assert!(
+        told[1].contains("Check refuses the candidate")
+            && told[1].contains("the base is unchanged"),
+        "Check's refusal is told back: {}",
+        told[1]
+    );
+}
+
+/// A seat cycling between two refused statements (A, B, A) brings nothing new on the third and
+/// the talk ends there, with no repair bound set: every refusal told back is remembered.
+#[tokio::test]
+async fn refusals_cycling_between_two_statements_end_without_a_bound() {
+    let refused = |path: &str| {
+        operations(&[json!({"op": "set", "path": path, "value_json": "1",
+            "component": "", "version": "", "bindings_json": ""})])
+    };
+    let (a, b) = (refused("/const/absent"), refused("/const/missing"));
+    let seat = Seat::sequence(vec![a.clone(), b.clone(), a, b.clone(), b]);
+    assert!(policy().repairs.is_none(), "no repair bound in this policy");
+    let out = revised(rich(), "Set the constant to one", None, &seat).await;
+    assert_ne!(out.status, crate::CompileStatus::Ready, "{out:#?}");
+    assert!(out.candidate.is_none());
+    assert_eq!(
+        seat.roles(),
+        ["revision", "revision", "revision"],
+        "A, B, then A again: nothing new"
+    );
+}
+
+/// A created document's settled record is the history of its bytes, never an answer round of
+/// its creation: a change to them reaches the revision with the request they answer, the result
+/// is bound to the revised bytes, and that request is still the one the new record states.
+#[tokio::test]
+async fn a_change_to_a_created_documents_bytes_is_revised_with_its_request_known() {
+    let base = rich();
+    let created = "Rehearse the deployment and release the lock afterwards";
+    let record = json!({"strategy": "native",
+        "intent_sha256": nika_compile::intent_sha256(created), "source": base,
+        "questions": [], "gaps": [], "trigger": null,
+        "document_create": {"mode": "written", "request": created},
+        "document": {"version": 1, "candidate_sha256": nika_compile::surface::sha256(base),
+            "request": created, "base_sha256": null, "mode": "written", "components": []}});
+    let seat = Seat::new(operations(&[json!({"op": "set",
+        "path": "/inputs/drill/default", "value_json": "true",
+        "component": "", "version": "", "bindings_json": ""})]));
+    let change = "Rehearse the failure path by default";
+    let out = revised(base, change, Some(record), &seat).await;
+    assert_eq!(out.status, crate::CompileStatus::Ready, "{out:#?}");
+    assert!(
+        !out.diagnostics.iter().any(|d| d.target == "recorded_plan"),
+        "{:?}",
+        out.diagnostics
+    );
+    let candidate = out.candidate.clone().expect("a candidate");
+    assert_eq!(
+        changed_lines(base, &candidate),
+        [(
+            "    default: false".to_owned(),
+            "    default: true".to_owned()
+        )]
+    );
+    assert!(seat.told()[0].contains(created), "{}", seat.told()[0]);
+    let plan = out.provenance.plan.as_ref().expect("a record");
+    assert!(nika_compile_fidelity::sketch::kept::binds(plan, &candidate));
+    let original = nika_compile_fidelity::sketch::kept::original(plan).unwrap_or_default();
+    assert!(
+        original.contains(created) && original.contains(change),
+        "{original}"
+    );
 }

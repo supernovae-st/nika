@@ -174,6 +174,9 @@ pub struct HarnessInferRequest {
     pub schema: Option<Value>,
     /// Task deadline.
     pub timeout: Option<Duration>,
+    /// An explicit native reasoning effort: forwarded exactly by an ACP completion, refused
+    /// by a direct one-shot seat (its argv carries no effort selection) — never dropped.
+    pub effort: Option<String>,
 }
 
 impl HarnessInferRequest {
@@ -186,7 +189,15 @@ impl HarnessInferRequest {
             requested_model: requested_model.into(),
             schema: None,
             timeout: None,
+            effort: None,
         }
+    }
+
+    /// Ask for an exact native reasoning effort.
+    #[must_use]
+    pub fn with_effort(mut self, effort: Option<String>) -> Self {
+        self.effort = effort;
+        self
     }
 
     /// Add the optional system instruction.
@@ -477,6 +488,12 @@ impl InferGradeSeat {
         &self,
         request: HarnessInferRequest,
     ) -> Result<HarnessInferOutcome, InferGradeError> {
+        if let Some(effort) = &request.effort {
+            return Err(refused(format!(
+                "reasoning effort `{effort}` cannot ride this direct one-shot: its command \
+                 carries no effort selection; nothing was sent"
+            )));
+        }
         match &self.adapter {
             Adapter::Codex(codex) => codex.run(request).await,
             Adapter::OneShot(seat) => seat.run(request).await,
@@ -803,7 +820,7 @@ mod tests {
         )
     }
 
-    fn scripted_codex(body: &str) -> (tempfile::TempDir, PathBuf) {
+    pub(super) fn scripted_codex(body: &str) -> (tempfile::TempDir, PathBuf) {
         scripted_codex_with(&version_prelude(), body)
     }
 
@@ -1458,3 +1475,6 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":999,"output_toke
         assert!(out.usage_observed);
     }
 }
+
+#[cfg(all(test, unix))]
+mod effort_tests;

@@ -728,6 +728,13 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             Some(std::process::ExitCode::SUCCESS)
         }
         Some("--sdk-identity") if positional.len() == 1 => Some(sdk_identity()),
+        // ADR-148 · the native machine door: the same Session as bare `nika`, NDJSON on stdio.
+        Some("session") if positional.len() == 1 && json => {
+            let jq = (std::env::current_exe().ok()).map(nika_onboard::compile::room::JqHelper::new);
+            Some(std::process::ExitCode::from(verbs::session::run_machine(
+                jq,
+            )))
+        }
         _ => None,
     }
 }

@@ -759,13 +759,13 @@ async fn a_second_revision_uses_the_path_answered_when_the_first_change_named_no
 }
 
 /// An unreadable base is kept and no seat is asked. A readable base that writes nothing has no
-/// destination link to state: it is revised over its complete document (one seat call), and an
-/// answer stated as destination links there is refused, with no candidate. With no seat at all,
-/// nothing is revised.
+/// destination link to state: it is revised over its complete document, an answer stated as
+/// destination links there is told back once, and the same links again end the talk (nothing new
+/// to tell), with no candidate. With no seat at all, nothing is revised.
 #[tokio::test]
 async fn a_base_writing_nothing_is_revised_over_its_document_and_an_unreadable_one_asks_no_seat() {
     let read_only = "nika: lire\npermits:\n  tools: [\"nika:read\"]\n  fs:\n    read: [\"entree.txt\"]\ntasks:\n  read_source:\n    invoke:\n      tool: \"nika:read\"\n      args:\n        path: \"entree.txt\"\n";
-    for (base, calls) in [(read_only, 1), ("nika: [broken", 0)] {
+    for (base, calls) in [(read_only, 2), ("nika: [broken", 0)] {
         let provider = Rotating::new(vec![links(COPY, USE_B, &[])]);
         let request = CompileRequest::edit(base, CHANGE)
             .with_original_intent(ORIGINAL)

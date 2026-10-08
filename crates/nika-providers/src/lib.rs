@@ -57,6 +57,7 @@ mod retry_tests;
 pub mod route_identity;
 pub mod spend;
 mod sse;
+pub mod stamp;
 #[cfg(test)]
 mod test_support;
 pub mod wire;
@@ -64,7 +65,7 @@ pub mod wire;
 pub use census::{AccessCensus, AccessPath, SeatFact};
 pub use plan::{
     ExecutionAccessPlan, LaneVerdict, ModelNeed, ResolvedLane, resolve_execution_plan,
-    resolve_execution_plan_for,
+    resolve_execution_plan_declared, resolve_execution_plan_for,
 };
 pub use probe::{KeyAuth, classify_http_status, classify_key_value};
 pub use profile::{

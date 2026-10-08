@@ -21,6 +21,7 @@ mod carried;
 #[cfg(feature = "access-harness")]
 mod connection;
 mod continuous_preparation;
+mod cost_choice_host;
 mod decision_seat;
 /// A workflow the person already has, named in a change, revised over its complete document.
 mod document_revision;
@@ -32,6 +33,8 @@ mod observed_project;
 mod question_budget;
 mod question_identity;
 mod read_only;
+/// A recorded workflow takes a change its graph refuses over its whole document.
+mod recorded_fallback;
 mod recovery;
 mod restart;
 mod revision_question;

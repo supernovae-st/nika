@@ -221,9 +221,12 @@ fn compile_admitted(request: &CompileRequest) -> Result<CompileOutcome, CompileE
         return Ok(outcome);
     }
     // An answer round of a revision replays the record its seat round produced (zero calls),
-    // as a creation's does: the revised source with the answers baked in.
+    // as a creation's does: the revised source with the answers baked in. A created document's
+    // settled record (`document`) is the history of its bytes: a change to them is new work over
+    // that base, never an answer round of its creation.
     if let (Input::Edit { .. }, Some(record)) = (&request.input, &request.plan)
         && record.get("strategy").and_then(Value::as_str) == Some(types::Strategy::Native.word())
+        && record.get("document").is_none()
         && let Some(intent) = revise_intent(request)
     {
         doors::replay(&intent, record, request, &mut outcome)?;

@@ -1,0 +1,24 @@
+{
+ "base": "p01-base",
+ "expected": {
+  "policy": {
+   "id": "policy-vectors-r2",
+   "sha256": "631bac7695ec45366bebef3208dbfdca1d18f03a1986430a62376c51a2db63c8"
+  },
+  "profile": "nika-knowledge-release-profile/r2",
+  "snapshot_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+ },
+ "fault": "the trusted snapshot names other bytes",
+ "files": {},
+ "forms": [
+  "memory",
+  "disk"
+ ],
+ "name": "n-identity-mismatch",
+ "removed": [],
+ "requirement": "\u00a7r2 C2",
+ "verdict": {
+  "admit": false,
+  "code": "IDENTITY_MISMATCH"
+ }
+}

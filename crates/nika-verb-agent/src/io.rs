@@ -50,6 +50,11 @@ pub struct AgentInput {
     /// provider path — run the native loop even when a seat is attached
     /// for another lane (the plan routes, never the seat's presence).
     pub native_only: bool,
+    /// The workflow's authored access selection (`run.access` ·
+    /// `run.reasoning`): its native effort is applied exactly (every
+    /// native-loop turn, or the harness session's own option) or refused
+    /// before the first model call, and the output carries the receipt.
+    pub requirement: Option<nika_types::access::AccessRequirement>,
 }
 
 impl AgentInput {
@@ -69,7 +74,18 @@ impl AgentInput {
             permits: None,
             gate_answer: None,
             native_only: false,
+            requirement: None,
         }
+    }
+
+    /// Carry the workflow's authored access selection.
+    #[must_use]
+    pub fn with_requirement(
+        mut self,
+        requirement: Option<&nika_types::access::AccessRequirement>,
+    ) -> Self {
+        self.requirement = requirement.cloned();
+        self
     }
 }
 
@@ -152,6 +168,9 @@ pub struct AgentOutput {
     pub model_reported: Option<String>,
     /// How `model_reported` was learned; `None` when the harness did not say.
     pub model_reported_source: Option<nika_kernel::ai::harness::ModelProvenance>,
+    /// How the authored selection travelled (`access_selection`) — set
+    /// only when the input carried a requirement.
+    pub selection: Option<nika_types::access::SelectionEvidence>,
 }
 
 impl AgentOutput {
@@ -175,6 +194,7 @@ impl AgentOutput {
             model_resolved: None,
             model_reported: None,
             model_reported_source: None,
+            selection: None,
         }
     }
 
@@ -182,6 +202,16 @@ impl AgentOutput {
     #[must_use]
     pub fn with_inference_calls(mut self, calls: Vec<nika_types::cost::InferenceCall>) -> Self {
         self.inference_calls = calls;
+        self
+    }
+
+    /// Attach the selection receipt (`None` when nothing was declared).
+    #[must_use]
+    pub fn with_selection(
+        mut self,
+        selection: Option<nika_types::access::SelectionEvidence>,
+    ) -> Self {
+        self.selection = selection;
         self
     }
 

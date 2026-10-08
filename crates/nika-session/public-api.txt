@@ -1758,6 +1758,7 @@ pub fn nika_session::runtime::SessionRuntime::candidate(&self) -> core::option::
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::cost_choice_details(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::runtime::SessionRuntime::cost_observations(&self) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_session::runtime::SessionRuntime::decline_cost_choice(&mut self) -> core::option::Option<nika_session::runtime::TurnOutcome>
 pub fn nika_session::runtime::SessionRuntime::set_cost_host_evidence(&mut self, evidence: nika_providers::admission::review::CostHostEvidence)
 pub fn nika_session::runtime::SessionRuntime::waiting_cost_choice(&self) -> bool
 impl nika_session::runtime::SessionRuntime
@@ -3253,6 +3254,7 @@ pub fn nika_session::runtime::SessionRuntime::candidate(&self) -> core::option::
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::cost_choice_details(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::runtime::SessionRuntime::cost_observations(&self) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_session::runtime::SessionRuntime::decline_cost_choice(&mut self) -> core::option::Option<nika_session::runtime::TurnOutcome>
 pub fn nika_session::runtime::SessionRuntime::set_cost_host_evidence(&mut self, evidence: nika_providers::admission::review::CostHostEvidence)
 pub fn nika_session::runtime::SessionRuntime::waiting_cost_choice(&self) -> bool
 impl nika_session::runtime::SessionRuntime

@@ -319,6 +319,9 @@ fn the_record_binds_the_revised_bytes_and_carries_the_receipts() {
     assert_eq!(record["document_revision"]["mode"], "operations");
     assert_eq!(carried(Some(&record)), applied.receipts);
     assert!(carried(None).is_empty());
+    // A created document's settled record carries the receipts of what its creation composed.
+    let created = json!({"document": {"components": applied.receipts}});
+    assert_eq!(carried(Some(&created)), applied.receipts);
 }
 
 #[test]
@@ -429,4 +432,43 @@ fn a_field_of_another_operation_is_refused_never_dropped() {
     let set = json!({"op": "set", "path": "/tasks/first", "value": 1, "to": "x"});
     let why = apply("nika: x\ntasks: {}\n", (&[set], None), None, &[]).expect_err("refused");
     assert!(why[0].contains("carries no `to`"), "{why:?}");
+}
+
+/// A value given directly is the value even when it is null, an empty string or an empty list;
+/// a missing value, or an empty text form of one, states none and is refused.
+#[test]
+fn a_direct_null_or_empty_value_is_a_value_and_a_missing_one_is_refused() {
+    let base = "nika: values\nconst:\n  note: \"keep\"\n  tags: [\"a\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:log\", args: { message: \"${{ const.note }}\" } }\n";
+    for (value, line) in [
+        (json!(null), "  note: null"),
+        (json!(""), "  note: \"\""),
+        (json!([]), "  note: []"),
+    ] {
+        let set = json!({"op": "set", "path": "/const/note", "value": value});
+        let applied = apply(base, (&[set], None), None, &[]).expect("a direct value is set");
+        assert!(
+            applied.source.contains(&format!("{line}\n")),
+            "{value}: {}",
+            applied.source
+        );
+        assert_eq!(applied.verified, 1);
+    }
+    let push = json!({"op": "push", "path": "/const/tags", "value": ""});
+    let pushed = apply(base, (&[push], None), None, &[]).expect("an empty string is pushed");
+    assert!(
+        pushed.source.contains("tags: [\"a\", \"\"]"),
+        "{}",
+        pushed.source
+    );
+    for missing in [
+        json!({"op": "set", "path": "/const/note"}),
+        json!({"op": "set", "path": "/const/note", "value_json": ""}),
+    ] {
+        let why =
+            apply(base, (std::slice::from_ref(&missing), None), None, &[]).expect_err("no value");
+        assert!(why[0].contains("states no `value`"), "{missing}: {why:?}");
+    }
+    let extra = json!({"op": "remove", "path": "/const/note", "value": null});
+    let why = apply(base, (&[extra], None), None, &[]).expect_err("a value on a remove");
+    assert!(why[0].contains("carries no `value`"), "{why:?}");
 }

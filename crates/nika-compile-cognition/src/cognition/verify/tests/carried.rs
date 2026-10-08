@@ -200,3 +200,62 @@ async fn a_carried_rejection_asks_no_question_of_the_remainder() {
     assert_eq!(verdict.usage, nothing);
     assert_eq!(route(&out), [CARRIED]);
 }
+
+/// A rejection carried from a revision binds to the context its judge was shown: the same words
+/// and bytes over another base, judged before the base was shown whole (another contract) or
+/// recorded under the earlier digest that named neither, ask again; the same base in the same
+/// mode repeats the rejection with no call.
+#[tokio::test]
+async fn a_carried_revision_rejection_binds_to_its_base_and_contract() {
+    let base = "nika: base\ntasks: {}\n";
+    let revising = |base: &str, carried: Vec<Value>| {
+        CompileRequest::edit(base, "Keep three days instead of two")
+            .with_original_intent(INTENT)
+            .with_declined(carried)
+    };
+    let over_document = |mut out: CompileOutcome| {
+        out.provenance.decision = Some(json!({"document_revision": {"mode": "operations"}}));
+        out
+    };
+    let shown = over_document(ready());
+    let (out, _) = declined(judged_under(&doubting(), &revising(base, vec![]), shown).await);
+    let earlier = attempts(&out)[0].clone();
+    assert_eq!(earlier["rejected"], json!(true));
+    let judge = doubting();
+    let again = revising(base, vec![earlier.clone()]);
+    let (_, verdict) = declined(judged_under(&judge, &again, over_document(ready())).await);
+    assert!(
+        judge.told.lock().unwrap().is_empty(),
+        "the same context asks nothing"
+    );
+    assert!(verdict.carried);
+    let mut digest = earlier.clone();
+    let before = json!({"request": INTENT, "original": INTENT, "answers": {}, "observed": null});
+    digest["context_sha256"] = json!(knowledge::sha256(&before.to_string()));
+    let cases = [
+        (
+            "another base",
+            revising("nika: other\ntasks: {}\n", vec![earlier.clone()]),
+            true,
+        ),
+        (
+            "another contract",
+            revising(base, vec![earlier.clone()]),
+            false,
+        ),
+        ("the earlier digest", revising(base, vec![digest]), true),
+    ];
+    for (case, request, whole) in cases {
+        let approving = Approving::default();
+        let out = if whole {
+            over_document(ready())
+        } else {
+            ready()
+        };
+        let Ok(out) = judged_under(&approving, &request, out).await else {
+            panic!("{case}: the judge is asked again and carries the change");
+        };
+        assert_eq!(approving.told.lock().unwrap().len(), 1, "{case}");
+        assert_eq!(attempts(&out)[0]["carried"], json!(false), "{case}");
+    }
+}

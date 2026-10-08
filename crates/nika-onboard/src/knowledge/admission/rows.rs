@@ -138,11 +138,11 @@ fn lines(step: Step, path: &str, bytes: &[u8]) -> Checked<Vec<Value>> {
                     format!("{path}:{n}: `{key}` twice"),
                 );
             }
-            Err(StrictJsonError::Malformed(words)) => {
+            Err(error) => {
                 return refuse(
                     step,
                     RefusalCode::RowMalformed,
-                    format!("{path}:{n}: {words}"),
+                    format!("{path}:{n}: {error}"),
                 );
             }
         };

@@ -425,9 +425,9 @@ impl Live {
             TurnOutcome::RunReviewed { review, approve } => {
                 return (self.reviewed(&review, approve), None);
             }
-            // Beside a cost review that still waits, the Session's aside (the evidence, or why the
-            // line answered nothing) is shown as the review's own question.
-            TurnOutcome::Aside(text) if self.pending_run.is_some() => {
+            // Beside a spending decision that still waits, the Session's aside (the evidence, or
+            // why the line answered nothing) is shown as the decision's own question.
+            TurnOutcome::Aside(text) if self.shown.requires_fresh_input() => {
                 beats.push(Beat::Say(Committed::new(Kind::Question, text)));
             }
             TurnOutcome::Reply(text)
@@ -630,25 +630,6 @@ impl Live {
         }
         beats
     }
-
-    /// `details` under the Session's cost question: the same review's
-    /// evidence, read without a turn (nothing recorded, answered or reviewed
-    /// again); `None` when no such question waits.
-    fn cost_details(&self, line: &str) -> Option<Vec<Beat>> {
-        if !line.trim().eq_ignore_ascii_case("details") {
-            return None;
-        }
-        let details = self.runtime.as_ref()?.cost_choice_details()?;
-        Some(vec![
-            Beat::Say(Committed::new(
-                Kind::Question,
-                format!(
-                    "Authoring cost decision details · the same review; reading them approves nothing\n{details}\n{REVIEW_CHOICE}"
-                ),
-            )),
-            Beat::Wait(self.waiting()),
-        ])
-    }
 }
 
 /// The review's own closing line, and the line that also names `details`:
@@ -801,15 +782,10 @@ impl Conversation for Live {
         turn
     }
 
-    /// Both fresh spending questions: the retained Run review and the
-    /// Session's one-time unknown-cost choice. Any other waiting state keeps
-    /// its typeahead and grants nothing here.
+    /// A spending decision waits (the Session's rule): only a line typed after it was shown
+    /// answers it. Any other waiting state keeps its typeahead and grants nothing here.
     fn fresh_input_required(&self) -> bool {
-        self.pending_run.is_some()
-            || self
-                .runtime
-                .as_ref()
-                .is_some_and(SessionRuntime::waiting_cost_choice)
+        (self.runtime.as_ref()).is_some_and(|runtime| runtime.waiting().requires_fresh_input())
     }
 
     fn cancel_pending(&mut self) -> Vec<Beat> {
@@ -1038,12 +1014,6 @@ impl Live {
 
     /// One submitted line to the state that waits for it.
     fn answer(&mut self, line: &str) -> Turn {
-        if let Some(beats) = self.cost_details(line) {
-            return Turn {
-                beats,
-                handoff: None,
-            };
-        }
         let outcome = {
             let Some(runtime) = self.runtime.as_mut() else {
                 return Turn {
@@ -1078,16 +1048,11 @@ impl Live {
         {
             return self.map(declined).0;
         }
-        let Some(runtime) = self.runtime.as_mut() else {
-            return Vec::new();
-        };
-        if !runtime.waiting_cost_choice() {
-            return Vec::new();
+        // The Session's own answer path: the interruption never becomes a yes.
+        match (self.runtime.as_mut()).and_then(SessionRuntime::decline_cost_choice) {
+            Some(declined) => self.map(declined).0,
+            None => Vec::new(),
         }
-        // The Session's own answer path: every answer but yes cancels the
-        // review and sends nothing; the interruption never becomes a yes.
-        let outcome = runtime.turn("cancel");
-        self.map(outcome).0
     }
 
     /// The handed-off work, performed with the terminal handed back.

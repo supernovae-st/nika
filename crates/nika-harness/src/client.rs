@@ -23,7 +23,7 @@ use std::task::{Context, Poll};
 use futures_core::Stream;
 use nika_kernel::ai::harness::{
     HarnessError, HarnessEvent, HarnessEventStream, HarnessOutcome, HarnessRequest,
-    ModelProvenance, PermissionDecision, PermissionReply,
+    HarnessSelection, ModelProvenance, PermissionDecision, PermissionReply,
 };
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
@@ -112,6 +112,7 @@ where
             pending: Vec::new(),
             observed_model: None,
             observed_source: None,
+            selection: HarnessSelection::default(),
             media: crate::media::MediaState::default(),
             authoring,
         };
@@ -150,6 +151,8 @@ struct Driver<R, W> {
     /// How `observed_model` was learned: a selection or a configuration, never a
     /// response attestation (ACP prompt results name no model).
     observed_source: Option<ModelProvenance>,
+    /// What was sent to configure the session and what it read back (`effort.rs`).
+    selection: HarnessSelection,
     media: crate::media::MediaState,
     authoring: bool,
 }
@@ -298,6 +301,11 @@ where
         if self.authoring {
             crate::authoring::acp::judge_update(&update.update)?;
         }
+        if update.update.get("sessionUpdate").and_then(Value::as_str)
+            == Some("config_option_update")
+        {
+            self.observe_config_update(&update.update);
+        }
         if let Some(tool_call_id) = self.media.starting(&update.update) {
             let _ = self
                 .event_tx
@@ -383,6 +391,7 @@ where
         outcome.observed_model = self.observed_model.take();
         outcome.observed_model_source = self.observed_source.take();
         outcome.images = self.media.images();
+        outcome.selection = std::mem::take(&mut self.selection);
         outcome
     }
 
@@ -408,8 +417,13 @@ where
         let model_option = seats::model_option(session.config_options.as_ref());
         let current = seats::current_model(model_option, session.models.as_ref());
         self.observe(current, ModelProvenance::SessionConfig);
+        // The complete configuration the session last reported: a model change may change
+        // the offered efforts, so the effort is judged on the answer to the selection.
+        let mut config = session.config_options.clone();
         if let Some(wanted) = seats::wanted(request.requested_model.as_deref()) {
             if let Some((config_id, value)) = seats::offered_option(model_option, &wanted) {
+                self.selection.model_option = Some(config_id.clone());
+                self.selection.transmitted_model = value.as_str().map(str::to_owned);
                 self.send_request(
                     ID_SESSION_SEAT,
                     wire::METHOD_SET_CONFIG_OPTION,
@@ -431,13 +445,31 @@ where
                 self.observe(confirmed, ModelProvenance::ConfirmedSelection);
                 if self.observed_model.as_deref() != value.as_str() || self.observed_model.is_none()
                 {
-                    return Err(HarnessError::Refused {
+                    return Err(HarnessError::Selection {
                         reason: format!(
-                            "the harness did not confirm requested model `{wanted}` after selection"
+                            "the harness did not confirm requested model `{wanted}` after \
+                             selection (it reports {}; name that exact id to accept it, no \
+                             prompt was sent)",
+                            self.observed_model
+                                .as_deref()
+                                .map_or_else(|| "none".to_owned(), |m| format!("`{m}`"))
                         ),
                     });
                 }
+                config = answered.get("configOptions").cloned();
             } else if let Some(model_id) = seats::offered_model(session.models.as_ref(), &wanted) {
+                // A legacy selection answers no configuration: its efforts cannot be re-read.
+                if let Some(effort) = &request.requested_effort {
+                    return Err(HarnessError::Selection {
+                        reason: format!(
+                            "the harness selects `{wanted}` only through the legacy model list, \
+                             which reports no refreshed options — reasoning effort `{effort}` \
+                             cannot be judged for it (no prompt was sent)"
+                        ),
+                    });
+                }
+                self.selection.model_option = Some(wire::METHOD_SET_MODEL.to_owned());
+                self.selection.transmitted_model = Some(model_id.clone());
                 self.send_request(
                     ID_SESSION_SEAT,
                     wire::METHOD_SET_MODEL,
@@ -452,7 +484,7 @@ where
                     .await?;
                 self.observe(Some(model_id), ModelProvenance::AcceptedRequest);
             } else {
-                return Err(HarnessError::Refused {
+                return Err(HarnessError::Selection {
                     reason: format!(
                         "the harness offers no model `{wanted}` — it offers: {} (name one of these on `model:`, or `default` for the harness's own choice)",
                         seats::offered_names(model_option, session.models.as_ref())
@@ -460,6 +492,19 @@ where
                 });
             }
         }
+        self.select_effort(&sid, config.as_ref(), request.requested_effort.as_deref())
+            .await?;
+        self.select_mode(sid, session, request).await
+    }
+
+    /// A requested mode (`read-only`) picks an advertised plan / read-only mode, best effort;
+    /// a config-option answer is the complete state, so what was set must still hold.
+    async fn select_mode(
+        &mut self,
+        sid: String,
+        session: &wire::NewSessionResult,
+        request: &HarnessRequest,
+    ) -> Result<(), HarnessError> {
         if let Some(intent) = request.requested_mode.as_deref()
             && let Some(door) = seats::mode_door(session, intent)
         {
@@ -475,9 +520,11 @@ where
                         },
                     )
                     .await?;
-                    let _: Value = self
+                    let answered: Value = self
                         .await_response(ID_SESSION_SEAT, "session/set_config_option")
                         .await?;
+                    // The mode answer is the complete state too: what was set still holds.
+                    self.confirm_holds(answered.get("configOptions"))?;
                 }
                 seats::ModeDoor::Mode { mode_id } => {
                     self.send_request(
@@ -580,6 +627,10 @@ where
 /// `models{currentModelId, availableModels[{modelId, name}]}`, `modes{currentModeId,
 /// availableModes[{id, name}]}`).
 mod seats;
+
+/// The native reasoning effort: discovered on the refreshed configuration, applied through
+/// the session's own option id, read back before the prompt.
+mod effort;
 
 /// The engine's verdict → the wire outcome. `AllowOnce` selects the
 /// agent's `allow_once` option; `allow_always` is NEVER selected even
@@ -965,7 +1016,7 @@ mod tests {
         let first = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
         agent.await.expect("scripted agent completes");
         match first {
-            Some(Err(HarnessError::Refused { reason })) => {
+            Some(Err(HarnessError::Selection { reason })) => {
                 assert!(
                     reason.contains("gpt-9") && reason.contains("k3"),
                     "{reason}"

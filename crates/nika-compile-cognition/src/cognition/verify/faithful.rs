@@ -916,13 +916,32 @@ fn parsed_tasks(candidate: &str) -> Option<Vec<String>> {
     })
 }
 
+/// What a question over a revision of a base whose own request is unknown adds to its
+/// instructions: the request states only the change, so the base's own behaviour is neither
+/// asked again nor extra, and the candidate is judged as the base with exactly that change.
+const REVISED_DOCUMENT: &str = "This candidate REVISES the existing workflow `revision.base_nika`, whose own request is unknown: `request` and `revision.change` state only the change. What the base already does is not asked again and is not extra: it must stay as in the base wherever the change does not touch it. faithful: the candidate is the base with exactly this change applied. unfaithful: the change is missing or done differently, or the candidate adds, removes or alters anything else of the base. A clause asking to modify the workflow file itself is carried by this candidate being that workflow.";
+
+/// What a question over a revision applied over the complete document of a base whose request
+/// is known adds: the base is shown whole and the change is judged over it, the earlier request
+/// history where the change takes precedence.
+const REVISED_OVER_DOCUMENT: &str = "This candidate REVISES the existing workflow `revision.base_nika` by the change `revision.change`, applied over its complete document. `revision.base_request` is the request the base answers, history only: where it and the change differ, the change takes precedence and a clause it replaces is superseded, never asked. What the base already does is not extra: it must stay as in the base wherever the change does not touch it. faithful: the candidate is the base with exactly this change applied. unfaithful: the change is missing or done differently, or the candidate adds, removes or alters anything else of the base. A clause asking to modify the workflow file itself is carried by this candidate being that workflow.";
+
 /// A whole-request question's instructions: a revision's also say which request is asked and
 /// which is history (the change appended to the earlier request, or that request resolved);
 /// any other's say what a request to author this very workflow asks of its bytes.
 pub(super) fn told(base: &Value, reference: &str, text: &str) -> String {
     match base.get("revision") {
+        Some(revision)
+            if revision["over_document"] == Value::Bool(true)
+                && !revision["base_request"].is_null() =>
+        {
+            grounded(reference, &format!("{text} {REVISED_OVER_DOCUMENT}"))
+        }
         Some(revision) if revision["appended"] == Value::Bool(true) => {
             grounded(reference, &format!("{text} {REVISED_APPENDED}"))
+        }
+        Some(revision) if revision.get("base_nika").is_some() => {
+            grounded(reference, &format!("{text} {REVISED_DOCUMENT}"))
         }
         Some(_) => grounded(reference, &format!("{text} {REVISED}")),
         None => grounded(reference, &format!("{text} {CREATED}")),

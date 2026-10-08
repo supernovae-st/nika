@@ -421,7 +421,11 @@ impl ServiceExecutionDriver {
         model_override: Option<&str>,
         pin: Option<&str>,
     ) -> ExecutionAccessPlan {
-        if pin.is_none() {
+        // A file that declares its route is judged over this machine's rows
+        // exactly like a flag: never short-circuited to the bare plan.
+        let declared = access::declared_requirement(workflow)
+            .is_some_and(|requirement| requirement.selects_path());
+        if pin.is_none() && !declared {
             let bare = access::resolve_plan_over(workflow, report, model_override, None, &[]);
             if bare.lanes.is_empty() {
                 return bare;

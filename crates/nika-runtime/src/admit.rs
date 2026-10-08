@@ -655,7 +655,7 @@ pub fn access_pin_refusal(
         .map(map_pin_refusal)
 }
 
-fn map_pin_refusal(refusal: PinRefusal) -> RuntimeError {
+pub(crate) fn map_pin_refusal(refusal: PinRefusal) -> RuntimeError {
     match refusal {
         PinRefusal::UnknownToken { message } => RuntimeError::AccessUnknownToken { message },
         PinRefusal::PinUnsatisfied { message } => RuntimeError::AccessPinUnsatisfied { message },

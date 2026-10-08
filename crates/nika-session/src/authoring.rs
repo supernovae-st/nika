@@ -698,9 +698,14 @@ fn compile_attached(
     // the whole catalogue, and a revision may compose or rebind an admitted component. A pin
     // that no longer reopens lends nothing (a composition is then refused, and says why).
     let catalog = context.knowledge().and_then(|pin| pin.reopen().ok());
-    let lent = catalog
+    // The catalogue of this request: the corpus the pin's pack holds out stays out of the reach.
+    let holdout = context
+        .knowledge()
+        .and_then(|pin| pin.exclude_corpus.clone());
+    let catalogue = (catalog.as_ref()).map(|snapshot| snapshot.catalogue(holdout.as_deref()));
+    let lent = catalogue
         .as_ref()
-        .map(|snapshot| snapshot as &dyn ComponentCatalog);
+        .map(|catalogue| catalogue as &dyn ComponentCatalog);
     let mut out = match seat {
         AuthoringSeat::Harness {
             seat,

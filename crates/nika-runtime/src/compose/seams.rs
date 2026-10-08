@@ -45,7 +45,7 @@ impl RunSeams {
     /// Resolve the authored `run:` block (`None` = absent) to its seams.
     #[must_use]
     pub fn of(decl: Option<&RunDecl>) -> Self {
-        let decl = decl.copied().unwrap_or_default();
+        let decl = decl.cloned().unwrap_or_default();
         let entropy = decl.entropy_or_default();
         Self {
             stamps_deterministic: entropy.is_deterministic(),

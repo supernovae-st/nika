@@ -606,6 +606,7 @@ async fn a_reviewed_run_is_admitted_once_on_approval_and_never_on_decline() {
         vars: Vec::new(),
         max_cost_usd: 0.25,
         access_pin: None,
+        bytes: None,
     };
     let reviewed = run("review.nika");
     let held = resident.admit(&reviewed).await;

@@ -6,10 +6,17 @@
 //! ([`crate::work`]). The terminal renderer, the plain loop and a remote door call these instead
 //! of keeping a routing bit of their own; what a line may decide stays the session's.
 
+use std::fmt::Write as _;
+
 use super::{SessionRuntime, TurnOutcome};
+use crate::authoring::AuthoringSeat;
 use crate::change::{ProjectChange, ProjectChangeSet};
+use crate::intelligence::IntelligenceKind;
 use crate::outcome::{Refusal, RefusalClass};
-use crate::work::{Authoring, Candidate, DocumentRevision, Request, Run, Saved, Waiting, Work};
+use crate::work::{
+    Author, Authoring, Candidate, DecisionSeat, DocumentRevision, Intelligence, Request, Run,
+    Saved, Selected, Waiting, Work,
+};
 
 /// Said when a line arrives while a proposal waits but the host showed none: nothing that
 /// was not seen is consented.
@@ -131,6 +138,13 @@ impl SessionRuntime {
                     TurnOutcome::Refusal(Refusal::new(RefusalClass::StaleRevision, VALUE_NOT_SHOWN))
                 }
             }
+            // The evidence beside the one-time cost decision is read, never a turn: nothing is
+            // recorded, answered or reviewed again.
+            Waiting::CostChoice
+                if super::decision_answer(line) == super::DecisionAnswer::Details =>
+            {
+                self.cost_choice_evidence()
+            }
             // The one-time cost decision reads its answer in a turn, as does a free line.
             _ => self.turn(line),
         }
@@ -180,6 +194,52 @@ impl SessionRuntime {
             (&self.lifecycle()).into(),
         )
         .with_authoring(self.last_outcome.as_ref().map(Authoring::of))
+        .with_intelligence(Some(self.intelligence_work()))
+    }
+
+    /// Who prepares with this session, as selected and resolved here: the configured facts a
+    /// host shows, never a call receipt (that one is the compiler's, in [`Authoring`]).
+    fn intelligence_work(&self) -> Intelligence {
+        let chosen = &self.intelligence;
+        let selected = match &chosen.kind {
+            IntelligenceKind::Harness { seat, transport } => Selected::new(
+                "harness",
+                Some(seat.clone()),
+                Some(transport.to_string().to_lowercase()),
+            ),
+            IntelligenceKind::Api { provider } => {
+                Selected::new("api", Some(provider.clone()), None)
+            }
+            IntelligenceKind::Local { provider } => {
+                Selected::new("local", Some(provider.clone()), None)
+            }
+            IntelligenceKind::None => Selected::new("none", None, None),
+        }
+        .resolved(
+            chosen.model.clone(),
+            chosen.locus.line(),
+            chosen.why.clone(),
+            chosen.ready,
+        );
+        let author = match self.authoring_seat() {
+            AuthoringSeat::Provider { model } => Author::new("provider", Some(model.clone()), None),
+            AuthoringSeat::Harness {
+                seat,
+                model,
+                transport,
+            } => Author::new("harness", model.clone(), None)
+                .through(seat.clone(), transport.to_string().to_lowercase()),
+            AuthoringSeat::Deterministic { why } => Author::new("deterministic", None, why.clone()),
+            AuthoringSeat::Unavailable { why } => {
+                Author::new("unavailable", None, Some(why.clone()))
+            }
+        };
+        let context = self.authoring_context();
+        let decision = (context.decision())
+            .map(|seat| DecisionSeat::new(seat.model().to_owned(), seat.refusal().map(Into::into)));
+        let effort = context.reasoning().map(|level| level.word().to_owned());
+        let selected = self.intelligence_chosen().then_some(selected);
+        Intelligence::new(selected, author, decision, effort)
     }
 }
 
@@ -189,6 +249,49 @@ impl SessionRuntime {
     #[must_use]
     pub fn pending_revision(&self) -> Option<DocumentRevision> {
         self.candidate().and_then(|c| self.document_revision(c.set))
+    }
+
+    /// The pending proposal's document revision in the consent prompt's words, under the change
+    /// line it describes: what changed in place and what its record claims of every other byte;
+    /// nothing when no record binds the pending bytes. The proposal's identity is unchanged.
+    pub(super) fn revision_words(&self, preview: &mut String) {
+        let Some(revision) = self.pending_revision() else {
+            return;
+        };
+        let mut words = if revision.mode == "replaced" {
+            "  rewritten whole · no preservation of the earlier bytes is claimed".to_owned()
+        } else {
+            let claim = match revision.preservation.as_str() {
+                p if p.starts_with("verified") => "every other byte verified as the base's",
+                p if p.starts_with("by construction") => {
+                    "component entries inserted by construction, not re-verified byte by byte"
+                }
+                p if p.starts_with("edits verified") => {
+                    "edits verified byte by byte, component entries by construction"
+                }
+                p => p,
+            };
+            format!(
+                "  revised in place · {} · {claim}",
+                revision.changed.join(", ")
+            )
+        };
+        for component in &revision.components {
+            let version = component.version.as_deref().unwrap_or("unversioned");
+            let _ = write!(
+                words,
+                "\n  component · {} {version} · {}",
+                component.id, component.witness
+            );
+        }
+        let after = (preview.find("  replaces `"))
+            .and_then(|at| preview[at..].find('\n').map(|end| at + end + 1));
+        if let Some(at) = after {
+            preview.insert_str(at, &format!("{words}\n"));
+        } else {
+            preview.push('\n');
+            preview.push_str(&words);
+        }
     }
 
     /// How the proposing compile revised the candidate's workflow over its complete document,

@@ -54,6 +54,23 @@ impl SessionRuntime {
             .as_ref()
             .map(|p| p.review.details())
     }
+
+    /// The same review's evidence beside the waiting choice, read without a turn: nothing is
+    /// recorded, answered or reviewed again, and the choice keeps waiting.
+    pub(super) fn cost_choice_evidence(&self) -> TurnOutcome {
+        match self.cost_choice_details() {
+            Some(details) => TurnOutcome::Aside(format!(
+                "Authoring cost decision details · the same review; reading them approves nothing\n{details}\nContinue once? yes / no"
+            )),
+            None => cost_refusal("no cost review waits".into()),
+        }
+    }
+
+    /// An interruption at the one-time cost choice: the same answer as a typed `cancel`, so the
+    /// review is declined and nothing is sent. `None` when no choice waits.
+    pub fn decline_cost_choice(&mut self) -> Option<TurnOutcome> {
+        self.waiting_cost_choice().then(|| self.turn("cancel"))
+    }
     /// Historical observations plus the current account and, once it observed
     /// a call, the no-budget account — and, once it was needed, the operator-selected
     /// decision seat's journal (its own schema, cost unknown). No entry is authority.

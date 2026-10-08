@@ -14,7 +14,7 @@ use super::bind::{Binding, BindingError, EditRefusal, edit_literal, kind};
 use super::component::{
     Component, ComponentCatalog, ComponentRef, Hole, Release, Unresolved, pinned,
 };
-use super::instance::{ExpandError, adopt, expand, instantiate};
+use super::instance::{Entry, ExpandError, adopt, expand, instantiate};
 use super::invoke::invoke;
 use super::witness::{reuse, reuse_of, revise, witness, witness_child};
 use super::{trace, traced};
@@ -811,5 +811,153 @@ fn a_component_kept_behind_a_child_boundary_never_meets_the_parents_names() {
             ),
             "{path}"
         );
+    }
+}
+
+/// Another editor's exact-text insert of `entries` under the parent's name and boundary: an
+/// inline value after its key, its further lines (a block scalar's content) under it, and a
+/// task's block under its name.
+fn insert(entries: &[Entry]) -> String {
+    use std::fmt::Write as _;
+    let mut doc = String::from("nika: stale-tickets-report\nconst:\n");
+    let mut tasks = String::from("tasks:\n");
+    let mut outputs = String::from("outputs:\n");
+    for entry in entries {
+        let target = match entry.section.as_str() {
+            "tasks" => &mut tasks,
+            "const" => &mut doc,
+            _ => &mut outputs,
+        };
+        // Every line of the text, the blank ones a keep indicator ends with included.
+        let mut lines = entry.text.split('\n');
+        if entry.section == "tasks" {
+            let _ = writeln!(target, "    {}:", entry.name);
+        } else {
+            let first = lines.next().unwrap_or_default();
+            let _ = writeln!(target, "    {}: {first}", entry.name);
+        }
+        for line in lines {
+            let _ = writeln!(target, "        {line}");
+        }
+    }
+    let permits = PARENT
+        .split("permits:\n")
+        .nth(1)
+        .unwrap()
+        .replace("tasks: {}\n", "");
+    format!("{doc}permits:\n{permits}{tasks}{outputs}")
+}
+
+/// `STALE` with `extra` stated after its last constant.
+fn with_const(extra: &str) -> String {
+    let last = "  max_age_hours: { type: integer, value: 48 }\n";
+    STALE.replace(last, &format!("{last}{extra}"))
+}
+
+#[test]
+fn a_block_scalar_entry_keeps_its_whole_text_through_an_exact_insert() {
+    let source = with_const(
+        "  greeting: |\n    Dear team,\n\n    the stale tickets are listed.\n  subject: >-\n    Stale\n    tickets\n",
+    );
+    let instance = instantiate(&component(&source), &bound(48)).unwrap();
+    let entries = instance.entries().unwrap();
+    let text = |name: &str| (entries.iter().find(|e| e.name == name)).map(|e| e.text.clone());
+    assert_eq!(
+        text("greeting").as_deref(),
+        Some("|\nDear team,\n\nthe stale tickets are listed.")
+    );
+    assert_eq!(text("subject").as_deref(), Some(">-\nStale\ntickets"));
+    let candidate = insert(&entries);
+    let adopted = adopt(&candidate, &instance).unwrap();
+    let expanded = expand(PARENT, &instance).unwrap();
+    assert_eq!(adopted.receipt["nodes"], expanded.receipt["nodes"]);
+    let constants = |doc: &str| literal_projection(doc).unwrap()["const"].clone();
+    assert_eq!(constants(&candidate), constants(&expanded.candidate));
+    assert_eq!(
+        constants(&candidate)["greeting"],
+        "Dear team,\n\nthe stale tickets are listed.\n"
+    );
+    assert_eq!(constants(&candidate)["subject"], "Stale tickets");
+}
+
+#[test]
+fn a_block_scalar_with_an_indentation_indicator_is_no_exact_entry() {
+    let source = with_const("  banner: |2\n      indented first\n    second\n");
+    let instance = instantiate(&component(&source), &bound(48)).unwrap();
+    assert!(matches!(instance.entries(), Err(ExpandError::Unproven(_))));
+    let expanded = expand(PARENT, &instance).unwrap();
+    let banner = &literal_projection(&expanded.candidate).unwrap()["const"]["banner"];
+    assert_eq!(
+        banner, "  indented first\nsecond\n",
+        "the expansion keeps its own lines"
+    );
+}
+
+#[test]
+fn an_insert_is_never_adopted_where_the_expansion_is_refused() {
+    let clocked = STALE.replace(
+        "model: mock/echo\n",
+        "model: mock/echo\nrun:\n  clock: virtual\n",
+    );
+    let instance = instantiate(&component(&clocked), &bound(48)).unwrap();
+    let refused = ExpandError::Unmergeable("run".to_owned());
+    assert_eq!(expand(PARENT, &instance).unwrap_err(), refused);
+    let candidate = insert(&instance.entries().unwrap());
+    assert_eq!(adopt(&candidate, &instance).unwrap_err(), refused);
+    let sharing = candidate.replace("permits:\n", "run:\n  clock: virtual\npermits:\n");
+    assert!(
+        adopt(&sharing, &instance).is_ok(),
+        "the document's own run is the component's"
+    );
+    let secret = STALE.replace(
+        "model: mock/echo\n",
+        "model: mock/echo\nsecrets:\n  token:\n    source: env\n    key: TOKEN\n",
+    );
+    let instance = instantiate(&component(&secret), &bound(48)).unwrap();
+    let refused = ExpandError::Unmergeable("secrets".to_owned());
+    assert_eq!(expand(PARENT, &instance).unwrap_err(), refused);
+    let candidate = insert(&instance.entries().unwrap());
+    assert_eq!(adopt(&candidate, &instance).unwrap_err(), refused);
+}
+
+#[test]
+fn an_exact_insert_keeps_no_break_spaces_and_the_blank_lines_a_scalar_keeps() {
+    // A no-break space is content, never indentation; a keep indicator keeps the blank lines
+    // that end the section.
+    let source = with_const(concat!(
+        "  greeting: |\n    \u{a0}Hello\n    \u{3000}\n    team\n",
+        "  signature: Regards\u{a0}\n",
+        "  folded: >+\n    one\n    two\n\n",
+        "  tail: |+\n    kept\n\n\n",
+    ));
+    let instance = instantiate(&component(&source), &bound(48)).unwrap();
+    let entries = instance.entries().unwrap();
+    let text = |name: &str| (entries.iter().find(|e| e.name == name)).map(|e| e.text.clone());
+    assert_eq!(
+        text("greeting").as_deref(),
+        Some("|\n\u{a0}Hello\n\u{3000}\nteam")
+    );
+    assert_eq!(text("signature").as_deref(), Some("Regards\u{a0}"));
+    assert_eq!(text("folded").as_deref(), Some(">+\none\ntwo\n"));
+    assert_eq!(text("tail").as_deref(), Some("|+\nkept\n\n"));
+    let expanded = expand(PARENT, &instance).unwrap();
+    let candidate = insert(&entries);
+    let adopted = adopt(&candidate, &instance).unwrap();
+    assert_eq!(adopted.receipt["nodes"], expanded.receipt["nodes"]);
+    let constants = |doc: &str| literal_projection(doc).unwrap()["const"].clone();
+    let (inserted, merged, stated) = (
+        constants(&candidate),
+        constants(&expanded.candidate),
+        constants(&source),
+    );
+    for (name, decoded) in [
+        ("greeting", "\u{a0}Hello\n\u{3000}\nteam\n"),
+        ("signature", "Regards\u{a0}"),
+        ("folded", "one two\n\n"),
+        ("tail", "kept\n\n\n"),
+    ] {
+        assert_eq!(stated[name], decoded, "{name} as the component states it");
+        assert_eq!(merged[name], decoded, "{name} expanded");
+        assert_eq!(inserted[name], decoded, "{name} inserted");
     }
 }

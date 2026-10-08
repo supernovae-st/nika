@@ -149,6 +149,20 @@ pub struct RunRequest {
     pub max_cost_usd: f64,
     /// The human's explicit execution access, never inferred from the authoring seat.
     pub access_pin: Option<String>,
+    /// The witness of the exact bytes the Session's clean check judged before requesting this
+    /// run: a door runs only those bytes and refuses a workflow that changed since, or a request
+    /// that names none ([`RunRequest::admits`]). Boxed, so an outcome carrying a request stays
+    /// small.
+    pub bytes: Option<Box<Witness>>,
+}
+
+impl RunRequest {
+    /// Whether `source`, the bytes a door captured to run, is exactly what the Session checked
+    /// for this run; a request that recorded none admits nothing.
+    #[must_use]
+    pub fn admits(&self, source: &str) -> bool {
+        self.bytes.as_deref() == Some(&Witness::of(source.as_bytes()))
+    }
 }
 
 /// The engine's audit of one workflow's exact bytes: the preview's truth.
@@ -170,6 +184,8 @@ pub struct WorkflowAudit {
     /// service on this machine, a connected service, or a destination the check cannot
     /// determine ([`crate::world`]). Unaudited bytes claim no reach.
     pub world: World,
+    /// The witness of the exact bytes this audit judged; `None` when they could not be read.
+    pub bytes: Option<Witness>,
 }
 
 /// What a set could not become.
@@ -661,6 +677,7 @@ pub fn check_with_access(root: &Path, path: &Path, pin: Option<&str>) -> Workflo
                 .filter(|a| pin.is_some() && !a.verdict.plan.is_admitted())
                 .map(|a| a.verdict.layers.blockers.clone());
             let mut audit = fold_audit(path, judged);
+            audit.bytes = Some(Witness::of(source.as_bytes()));
             if let Some(blocked) = blocked {
                 audit.clean = false;
                 audit.findings.extend(blocked);
@@ -674,6 +691,7 @@ pub fn check_with_access(root: &Path, path: &Path, pin: Option<&str>) -> Workflo
             hints: Vec::new(),
             effects: Vec::new(),
             world: World::default(),
+            bytes: None,
         },
     }
 }
@@ -682,10 +700,12 @@ pub fn check_with_access(root: &Path, path: &Path, pin: Option<&str>) -> Workflo
 /// the preview's rows.
 fn audit_bytes(path: &Path, source: &str) -> WorkflowAudit {
     let logical = path.display().to_string();
-    fold_audit(
+    let mut audit = fold_audit(
         path,
         audit_source(source, &logical, None, None, AuditOptions::default()),
-    )
+    );
+    audit.bytes = Some(Witness::of(source.as_bytes()));
+    audit
 }
 
 /// The ONE fold of the facade's verdict to the preview's rows.
@@ -714,6 +734,7 @@ fn fold_audit<E: std::fmt::Display>(
                 hints,
                 effects: effect_rows(&audit.report),
                 world,
+                bytes: None,
             }
         }
         Err(e) => WorkflowAudit {
@@ -723,6 +744,7 @@ fn fold_audit<E: std::fmt::Display>(
             hints: Vec::new(),
             effects: Vec::new(),
             world: World::default(),
+            bytes: None,
         },
     }
 }
@@ -995,6 +1017,33 @@ mod tests {
             assert_eq!(mode, 0o644, "a project file, not private state");
         }
         assert!(check_on_disk(dir.path(), Path::new("daily.nika")).clean);
+    }
+
+    /// A check names the exact bytes it judged, and a run bound to them admits those only: a
+    /// valid workflow replaced after its check is not the one the request names.
+    #[test]
+    fn a_check_names_the_bytes_it_judged_and_a_run_admits_only_those() {
+        let dir = tempfile::tempdir().expect("tmp");
+        std::fs::write(dir.path().join("daily.nika"), WORKFLOW).expect("workflow");
+        let audit = check_on_disk(dir.path(), Path::new("daily.nika"));
+        assert!(audit.clean, "{:?}", audit.findings);
+        assert_eq!(audit.bytes, Some(Witness::of(WORKFLOW.as_bytes())));
+        let run = RunRequest {
+            workflow: PathBuf::from("daily.nika"),
+            vars: Vec::new(),
+            max_cost_usd: 0.1,
+            access_pin: None,
+            bytes: audit.bytes.clone().map(Box::new),
+        };
+        assert!(run.admits(WORKFLOW));
+        let changed = WORKFLOW.replace("max_tokens: 40", "max_tokens: 41");
+        assert_ne!(changed, WORKFLOW);
+        assert!(!run.admits(&changed), "changed after its check: refused");
+        let unbound = RunRequest { bytes: None, ..run };
+        assert!(!unbound.admits(WORKFLOW), "no recorded bytes admit none");
+        let missing = check_on_disk(dir.path(), Path::new("absent.nika"));
+        assert!(!missing.clean);
+        assert_eq!(missing.bytes, None, "unread bytes are never witnessed");
     }
 
     /// The freeze audit · the check after apply is the one `nika check`

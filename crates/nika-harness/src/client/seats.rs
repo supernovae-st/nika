@@ -57,12 +57,35 @@ fn choose<'a>(
         })
 }
 
+/// A select option's choices with its groups flattened (ACP lets `options` be either flat
+/// values or `{group, name, options}` groups, never mixed), in advertised order.
+pub(super) fn choices(option: &Value) -> Vec<&Value> {
+    let Some(items) = option.get("options").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .flat_map(|item| match item.get("options").and_then(Value::as_array) {
+            Some(group) if item.get("group").is_some() => group.iter().collect::<Vec<_>>(),
+            _ => vec![item],
+        })
+        .collect()
+}
+
+/// Every advertised value of a select option, verbatim, groups flattened.
+pub(super) fn choice_values(option: &Value) -> Vec<String> {
+    choices(option)
+        .into_iter()
+        .filter_map(|c| c.get("value").and_then(Value::as_str).map(str::to_owned))
+        .collect()
+}
+
 /// The (config id, value) that names the wanted model among the option's choices, by value
 /// or by display name.
 pub(super) fn offered_option(option: Option<&Value>, wanted: &str) -> Option<(String, Value)> {
     let option = option?;
     let id = option.get("id")?.as_str()?.to_owned();
-    let choice = choose(option.get("options")?.as_array()?.iter(), "value", wanted)?;
+    let choice = choose(choices(option).into_iter(), "value", wanted)?;
     Some((id, choice.get("value")?.clone()))
 }
 
@@ -80,17 +103,7 @@ pub(super) fn offered_model(models: Option<&Value>, wanted: &str) -> Option<Stri
 
 /// Every model the agent offers, for the refusal's teaching line.
 pub(super) fn offered_names(option: Option<&Value>, models: Option<&Value>) -> String {
-    let mut names: Vec<String> = Vec::new();
-    if let Some(choices) = option
-        .and_then(|o| o.get("options"))
-        .and_then(Value::as_array)
-    {
-        names.extend(
-            choices
-                .iter()
-                .filter_map(|c| c.get("value").and_then(Value::as_str).map(str::to_owned)),
-        );
-    }
+    let mut names: Vec<String> = option.map(choice_values).unwrap_or_default();
     if let Some(list) = models
         .and_then(|m| m.get("availableModels"))
         .and_then(Value::as_array)

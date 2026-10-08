@@ -116,7 +116,7 @@ pub struct CompileArgs {
     /// Explicitly seat one bounded-decision capability (`typesafe/jev-1.13.0` or `provider/name`) for finite ambiguities.
     /// Its requests ride its own client, outside `--authoring-max-calls`: a `typesafe/<jev>` question is sent once
     /// (no protocol retry); a `provider/name` seat keeps its client's protocol retries.
-    #[arg(long, conflicts_with_all = ["base", "list"])]
+    #[arg(long, conflicts_with = "list")]
     pub decision_model: Option<String>,
     /// Replace the explicitly named destination.
     #[arg(long, requires = "destination")]
@@ -294,14 +294,20 @@ fn run_with_capture(
     // The knowledge door: the source the configuration names, its pack for the intent the
     // compiler reads composed here and stated to the seat beside the card; a source that
     // cannot be honored refuses, never a silent card alone.
+    let mut lent = None;
     if let Some(config) = &authoring_config {
-        request = match config.with_knowledge(request, &effective_intent(args, true)) {
-            Ok(request) => request,
+        (request, lent) = match config.with_knowledge_lent(request, &effective_intent(args, true)) {
+            Ok(composed) => composed,
             Err(error) => {
                 return render::failure("knowledge", &error.to_string(), exit::ENV, args.json);
             }
         };
     }
+    // The catalogue of this request: the release the pack came from, its holdout kept out.
+    let catalogue =
+        (lent.as_ref()).map(|(snapshot, exclude)| snapshot.catalogue(exclude.as_deref()));
+    let catalog = (catalogue.as_ref())
+        .map(|catalogue| catalogue as &dyn nika_onboard::knowledge::ComponentCatalog);
     // Free intents and revisions in words carry a record (a creation's plan, a revision's
     // native candidate); a skeleton, hello or a structured edit never does.
     let sha = (!named).then(|| match revise_intent(&request) {
@@ -314,7 +320,7 @@ fn run_with_capture(
     let host = trials.map(|room| room as &dyn nika_onboard::compile::rehearse::Rehearse);
     let result = match (&resolved, &authoring_config) {
         (Some(resolved), Some(config)) => {
-            authoring::compile(&request, args, (config, resolved), capture, host)
+            authoring::compile(&request, args, (config, resolved), capture, (host, catalog))
         }
         _ => compile(&request).map_err(|error| error.to_string()),
     };
@@ -601,6 +607,33 @@ mod tests {
         Door::try_parse_from(std::iter::once("compile").chain(argv.iter().copied()))
             .expect("the door parses")
             .args
+    }
+
+    /// A revision may seat the decision intelligence the caller chose, as the HTTP door does: the
+    /// base and the decision model parse together; listing still stands apart.
+    #[test]
+    fn a_revision_takes_an_explicit_decision_model() {
+        let args = parse(&[
+            "--base",
+            "stock.nika",
+            "--change",
+            "Keep three days of history instead of two.",
+            "--authoring-model",
+            "deepseek/deepseek-v4-pro",
+            "--decision-model",
+            "typesafe/jev-1.13.0",
+        ]);
+        assert_eq!(args.base.as_deref(), Some("stock.nika"));
+        assert_eq!(args.decision_model.as_deref(), Some("typesafe/jev-1.13.0"));
+        assert!(
+            Door::try_parse_from([
+                "compile",
+                "--list",
+                "--decision-model",
+                "typesafe/jev-1.13.0"
+            ])
+            .is_err()
+        );
     }
 
     /// A held-out corpus named on the command line guards the snapshot the environment names:

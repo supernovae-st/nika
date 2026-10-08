@@ -88,7 +88,7 @@ impl Links {
 }
 
 impl native::Shaped for Links {
-    const KEYS: &'static [&'static str] = &["supersedes", "adds"];
+    const KEYS: &'static [&'static str] = &["supersedes", "adds", "operations", "replace"];
 }
 
 /// The route a semantic revision records.
@@ -98,11 +98,11 @@ pub(in crate::cognition) const ROUTE: &str = "edit: semantic revision through th
 pub(in crate::cognition) const SOURCE_ROUTE: &str =
     "edit: source-anchored revision of one destination";
 
-const REVISE_SOURCE: &str = "This is a REVISION of the base workflow below (`base_candidate`), which no semantic record binds; you never write the workflow from scratch. When the change replaces ONE destination the base writes, or adds ONE beside the existing ones, state it as links and the compiler edits it in place: in `supersedes`, name the clause of the original request that states the destination the change replaces (copied exactly from `original_clauses`) and the clause of the change that states its new destination (copied exactly from `change_clauses`) — or no link when the change adds a destination; in `adds`, every other clause of the change (copied exactly from `change_clauses`), each adding or restating a duty without replacing any. Every change clause is in exactly one of the two. When the change adds a destination, `like` names the destination of `base_destinations` whose written content the new one receives. Name only what the request and the change state; when they leave it open, omit it and the human is asked. With links, leave `operations` empty.";
+const REVISE_SOURCE: &str = "This is a REVISION of the base workflow below (`base_candidate`), which no semantic record binds; you never write the workflow from scratch. When the change replaces ONE destination the base writes, or adds ONE beside the existing ones, state it as links and the compiler edits it in place: in `supersedes`, name the clause of the original request that states the destination the change replaces (copied exactly from `original_clauses`) and the clause of the change that states its new destination (copied exactly from `change_clauses`) — or no link when the change adds a destination; in `adds`, every other clause of the change (copied exactly from `change_clauses`), each adding or restating a duty without replacing any. Every change clause is in exactly one of the two. When the change adds a destination, `like` names the destination of `base_destinations` whose written content the new one receives. Name only what the request and the change state; when they leave it open, omit it and the human is asked. With links, leave `operations` empty. Any other change (another value, a new or removed step) is stated as `operations` instead, below, with `supersedes` and `adds` left empty.";
 
 /// The prompt of a revision with no destination link to state (the base writes none, or the
 /// request it answers is unknown): operations over the document only.
-const REVISE_DOCUMENT: &str = "This is a REVISION of the base workflow below, which no semantic record binds; you never write the workflow from scratch. There is no destination link to state here: leave `supersedes` and `adds` empty and state the change as `operations`.";
+const REVISE_DOCUMENT: &str = "This is a REVISION of the base workflow below, which no semantic record binds and whose own request is unknown; you never write the workflow from scratch. State the change as `operations` over its document, below.";
 
 const REVISE: &str = "This is a REVISION of the base program below (`base_graph`, `base_fills`). Its graph stays exactly as it is: the change only changes what its tasks do through their typed holes. Call 1: in `supersedes`, name each clause of the original request the change replaces (copied exactly from `original_clauses`) and the clause of the change that replaces it (copied exactly from `change_clauses`); in `adds`, name each clause of the change (copied exactly from `change_clauses`) that adds a duty beside the original ones and replaces none. Every change clause is in exactly one of the two; every other original clause stays. Call 2: fill the base graph's holes for the revised request.";
 
@@ -122,6 +122,7 @@ pub(in crate::cognition) async fn edit<P: ProviderInferDyn>(
     reading: &CompileRequest,
     seat: Option<(&AuthoringPolicy, &P)>,
     decision: Option<&dyn DecisionSeat>,
+    catalog: Option<&dyn ComponentCatalog>,
 ) -> Result<CompileOutcome, CompileError> {
     let core = nika_compile::compile(raw)?;
     let unresolved = core
@@ -132,7 +133,7 @@ pub(in crate::cognition) async fn edit<P: ProviderInferDyn>(
         unresolved && policy.native != crate::cognition::NativeMode::Off
     };
     match seat.filter(open) {
-        Some((policy, provider)) => revise(reading, policy, (provider, decision)).await,
+        Some((policy, provider)) => revise(reading, policy, (provider, decision), catalog).await,
         None => Ok(core),
     }
 }
@@ -395,6 +396,7 @@ async fn revise<P: ProviderInferDyn>(
     request: &CompileRequest,
     policy: &AuthoringPolicy,
     (provider, decision): (&P, Option<&dyn DecisionSeat>),
+    catalog: Option<&dyn ComponentCatalog>,
 ) -> Result<CompileOutcome, CompileError> {
     let mut out = crate::initial();
     let (
@@ -448,9 +450,13 @@ async fn revise<P: ProviderInferDyn>(
             }
             Linked::Refused(why) => {
                 native::record(&mut out, &revising, &cold, &talk, &sent, None, shown);
-                refuse(&mut out, &why);
-                out.provenance.strategy = Some(Strategy::Native);
-                return Ok(out);
+                // The fixed graph cannot carry this change: the same change is stated over the
+                // complete document of the same base, its record kept as the new bytes' history
+                // and the refused links rounds kept paid and journaled in this very outcome.
+                let seats = (policy, provider, decision);
+                return Ok(
+                    recorded_over_document(&revising, base, seats, catalog, out, &why).await,
+                );
             }
         };
     let contract = Contract {
@@ -594,9 +600,12 @@ pub(in crate::cognition) fn historical() -> CompileOutcome {
 }
 
 /// The words the base answers for a source-anchored revision: the resolved words its source
-/// revision record states (the record binds the base in the core), else the request's own.
+/// revision record states (the record binds the base in the core), or the request its created
+/// document settled, else the request's own.
 fn source_original(request: &CompileRequest) -> Option<String> {
-    let recorded = (request.plan.as_ref()).and_then(|r| r["source_revision"]["resolved"].as_str());
+    let recorded = (request.plan.as_ref()).and_then(|r| {
+        (r["source_revision"]["resolved"].as_str()).or_else(|| r["document"]["request"].as_str())
+    });
     recorded
         .map(str::to_owned)
         .or_else(|| request.original_intent.clone())
@@ -620,8 +629,51 @@ fn revisable(base: &str) -> bool {
 pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
     request: &CompileRequest,
     policy: &AuthoringPolicy,
-    (provider, decision): (&P, Option<&dyn DecisionSeat>),
+    seats: (&P, Option<&dyn DecisionSeat>),
     catalog: Option<&dyn ComponentCatalog>,
+) -> Result<CompileOutcome, CompileError> {
+    source_from(request, policy, seats, (catalog, true), crate::initial()).await
+}
+
+/// A recorded base's change its fixed graph refused, stated over the complete document of the
+/// same base with the request it answers known: operations only (its links were just refused),
+/// in the outcome that already holds the links rounds. The base's record stays the new bytes'
+/// history (`revised_record`) and the refused rounds stay journaled (`recorded_attempt`).
+async fn recorded_over_document<P: ProviderInferDyn>(
+    revising: &CompileRequest,
+    base: &Value,
+    (policy, provider, decision): (&AuthoringPolicy, &P, Option<&dyn DecisionSeat>),
+    catalog: Option<&dyn ComponentCatalog>,
+    mut out: CompileOutcome,
+    why: &[String],
+) -> CompileOutcome {
+    let attempt = out.provenance.decision.take();
+    let seats = (provider, decision);
+    let over = source_from(revising, policy, seats, (catalog, false), out);
+    let mut done = match Box::pin(over).await {
+        Ok(done) => done,
+        Err(error) => {
+            let mut refused = crate::initial();
+            refuse(&mut refused, &[error.to_string()]);
+            refused
+        }
+    };
+    let journal = done.provenance.decision.get_or_insert_with(|| json!({}));
+    journal["recorded_attempt"] = json!({"refused": why, "journal": attempt});
+    if let Some(plan) = done.provenance.plan.as_mut() {
+        plan["revised_record"] = base.clone();
+    }
+    done
+}
+
+/// [`source`] in an outcome that may already account for earlier calls; `links` says whether
+/// destination links may still be offered.
+async fn source_from<P: ProviderInferDyn>(
+    request: &CompileRequest,
+    policy: &AuthoringPolicy,
+    (provider, decision): (&P, Option<&dyn DecisionSeat>),
+    (catalog, links): (Option<&dyn ComponentCatalog>, bool),
+    mut out: CompileOutcome,
 ) -> Result<CompileOutcome, CompileError> {
     let kept = || {
         let mut out = historical();
@@ -642,8 +694,7 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
     // Destination links need the request the base answers and a destination it writes; any
     // other change is stated over the complete document.
     let original = source_original(request);
-    let destinations = original.is_some() && revisable(base);
-    let mut out = crate::initial();
+    let destinations = links && original.is_some() && revisable(base);
     let intent = nika_compile::revise_intent(request).unwrap_or_default();
     let reading = lexicon::read(&intent);
     let cold = cold(&mut out);
@@ -662,16 +713,13 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
     );
     let lent = (destinations, catalog);
     let (mut talk, sent, shown) = source_opened(base, &intent, &reading, request, &ledgers, lent);
-    let linked = super::call::<Links, P>(
-        &mut talk,
-        0,
-        "revision",
-        revision_schema(),
-        policy,
-        provider,
-        &mut out,
-    )
-    .await;
+    let schema = if destinations {
+        revision_schema()
+    } else {
+        document_route::document_schema()
+    };
+    let linked =
+        super::call::<Links, P>(&mut talk, 0, "revision", schema, policy, provider, &mut out).await;
     let Some(linked) = linked else {
         native::record(&mut out, request, &cold, &talk, &sent, None, shown);
         crate::record_route(&mut out, &talk.route);
@@ -689,7 +737,9 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
     let seated = (policy, provider, decision);
     if linked.0.over_the_document() || !destinations {
         let answer = (linked, catalog);
-        return Ok(document_settled(request, reading, seated, journal, answer, out).await);
+        let settled =
+            document_route::document_settled(request, reading, seated, journal, answer, out);
+        return Ok(settled.await);
     }
     Ok(source_settled(request, reading, seated, journal, linked, out).await)
 }
@@ -703,112 +753,6 @@ fn revision_schema() -> Value {
     schema["properties"]["operations"] = operations;
     schema["properties"]["replace"] = replace;
     schema
-}
-
-/// The change stated over the complete document: applied in order to the base
-/// ([`document::apply`]), the result bound to its record and checked by the
-/// strict parser and Check, then judged against the whole request by the round's judge — never
-/// another seat call. Links stated where no destination edit applies are refused, never guessed
-/// into operations. A refusal leaves no candidate and names every reason.
-async fn document_settled<P: ProviderInferDyn>(
-    request: &CompileRequest,
-    (intent, reading): (&str, &lexicon::Reading),
-    (policy, provider, decision): (&AuthoringPolicy, &P, Option<&dyn DecisionSeat>),
-    mut journal: Journal<'_>,
-    ((links, text), catalog): ((Links, String), Option<&dyn ComponentCatalog>),
-    mut out: CompileOutcome,
-) -> CompileOutcome {
-    let Input::Edit { source: base, .. } = &request.input else {
-        return out;
-    };
-    let carried = document::carried(request.plan.as_ref());
-    let applied = if links.over_the_document() {
-        document::apply(
-            base,
-            (&links.operations, links.replacement()),
-            catalog,
-            &carried,
-        )
-    } else {
-        Err(vec![
-            "the change was stated as destination links where no destination edit applies (the base writes none, or the request it answers is unknown); state it as operations".to_owned(),
-        ])
-    };
-    let notes = crate::cognition::receipt::withheld(&links.notes, &[], "revision notes");
-    let stated = json!({"operations": links.operations.len(),
-        "replaced": links.replacement().is_some()});
-    let refused: Vec<&String> = applied.as_ref().err().into_iter().flatten().collect();
-    journal
-        .talk
-        .rounds
-        .push(json!({"round": journal.round, "phase": "revision",
-        "document": stated, "notes": notes, "refused": refused}));
-    journal
-        .talk
-        .messages
-        .push(Message::text(Role::Assistant, text));
-    journal.talk.route.push(document::ROUTE.to_owned());
-    let Journal {
-        talk,
-        sent,
-        shown,
-        cold,
-        ..
-    } = journal;
-    let applied = match applied {
-        Ok(applied) => applied,
-        Err(why) => {
-            native::record(&mut out, request, &cold, &talk, &sent, None, shown);
-            crate::record_route(&mut out, &talk.route);
-            refuse(&mut out, &why);
-            out.provenance.strategy = Some(Strategy::Native);
-            return out;
-        }
-    };
-    let mut done = crate::initial();
-    nika_compile::finish(applied.source.clone(), &mut done);
-    done.provenance.strategy = Some(Strategy::Native);
-    done.provenance.authoring = out.provenance.authoring.take();
-    let resolved = source_original(request).map_or_else(
-        || intent.to_owned(),
-        |original| format!("{original}\n{}", revision_change(request)),
-    );
-    let sha = nika_compile::intent_sha256(intent);
-    let record = document::record((base, &applied.source), &resolved, &sha, &applied);
-    let mut decision_record = done.provenance.decision.take().unwrap_or_else(|| json!({}));
-    decision_record["document_revision"] = record["document_revision"].clone();
-    done.provenance.decision = Some(decision_record);
-    done.provenance.plan = Some(record);
-    let answer = Answer {
-        candidate: applied.source.clone(),
-        questions: Vec::new(),
-        gaps: Vec::new(),
-    };
-    native::record(
-        &mut done,
-        request,
-        &cold,
-        &talk,
-        &sent,
-        Some(&answer),
-        shown,
-    );
-    crate::record_route(&mut done, &talk.route);
-    // What reuse the bytes really hold: each composed component witnessed on the candidate.
-    let qualification = json!({"by": null, "why": "a revision: components are composed by operations, none is qualified here"});
-    crate::cognition::knowledge::reused(request, qualification, &applied.receipts, &mut done);
-    if done.status != crate::CompileStatus::Ready {
-        return done;
-    }
-    super::super::verify::judged_native(
-        intent,
-        reading,
-        policy,
-        (provider, decision),
-        request,
-        done,
-    )
-    .await
 }
 
 /// The change words of an EDIT, as the revision read them.
@@ -1010,6 +954,8 @@ fn revising_of(request: &CompileRequest, base: &Value, original: &str) -> Compil
         .collect();
     revising
 }
+
+mod document_route;
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]

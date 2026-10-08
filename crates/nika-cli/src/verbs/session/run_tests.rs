@@ -23,6 +23,7 @@ fn request(workflow: &str) -> RunRequest {
         vars: Vec::new(),
         max_cost_usd: 0.1,
         access_pin: None,
+        bytes: None,
     }
 }
 

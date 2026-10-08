@@ -13,6 +13,16 @@ use nika_kernel::ai::provider::{
 
 use crate::AgentInput;
 
+/// The declared effort as every turn's exact level. The loop entry has
+/// already refused a word the request cannot carry
+/// ([`crate::selection::native_level`]), so a declared effort is never
+/// silently dropped here.
+fn declared_level(input: &AgentInput) -> Option<nika_kernel::ai::provider::ReasoningEffort> {
+    crate::selection::native_level(input.requirement.as_ref())
+        .ok()
+        .flatten()
+}
+
 /// One turn's request — the live transcript + this turn's routed tools.
 /// `defs` is consumed (the router already handed us an owned `Vec`) so a
 /// large fail-open universe isn't cloned a second time per turn.
@@ -25,6 +35,7 @@ pub(crate) fn build_request(
     let mut request = InferRequest::new(model, messages);
     request.temperature = input.temperature;
     request.tools = defs;
+    request.reasoning_effort = declared_level(input);
     // The task `timeout:` rides EVERY turn of the loop — the transport's
     // per-provider default must not undercut the author's budget on the
     // turns a slow seat needs it (issue 1516: the loop died at the 30 s
@@ -49,6 +60,7 @@ pub(crate) fn schema_request(
 ) -> InferRequest {
     let mut request = InferRequest::new(model, messages);
     request.temperature = input.temperature;
+    request.reasoning_effort = declared_level(input);
     // tools deliberately left empty (default) — see the doc comment.
     // The re-ask is one more provider call of the same task: it carries
     // the task `timeout:` like every loop turn (`build_request` mirror).
