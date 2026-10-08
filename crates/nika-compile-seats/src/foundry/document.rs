@@ -189,8 +189,17 @@ fn canonical(operation: &Value) -> Result<Value, String> {
             .get(key)
             .filter(|value| !value.is_null() && value.as_str() != Some(""))
     };
+    // A value given directly is the value, null and the empty string or list included; only a
+    // text-form field (every field a text) reads an empty text as absent.
+    let direct = |key: &str| {
+        if key == "value" {
+            object.get(key)
+        } else {
+            present(key)
+        }
+    };
     let either = |plain: &str, text: &str| -> Result<Option<Value>, String> {
-        match (present(plain), present(text)) {
+        match (direct(plain), present(text)) {
             (Some(_), Some(_)) => Err(format!("state `{plain}` or `{text}`, never both")),
             (Some(value), None) => Ok(Some(value.clone())),
             (None, Some(Value::String(json))) => serde_json::from_str(json)
@@ -208,7 +217,7 @@ fn canonical(operation: &Value) -> Result<Value, String> {
                 || fields.contains(&key)
                 || (key == "value_json" && fields.contains(&"value"))
         };
-        if let Some(extra) = (object.keys()).find(|key| present(key).is_some() && !carried(key)) {
+        if let Some(extra) = (object.keys()).find(|key| direct(key).is_some() && !carried(key)) {
             return Err(format!("a `{op}` operation carries no `{extra}`"));
         }
         let path = pointer(present("path").and_then(Value::as_str).unwrap_or_default())?;
