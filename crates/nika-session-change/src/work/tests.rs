@@ -371,3 +371,25 @@ fn every_compiler_status_and_note_kind_has_one_name_on_the_wire() {
         assert_eq!(serde_json::to_value(named).expect("serializes"), wire);
     }
 }
+
+#[test]
+fn only_spending_decisions_require_a_line_typed_after_they_were_shown() {
+    use crate::outcome::ReviewId;
+    let review = Waiting::RunReview {
+        review: ReviewId::new(1, "Fresh Run cost decision", "challenge n-1"),
+    };
+    assert!(review.requires_fresh_input());
+    assert!(Waiting::CostChoice.requires_fresh_input());
+    for other in [
+        Waiting::Free,
+        Waiting::IntelligenceChoice,
+        Waiting::Input {
+            name: "base".to_owned(),
+        },
+        Waiting::Activation {
+            key: "project.timezone".to_owned(),
+        },
+    ] {
+        assert!(!other.requires_fresh_input(), "{other:?}");
+    }
+}
