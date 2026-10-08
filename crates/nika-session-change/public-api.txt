@@ -1726,12 +1726,15 @@ pub fn nika_session_change::world::Basis::null_value() -> T
 pub nika_session_change::world::PlaceKind::ConnectedService
 pub nika_session_change::world::PlaceKind::FileRead
 pub nika_session_change::world::PlaceKind::FileWrite
+pub nika_session_change::world::PlaceKind::LocalModel
 pub nika_session_change::world::PlaceKind::LocalService
 pub nika_session_change::world::PlaceKind::Placeholder
 pub nika_session_change::world::PlaceKind::Program
 pub nika_session_change::world::PlaceKind::Refused
+pub nika_session_change::world::PlaceKind::RemoteModel
 pub nika_session_change::world::PlaceKind::ToolServer
 pub nika_session_change::world::PlaceKind::Unclassified
+pub nika_session_change::world::PlaceKind::UndeterminedModel
 impl nika_session_change::world::PlaceKind
 pub fn nika_session_change::world::PlaceKind::words(self) -> &'static str
 impl core::clone::Clone for nika_session_change::world::PlaceKind
@@ -1860,6 +1863,8 @@ pub fn nika_session_change::world::Reach::null_value() -> T
 pub nika_session_change::world::Place::kind: nika_session_change::world::PlaceKind
 pub nika_session_change::world::Place::target: alloc::string::String
 pub nika_session_change::world::Place::tasks: alloc::vec::Vec<alloc::string::String>
+impl nika_session_change::world::Place
+pub fn nika_session_change::world::Place::label(&self) -> alloc::string::String
 impl core::clone::Clone for nika_session_change::world::Place
 pub fn nika_session_change::world::Place::clone(&self) -> nika_session_change::world::Place
 impl core::cmp::Eq for nika_session_change::world::Place

@@ -5574,6 +5574,7 @@ name = "nika-session-change"
 version = "0.122.0"
 dependencies = [
  "blake3",
+ "nika-check",
  "nika-cli-host",
  "nika-display",
  "nika-fs",

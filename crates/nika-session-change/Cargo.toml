@@ -24,6 +24,7 @@ workspace = true
 
 [dependencies]
 nika-cli-host = { path = "../nika-cli-host", version = "0.122.0", default-features = false }  # oracle::audit_source — the ONE check facade a preview and a landed workflow are judged by (lateral L4→L4)
+nika-check    = { path = "../nika-check", version = "0.122.0" }       # EndpointLocus — where the check places a model task's inference (cloud · this machine · unknown)
 nika-display  = { path = "../nika-display", version = "0.122.0" }     # check_render::review — the effect, finding and hint rows of a report, the plan lines and task faces (lateral L4→L4 · never back)
 nika-onboard  = { path = "../nika-onboard", version = "0.122.0" }     # compile::{CompileOutcome, TriggerRequirement, …} — the compiler's outcome a review reads (lateral L4→L4)
 nika-trace    = { path = "../nika-trace", version = "0.122.0" }       # run_view::{RunFacts, live_again} — the gate a paused trace carries and the tasks a resume runs again (lateral L4→L4 · never back)

@@ -301,3 +301,98 @@ fn a_workflow_that_cannot_be_read_claims_no_reach() {
     assert!(!audit.clean);
     assert_eq!(audit.world, World::default());
 }
+
+/// A workflow whose only effect is remote inference: nothing is read or written, yet its
+/// prompt leaves this machine for the provider.
+const REMOTE_INFER: &str = "nika: summarize-remote\nmodel: openai/gpt-4o-mini\npermits: {}\ntasks:\n  summarize:\n    infer: { prompt: \"Summarize the quarter in two sentences.\", max_tokens: 64 }\n";
+
+/// The same shape whose model is chosen by the caller when the run starts.
+const CHOSEN_AT_RUN: &str = "nika: summarize-chosen\ninputs:\n  model: { type: string, required: true }\npermits: {}\ntasks:\n  summarize:\n    infer: { model: \"${{ inputs.model }}\", prompt: \"Summarize.\", max_tokens: 64 }\n";
+
+/// Inference on a model the catalog places on this machine.
+const MOCK_INFER: &str = "nika: summarize-mock\nmodel: mock/echo\npermits: {}\ntasks:\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n";
+
+#[test]
+fn remote_inference_is_a_declared_connected_reach_never_local() {
+    let root = tempfile::tempdir().expect("root");
+    let remote = audited(root.path(), "remote.nika", REMOTE_INFER);
+    // Before the fix the model endpoint was dropped: reach Local, « nothing outside the process ».
+    assert_eq!(
+        remote.basis,
+        Basis::Declared,
+        "a plan, never an observation"
+    );
+    assert_eq!(remote.reach, Reach::Connected, "{remote:?}");
+    assert_eq!(
+        remote.places,
+        [Place {
+            kind: PlaceKind::RemoteModel,
+            target: "openai/gpt-4o-mini".to_owned(),
+            tasks: tasks(&["summarize"]),
+        }]
+    );
+    assert_eq!(
+        remote.summary(),
+        "connected: openai/gpt-4o-mini (remote model)"
+    );
+    assert!(!remote.summary().contains("nothing outside"));
+}
+
+#[test]
+fn a_model_chosen_when_the_run_starts_leaves_the_reach_undetermined() {
+    let root = tempfile::tempdir().expect("root");
+    let chosen = audited(root.path(), "chosen.nika", CHOSEN_AT_RUN);
+    assert_eq!(chosen.reach, Reach::Undetermined, "{chosen:?}");
+    assert_eq!(
+        kinds(&chosen),
+        [(PlaceKind::UndeterminedModel, "${{ inputs.model }}")]
+    );
+    assert_eq!(
+        chosen.summary(),
+        "reach undetermined: ${{ inputs.model }} (model undetermined)"
+    );
+}
+
+#[test]
+fn a_model_on_this_machine_is_named_and_nothing_leaves() {
+    let root = tempfile::tempdir().expect("root");
+    let mock = audited(root.path(), "mock.nika", MOCK_INFER);
+    assert_eq!(mock.reach, Reach::Local, "{mock:?}");
+    assert_eq!(kinds(&mock), [(PlaceKind::LocalModel, "mock/echo")]);
+    assert_eq!(
+        mock.summary(),
+        "local only · mock/echo (local model) · nothing leaves this machine"
+    );
+}
+
+#[test]
+fn model_kinds_rank_with_hosts_in_the_reach() {
+    let w = world(
+        &[
+            ("model.local", "mock/echo", tasks(&["a"])),
+            ("net.http", "127.0.0.1", tasks(&["b"])),
+        ],
+        &[],
+    );
+    assert_eq!(w.reach, Reach::LocalServices);
+    assert_eq!(
+        w.summary(),
+        "local services only: mock/echo (local model), 127.0.0.1 · no connected service"
+    );
+    let w = world(
+        &[
+            ("model.undetermined", "acme/unknown", tasks(&["a"])),
+            ("model.remote", "anthropic/claude-x", tasks(&["b"])),
+        ],
+        &[],
+    );
+    assert_eq!(
+        w.reach,
+        Reach::Connected,
+        "a remote model outranks the unknown"
+    );
+    assert_eq!(
+        serde_json::to_value(&w.places[1]).expect("place")["kind"],
+        "remote_model"
+    );
+}

@@ -697,14 +697,16 @@ fn fold_audit<E: std::fmt::Display>(
         Ok(audit) => {
             let (findings, hints) = finding_rows(&audit.report);
             let journey = &audit.report.data_journey;
-            let world = World::declared(
-                journey
-                    .sources
-                    .iter()
-                    .chain(&journey.destinations)
-                    .map(|e| (e.kind, e.target.as_str(), e.tasks.as_slice())),
-                journey.secrets_used.iter().map(|s| s.name.as_str()),
-            );
+            let models = model_places(&audit.report);
+            let world =
+                World::declared(
+                    (journey.sources.iter().chain(&journey.destinations))
+                        .map(|e| (e.kind, e.target.as_str(), e.tasks.as_slice()))
+                        .chain(models.iter().map(|((kind, target), tasks)| {
+                            (*kind, target.as_str(), tasks.as_slice())
+                        })),
+                    journey.secrets_used.iter().map(|s| s.name.as_str()),
+                );
             WorkflowAudit {
                 path: path.to_path_buf(),
                 clean: audit.verdict.clean,
@@ -723,6 +725,44 @@ fn fold_audit<E: std::fmt::Display>(
             world: World::default(),
         },
     }
+}
+
+/// Where each model task's inference goes, as world places `((kind, target), tasks)`: the model
+/// the check resolved, placed by the catalog's locus (`model.remote` · `model.local` ·
+/// `model.undetermined`), and every model task the check could not resolve (a model chosen by
+/// an expression when the run starts) as undetermined under its declared spelling. Declared,
+/// never observed: a run does not turn this into a record of what was contacted.
+fn model_places(
+    report: &nika_check::CheckReport,
+) -> std::collections::BTreeMap<(&'static str, String), Vec<String>> {
+    use nika_check::EndpointLocus;
+    let mut places: std::collections::BTreeMap<(&'static str, String), Vec<String>> =
+        std::collections::BTreeMap::new();
+    let resolved = &report.data_journey.model_endpoints;
+    for endpoint in resolved {
+        let kind = match endpoint.locus {
+            EndpointLocus::Cloud => "model.remote",
+            EndpointLocus::Local => "model.local",
+            _ => "model.undetermined",
+        };
+        places
+            .entry((kind, endpoint.model.clone()))
+            .or_default()
+            .push(endpoint.task.clone());
+    }
+    for declared in &report.requirements.models {
+        let unresolved: Vec<String> = (declared.tasks.iter())
+            .filter(|task| !resolved.iter().any(|e| &e.task == *task))
+            .cloned()
+            .collect();
+        if !unresolved.is_empty() {
+            places
+                .entry(("model.undetermined", declared.model.clone()))
+                .or_default()
+                .extend(unresolved);
+        }
+    }
+    places
 }
 
 /// A relative path with no `..`, no root, no empty component.

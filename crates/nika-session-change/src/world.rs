@@ -40,6 +40,15 @@ pub enum PlaceKind {
     Program,
     /// An endpoint kind this reading does not know yet: kept, never dropped.
     Unclassified,
+    /// A model a task infers with that the catalog places in the cloud: the prompt and what
+    /// it carries leave this machine for that provider (`openai/…`).
+    RemoteModel,
+    /// A model the catalog places on this machine (a local deployment, a mock): inference
+    /// stays here.
+    LocalModel,
+    /// A model task whose provider the catalog does not know, or whose model is chosen only
+    /// when the run starts (an expression): where its prompt goes is not determined.
+    UndeterminedModel,
 }
 
 impl PlaceKind {
@@ -56,6 +65,9 @@ impl PlaceKind {
             Self::ToolServer => "MCP tool",
             Self::Program => "program",
             Self::Unclassified => "unclassified",
+            Self::RemoteModel => "remote model",
+            Self::LocalModel => "local model",
+            Self::UndeterminedModel => "model undetermined",
         }
     }
 }
@@ -70,6 +82,20 @@ pub struct Place {
     pub target: String,
     /// The tasks touching it, as the check named them.
     pub tasks: Vec<String>,
+}
+
+impl Place {
+    /// The words a host shows for the place: its target, and for a model what kind it is
+    /// (a model id alone does not say whether the prompt leaves this machine).
+    #[must_use]
+    pub fn label(&self) -> String {
+        match self.kind {
+            PlaceKind::RemoteModel | PlaceKind::LocalModel | PlaceKind::UndeterminedModel => {
+                format!("{} ({})", self.target, self.kind.words())
+            }
+            _ => self.target.clone(),
+        }
+    }
 }
 
 /// How far a workflow reaches, from its most external place.
@@ -132,8 +158,10 @@ pub struct World {
 impl World {
     /// The reach of audited bytes, from the data journey's endpoints as `(kind, target,
     /// tasks)` with the journey's kinds (`fs.read` · `fs.write` · `net.http` · `mcp.tool` ·
-    /// `exec`) and the names of the secrets they use. A kind this reading does not know stays
-    /// visible as [`PlaceKind::Unclassified`] and makes the reach undetermined.
+    /// `exec`), the model each infer or agent task resolves to (`model.remote` · `model.local`
+    /// · `model.undetermined`, the target its `provider/model` or its unresolved expression)
+    /// and the names of the secrets they use. A kind this reading does not know stays visible
+    /// as [`PlaceKind::Unclassified`] and makes the reach undetermined.
     #[must_use]
     pub fn declared<'a>(
         endpoints: impl IntoIterator<Item = (&'a str, &'a str, &'a [String])>,
@@ -169,9 +197,10 @@ impl World {
         if self.basis == Basis::NotAudited {
             return "reach unknown · the bytes were not audited".to_owned();
         }
-        let named = |kind: PlaceKind| {
-            self.of_kind(kind)
-                .map(|p| p.target.as_str())
+        let named = |kinds: &[PlaceKind]| {
+            (self.places.iter())
+                .filter(|p| kinds.contains(&p.kind))
+                .map(Place::label)
                 .collect::<Vec<_>>()
                 .join(", ")
         };
@@ -179,18 +208,22 @@ impl World {
             Reach::Local if self.places.is_empty() => {
                 "local only · nothing outside the process".to_owned()
             }
-            Reach::Local => "local only · files, no service reached".to_owned(),
+            Reach::Local => match named(&[PlaceKind::LocalModel]) {
+                models if models.is_empty() => "local only · files, no service reached".to_owned(),
+                models => format!("local only · {models} · nothing leaves this machine"),
+            },
             Reach::LocalServices => format!(
                 "local services only: {} · no connected service",
-                named(PlaceKind::LocalService)
+                named(&[PlaceKind::LocalService, PlaceKind::LocalModel])
             ),
-            Reach::Connected => format!("connected: {}", named(PlaceKind::ConnectedService)),
+            Reach::Connected => format!(
+                "connected: {}",
+                named(&[PlaceKind::ConnectedService, PlaceKind::RemoteModel])
+            ),
             Reach::Undetermined => {
-                let unknown: Vec<&str> = self
-                    .places
-                    .iter()
+                let unknown: Vec<String> = (self.places.iter())
                     .filter(|p| undetermined(p.kind))
-                    .map(|p| p.target.as_str())
+                    .map(Place::label)
                     .collect();
                 format!("reach undetermined: {}", unknown.join(", "))
             }
@@ -212,6 +245,9 @@ fn kind_of(kind: &str, target: &str) -> PlaceKind {
         "net.http" => host_kind(target),
         "mcp.tool" => PlaceKind::ToolServer,
         "exec" => PlaceKind::Program,
+        "model.remote" => PlaceKind::RemoteModel,
+        "model.local" => PlaceKind::LocalModel,
+        "model.undetermined" => PlaceKind::UndeterminedModel,
         _ => PlaceKind::Unclassified,
     }
 }
@@ -235,18 +271,24 @@ fn host_kind(host: &str) -> PlaceKind {
 fn undetermined(kind: PlaceKind) -> bool {
     matches!(
         kind,
-        PlaceKind::ToolServer | PlaceKind::Program | PlaceKind::Unclassified
+        PlaceKind::ToolServer
+            | PlaceKind::Program
+            | PlaceKind::Unclassified
+            | PlaceKind::UndeterminedModel
     )
 }
 
-/// The most external reach: a public host first, then an undetermined destination, then a
-/// local service; files, placeholders and refused hosts reach nothing outside.
+/// The most external reach: a public host or a remote model first (the prompt leaves this
+/// machine for its provider), then an undetermined destination, then a service on this
+/// machine; files, a model on this machine, placeholders and refused hosts reach nothing
+/// outside.
 fn reach_of(places: &[Place]) -> Reach {
-    if places.iter().any(|p| p.kind == PlaceKind::ConnectedService) {
+    let any = |kinds: &[PlaceKind]| places.iter().any(|p| kinds.contains(&p.kind));
+    if any(&[PlaceKind::ConnectedService, PlaceKind::RemoteModel]) {
         Reach::Connected
     } else if places.iter().any(|p| undetermined(p.kind)) {
         Reach::Undetermined
-    } else if places.iter().any(|p| p.kind == PlaceKind::LocalService) {
+    } else if any(&[PlaceKind::LocalService]) {
         Reach::LocalServices
     } else {
         Reach::Local
