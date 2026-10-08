@@ -221,6 +221,29 @@ fn compatible(document: &Value, bound: &Value) -> Result<(), ExpandError> {
     Ok(())
 }
 
+/// A block scalar's exact text: its header line (`|`, `>-`, a comment after it), then its content
+/// lines re-indented to zero, the trailing blank lines kept when its header keeps them (`+`). An
+/// explicit indentation indicator counts from the key's own column, which an editor chooses:
+/// unproven, never a text that would read otherwise.
+fn block_scalar(header: &str, lines: &[&str]) -> Result<String, ExpandError> {
+    let indicators = header.split('#').next().unwrap_or_default().trim();
+    if indicators.chars().any(|c| c.is_ascii_digit()) {
+        return Err(ExpandError::Unproven(format!(
+            "the block scalar `{header}` states an indentation indicator"
+        )));
+    }
+    let mut content = lines.to_vec();
+    if !indicators.contains('+') {
+        while content.last().is_some_and(|line| line.trim().is_empty()) {
+            content.pop();
+        }
+    }
+    Ok(std::iter::once(header)
+        .chain(content)
+        .collect::<Vec<_>>()
+        .join("\n"))
+}
+
 /// One entry an expansion adds: its section, its name, and its value as the component writes it
 /// (its lines without their indentation), for a document editor that inserts exact text.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -230,7 +253,8 @@ pub struct Entry {
     pub section: String,
     /// The entry's key.
     pub name: String,
-    /// Its value's exact text: an inline value, or the block under the key, re-indented to zero.
+    /// Its value's exact text: an inline value (for a block scalar, its header line and then its
+    /// content lines re-indented to zero), or the block under the key, re-indented to zero.
     pub text: String,
 }
 
@@ -240,7 +264,8 @@ impl Instance {
     /// entries is not carried here ([`expand`] keeps it).
     ///
     /// # Errors
-    /// [`ExpandError::Unproven`] when a section is not written in block form.
+    /// [`ExpandError::Unproven`] when a section is not written in block form, or a block scalar
+    /// states an indentation indicator.
     pub fn entries(&self) -> Result<Vec<Entry>, ExpandError> {
         let mut entries = Vec::new();
         for key in MERGED {
@@ -271,9 +296,13 @@ impl Instance {
                     .iter()
                     .map(|l| l.get(indent..).unwrap_or(""))
                     .collect();
-                let text = match inline.trim() {
-                    "" => block.join("\n").trim_end().to_owned(),
-                    inline => inline.to_owned(),
+                let header = inline.trim();
+                let text = if header.is_empty() {
+                    block.join("\n").trim_end().to_owned()
+                } else if header.starts_with(['|', '>']) {
+                    block_scalar(header, &block)?
+                } else {
+                    header.to_owned()
                 };
                 entries.push(Entry {
                     section: key.to_owned(),

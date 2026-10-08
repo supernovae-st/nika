@@ -847,6 +847,51 @@ fn insert(entries: &[Entry]) -> String {
     format!("{doc}permits:\n{permits}{tasks}{outputs}")
 }
 
+/// `STALE` with `extra` stated after its last constant.
+fn with_const(extra: &str) -> String {
+    let last = "  max_age_hours: { type: integer, value: 48 }\n";
+    STALE.replace(last, &format!("{last}{extra}"))
+}
+
+#[test]
+fn a_block_scalar_entry_keeps_its_whole_text_through_an_exact_insert() {
+    let source = with_const(
+        "  greeting: |\n    Dear team,\n\n    the stale tickets are listed.\n  subject: >-\n    Stale\n    tickets\n",
+    );
+    let instance = instantiate(&component(&source), &bound(48)).unwrap();
+    let entries = instance.entries().unwrap();
+    let text = |name: &str| (entries.iter().find(|e| e.name == name)).map(|e| e.text.clone());
+    assert_eq!(
+        text("greeting").as_deref(),
+        Some("|\nDear team,\n\nthe stale tickets are listed.")
+    );
+    assert_eq!(text("subject").as_deref(), Some(">-\nStale\ntickets"));
+    let candidate = insert(&entries);
+    let adopted = adopt(&candidate, &instance).unwrap();
+    let expanded = expand(PARENT, &instance).unwrap();
+    assert_eq!(adopted.receipt["nodes"], expanded.receipt["nodes"]);
+    let constants = |doc: &str| literal_projection(doc).unwrap()["const"].clone();
+    assert_eq!(constants(&candidate), constants(&expanded.candidate));
+    assert_eq!(
+        constants(&candidate)["greeting"],
+        "Dear team,\n\nthe stale tickets are listed.\n"
+    );
+    assert_eq!(constants(&candidate)["subject"], "Stale tickets");
+}
+
+#[test]
+fn a_block_scalar_with_an_indentation_indicator_is_no_exact_entry() {
+    let source = with_const("  banner: |2\n      indented first\n    second\n");
+    let instance = instantiate(&component(&source), &bound(48)).unwrap();
+    assert!(matches!(instance.entries(), Err(ExpandError::Unproven(_))));
+    let expanded = expand(PARENT, &instance).unwrap();
+    let banner = &literal_projection(&expanded.candidate).unwrap()["const"]["banner"];
+    assert_eq!(
+        banner, "  indented first\nsecond\n",
+        "the expansion keeps its own lines"
+    );
+}
+
 #[test]
 fn an_insert_is_never_adopted_where_the_expansion_is_refused() {
     let clocked = STALE.replace(
