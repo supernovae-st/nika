@@ -925,7 +925,7 @@ fn an_exact_insert_keeps_no_break_spaces_and_the_blank_lines_a_scalar_keeps() {
     // A no-break space is content, never indentation; a keep indicator keeps the blank lines
     // that end the section.
     let source = with_const(concat!(
-        "  greeting: |\n    \u{a0}Hello\n    team\n",
+        "  greeting: |\n    \u{a0}Hello\n    \u{3000}\n    team\n",
         "  signature: Regards\u{a0}\n",
         "  folded: >+\n    one\n    two\n\n",
         "  tail: |+\n    kept\n\n\n",
@@ -933,7 +933,10 @@ fn an_exact_insert_keeps_no_break_spaces_and_the_blank_lines_a_scalar_keeps() {
     let instance = instantiate(&component(&source), &bound(48)).unwrap();
     let entries = instance.entries().unwrap();
     let text = |name: &str| (entries.iter().find(|e| e.name == name)).map(|e| e.text.clone());
-    assert_eq!(text("greeting").as_deref(), Some("|\n\u{a0}Hello\nteam"));
+    assert_eq!(
+        text("greeting").as_deref(),
+        Some("|\n\u{a0}Hello\n\u{3000}\nteam")
+    );
     assert_eq!(text("signature").as_deref(), Some("Regards\u{a0}"));
     assert_eq!(text("folded").as_deref(), Some(">+\none\ntwo\n"));
     assert_eq!(text("tail").as_deref(), Some("|+\nkept\n\n"));
@@ -948,7 +951,7 @@ fn an_exact_insert_keeps_no_break_spaces_and_the_blank_lines_a_scalar_keeps() {
         constants(&source),
     );
     for (name, decoded) in [
-        ("greeting", "\u{a0}Hello\nteam\n"),
+        ("greeting", "\u{a0}Hello\n\u{3000}\nteam\n"),
         ("signature", "Regards\u{a0}"),
         ("folded", "one two\n\n"),
         ("tail", "kept\n\n\n"),
