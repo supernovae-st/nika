@@ -119,7 +119,7 @@ pub fn machine_selection(argv: &[std::ffi::OsString]) -> Option<Option<String>> 
         match arg.to_str()? {
             "session" if !session => session = true,
             "--json" => json = true,
-            "--ascii" | "--plain" | "--fix" => {}
+            "--ascii" | "--plain" => {}
             "--color" | "--hyperlink" => {
                 rest.next()?;
             }
