@@ -65,7 +65,7 @@ pub mod wire;
 pub use census::{AccessCensus, AccessPath, SeatFact};
 pub use plan::{
     ExecutionAccessPlan, LaneVerdict, ModelNeed, ResolvedLane, resolve_execution_plan,
-    resolve_execution_plan_for,
+    resolve_execution_plan_declared, resolve_execution_plan_for,
 };
 pub use probe::{KeyAuth, classify_http_status, classify_key_value};
 pub use profile::{

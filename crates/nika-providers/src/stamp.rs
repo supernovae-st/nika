@@ -5,7 +5,8 @@
 //! the admitted lane (`AccessPlan`) and a seat's typed refusal onto the
 //! frame's field list. Moved verbatim from the runtime's task-emission
 //! module beside the plan they project (the runtime sat at its 15k
-//! prod-LOC wall).
+//! prod-LOC wall); the authored requirement and the per-call selection
+//! evidence ride the same projection.
 
 use nika_types::resource::Value as FieldValue;
 
@@ -27,6 +28,11 @@ fn s(v: &str) -> FieldValue {
 /// embedder's fallback; the `SubscriptionQuota` arm is the planless
 /// harness receipt (P3 B7 · `access: harness` · billing `unknown`
 /// until an adapter's own surface attests it · never a fake $0).
+///
+/// A lane resolved under an authored requirement also stamps
+/// `access_requirement` (the author's words) and, when the call reported
+/// it, `access_selection` (what was requested, sent, read back and
+/// attested — `nika/access-selection@1`). Both are absent otherwise.
 pub fn push_access_fields(
     fields: &mut Vec<(&'static str, FieldValue)>,
     model: Option<&str>,
@@ -42,6 +48,7 @@ pub fn push_access_fields(
         fields.push(("access", s(lane.chosen.as_str())));
         fields.push(("access_id", s(&lane.access)));
         fields.push(("billing", s(lane.billing.as_str())));
+        push_selection_fields(fields, lane);
     } else if let Some(m) = model {
         fields.push(("model", s(m)));
         if let Some((provider, _)) = m.split_once('/') {
@@ -56,6 +63,22 @@ pub fn push_access_fields(
             "billing",
             s(nika_types::access::BillingClass::Unknown.as_str()),
         ));
+    }
+}
+
+/// The authored requirement and the call's selection evidence, each as
+/// ONE compact JSON text (the `outcome` precedent) — absent when the lane
+/// carries none, so a file without `run.access`/`run.reasoning` keeps its
+/// frames byte-identical.
+fn push_selection_fields(
+    fields: &mut Vec<(&'static str, FieldValue)>,
+    lane: &nika_types::access::AccessPlan,
+) {
+    if let Some(requirement) = &lane.requirement {
+        fields.push(("access_requirement", s(&requirement.to_json().to_string())));
+    }
+    if let Some(selection) = &lane.selection {
+        fields.push(("access_selection", s(&selection.to_json().to_string())));
     }
 }
 
