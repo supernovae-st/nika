@@ -11,6 +11,10 @@ use std::path::Path;
 /// checked on: the child refuses any other source before anything runs.
 pub const EXPECT_SOURCE: &str = "--expect-source";
 
+/// The hidden `nika run` flag that binds a child run to the closure of the world its request was
+/// checked in (the workflow, its children and its skills): the child refuses any other world.
+pub const EXPECT_WORLD: &str = "--expect-world";
+
 /// Build argv from already selected public Run data; never serialize authority.
 #[must_use]
 pub fn run_args(root: &Path, workflow: &Path, ceiling: f64, vars: &[String]) -> Vec<String> {

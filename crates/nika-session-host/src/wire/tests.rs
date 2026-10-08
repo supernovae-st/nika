@@ -137,6 +137,7 @@ fn outcomes_are_projected_word_for_word_and_runs_become_effects() {
         max_cost_usd: 0.5,
         access_pin: None,
         bytes: None,
+        closure: None,
     };
     project(
         TurnOutcome::Resumed {

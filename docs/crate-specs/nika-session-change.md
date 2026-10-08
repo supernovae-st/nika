@@ -36,8 +36,15 @@ those paths as an external consumer.
   uses; every witness is checked before the first write; each file lands atomically below the
   root's own descriptor. The preview carries the engine's own audit of the exact bytes (the
   facade `nika check` uses); after apply, the real check judges the workflow as it sits on disk,
-  under the human's pinned execution access when they pinned one. A paused run's gate is read
-  from the trace's own pause event (`nika_trace::run_view`).
+  under the human's pinned execution access when they pinned one. That check reads its world
+  once, with the run's own reader (`nika_execution::ExecutionSnapshot::capture`): the workflow and
+  every child it reaches are judged from the captured bytes, the world is captured again after the
+  check, and only a world that held still names a `Closure` (the snapshot digest over the
+  workflow, its children and its skills). A world the run cannot capture, a symlinked workflow
+  among them, is not clean. A run request carries the witness of the checked bytes and that
+  closure; a door runs only that world (`RunRequest::admits_world`, and the child's
+  `--expect-world`). A paused run's gate is read from the trace's own pause event
+  (`nika_trace::run_view`).
 - `review` — the factual review of a Ready candidate before any consent: what it does (its tasks
   in run order, parsed by the engine's parser), when it runs, what it can touch, what changes on
   disk and what it still needs, read from the candidate's bytes, the compiler's requested boundary

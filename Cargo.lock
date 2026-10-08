@@ -5585,6 +5585,7 @@ dependencies = [
  "nika-check",
  "nika-cli-host",
  "nika-display",
+ "nika-execution",
  "nika-fs",
  "nika-onboard",
  "nika-schema",

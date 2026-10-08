@@ -121,7 +121,8 @@ pub fn run_with_inputs_json(
 }
 
 /// Said when a run's captured bytes are not the ones a Session checked for it.
-const UNCHECKED_BYTES: &str = "nika run: refused: not the bytes its check judged; nothing ran";
+pub(super) const UNCHECKED_BYTES: &str =
+    "nika run: refused: not the bytes its check judged; nothing ran";
 
 pub(super) fn capture_checked_source(
     file: &str,
@@ -223,6 +224,6 @@ pub(crate) fn run_verdict(
         no_outputs,
         max_cost_usd,
         invocation_cost,
-        host.cost_review_stdio,
+        &host,
     )
 }

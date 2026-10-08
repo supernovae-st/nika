@@ -219,6 +219,7 @@ fn checked_run(workflow: &str, checked: Option<&str>) -> RunRequest {
         max_cost_usd: 0.25,
         access_pin: None,
         bytes: checked.map(|source| Box::new(Witness::of(source.as_bytes()))),
+        closure: None,
     }
 }
 

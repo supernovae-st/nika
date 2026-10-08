@@ -198,7 +198,7 @@ pub(super) fn run_admitted(
     no_outputs: bool,
     max_cost_usd: Option<f64>,
     invocation_cost: Option<f64>,
-    cost_review_stdio: bool,
+    host: &nika_cli_host::lane::RunHostOptions,
 ) -> RunVerdict {
     let machine = output_json || json;
     let (project, root, display_root) = match nika_cli_host::source::execution_project(file) {
@@ -222,6 +222,11 @@ pub(super) fn run_admitted(
         );
         return RunVerdict::bare(exit::ENV);
     }
+    // A Session's run is bound to the world its check judged: the root, its children, its skills.
+    if (host.expected_world.as_deref()).is_some_and(|world| world != admitted.snapshot().digest()) {
+        epilogue::emit_diagnostic(super::provenance::UNCHECKED_BYTES, machine);
+        return RunVerdict::bare(exit::ENV);
+    }
     let request = CliExecutionRequest {
         file,
         repair_target: preview.repair_target(),
@@ -238,7 +243,7 @@ pub(super) fn run_admitted(
         task_filter,
         no_outputs,
         max_cost_usd,
-        review_channel: if cost_review_stdio && json && resume.is_none() {
+        review_channel: if host.cost_review_stdio && json && resume.is_none() {
             nika_cli_host::run_cost::ReviewChannel::Stdio
         } else {
             (!(json || output_json) && resume.is_none()).into()

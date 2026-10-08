@@ -52,6 +52,7 @@ fn set_with(
             max_cost_usd: 1.0,
             access_pin: None,
             bytes: None,
+            closure: None,
         }),
         repairs: Vec::new(),
         audits,
@@ -251,6 +252,7 @@ fn an_unaudited_workflow_keeps_no_reach() {
         effects: Vec::new(),
         world: World::default(),
         bytes: None,
+        closure: None,
     });
     assert!(!audit.clean);
     assert_eq!(audit.world.basis, Basis::NotAudited);

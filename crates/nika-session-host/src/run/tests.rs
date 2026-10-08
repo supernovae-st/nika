@@ -84,6 +84,7 @@ fn request() -> RunRequest {
         max_cost_usd: 0.5,
         access_pin: Some("api".to_owned()),
         bytes: None,
+        closure: None,
     }
 }
 

@@ -36,6 +36,7 @@
 #![forbid(unsafe_code)]
 
 pub mod change;
+mod closure;
 pub mod consent;
 pub mod draft;
 pub mod outcome;

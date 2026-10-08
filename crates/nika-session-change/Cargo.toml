@@ -29,6 +29,7 @@ nika-display  = { path = "../nika-display", version = "0.122.0" }     # check_re
 nika-onboard  = { path = "../nika-onboard", version = "0.122.0" }     # compile::{CompileOutcome, TriggerRequirement, …} — the compiler's outcome a review reads (lateral L4→L4)
 nika-trace    = { path = "../nika-trace", version = "0.122.0" }       # run_view::{RunFacts, live_again} — the gate a paused trace carries and the tasks a resume runs again (lateral L4→L4 · never back)
 nika-schema   = { path = "../nika-schema", version = "0.122.0" }      # the parser — the review reads a candidate's tasks from the AST, never from prose
+nika-execution = { path = "../nika-execution", version = "0.122.0" }  # ExecutionSnapshot — the world a check judges is the one a run captures (L4→L3)
 nika-fs       = { path = "../nika-fs", version = "0.122.0" }          # OwnedDir — a change is witnessed and lands by temp + rename below the root's descriptor; the consent journal appends there
 nika-source   = { path = "../nika-source", version = "0.122.0" }      # lexical program-source naming (#1684) — a change lands only at a canonical program name
 nika-types    = { path = "../nika-types", version = "0.122.0" }       # net::{is_exact_loopback_literal, host_is_blocked, is_documentation_host} — a declared host is judged by the floor's own predicates

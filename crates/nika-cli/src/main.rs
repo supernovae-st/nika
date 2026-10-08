@@ -417,9 +417,8 @@ struct RunArgs {
     /// Negotiate a fresh one-use local cost review over stdio; never approves a charge.
     #[arg(long, requires = "json", conflicts_with_all = ["inputs_json", "resume", "dry_run"])]
     cost_review_stdio: bool,
-    /// Run only a source with this BLAKE3 witness: the bytes a Session checked (machine lane).
-    #[arg(long, value_name = "BLAKE3", hide = true)]
-    expect_source: Option<String>,
+    #[command(flatten)]
+    binding: nika_cli_host::lane::SessionBinding,
     /// Print the typed `outputs:` as ONE JSON object on stdout
     /// (progress → stderr) · the export contract · powers
     /// `exec: nika run sub.yaml --output json` + `capture: stdout`.
@@ -1029,7 +1028,7 @@ fn run_verb(
         args.require_signature,
         nika_cli_host::lane::RunHostOptions::from(repair_target)
             .with_cost_review_stdio(args.cost_review_stdio)
-            .with_expected_source(args.expect_source.clone()),
+            .with_session_binding(args.binding.clone()),
     )
 }
 
@@ -1237,12 +1236,14 @@ mod tests {
             max_cost_usd: 0.5,
             access_pin: Some("api".into()),
             bytes: Some(Box::new(nika_session::Witness::of(b"checked"))),
+            closure: Some(Box::new(nika_session::change::Closure("world".into()))),
         };
         let line = std::iter::once("nika".to_owned()).chain(run.args(std::path::Path::new("/p")));
         let parsed = Cli::try_parse_from(line).expect("parses").command;
         let witness = Some(run.expected_source());
         assert!(
-            matches!(&parsed, Some(Command::Run(r)) if r.expect_source == witness),
+            matches!(&parsed, Some(Command::Run(r)) if r.binding.expect_source == witness
+                && r.binding.expect_world.as_deref() == Some("world")),
             "the child line is a run bound to its witness"
         );
     }

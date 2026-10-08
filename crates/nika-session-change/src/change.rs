@@ -10,6 +10,8 @@ use std::io::Read as _;
 use std::path::{Component, Path, PathBuf};
 
 use nika_cli_host::oracle::{AuditOptions, audit_source};
+
+pub use crate::closure::Closure;
 // The rows a review shows of a report are the report's render owner's (C10).
 use nika_display::check_render::review::{effect_rows, finding_rows};
 use nika_fs::OwnedDir;
@@ -154,6 +156,11 @@ pub struct RunRequest {
     /// that names none ([`RunRequest::admits`]). Boxed, so an outcome carrying a request stays
     /// small.
     pub bytes: Option<Box<Witness>>,
+    /// The closure of the world that check judged: the workflow, every child workflow it reaches
+    /// and every skill, as captured ([`Closure`]). A door runs only that world and refuses one a
+    /// child or a skill changed in since, or a request that names none
+    /// ([`RunRequest::admits_world`]).
+    pub closure: Option<Box<Closure>>,
 }
 
 /// What a request that recorded no checked bytes binds a child run to: no source has it.
@@ -167,6 +174,13 @@ impl RunRequest {
         self.bytes.as_deref() == Some(&Witness::of(source.as_bytes()))
     }
 
+    /// Whether `world`, the world a door captured to run, is exactly the one the Session checked
+    /// for this run; a request that recorded none admits nothing.
+    #[must_use]
+    pub fn admits_world(&self, world: &nika_execution::ExecutionSnapshot) -> bool {
+        (self.closure.as_deref()).is_some_and(|closure| closure.admits(world))
+    }
+
     /// The witness a run of this request must capture: the checked bytes', or one no source has
     /// when the request recorded none.
     #[must_use]
@@ -177,14 +191,16 @@ impl RunRequest {
             .to_owned()
     }
 
-    /// The child `nika run` line for this request under `root`, bound to the checked bytes: the
-    /// child compares them with the source it captures and runs nothing else.
+    /// The child `nika run` line for this request under `root`, bound to the checked bytes and
+    /// their world: the child compares them with what it captures and runs nothing else.
     #[must_use]
     pub fn args(&self, root: &Path) -> Vec<String> {
-        use nika_onboard::run_line::{EXPECT_SOURCE, run_args_with_access};
+        use nika_onboard::run_line::{EXPECT_SOURCE, EXPECT_WORLD, run_args_with_access};
         let (vars, pin) = (&self.vars, self.access_pin.as_deref());
         let mut args = run_args_with_access(root, &self.workflow, self.max_cost_usd, vars, pin);
+        let world = (self.closure.as_deref()).map_or(UNBOUND, |closure| closure.0.as_str());
         args.extend([EXPECT_SOURCE.to_owned(), self.expected_source()]);
+        args.extend([EXPECT_WORLD.to_owned(), world.to_owned()]);
         args
     }
 }
@@ -210,6 +226,9 @@ pub struct WorkflowAudit {
     pub world: World,
     /// The witness of the exact bytes this audit judged; `None` when they could not be read.
     pub bytes: Option<Witness>,
+    /// The closure of the world this audit judged, read once by the run's own reader; `None`
+    /// for a preview (child-blind) or when that world could not be held still.
+    pub closure: Option<Closure>,
 }
 
 /// What a set could not become.
@@ -684,10 +703,21 @@ pub fn check_on_disk(root: &Path, path: &Path) -> WorkflowAudit {
 #[must_use]
 pub fn check_with_access(root: &Path, path: &Path, pin: Option<&str>) -> WorkflowAudit {
     let on_disk = root.join(path);
-    match std::fs::read_to_string(&on_disk) {
+    // One reader: the run's own capture of the world, before the check, which judges the
+    // workflow and its children from those bytes; captured again after it, a world that moved
+    // meanwhile is not the one judged.
+    let world = crate::closure::capture(root, path);
+    let source = match &world {
+        Ok(world) => (world.text(world.root()).map(str::to_owned)).ok_or_else(|| "not text".into()),
+        Err(_) => std::fs::read_to_string(&on_disk).map_err(|e| e.to_string()),
+    };
+    match source {
         Ok(source) => {
             let base = on_disk.parent().map(Path::to_path_buf);
-            let mut read = |p: &str| std::fs::read_to_string(p).map_err(|e| e.to_string());
+            let mut read = |p: &str| match &world {
+                Ok(world) => crate::closure::served(world, root, p),
+                Err(_) => std::fs::read_to_string(p).map_err(|e| e.to_string()),
+            };
             let judged = audit_source(
                 &source,
                 &on_disk.display().to_string(),
@@ -706,6 +736,14 @@ pub fn check_with_access(root: &Path, path: &Path, pin: Option<&str>) -> Workflo
                 audit.clean = false;
                 audit.findings.extend(blocked);
             }
+            match crate::closure::settled(world, root, path) {
+                Ok(closure) => audit.closure = Some(closure),
+                Err(why) if audit.clean => {
+                    audit.clean = false;
+                    audit.findings.push(why);
+                }
+                Err(_) => {}
+            }
             audit
         }
         Err(e) => WorkflowAudit {
@@ -716,6 +754,7 @@ pub fn check_with_access(root: &Path, path: &Path, pin: Option<&str>) -> Workflo
             effects: Vec::new(),
             world: World::default(),
             bytes: None,
+            closure: None,
         },
     }
 }
@@ -759,6 +798,7 @@ fn fold_audit<E: std::fmt::Display>(
                 effects: effect_rows(&audit.report),
                 world,
                 bytes: None,
+                closure: None,
             }
         }
         Err(e) => WorkflowAudit {
@@ -769,6 +809,7 @@ fn fold_audit<E: std::fmt::Display>(
             effects: Vec::new(),
             world: World::default(),
             bytes: None,
+            closure: None,
         },
     }
 }
@@ -1058,6 +1099,7 @@ mod tests {
             max_cost_usd: 0.1,
             access_pin: None,
             bytes: audit.bytes.clone().map(Box::new),
+            closure: audit.closure.clone().map(Box::new),
         };
         assert!(run.admits(WORKFLOW));
         let changed = WORKFLOW.replace("max_tokens: 40", "max_tokens: 41");

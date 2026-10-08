@@ -17,15 +17,17 @@ const GATE: &str = "nika: session-gate\npermits: { tools: [\"nika:prompt\"] }\nt
 const COPY: &str = "Read ./notes/brief.md and write it to ./out/copy.md";
 const BRIEF: &str = "# Brief\n\nThe launch moves to October.\n";
 
-/// A request for `workflow` under `root`, bound to its bytes as they stand now (none when absent).
+/// A request for `workflow` under `root`, bound to the bytes and the world the Session's own
+/// check judges as they stand now (none when absent).
 fn request(root: &Path, workflow: &str) -> RunRequest {
-    let bytes = std::fs::read(root.join(workflow)).ok();
+    let audit = nika_session::change::check_on_disk(root, Path::new(workflow));
     RunRequest {
         workflow: PathBuf::from(workflow),
         vars: Vec::new(),
         max_cost_usd: 0.1,
         access_pin: None,
-        bytes: bytes.map(|bytes| Box::new(nika_session::Witness::of(&bytes))),
+        bytes: audit.bytes.map(Box::new),
+        closure: audit.closure.map(Box::new),
     }
 }
 

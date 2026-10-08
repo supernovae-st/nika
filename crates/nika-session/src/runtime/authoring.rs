@@ -1242,7 +1242,7 @@ impl SessionRuntime {
             needed,
             given,
             world: audit.world,
-            bytes: audit.bytes,
+            checked: (audit.bytes, audit.closure),
         };
         self.remember(input, "(run requested)");
         self.request_or_ask(inputs)
@@ -1286,7 +1286,8 @@ impl SessionRuntime {
                 vars: inputs.given,
                 max_cost_usd: inputs.max_cost_usd,
                 access_pin: inputs.access_pin,
-                bytes: inputs.bytes.map(Box::new),
+                bytes: inputs.checked.0.map(Box::new),
+                closure: inputs.checked.1.map(Box::new),
             },
         }
     }
@@ -1357,8 +1358,8 @@ pub(super) struct RunInputs {
     given: Vec<String>,
     /// Where the bytes the check cleared for this request reach (`work().requested`).
     world: crate::world::World,
-    /// The witness of those exact bytes: the run is bound to them.
-    bytes: Option<Witness>,
+    /// The witness of those exact bytes and the closure of their world: the run is bound to both.
+    checked: (Option<Witness>, Option<crate::change::Closure>),
 }
 
 impl RunInputs {
