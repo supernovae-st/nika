@@ -3,19 +3,20 @@
 
 //! The document door's own laws (R5 · C13): what the author of a fresh CREATE makes of the
 //! complete document, and the record that follows it. The author writes the whole `.nika`, or
-//! states the operations of [`super::apply`] over its own text (its envelope at least) or over
+//! states the operations of [`apply`](crate::foundry::document::apply) over its own text (its envelope at least) or over
 //! the last document the door made: an admitted component is composed by identity, bound at its
 //! holes and receipted, never retyped. The door that asks the author, judges, settles and
 //! examines the document lives in `nika-compile-cognition`; this module only makes and records,
 //! and calls no provider.
 //!
 //! The record keeps three facts apart: the bytes the author wrote (no preservation claimed), each
-//! component an operation expanded (its receipt witnessed on the bytes, [`reuse`]), and the
+//! component an operation expanded (its receipt witnessed on the bytes, [`reuse`](crate::foundry::reuse)), and the
 //! knowledge only shown (consulted, never reused). Reuse grants nothing: Check judges the
 //! boundary the document states.
 //!
 //! One record follows a created document: the native record its answer rounds replay, with the
-//! door's section beside it (`plan.document_create`). Once the document is READY, [`bind`] binds
+//! door's section beside it (`plan.document_create`). Once the document is READY,
+//! [`bind`](crate::foundry::document::create::bind) binds
 //! that record to the final bytes (answers baked, model seated, caps filled) with the request
 //! they answer and each component's receipt (`plan.document`): what a later change in words
 //! revises the document from.

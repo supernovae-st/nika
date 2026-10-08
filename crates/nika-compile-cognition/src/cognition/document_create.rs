@@ -15,7 +15,8 @@
 //! and whole-request judgment as the sketch door's. A refusal goes back as named findings; the
 //! next round restates the whole document or states operations over the last one. The rounds run
 //! as the policy states them (no count: until no progress, a refused or failed call, or Stop).
-//! Once the document is READY, [`bind`] binds its native record to the final bytes.
+//! Once the document is READY, [`bind`](nika_compile_seats::foundry::document::create::bind)
+//! binds its native record to the final bytes.
 
 use super::native::{
     self, Answer, Question, Shaped, Talk, cold, conclude, floor_refuses, judge, prelude,
