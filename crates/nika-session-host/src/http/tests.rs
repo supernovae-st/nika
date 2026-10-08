@@ -554,3 +554,90 @@ async fn a_resync_snapshot_is_never_newer_than_its_cursor() {
     );
     assert!(result["snapshot"]["seq"].as_u64() > resync["snapshot"]["seq"].as_u64());
 }
+
+/// The frames of a question answered, a Stop that wins, a busy line and a conflict, over HTTP.
+async fn http_decisions(root: &Path) -> Vec<(String, Value, Value)> {
+    const DRAFT: &str = "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md";
+    let sessions = sessions(root);
+    let address = listen(Arc::clone(&sessions)).await;
+    let mut steps = Vec::new();
+    let (_, opened) = call(address, "POST", "/v1/sessions", "").await;
+    steps.push(("open".to_owned(), Value::Null, opened.clone()));
+    let session = opened["session"].as_str().expect("session").to_owned();
+    let path = format!("/v1/sessions/{session}/commands");
+    let post = |label: &str, body: Value| {
+        let (path, label) = (path.clone(), label.to_owned());
+        async move {
+            (
+                label,
+                body.clone(),
+                call(address, "POST", &path, &body.to_string()).await.1,
+            )
+        }
+    };
+    // A Stop that wins over a late proposal, with a busy line and a conflict while it runs.
+    let host = sessions.any_live().await.expect("live");
+    let gate = Gate::default();
+    host.pause_at(gate.pause());
+    gate.hold("returned");
+    let first = opened["snapshot"]["snapshot"].clone();
+    let held = command("submit", "c-1", &first, COPY);
+    let (held_body, held_path) = (held.to_string(), path.clone());
+    let turn = tokio::spawn(async move { call(address, "POST", &held_path, &held_body).await.1 });
+    let waiting = gate.clone();
+    tokio::task::spawn_blocking(move || waiting.reached())
+        .await
+        .expect("held");
+    steps.push(post("busy", command("submit", "c-2", &first, "hello")).await);
+    steps.push(post("conflict", command("submit", "c-1", &first, "other")).await);
+    steps.push(post("stop", command("stop", "s-1", &Value::Null, "")).await);
+    gate.release();
+    let settled = turn.await.expect("turn");
+    let next = settled["snapshot"]["snapshot"].clone();
+    steps.push(("stopped_settlement".to_owned(), held, settled));
+    steps.push(post("stop_replayed", command("stop", "s-1", &Value::Null, "")).await);
+    // Then the compiler's question, and the answer typed against it.
+    let asked = post("question", command("submit", "q-1", &next, DRAFT)).await;
+    let answer_on = asked.2["snapshot"]["snapshot"].clone();
+    steps.push(asked);
+    let answer = command("submit", "q-2", &answer_on, "mistral/mistral-small");
+    steps.push(post("answer", answer).await);
+    let (_, closed) = call(address, "DELETE", &format!("/v1/sessions/{session}"), "").await;
+    steps.push(("close".to_owned(), Value::Null, closed));
+    steps
+}
+
+/// Record the contract's frames from the real doors over a scripted Session (its reasoner
+/// is synthetic and never asked; the deterministic compiler reads the intents): the parity
+/// script on both doors, and the decisions over HTTP. Writes JSON files under the system
+/// temporary directory and prints where.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "writes a fixture for the client SDK; run on demand"]
+async fn record_contract_fixture() {
+    let out =
+        std::env::temp_dir().join(format!("nika-session-host-fixture-{}", std::process::id()));
+    std::fs::create_dir_all(&out).expect("fixture dir");
+    let (native_root, http_root, decision_root) = (world(), world(), world());
+    let native_path = native_root.path().to_path_buf();
+    let (native, native_log) = tokio::task::spawn_blocking(move || native_script(&native_path))
+        .await
+        .expect("native");
+    let (http, http_log) = http_script(http_root.path()).await;
+    let decisions = http_decisions(decision_root.path()).await;
+    let decisions: Vec<Value> = (decisions.into_iter())
+        .map(|(step, sent, answered)| serde_json::json!({"step": step, "sent": sent, "answered": answered}))
+        .collect();
+    let files = [
+        ("native-answers.json", Value::Array(native)),
+        ("native-log.json", Value::Array(native_log)),
+        ("http-answers.json", Value::Array(http)),
+        ("http-sse-log.json", Value::Array(http_log)),
+        ("http-decisions.json", Value::Array(decisions)),
+    ];
+    for (name, value) in files {
+        let text = serde_json::to_string_pretty(&value).expect("json");
+        std::fs::write(out.join(name), text).expect("fixture file");
+    }
+    let mut stdout = std::io::stdout().lock();
+    writeln!(stdout, "fixture written to {}", out.display()).expect("stdout");
+}
