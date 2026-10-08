@@ -21,6 +21,7 @@ use nika_compile::{AuthoringKnowledge, KnowledgeReference};
 use serde_json::{Value, json};
 
 use super::component::ComponentCatalog;
+use super::entry::{role_line, sources_line};
 use super::recall::{block_metadata, text_of};
 
 /// The law the coverage account states.
@@ -30,13 +31,44 @@ pub const REACH: &str = "every admitted entry the catalogue lists is a candidate
 pub const DESCRIPTOR: &str =
     "[descriptor of an admitted entry; its full text is resolved when it applies]";
 
-/// An admitted entry's descriptor: its title and purpose, then the metadata that keeps it from
-/// being misused (version, holes, effects, authority, interfaces, callables, known failures).
+/// The fields that say what an entry is for, whatever its kind: a block's or pattern's purpose, a
+/// family's need, an example's intent, a counterexample's difference and why it is wrong, a
+/// callable's description, a construct's what and when, a skill's scope, a diagnostic's failure
+/// and teaching, a repair's symptom and strategy, a skeleton's how, a facet's values.
+const PURPOSE: [&str; 16] = [
+    "purpose",
+    "need",
+    "intent",
+    "difference",
+    "why_wrong",
+    "description",
+    "what",
+    "when",
+    "when_not",
+    "scope",
+    "failure",
+    "teach",
+    "symptom",
+    "strategy",
+    "how",
+    "values",
+];
+
+/// An admitted entry's descriptor: its role, title and purpose, then the metadata that keeps it
+/// from being misused (version, holes, effects, authority, interfaces, callables, known
+/// failures) and the sources it derives from.
 #[must_use]
 pub fn descriptor(row: &Value) -> String {
     let title = text_of(row, &["title"]);
-    let purpose = text_of(row, &["purpose", "need", "intent", "strategy"]);
-    let text = format!("{DESCRIPTOR}\n{title} — {purpose}\n{}", block_metadata(row));
+    let purpose = text_of(row, &PURPOSE);
+    let role = role_line(row)
+        .map(|line| format!("{line}\n"))
+        .unwrap_or_default();
+    let sources = sources_line(row).unwrap_or_default();
+    let text = format!(
+        "{DESCRIPTOR}\n{role}{title} — {purpose}\n{}{sources}",
+        block_metadata(row)
+    );
     text.trim_end().to_owned()
 }
 
