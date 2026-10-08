@@ -55,6 +55,7 @@ mod restore;
 mod review;
 mod round;
 mod route;
+mod run_admission;
 mod run_budget;
 mod unjudged;
 mod unknown_cost;
@@ -328,7 +329,7 @@ pub struct SessionRuntime {
     /// (presentation only: it never carries workflow meaning).
     progress: crate::activity::Progress,
     /// A run request waiting on the values of the workflow's declared inputs.
-    run_inputs: Option<authoring::RunInputs>,
+    run_inputs: Option<run_admission::RunInputs>,
     /// Whether the human chose (or kept) an intelligence. Opened without one,
     /// the session works from the engine's facts and the deterministic
     /// compiler, and asks the first screen only when a turn needs more.
