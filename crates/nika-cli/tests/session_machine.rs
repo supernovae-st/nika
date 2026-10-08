@@ -87,3 +87,57 @@ fn the_machine_door_opens_proposes_saves_and_closes_on_stdin_end() {
     assert!(closed["event"].as_u64() > saved["event"].as_u64());
     assert!(child.wait().expect("exit").success());
 }
+
+/// The first frame of `nika session --json` plus `extra`, in an isolated HOME and an empty
+/// environment, with stdin closed; and the exit.
+fn first_frame(extra: &[&str], project: &std::path::Path, home: &std::path::Path) -> (Value, bool) {
+    let out = Command::new(env!("CARGO_BIN_EXE_nika"))
+        .args(["session", "--json"])
+        .args(extra)
+        .current_dir(project)
+        .env_clear()
+        .env("HOME", home)
+        .env("PATH", "/usr/bin:/bin")
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .expect("nika session --json");
+    let stdout = String::from_utf8(out.stdout).expect("utf-8");
+    let line = stdout.lines().next().expect("a first frame");
+    let frame: Value = serde_json::from_str(line).expect("one JSON object per line");
+    assert_eq!(frame["contract"], "nika/session-host@1");
+    (frame, out.status.success())
+}
+
+/// The opener names this conversation's intelligence on the command line, in the census's own
+/// words: it holds for this conversation and the operator's kept choice is never written; words
+/// the census does not read open nothing. The native identity advertises the word.
+#[test]
+fn the_machine_door_opens_with_the_conversation_s_named_choice() {
+    let project = tempfile::tempdir().expect("project");
+    let home = tempfile::tempdir().expect("home");
+    let (opened, _) = first_frame(&["--intelligence", "4"], project.path(), home.path());
+    assert_eq!(opened["frame"], "opened", "{opened}");
+    let selected = &opened["snapshot"]["work"]["intelligence"]["selected"];
+    assert_eq!(selected["kind"], "none", "{opened}");
+    assert_eq!(selected["scope"], "conversation", "{opened}");
+    let (refused, success) = first_frame(&["--intelligence=9"], project.path(), home.path());
+    assert_eq!(refused["frame"], "refused", "{refused}");
+    assert_eq!(refused["error"], "session_unavailable", "{refused}");
+    assert!(!success, "a refused open is not a success");
+    let kept = nika_session::intelligence::UserIntelligencePreference::path_under(home.path());
+    assert!(!kept.exists(), "the operator's choice is never written");
+    let identity = Command::new(env!("CARGO_BIN_EXE_nika"))
+        .arg("--sdk-identity")
+        .current_dir(project.path())
+        .env_clear()
+        .env("HOME", home.path())
+        .output()
+        .expect("identity");
+    let identity: Value = serde_json::from_slice(&identity.stdout).expect("identity JSON");
+    let words = identity["supportedCapabilities"].as_array().expect("words");
+    assert!(
+        words.contains(&Value::from("sessionIntelligence")),
+        "{identity}"
+    );
+}

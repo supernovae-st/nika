@@ -27,6 +27,7 @@ const SUPPORTED_CAPABILITIES: &[&str] = &[
     "inputsLiteral",
     "compile",
     "sessionHost",
+    "sessionIntelligence",
 ];
 
 /// The engine, source and machine-protocol identity compiled into this build.

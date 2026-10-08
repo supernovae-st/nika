@@ -667,6 +667,10 @@ fn plain_session_requested() -> bool {
 /// Bare `nika` (the session on a terminal · the concierge on a pipe), `nika --json`, `nika version` — decided
 /// before clap so a missing subcommand never clap-fails the front door.
 fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
+    // ADR-148 · the native machine door: the same Session as bare `nika`, NDJSON on stdio.
+    if let Some(code) = verbs::session::machine_entry(argv) {
+        return Some(std::process::ExitCode::from(code));
+    }
     let mut json = false;
     let mut ascii = false;
     let mut plain = false;
@@ -731,13 +735,6 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             Some(std::process::ExitCode::SUCCESS)
         }
         Some("--sdk-identity") if positional.len() == 1 => Some(sdk_identity()),
-        // ADR-148 · the native machine door: the same Session as bare `nika`, NDJSON on stdio.
-        Some("session") if positional.len() == 1 && json => {
-            let jq = (std::env::current_exe().ok()).map(nika_onboard::compile::room::JqHelper::new);
-            Some(std::process::ExitCode::from(verbs::session::run_machine(
-                jq,
-            )))
-        }
         _ => None,
     }
 }
