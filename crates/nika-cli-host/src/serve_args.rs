@@ -19,20 +19,24 @@ pub struct NativeAuthoringArgs {
         requires = "bind"
     )]
     pub model: Option<String>,
-    /// Output tokens per call (1..=32768, default 8192); a caller may only narrow it.
+    /// Output tokens per call (positive); absent, the route's own completion bound. A caller
+    /// may only narrow it.
     #[arg(long = "authoring-max-tokens", value_name = "N", requires = "model")]
     pub max_tokens: Option<u32>,
-    /// Seconds per model invocation (1..=600, default 120); resends consume the request grant.
+    /// Seconds per model invocation (positive); absent, the route's own wait. Resends consume
+    /// the request grant.
     #[arg(long = "authoring-timeout", value_name = "SECONDS", requires = "model")]
     pub timeout: Option<u64>,
-    /// Seconds per request (1..=3600, default 300): the work stops and the request answers 408.
+    /// Seconds per round (positive): the work stops and the request answers 408. Absent, no
+    /// round deadline.
     #[arg(
         long = "authoring-deadline",
         value_name = "SECONDS",
         requires = "model"
     )]
     pub deadline: Option<u64>,
-    /// Desired repair rounds (0..=5, default 3), within the operator's explicit request grant.
+    /// Desired repair rounds, within the operator's explicit request grant. Absent, no count:
+    /// repairs continue while they make progress.
     #[arg(long = "authoring-repairs", value_name = "N", requires = "model")]
     pub repairs: Option<u32>,
     /// A Foundry knowledge release root, admitted and pinned at start against a trusted identity;
