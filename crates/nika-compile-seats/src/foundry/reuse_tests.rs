@@ -664,3 +664,29 @@ fn an_editor_inserting_the_exact_entries_gets_the_same_node_receipt() {
         Err(ExpandError::Unproven(_))
     ));
 }
+
+#[test]
+fn a_hole_in_the_components_authority_is_never_bound_and_never_open() {
+    let mut stale = component(STALE);
+    stale
+        .holes
+        .push(Hole::new("permits.fs.read", "human", None));
+    let refused = instantiate(
+        &stale,
+        &[Binding::new(
+            "permits.fs.read",
+            json!(["./in/tickets.json"]),
+        )],
+    );
+    assert_eq!(
+        refused.unwrap_err(),
+        BindingError::Authority("permits.fs.read".to_owned())
+    );
+    // Its permits never reach the document: the hole is closed by construction, and the
+    // person's own boundary is the one Check judges.
+    let instance = instantiate(&stale, &bound(48)).unwrap();
+    assert!(instance.open.is_empty(), "{:?}", instance.open);
+    let expansion = expand(PARENT, &instance).unwrap();
+    assert!(expansion.ready, "{:#}", expansion.receipt["check"]);
+    assert!(!expansion.candidate.contains("./data/tickets.json"));
+}

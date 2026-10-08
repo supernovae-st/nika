@@ -245,6 +245,9 @@ pub enum BindingError {
     /// Holes the expansion needs bound are open: a component's own literals there (its probe's
     /// paths, fields, defaults) are never taken for the request's.
     Unbound(Vec<String>),
+    /// The path is the component's authority (`permits`, `secrets`): an expansion never carries
+    /// it, the person's own boundary governs, so no binding writes there.
+    Authority(String),
     /// The bounded edit refused the literal.
     Unproven(EditRefusal),
 }
@@ -267,6 +270,10 @@ impl fmt::Display for BindingError {
                 f,
                 "open holes: {}; the component's own literals there are not the request's",
                 holes.join(", ")
+            ),
+            Self::Authority(path) => write!(
+                f,
+                "`{path}` is the component's authority, which an expansion never carries: the person's own boundary governs"
             ),
             Self::Unproven(refusal) => refusal.fmt(f),
         }
@@ -302,6 +309,9 @@ pub fn judge(component: &Component, bindings: &[Binding]) -> Result<(), BindingE
     let mut seen: Vec<&str> = Vec::new();
     for binding in bindings {
         let path = binding.path.as_str();
+        if authority(path) {
+            return Err(BindingError::Authority(path.to_owned()));
+        }
         if component.hole(path).is_none() {
             return Err(BindingError::UnknownHole(path.to_owned()));
         }
@@ -326,6 +336,12 @@ pub fn judge(component: &Component, bindings: &[Binding]) -> Result<(), BindingE
     Ok(())
 }
 
+/// Whether a path lies in the component's authority (`permits`, `secrets`), which an expansion
+/// never carries.
+fn authority(path: &str) -> bool {
+    ["permits", "secrets"].iter().any(|key| overlaps(path, key))
+}
+
 /// Whether two dotted paths reach the same literal: one is the other or lies under it.
 fn overlaps(a: &str, b: &str) -> bool {
     let under = |long: &str, short: &str| {
@@ -337,13 +353,14 @@ fn overlaps(a: &str, b: &str) -> bool {
 
 /// The holes of `component` the bindings leave open, by name. A hole is closed when a binding
 /// names it, or — a mapping hole such as `inputs` — when every entry of it that holds a literal
-/// (an input's default) is bound: one bound input never closes the others' probe defaults.
+/// (an input's default) is bound: one bound input never closes the others' probe defaults. A
+/// hole in the component's authority is never open: an expansion never carries it.
 #[must_use]
 pub fn open_holes(component: &Component, bindings: &[Binding]) -> Vec<String> {
     let document = literal_projection(&component.source).unwrap_or(Value::Null);
     let bound = |path: &str| bindings.iter().any(|b| overlaps(&b.path, path));
     let closed = |name: &str| {
-        if bindings.iter().any(|b| b.path == name) {
+        if authority(name) || bindings.iter().any(|b| b.path == name) {
             return true;
         }
         let node = name
