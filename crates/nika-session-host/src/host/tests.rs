@@ -586,6 +586,20 @@ fn the_same_question_in_another_session_is_another_identity() {
         waiting["id"], other["snapshot"]["work"]["waiting"]["id"],
         "the witness text is shared; the identity is not"
     );
+    // The question itself travels beside its identity, as the compiler asks it: the model, a
+    // text answer the candidate cannot be Ready without.
+    let question = &asked["snapshot"]["work"]["question"];
+    assert_eq!(
+        (&question["key"], &question["type"], &question["mandatory"]),
+        (
+            &waiting["key"],
+            &serde_json::json!("text"),
+            &serde_json::json!(true)
+        ),
+        "{question}"
+    );
+    assert_eq!(waiting["key"], "model");
+    assert!(question.get("options").is_none(), "{question}");
     let foreign = handle(&second);
     let refused = reply(first.dispatch(submit("c-2", &foreign, "mistral/mistral-small")));
     assert_eq!(refused["error"], "unknown_snapshot");
