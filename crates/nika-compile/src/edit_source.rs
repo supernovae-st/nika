@@ -25,7 +25,7 @@ pub(super) fn emit(source: &str, before: &Value, after: &Value, name: &str) -> O
 /// literal at that path in `after` replaces the one the source presents there, when that
 /// presentation is a single-line scalar, a flow collection or a block sequence ending in a
 /// one-line scalar item — whose flow form then takes its place, from its first `-` to its
-/// last item.
+/// last item (two columns deeper for an indentless block, so it stays the key's value).
 pub(super) fn emit_at(
     source: &str,
     before: &Value,
@@ -42,11 +42,12 @@ pub(super) fn emit_at(
     for key in path {
         replacement = replacement.get(key)?;
     }
-    let (start, end) = literal_range(source, path)?;
+    let (start, end, deeper) = literal_range(source, path)?;
     let prefix = source.get(..start)?;
     let suffix = source.get(end..)?;
     let replacement = yaml_safe_json(&replacement.to_string());
-    let candidate = format!("{prefix}{replacement}{suffix}");
+    let indent = if deeper { "  " } else { "" };
+    let candidate = format!("{prefix}{indent}{replacement}{suffix}");
     // Validate both readers on the OUTPUT too: acceptance must not manufacture
     // decoder drift that prevents a later unrelated edit of this candidate.
     (serde_yaml_bw::from_str::<Value>(&candidate).ok().as_ref() == Some(after)
@@ -70,8 +71,9 @@ fn yaml_safe_json(token: &str) -> String {
 }
 
 /// Byte range of the literal at a key path (`const` · name, or `const` · name · `value` for a
-/// typed declaration), or `None` when its presentation is outside this bounded slice.
-fn literal_range(source: &str, path: &[&str]) -> Option<(usize, usize)> {
+/// typed declaration), or `None` when its presentation is outside this bounded slice; with
+/// whether it is an indentless block sequence (its `-` at its key's own column).
+fn literal_range(source: &str, path: &[&str]) -> Option<(usize, usize, bool)> {
     let options = LoaderOptions::default()
         .error_on_duplicate_keys(true)
         .prevent_coercion(true);
@@ -82,9 +84,10 @@ fn literal_range(source: &str, path: &[&str]) -> Option<(usize, usize)> {
         parent = parent.as_mapping()?.get_node(key)?;
     }
     let node = parent.as_mapping()?.get_node(last)?;
-    let start = byte_offset(source, node.span().start()?.character())?;
+    let mut start = byte_offset(source, node.span().start()?.character())?;
     let parent_start = byte_offset(source, parent.span().start()?.character())?;
     let flow = source.as_bytes().get(parent_start) == Some(&b'{');
+    let (dash, mut deeper) = (opening_dash(source, start), false);
     let end = match node {
         // An omitted value (`key:`) is an empty PLAIN scalar that the parser
         // marks at the NEXT token: that range is never the target. No written
@@ -92,13 +95,16 @@ fn literal_range(source: &str, path: &[&str]) -> Option<(usize, usize)> {
         Node::Scalar(scalar) if scalar.may_coerce() && scalar.as_str().is_empty() => return None,
         Node::Scalar(_) => scalar_end(source, start, flow)?,
         // A block sequence (`- a` lines under the key) ends where its last scalar item ends;
-        // the flow form written in its place is valid YAML on the item's first line.
-        Node::Sequence(items) if source.as_bytes().get(start) == Some(&b'-') => {
+        // the flow form written in its place is valid YAML on the item's first line. An
+        // indentless block is marked at its first item: its flow form starts at the `-`.
+        Node::Sequence(items) if dash.is_some() => {
             let last = items.last()?;
             let Node::Scalar(_) = last else {
                 return None;
             };
             let item_start = byte_offset(source, last.span().start()?.character())?;
+            let dash = dash?;
+            (deeper, start) = (dash != start, dash);
             scalar_end(source, item_start, false)?
         }
         Node::Mapping(_) | Node::Sequence(_) => {
@@ -114,7 +120,19 @@ fn literal_range(source: &str, path: &[&str]) -> Option<(usize, usize)> {
             end.checked_add(1)?
         }
     };
-    Some((start, end))
+    Some((start, end, deeper))
+}
+
+/// The `-` opening a block sequence the parser marked at `start`: that byte, or for an
+/// indentless block (marked at its first item) the lone `-` before that item on its line.
+fn opening_dash(source: &str, start: usize) -> Option<usize> {
+    if source.as_bytes().get(start) == Some(&b'-') {
+        return Some(start);
+    }
+    let line = source.get(..start)?.rfind('\n').map_or(0, |at| at + 1);
+    let head = source.get(line..start)?.trim_end_matches(' ');
+    let dash = line.checked_add(head.len())?.checked_sub(1)?;
+    (head.trim_start_matches(' ') == "-").then_some(dash)
 }
 
 fn byte_offset(source: &str, character: usize) -> Option<usize> {
@@ -191,9 +209,27 @@ mod tests {
         assert_eq!(crate::edit::literal_projection(&edited), Some(after));
     }
 
+    #[test]
+    fn an_indentless_block_sequence_takes_the_flow_form_under_its_key() {
+        let source = "nika: x\npermits:\n  net:\n    http:\n    - \"a.example\"\n    - \"b.example\"\ntasks: {}\n";
+        let before = crate::edit::literal_projection(source).expect("projects");
+        let mut after = before.clone();
+        after["permits"]["net"]["http"] =
+            serde_json::json!(["a.example", "b.example", "hooks.invalid"]);
+        let edited =
+            super::emit_at(source, &before, &after, &["permits", "net", "http"]).expect("edited");
+        assert!(
+            edited.contains(
+                "http:\n      [\"a.example\",\"b.example\",\"hooks.invalid\"]\ntasks: {}"
+            ),
+            "{edited}"
+        );
+        assert_eq!(crate::edit::literal_projection(&edited), Some(after));
+    }
+
     fn located(consts: &str, typed: bool) -> Option<String> {
         let source = format!("nika: x\nconst:\n{consts}\ntasks: {{}}\n");
-        let (start, end) = if typed {
+        let (start, end, _) = if typed {
             literal_range(&source, &["const", "payload", "value"])?
         } else {
             literal_range(&source, &["const", "payload"])?

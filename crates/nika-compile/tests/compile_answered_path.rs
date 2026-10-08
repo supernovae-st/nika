@@ -301,3 +301,34 @@ fn a_block_placeholder_completes_the_same_and_any_other_block_is_kept() {
         );
     }
 }
+
+/// The block may also be indentless (`- ""` at its key's own column, the shape `copy-fr.json`
+/// uses): it completes the same, its flow form written two columns deeper so it stays the
+/// key's value, and an indentless block with any other entry is kept byte for byte.
+#[test]
+fn an_indentless_block_placeholder_completes_the_same() {
+    let flow = copy_to(r#"[""]"#);
+    let placeholder = "    write:\n    - \"\"\n";
+    let block = flow.replace("    write: [\"\"]\n", placeholder);
+    assert!(block.contains(placeholder), "{block}");
+    let answer = [("const.destination_path", r#""sortie.txt""#)];
+    let questions = asked(&["const.destination_path"]);
+    let out = answered(&block, &questions, &answer);
+    assert!(held_for_its_judge(&out, INTENT), "{out:#?}");
+    assert_eq!(fs(&out, "write"), json!(["sortie.txt"]), "{out:#?}");
+    assert!(granted(&out, "write") && !granted(&out, "read"));
+    let expected = block
+        .replace(placeholder, "    write:\n      [\"sortie.txt\"]\n")
+        .replace(
+            "  destination_path: \"\"\n",
+            "  destination_path: \"sortie.txt\"\n",
+        );
+    assert_eq!(out.candidate.as_deref(), Some(expected.as_str()));
+    let entries = "    write:\n    - \"./out/**\"\n    - \"\"\n";
+    let kept = flow.replace("    write: [\"\"]\n", entries);
+    let out = answered(&kept, &questions, &answer);
+    assert!(!granted(&out, "write"));
+    assert_ne!(out.status, CompileStatus::Ready);
+    let source = out.candidate.as_deref().unwrap_or_default();
+    assert!(source.contains(entries), "kept as written: {source}");
+}
