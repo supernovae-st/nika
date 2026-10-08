@@ -668,6 +668,30 @@ fn harness_preflight(
     }
 }
 
+/// `request` under the session's authoring policy for `model` on `seat`: its strategy and
+/// source recovery, the observed preparation while preparation costs are observed, and the
+/// named reasoning effort.
+fn under_session_policy(
+    request: CompileRequest,
+    model: &str,
+    seat: &AuthoringSeat,
+    context: &AuthoringContext,
+) -> CompileRequest {
+    let harness = matches!(seat, AuthoringSeat::Harness { .. });
+    let policy =
+        session_policy(model, harness, context.strategy()).with_source_recovery(context.recovery);
+    let request = if PreparationCosts::active() {
+        request.with_observed_preparation()
+    } else {
+        request
+    };
+    // Every authoring and repair call asks the named effort; the caps stay the policy's (R4 B16).
+    request.with_authoring_policy(match context.reasoning() {
+        Some(level) => policy.with_reasoning(level),
+        None => policy,
+    })
+}
+
 fn compile_attached(
     seat: &AuthoringSeat,
     context: &AuthoringContext,
@@ -708,17 +732,7 @@ fn compile_attached(
     if let Some(why) = context.refusal() {
         return Err(AuthoringError::Context(why.clone()));
     }
-    let harness = matches!(seat, AuthoringSeat::Harness { .. });
-    let policy =
-        session_policy(&model, harness, context.strategy()).with_source_recovery(context.recovery);
-    if PreparationCosts::active() {
-        request = request.with_observed_preparation();
-    }
-    // Every authoring and repair call asks the named effort; the caps stay the policy's (R4 B16).
-    request = request.with_authoring_policy(match context.reasoning() {
-        Some(level) => policy.with_reasoning(level),
-        None => policy,
-    });
+    request = under_session_policy(request, &model, seat, context);
     let pack = match attach {
         Attach::Compose(intent) => context.compose(intent)?,
         Attach::Carried(..) => None,

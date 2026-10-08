@@ -900,17 +900,7 @@ impl SessionRuntime {
         match input {
             "/quit" | "/exit" => return TurnOutcome::Quit,
             _ if input.starts_with("/intelligence ") => return self.choose_unrecorded(input),
-            "/intelligence" => {
-                return match &self.census {
-                    Some(census) => {
-                        let screen =
-                            format!("{}\n{}", self.intelligence_card(), census.first_screen());
-                        self.pending_choice = true;
-                        TurnOutcome::Ask(screen)
-                    }
-                    None => TurnOutcome::Facts(self.intelligence_card()),
-                };
-            }
+            "/intelligence" => return self.intelligence_screen(),
             _ => {}
         }
         // An open authoring question owns the next line — before any
@@ -982,6 +972,19 @@ impl SessionRuntime {
             return self.ask_for_intelligence(input, Need::Conversation);
         }
         self.converse_unrecorded(input)
+    }
+
+    /// `/intelligence`: the first screen again when the census is known, the next line
+    /// picking; without a census, the card of the intelligence in use.
+    fn intelligence_screen(&mut self) -> TurnOutcome {
+        match &self.census {
+            Some(census) => {
+                let screen = format!("{}\n{}", self.intelligence_card(), census.first_screen());
+                self.pending_choice = true;
+                TurnOutcome::Ask(screen)
+            }
+            None => TurnOutcome::Facts(self.intelligence_card()),
+        }
     }
 
     /// A free-text line the chosen intelligence answers, in words only,
