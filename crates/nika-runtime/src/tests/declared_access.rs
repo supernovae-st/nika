@@ -505,3 +505,85 @@ async fn a_contradicting_flag_refuses_at_the_gate() {
     assert!(sink.events().is_empty());
     assert!(api.captured_requests().is_empty());
 }
+
+/// A model RENDERED from an input has no static lane, yet it rides the
+/// declared seat with its whole receipt: the exact route id, the authored
+/// requirement and the call's read-back with the responder unknown.
+#[tokio::test]
+async fn a_rendered_model_on_the_declared_seat_keeps_its_receipt() {
+    let yaml = "nika: declared-access\ninputs:\n  m: { type: string, required: true }\npermits: {}\n\
+                run:\n  access: { via: codex, protocol: acp, fallback: none }\n  reasoning: { \
+                effort: xhigh }\ntasks:\n  ask:\n    agent:\n      prompt: \"summarise the \
+                invariants\"\n      model: \"${{ inputs.m }}\"\n";
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("parses");
+    let report = nika_check::check(&wf);
+    let requirement = wf.run.as_ref().and_then(|r| r.value.access_requirement());
+    let plan = nika_providers::resolve_execution_plan_declared(
+        &[],
+        &probes(),
+        None,
+        VerbNeeds::new(false, true),
+        requirement.as_ref(),
+    );
+    assert!(plan.is_admitted() && plan.lanes.is_empty(), "{plan:?}");
+    let api = Arc::new(MockProvider::new("mock").enqueue_text("never asked"));
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let backend = Arc::new(ScriptedCodex {
+        refreshed: &["medium", "high", "xhigh"],
+        seen: Arc::clone(&seen),
+    });
+    let runtime = runtime(Arc::clone(&api))
+        .with_access_plan(plan)
+        .with_harness_backend(backend, "codex".into())
+        .expect("seated")
+        .with_var_overrides([("m".to_owned(), Value::from(MODEL))].into_iter().collect());
+    let mut sink = VecSink::new();
+    let outcome = runtime
+        .run(&wf, &report, &mut DeterministicStamper::new(), &mut sink)
+        .await
+        .expect("the run settles");
+    let events = sink.into_events();
+    assert!(outcome.ok, "{events:?}");
+    assert!(
+        api.captured_requests().is_empty(),
+        "the API key is never dialed"
+    );
+    let prompts = seen
+        .lock()
+        .expect("seen")
+        .iter()
+        .filter(|r| r["method"] == "session/prompt")
+        .count();
+    assert_eq!(prompts, 1);
+    let done = events
+        .iter()
+        .find(|e| e.kind == EventKind::TaskCompleted)
+        .expect("completed");
+    assert_eq!(
+        (text(done, "access"), text(done, "access_id")),
+        (Some("harness"), Some("codex"))
+    );
+    let requirement: Value =
+        serde_json::from_str(text(done, "access_requirement").expect("requirement")).expect("json");
+    assert_eq!(
+        requirement,
+        json!({"via":"codex","protocol":"acp","fallback":"none","effort":"xhigh"})
+    );
+    let selection: Value =
+        serde_json::from_str(text(done, "access_selection").expect("receipt")).expect("json");
+    assert_eq!(selection["effort"]["configured"], "xhigh");
+    assert_eq!(
+        selection["effort"]["configured_source"],
+        "confirmed_selection"
+    );
+    assert_eq!(selection["model"]["transmitted"], "gpt-6-astra");
+    assert_eq!(
+        selection["responder"],
+        json!({"model": null, "evidence": "unknown"})
+    );
+}

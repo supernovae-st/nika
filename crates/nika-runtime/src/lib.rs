@@ -600,15 +600,6 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
         self.access_plan.as_ref()?.requirement()
     }
 
-    /// The admitted lane's plan for `model` — the access stamp a task
-    /// terminal carries (what actually served, never a prefix guess).
-    pub(crate) fn lane_plan(&self, model: &str) -> Option<nika_types::access::AccessPlan> {
-        self.access_plan
-            .as_ref()
-            .and_then(|plan| plan.lane(model))
-            .map(|lane| lane.plan.clone())
-    }
-
     /// Inject the workflow `secrets:` resolver (MINOR-B · the composer's
     /// env/file boundary). Builder form — the run binds the resolved values
     /// into the `secrets.X` namespace.
