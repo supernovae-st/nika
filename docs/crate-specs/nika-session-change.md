@@ -96,7 +96,7 @@ Two typed readings joined these modules on 2026-10-08, so every host reads the s
   pass.
   `Answered` says what the last line typed for an authoring question did, as the session recorded
   it at the act: the question's witness and one act, `bound` (the key, the value and how the
-  line gave it: `as_typed`, `offered_key` or `model_read`), `dropped`, `restated`, `waits` (with
+  line gave it: `as_typed`, `offered_key`, `model_read` or `seat_default`), `dropped`, `restated`, `waits` (with
   the reason) or `refused` (the refusal's class). It is absent when the last line was no answer.
   The candidate's `revision` is the compiler's record of how it made the workflow, only while
   that record binds the candidate's exact bytes: a creation (`written` or `composed`, no base) or

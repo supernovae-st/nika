@@ -1817,6 +1817,7 @@ pub type nika_session_change::work::Stage::Output = T
 pub nika_session_change::work::ValueSource::AsTyped
 pub nika_session_change::work::ValueSource::ModelRead
 pub nika_session_change::work::ValueSource::OfferedKey
+pub nika_session_change::work::ValueSource::SeatDefault
 impl core::clone::Clone for nika_session_change::work::ValueSource
 pub fn nika_session_change::work::ValueSource::clone(&self) -> nika_session_change::work::ValueSource
 impl core::cmp::Eq for nika_session_change::work::ValueSource

@@ -959,7 +959,8 @@ impl SessionRuntime {
             (Some("model"), AuthoringSeat::Provider { model }) => Some(model.clone()),
             _ => None,
         };
-        let line = if line.trim().is_empty() {
+        let defaulted = line.trim().is_empty();
+        let line = if defaulted {
             let Some(default) = seat_default else {
                 let asked = self.question_id_of(&round);
                 self.authoring = Some(round);
@@ -1024,7 +1025,7 @@ impl SessionRuntime {
             };
         }
         // A value said in words binds through its typed reading (`answer.rs`).
-        self.bind_answer(round, line)
+        self.bind_answer(round, line, defaulted)
     }
 
     /// The round compiled again after an answer or a restatement: a

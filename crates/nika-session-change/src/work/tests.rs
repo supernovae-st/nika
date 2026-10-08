@@ -198,6 +198,7 @@ fn an_answer_act_travels_with_its_question_and_only_its_own_fields() {
         (ValueSource::AsTyped, "as_typed"),
         (ValueSource::OfferedKey, "offered_key"),
         (ValueSource::ModelRead, "model_read"),
+        (ValueSource::SeatDefault, "seat_default"),
     ] {
         assert_eq!(
             wire(bound(reading)),

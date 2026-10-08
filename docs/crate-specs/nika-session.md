@@ -615,7 +615,8 @@ handed out; a wire host needs ADR-133's session identity follow-up.
 
 What the last line did to the question it was typed for travels in the work snapshot
 (`Work.answered`), recorded where the session did it, never read from the turn's outcome: the
-value bound and how (`as_typed`, `offered_key`, `model_read`), kept when the compile that
+value bound and how (`as_typed`, `offered_key`, `model_read`, or `seat_default` when an empty
+line took the chosen seat as the model question's default), kept when the compile that
 follows does not finish; the round dropped by a cancel, the word or a route's; the request or a
 clause restated in words, once the money gate admitted them; the question still waiting, with
 the reason; or a refusal before anything committed (an identity door, an empty line, an

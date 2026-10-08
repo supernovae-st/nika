@@ -227,7 +227,13 @@ impl SessionRuntime {
     /// Bind the open question to the typed reading of the human's line and read the
     /// round again: the line as typed, a verbatim part of it (said beside the outcome),
     /// or nothing — then the question waits and says why.
-    pub(super) fn bind_answer(&mut self, mut round: AuthoringRound, line: &str) -> TurnOutcome {
+    /// `defaulted`: the line is the question's offered default, taken for an empty line.
+    pub(super) fn bind_answer(
+        &mut self,
+        mut round: AuthoringRound,
+        line: &str,
+        defaulted: bool,
+    ) -> TurnOutcome {
         let offered = (round.current())
             .is_some_and(|q| is_offered_choice(q) && names_an_offer_alone(q, line));
         let reading = match round.current() {
@@ -235,6 +241,7 @@ impl SessionRuntime {
             None => AnswerReading::AsTyped,
         };
         let (value, reading) = match reading {
+            AnswerReading::AsTyped if defaulted => (line.to_owned(), ValueSource::SeatDefault),
             AnswerReading::AsTyped if offered => (line.to_owned(), ValueSource::OfferedKey),
             AnswerReading::AsTyped => (line.to_owned(), ValueSource::AsTyped),
             AnswerReading::Part(value) => (value, ValueSource::ModelRead),

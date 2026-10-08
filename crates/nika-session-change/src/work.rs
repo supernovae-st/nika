@@ -236,6 +236,9 @@ pub enum ValueSource {
     OfferedKey,
     /// A verbatim part of the line, chosen by the bounded reading call.
     ModelRead,
+    /// The seat the human already chose, the model question's offered default, taken for an
+    /// empty line: nothing was typed.
+    SeatDefault,
 }
 
 /// A refusal class on the wire: its stable word.
