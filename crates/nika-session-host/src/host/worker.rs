@@ -4,7 +4,7 @@
 //! The one thread that owns the runtime: a turn through [`SessionRuntime::submit`] with the
 //! published `Waiting`, the Session's Stop token armed before it, the withdrawal of a stopped
 //! preparation's late result before anything is published, then what the turn asked of the run
-//! door, then one publication.
+//! door (nothing once a Stop won: its run is not started), then one publication.
 
 use std::sync::mpsc;
 
@@ -16,6 +16,10 @@ use nika_session::work::Waiting;
 use super::{Job, Shared, publish};
 use crate::run::{RunDoor, RunStep};
 use crate::wire::{ActivityWire, Effect, Outcome, TurnPhase, project};
+
+/// Why a run a stopped turn requested was not started.
+const STOPPED: &str =
+    "the Stop accepted while this turn prepared ended it before its run was admitted · nothing ran";
 
 /// Closes the log when the worker ends, however it ends.
 struct Finish<'a>(&'a Shared);
@@ -101,6 +105,14 @@ impl Turn<'_> {
             });
         }
         for effect in effects {
+            // A Stop accepted while the turn prepared ends it before any run door is asked: the
+            // run or resume it requested starts nothing (a review answer arms no preparation).
+            if stopped && !matches!(effect, Effect::Reviewed { .. }) {
+                wire.push(Outcome::RunNotStarted {
+                    text: STOPPED.to_owned(),
+                });
+                continue;
+            }
             self.perform(runtime, door, held, effect, &mut wire);
         }
         let quit = wire.iter().any(|outcome| matches!(outcome, Outcome::Quit));

@@ -17,8 +17,9 @@
 //! before any freshness judgment: the same bytes get the recorded result again (an original
 //! still running is awaited, never run twice), other bytes a conflict. A Stop is bound to the
 //! turn it found and is linearized with that turn's settlement under the custody lock: if it
-//! wins, the stopped preparation's late result is withdrawn before any snapshot is published;
-//! if the settlement wins, it reports that there was nothing left to stop.
+//! wins, the stopped preparation's late result is withdrawn before any snapshot is published and
+//! the run it requested is never admitted; if the settlement wins, it reports that there was
+//! nothing left to stop.
 
 mod worker;
 
