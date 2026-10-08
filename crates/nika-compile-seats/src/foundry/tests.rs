@@ -154,7 +154,7 @@ async fn an_empty_recall_asks_nothing() {
     let qualified = qualify(INTENT, &pack(Vec::new()), &seat, "decision_seat").await;
     assert_eq!(*seat.batches.lock().unwrap(), 0);
     assert_eq!(qualified.record["found"], 0);
-    assert_eq!(qualified.record["seat_calls"], 0);
+    assert_eq!(qualified.record["questions"], 0);
 }
 
 #[test]

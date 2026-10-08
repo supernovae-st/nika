@@ -11,14 +11,15 @@
 
 use std::fmt;
 
+use nika_compile::KnowledgeReference;
 use nika_compile::surface::sha256;
 use serde_json::{Value, json};
 
 /// The id prefix of the one executable kind a release ships.
 pub const BLOCK: &str = "block:";
 
-/// The id prefixes of the kinds a release ships as knowledge only.
-const KNOWLEDGE: [(&str, &str); 10] = [
+/// The id prefixes of the kinds a release (or the embedded shelf) ships as knowledge only.
+const KNOWLEDGE: [(&str, &str); 15] = [
     ("pattern:", "pattern"),
     ("family:", "family"),
     ("pack:", "pattern pack"),
@@ -28,6 +29,11 @@ const KNOWLEDGE: [(&str, &str); 10] = [
     ("skeleton:", "skeleton"),
     ("skill:", "skill"),
     ("example:", "example"),
+    ("counterexample:", "counterexample"),
+    ("callable:", "callable contract"),
+    ("capability:", "capability interface"),
+    ("construct:", "language construct"),
+    ("facet:", "intent facet"),
     ("nika:", "callable contract"),
 ];
 
@@ -449,8 +455,10 @@ impl fmt::Display for Unresolved {
 
 impl std::error::Error for Unresolved {}
 
-/// What resolves a reference to an admitted component: the knowledge door's admitted release
-/// (`nika_onboard::knowledge::Snapshot`), or a test's. A catalogue answers for one release.
+/// What an admitted release lends a preparation: its executable components resolved by
+/// reference, and its entries enumerated for whole-catalog reach ([`super::reach`]). The
+/// knowledge door's admitted release (`nika_onboard::knowledge::Snapshot`), or a test's. A
+/// catalogue answers for one release.
 pub trait ComponentCatalog: Send + Sync {
     /// The release this catalogue holds.
     fn release(&self) -> Release;
@@ -459,6 +467,16 @@ pub trait ComponentCatalog: Send + Sync {
     /// # Errors
     /// Why it resolves to none ([`Unresolved`]).
     fn resolve(&self, reference: &ComponentRef) -> Result<Component, Unresolved>;
+    /// Every admitted entry a request may be served by (each block and pattern the release
+    /// ships), as its admitted row. A catalogue that lists none reaches nothing beyond the pack.
+    fn entries(&self) -> Vec<Value> {
+        Vec::new()
+    }
+    /// An entry's full text, as the knowledge door presents it in a pack.
+    fn reference(&self, id: &str) -> Option<KnowledgeReference> {
+        let _ = id;
+        None
+    }
 }
 
 /// The pins of `reference` judged against `release`: the version, then the digest.

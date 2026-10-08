@@ -10,7 +10,9 @@
 //! answer; one it finds applicable is shown; NONE, a failed call or an answer outside the options
 //! leaves it unqualified and still shown, as an exploration hypothesis: never a defect, never a
 //! validated option. The record says what was found, shown, discarded and unqualified, by digest,
-//! with every answer.
+//! with every answer. The lexical recall is a shortlist, never the eligibility gate: given the
+//! admitted release's catalogue, every entry the pack lacks is asked by its descriptor in the
+//! same batch, and the record's coverage says what was asked and how ([`reach`]).
 //!
 //! Executable reuse is another fact, established by the candidate's own bytes: a checked block
 //! of an admitted release is resolved by id and release ([`component`]), bound at its holes by
@@ -22,6 +24,7 @@
 pub mod bind;
 pub mod component;
 pub mod instance;
+pub mod reach;
 pub mod recall;
 pub mod witness;
 
@@ -160,13 +163,15 @@ pub async fn qualify(
         "by": by,
         "seat": seat.name(),
         "question": INSTRUCTIONS,
-        "transmitted": {"request_sha256": sha256(intent), "references": "each reference's whole text"},
+        "transmitted": {"request_sha256": sha256(intent), "references": "each reference's text as the pack holds it: in full, or its descriptor"},
         "found": rows.len(),
         "shown": shown.len(),
         "applies": count(APPLIES),
         "discarded": count(UNRELATED),
+        "discarded_basis": "the seat's judgment, kept with its answer: never a proven incompatibility",
         "unqualified": count("unqualified"),
-        "seat_calls": questions.len(),
+        "questions": questions.len(),
+        "requests": "one batch; the seat's own receipt counts its physical requests",
         "elapsed_ms": elapsed,
         "references": rows,
     });
@@ -253,10 +258,23 @@ pub fn folded(request: &CompileRequest) -> bool {
 /// folded into the attached Foundry pack and every reference qualified by the selected decision
 /// seat, the discarded ones out of the pack. No pack: the request as it is. No seat: the recall
 /// shown unqualified, and the record says so (an identified degraded path, never a verdict).
+/// No catalogue: only the recalled pack is asked ([`qualified_with`] widens it).
 pub async fn qualified(
     intent: &str,
     request: &CompileRequest,
     seat: Option<&dyn DecisionSeat>,
+) -> Option<(CompileRequest, Value)> {
+    qualified_with(intent, request, seat, None).await
+}
+
+/// [`qualified`] over the whole admitted catalogue `catalog` lends ([`reach`]): every entry the
+/// pack does not hold is asked by its descriptor in the same batch, an applicable one joins the
+/// pack in full, and the record's `coverage` says what was asked and how.
+pub async fn qualified_with(
+    intent: &str,
+    request: &CompileRequest,
+    seat: Option<&dyn DecisionSeat>,
+    catalog: Option<&dyn ComponentCatalog>,
 ) -> Option<(CompileRequest, Value)> {
     let pack = request.authoring_knowledge.as_ref()?;
     let mut folded = pack.clone();
@@ -269,7 +287,8 @@ pub async fn qualified(
         });
     folded.references = embedded.chain(pack.references.iter().cloned()).collect();
     folded.selection[FOLDED] = json!("folded into the pack and qualified with it");
-    let record = match seat {
+    let (widened, listed) = catalog.map_or((Vec::new(), 0), |c| reach::widen(&mut folded, c));
+    let mut record = match seat {
         Some(seat) => {
             let qualified = qualify(intent, &folded, seat, "decision_seat");
             let qualified = qualified.await;
@@ -284,6 +303,10 @@ pub async fn qualified(
             "why": "no decision seat was selected: the recall is shown unqualified",
         }),
     };
+    let resolved = catalog.map_or(0, |c| {
+        reach::resolve_applicable(&mut folded, &mut record, &widened, c)
+    });
+    record["coverage"] = reach::coverage(catalog, listed, widened.len(), resolved);
     Some((request.clone().with_authoring_knowledge(folded), record))
 }
 
@@ -311,6 +334,8 @@ pub fn reused(
     out.provenance.decision = Some(decision);
 }
 
+#[cfg(test)]
+mod reach_tests;
 #[cfg(test)]
 mod reuse_tests;
 #[cfg(test)]
