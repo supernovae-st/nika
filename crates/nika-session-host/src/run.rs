@@ -41,6 +41,11 @@ pub enum RunStep {
         /// Why, in words.
         why: String,
     },
+    /// The run was admitted but its end could not be observed: its effects are unknown.
+    Unobserved {
+        /// What was admitted and why its end is unknown, in words.
+        why: String,
+    },
 }
 
 /// How a host executes what its Session requested.
@@ -193,3 +198,95 @@ impl RunDoor for LaneRunDoor {
         RunStep::Observed { exit, trace }
     }
 }
+
+/// A future a [`Jobs`] port answers with.
+pub type JobFuture<'a, T> = std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
+
+/// What a resident's own job admission lends a Session's run door: the by-name admission its
+/// job route takes, and the wait for that job's end. Nothing else of the resident.
+pub trait Jobs: Send + Sync {
+    /// Admit the workflow `name` (relative to the project) by name, with the run's `name=value`
+    /// pairs and access pin: the job's identity, or the resident's refusal in its own words.
+    fn admit<'a>(
+        &'a self,
+        name: &'a str,
+        vars: &'a [String],
+        access: Option<&'a str>,
+    ) -> JobFuture<'a, Result<String, String>>;
+
+    /// The job `id` once it settled or paused: the exit `nika run` gives for that end, and the
+    /// journal the resident wrote, when it wrote one.
+    fn settled<'a>(&'a self, id: &'a str) -> JobFuture<'a, Result<(u8, Option<PathBuf>), String>>;
+}
+
+/// A Session's runs through a resident's job admission, waited for on the resident's runtime
+/// from the Session's own worker thread.
+pub struct JobDoor {
+    handle: tokio::runtime::Handle,
+    jobs: Arc<dyn Jobs>,
+}
+
+impl std::fmt::Debug for JobDoor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JobDoor").finish_non_exhaustive()
+    }
+}
+
+impl JobDoor {
+    /// Runs admitted through `jobs`, awaited on `handle`.
+    #[must_use]
+    pub fn new(handle: tokio::runtime::Handle, jobs: Arc<dyn Jobs>) -> Self {
+        Self { handle, jobs }
+    }
+}
+
+impl RunDoor for JobDoor {
+    fn run(&mut self, _root: &Path, run: &RunRequest, sink: &dyn RunSink) -> RunStep {
+        let name = run.workflow.to_string_lossy().into_owned();
+        let access = run.access_pin.as_deref();
+        let job = match self
+            .handle
+            .block_on(self.jobs.admit(&name, &run.vars, access))
+        {
+            Ok(job) => job,
+            Err(why) => {
+                return RunStep::NotStarted {
+                    why: format!("{why} · nothing ran"),
+                };
+            }
+        };
+        sink.said(format!("run admitted as job {job}"));
+        match self.handle.block_on(self.jobs.settled(&job)) {
+            Ok((exit, trace)) => {
+                sink.said(format!("job {job} ended with exit {exit}"));
+                RunStep::Observed { exit, trace }
+            }
+            Err(why) => RunStep::Unobserved {
+                why: format!("job {job} was admitted; its end was not observed: {why}"),
+            },
+        }
+    }
+
+    fn resume(
+        &mut self,
+        _root: &Path,
+        _workflow: &Path,
+        _trace: &Path,
+        _answer: &str,
+        _sink: &dyn RunSink,
+    ) -> RunStep {
+        RunStep::NotStarted {
+            why: "this door does not resume a paused run · nothing was answered".to_owned(),
+        }
+    }
+
+    fn answer_review(&mut self, _approve: bool, _sink: &dyn RunSink) -> RunStep {
+        RunStep::NotStarted {
+            why: "no run waits at a cost review on this door · nothing was sent".to_owned(),
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod tests;

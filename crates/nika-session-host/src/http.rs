@@ -345,6 +345,15 @@ fn respond(frame: &Frame) -> Response<ResponseBody> {
     response
 }
 
+/// The words of a refusal a server answered (`{"error":{"message"}}`), never a guess.
+pub async fn refusal_words(response: Response<ResponseBody>) -> String {
+    let body = (response.into_body().collect().await).map(http_body_util::Collected::to_bytes);
+    (body.ok())
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .and_then(|value| value["error"]["message"].as_str().map(str::to_owned))
+        .unwrap_or_else(|| "the server refused the run".to_owned())
+}
+
 /// An answer the host cannot give, said plainly.
 fn internal(message: &'static str) -> Response<ResponseBody> {
     let frame = Frame::refused("", Refused::SessionUnavailable, message, None, None, None);

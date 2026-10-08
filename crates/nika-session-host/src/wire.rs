@@ -341,6 +341,9 @@ pub(crate) enum Outcome {
     RunNotStarted {
         text: String,
     },
+    RunUnobserved {
+        text: String,
+    },
     Resumed {
         text: String,
     },

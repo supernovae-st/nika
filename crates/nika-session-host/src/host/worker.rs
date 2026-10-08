@@ -163,6 +163,7 @@ impl Turn<'_> {
                 *held = Some(review);
             }
             RunStep::NotStarted { why } => wire.push(Outcome::RunNotStarted { text: why }),
+            RunStep::Unobserved { why } => wire.push(Outcome::RunUnobserved { text: why }),
             _ => {}
         }
     }
