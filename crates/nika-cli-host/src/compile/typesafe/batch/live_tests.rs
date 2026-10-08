@@ -18,6 +18,7 @@
 use super::super::session::DecisionSetup;
 use super::*;
 use nika_onboard::compile::decide::{ChoiceOption, DecisionSeat};
+use serde_json::{Value, json};
 use std::time::Instant;
 
 const REQUEST: &str = "Every weekday read ./tickets.json, keep the open tickets, group them by product and save one summary per product to ./out/summaries.json";

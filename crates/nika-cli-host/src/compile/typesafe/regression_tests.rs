@@ -15,6 +15,7 @@ use super::session::DecisionSetup;
 use super::wire_tests::{KEY, Peer, Reply};
 use super::*;
 use nika_onboard::compile::decide::{ChoiceBatch, ChoiceOption, ChoiceQuestion, DecisionSeat};
+use serde_json::json;
 
 fn block_on<F: Future>(future: F) -> F::Output {
     tokio::runtime::Builder::new_current_thread()

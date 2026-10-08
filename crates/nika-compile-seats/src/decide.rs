@@ -134,6 +134,7 @@ pub type ChoiceFuture<'a> =
     Pin<Box<dyn Future<Output = Result<ChoiceAnswer, DecisionError>> + Send + 'a>>;
 
 mod batch;
+pub mod system_one;
 pub use batch::{
     BatchFuture, BatchItem, Bound, Carried, ChoiceBatch, WrittenKeys, bind, closed_choices,
     decoded_each, each_alone,

@@ -12,7 +12,9 @@
 )]
 use super::super::wire_tests::{KEY, Peer, Reply};
 use super::*;
-use nika_onboard::compile::decide::{ChoiceOption, DecisionSeat};
+use nika_onboard::compile::decide::system_one::{criteria, read_state, request};
+use nika_onboard::compile::decide::{Carried, ChoiceOption, DecisionSeat};
+use serde_json::{Value, json};
 
 const MODEL: &str = "jev-1.13.0";
 const REQUEST: &str = "Read ./a.csv and save one row per customer to ./b.json";
@@ -226,9 +228,8 @@ fn each_question_reads_exactly_the_state_it_reads_alone() {
             for question in &questions {
                 let whole = read_state(&body, &question.id).unwrap();
                 let reads_it = |(key, value): (&String, &Value)| whole.get(key) == Some(value);
-                let beside =
-                    body["questions"][question.id.as_str()]["instructions"]["reads"] == WHOLE;
-                assert!(beside || entries.iter().all(reads_it), "{states:?}");
+                let whole = matches!(Carried::of(shared, &question.state), Carried::Whole(_));
+                assert!(whole || entries.iter().all(reads_it), "{states:?}");
             }
         }
     }
