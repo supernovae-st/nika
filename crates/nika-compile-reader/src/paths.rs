@@ -427,26 +427,39 @@ pub fn composed_from(lower: &str, token: &str) -> bool {
         })
 }
 
-/// An address composed from the request's own words (`lower`, lowercased): its origin
-/// (`scheme://host[:port]`) and its path each stated there verbatim, the path where a word
-/// starts, as a request names a sink's origin in one sentence and the path it posts to in
-/// another. Another origin or another path composes nothing, nor does an origin with no path.
+/// An address composed from the request's own words (`stated`, as written): its origin
+/// (`scheme://host[:port]`, read case-insensitively) stated as a whole authority, and its path
+/// stated as a whole path in its own spelling, as a request names a sink's origin in one
+/// sentence and the path it posts to in another. A stated origin a host label, a port digit or a
+/// `.label` continues (`http://h.example.evil`, `http://h:8080`) is another origin; a stated path
+/// a segment, a suffix or a query continues (`/api/private`, `/api-v2`), or spelt otherwise
+/// (`/Admin`), is another path. An origin with no path composes nothing.
 #[must_use]
-pub fn origin_and_path(lower: &str, token: &str) -> bool {
-    let token = token.to_lowercase();
+pub fn origin_and_path(stated: &str, token: &str) -> bool {
     let Some((scheme, rest)) = token.split_once("://") else {
         return false;
     };
-    let (host, path) = rest.split_at(rest.find('/').unwrap_or(rest.len()));
-    let origin = format!("{scheme}://{host}");
-    let starts_a_word = |at: usize| {
-        let before = lower[..at].chars().next_back();
-        before.is_none_or(|c| !(c.is_alphanumeric() || "./-_".contains(c)))
-    };
-    !host.is_empty()
+    let (authority, path) = rest.split_at(rest.find(['/', '?', '#']).unwrap_or(rest.len()));
+    let origin = format!("{scheme}://{authority}").to_lowercase();
+    !authority.is_empty()
         && path.len() > 1
-        && lower.contains(&origin)
-        && lower.match_indices(path).any(|(at, _)| starts_a_word(at))
+        && whole(&stated.to_lowercase(), &origin, "-_:@")
+        && whole(stated, path, "-_/~%?#=&")
+}
+
+/// Whether `text` states `part` whole: where a word starts (no letter, digit or path character
+/// before it) and where it ends (no letter, digit or character of `goes_on` after it, nor a `.`
+/// a letter or digit follows).
+fn whole(text: &str, part: &str, goes_on: &str) -> bool {
+    text.match_indices(part).any(|(at, _)| {
+        let before = text[..at].chars().next_back();
+        let mut after = text[at + part.len()..].chars();
+        let (next, then) = (after.next(), after.next());
+        let starts = before.is_none_or(|c| !(c.is_alphanumeric() || "./-_:".contains(c)));
+        let dotted = next == Some('.') && then.is_some_and(char::is_alphanumeric);
+        let ends = next.is_none_or(|c| !(c.is_alphanumeric() || goes_on.contains(c))) && !dotted;
+        starts && ends
+    })
 }
 
 #[cfg(test)]
@@ -469,23 +482,46 @@ mod tests {
     /// file name is not.
     #[test]
     fn an_address_is_composed_from_a_stated_origin_and_a_stated_path() {
-        let lower = "lis ./stock.json, puis effectue un post /notifications/stock vers le sink local http://127.0.0.1:65409 ;";
+        let stated = "Lis ./stock.json, puis effectue un POST /notifications/stock vers le sink local http://127.0.0.1:65409 ;";
+        let composed = |token: &str| origin_and_path(stated, token);
+        assert!(composed("http://127.0.0.1:65409/notifications/stock"));
+        assert!(composed("HTTP://127.0.0.1:65409/notifications/stock"));
+        assert!(!composed("http://127.0.0.1:65409/Notifications/Stock"));
+        assert!(!composed("http://127.0.0.1:65409/other"));
+        assert!(!composed("http://evil.example/notifications/stock"));
+        assert!(!composed("http://127.0.0.1:65409"));
+        assert!(!composed("http://127.0.0.1:65409/stock"));
+        assert!(!composed("./notifications/stock"));
+    }
+
+    /// A stated origin or path is never taken from a longer one: a host label, a port digit, a
+    /// child segment or a suffix continuing it makes another address; a path spelt otherwise is
+    /// another path. The whole stated components compose (independent K2 review).
+    #[test]
+    fn an_address_is_never_composed_from_a_longer_origin_or_path() {
+        let api = "http://trusted.example/api";
+        for (stated, token) in [
+            ("POST /api to http://trusted.example.evil", api),
+            ("POST /api-v2 to http://trusted.example", api),
+            ("POST /api/private to http://trusted.example", api),
+            (
+                "POST /api to http://trusted.example:8080",
+                "http://trusted.example:80/api",
+            ),
+            (
+                "POST /Admin to http://trusted.example",
+                "http://trusted.example/admin",
+            ),
+            ("POST /api to http://trusted.example:8080", api),
+        ] {
+            assert!(!origin_and_path(stated, token), "{stated} | {token}");
+        }
+        assert!(origin_and_path("POST /api to http://trusted.example", api));
+        assert!(origin_and_path("POST /api to HTTP://Trusted.Example.", api));
         assert!(origin_and_path(
-            lower,
-            "http://127.0.0.1:65409/notifications/stock"
+            "POST /api, to http://trusted.example:8080",
+            "http://trusted.example:8080/api"
         ));
-        assert!(origin_and_path(
-            lower,
-            "HTTP://127.0.0.1:65409/Notifications/Stock"
-        ));
-        assert!(!origin_and_path(lower, "http://127.0.0.1:65409/other"));
-        assert!(!origin_and_path(
-            lower,
-            "http://evil.example/notifications/stock"
-        ));
-        assert!(!origin_and_path(lower, "http://127.0.0.1:65409"));
-        assert!(!origin_and_path(lower, "http://127.0.0.1:65409/stock"));
-        assert!(!origin_and_path(lower, "./notifications/stock"));
     }
 
     #[test]

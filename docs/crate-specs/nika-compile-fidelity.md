@@ -125,10 +125,14 @@ needs keeps its default.
   expression of a `#[non_exhaustive]` reader type compiles only inside the reader. The values
   are identical (`categories` empty, `policy_literal` absent).
 - Law 2 (`fidelity::invented`: no invented path or host) also admits an address composed from
-  the request's own words: its origin and its path each stated verbatim
-  (`nika_compile_reader::paths::origin_and_path`). A path's directories and stem are judged by
-  `paths::composed_from`, which moved to the reader at this crate's size cap (2026-10-08). An
-  address with another path or another origin is still `INVENTED LITERAL`.
+  the request's own words (`nika_compile_reader::paths::origin_and_path`):
+  - its origin stated as a whole authority, read case-insensitively;
+  - its path stated whole, in its own spelling, read against the request and answers as written.
+
+  A path's directories and stem are judged by `paths::composed_from`, which moved to the reader
+  at this crate's size cap (2026-10-08). An address taken from another, or a longer, origin or
+  path (a host label, a port, a child segment, a suffix, another spelling) is still
+  `INVENTED LITERAL`.
 - Added after the move, Law 22b (`fidelity::unnamed_writes`, private, run by `laws`): a
   planned write whose target names no single file must be carried by a `nika:write` task. Such
   a write comes from the reader's unnamed-destination floor or from an unsettled copy. A

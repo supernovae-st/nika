@@ -494,6 +494,12 @@ reader's own vocabulary) · `text` (the shared text helpers).
 (no invented path or host).
 - `composed_from`: every directory and the stem of a path appear in the request. It moved
   verbatim from fidelity at that crate's size cap on 2026-10-08.
-- `origin_and_path`: an address's origin (`scheme://host[:port]`) and its path each appear
-  verbatim, the path where a word starts. A request may name a sink's origin in one sentence and
-  the path it posts to in another; another origin or another path composes nothing.
+- `origin_and_path`: an address composes from the request's own words when both of its parts
+  are stated whole.
+  - Origin (`scheme://host[:port]`): read case-insensitively, and never continued by a host
+    label, a port digit or a `.label`.
+  - Path: in its own spelling, and never continued by a segment, a suffix or a query.
+
+  A request may name a sink's origin in one sentence and the path it posts to in another. A
+  longer stated origin (`http://h.example.evil`, `http://h:8080`) or a longer or otherwise-spelt
+  path (`/api/private`, `/api-v2`, `/Admin`) composes nothing.

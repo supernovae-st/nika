@@ -789,11 +789,12 @@ pub fn prohibitions(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
 /// [`paths::origin_and_path`]), was answered by the human, or rides a `${{ }}` reference.
 pub fn invented(intent: &str, literals: &[String], allowed: &[String], out: &mut Vec<Diagnostic>) {
     // The request and the human's answers are the words a path may be composed from.
-    let mut lower = intent.to_lowercase();
+    let mut stated = intent.to_owned();
     for value in allowed {
-        lower.push('\n');
-        lower.push_str(&value.to_lowercase());
+        stated.push('\n');
+        stated.push_str(value);
     }
+    let lower = stated.to_lowercase();
     for literal in literals {
         for token in literal.split_whitespace() {
             let token = token
@@ -812,7 +813,7 @@ pub fn invented(intent: &str, literals: &[String], allowed: &[String], out: &mut
             let stem = token.trim_end_matches("/**").trim_end_matches("/*");
             if lower.contains(&stem.to_lowercase())
                 || (path_like && paths::composed_from(&lower, token))
-                || (host_like && paths::origin_and_path(&lower, token))
+                || (host_like && paths::origin_and_path(&stated, token))
             {
                 continue;
             }
@@ -1142,6 +1143,43 @@ mod tests {
             let named = format!("INVENTED LITERAL: `{url}` is not in the request.");
             assert!(found[0].message.starts_with(&named), "{found:#?}");
         }
+    }
+
+    /// An address is never composed from a longer stated origin or path (independent K2
+    /// review): another host label, another port, a child path, a path suffix or another
+    /// spelling of the path is still invented, each named once; the whole stated components
+    /// compose.
+    #[test]
+    fn an_address_taken_from_a_longer_origin_or_path_is_invented() {
+        let api = "http://trusted.example/api";
+        for (intent, url) in [
+            ("POST /api to http://trusted.example.evil", api),
+            ("POST /api-v2 to http://trusted.example", api),
+            ("POST /api/private to http://trusted.example", api),
+            (
+                "POST /api to http://trusted.example:8080",
+                "http://trusted.example:80/api",
+            ),
+            (
+                "POST /Admin to http://trusted.example",
+                "http://trusted.example/admin",
+            ),
+        ] {
+            let mut found = Vec::new();
+            invented(intent, &[url.to_owned()], &[], &mut found);
+            assert_eq!(found.len(), 1, "{intent} | {url}: {found:#?}");
+            assert_eq!(found[0].kind, "literal");
+            let named = format!("INVENTED LITERAL: `{url}` is not in the request.");
+            assert!(found[0].message.starts_with(&named), "{found:#?}");
+        }
+        let mut none = Vec::new();
+        invented(
+            "POST /api to http://trusted.example",
+            &[api.to_owned()],
+            &[],
+            &mut none,
+        );
+        assert!(none.is_empty(), "{none:#?}");
     }
 
     #[test]
