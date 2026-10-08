@@ -23,6 +23,8 @@ use nika_compile_seats::foundry::{
 use serde_json::{Value, json};
 
 use super::{Snapshot, TrustedIdentity};
+use crate::compile::CompileRequest;
+use crate::compile::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
 
 /// The payload root and the release record named at build time.
 fn named() -> (&'static str, &'static str) {
@@ -285,6 +287,56 @@ fn a_candidate_block_is_expanded_checked_and_witnessed_by_its_candidate_bound_re
 /// pack the lexical and graph recall presents in full, then the entries the whole-catalog reach
 /// asks by descriptor in the same batch, and what presenting every asked entry in full would
 /// weigh. Written to `NIKA_KNOWLEDGE_R2_RECEIPT` when named at build time.
+/// A seat that keeps the bytes of every reference it is asked about, and answers `choice` for the
+/// one block `keep` names (when one is named) and `rest` for every other reference.
+struct Meter {
+    keep: Option<&'static str>,
+    rest: &'static str,
+    asked: std::sync::Mutex<(usize, usize)>,
+}
+
+impl DecisionSeat for Meter {
+    fn name(&self) -> &'static str {
+        "test/meter"
+    }
+    fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
+        let reference = &question.state["reference"];
+        let bytes = reference["text"].as_str().map_or(0, str::len);
+        if let Ok(mut asked) = self.asked.lock() {
+            *asked = (asked.0 + 1, asked.1 + bytes);
+        }
+        let choice = if self.keep.is_some_and(|keep| reference["id"] == keep) {
+            "applies"
+        } else {
+            self.rest
+        };
+        Box::pin(async move { Ok(ChoiceAnswer::new(choice, "test/meter")) })
+    }
+}
+
+/// One qualification of `intent` on the candidate with `seat`: the questions and bytes the seat
+/// was sent, and the references and bytes the author reads.
+fn qualified(snapshot: &Snapshot, intent: &str, seat: &Meter) -> Value {
+    let pack = snapshot.pack(intent, None).unwrap();
+    let request = CompileRequest::create(intent).with_authoring_knowledge(pack);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap();
+    let catalogue = snapshot.catalogue(None);
+    let qualified =
+        nika_compile_seats::foundry::qualified_with(intent, &request, Some(seat), Some(&catalogue));
+    let (shown, record) = runtime.block_on(qualified).unwrap();
+    let shown = shown.authoring_knowledge.unwrap();
+    let (questions, bytes_sent) = *seat.asked.lock().unwrap();
+    json!({
+        "questions": questions,
+        "bytes_sent": bytes_sent,
+        "shown": shown.references.len(),
+        "bytes_shown": shown.references.iter().map(|r| r.text.len()).sum::<usize>(),
+        "coverage": record["coverage"],
+    })
+}
+
 #[test]
 #[ignore = "a release candidate: needs NIKA_KNOWLEDGE_R2_PAYLOAD and NIKA_KNOWLEDGE_R2_RECORD at build time"]
 fn the_qualification_cost_of_a_request_is_measured_on_the_candidate() {
@@ -317,7 +369,38 @@ fn the_qualification_cost_of_a_request_is_measured_on_the_candidate() {
             folded.references.len(),
             pack.references.len() + widened.len()
         );
+        let undecided = Meter {
+            keep: None,
+            rest: "none",
+            asked: std::sync::Mutex::default(),
+        };
+        let only_the_block = Meter {
+            keep: Some(BLOCK),
+            rest: "unrelated",
+            asked: std::sync::Mutex::default(),
+        };
+        let undecided = qualified(&snapshot, intent, &undecided);
+        let only_the_block = qualified(&snapshot, intent, &only_the_block);
+        // Before, a recalled entry the catalogue lists was sent whole, not by its descriptor;
+        // every other question (the embedded shelf, the widened entries) is sent alike.
+        let recalled_descriptors: usize = (pack.references.iter())
+            .filter_map(|r| {
+                snapshot
+                    .catalogue(None)
+                    .entries()
+                    .into_iter()
+                    .find(|row| row["id"] == r.id.as_str())
+            })
+            .map(|row| descriptor(&row).len())
+            .sum();
+        let sent = undecided["bytes_sent"].as_u64().unwrap_or_default();
+        let before = usize::try_from(sent).unwrap_or_default() - recalled_descriptors + pack_bytes;
         measured.push(json!({
+            "before_descriptor_first": {"questions": undecided["questions"],
+                                        "bytes_sent": before,
+                                        "pack_and_catalogue_only": pack_bytes + descriptor_bytes},
+            "after_descriptor_first": {"seat_undecided": undecided,
+                                       "seat_keeps_only_the_validate_block": only_the_block},
             "intent": intent,
             "pack": {"references": pack.references.len(), "by_kind": by_kind, "bytes": pack_bytes,
                      "repairs": pack.repairs.len()},
