@@ -501,3 +501,102 @@ fn only_spending_decisions_require_a_line_typed_after_they_were_shown() {
         assert!(!other.requires_fresh_input(), "{other:?}");
     }
 }
+
+/// The waiting question travels as the compiler asks it: its own question document, field for
+/// field (a choice's options in the compiler's order), beside the unchanged identity an answer
+/// names; a question that does not take the next line is never shown as the one that does.
+#[test]
+fn the_waiting_question_travels_as_the_compiler_asks_it() {
+    use std::sync::Arc;
+
+    use nika_onboard::compile::{ChoiceOffer, CompileQuestion, QuestionType, outcome_document};
+
+    use crate::outcome::{Incarnation, QuestionId};
+
+    let asking = compile(&CompileRequest::create("aggregate-by-key")).expect("compiles");
+    let mut question = asking
+        .questions
+        .first()
+        .cloned()
+        .expect("the skeleton asks");
+    let asker = Arc::new(Incarnation);
+    let on = |key: &str| Waiting::Question {
+        key: key.to_owned(),
+        id: QuestionId::new("ab".repeat(32), &asker),
+    };
+    let rail = Rail {
+        draft: Stage::Pending,
+        saved: Stage::Pending,
+        checked: Stage::Pending,
+        active: Stage::Pending,
+        run: Stage::Pending,
+    };
+    let work = |waiting: Waiting, question: Option<&CompileQuestion>| {
+        let request = Request::default();
+        let snapshot = Work::new(
+            PathBuf::from("/p"),
+            request,
+            waiting,
+            None,
+            None,
+            None,
+            None,
+            rail,
+        );
+        serde_json::to_value(snapshot.with_question(question)).expect("serializes")
+    };
+    let as_compiled = |question: &CompileQuestion| {
+        let mut outcome = asking.clone();
+        outcome.questions = vec![question.clone()];
+        outcome_document(&outcome)["questions"][0].clone()
+    };
+
+    question.key = "const.mode".to_owned();
+    question.label = "Which mode?".to_owned();
+    question.answer_type = QuestionType::Choice;
+    question.why = "The request names two modes.".to_owned();
+    question.mandatory = false;
+    question.options = vec![
+        ChoiceOffer::new("z-last", "Last"),
+        ChoiceOffer::new("a-first", "First"),
+    ];
+    let json = work(on("const.mode"), Some(&question));
+    assert_eq!(
+        json["question"],
+        serde_json::json!({
+            "key": "const.mode", "label": "Which mode?", "type": "choice",
+            "why": "The request names two modes.", "mandatory": false,
+            "options": [{"key": "z-last", "label": "Last"}, {"key": "a-first", "label": "First"}],
+        })
+    );
+    assert_eq!(json["question"], as_compiled(&question));
+    assert_eq!(
+        json["waiting"],
+        serde_json::json!({"kind": "question", "key": "const.mode", "id": "ab".repeat(32)}),
+        "the identity an answer names is unchanged"
+    );
+
+    question.options.clear();
+    question.mandatory = true;
+    for (shape, spelled) in [
+        (QuestionType::Text, "text"),
+        (QuestionType::Literal, "literal"),
+    ] {
+        question.answer_type = shape;
+        let json = work(on("const.mode"), Some(&question));
+        assert_eq!(json["question"]["type"], spelled);
+        assert_eq!(json["question"]["mandatory"], true);
+        assert!(json["question"].get("options").is_none(), "{json}");
+        assert_eq!(json["question"], as_compiled(&question));
+    }
+
+    for (waiting, question) in [
+        (on("const.other"), Some(&question)),
+        (on("const.mode"), None),
+        (Waiting::Free, Some(&question)),
+        (Waiting::IntelligenceChoice, Some(&question)),
+    ] {
+        let json = work(waiting, question);
+        assert!(json.get("question").is_none(), "{json}");
+    }
+}
