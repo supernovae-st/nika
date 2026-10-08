@@ -2,11 +2,20 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The audited ACP completion profiles (Claude Code · Codex), never a generic agent permission.
 use futures_core::Stream;
-use nika_kernel::ai::harness::{AgentBackendDyn, HarnessError, HarnessEvent, HarnessRequest};
+use nika_kernel::ai::harness::{HarnessError, HarnessEvent, HarnessRequest};
+use nika_kernel::ai::provider::StopReason;
 use serde_json::{Value, json};
 use std::{fmt::Write as _, pin::Pin};
 
+mod call;
 pub(crate) mod codex;
+
+pub(crate) use call::{Deadline, Door, Failure, Opened, Phase, Progress, conclude};
+
+/// The one wire stop a completion profile accepts: the driver refuses every other before the
+/// turn closes, so an accepted answer's stop reason is observed (the kernel's canonical
+/// `end_turn`), and a failed call has none.
+pub(crate) const ACCEPTED_STOP: &str = "end_turn";
 
 fn safe_error(error: &HarnessError) -> String {
     // Neither adapter stderr nor JSON-RPC error text is a safe user-facing diagnostic. A lost
@@ -244,44 +253,75 @@ pub(crate) fn session_request(
     request
 }
 
+/// A harness error told in the profile's safe words, its typed identity kept beside them.
+fn failed(error: &HarnessError) -> Failure {
+    Failure::told(safe_error(error), error)
+}
+
+/// One authoring completion through `door`, inside the call's `deadline`, each boundary it
+/// crosses told to `progress`. The deadline stays the caller's to enforce; nothing is retried.
 pub(crate) async fn run(
-    seat: &crate::SpawnedHarness,
+    door: &dyn Door,
     native: crate::HarnessInferRequest,
     requested: Option<&str>,
-) -> Result<(String, Value), String> {
-    let scratch = tempfile::tempdir().map_err(|e| e.to_string())?;
+    deadline: Deadline,
+    progress: &Progress,
+) -> Result<(String, Value), Failure> {
+    let Some(one_shot) = door.one_shot() else {
+        return Err(Failure::refused(
+            "ACP authoring requires an audited completion profile; no answer accepted",
+        ));
+    };
+    let scratch = tempfile::tempdir().map_err(|_| {
+        let message = "ACP authoring cannot create its scratch directory; no answer accepted";
+        Failure::told(
+            message,
+            &HarnessError::Unavailable {
+                reason: message.to_owned(),
+            },
+        )
+    })?;
     let request = session_request(native, requested, scratch.path());
-    let mut stream = seat.run_agent(request).await.map_err(|e| safe_error(&e))?;
+    let Opened {
+        mut stream,
+        allowance,
+    } = door.open(request, deadline).await.map_err(|e| failed(&e))?;
+    progress.opened(allowance);
     while let Some(event) = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await {
-        match event.map_err(|e| safe_error(&e))? {
-            HarnessEvent::MessageChunk { .. } => {}
+        match event.map_err(|e| failed(&e))? {
+            HarnessEvent::MessageChunk { .. } => progress.reach(Phase::Answer),
             HarnessEvent::Completed { outcome } if outcome.images.is_empty() => {
-                return completed(*outcome, seat.one_shot().map_or(VERSION, OneShot::version));
+                progress.reach(Phase::Completion);
+                return completed(*outcome, one_shot.version());
             }
             HarnessEvent::PermissionAsked { reply, .. } => {
                 reply.respond(nika_kernel::ai::harness::PermissionDecision::Deny);
-                return Err("ACP authoring requested a tool; no answer accepted".into());
+                return Err(Failure::refused(
+                    "ACP authoring requested a tool; no answer accepted",
+                ));
             }
             _ => {
-                return Err(
-                    "ACP authoring returned an unsupported event; no answer accepted".into(),
-                );
+                return Err(Failure::refused(
+                    "ACP authoring returned an unsupported event; no answer accepted",
+                ));
             }
         }
     }
-    Err("ACP authoring ended without a completed answer".into())
+    Err(Failure::ended(
+        "ACP authoring ended without a completed answer",
+    ))
 }
 
 /// A completed turn's answer and its record. An explicit selection is exact: an answer during
 /// which the agent moved a model or an effort the client applied was not produced under it, so
 /// none is accepted (the access contract's own refusal); a move of a dimension nobody set rides
-/// the record, never hidden.
+/// the record, never hidden. The stop reason is the one the profile accepted.
 fn completed(
     outcome: nika_kernel::ai::harness::HarnessOutcome,
     attested: &str,
-) -> Result<(String, Value), String> {
+) -> Result<(String, Value), Failure> {
     if let Some(refusal) = outcome.selection.moved_refusal() {
-        return Err(refusal.to_string());
+        return Err(Failure::told(refusal.to_string(), &refusal));
     }
     let selection = &outcome.selection;
     let mut metadata = json!({"status":"returned", "configured_model":outcome.observed_model,
@@ -289,7 +329,7 @@ fn completed(
         "effort_option":selection.effort_option, "transmitted_effort":selection.transmitted_effort,
         "configured_effort":selection.configured_effort,
         "served_model":null, "usage_observed":outcome.usage.is_some(),
-        "attested_version":attested});
+        "stop_reason":StopReason::EndTurn, "attested_version":attested});
     if !selection.changed_mid_turn.is_empty()
         && let Some(record) = metadata.as_object_mut()
     {
@@ -300,3 +340,6 @@ fn completed(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod deadline_tests;
