@@ -14,9 +14,9 @@
 
 use nika_check::CheckReport;
 use nika_providers::probe::ProviderProbe;
-use nika_providers::{ExecutionAccessPlan, ModelNeed, VerbNeeds, resolve_execution_plan_for};
+use nika_providers::{ExecutionAccessPlan, ModelNeed, VerbNeeds, resolve_execution_plan_declared};
 use nika_schema::raw::{RawAction, RawWorkflow};
-use nika_types::access::AccessRejection;
+use nika_types::access::{AccessRejection, AccessRequirement};
 
 /// This machine's access-probe rows: the provider rows (key presence ·
 /// endpoint overrides · the locals) PLUS the harness rows when the
@@ -89,12 +89,26 @@ fn resolve_plan_using(
 ) -> ExecutionAccessPlan {
     let needs = effective_needs(wf, report, model_override);
     let verbs = verb_needs(wf);
-    let probes = if needs.is_empty() && !verbs.infer && !verbs.agent && pin.is_none() {
+    let requirement = declared_requirement(wf);
+    let selects = requirement
+        .as_ref()
+        .is_some_and(AccessRequirement::selects_path);
+    let probes = if needs.is_empty() && !verbs.infer && !verbs.agent && pin.is_none() && !selects {
         Vec::new()
     } else {
         collect()
     };
-    resolve_execution_plan_for(&needs, &probes, pin, verbs)
+    resolve_execution_plan_declared(&needs, &probes, pin, verbs, requirement.as_ref())
+}
+
+/// The workflow's authored access requirement (`run.access` · `run.reasoning`),
+/// when it declares one — resolved by the SAME plan as an `--access` pin, so an
+/// ordinary run honors the file with no flag.
+#[must_use]
+pub fn declared_requirement(wf: &RawWorkflow) -> Option<AccessRequirement> {
+    wf.run
+        .as_ref()
+        .and_then(|run| run.value.access_requirement())
 }
 
 /// [`resolve_plan`] over INJECTED probe rows — the pure half (tests
@@ -108,7 +122,8 @@ pub fn resolve_plan_over(
     probes: &[ProviderProbe],
 ) -> ExecutionAccessPlan {
     let needs = effective_needs(wf, report, model_override);
-    resolve_execution_plan_for(&needs, probes, pin, verb_needs(wf))
+    let requirement = declared_requirement(wf);
+    resolve_execution_plan_declared(&needs, probes, pin, verb_needs(wf), requirement.as_ref())
 }
 
 fn effective_needs(
@@ -410,5 +425,152 @@ mod tests {
         assert_eq!(calls.get(), 1, "an explicit pin keeps its access judgment");
         assert_eq!(plan.pin.as_deref(), Some("api"));
         assert!(plan.lanes.is_empty());
+    }
+
+    /// A signed-in codex seat: the ACP speaker on PATH, its login answered.
+    fn codex_probe() -> ProviderProbe {
+        ProviderProbe::new(
+            "codex",
+            false,
+            true,
+            "",
+            false,
+            ProviderReadiness::new(
+                true,
+                true,
+                None,
+                None,
+                false,
+                ExecutionLocus::Loopback,
+                AccessClass::Harness,
+            ),
+            "",
+        )
+        .with_serves(vec!["openai".to_owned()])
+    }
+
+    const DECLARED: &str = "nika: t\nmodel: openai/gpt-6-astra\nrun:\n  access: { via: codex, \
+         protocol: acp, fallback: none }\n  reasoning: { effort: high }\ntasks:\n  a:\n    \
+         agent: { prompt: go }\n";
+
+    /// NIK-13 · the ordinary door honors the FILE: no flag, a ready
+    /// `openai` key beside a signed-in codex seat, and the plan seats codex
+    /// under the authored requirement — the key is never substituted.
+    #[test]
+    fn a_declared_route_is_honored_with_no_flag() {
+        let wf = parse(DECLARED);
+        let report = nika_check::check(&wf);
+        let probes = [api_probe("openai", true), codex_probe()];
+        let plan = resolve_plan_over(&wf, &report, None, None, &probes);
+        assert!(plan.is_admitted(), "{:?}", plan.pin_refusal);
+        assert_eq!(plan.pin, None, "no operator flag was given");
+        assert_eq!(plan.seat.as_deref(), Some("codex"));
+        let lane = plan.lane("openai/gpt-6-astra").expect("admitted");
+        assert_eq!(lane.plan.access, "codex");
+        assert_eq!(lane.plan.chosen, AccessClass::Harness);
+        let requirement = declared_requirement(&wf).expect("declared");
+        assert_eq!(plan.requirement.as_ref(), Some(&requirement));
+        assert_eq!(requirement.effort.as_deref(), Some("high"));
+    }
+
+    /// A file without `run.access`/`run.reasoning` resolves exactly as
+    /// before: the same plan the undeclared resolver returns.
+    #[test]
+    fn an_undeclared_file_keeps_its_plan() {
+        let wf =
+            parse("nika: t\nmodel: openai/gpt-6-astra\ntasks:\n  a:\n    agent: { prompt: go }\n");
+        let report = nika_check::check(&wf);
+        let probes = [api_probe("openai", true), codex_probe()];
+        let plan = resolve_plan_over(&wf, &report, None, None, &probes);
+        let old = nika_providers::resolve_execution_plan_for(
+            &model_needs(&wf, &report),
+            &probes,
+            None,
+            verb_needs(&wf),
+        );
+        assert_eq!(plan, old);
+        assert_eq!(
+            plan.lane("openai/gpt-6-astra").map(|l| l.plan.chosen),
+            Some(AccessClass::Api),
+            "unpinned, the ready key outranks the unproven seat as before"
+        );
+    }
+
+    /// A declared route is judged over this machine's rows even when no
+    /// static model lane exists (a templated model), like a flag.
+    #[test]
+    fn a_declared_route_collects_probes_without_a_static_lane() {
+        let wf = parse(
+            "nika: t\ninputs:\n  m: { type: string, default: openai/gpt-6-astra }\nrun:\n  \
+             access: { via: codex, protocol: acp }\ntasks:\n  a:\n    agent: { prompt: go, \
+             model: \"${{ inputs.m }}\" }\n",
+        );
+        let report = nika_check::check(&wf);
+        let calls = std::cell::Cell::new(0);
+        let plan = resolve_plan_using(&wf, &report, None, None, || {
+            calls.set(calls.get() + 1);
+            vec![codex_probe()]
+        });
+        assert_eq!(calls.get(), 1, "the file's route is judged on real rows");
+        assert_eq!(plan.seat.as_deref(), Some("codex"));
+        assert_eq!(plan.seat_for("${{ inputs.m }}"), Some("codex"));
+    }
+
+    /// A flag that contradicts the file refuses before task 1.
+    #[test]
+    fn a_contradicting_flag_refuses_the_plan() {
+        let wf = parse(DECLARED);
+        let report = nika_check::check(&wf);
+        let probes = [api_probe("openai", true), codex_probe()];
+        let plan = resolve_plan_over(&wf, &report, None, Some("openai"), &probes);
+        assert!(!plan.is_admitted());
+        assert!(
+            matches!(
+                &plan.pin_refusal,
+                Some(nika_providers::PinRefusal::PinUnsatisfied { message })
+                    if message.contains("run.access.via: codex")
+            ),
+            "{:?}",
+            plan.pin_refusal
+        );
+    }
+
+    static RUN_DOOR_PROBES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    fn run_door_probe() -> Vec<ProviderProbe> {
+        RUN_DOOR_PROBES.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        vec![api_probe("openai", true), codex_probe()]
+    }
+
+    /// The run door itself (`resolve_access_plan`, what `nika run` and
+    /// every other door call with no flag): a model-less agent task yields
+    /// no static lane, yet the declared route is judged over this
+    /// machine's rows — never over none, which would refuse a signed-in
+    /// seat as absent.
+    #[test]
+    fn the_run_door_judges_a_declared_route_on_this_machine() {
+        let directory = tempfile::tempdir().expect("tempdir");
+        let source = "nika: root\nrun:\n  access: { via: codex, protocol: acp, fallback: none }\n  \
+                      reasoning: { effort: high }\ntasks:\n  act:\n    agent: { prompt: go, \
+                      tools: [] }\n";
+        std::fs::write(directory.path().join("root.nika"), source).expect("write");
+        let project = nika_fs::OwnedDir::open(directory.path()).expect("project");
+        let service = nika_execution::ExecutionService::default();
+        let admitted = service
+            .admit_with_model_override(&project, std::path::Path::new("root.nika"), None)
+            .expect("admitted");
+        let session = service.begin(admitted);
+        let mut driver =
+            crate::ServiceExecutionDriver::new(session.context(), std::path::PathBuf::new())
+                .expect("driver");
+        driver.probe_source = run_door_probe;
+        let plan = driver.resolve_access_plan(None, None);
+        assert_eq!(RUN_DOOR_PROBES.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert!(plan.is_admitted(), "{:?}", plan.pin_refusal);
+        assert_eq!(plan.pin, None, "no operator flag was given");
+        assert_eq!(plan.seat.as_deref(), Some("codex"));
+        assert_eq!(
+            plan.requirement.as_ref().and_then(|r| r.effort.as_deref()),
+            Some("high")
+        );
     }
 }
