@@ -1,0 +1,1 @@
+A workflow named digest-sender. Declare team as a required string input. Declare the author's constant window_days as 7. A nika:jq task named report returns team and window_days as one object. Then send that report as a JSON POST to our team webhook with nika:fetch; its address is not known yet.
