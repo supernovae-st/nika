@@ -921,9 +921,7 @@ impl SessionRuntime {
                 self.bind_proposal_money(&id);
                 // What the compiler did to the document, read back by the work snapshot only
                 // while it binds the pending bytes.
-                self.proposed_revision = (out.provenance.decision.as_ref())
-                    .and_then(|decision| decision.get("document_revision"))
-                    .cloned();
+                self.proposed_revision = document_record(round, out.provenance.decision.as_ref());
                 self.pending = Some(set);
                 self.revision_words(&mut preview);
                 TurnOutcome::Proposal { id, preview }
@@ -1162,6 +1160,25 @@ fn judged_a_defect(out: &nika_onboard::compile::CompileOutcome) -> bool {
         .and_then(|attempts| attempts.last())
         .and_then(|attempt| attempt["defects"].as_array())
         .is_some_and(|defects| !defects.is_empty())
+}
+
+/// The compile record of how `round` made its document: an EDIT round's revision, saved file or
+/// not, else its creation, which revised no earlier bytes (its base was the author's own draft).
+pub(super) fn document_record(
+    round: &AuthoringRound,
+    decision: Option<&serde_json::Value>,
+) -> Option<serde_json::Value> {
+    let created = round.edit.is_none();
+    let key = if created {
+        "document_create"
+    } else {
+        "document_revision"
+    };
+    let mut record = decision?.get(key)?.clone();
+    if created {
+        record["base_sha256"] = serde_json::Value::Null;
+    }
+    Some(record)
 }
 
 pub(super) fn cannot_express_text(out: &CompileOutcome) -> String {

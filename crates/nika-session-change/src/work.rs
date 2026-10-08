@@ -726,20 +726,23 @@ pub struct Candidate {
     pub run_after_save: bool,
     /// Every file the yes lands, in the set's order.
     pub files: Vec<CandidateFile>,
-    /// How the workflow it lands was revised over its complete document, when it was: bound to
-    /// these exact bytes, never to an earlier candidate's.
+    /// How the compiler made the workflow it lands, created or revised over its complete
+    /// document, when it says: bound to these exact bytes, never to an earlier candidate's.
     pub revision: Option<DocumentRevision>,
 }
 
-/// A revision applied over a complete workflow document: what was changed and which admitted
-/// components the bytes hold, each witnessed on these very bytes. It states what the compiler
-/// did, never that the result is what the request meant: that is the judge's and the run's.
+/// How the compiler made a complete workflow document: created (`written` whole or `composed`,
+/// with no base) or revised over earlier bytes; what was changed and which admitted components
+/// the bytes hold, each witnessed on these very bytes. It states what the compiler did, never
+/// that the result is what the request meant: that is the judge's and the run's.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[non_exhaustive]
 pub struct DocumentRevision {
-    /// `operations` (literal edits and component merges) or `replaced` (the whole source).
+    /// A creation's `written` (the whole document) or `composed` (components expanded into the
+    /// author's document); a revision's `operations` (literal edits and component merges) or
+    /// `replaced` (the whole source).
     pub mode: String,
-    /// The digest (sha256) of the bytes revised.
+    /// The digest (sha256) of the bytes revised; none for a created document.
     pub base_sha256: Option<String>,
     /// The digest (sha256) of the candidate's bytes, the ones the record binds.
     pub candidate_sha256: String,
@@ -752,8 +755,9 @@ pub struct DocumentRevision {
 }
 
 impl DocumentRevision {
-    /// The revision a compile record states (`document_revision`), with the witness of each of
-    /// its components on the candidate's bytes, in order. `None` when the record states none.
+    /// The document a compile record states (`document_revision`, or `document_create` with no
+    /// base), with the witness of each of its components on the candidate's bytes, in order.
+    /// `None` when the record states none.
     #[must_use]
     pub fn of(record: &serde_json::Value, witnesses: &[String]) -> Option<Self> {
         let text = |value: &serde_json::Value| value.as_str().map(str::to_owned);

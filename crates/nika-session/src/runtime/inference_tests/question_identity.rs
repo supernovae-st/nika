@@ -485,6 +485,7 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
         return Err(format!("the current answer binds: {out:?}"));
     };
     assert!(preview.contains("archive/copie.txt"), "{preview}");
+    written_whole(&s, preview)?;
     let bound = AnswerAct::Bound {
         key: key(),
         value: "archive/copie.txt".to_owned(),
@@ -517,6 +518,20 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
 /// What a line did to the question it was typed for, as the work snapshot carries it.
 fn act(question: &crate::outcome::QuestionId, act: AnswerAct) -> Answered {
     Answered::new(question.clone(), act)
+}
+
+/// The CREATE round's own record describes the proposed bytes: written whole, no base.
+fn written_whole(s: &SessionRuntime, preview: &str) -> Result<(), String> {
+    assert!(preview.contains("created · written"), "{preview}");
+    let created = (s.work().candidate)
+        .and_then(|c| c.revision)
+        .ok_or("the creation record binds the proposed bytes")?;
+    assert_eq!(
+        (created.mode.as_str(), created.base_sha256.as_deref()),
+        ("written", None)
+    );
+    assert!(created.components.is_empty() && created.changed.is_empty());
+    Ok(())
 }
 
 /// Before consent only the durable money record changes: no workflow or output is written, and

@@ -626,6 +626,13 @@ each line door (`turn`, `submit`, `answer_question_for`, `consent`, `consent_to`
 `answer_gate`, `answer_gate_for`) clears it first, rereading the snapshot does not, and a
 restored session carries none.
 
+A proposal's `candidate.revision` is the record of its own round's kind: an EDIT round's
+`document_revision`, whether or not it replaces a saved file, else the creation's
+`document_create`, projected with no base (a composed creation's base was the author's own
+draft, never earlier bytes). Either binds only the candidate's exact bytes, and each component
+it names is witnessed on those bytes. The consent prompt says `created · written` or
+`created · composed` for a creation.
+
 `runtime/inference_tests/question_identity.rs` drives real Session → Compiler
 clarifications: the deterministic compiler's `model` question, and a native
 destination question over the loopback seat in DIALOG-11's shape, where the

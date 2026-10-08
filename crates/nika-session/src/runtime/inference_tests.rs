@@ -24,6 +24,7 @@ mod continuous_preparation;
 mod cost_choice_host;
 mod decision_seat;
 /// A workflow the person already has, named in a change, revised over its complete document.
+mod document_create;
 mod document_revision;
 mod interrupted;
 mod judge_trials;

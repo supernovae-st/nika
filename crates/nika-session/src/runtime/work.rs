@@ -277,15 +277,18 @@ impl SessionRuntime {
         self.candidate().and_then(|c| self.document_revision(c.set))
     }
 
-    /// The pending proposal's document revision in the consent prompt's words, under the change
-    /// line it describes: what changed in place and what its record claims of every other byte;
-    /// nothing when no record binds the pending bytes. The proposal's identity is unchanged.
+    /// The pending proposal's document record in the consent prompt's words, under the change
+    /// line it describes: how a created document was made, or what changed in place and what
+    /// its record claims of every other byte; nothing when no record binds the pending bytes.
+    /// The proposal's identity is unchanged.
     pub(super) fn revision_words(&self, preview: &mut String) {
         let Some(revision) = self.pending_revision() else {
             return;
         };
         let mut words = if revision.mode == "replaced" {
             "  rewritten whole · no preservation of the earlier bytes is claimed".to_owned()
+        } else if revision.base_sha256.is_none() {
+            format!("  created · {}", revision.mode)
         } else {
             let claim = match revision.preservation.as_str() {
                 p if p.starts_with("verified") => "every other byte verified as the base's",
@@ -320,9 +323,10 @@ impl SessionRuntime {
         }
     }
 
-    /// How the proposing compile revised the candidate's workflow over its complete document,
-    /// only when its record binds one of the set's workflow bytes (a later or earlier candidate
-    /// is never described by it), each composed component witnessed on those bytes.
+    /// How the proposing compile created the candidate's workflow, or revised it over its
+    /// complete document, only when its record binds one of the set's workflow bytes (a later or
+    /// earlier candidate is never described by it), each composed component witnessed on those
+    /// very bytes, never taken from the record.
     fn document_revision(&self, set: &ProjectChangeSet) -> Option<DocumentRevision> {
         let record = self.proposed_revision.as_ref()?;
         let bound = record["candidate_sha256"].as_str()?;

@@ -536,6 +536,99 @@ fn a_document_revision_describes_only_the_bytes_its_record_binds() {
     );
 }
 
+/// The record the snapshot reads is the round's own kind: a CREATE round's creation, with no
+/// base, and an EDIT round's revision with its base, whether or not it replaces a saved file.
+#[test]
+fn the_document_record_is_the_rounds_own_kind() {
+    use crate::runtime::authoring::document_record;
+    let decision = serde_json::json!({
+        "document_create": {"mode": "composed", "base_sha256": "the author's draft"},
+        "document_revision": {"mode": "operations", "base_sha256": "the base"},
+    });
+    let mut round = AuthoringRound::new("Copy entree.txt to sortie.txt.");
+    let created = document_record(&round, Some(&decision)).expect("a creation");
+    assert_eq!(
+        created,
+        serde_json::json!({"mode": "composed", "base_sha256": null})
+    );
+    round.edit = Some(("the base".to_owned(), "the change".to_owned(), None));
+    let revised = document_record(&round, Some(&decision)).expect("a revision");
+    assert_eq!(
+        revised["base_sha256"], "the base",
+        "an unsaved candidate's EDIT"
+    );
+    round.target = Some((PathBuf::from("copy.nika"), Witness::of(b"the base")));
+    assert_eq!(document_record(&round, Some(&decision)), Some(revised));
+    assert_eq!(document_record(&round, None), None);
+}
+
+/// The pending candidate's workflow bytes.
+fn pending_bytes(s: &SessionRuntime) -> String {
+    (s.candidate())
+        .and_then(|c| {
+            (c.set.changes.iter())
+                .find(|c| c.is_workflow())
+                .map(|c| c.content().to_owned())
+        })
+        .expect("the pending workflow")
+}
+
+/// A created document is described with no base, only while its record binds the candidate's
+/// exact bytes, and each component it names is witnessed on those bytes, never on the record's
+/// word: a real receipt of the bundled release's block, over bytes that never held it, is absent.
+#[test]
+fn a_document_creation_describes_only_the_bytes_it_binds_witnessed_on_them() {
+    use nika_compile_seats::foundry::ComponentCatalog as _;
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    let _ = proposal(s.turn(COPY));
+    let bytes = pending_bytes(&s);
+    let pin = s
+        .authoring_context
+        .knowledge()
+        .expect("the bundled release");
+    let release = pin.reopen().expect("it reopens");
+    let compose = serde_json::json!({"op": "compose", "component": "block:typed-inputs-outputs",
+        "version": release.release().version, "bindings_json": "{}"});
+    let made = nika_compile_seats::foundry::document::create::made(
+        Some("nika: sum-two\npermits: {}\n".to_owned()),
+        &[compose],
+        None,
+        Some(&release),
+    )
+    .expect("composed");
+    let record = |candidate: &str| {
+        serde_json::json!({"mode": "composed", "base_sha256": null, "candidate_sha256": candidate,
+            "changed": made.changed, "preservation": "by construction", "components": made.receipts})
+    };
+    s.proposed_revision = Some(record(&nika_compile::surface::sha256(&bytes)));
+    let created = (s.work().candidate)
+        .and_then(|c| c.revision)
+        .expect("the record binds these bytes");
+    assert_eq!(
+        (created.mode.as_str(), created.base_sha256.as_deref()),
+        ("composed", None)
+    );
+    let component = created.components.first().expect("the block it names");
+    assert_eq!(component.id, "block:typed-inputs-outputs");
+    assert_eq!(component.witness, "absent", "these bytes never held it");
+    let mut preview = String::new();
+    s.revision_words(&mut preview);
+    assert!(
+        preview.lines().any(|line| line == "  created · composed"),
+        "{preview}"
+    );
+    assert!(
+        preview.contains("component · block:typed-inputs-outputs"),
+        "{preview}"
+    );
+    s.proposed_revision = Some(record("another candidate's digest"));
+    assert!(
+        s.work().candidate.and_then(|c| c.revision).is_none(),
+        "a record of other bytes describes nothing here"
+    );
+}
+
 /// The rail's « Saved » is the consent's fact: a workflow only named for a run is not saved here
 /// and shows no check, while naming the saved one again keeps that consent's facts.
 #[test]
