@@ -511,3 +511,62 @@ fn a_waiting_gate_or_an_unconfirmed_exposure_saves_but_never_runs() {
     assert!(other.path().join(COPY_DEST).exists(), "the save stands");
     assert!(s.work().requested.is_none());
 }
+
+/// A run paused at a confirm gate.
+fn a_paused_gate() -> crate::change::PendingGate {
+    crate::change::PendingGate {
+        workflow: PathBuf::from("gate.nika"),
+        trace: PathBuf::from(".nika/traces/t.ndjson"),
+        task: "approve".to_owned(),
+        message: "Ship it?".to_owned(),
+        mode: "confirm".to_owned(),
+    }
+}
+
+/// Whether `outcome` is the stale refusal a waiting run review gives every other answer.
+fn refused_for_the_review(outcome: &TurnOutcome) -> bool {
+    matches!(outcome, TurnOutcome::Refusal(r) if r.class == RefusalClass::StaleRevision)
+}
+
+/// A run's cost review waits first ([`SessionRuntime::waiting`]): a consent or a gate answer
+/// naming its own identity is refused as `submit` refuses it, before anything is saved,
+/// requested or resumed, and the review, the proposal and the gate all keep waiting.
+#[test]
+fn a_waiting_run_review_takes_no_consent_or_gate_answer_by_identity() {
+    let dir = tree();
+    let (mut s, id, _, _) = at_the_proposal(dir.path());
+    s.run_review_asked("Run `other.nika` once for $0.40?", "the evidence");
+    let refused = s.consent_to(&id, "save & run");
+    assert!(refused_for_the_review(&refused), "{refused:?}");
+    assert!(!dir.path().join(COPY_DEST).exists(), "nothing was saved");
+    assert!(s.work().requested.is_none(), "no run was requested");
+    assert_eq!(s.pending_proposal(), Some(id), "the proposal still waits");
+    s.pending_gate = Some(a_paused_gate());
+    let gate = s.waiting_gate().expect("the gate");
+    let refused = s.answer_gate_for(&gate, "yes");
+    assert!(refused_for_the_review(&refused), "{refused:?}");
+    assert_eq!(s.waiting_gate(), Some(gate), "the gate still waits");
+    assert!(matches!(s.waiting(), Waiting::RunReview { .. }));
+}
+
+/// The same through the public durable helpers a host may call with no identity: `consent` and
+/// `answer_gate` answer nothing past a waiting run review, and leaving stays one line away.
+#[test]
+fn a_waiting_run_review_takes_no_direct_consent_or_gate_answer() {
+    let dir = tree();
+    let (mut s, id, _, _) = at_the_proposal(dir.path());
+    s.run_review_asked("Run `other.nika` once for $0.40?", "the evidence");
+    let refused = s.consent("save & run");
+    assert!(refused_for_the_review(&refused), "{refused:?}");
+    assert!(!dir.path().join(COPY_DEST).exists(), "nothing was saved");
+    assert!(s.work().requested.is_none(), "no run was requested");
+    assert_eq!(s.pending_proposal(), Some(id), "the proposal still waits");
+    s.pending_gate = Some(a_paused_gate());
+    let gate = s.waiting_gate().expect("the gate");
+    let refused = s.answer_gate("yes");
+    assert!(refused_for_the_review(&refused), "{refused:?}");
+    assert_eq!(s.waiting_gate(), Some(gate.clone()), "the gate still waits");
+    assert!(matches!(s.waiting(), Waiting::RunReview { .. }));
+    assert!(matches!(s.answer_gate("/quit"), TurnOutcome::Quit));
+    assert_eq!(s.waiting_gate(), Some(gate), "leaving answers no gate");
+}

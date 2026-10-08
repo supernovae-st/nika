@@ -102,6 +102,16 @@ impl SessionRuntime {
         })
     }
 
+    /// While a run's cost review waits, a `line` that answers another state (a consent, a gate,
+    /// by any door) is refused as `submit` refuses it: the review answers first
+    /// ([`Self::waiting`]), so nothing is saved, requested or resumed past it, and everything
+    /// keeps waiting. Leaving stays one line away.
+    pub(super) fn review_first(&self, line: &str) -> Option<TurnOutcome> {
+        let refused = Refusal::new(RefusalClass::StaleRevision, super::work::REVIEW_NOT_SHOWN);
+        (self.waiting_review().is_some() && !super::is_quit(line))
+            .then_some(TurnOutcome::Refusal(refused))
+    }
+
     /// The run of `workflow` under the one admission every run request meets, typed: whatever
     /// asked it (a run line, a `save & run`), its values reach the check, the money and the inputs
     /// exactly. A rehearsed copy runs only over its rehearsed world, the check on disk is clean

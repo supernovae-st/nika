@@ -170,12 +170,16 @@ impl SessionRuntime {
     /// proposal. A consent that decided (applied · discarded · landed
     /// partially) is a decision of the durable intent and keeps the
     /// project's structured record (#1464); a held question, a stale
-    /// revision or a blocked history decides nothing and writes nothing.
+    /// revision, a run's cost review still waiting or a blocked history
+    /// decides nothing and writes nothing.
     pub fn consent(&mut self, answer: &str) -> TurnOutcome {
         // Closing a review expires authority through the same door as closing a turn.
         // It must not overwrite the journal that keeps the unaccepted draft.
         if super::is_quit(answer) {
             return self.turn(answer);
+        }
+        if let Some(refused) = self.review_first(answer) {
+            return refused;
         }
         if self.waiting_cost_choice() {
             return self.turn(answer);
@@ -212,7 +216,11 @@ impl SessionRuntime {
     /// Record the human's gate answer before returning a resume request;
     /// an answer that resumes or holds a monetary amendment keeps the project's
     /// structured record (#1464), even when conversation history is unavailable.
+    /// While a run's cost review waits, it answers nothing.
     pub fn answer_gate(&mut self, line: &str) -> TurnOutcome {
+        if let Some(refused) = self.review_first(line) {
+            return refused;
+        }
         let waiting = self.waiting_gate();
         let outcome = self.recorded(Operation::Gate, line, |s| {
             let outcome = s.answer_gate_unrecorded(line);

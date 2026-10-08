@@ -1147,7 +1147,7 @@ impl SessionRuntime {
     }
 
     /// A consent that names the proposal it answers — a remote host, a
-    /// reconnect (ADR-133): refused as stale when another proposal waits,
+    /// reconnect (ADR-133): refused as stale when another proposal or a run's cost review waits,
     /// as already consumed when that proposal was decided, as the wrong
     /// state when none is pending. Never applied twice.
     pub fn consent_to(&mut self, id: &ProposalId, answer: &str) -> TurnOutcome {
@@ -1204,7 +1204,7 @@ impl SessionRuntime {
     }
 
     /// An answer that names the gate it decides (ADR-133): refused as
-    /// stale when another gate waits, as already consumed when that gate
+    /// stale when another gate or a run's cost review waits, as already consumed when that gate
     /// was answered, as the wrong state when none waits. The same gate
     /// answers once.
     pub fn answer_gate_for(&mut self, id: &GateId, line: &str) -> TurnOutcome {
