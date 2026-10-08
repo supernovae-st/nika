@@ -195,6 +195,7 @@ impl SessionRuntime {
         )
         .with_authoring(self.last_outcome.as_ref().map(Authoring::of))
         .with_intelligence(Some(self.intelligence_work()))
+        .with_question(self.pending_question())
     }
 
     /// Who prepares with this session, as selected and resolved here: the configured facts a
