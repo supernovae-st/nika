@@ -19,8 +19,9 @@
 //!
 //! A presentation this reading cannot place is refused as
 //! [`Refusal::Layout`] with the source unchanged; nothing is ever
-//! reserialized to make an edit fit. Pure: no I/O, no hashing, no authority;
-//! revision identity and lineage live with the compiler's fidelity layer.
+//! reserialized to make an edit fit. A [`DocumentRevision`] names a document
+//! by a digest the caller supplies and refuses a change stated against any
+//! other revision. Pure: no I/O, no hashing of its own, no authority.
 //!
 //! ```
 //! use nika_schema::document::{Document, Edit, Path};
@@ -40,11 +41,13 @@ mod path;
 mod place;
 mod refusal;
 mod rename;
+mod revision;
 mod semantic;
 
 pub use edit::Edit;
 pub use path::Path;
 pub use refusal::Refusal;
+pub use revision::{Digest, DocumentRevision, Origin, Revision, RevisionRefusal};
 
 use std::collections::BTreeSet;
 use std::ops::Range;
