@@ -137,7 +137,23 @@ fn resize_during_a_busy_turn(
 ) {
     let release = Release::new(tag);
     let mut term = busy(mode, &release);
+    let redraw_from = term.mark();
     term.resize(80, 24);
+    if mode == "slow-free" {
+        // Shrinking the emulator can leave the old busy row and prompt
+        // visible. Wait for the shell's inline resize clear before releasing
+        // the turn, so its completion is painted in the new viewport.
+        let deadline = Instant::now() + qa_support::WAIT;
+        while !term
+            .bytes_since(redraw_from)
+            .windows(4)
+            .any(|bytes| bytes == b"\x1b[2J")
+        {
+            term.pump();
+            assert!(Instant::now() < deadline, "{}", term.dump());
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
     term.wait_until("the busy screen at 80x24", |screen| {
         screen.contains(BUSY) && laid_out(screen)
     });

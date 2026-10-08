@@ -36,8 +36,9 @@ Type `/` to browse the commands the current conversation supports, or use
 description. Choosing a slash command inserts it into the composer; press Enter
 separately to send it. Escape closes the palette and restores the draft and
 the panel that held keyboard focus. A view key chosen in the palette acts from
-that panel; choosing a command returns focus to the composer. Clicking another
-panel closes the palette and keeps the clicked panel's focus with the draft
+that panel. When the workspace fits, choosing conversation navigation focuses
+the conversation instead. Choosing a command returns focus to the composer.
+Clicking another panel closes the palette and keeps the clicked panel's focus with the draft
 restored.
 View actions in the palette change the display directly and grant no Session
 authority.

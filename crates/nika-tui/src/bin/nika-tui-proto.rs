@@ -85,7 +85,7 @@ fn diagnostic_words() -> Option<String> {
     )));
     let context = AuthoringContext::from_settings(&AuthoringSettings::none(), &env);
     context.refusal().cloned().map(|cause| format!(
-        "{} · nothing was sent to the authoring model, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again",
+        "{} · this workflow-authoring request was not sent, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again",
         AuthoringError::Context(cause)
     ))
 }

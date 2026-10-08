@@ -439,7 +439,7 @@ fn a_snapshot_that_goes_stale_under_the_session_refuses_the_revision_and_the_pro
         "{text}"
     );
     assert!(
-        text.contains("nothing was sent to the authoring model"),
+        text.contains("this workflow-authoring request was not sent"),
         "{text}"
     );
     assert_eq!(

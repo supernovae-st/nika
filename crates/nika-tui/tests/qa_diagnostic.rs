@@ -4,11 +4,75 @@
 #![allow(clippy::expect_used, clippy::panic)]
 //! Native shell routing over a typed display fixture, not Live/provider proof.
 
+#[path = "qa_support/child.rs"]
+mod child;
 mod qa_support;
 
 use std::time::Duration;
 
 use qa_support::{FREE, QUESTION, REPLY, Term, assert_restored, exit_code};
+
+#[test]
+fn qa_child_host() {
+    child::host();
+}
+
+/// The turn cannot finish until after the diagnostic closes. Its palette
+/// route and plain Enter return work from all three regions without sending
+/// the kept draft, answering a gate or queuing another turn.
+#[test]
+fn the_palette_diagnostic_returns_without_sending_while_a_turn_is_still_held() {
+    for origin in 0..3 {
+        let release = child::Release::new(&format!("diagnostic-{origin}"));
+        let mut term = child::spawn("slow-diagnostic:0:workspace", Some(release.path()), 120, 40);
+        term.wait_text(FREE);
+        term.wait_text("release.nika");
+        term.send("begin\r");
+        term.wait_text(child::BUSY);
+        term.send("keep this held draft");
+        term.wait_text("nika › keep this held draft");
+        for _ in 0..origin {
+            term.send("\x1b[17~");
+        }
+        term.send("\x0f");
+        term.wait_text("commands ›");
+        term.send("diagnostic");
+        term.wait_text("Full diagnostic");
+        term.send("\r");
+        term.wait_until("the diagnostic opened before release", |screen| {
+            screen.lines()[0].contains("Full diagnostic")
+                && screen.lines()[0].contains("the Session's words, read only")
+        });
+        assert!(!release.path().exists());
+        assert!(!term.screen.seen(child::DONE), "{}", term.dump());
+        assert!(
+            term.screen.contains("ADMISSION_UNTRUSTED"),
+            "{}",
+            term.dump()
+        );
+        term.send("\r");
+        term.wait_until("Enter returned to the still-working shell", |screen| {
+            !screen.lines()[0].contains("Full diagnostic")
+                && screen.contains(child::BUSY)
+                && screen.contains("keep this held draft")
+        });
+        assert!(!term.screen.seen(child::DONE), "{}", term.dump());
+        release.open();
+        term.wait_text(child::DONE);
+        term.wait_text("nika › keep this held draft");
+        term.send("\x1b");
+        term.wait_text("nika › keep this held draft");
+        term.settle(Duration::from_millis(200));
+        for unexpected in [child::SECOND, QUESTION, "Save these changes"] {
+            assert!(
+                !term.screen.seen(unexpected),
+                "{unexpected}: {}",
+                term.dump()
+            );
+        }
+        leave(&mut term);
+    }
+}
 
 fn leave(term: &mut Term) {
     term.send("\x03");
@@ -60,7 +124,7 @@ fn the_palette_diagnostic_opens_at_rest_and_while_a_turn_is_working() {
             .collect::<Vec<_>>()
             .join(" ");
         assert!(
-            words.contains("nothing was sent to the authoring model"),
+            words.contains("this workflow-authoring request was not sent"),
             "{}",
             term.dump()
         );

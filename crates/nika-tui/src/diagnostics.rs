@@ -4,7 +4,7 @@
 //! What a workspace card says first when a refusal's words are recognised.
 //!
 //! A card paints the Session's own words ([`Committed::text`]) unless they are
-//! a refusal this presenter recognises: then four sentences come first — what
+//! a refusal this presenter recognises: then four parts come first — what
 //! stopped the work, what the Session stated did and did not happen, the
 //! supported way on, and where the full diagnostic is read. Recognition is the
 //! Session's complete sentence around a stable admission code, never a
@@ -12,8 +12,9 @@
 //! are painted as said. The block is never rewritten: its text remains the
 //! full diagnostic, and `F2` opens those exact words in a read-only view.
 //!
-//! A summary repeats only the effect scope the Session stated in that very
-//! refusal. A provider failure says that a failed call may still have reached
+//! A summary keeps the effect scope of the refused authoring request. An
+//! older diagnostic establishes no guarantee about earlier model routing.
+//! A provider failure says that a failed call may still have reached
 //! the model: it keeps its words, and no « nothing was sent » is inferred.
 //! Nothing here retries, turns the knowledge off or changes a model: the way
 //! on is a step the human takes.
@@ -32,12 +33,12 @@ pub(crate) enum Shown {
     Banner(String),
 }
 
-/// A recognised refusal, in four sentences.
+/// A recognised refusal, in four parts.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Summary {
     /// What stopped the work.
     pub(crate) cause: &'static str,
-    /// What the Session stated did and did not happen, in its own scope.
+    /// The supported effect scope, without extending an older diagnostic's claim.
     pub(crate) scope: &'static str,
     /// The supported way on: a step the human takes, never one taken for them.
     pub(crate) next: &'static str,
@@ -46,7 +47,7 @@ pub(crate) struct Summary {
 }
 
 /// A knowledge release the session's environment names, refused for want of a
-/// trusted identity before anything reached the authoring model. The
+/// trusted identity before the refused authoring request was dispatched. The
 /// workspace's Session reads that configuration from the environment only,
 /// once, when it opens, and the environment carries no trusted identity: the
 /// way on is a restart without it, under this build's own release or with no
@@ -54,9 +55,16 @@ pub(crate) struct Summary {
 /// column.
 static UNTRUSTED_RELEASE: Summary = Summary {
     cause: "Nika cannot verify the knowledge release named by NIKA_KNOWLEDGE.",
-    scope: "Nothing was sent to the authoring model and nothing was written.",
+    scope: "This authoring request was not sent; no write. Earlier routing may have reached the model.",
     next: "Next: quit and restart Nika with NIKA_KNOWLEDGE unset (built-in knowledge) or NIKA_KNOWLEDGE=off.",
     details: "Details: F2",
+};
+
+/// Old raw words remain readable, but their broader no-model-send claim
+/// cannot cover an earlier routing call.
+static LEGACY_UNTRUSTED_RELEASE: Summary = Summary {
+    scope: "Nothing was written. This older diagnostic does not establish what reached the model.",
+    ..UNTRUSTED_RELEASE
 };
 
 /// The opening banner's warning for the same release, after the Session's own
@@ -66,9 +74,11 @@ const UNTRUSTED_WARNING: &str = "Knowledge: Nika cannot verify the release named
 /// The Session's refusal of an authoring configuration it cannot honour,
 /// before its cause.
 const CONFIGURATION: &str = "the authoring configuration cannot be used: ";
-/// What the Session's turn adds to that refusal, which it raises before any
-/// seated call: the effect scope it states, and its own way on.
-const NOT_SENT: &str = " · nothing was sent to the authoring model, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again";
+/// What the Session adds before the refused authoring call is dispatched:
+/// that request's effect scope and the Session's own way on.
+const NOT_SENT: &str = " · this workflow-authoring request was not sent, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again";
+/// The exact legacy suffix: recognized without inferring a model-send scope.
+const LEGACY_NOT_SENT: &str = " · nothing was sent to the authoring model, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again";
 /// The strict knowledge door's refusal of a release, up to the release root.
 const UNAVAILABLE: &str = "knowledge unavailable: the strict door refused `";
 /// Between the root and the admission detail: the stable code of admission's
@@ -87,7 +97,7 @@ const WARNING: &str = "authoring knowledge: ";
 /// What a workspace card paints of `block`.
 pub(crate) fn shown(block: &Committed) -> Shown {
     match block.kind {
-        Kind::Refusal if untrusted_refusal(&block.text) => Shown::Refusal(&UNTRUSTED_RELEASE),
+        Kind::Refusal => untrusted_refusal(&block.text).map_or(Shown::Said, Shown::Refusal),
         Kind::Banner => banner(&block.text).map_or(Shown::Said, Shown::Banner),
         _ => Shown::Said,
     }
@@ -95,10 +105,17 @@ pub(crate) fn shown(block: &Committed) -> Shown {
 
 /// The Session's whole refusal of a turn whose configuration names a release
 /// with no trusted identity: its error's words, then exactly what it adds.
-fn untrusted_refusal(text: &str) -> bool {
-    text.strip_prefix(CONFIGURATION)
-        .and_then(|rest| rest.strip_suffix(NOT_SENT))
-        .is_some_and(untrusted_cause)
+fn untrusted_refusal(text: &str) -> Option<&'static Summary> {
+    let rest = text.strip_prefix(CONFIGURATION)?;
+    let (cause, summary) = if let Some(cause) = rest.strip_suffix(NOT_SENT) {
+        (cause, &UNTRUSTED_RELEASE)
+    } else {
+        (
+            rest.strip_suffix(LEGACY_NOT_SENT)?,
+            &LEGACY_UNTRUSTED_RELEASE,
+        )
+    };
+    untrusted_cause(cause).then_some(summary)
 }
 
 /// The strict door's refusal, on one line, of a release root a setting named,

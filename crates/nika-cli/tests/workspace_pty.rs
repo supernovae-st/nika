@@ -661,6 +661,22 @@ fn the_workspace_follows_every_size_and_comes_back() {
     term.wait_until("the focus view below the minimum", |s| {
         !s.contains("[graph]") && s.contains("nika ›")
     });
+    term.resize(40, 14);
+    let redraw_from = term.raw.len();
+    term.send("\x0c");
+    let redraw_started = Instant::now();
+    while !term.raw[redraw_from..]
+        .windows(4)
+        .any(|bytes| bytes == b"\x1b[2J")
+    {
+        assert!(redraw_started.elapsed() < WAIT, "{}", term.dump());
+        term.pump();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    term.wait_until("a fresh focus frame at 40 columns", |s| {
+        !s.contains("[graph]") && s.contains("nika ›")
+    });
+    term.shot("narrow focus frame");
     term.resize(120, 36);
     term.wait_until("the workspace back, object kept", |s| {
         s.contains("[graph]") && s.contains("diamond.nika") && s.contains("◆ join")

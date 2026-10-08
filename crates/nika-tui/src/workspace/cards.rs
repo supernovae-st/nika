@@ -292,7 +292,7 @@ mod tests {
                     let (rows, buffer) = painted(&state, width);
                     let glyph = if ascii { "x" } else { "✖" };
                     let summary = format!(
-                        "{glyph} Nika cannot verify the knowledge release named by NIKA_KNOWLEDGE. Nothing was sent to the authoring model and nothing was written. Next: quit and restart Nika with NIKA_KNOWLEDGE unset (built-in knowledge) or NIKA_KNOWLEDGE=off. Details: F2"
+                        "{glyph} Nika cannot verify the knowledge release named by NIKA_KNOWLEDGE. This authoring request was not sent; no write. Earlier routing may have reached the model. Next: quit and restart Nika with NIKA_KNOWLEDGE unset (built-in knowledge) or NIKA_KNOWLEDGE=off. Details: F2"
                     );
                     let case = format!("width {width} ascii {ascii} color {color}");
                     assert!(words(&rows).ends_with(&summary), "{case}: {rows:#?}");

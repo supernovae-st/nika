@@ -28,7 +28,7 @@ pub(crate) const ROOT: &str = "/srv/foundry/release-r3";
 /// The exact summary the presenter gives the untrusted-release refusal.
 const SUMMARY: Summary = Summary {
     cause: "Nika cannot verify the knowledge release named by NIKA_KNOWLEDGE.",
-    scope: "Nothing was sent to the authoring model and nothing was written.",
+    scope: "This authoring request was not sent; no write. Earlier routing may have reached the model.",
     next: "Next: quit and restart Nika with NIKA_KNOWLEDGE unset (built-in knowledge) or NIKA_KNOWLEDGE=off.",
     details: "Details: F2",
 };
@@ -127,7 +127,7 @@ fn the_untrusted_release_refusal_reads_as_its_exact_summary() {
         "{text}"
     );
     assert!(
-        text.ends_with(" · nothing was sent to the authoring model, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again"),
+        text.ends_with(" · this workflow-authoring request was not sent, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again"),
         "{text}"
     );
     let block = Committed::new(Kind::Refusal, text.clone());
@@ -146,6 +146,26 @@ fn the_untrusted_release_refusal_reads_as_its_exact_summary() {
         ] {
             assert!(!sentence.contains(wall), "{sentence} repeats {wall}");
         }
+    }
+}
+
+/// Older Session words stay exact in the reader without repeating their
+/// unqualified claim that nothing reached the model used for routing.
+#[test]
+fn a_legacy_refusal_keeps_its_raw_words_without_a_no_model_send_guarantee() {
+    const LEGACY: &str = " · nothing was sent to the authoring model, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again";
+    const LEGACY_SUMMARY: Summary = Summary {
+        scope: "Nothing was written. This older diagnostic does not establish what reached the model.",
+        ..SUMMARY
+    };
+    let current = knowledge_refusal(ROOT);
+    let cause = current.strip_suffix(NOT_SENT).expect("the turn's words");
+    let raw = format!("{cause}{LEGACY}");
+    let block = Committed::new(Kind::Refusal, raw.clone());
+    assert_eq!(shown(&block), Shown::Refusal(&LEGACY_SUMMARY));
+    assert_eq!(block.text, raw);
+    for changed in [format!("{raw}."), format!("{raw}\nthen retried")] {
+        assert_eq!(shown(&Committed::new(Kind::Refusal, changed)), Shown::Said);
     }
 }
 
@@ -174,7 +194,7 @@ fn any_other_wording_or_cause_is_painted_as_said() {
         format!("{text}."),
         format!("an earlier line\n{text}"),
         text.replacen(
-            "nothing was sent to the authoring model",
+            "this workflow-authoring request was not sent",
             "nothing was sent",
             1,
         ),

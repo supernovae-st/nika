@@ -214,7 +214,7 @@ mod tests {
 
     /// What a refused seated turn adds to the configuration refusal, as the
     /// Session's source writes it (the presenter's own tests pin it there).
-    const NOT_SENT: &str = " · nothing was sent to the authoring model, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again";
+    const NOT_SENT: &str = " · this workflow-authoring request was not sent, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again";
 
     /// The Session's own refusal of a turn whose environment names a release
     /// with no trusted identity: the parser and the strict door produce the
@@ -272,7 +272,7 @@ mod tests {
         let shown = shown.split_whitespace().collect::<Vec<_>>().join(" ");
         for words in [
             "ADMISSION_UNTRUSTED: no trusted expected identity",
-            "nothing was sent to the authoring model, nothing was written",
+            "this workflow-authoring request was not sent, nothing was written",
         ] {
             assert!(shown.contains(words), "{words}: {shown}");
         }

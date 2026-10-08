@@ -133,10 +133,25 @@ fn say(kind: Kind, text: impl Into<String>) -> Beat {
     Beat::Say(Committed::new(kind, text))
 }
 
+/// Typed display evidence only: the strict door refuses this named release
+/// before I/O. The held turn tests shell routing, never a Live/provider call.
+fn diagnostic() -> Option<Beat> {
+    use nika_cli_host::compile::config::AuthoringSettings;
+    use nika_session::authoring::{AuthoringContext, AuthoringError};
+    let mut env = AuthoringSettings::none();
+    env.knowledge = Some(PathBuf::from("/srv/foundry/release-r3"));
+    let context = AuthoringContext::from_settings(&AuthoringSettings::none(), &env);
+    context.refusal().cloned().map(|cause| say(Kind::Refusal, format!(
+        "{} · this workflow-authoring request was not sent, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again",
+        AuthoringError::Context(cause)
+    )))
+}
+
 /// The conversation and presentation of one mode, `<kind>[:<n>[:<inline|focus|workspace>]]`
 /// (the workspace mode lends the demo project):
 /// `slow-free` · `slow-gate` · `slow-gate-fresh` (the gate asks for fresh
-/// input) · `big` (no held turn) open on `n` transcript lines; `flood`
+/// input) · `slow-diagnostic` (opening raw evidence) · `big` (no held turn)
+/// open on `n` transcript lines; `flood`
 /// sends `n` busy labels in its first turn.
 pub(crate) fn conversation_for(mode: &str, release: Option<PathBuf>) -> (Child, Presentation) {
     let mut parts = mode.split(':');
@@ -148,6 +163,9 @@ pub(crate) fn conversation_for(mode: &str, release: Option<PathBuf>) -> (Child, 
         _ => Presentation::Inline,
     };
     let mut opening = vec![say(Kind::Banner, BANNER)];
+    if kind == "slow-diagnostic" {
+        opening.extend(diagnostic());
+    }
     if kind != "flood" {
         opening.extend((0..count).map(|i| say(Kind::Run, format!("item {i:05} ✓ {} ms", i % 97))));
     }
