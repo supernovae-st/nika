@@ -400,7 +400,8 @@ impl SessionRuntime {
                 self.unknown_cost.pending = Some(pending);
                 return TurnOutcome::Facts(self.cost_choice_details().unwrap_or_default());
             }
-            super::DecisionAnswer::Unknown => {
+            // Unknown, and any answer this grammar may add: asked again, never a yes.
+            _ => {
                 let question = format!(
                     "« {} » is not a yes or a no · nothing was sent · `yes`/`oui` continues once · `no`/`non` cancels · `details` shows the evidence\nThe request is unchanged: « {} ». To change it, cancel this review and describe the new request.\n{}",
                     answer.trim(),

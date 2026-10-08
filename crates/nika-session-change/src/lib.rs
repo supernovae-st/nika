@@ -38,6 +38,7 @@
 pub mod change;
 mod closure;
 pub mod consent;
+pub mod decision;
 pub mod draft;
 pub mod outcome;
 pub mod review;
