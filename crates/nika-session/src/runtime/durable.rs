@@ -21,10 +21,10 @@ use nika_trace::lineage::{Standing, lineage_of};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use super::{IntentDraft, Refusal, RefusalClass, SessionRuntime, TurnOutcome};
+use super::{ConversationChoice, IntentDraft, Refusal, RefusalClass, SessionRuntime, TurnOutcome};
 use crate::change::{Applied, ApplyAttempt, PendingGate, ProjectChangeSet};
 use crate::consent::{CONSENTS_FILE, ConsentDecision, ConsentRecord};
-use crate::intelligence::now_rfc3339;
+use crate::intelligence::{IntelligenceKind, ResolvedSessionIntelligence, now_rfc3339};
 use crate::outcome::ProposalId;
 use crate::state::{Pending, STATE_FILE, SessionState};
 
@@ -38,6 +38,28 @@ pub(super) struct PreparationBefore {
 }
 
 impl SessionRuntime {
+    /// A kept choice its history could not read stays this conversation's: unavailable with its
+    /// reason until chosen again, kept unchanged; never the operator's default in its place.
+    fn unreadable_choice(&mut self, raw: serde_json::Value, error: &str) {
+        let why = format!(
+            "this conversation's kept intelligence choice is unreadable ({error}) · `/intelligence` chooses again"
+        );
+        let resolved = ResolvedSessionIntelligence {
+            kind: IntelligenceKind::None,
+            model: None,
+            locus: crate::intelligence::DataLocus::None,
+            ready: false,
+            why: Some(why),
+        };
+        if let Some(factory) = &self.factory {
+            self.reasoner = factory(&resolved);
+        }
+        self.intelligence = resolved;
+        self.refresh_seat();
+        self.chosen = true;
+        self.conversation = Some(ConversationChoice::Unreadable(raw));
+    }
+
     /// Enable private, project-bound conversation history below `home/.nika`.
     ///
     /// Rebuilds the conversation projection and returns a notice on recovery.

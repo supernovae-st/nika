@@ -394,6 +394,18 @@ impl SessionRuntime {
         intelligence: ResolvedSessionIntelligence,
         reasoner: Box<dyn SessionReasoner>,
     ) -> Self {
+        let context = crate::authoring::AuthoringContext::default();
+        Self::open_under(cwd, intelligence, reasoner, context)
+    }
+
+    /// The session under the authoring context its opener resolved: the release is pinned once,
+    /// never for a context replaced at once.
+    fn open_under(
+        cwd: &Path,
+        intelligence: ResolvedSessionIntelligence,
+        reasoner: Box<dyn SessionReasoner>,
+        authoring_context: crate::authoring::AuthoringContext,
+    ) -> Self {
         let snapshot = ProjectSnapshot::observe(cwd);
         let broker = ContextBroker::new(snapshot.root.clone());
         let known = KnownWorld::installed(&snapshot.root);
@@ -437,7 +449,7 @@ impl SessionRuntime {
             revising: None,
             questions: question::Identities::default(),
             seat: AuthoringSeat::Deterministic { why: None },
-            authoring_context: crate::authoring::AuthoringContext::default(),
+            authoring_context,
             progress: crate::activity::Progress::default(),
             run_inputs: None,
             chosen: true,
@@ -692,13 +704,13 @@ impl SessionRuntime {
     ) -> Self {
         let intelligence = ResolvedSessionIntelligence::resolve(pref, &census);
         let reasoner = factory(&intelligence);
-        let mut session = Self::open(cwd, intelligence, reasoner);
+        // The host door's authoring configuration, read once, here: the
+        // names `nika compile` reads, through the same parser.
+        let context = crate::authoring::AuthoringContext::from_env();
+        let mut session = Self::open_under(cwd, intelligence, reasoner, context);
         session.census = Some(census);
         session.home = home.map(Path::to_path_buf);
         session.factory = Some(factory);
-        // The host door's authoring configuration, read once, here: the
-        // names `nika compile` reads, through the same parser.
-        session.authoring_context = crate::authoring::AuthoringContext::from_env();
         session
     }
 
@@ -707,28 +719,6 @@ impl SessionRuntime {
     /// history kept. Nothing is written as the operator's default.
     pub fn hold_for_conversation(&mut self, pref: UserIntelligencePreference) {
         self.conversation = Some(ConversationChoice::Held(pref));
-    }
-
-    /// A kept choice its history could not read stays this conversation's: unavailable with its
-    /// reason until chosen again, kept unchanged; never the operator's default in its place.
-    fn unreadable_choice(&mut self, raw: serde_json::Value, error: &str) {
-        let why = format!(
-            "this conversation's kept intelligence choice is unreadable ({error}) · `/intelligence` chooses again"
-        );
-        let resolved = ResolvedSessionIntelligence {
-            kind: IntelligenceKind::None,
-            model: None,
-            locus: crate::intelligence::DataLocus::None,
-            ready: false,
-            why: Some(why),
-        };
-        if let Some(factory) = &self.factory {
-            self.reasoner = factory(&resolved);
-        }
-        self.intelligence = resolved;
-        self.refresh_seat();
-        self.chosen = true;
-        self.conversation = Some(ConversationChoice::Unreadable(raw));
     }
 
     /// Hold `pref` as this conversation's intelligence: resolved against the census, servable or
