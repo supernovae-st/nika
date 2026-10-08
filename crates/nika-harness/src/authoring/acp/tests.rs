@@ -309,3 +309,29 @@ fn an_explicit_authoring_effort_rides_the_session_request() {
         (None, None)
     );
 }
+
+/// The authoring consumer holds an exact selection to its word: an answer during which the agent
+/// moved the effort the client applied is refused, never accepted as the chosen one, and the move
+/// is named; a model move nobody asked for is accepted and rides the record.
+#[test]
+fn a_mid_turn_move_of_an_applied_selection_refuses_the_answer_and_an_unasked_one_is_recorded() {
+    let mut moved = nika_kernel::ai::harness::HarnessOutcome::new("answer");
+    moved.selection.transmitted_effort = Some("high".into());
+    moved.selection.changed_mid_turn = vec!["effort=low".into()];
+    let refused = completed(moved, "test");
+    assert!(
+        matches!(&refused, Err(why) if why.contains("effort=low") && why.contains("no answer is accepted")),
+        "{refused:?}"
+    );
+    let mut drifted = nika_kernel::ai::harness::HarnessOutcome::new("answer");
+    drifted.selection.changed_mid_turn = vec!["model=gpt-5.4".into()];
+    let (answer, record) = completed(drifted, "test").expect("nothing applied moved");
+    assert_eq!(answer, "answer");
+    assert_eq!(record["changed_mid_turn"], json!(["model=gpt-5.4"]));
+    let (_, plain) = completed(
+        nika_kernel::ai::harness::HarnessOutcome::new("answer"),
+        "test",
+    )
+    .expect("a plain answer");
+    assert!(plain.get("changed_mid_turn").is_none(), "{plain}");
+}

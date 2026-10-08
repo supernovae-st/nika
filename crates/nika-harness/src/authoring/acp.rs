@@ -256,14 +256,7 @@ pub(crate) async fn run(
         match event.map_err(|e| safe_error(&e))? {
             HarnessEvent::MessageChunk { .. } => {}
             HarnessEvent::Completed { outcome } if outcome.images.is_empty() => {
-                let selection = &outcome.selection;
-                let metadata = json!({"status":"returned", "configured_model":outcome.observed_model,
-                    "model_evidence":outcome.observed_model_source.map(nika_kernel::ai::harness::ModelProvenance::as_str),
-                    "effort_option":selection.effort_option, "transmitted_effort":selection.transmitted_effort,
-                    "configured_effort":selection.configured_effort,
-                    "served_model":null, "usage_observed":outcome.usage.is_some(),
-                    "attested_version":seat.one_shot().map_or(VERSION, OneShot::version)});
-                return Ok((outcome.output, metadata));
+                return completed(*outcome, seat.one_shot().map_or(VERSION, OneShot::version));
             }
             HarnessEvent::PermissionAsked { reply, .. } => {
                 reply.respond(nika_kernel::ai::harness::PermissionDecision::Deny);
@@ -277,6 +270,32 @@ pub(crate) async fn run(
         }
     }
     Err("ACP authoring ended without a completed answer".into())
+}
+
+/// A completed turn's answer and its record. An explicit selection is exact: an answer during
+/// which the agent moved a model or an effort the client applied was not produced under it, so
+/// none is accepted (the access contract's own refusal); a move of a dimension nobody set rides
+/// the record, never hidden.
+fn completed(
+    outcome: nika_kernel::ai::harness::HarnessOutcome,
+    attested: &str,
+) -> Result<(String, Value), String> {
+    if let Some(refusal) = outcome.selection.moved_refusal() {
+        return Err(refusal.to_string());
+    }
+    let selection = &outcome.selection;
+    let mut metadata = json!({"status":"returned", "configured_model":outcome.observed_model,
+        "model_evidence":outcome.observed_model_source.map(nika_kernel::ai::harness::ModelProvenance::as_str),
+        "effort_option":selection.effort_option, "transmitted_effort":selection.transmitted_effort,
+        "configured_effort":selection.configured_effort,
+        "served_model":null, "usage_observed":outcome.usage.is_some(),
+        "attested_version":attested});
+    if !selection.changed_mid_turn.is_empty()
+        && let Some(record) = metadata.as_object_mut()
+    {
+        record.insert("changed_mid_turn".into(), json!(selection.changed_mid_turn));
+    }
+    Ok((outcome.output, metadata))
 }
 
 #[cfg(test)]
