@@ -549,6 +549,27 @@ fn a_subscription_seat_refuses_a_named_effort_before_any_call() {
     assert!(peer.bodies().is_empty(), "no call was made");
 }
 
+/// Over ACP the named effort is not the preflight's to refuse: it travels with the request to the
+/// harness door, so this unprofiled adapter meets the door's own refusal, never the effort's.
+#[test]
+fn an_acp_seat_takes_a_named_effort_to_its_harness_door() {
+    let peer = Peer::start(vec![(200, response("{}"))]);
+    let _transport = test_transport::install(&peer.url);
+    let seat = AuthoringSeat::Harness {
+        seat: "no-such-harness".to_owned(),
+        model: None,
+        transport: nika_types::access::HarnessTransport::Acp,
+    };
+    let context = host(&AuthoringSettings::none().with_reasoning("max"));
+    let met = compile_in(&seat, &context, &CompileRequest::create(REQUEST), REQUEST);
+    assert!(
+        matches!(&met, Err(AuthoringError::Seat(why))
+            if why.contains("audited completion profile") && !why.contains("reasoning effort")),
+        "{met:?}"
+    );
+    assert!(peer.bodies().is_empty(), "no provider call");
+}
+
 /// Source recovery rides the context as resolved: absent or zero, the identity bytes every
 /// question and cost binding hashes carry nothing new; named, they carry it; a word the parser
 /// refuses is the context's refusal, never a silent zero.

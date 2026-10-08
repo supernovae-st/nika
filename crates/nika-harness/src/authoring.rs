@@ -6,7 +6,7 @@
 //! prefix extraction: the owning Compiler validates the entire returned answer.
 pub(crate) mod acp;
 mod connection;
-pub use connection::{reason, validate_selection};
+pub use connection::{reason, reason_with_effort, validate_selection};
 
 use nika_types::access::HarnessTransport;
 use std::sync::Mutex;

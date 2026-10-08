@@ -629,6 +629,32 @@ enum Attach<'a> {
     Carried(Option<&'a Value>, &'a str),
 }
 
+/// A subscription seat's preflight. It holds no billed-provider admission, and a direct seat
+/// cannot carry an explicit effort: both are said before any byte, never silently dropped (R4
+/// B16). Over ACP the named effort travels with every authoring call: the session applies it
+/// through its advertised reasoning option and reads it back.
+fn harness_preflight(
+    seat: &str,
+    transport: nika_types::access::HarnessTransport,
+    admitted: bool,
+    effort: Option<nika_onboard::compile::AuthoringReasoning>,
+) -> Result<(), AuthoringError> {
+    if admitted {
+        return Err(AuthoringError::Seat(
+            "a subscription is not a billed-provider admission account".into(),
+        ));
+    }
+    match (transport, effort) {
+        (nika_types::access::HarnessTransport::Native, Some(level)) => {
+            Err(AuthoringError::Seat(format!(
+                "the subscription seat `{seat}` cannot carry the explicit reasoning effort `{}` · nothing was sent",
+                level.word()
+            )))
+        }
+        _ => Ok(()),
+    }
+}
+
 fn compile_attached(
     seat: &AuthoringSeat,
     context: &AuthoringContext,
@@ -657,19 +683,12 @@ fn compile_attached(
         }
         AuthoringSeat::Unavailable { why } => return Err(AuthoringError::Seat(why.clone())),
         AuthoringSeat::Provider { model } => model.clone(),
-        AuthoringSeat::Harness { seat, model, .. } => {
-            if admission.is_some() {
-                return Err(AuthoringError::Seat(
-                    "a subscription is not a billed-provider admission account".into(),
-                ));
-            }
-            // Its adapter cannot carry an explicit effort: said, never silently dropped (R4 B16).
-            if let Some(level) = context.reasoning() {
-                return Err(AuthoringError::Seat(format!(
-                    "the subscription seat `{seat}` cannot carry the explicit reasoning effort `{}` · nothing was sent",
-                    level.word()
-                )));
-            }
+        AuthoringSeat::Harness {
+            seat,
+            model,
+            transport,
+        } => {
+            harness_preflight(seat, *transport, admission.is_some(), context.reasoning())?;
             model.clone().unwrap_or_else(|| format!("{seat}/default"))
         }
     };

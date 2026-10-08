@@ -273,6 +273,46 @@ impl SessionReasoner for SelectedHarnessReasoner {
             usage_observed,
         })
     }
+    /// Over ACP the named effort travels with the turn: the session applies it through its
+    /// advertised reasoning option and reads it back. A direct seat cannot carry it, and a
+    /// subscription holds no billed admission: both refuse before any call (R4 B16).
+    fn reason_effort(
+        &mut self,
+        prompt: &str,
+        _label: bool,
+        account: Option<&nika_providers::InferenceAdmission>,
+        effort: AuthoringReasoning,
+    ) -> Result<Reply, ReasonError> {
+        if account.is_some() {
+            return Err(ReasonError::Provider(
+                "selected classifier has no catalog admission seam".into(),
+            ));
+        }
+        if self.transport == nika_types::access::HarnessTransport::Native {
+            return Err(ReasonError::Provider(format!(
+                "this intelligence cannot carry the explicit reasoning effort `{}` · nothing was sent",
+                effort.word()
+            )));
+        }
+        let level = nika_verb_infer::ReasoningEffort::parse(effort.word()).ok_or_else(|| {
+            ReasonError::Provider(format!(
+                "the reasoning effort `{}` has no provider level · nothing was sent",
+                effort.word()
+            ))
+        })?;
+        let (text, usage_observed) = block_on(nika_harness::authoring::reason_with_effort(
+            &self.harness.seat,
+            self.model.as_deref(),
+            self.transport,
+            prompt,
+            Some(level),
+        ))?
+        .map_err(ReasonError::Seat)?;
+        Ok(Reply {
+            text,
+            usage_observed,
+        })
+    }
 }
 
 #[cfg(feature = "access-harness")]
@@ -531,5 +571,36 @@ mod tests {
         let mut none = NoReasoner;
         assert!(matches!(none.reason("x"), Err(ReasonError::NoIntelligence)));
         assert_eq!(none.name(), "none");
+    }
+
+    /// A harness turn asked an explicit effort: a direct seat refuses it before the seat is met,
+    /// while over ACP the effort reaches the harness door, so this unprofiled adapter meets the
+    /// door's own refusal instead of the effort's (the backend half is pinned in nika-harness).
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn a_harness_turn_carries_an_effort_over_acp_and_a_direct_seat_refuses_it() {
+        use nika_types::access::HarnessTransport;
+        let seat = |transport| {
+            HarnessReasoner {
+                seat: "no-such-harness".to_owned(),
+            }
+            .with_transport(None, transport)
+        };
+        let direct =
+            seat(HarnessTransport::Native).reason_effort("p", false, None, AuthoringReasoning::Max);
+        assert!(
+            matches!(&direct, Err(ReasonError::Provider(why))
+                if why.contains("cannot carry the explicit reasoning effort `max`")
+                    && why.contains("nothing was sent")),
+            "{direct:?}"
+        );
+        let acp =
+            seat(HarnessTransport::Acp).reason_effort("p", false, None, AuthoringReasoning::Max);
+        assert!(
+            matches!(&acp, Err(ReasonError::Seat(why))
+                if why.contains("audited completion profile")
+                    && !why.contains("reasoning effort")),
+            "{acp:?}"
+        );
     }
 }
