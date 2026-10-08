@@ -1,0 +1,11 @@
+nika: p32-returns-infer
+model: mock/echo
+permits: {}
+tasks:
+  classify:
+    infer:
+      prompt: "Classify the ticket 'cannot log in' as bug or question. Answer as JSON."
+      max_tokens: 100
+    returns: { object: { label: { enum: ["bug", "question"] }, confidence: { number: { min: 0, max: 1 } } } }
+outputs:
+  label: ${{ tasks.classify.output }}

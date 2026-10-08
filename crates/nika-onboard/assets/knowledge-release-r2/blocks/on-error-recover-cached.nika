@@ -1,0 +1,17 @@
+nika: p28-on-error-recover
+permits:
+  fs: { read: ["./data/**"] }
+  tools: ["nika:read", "nika:fetch"]
+  net: { http: ["api.example.com"] }
+tasks:
+  cached:
+    invoke: { tool: "nika:read", args: { path: "./data/a.json" } }
+  live:
+    invoke: { tool: "nika:fetch", args: { url: "https://api.example.com/v1/items", mode: raw } }
+    on_error: { recover: "${{ tasks.cached.output }}" }
+  fixed:
+    invoke: { tool: "nika:fetch", args: { url: "https://api.example.com/v1/count", mode: raw } }
+    on_error: { recover: "0" }
+outputs:
+  items: ${{ tasks.live.output }}
+  count: ${{ tasks.fixed.output }}

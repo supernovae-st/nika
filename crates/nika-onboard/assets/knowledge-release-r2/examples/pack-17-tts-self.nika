@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 17 · TTS self — the last named showcase debt.
+#
+# `nika:tts_generate` is the audio graduate (stdlib §Audio). The mock
+# provider writes a REAL deterministic WAV, zero network, zero keys —
+# the same honesty as `nika:image_generate` `provider: mock` (og-images).
+# Audio bytes never ride outputs: path + sha256 + duration_ms do.
+#
+# Demonstrates ·
+#   - `invoke: { tool: nika:tts_generate, args: { provider: mock } }`
+#   - `permits.fs.write` covering a DIRECTORY-writing builtin (`**`)
+#   - const-fixture assert on the mock contract (provider + wav)
+#   - flip ONE line to `local` / `openai` / `elevenlabs` for paid audio
+#
+# Run · nika try 17-tts-self
+#   (offline · mock WAV · zero keys)
+
+nika: tts-self
+
+model: mock/echo
+
+permits:
+  tools: ["nika:tts_generate", "nika:assert"]
+  fs:
+    write: ["out/speech/**"]
+
+tasks:
+  speak:
+    invoke:
+      tool: nika:tts_generate
+      args:
+        provider: mock
+        text: "hello"
+        output_dir: out/speech
+        metadata: { page_slug: "hello" }
+  compiled:
+    with:
+      shot: ${{ tasks.speak.output }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ with.shot.provider == "mock" && with.shot.audio.format == "wav" }}
+        message: "mock TTS must land a real WAV (bytes stay on disk)"
+
+outputs:
+  audio: ${{ tasks.speak.output.audio }}
+  manifest: ${{ tasks.speak.output.manifest_path }}

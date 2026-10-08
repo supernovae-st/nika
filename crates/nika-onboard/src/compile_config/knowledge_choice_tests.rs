@@ -306,8 +306,8 @@ fn request_with_embedded_knowledge() -> CompileRequest {
         .expect("embedded release admitted");
     let pack = request.authoring_knowledge.as_ref().expect("attached");
     let ids: Vec<_> = pack.references.iter().map(|r| r.id.as_str()).collect();
-    assert!(ids.contains(&"pattern:typed-output"));
-    assert!(ids.contains(&"block:typed-inputs-outputs"));
+    assert!(ids.contains(&"construct:outputs"), "{ids:?}");
+    assert!(ids.contains(&"block:typed-inputs-outputs"), "{ids:?}");
     request.answers.insert("column".into(), "total".into());
     request.workflow_id = Some("typed-report".into());
     request
@@ -409,8 +409,8 @@ fn enabled_knowledge_replaces_the_previous_intents_pack() {
         .expect("embedded release admitted");
     let pack = after.authoring_knowledge.expect("new pack attached");
     let ids: Vec<_> = pack.references.iter().map(|r| r.id.as_str()).collect();
-    assert!(ids.contains(&"pattern:declared-zero"));
-    assert!(ids.contains(&"block:run-deterministic"));
+    assert!(ids.contains(&"construct:permits"), "{ids:?}");
+    assert!(ids.contains(&"block:run-deterministic"), "{ids:?}");
 }
 
 /// Nothing named attaches the release this build embeds, composed by the door for the intent as
@@ -425,18 +425,26 @@ fn nothing_named_attaches_the_embedded_release_composed_for_the_intent() {
     let pack = request.authoring_knowledge.expect("attached");
     assert_eq!(
         pack.identity["snapshot_sha256"],
-        "b7f3861c55c785ba78fbf3fcfbb495ab79154b30f1bcb8483ce66018cc4659a9"
+        "6476372aa7eedf02e3b718dcd1c51769d97450eb0ae825a62b33fcf10a2471af"
     );
-    assert_eq!(pack.identity["verification"]["policy"]["id"], "policy-r");
+    assert_eq!(pack.identity["verification"]["policy"]["id"], "policy-r2");
     let direct = bundled::admit(Some(&bundled::identity().unwrap()))
         .unwrap()
         .pack(intent, Some("heldout"))
         .unwrap();
     assert_eq!(pack, direct, "the door's pack is the memory door's");
     let ids: Vec<_> = pack.references.iter().map(|r| r.id.as_str()).collect();
-    assert!(ids.contains(&"pattern:typed-output"));
-    assert!(ids.contains(&"block:typed-inputs-outputs"));
-    assert!(pack.repairs.is_empty());
+    assert!(ids.contains(&"construct:outputs"), "{ids:?}");
+    assert!(ids.contains(&"block:typed-inputs-outputs"), "{ids:?}");
+    // The release's repair principles ride along by diagnostic code, never an empty entry.
+    let odd: Vec<_> = (pack.repairs.iter())
+        .filter(|(code, principles)| {
+            code.trim().is_empty()
+                || principles.is_empty()
+                || principles.iter().any(|p| p.trim().is_empty())
+        })
+        .collect();
+    assert!(odd.is_empty(), "{odd:?}");
     // An intent with no words composes nothing, as for any release.
     let request = config
         .with_knowledge(CompileRequest::create("  "), "  ")

@@ -23,7 +23,7 @@ const UNWORDED: [&str; 3] = ["client", "devise", "reference_interne"];
 fn sales(root: &Path) {
     std::fs::write(
         root.join("ventes.csv"),
-        "id,date,client,statut,montant,devise,reference_interne\n1,2026-09-01,Acme,paye,120.50,EUR,A-1\n2,2026-09-02,Bolt,impaye,80,EUR,A-2\n3,2026-09-03,Cora,paye,42,EUR,A-3\n",
+        "id,date,client,statut,montant,devise,reference_interne\n1,2026-09-01,Zandor,paye,120.50,EUR,A-1\n2,2026-09-02,Bolt,impaye,80,EUR,A-2\n3,2026-09-03,Cora,paye,42,EUR,A-3\n",
     )
     .expect("fixture");
 }
@@ -73,9 +73,10 @@ fn the_first_generation_is_told_every_observed_column_of_the_named_source() {
         first.contains("impaye"),
         "the categorical values ride along: {first}"
     );
-    // Data only: no row value that is not categorical (a client name, an amount) is presented.
+    // Data only: no row value that is not categorical (a client name, an amount) is presented
+    // anywhere in the request. The client is a name no recalled reference text carries.
     assert!(
-        !first.contains("Acme") && !first.contains("120.50"),
+        !first.contains("Zandor") && !first.contains("120.50"),
         "{first}"
     );
     // The receipt says what was observed and presented, by path and count.

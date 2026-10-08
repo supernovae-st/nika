@@ -193,4 +193,5 @@ fn another_identity_or_a_moved_byte_is_refused_typed_never_another_source() {
     );
 }
 
+mod a8_tests;
 mod current_tests;

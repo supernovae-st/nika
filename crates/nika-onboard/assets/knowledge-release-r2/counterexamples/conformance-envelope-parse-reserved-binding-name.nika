@@ -1,0 +1,29 @@
+# Expected: NIKA-PARSE-013 at CHECK.
+# W33: NIKA-PARSE-013 — reserved binding name in output:
+# Tests: using a reserved name (output/status/error) in output: block → NIKA-PARSE-013 at check
+# Detail: reserved binding name rejected at parse.
+nika: w33-reserved-binding-name
+
+const:
+  data:
+    value: 42
+
+tasks:
+  bad_binding:
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: ${{ const.data }}
+        expression: "."
+    extract:
+      status: ".value"
+
+  write_result:
+    with:
+      bad_binding: ${{ tasks.bad_binding.output }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./out/data-validation/w33-reserved-binding-name.json"
+        content: ${{ with.bad_binding }}
+        create_dirs: true

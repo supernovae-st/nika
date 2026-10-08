@@ -270,11 +270,11 @@ fn an_embedded_pin_reopens_from_memory_with_the_same_identity_and_record() {
     assert_eq!(pin.origin, KnowledgeOrigin::Embedded);
     assert_eq!(
         pin.manifest_sha256,
-        "b7f3861c55c785ba78fbf3fcfbb495ab79154b30f1bcb8483ce66018cc4659a9"
+        "6476372aa7eedf02e3b718dcd1c51769d97450eb0ae825a62b33fcf10a2471af"
     );
     assert_eq!(
         pin.version.as_deref(),
-        Some("knowledge-0.123.0-candidate-a8-r2")
+        Some("knowledge-0.123.0-r2-publication-recut-20261008")
     );
     let reopened = pin.reopen().expect("admitted again in memory");
     assert_eq!(pin.moved(&reopened), None, "the same release has not moved");
@@ -285,8 +285,8 @@ fn an_embedded_pin_reopens_from_memory_with_the_same_identity_and_record() {
     assert_eq!(record["source"], "embedded");
     assert!(record.get("dir").is_none(), "no path: {record}");
     assert_eq!(record["snapshot_sha256"], pin.manifest_sha256.as_str());
-    assert_eq!(record["policy"]["id"], "policy-r");
-    assert_eq!(record["admission"], ADMISSION_PROFILE);
+    assert_eq!(record["policy"]["id"], "policy-r2");
+    assert_eq!(record["admission"], "nika-knowledge-release-profile/r2");
     assert_eq!(record["exclude_corpus"], "heldout");
     assert!(
         pin.status_words().ends_with(" · admitted · embedded"),

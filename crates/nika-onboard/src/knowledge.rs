@@ -24,7 +24,7 @@
 //!
 //! The embedder names the [`TrustedIdentity`] it expects (the release's `SNAPSHOT_SHA256` and
 //! its policy), from its own release record. A source without one is refused before anything is
-//! collected. A named directory carries none today. This build embeds the current release and retains R3 for earlier pins. Each is
+//! collected. A named directory carries none today. This build embeds the current release, the r2 run contract, and retains a8 and R3 for earlier pins. Each is
 //! admitted against its issued identity; new authoring uses the current release by default.
 //!
 //! The release is read once:

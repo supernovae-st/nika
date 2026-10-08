@@ -461,7 +461,7 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
         .expect("admitted")
         .expect("composed");
     let expected: Vec<_> = [
-        ("pattern", "pattern:typed-output"),
+        ("pattern", "pattern:lang:typed-output"),
         ("block", "block:typed-inputs-outputs"),
     ]
     .into_iter()
@@ -479,7 +479,7 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
     assert_eq!(record["identity"]["source"], "embedded");
     assert_eq!(
         record["identity"]["snapshot_sha256"],
-        "b7f3861c55c785ba78fbf3fcfbb495ab79154b30f1bcb8483ce66018cc4659a9"
+        "6476372aa7eedf02e3b718dcd1c51769d97450eb0ae825a62b33fcf10a2471af"
     );
     assert!(record["identity"].get("dir").is_none());
     assert_eq!(record["presented"], true);

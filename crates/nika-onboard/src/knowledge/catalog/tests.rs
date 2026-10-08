@@ -25,7 +25,7 @@ use crate::knowledge::{Snapshot, TrustedIdentity, bundled, fixture};
 const BLOCK: &str = "block:validate-quarantine-total";
 /// Its admitted bytes, as the release ships them.
 const BYTES: &str =
-    include_str!("../../../assets/knowledge-release-a8/blocks/validate-quarantine-total.nika");
+    include_str!("../../../assets/knowledge-release-r2/blocks/validate-quarantine-total.nika");
 
 fn current() -> Snapshot {
     bundled::admit(Some(&bundled::identity().unwrap())).unwrap()
@@ -59,7 +59,10 @@ fn bindings() -> Vec<Binding> {
 fn a_checked_block_resolves_by_id_and_release_with_its_admitted_bytes() {
     let snapshot = current();
     let release = snapshot.release();
-    assert_eq!(release.version, "knowledge-0.123.0-candidate-a8-r2");
+    assert_eq!(
+        release.version,
+        "knowledge-0.123.0-r2-publication-recut-20261008"
+    );
     assert_eq!(release.snapshot_sha256, snapshot.manifest_sha256());
     let pinned = ComponentRef::new(BLOCK)
         .at_version(release.version.clone())
@@ -233,7 +236,10 @@ async fn a_request_sharing_no_word_with_the_block_reaches_it_through_the_whole_c
         .unwrap();
     let coverage = &record["coverage"];
     assert_eq!(coverage["complete"], true, "{coverage:#}");
-    assert_eq!(coverage["admitted_entries"], 20, "8 blocks and 12 patterns");
+    assert_eq!(
+        coverage["admitted_entries"], 357,
+        "every r2 row but its 7 source artifacts"
+    );
     assert_eq!(coverage["resolved_in_full"], 1);
     assert_eq!(
         coverage["release"]["snapshot_sha256"],
@@ -253,7 +259,7 @@ async fn a_request_sharing_no_word_with_the_block_reaches_it_through_the_whole_c
     );
     let undecided = references
         .iter()
-        .find(|r| r.id == "pattern:validate-records")
+        .find(|r| r.id == "skeleton:compile/validate-records")
         .unwrap();
     assert!(undecided.text.starts_with(DESCRIPTOR));
     let row: &Value = (record["references"].as_array().unwrap().iter())

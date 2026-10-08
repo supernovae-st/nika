@@ -1,0 +1,23 @@
+# Expected: NIKA-VAR-005 at CHECK.
+# W32: when: with a bare string literal → NIKA-VAR-005 at check time
+# Tests: "when: \"literal string\"" should be rejected at parse/check time
+# Detail: bare string literal in when: is statically non-boolean-shaped (spec 03 §when shape rules).
+nika: w32-when-string-literal-rejected
+
+tasks:
+  bad_when:
+    when: "literal string"
+    invoke:
+      tool: "nika:assert"
+      args:
+        condition: "${{ true }}"
+        message: "This should never run"
+
+  write_result:
+    after: { bad_when: success }
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./out/data-validation/w32-when-string-literal-rejected.json"
+        content: { ran: true }
+        create_dirs: true

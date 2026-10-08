@@ -1,0 +1,13 @@
+nika: p23-unwind
+permits: { exec: true, tools: ["nika:log"], fs: { write: ["./tmp/**"] } }
+tasks:
+  process:
+    exec: { shell: "echo x > ./tmp/probe-output.json" }
+  drop_temp:
+    after: { process: unwind }
+    exec: { command: ["rm", "-f", "./tmp/probe-output.json"] }
+  announce:
+    after: { drop_temp: unwind }
+    invoke: { tool: "nika:log", args: { message: "cleaned" } }
+outputs:
+  done: ${{ tasks.process.output }}

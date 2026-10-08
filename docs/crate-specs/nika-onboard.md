@@ -91,7 +91,11 @@ only the explicit recovery reservation added to its existing allowance.
 (`nika-knowledge-release/2`, profile `nika-knowledge-release-profile/r1`: the
 shared contract for producer and consumer, with common pinned vectors under
 `tests/knowledge-r1`) and the bounded BM25/graph composition shared by CLI,
-Session and Serve. `Snapshot::open(dir, identity)` on disk and
+Session and Serve. The build embeds the current release, the r2 run contract
+(profile r2, `policy-r2`, embedded whole from its directory and admitted against
+its issued snapshot), and retains the a8 and R3 releases for earlier pins
+(`knowledge::bundled`); a pin naming a release this build does not embed meets
+the strict door of its own profile, so its refusal names the identity. `Snapshot::open(dir, identity)` on disk and
 `Snapshot::from_files(label, files, identity)` in memory are the only doors.
 Without a trusted identity nothing is collected. The disk form holds the root
 and its three layout directories by descriptor (rustix). The root's final

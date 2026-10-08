@@ -1,0 +1,21 @@
+nika: p35-prompt-gate
+model: mock/echo
+const:
+  send_endpoint: "https://hooks.example.com/recap"
+permits:
+  tools: ["nika:prompt", "nika:fetch"]
+  net: { http: ["hooks.example.com"] }
+tasks:
+  draft:
+    infer:
+      prompt: "Draft a two-line recap of today's open tickets. Invent nothing."
+      max_tokens: 300
+  review:
+    with: { payload: "${{ tasks.draft.output }}" }
+    invoke: { tool: "nika:prompt", args: { message: "Send this recap? ${{ with.payload }}", default: false } }
+  send:
+    with: { approved: "${{ tasks.review.output }}", payload: "${{ tasks.draft.output }}" }
+    when: "${{ with.approved == true }}"
+    invoke: { tool: "nika:fetch", args: { url: "${{ const.send_endpoint }}", method: POST, headers: { content-type: application/json }, body: "${{ with.payload }}" } }
+outputs:
+  sent: ${{ tasks.send.output }}

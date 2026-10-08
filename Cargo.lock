@@ -5244,6 +5244,7 @@ dependencies = [
 name = "nika-onboard"
 version = "0.122.0"
 dependencies = [
+ "include_dir",
  "nika-bm25",
  "nika-builtin",
  "nika-catalog",

@@ -1,0 +1,14 @@
+nika: p24-group-fanin
+permits: { exec: ["true", "false"] }
+tasks:
+  leg_a: { group: probes, exec: { command: ["true"], capture: structured } }
+  leg_b: { group: probes, exec: { command: ["false"], capture: structured } }
+  summary:
+    with: { legs: "${{ group.probes }}" }
+    invoke:
+      tool: nika:jq
+      args:
+        input: "${{ with.legs }}"
+        expression: 'map(select(.output.exit_code != 0)) | {failed: length}'
+outputs:
+  failed: ${{ tasks.summary.output }}

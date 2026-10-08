@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+# Expected: NIKA-VAR-021 at CHECK.
+nika: e09-dag-ref-no-edge
+# INTENT: trigger NIKA-VAR-021 (a tasks.* reference in a verb body — outside
+# the boundary; the fix is machine-applicable: hoist into with:)
+tasks:
+  producer:
+    exec:
+      command: ["echo", "hello"]
+
+  consumer:
+    # Missing: with: { greeting: ${{ tasks.producer.output }} }
+    exec:
+      command: ["echo", "${{ tasks.producer.output }}"]

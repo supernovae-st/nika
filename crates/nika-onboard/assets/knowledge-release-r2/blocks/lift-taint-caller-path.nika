@@ -1,0 +1,21 @@
+nika: p34-lift-taint
+permits:
+  tools: ["nika:jq", "nika:read"]
+  fs: { read: ["data/*.csv"] }
+inputs:
+  path:
+    type: string
+    default: "data/inventory-q3.csv"
+    required: true
+tasks:
+  load:
+    invoke: { tool: "nika:read", args: { path: "${{ inputs.path }}" } }
+    lift:
+      - law: taint
+        from: inputs.path
+        because: "the caller picks WHICH fixture csv; the one-segment *.csv bound confines every value"
+  shape:
+    with: { raw: "${{ tasks.load.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.raw }}", expression: '{rows: (split("\n") | map(select(. != "")) | length - 1)}' } }
+outputs:
+  summary: ${{ tasks.shape.output }}

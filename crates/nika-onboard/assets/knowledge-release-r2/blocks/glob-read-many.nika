@@ -1,0 +1,13 @@
+nika: p37-glob-read
+permits:
+  fs: { read: ["./docs/**"] }
+  tools: ["nika:glob", "nika:read"]
+tasks:
+  glob_source:
+    invoke: { tool: "nika:glob", args: { pattern: "./docs/*.md" } }
+  read_source:
+    with: { paths: "${{ tasks.glob_source.output }}" }
+    for_each: { items: "${{ with.paths }}", fail_fast: true }
+    invoke: { tool: "nika:read", args: { path: "${{ item }}" } }
+outputs:
+  texts: ${{ tasks.read_source.output }}

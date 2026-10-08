@@ -1,0 +1,23 @@
+# Expected: NIKA-SEC-009 at CHECK.
+# The lethal trifecta, realized and ungated: the boundary grants private
+# read (fs.read) + untrusted ingress (nika:fetch) + external egress
+# (net.http · nika:notify), the fetched content REACHES the egress task's
+# effect surface, and no blocking invoke: nika:prompt dominates the first
+# network touch (NEP-0002 · the Rule of Two as a static check).
+nika: sec21-trifecta-realized-flow-ungated
+
+permits:
+  fs: { read: ["./docs/**"] }
+  net: { http: ["example.com"] }
+  tools: ["nika:fetch", "nika:notify"]
+
+tasks:
+  ingest:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://example.com/page" }
+  exfil:
+    with: { body: "${{ tasks.ingest.output }}" }
+    invoke:
+      tool: "nika:notify"
+      args: { target: "https://example.com/hook", message: "${{ with.body }}" }

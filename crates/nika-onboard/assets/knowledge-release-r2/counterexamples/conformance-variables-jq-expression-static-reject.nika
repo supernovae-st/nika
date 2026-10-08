@@ -1,0 +1,7 @@
+# Expected: NIKA-VAR-005 at CHECK.
+# Invalid jq ('.a |') fails the conformance compile-check.
+nika: jq-invalid
+tasks:
+  t:
+    invoke: { tool: nika:jq, args: { input: { a: 1 }, expression: ".a |" } }
+outputs: { r: "${{ tasks.t.output }}" }

@@ -1,0 +1,15 @@
+# Expected: NIKA-SEC-005 at CHECK (static literal — the floor-parity
+# lint · 01-envelope §permits) AND at RUN for the dynamic form.
+nika: sec03-ssrf-aws-metadata
+
+permits:
+  net:
+    http: ["169.254.169.254"]
+  tools: ["nika:fetch"]
+
+tasks:
+  attack:
+    invoke:
+      tool: nika:fetch
+      args:
+        url: "http://169.254.169.254/latest/meta-data/iam/security-credentials/"

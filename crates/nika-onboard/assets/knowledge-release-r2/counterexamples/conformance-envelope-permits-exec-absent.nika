@@ -1,0 +1,12 @@
+# Expected: check-reject (gate verdict). PERMITS: exec task under a boundary with no exec grant.
+nika: sec14-exec-no-permit
+
+permits:
+  fs:
+    write: ["./out/security/**"]
+  tools: ["nika:write"]
+
+tasks:
+  attack:
+    exec:
+      command: ["echo", "hello"]

@@ -1,0 +1,11 @@
+nika: p20-after-terminal
+permits: { exec: ["false"], tools: ["nika:log"] }
+tasks:
+  pipeline:
+    exec: { command: ["false"] }
+  report:
+    after: { pipeline: terminal }
+    with: { outcome: "${{ tasks.pipeline.status }}" }
+    invoke: { tool: "nika:log", args: { message: "pipeline ended ${{ with.outcome }}" } }
+outputs:
+  outcome: ${{ tasks.report.output }}

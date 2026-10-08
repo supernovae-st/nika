@@ -1,0 +1,19 @@
+nika: p05-permits-full
+permits:
+  fs: { read: ["./data/**"], write: ["./out/**"] }
+  net: { http: ["api.example.com"] }
+  exec: ["echo"]
+  tools: ["nika:read", "nika:write", "nika:fetch"]
+  env: ["HOME"]
+tasks:
+  read_in:
+    invoke: { tool: "nika:read", args: { path: "./data/in.txt" } }
+  say:
+    exec: { command: ["echo", "hello"] }
+  ping:
+    invoke: { tool: "nika:fetch", args: { url: "https://api.example.com/ping", mode: raw } }
+  write_out:
+    with: { text: "${{ tasks.read_in.output }}" }
+    invoke: { tool: "nika:write", args: { path: "./out/copy.txt", content: "${{ with.text }}", overwrite: true, create_dirs: true } }
+outputs:
+  copy: ${{ tasks.write_out.output }}

@@ -1,0 +1,20 @@
+nika: p16-invoke-workflow
+model: mock/echo
+permits: { tools: ["nika:jq"] }
+inputs:
+  topic: { type: string, default: "why a workflow calls a workflow", required: true }
+tasks:
+  call:
+    invoke:
+      workflow: "./child.nika"
+      args: { topic: "${{ inputs.topic }}" }
+    returns: { object: { summary: string } }
+  wrap:
+    with: { summary: "${{ tasks.call.output.summary }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { summary: "${{ with.summary }}" }
+        expression: ". + {chars: (.summary | length)}"
+outputs:
+  brief: ${{ tasks.wrap.output }}
