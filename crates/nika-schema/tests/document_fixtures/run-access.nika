@@ -1,0 +1,21 @@
+# The run's authored access and reasoning: how the run reaches its model
+# (route, protocol, no fallback) and the native effort it asks for, beside
+# the determinism axes. A document edit elsewhere keeps this block whole.
+nika: run-access
+model: openai/gpt-6-astra
+run:
+  entropy: none
+  clock: virtual
+  access:
+    via: openai
+    protocol: api
+    fallback: none
+  reasoning:
+    effort: high
+tasks:
+  summarise:
+    infer:
+      prompt: "Summarise the release notes in three bullets."
+      max_tokens: 400
+outputs:
+  summary: ${{ tasks.summarise.output }}

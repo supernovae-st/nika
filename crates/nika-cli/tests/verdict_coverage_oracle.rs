@@ -501,6 +501,16 @@ fn compare_output(raw_task: &str, observed: Option<&Result<String, String>>) -> 
 // LEG 1 · the equivalence law over EVERY runtime tier
 // ---------------------------------------------------------------------
 
+/// A fixture's `run.json`, or an empty object when it declares none.
+fn read_run_spec(dir: &Path) -> serde_json::Value {
+    let path = dir.join("run.json");
+    if !path.is_file() {
+        return serde_json::json!({});
+    }
+    serde_json::from_str(&std::fs::read_to_string(path).expect("run.json"))
+        .expect("run spec parses")
+}
+
 /// `check_run_equivalence.rs` applies the DEFER law to
 /// `runtime/permits` (7 fixtures). Every other runtime tier carries the
 /// same `input.nika` + `expected-run.json` contract and is never
@@ -509,8 +519,12 @@ fn compare_output(raw_task: &str, observed: Option<&Result<String, String>>) -> 
 /// `runtime/gates` has its RUN half checked by
 /// `gate_matrix_conformance.rs` while its CHECK half is unasserted.
 /// Specialized contracts without `workflow_state` + `tasks` (for example
-/// `runtime/access-harness`) belong to their own exogenous runner and are
-/// deliberately outside this binary-equivalence leg.
+/// the subscription meet of `runtime/access-harness`), and contracts that
+/// declare an injected route world (`run.json` `access_routes`: the
+/// scripted ACP peers, mock API endpoints and CLI counter of the
+/// access-selection extension), belong to their own exogenous runner and
+/// are deliberately outside this binary-equivalence leg: no adapter here
+/// stages that world, so the spec counts them unsupported, never agreed.
 ///
 /// This walks the tiers generically — a new tier is covered the day it
 /// is added, with no edit here.
@@ -552,17 +566,12 @@ fn every_runtime_tier_honors_the_equivalence_law() {
             {
                 continue;
             }
+            let run_spec = read_run_spec(&dir);
+            if run_spec.get("access_routes").is_some() {
+                continue; // its route world is staged by the access adapter, never here
+            }
             let entry = census.entry(tier_name.clone()).or_insert((0, 0));
             entry.0 += 1;
-
-            let run_spec: serde_json::Value = if dir.join("run.json").is_file() {
-                serde_json::from_str(
-                    &std::fs::read_to_string(dir.join("run.json")).expect("run.json"),
-                )
-                .expect("run spec parses")
-            } else {
-                serde_json::json!({})
-            };
             let kv = |key: &str| -> Vec<(String, String)> {
                 run_spec[key]
                     .as_object()
