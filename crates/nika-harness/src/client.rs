@@ -95,7 +95,7 @@ pub(crate) fn drive_profile<R, W>(
     writer: W,
     request: HarnessRequest,
     idle: std::time::Duration,
-    completion: Option<crate::authoring::acp::Completion>,
+    completion: Option<crate::authoring::acp::OneShot>,
 ) -> HarnessEventStream
 where
     R: AsyncRead + Unpin + Send + 'static,
@@ -155,7 +155,7 @@ struct Driver<R, W> {
     selection: HarnessSelection,
     media: crate::media::MediaState,
     /// The audited one-shot completion profile this session runs under, if any.
-    completion: Option<crate::authoring::acp::Completion>,
+    completion: Option<crate::authoring::acp::OneShot>,
 }
 
 impl<R, W> Driver<R, W>
@@ -193,8 +193,11 @@ where
             mcp_servers: Vec::new(),
         })
         .map_err(session_err)?;
-        if self.completion.is_some() {
-            params["_meta"] = crate::authoring::acp::profile();
+        if let Some(meta) = self
+            .completion
+            .and_then(crate::authoring::acp::OneShot::session_meta)
+        {
+            params["_meta"] = meta;
         }
         self.send_request(ID_SESSION_NEW, wire::METHOD_SESSION_NEW, &params)
             .await?;
@@ -509,7 +512,12 @@ where
         }
         self.select_effort(&sid, config.as_ref(), request.requested_effort.as_deref())
             .await?;
-        self.select_mode(sid, session, request).await
+        match self.completion {
+            Some(one_shot) if one_shot.required_mode().is_some() => {
+                self.require_mode(&sid, config.as_ref(), one_shot).await
+            }
+            _ => self.select_mode(sid, session, request).await,
+        }
     }
 
     /// A requested mode (`read-only`) picks an advertised plan / read-only mode, best effort;
@@ -651,6 +659,9 @@ mod seats;
 /// The native reasoning effort: discovered on the refreshed configuration, applied through
 /// the session's own option id, read back before the prompt.
 mod effort;
+
+/// A completion profile's required session mode, applied and read back before the prompt.
+mod mode;
 
 /// The engine's verdict → the wire outcome. `AllowOnce` selects the
 /// agent's `allow_once` option; `allow_always` is NEVER selected even

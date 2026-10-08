@@ -31,7 +31,7 @@ use std::io::Write as _;
 use serde_json::Value;
 use tokio::io::AsyncWriteExt;
 
-mod tool_free;
+pub(crate) mod tool_free;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(300);
 const MAX_EVENT_BYTES: usize = 8 * 1024 * 1024;

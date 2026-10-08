@@ -241,7 +241,9 @@ impl DynAgentBackend for Claude {
         let one_shot = self.one_shot;
         Box::pin(async move {
             Ok(if one_shot {
-                nika_harness::drive_one_shot(client_read, client_write, request)
+                nika_harness::meet_acp_one_shot("claude-code")
+                    .expect("attested")
+                    .drive(client_read, client_write, request)
             } else {
                 nika_harness::drive(client_read, client_write, request)
             })

@@ -5,9 +5,11 @@
 //!
 //! An ACP session proves an agentic loop; a one-shot inference also needs
 //! the subscription harness meet (single turn · no implicit tools ·
-//! structured output · model identity) with a PRE-EXECUTION guarantee that
-//! no tool runs. A direct CLI one-shot (`codex exec`, `claude -p` …) never
-//! satisfies an explicit `acp` selection, whatever profile it carries.
+//! structured output · model identity) with a PRE-EXECUTION bound on what
+//! can run: no tool at all, or a named residue confined to the per-call
+//! scratch — and any tool beat refuses the answer. A direct CLI one-shot
+//! (`codex exec`, `claude -p` …) never satisfies an explicit `acp`
+//! selection, whatever profile it carries.
 //!
 //! - `claude-code` — the audited claude-agent-acp 0.81.1 completion
 //!   profile, the one ACP authoring uses: SDK options sent with
@@ -21,15 +23,18 @@
 //!   `maxTurns: 1` bounds this one operation, never a conversation. The
 //!   profile enforces no schema, so its structured output is text: a
 //!   `schema:` task refuses before inference.
-//! - `codex` — not yet qualified. codex-acp 1.13.1 forwards `CODEX_CONFIG`
-//!   into the session configuration and codex 0.156.1's
-//!   `features.shell_tool=false` removes command execution, so a supported
-//!   avenue exists; it is not yet a complete profile: `apply_patch` is
-//!   registered from the model catalogue independently of the shell, an
-//!   empty MCP table merges with the inherited servers instead of clearing
-//!   them, and cancelling after a tool notification is not pre-execution
-//!   isolation. Its `agent:` role is unaffected.
-//! - any other route — no attested tool-free ACP one-shot profile.
+//! - `codex` — the codex-acp 1.13.1 completion profile (codex 0.156.1),
+//!   whose contract is NOT « no tools »: every tool surface that can reach
+//!   beyond the call is closed before the adapter starts and read back on
+//!   the exact binary (shell and exec, code mode, web, apps, plugins, every
+//!   configured MCP server, browser and computer use, image tools,
+//!   subagents, hooks); the ACP mode `read-only` is applied and read back
+//!   (the per-call scratch the only writable root, no network, every
+//!   approval denied). One residue stays callable: `apply_patch`, which the
+//!   model catalogue registers whenever the turn has an environment; it can
+//!   only write inside the scratch, removed after the call, and a turn that
+//!   carried any tool beat has its answer refused. Output level text.
+//! - any other route — no audited ACP one-shot completion profile.
 
 use std::pin::Pin;
 use std::time::Duration;
@@ -41,7 +46,7 @@ use nika_kernel::ai::harness::{
 };
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::authoring::acp::Completion;
+use crate::authoring::acp::{Completion, Profile};
 use crate::{InferGradeAttestation, StructuredOutputGrade};
 
 /// Why a route cannot run an `infer:` one-shot over ACP.
@@ -62,6 +67,8 @@ pub struct AcpOneShot {
     pub seat: &'static str,
     /// What the profile proves.
     pub attestation: InferGradeAttestation,
+    /// The adapter profile the one-shot runs under.
+    profile: Profile,
 }
 
 /// The claude-agent-acp completion profile's evidence. Its output level is
@@ -75,11 +82,22 @@ const CLAUDE_CODE: InferGradeAttestation = InferGradeAttestation {
     proof: "audited claude-agent-acp 0.81.1 completion profile (tools [], mcpServers {} under strictMcpConfig, settingSources [], no plugins, skills or agents, maxTurns 1, persistSession false) · identity admitted at initialize · fresh scratch cwd · model and native effort applied and read back before the prompt · every update judged, a tool, media or permission event refuses · end_turn required · scripted ACP peers · live 2026-10-08 on claude-agent-acp 0.81.1: opus[1m] and effort max applied and read back before one prompt, the exact answer returned, a tool canary read no file and wrote none",
 };
 
+/// The codex-acp completion profile's evidence. NOT a no-tools profile:
+/// `apply_patch` stays callable inside the per-call scratch (see the module
+/// doc); its output level is text.
+const CODEX: InferGradeAttestation = InferGradeAttestation {
+    single_turn: true,
+    no_implicit_tools: true,
+    structured_output: StructuredOutputGrade::Text,
+    model_identity_observable: true,
+    proof: "codex-acp 1.13.1 completion profile (codex 0.156.1): every tool-bearing feature off, plugins off and every configured MCP server disabled, web search, agents, plan and user-input tools off, all read back with features list and mcp list on the exact bundled binary before the spawn, CODEX_CONFIG and CODEX_PATH pinning it · ACP mode read-only applied and read back (the per-call scratch the only writable root, no network, every approval denied) · identity admitted at initialize · model and native effort applied and read back before the prompt · every update judged, a tool, plan or permission beat refuses the answer · end_turn required · RESIDUE: apply_patch stays callable and can write inside the per-call scratch, removed after the call",
+};
+
 /// Meet `seat` for an ACP one-shot `infer:`.
 ///
 /// # Errors
 ///
-/// A route with no attested tool-free ACP one-shot profile in this build;
+/// A route with no audited ACP one-shot completion profile in this build;
 /// the witness names the gap.
 pub fn meet_acp_one_shot(seat: &str) -> Result<AcpOneShot, AcpOneShotRefused> {
     let witness = match seat {
@@ -87,15 +105,17 @@ pub fn meet_acp_one_shot(seat: &str) -> Result<AcpOneShot, AcpOneShotRefused> {
             return Ok(AcpOneShot {
                 seat: "claude-code",
                 attestation: CLAUDE_CODE,
+                profile: Profile::ClaudeCode,
             });
         }
-        "codex" => "`codex` has no qualified tool-free ACP one-shot profile yet: codex-acp \
-                    1.13.1 forwards `CODEX_CONFIG` and `features.shell_tool=false` removes \
-                    command execution, but `apply_patch` rides the model catalogue, an empty MCP \
-                    table merges the inherited servers instead of clearing them, and a \
-                    cancellation after a tool notification is not pre-execution isolation"
-            .to_owned(),
-        other => format!("`{other}` has no attested tool-free ACP one-shot profile"),
+        "codex" => {
+            return Ok(AcpOneShot {
+                seat: "codex",
+                attestation: CODEX,
+                profile: Profile::Codex,
+            });
+        }
+        other => format!("`{other}` has no audited ACP one-shot completion profile"),
     };
     Err(AcpOneShotRefused { witness })
 }
@@ -143,12 +163,12 @@ impl AcpOneShot {
             .ok_or_else(|| HarnessError::Unavailable {
                 reason: format!("no registry row builds the `{}` ACP adapter", self.seat),
             })?
-            .for_completion(Completion::Infer);
+            .for_completion(Completion::Infer)?;
         self.run_over(&harness, request, timeout).await
     }
 
     /// [`Self::run`] over a lent transport, which MUST drive the completion
-    /// profile ([`drive_one_shot`] · a spawned adapter
+    /// profile ([`Self::drive`] · a spawned adapter
     /// [`for_completion`](crate::SpawnedHarness)): the scratch directory,
     /// the deadline and the event judgment are this door's.
     ///
@@ -174,6 +194,27 @@ impl AcpOneShot {
         }?;
         exact(outcome)
     }
+
+    /// Drive ONE one-shot `infer:` over `reader`/`writer` under this route's
+    /// completion profile — the transport-generic twin of a spawned adapter,
+    /// for scripted peers and embedders that own the process (a profile
+    /// proven at spawn, like Codex's configuration, is the spawner's to prove).
+    pub fn drive<R, W>(self, reader: R, writer: W, request: HarnessRequest) -> HarnessEventStream
+    where
+        R: AsyncRead + Unpin + Send + 'static,
+        W: AsyncWrite + Unpin + Send + 'static,
+    {
+        crate::client::drive_profile(
+            reader,
+            writer,
+            request,
+            Duration::from_secs(crate::IDLE_TIMEOUT_SECS),
+            Some(crate::authoring::acp::OneShot {
+                role: Completion::Infer,
+                profile: self.profile,
+            }),
+        )
+    }
 }
 
 /// An explicit selection is exact: an answer during which the route moved
@@ -183,23 +224,6 @@ fn exact(outcome: HarnessOutcome) -> Result<HarnessOutcome, HarnessError> {
         Some(refusal) => Err(refusal),
         None => Ok(outcome),
     }
-}
-
-/// Drive ONE one-shot `infer:` over `reader`/`writer` under the completion
-/// profile — the transport-generic twin of a spawned adapter, for scripted
-/// peers and embedders that own the process.
-pub fn drive_one_shot<R, W>(reader: R, writer: W, request: HarnessRequest) -> HarnessEventStream
-where
-    R: AsyncRead + Unpin + Send + 'static,
-    W: AsyncWrite + Unpin + Send + 'static,
-{
-    crate::client::drive_profile(
-        reader,
-        writer,
-        request,
-        Duration::from_secs(crate::IDLE_TIMEOUT_SECS),
-        Some(Completion::Infer),
-    )
 }
 
 fn refused(reason: &str) -> HarnessError {

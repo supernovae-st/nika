@@ -48,5 +48,5 @@ pub use probe::{
     probe_adapters, probe_adapters_sync,
 };
 pub use registry::{AdapterRow, AuthProbe, DISABLE_ENV, registry, registry_with};
-pub use run_acp::{AcpOneShot, AcpOneShotRefused, drive_one_shot, meet_acp_one_shot};
+pub use run_acp::{AcpOneShot, AcpOneShotRefused, meet_acp_one_shot};
 pub use spawn::{HarnessAdapter, SpawnedHarness, compose_env};

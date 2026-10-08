@@ -29,7 +29,7 @@ pub(super) const MEASURED: &[(u32, u32)] = &[(0, 160)];
 /// hard error (measured), so a renamed feature cannot pass silently.
 /// `unified_exec` is absent on purpose: 0.160.1 keeps it on regardless,
 /// and its handlers are registered only under `shell_tool`.
-pub(super) const DISABLED_FEATURES: &[&str] = &[
+pub(crate) const DISABLED_FEATURES: &[&str] = &[
     "shell_tool",
     "apps",
     "plugins",
@@ -115,7 +115,7 @@ pub(super) fn admit_version(seen: (u32, u32)) -> Result<(), InferGradeError> {
 
 /// Judge `codex <profile> features list`: every disabled feature must be
 /// listed with the effective state `false`.
-pub(super) fn judge_features(listing: &str) -> Result<(), InferGradeError> {
+pub(crate) fn judge_features(listing: &str) -> Result<(), InferGradeError> {
     let mut still_on = Vec::new();
     for feature in DISABLED_FEATURES {
         let state = listing.lines().find_map(|line| {

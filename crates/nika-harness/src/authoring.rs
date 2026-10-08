@@ -61,7 +61,8 @@ impl HarnessAuthoring {
             Connection::Acp(
                 crate::seat_from_id(adapter)?
                     .ok_or_else(|| "ACP adapter is unavailable".to_owned())?
-                    .for_completion(acp::Completion::Authoring),
+                    .for_completion(acp::Completion::Authoring)
+                    .map_err(|e| e.to_string())?,
             )
         } else {
             // One rule for every door: the native seat is the infer-grade row.
@@ -87,8 +88,12 @@ impl HarnessAuthoring {
     /// An unreadable observation ledger is not represented as zero calls.
     pub fn descriptor(&self) -> Result<Value, String> {
         let observed = self.observed.lock().map_err(|e| e.to_string())?.clone();
-        if matches!(self.seat, Connection::Acp(_)) {
+        if let Connection::Acp(seat) = &self.seat {
+            let profile = seat
+                .one_shot()
+                .map_or(acp::Profile::ClaudeCode, |one_shot| one_shot.profile);
             return Ok(acp::descriptor(
+                profile,
                 &self.adapter,
                 self.requested_model.as_deref(),
                 &self.wire_model,

@@ -300,7 +300,7 @@ impl<H> InferVerb<H> {
 
     /// Lend the transport a declared `run.access.protocol: acp` `infer:`
     /// runs over (a test · an embedder owning the adapter process). It
-    /// MUST drive the completion profile ([`nika_harness::drive_one_shot`]);
+    /// MUST drive the route's completion profile ([`nika_harness::AcpOneShot::drive`]);
     /// without one, each call spawns the route's registry adapter under it.
     #[cfg(feature = "access-harness")]
     #[must_use]

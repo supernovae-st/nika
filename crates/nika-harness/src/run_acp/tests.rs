@@ -172,7 +172,8 @@ impl DynAgentBackend for Scripted {
             self.ending,
             Arc::clone(&self.seen),
         ));
-        Box::pin(async move { Ok(drive_one_shot(client_read, client_write, request)) })
+        let claude = meet_acp_one_shot("claude-code").expect("attested");
+        Box::pin(async move { Ok(claude.drive(client_read, client_write, request)) })
     }
 }
 
@@ -205,27 +206,25 @@ fn methods(seen: &[Value]) -> Vec<&str> {
 }
 
 #[test]
-fn only_claude_code_carries_an_attested_acp_one_shot() {
+fn claude_code_and_codex_carry_attested_acp_one_shots() {
     let claude = meet_acp_one_shot("claude-code").expect("attested");
     assert_eq!(claude.seat, "claude-code");
     let proof = claude.attestation;
     assert!(proof.single_turn && proof.no_implicit_tools && proof.model_identity_observable);
     assert_eq!(proof.structured_output, StructuredOutputGrade::Text);
-    let codex = meet_acp_one_shot("codex")
-        .expect_err("not qualified")
-        .witness;
-    for named in [
-        "CODEX_CONFIG",
-        "shell_tool",
-        "apply_patch",
-        "MCP",
-        "cancellation",
-    ] {
-        assert!(codex.contains(named), "{named}: {codex}");
-    }
+    let codex = meet_acp_one_shot("codex").expect("attested");
+    assert_eq!(codex.seat, "codex");
+    assert_eq!(
+        codex.attestation.structured_output,
+        StructuredOutputGrade::Text
+    );
     assert!(
-        !codex.contains("exposes no empty-tools"),
-        "the corrected witness never claims the avenue is absent: {codex}"
+        codex
+            .attestation
+            .proof
+            .contains("RESIDUE: apply_patch stays callable"),
+        "the Codex contract names its residue: {}",
+        codex.attestation.proof
     );
     for seat in ["kimi-code", "gemini-cli"] {
         let refused = meet_acp_one_shot(seat).expect_err(seat).witness;
@@ -331,7 +330,8 @@ async fn a_tool_beat_refuses_the_whole_answer() {
         Err(HarnessError::Refused { reason }) => {
             assert_eq!(
                 reason,
-                "ACP infer emitted a tool, media or unsupported event; no answer accepted"
+                "ACP infer emitted a tool, media or unsupported event (`tool_call` · kind `read`); no \
+                 answer accepted"
             );
         }
         other => panic!("a tool beat must refuse: {other:?}"),
@@ -372,4 +372,253 @@ async fn a_silent_turn_ends_at_the_deadline() {
         other => panic!("a silent turn must end: {other:?}"),
     }
     assert!(methods(&seen).contains(&"session/prompt"));
+}
+
+/// How the scripted codex-acp treats the mode selection.
+#[derive(Debug, Clone, Copy)]
+enum Mode {
+    /// Applies it and answers the complete configuration.
+    Confirms,
+    /// Answers as if nothing changed.
+    Ignores,
+    /// Advertises no mode option at all.
+    Absent,
+}
+
+/// codex-acp 1.13.1's shape: `model`, `reasoning_effort` (`thought_level`)
+/// whose values belong to the CURRENT model, and `mode`.
+fn codex(model: &str, effort: &str, mode: Option<&str>) -> Value {
+    let efforts: &[&str] = if model == "gpt-6-astra" {
+        &["low", "medium", "high", "xhigh", "max", "ultra"]
+    } else {
+        &["low", "medium", "high", "xhigh", "max"]
+    };
+    let mut options = vec![
+        select("model", "model", model, &["gpt-6-astra", "gpt-6-luna"]),
+        select("reasoning_effort", "thought_level", effort, efforts),
+    ];
+    if let Some(mode) = mode {
+        options.push(select(
+            "mode",
+            "mode",
+            mode,
+            &["read-only", "agent", "agent-full-access"],
+        ));
+    }
+    Value::Array(options)
+}
+
+/// A scripted codex-acp 1.13.1 recording every request it reads.
+async fn codex_peer(mut r: Reader, mut w: Writer, mode: Mode, seen: Arc<Mutex<Vec<Value>>>) {
+    let advertised = |current: &str| match mode {
+        Mode::Absent => None,
+        Mode::Confirms | Mode::Ignores => Some(current.to_owned()),
+    };
+    let (mut model, mut effort, mut current) = (
+        "gpt-6-astra".to_owned(),
+        "medium".to_owned(),
+        "agent".to_owned(),
+    );
+    while let Some(request) = read(&mut r).await {
+        seen.lock()
+            .expect("seen")
+            .push(json!({"method":request["method"],"params":request["params"]}));
+        let config_id = request["params"]["configId"].as_str().unwrap_or_default();
+        let value = request["params"]["value"].as_str().unwrap_or_default();
+        let result = match request["method"].as_str() {
+            Some("initialize") => json!({"protocolVersion":1,"agentInfo":
+                {"name":"@agentclientprotocol/codex-acp","title":"Codex","version":"1.13.1"}}),
+            Some("session/new") => json!({"sessionId":"s-codex",
+                "configOptions":codex(&model, &effort, advertised(&current).as_deref())}),
+            Some("session/set_config_option") => {
+                match config_id {
+                    "model" => value.clone_into(&mut model),
+                    "reasoning_effort" => value.clone_into(&mut effort),
+                    _ if matches!(mode, Mode::Confirms) => value.clone_into(&mut current),
+                    _ => {}
+                }
+                json!({"configOptions":codex(&model, &effort, advertised(&current).as_deref())})
+            }
+            Some("session/prompt") => {
+                let chunk = json!({"sessionUpdate":"agent_message_chunk",
+                    "content":{"type":"text","text":"OK"}});
+                send(
+                    &mut w,
+                    &json!({"jsonrpc":"2.0","method":"session/update",
+                        "params":{"sessionId":"s-codex","update":chunk}}),
+                )
+                .await;
+                json!({"stopReason":"end_turn"})
+            }
+            other => panic!("unexpected client request {other:?}"),
+        };
+        reply(&mut w, &request, result).await;
+    }
+}
+
+/// A lent transport driving the Codex completion profile over a duplex.
+struct ScriptedCodex {
+    mode: Mode,
+    seen: Arc<Mutex<Vec<Value>>>,
+}
+
+impl DynAgentBackend for ScriptedCodex {
+    fn run_agent_boxed(
+        &self,
+        request: HarnessRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<HarnessEventStream, HarnessError>> + Send + '_>> {
+        let (ours, theirs) = tokio::io::duplex(64 * 1024);
+        let (client_read, client_write) = tokio::io::split(ours);
+        let (peer_read, peer_write) = tokio::io::split(theirs);
+        tokio::spawn(codex_peer(
+            BufReader::new(peer_read),
+            peer_write,
+            self.mode,
+            Arc::clone(&self.seen),
+        ));
+        let codex = meet_acp_one_shot("codex").expect("attested");
+        Box::pin(async move { Ok(codex.drive(client_read, client_write, request)) })
+    }
+}
+
+async fn codex_one_shot(
+    mode: Mode,
+    effort: &str,
+) -> (Result<HarnessOutcome, HarnessError>, Vec<Value>) {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let transport = ScriptedCodex {
+        mode,
+        seen: Arc::clone(&seen),
+    };
+    let request = HarnessRequest::new("answer OK", "/never/the/session/root")
+        .with_requested_model("openai/gpt-6-luna")
+        .with_requested_effort(Some(effort.to_owned()));
+    let codex = meet_acp_one_shot("codex").expect("attested");
+    let result = codex
+        .run_over(&transport, request, Some(Duration::from_secs(5)))
+        .await;
+    let seen = seen.lock().expect("seen").clone();
+    (result, seen)
+}
+
+/// The Codex profile's wire: no SDK options with `session/new` (its tool
+/// surface is closed by the configuration proven at spawn), then the model,
+/// the effort the REFRESHED options offer, and the `read-only` mode, each
+/// applied and read back, before exactly one prompt.
+#[tokio::test]
+async fn the_codex_profile_selects_model_effort_and_read_only_before_one_prompt() {
+    let (result, seen) = codex_one_shot(Mode::Confirms, "max").await;
+    let outcome = result.expect("answered");
+    assert_eq!(outcome.output, "OK");
+    assert_eq!(
+        methods(&seen),
+        [
+            "initialize",
+            "session/new",
+            "session/set_config_option",
+            "session/set_config_option",
+            "session/set_config_option",
+            "session/prompt"
+        ]
+    );
+    assert!(seen[1]["params"].get("_meta").is_none(), "{:?}", seen[1]);
+    assert_eq!(
+        seen[2]["params"],
+        json!({"sessionId":"s-codex","configId":"model","value":"gpt-6-luna"})
+    );
+    assert_eq!(
+        seen[3]["params"],
+        json!({"sessionId":"s-codex","configId":"reasoning_effort","value":"max"})
+    );
+    assert_eq!(
+        seen[4]["params"],
+        json!({"sessionId":"s-codex","configId":"mode","value":"read-only"})
+    );
+    let selection = &outcome.selection;
+    assert_eq!(selection.transmitted_model.as_deref(), Some("gpt-6-luna"));
+    assert_eq!(selection.configured_effort.as_deref(), Some("max"));
+    assert_eq!(selection.effort_option.as_deref(), Some("reasoning_effort"));
+}
+
+/// `ultra` exists for the session default (astra) only: judged on the
+/// options refreshed by selecting luna, it refuses before any prompt.
+#[tokio::test]
+async fn a_codex_effort_only_the_previous_model_offered_refuses_with_zero_prompts() {
+    let (result, seen) = codex_one_shot(Mode::Confirms, "ultra").await;
+    match result {
+        Err(HarnessError::Selection { reason }) => {
+            assert!(reason.contains("`ultra`"), "{reason}");
+            assert!(
+                reason.contains("low · medium · high · xhigh · max"),
+                "{reason}"
+            );
+        }
+        other => panic!("an unoffered effort must refuse: {other:?}"),
+    }
+    assert!(!methods(&seen).contains(&"session/prompt"), "{seen:?}");
+}
+
+#[tokio::test]
+async fn a_mode_the_session_does_not_confirm_refuses_with_zero_prompts() {
+    let (result, seen) = codex_one_shot(Mode::Ignores, "max").await;
+    match result {
+        Err(HarnessError::Refused { reason }) => {
+            assert!(
+                reason.contains("did not confirm mode `read-only`"),
+                "{reason}"
+            );
+            assert!(reason.contains("`agent`"), "{reason}");
+        }
+        other => panic!("an unconfirmed mode must refuse: {other:?}"),
+    }
+    assert!(!methods(&seen).contains(&"session/prompt"), "{seen:?}");
+}
+
+#[tokio::test]
+async fn a_session_without_a_mode_option_refuses_with_zero_prompts() {
+    let (result, seen) = codex_one_shot(Mode::Absent, "max").await;
+    match result {
+        Err(HarnessError::Refused { reason }) => {
+            assert!(reason.contains("advertises no mode option"), "{reason}");
+        }
+        other => panic!("a missing mode option must refuse: {other:?}"),
+    }
+    assert!(!methods(&seen).contains(&"session/prompt"), "{seen:?}");
+}
+
+/// Each profile admits its own adapter only: the Codex one-shot refuses
+/// a claude-agent-acp identity before `session/new`.
+#[tokio::test]
+async fn the_codex_profile_admits_only_codex_acp() {
+    struct ClaudeAsCodex;
+    impl DynAgentBackend for ClaudeAsCodex {
+        fn run_agent_boxed(
+            &self,
+            request: HarnessRequest,
+        ) -> Pin<Box<dyn Future<Output = Result<HarnessEventStream, HarnessError>> + Send + '_>>
+        {
+            let (ours, theirs) = tokio::io::duplex(64 * 1024);
+            let (client_read, client_write) = tokio::io::split(ours);
+            let (peer_read, peer_write) = tokio::io::split(theirs);
+            tokio::spawn(claude_peer(
+                BufReader::new(peer_read),
+                peer_write,
+                Ending::Answer,
+                Arc::new(Mutex::new(Vec::new())),
+            ));
+            let codex = meet_acp_one_shot("codex").expect("attested");
+            Box::pin(async move { Ok(codex.drive(client_read, client_write, request)) })
+        }
+    }
+    let codex = meet_acp_one_shot("codex").expect("attested");
+    let refused = codex
+        .run_over(&ClaudeAsCodex, ask("high"), Some(Duration::from_secs(5)))
+        .await
+        .expect_err("another adapter");
+    assert!(
+        refused
+            .to_string()
+            .contains("requires the audited @agentclientprotocol/codex-acp 1.13.1 profile"),
+        "{refused}"
+    );
 }
