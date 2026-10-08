@@ -571,7 +571,12 @@ async fn verdict_on<P: ProviderInferDyn>(
     let sha = knowledge::sha256(candidate);
     // An observation binds only to the bytes it ran: the judge never sees another's.
     let run = observation.filter(|o| o["candidate_sha256"] == sha.as_str());
-    if let Some(earlier) = judged_before(out, (request, intent), &sha, judge) {
+    let mut base = state(intent, request, candidate);
+    if let Some(notes) = unjudged(settled, plan) {
+        base[UNJUDGED_SPELLINGS] = notes;
+    }
+    let shown = context(&base);
+    if let Some(earlier) = judged_before(out, (request, intent, &shown), &sha, judge) {
         if !unfinished(&earlier, run) {
             route(out, if earlier.carried { CARRIED } else { SAME_BYTES });
             return earlier;
@@ -581,11 +586,7 @@ async fn verdict_on<P: ProviderInferDyn>(
         verdict.earlier = earlier.earlier;
     }
     verdict.candidate_sha256 = Some(sha);
-    verdict.context_sha256 = Some(context(intent, request));
-    let mut base = state(intent, request, candidate);
-    if let Some(notes) = unjudged(settled, plan) {
-        base[UNJUDGED_SPELLINGS] = notes;
-    }
+    verdict.context_sha256 = Some(shown);
     let grounding = grounding(Some(candidate));
     verdict.reference = grounding.record;
     for (k, open) in open.iter().enumerate() {
@@ -620,10 +621,11 @@ const RESUMED: &str = "verify: same bytes, localization resumed";
 /// (R6), and the attempt repeats that verdict with no call. A judge that answered nothing is
 /// asked again; an abstention carried from another round is not repeated, so a new round may
 /// still decide what that round left held; a carried rejection binds to the request it judged
-/// (`intent`), so a corrected request asks again.
+/// (`intent`), so a corrected request asks again. Every reuse binds to the context the judge was
+/// shown ([`context`]): another base, another revision mode or another contract asks again.
 fn judged_before<P: ProviderInferDyn>(
     out: &CompileOutcome,
-    (request, intent): (&CompileRequest, &str),
+    (request, intent, context): (&CompileRequest, &str, &str),
     sha: &str,
     judge: &Judge<'_, P>,
 ) -> Option<Verdict> {
@@ -633,6 +635,7 @@ fn judged_before<P: ProviderInferDyn>(
             && attempt["judge"]["kind"] == judge.kind()
             && attempt["declined"] == Value::Bool(true)
             && attempt["settled"] == Value::Bool(false)
+            && attempt["context_sha256"] == context
     };
     let attempts = (out.provenance.decision.as_ref())
         .and_then(|decision| decision["semantic_verification"].as_array())
@@ -644,14 +647,10 @@ fn judged_before<P: ProviderInferDyn>(
         let index = u64::try_from(index).unwrap_or(u64::MAX);
         return Some(Verdict::recorded(attempt, index));
     }
-    // The rejection binds to the context it was judged in: a corrected request, other answers
-    // or another observed world ask again.
-    let context = context(intent, request);
+    // The rejection binds to the context it was judged in: a corrected request, other answers,
+    // another observed world, another base or another contract ask again.
     let carried = (request.declined.iter().rev()).find(|attempt| {
-        same(attempt)
-            && attempt["rejected"] == Value::Bool(true)
-            && attempt["request"] == intent
-            && attempt["context_sha256"] == context.as_str()
+        same(attempt) && attempt["rejected"] == Value::Bool(true) && attempt["request"] == intent
     })?;
     let mut verdict = Verdict::recorded(carried, 0);
     verdict.same_bytes_as = None;
@@ -659,16 +658,17 @@ fn judged_before<P: ProviderInferDyn>(
     Some(verdict)
 }
 
-/// The digest of the context a judge reads beside a candidate's bytes: the request as compiled
-/// and as first stated, the answers and the observed world.
-fn context(intent: &str, request: &CompileRequest) -> String {
-    let read = json!({
-        "request": intent,
-        "original": request.original_intent,
-        "answers": request.answers,
-        "observed": request.knowledge,
-    });
-    knowledge::sha256(&read.to_string())
+/// The digest of the context a judge reads beside a candidate's bytes: the state it is shown
+/// (the request as compiled and as first stated, the answers, the observed world and, for a
+/// revision, the change, the base's request and the base itself when it is shown) and the
+/// whole-request contract that state selects. The bytes themselves are bound apart.
+fn context(base: &Value) -> String {
+    let mut shown = base.clone();
+    if let Some(state) = shown.as_object_mut() {
+        state.remove("candidate_nika");
+    }
+    shown["contract"] = json!(faithful::told(base, "", WHOLE));
+    knowledge::sha256(&shown.to_string())
 }
 
 /// Whether a repeated verdict left its localization unfinished: a call got no answer, or it
@@ -1387,7 +1387,10 @@ pub(super) async fn native_verdict<P: ProviderInferDyn>(
     // An observation binds only to the bytes it ran: the judge never sees another's.
     let observation = observation.filter(|o| o["candidate_sha256"] == sha.as_str());
     let mut verdict = Verdict::default();
-    if let Some(earlier) = judged_before(&out, (request, intent), &sha, &judge) {
+    let mut base = state(intent, request, &candidate);
+    over_document(&mut base, request, &out);
+    let shown = context(&base);
+    if let Some(earlier) = judged_before(&out, (request, intent, &shown), &sha, &judge) {
         if !unfinished(&earlier, observation) {
             route(&mut out, if earlier.carried { CARRIED } else { SAME_BYTES });
             record(&mut out, &judge, &earlier, attempt);
@@ -1403,11 +1406,9 @@ pub(super) async fn native_verdict<P: ProviderInferDyn>(
     let binding = Binding::of(intent, request, &assembled, &candidate);
     let grounding = grounding(Some(&candidate));
     verdict.reference = grounding.record;
-    let mut base = state(intent, request, &candidate);
-    over_document(&mut base, request, &out);
     let asked = (&base, grounding.text.as_str());
     verdict.candidate_sha256 = Some(sha);
-    verdict.context_sha256 = Some(context(intent, request));
+    verdict.context_sha256 = Some(shown);
     whole(
         intent,
         asked,
