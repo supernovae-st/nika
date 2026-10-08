@@ -163,7 +163,8 @@ pub struct RunRequest {
     pub closure: Option<Box<Closure>>,
 }
 
-/// What a request that recorded no checked bytes binds a child run to: no source has it.
+/// What a request that recorded no checked bytes or world binds a run to: no source or world has
+/// it.
 const UNBOUND: &str = "unchecked";
 
 impl RunRequest {
@@ -191,6 +192,16 @@ impl RunRequest {
             .to_owned()
     }
 
+    /// The closure a run of this request must capture: the checked world's, or one no world has
+    /// when the request recorded none.
+    #[must_use]
+    pub fn expected_world(&self) -> String {
+        self.closure
+            .as_deref()
+            .map_or(UNBOUND, |closure| closure.0.as_str())
+            .to_owned()
+    }
+
     /// The child `nika run` line for this request under `root`, bound to the checked bytes and
     /// their world: the child compares them with what it captures and runs nothing else.
     #[must_use]
@@ -198,9 +209,8 @@ impl RunRequest {
         use nika_onboard::run_line::{EXPECT_SOURCE, EXPECT_WORLD, run_args_with_access};
         let (vars, pin) = (&self.vars, self.access_pin.as_deref());
         let mut args = run_args_with_access(root, &self.workflow, self.max_cost_usd, vars, pin);
-        let world = (self.closure.as_deref()).map_or(UNBOUND, |closure| closure.0.as_str());
         args.extend([EXPECT_SOURCE.to_owned(), self.expected_source()]);
-        args.extend([EXPECT_WORLD.to_owned(), world.to_owned()]);
+        args.extend([EXPECT_WORLD.to_owned(), self.expected_world()]);
         args
     }
 }
