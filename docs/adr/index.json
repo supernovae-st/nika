@@ -1729,5 +1729,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-148",
+      "title": "The Session over a wire: nika-session-host keeps the actual runtime behind a native machine door and HTTP routes",
+      "status": "proposed",
+      "date": "2026-10-08",
+      "filename": "adr-148-nika-session-host-session-over-a-wire.md",
+      "tags": ["architecture","crates","size-cap","session","one-door","idempotency"],
+      "affects_crates": ["nika-session","nika-session-host","nika-serve","nika-cli"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-125","ADR-126","ADR-132","ADR-133","ADR-144"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }
