@@ -13,6 +13,8 @@
 //! ([`Carried`]), and a request renders every item from the question it asks alone.
 
 use std::{
+    borrow::Cow,
+    collections::BTreeSet,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
@@ -187,6 +189,37 @@ impl ChoiceBatch {
             .collect();
         Self::new(id, shared, state, items)
     }
+
+    /// The item ids this batch asks more than once: an answer keyed by id cannot tell their
+    /// questions apart, so no request may carry them.
+    pub(super) fn repeated(&self) -> BTreeSet<&str> {
+        let mut seen = BTreeSet::new();
+        (self.items.iter())
+            .map(|item| item.question.id.as_str())
+            .filter(|id| !seen.insert(*id))
+            .collect()
+    }
+}
+
+/// Why an item is not sent: its id is asked more than once in its batch.
+pub(super) fn unsent(id: &str) -> DecisionError {
+    DecisionError(format!(
+        "the batch asks `{id}` more than once: an answer keyed by id cannot tell them apart; not sent"
+    ))
+}
+
+/// The batch of its items at `at` (in order), its id, instructions and shared state unchanged.
+pub(super) fn only<'b>(batch: &'b ChoiceBatch, at: &[usize]) -> Cow<'b, ChoiceBatch> {
+    if at.len() == batch.items.len() {
+        return Cow::Borrowed(batch);
+    }
+    let items = (at.iter()).filter_map(|k| batch.items.get(*k).cloned());
+    Cow::Owned(ChoiceBatch::new(
+        batch.id.clone(),
+        batch.instructions.clone(),
+        batch.state.clone(),
+        items.collect(),
+    ))
 }
 
 /// What a question asks beyond the shared instructions, read from the question it asks alone:
@@ -317,8 +350,8 @@ pub fn closed_choices(batch: &ChoiceBatch) -> (Vec<Message>, Value) {
 }
 
 /// Each item's key in a batch answer: one complete JSON object naming, for each item id, one of
-/// that item's offered keys. An item the answer leaves out, or answers outside its options, is
-/// undecided (`None`).
+/// that item's offered keys. An item the answer leaves out, answers more than once, or answers
+/// outside its options, is undecided (`None`).
 ///
 /// # Errors
 /// A [`DecisionError`] when the answer is not one complete JSON object: it decides no item.
@@ -326,23 +359,74 @@ pub fn decoded_each(
     batch: &ChoiceBatch,
     response: &InferResponse,
 ) -> Result<Vec<Option<String>>, DecisionError> {
+    decoded_items(batch, response).map(|items| items.into_iter().map(Result::ok).collect())
+}
+
+/// Each item's key in a batch answer, or why the answer gives it none; bound by id, never by
+/// position, and a repeated id decides neither of its answers.
+///
+/// # Errors
+/// A [`DecisionError`] when the answer is not one complete JSON object: it decides no item.
+pub(super) fn decoded_items(
+    batch: &ChoiceBatch,
+    response: &InferResponse,
+) -> Result<Vec<Result<String, DecisionError>>, DecisionError> {
     let text = answer_text(response).ok_or_else(|| {
         DecisionError("the seat did not return one complete JSON text".to_owned())
     })?;
     let value: Value = serde_json::from_str(text)
         .map_err(|e| DecisionError(format!("the seat answer is not JSON: {e}")))?;
-    if !value.is_object() {
+    let (Some(answer), Ok(Named(named))) = (value.as_object(), serde_json::from_str(text)) else {
         return Err(DecisionError(
             "the seat answer is not one object of item keys".to_owned(),
         ));
-    }
+    };
+    let item = |question: &ChoiceQuestion| {
+        let id = question.id.as_str();
+        match (
+            named.iter().filter(|key| *key == id).count(),
+            answer.get(id),
+        ) {
+            (0, _) => Err("the seat left this item without an answer".to_owned()),
+            (1, Some(Value::String(key))) if question.keys().contains(key) => Ok(key.clone()),
+            (1, Some(Value::String(key))) => Err(format!(
+                "the seat chose `{key}` for this item, which it did not offer"
+            )),
+            (1, _) => Err("the seat answered this item with no key".to_owned()),
+            _ => Err("the seat answered this item more than once".to_owned()),
+        }
+    };
     Ok((batch.items.iter())
-        .map(|item| {
-            (value.get(&item.question.id).and_then(Value::as_str))
-                .filter(|key| item.question.options.iter().any(|o| o.key == *key))
-                .map(str::to_owned)
-        })
+        .map(|entry| item(&entry.question).map_err(DecisionError))
         .collect())
+}
+
+/// The keys of one JSON object in the order written, repeats kept (a parsed map keeps one).
+struct Named(Vec<String>);
+
+impl<'de> serde::Deserialize<'de> for Named {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_map(NamedVisitor)
+    }
+}
+
+struct NamedVisitor;
+
+impl<'de> serde::de::Visitor<'de> for NamedVisitor {
+    type Value = Named;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("one JSON object")
+    }
+
+    fn visit_map<M: serde::de::MapAccess<'de>>(self, mut map: M) -> Result<Named, M::Error> {
+        let mut keys = Vec::new();
+        while let Some(key) = map.next_key::<String>()? {
+            map.next_value::<serde::de::IgnoredAny>()?;
+            keys.push(key);
+        }
+        Ok(Named(keys))
+    }
 }
 
 #[cfg(test)]

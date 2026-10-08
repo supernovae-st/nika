@@ -164,3 +164,34 @@ async fn a_provider_seat_settles_a_batch_in_one_request_bound_by_id() {
         .collect();
     assert_eq!(usage, [Some(100), None, None]);
 }
+
+/// A provider answering every request with `text`.
+fn answering(text: &str) -> Provider {
+    Provider {
+        text: text.to_owned(),
+        requests: Mutex::new(Vec::new()),
+    }
+}
+
+/// A reply that decides no item still accounts for its request: the seat's receipt names the
+/// questions the ONE request carried and keeps the usage its response reported, once.
+#[tokio::test]
+async fn a_reply_that_decides_nothing_still_accounts_for_its_request() {
+    let questions = [part(0, "a"), part(1, "b")];
+    let batch = ChoiceBatch::of("verify-parts", &questions);
+    let provider = answering("not one JSON object");
+    let seat = ProviderChoice::new(&provider, "test/model", Duration::from_secs(5), 512);
+    let answers = seat.choose_each(&batch).await;
+    assert!(answers.iter().all(Result::is_err), "{answers:?}");
+    let receipts = seat.requests();
+    assert_eq!(receipts.len(), 1, "one physical request");
+    assert_eq!(
+        receipts[0],
+        json!({"questions": ["verify-part-0", "verify-part-1"], "outcome": "answered",
+            "usage": {"input_tokens": 100, "output_tokens": 20}})
+    );
+    // A single question's request is receipted the same way, decided or not.
+    assert!(seat.choose(&questions[0]).await.is_err());
+    assert_eq!(seat.requests().len(), 2);
+    assert_eq!(seat.requests()[1]["questions"], json!(["verify-part-0"]));
+}
