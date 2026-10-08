@@ -2017,9 +2017,6 @@ impl<T> outref::AsOut<T> for nika_compile_seats::rehearse::Bounds where T: core:
 pub fn nika_compile_seats::rehearse::Bounds::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::Bounds
 pub type nika_compile_seats::rehearse::Bounds::Output = T
-impl<T> zvariant::optional::NoneValue for nika_compile_seats::rehearse::Bounds where T: core::default::Default
-pub type nika_compile_seats::rehearse::Bounds::NoneType = T
-pub fn nika_compile_seats::rehearse::Bounds::null_value() -> T
 #[non_exhaustive] pub struct nika_compile_seats::rehearse::CopyReceipt
 pub nika_compile_seats::rehearse::CopyReceipt::held: nika_compile_seats::rehearse::Held
 pub nika_compile_seats::rehearse::CopyReceipt::path: alloc::string::String
@@ -2116,9 +2113,6 @@ impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::Digest where
 pub fn nika_compile_seats::rehearse::Digest::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::Digest
 pub type nika_compile_seats::rehearse::Digest::Output = T
-impl<T> zvariant::optional::NoneValue for nika_compile_seats::rehearse::Digest where T: core::default::Default
-pub type nika_compile_seats::rehearse::Digest::NoneType = T
-pub fn nika_compile_seats::rehearse::Digest::null_value() -> T
 #[non_exhaustive] pub struct nika_compile_seats::rehearse::EffectCounts
 pub nika_compile_seats::rehearse::EffectCounts::child: u32
 pub nika_compile_seats::rehearse::EffectCounts::network: u32
@@ -2175,9 +2169,6 @@ impl<T> outref::AsOut<T> for nika_compile_seats::rehearse::EffectCounts where T:
 pub fn nika_compile_seats::rehearse::EffectCounts::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::EffectCounts
 pub type nika_compile_seats::rehearse::EffectCounts::Output = T
-impl<T> zvariant::optional::NoneValue for nika_compile_seats::rehearse::EffectCounts where T: core::default::Default
-pub type nika_compile_seats::rehearse::EffectCounts::NoneType = T
-pub fn nika_compile_seats::rehearse::EffectCounts::null_value() -> T
 #[non_exhaustive] pub struct nika_compile_seats::rehearse::FailureRecord
 pub nika_compile_seats::rehearse::FailureRecord::cause: nika_compile_seats::rehearse::RecordedCause
 pub nika_compile_seats::rehearse::FailureRecord::code: alloc::string::String
@@ -2322,9 +2313,6 @@ impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::LedgerFacts 
 pub fn nika_compile_seats::rehearse::LedgerFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::LedgerFacts
 pub type nika_compile_seats::rehearse::LedgerFacts::Output = T
-impl<T> zvariant::optional::NoneValue for nika_compile_seats::rehearse::LedgerFacts where T: core::default::Default
-pub type nika_compile_seats::rehearse::LedgerFacts::NoneType = T
-pub fn nika_compile_seats::rehearse::LedgerFacts::null_value() -> T
 #[non_exhaustive] pub struct nika_compile_seats::rehearse::Observation
 pub nika_compile_seats::rehearse::Observation::bounds: nika_compile_seats::rehearse::Bounds
 pub nika_compile_seats::rehearse::Observation::copies: alloc::vec::Vec<nika_compile_seats::rehearse::CopyReceipt>
@@ -2379,9 +2367,6 @@ impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::Observation 
 pub fn nika_compile_seats::rehearse::Observation::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::Observation
 pub type nika_compile_seats::rehearse::Observation::Output = T
-impl<T> zvariant::optional::NoneValue for nika_compile_seats::rehearse::Observation where T: core::default::Default
-pub type nika_compile_seats::rehearse::Observation::NoneType = T
-pub fn nika_compile_seats::rehearse::Observation::null_value() -> T
 #[non_exhaustive] pub struct nika_compile_seats::rehearse::RehearsalReport
 pub nika_compile_seats::rehearse::RehearsalReport::admitted_digest: alloc::string::String
 pub nika_compile_seats::rehearse::RehearsalReport::attempt: nika_compile_seats::rehearse::Attempt
@@ -2591,9 +2576,6 @@ impl<T> outref::AsOut<T> for nika_compile_seats::rehearse::Spent where T: core::
 pub fn nika_compile_seats::rehearse::Spent::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::Spent
 pub type nika_compile_seats::rehearse::Spent::Output = T
-impl<T> zvariant::optional::NoneValue for nika_compile_seats::rehearse::Spent where T: core::default::Default
-pub type nika_compile_seats::rehearse::Spent::NoneType = T
-pub fn nika_compile_seats::rehearse::Spent::null_value() -> T
 pub trait nika_compile_seats::rehearse::Rehearse: core::marker::Send + core::marker::Sync
 pub fn nika_compile_seats::rehearse::Rehearse::bound(&self) -> core::time::Duration
 pub fn nika_compile_seats::rehearse::Rehearse::rehearse<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
