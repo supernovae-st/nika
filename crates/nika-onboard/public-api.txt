@@ -2006,6 +2006,7 @@ pub nika_onboard::knowledge::RefusalCode::RowFile
 pub nika_onboard::knowledge::RefusalCode::RowKind
 pub nika_onboard::knowledge::RefusalCode::RowMalformed
 pub nika_onboard::knowledge::RefusalCode::RowOrder
+pub nika_onboard::knowledge::RefusalCode::Split
 pub nika_onboard::knowledge::RefusalCode::Symlink
 pub nika_onboard::knowledge::RefusalCode::TargetPin
 pub nika_onboard::knowledge::RefusalCode::TooLarge
@@ -2017,7 +2018,9 @@ pub nika_onboard::knowledge::RefusalCode::Untrusted
 pub nika_onboard::knowledge::RefusalCode::Vocabulary
 impl nika_onboard::knowledge::RefusalCode
 pub const nika_onboard::knowledge::RefusalCode::ALL: [Self; 38]
+pub const nika_onboard::knowledge::RefusalCode::ALL_R2: [Self; 38]
 pub const fn nika_onboard::knowledge::RefusalCode::as_str(self) -> &'static str
+pub fn nika_onboard::knowledge::RefusalCode::of_word(word: &str) -> core::option::Option<Self>
 impl core::clone::Clone for nika_onboard::knowledge::RefusalCode
 pub fn nika_onboard::knowledge::RefusalCode::clone(&self) -> nika_onboard::knowledge::RefusalCode
 impl core::cmp::Eq for nika_onboard::knowledge::RefusalCode
@@ -2089,6 +2092,7 @@ pub fn nika_onboard::knowledge::Snapshot::identity(&self) -> serde_json::value::
 pub fn nika_onboard::knowledge::Snapshot::manifest_sha256(&self) -> &str
 pub fn nika_onboard::knowledge::Snapshot::open(dir: &std::path::Path, identity: core::option::Option<&nika_onboard::knowledge::TrustedIdentity>) -> core::result::Result<Self, nika_onboard::knowledge::KnowledgeError>
 pub fn nika_onboard::knowledge::Snapshot::pack(&self, intent: &str, exclude_corpus: core::option::Option<&str>) -> core::result::Result<nika_compile::types::AuthoringKnowledge, nika_onboard::knowledge::KnowledgeError>
+pub const fn nika_onboard::knowledge::Snapshot::profile(&self) -> &'static str
 pub fn nika_onboard::knowledge::Snapshot::rows_sha256(&self) -> alloc::string::String
 pub fn nika_onboard::knowledge::Snapshot::version(&self) -> core::option::Option<&str>
 impl core::fmt::Debug for nika_onboard::knowledge::Snapshot
@@ -2131,6 +2135,7 @@ pub fn nika_onboard::knowledge::TrustedIdentity::new(snapshot_sha256: &str, poli
 pub fn nika_onboard::knowledge::TrustedIdentity::policy_id(&self) -> &str
 pub fn nika_onboard::knowledge::TrustedIdentity::policy_sha256(&self) -> &str
 pub const fn nika_onboard::knowledge::TrustedIdentity::profile(&self) -> &'static str
+pub fn nika_onboard::knowledge::TrustedIdentity::r2(snapshot_sha256: &str, policy_id: &str, policy_sha256: &str) -> core::option::Option<Self>
 pub fn nika_onboard::knowledge::TrustedIdentity::snapshot_sha256(&self) -> &str
 impl core::clone::Clone for nika_onboard::knowledge::TrustedIdentity
 pub fn nika_onboard::knowledge::TrustedIdentity::clone(&self) -> nika_onboard::knowledge::TrustedIdentity
