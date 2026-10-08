@@ -19,7 +19,7 @@ inv: []
 shadow_zones: []
 nika_codes: []
 timeline: "v0.123"
-follow_ups: ["a paused job's resume over HTTP once the resident has a resume route (its gate's answer is run_not_started until then)", "a run admitted only on the whole closure its check judged (the root and every child workflow it reaches), at the HTTP job door and through the native child's line", "several live conversations per project once the history names a conversation"]
+follow_ups: ["a paused job's resume over HTTP once the resident has a resume route (its gate's answer is run_not_started until then)", "several live conversations per project once the history names a conversation"]
 ---
 
 # ADR-148: the Session over a wire — nika-session-host
@@ -70,18 +70,19 @@ The owners that would naturally host this adapter stand at the 15,000 prod-LOC w
    once. The HTTP door lends its Session the resident's own job admission (a `Jobs` port): a run is
    a job of the served project, admitted by name through the served registry and the resident's
    literal input law (never the server's environment), then observed in the job store until it
-   settles or pauses. The door admits a run only when the root bytes of the world it captured by
-   name are those the Session checked for it (`RunRequest::admits`): a workflow rewritten since, or
-   a request naming no checked bytes, is `run_not_started`, and the admission or its review uses
-   that very capture. The job runs under the run's ceiling restricted by the resident's per-run
+   settles or pauses. The door admits a run only when the world it captured by name is the one the
+   Session checked for it: the root's bytes (`RunRequest::admits`) and the closure of the workflow,
+   every child workflow it reaches and every skill (`RunRequest::admits_world`). A workflow or a
+   child rewritten since, or a request naming no checked world, is `run_not_started`, and the
+   admission or its review uses that very capture. The job runs under the run's ceiling restricted by the resident's per-run
    ceiling, never a raised one: the job record keeps that ceiling, bound into its admission event,
    so a replayed or restarted job runs under it too. A run the server's cost review holds is framed
    over the world the door admitted, with the run's ceiling as the invocation default the human's
    one approval overrides once, as `nika run` does; that approval admits the reviewed job once (a
    decline admits none). The resident has no resume route, so a paused job's gate answer is
    `run_not_started`. A door that cannot start a run says so and observes nothing. The native
-   door's child line carries the witness of the checked bytes (`RunRequest::args`), and `nika run`
-   refuses other bytes before anything starts.
+   door's child line carries the witness of the checked bytes and the closure of their world
+   (`RunRequest::args`), and `nika run` refuses any other before anything starts.
 7. **A run is named by what it observed of itself, never invented.** Each door hands its
    Session the run's identity with its observation, folded once (`RunIdentity`): the native door
    from the child's frames, the HTTP door from the job's receipt and journal. Over HTTP the run
