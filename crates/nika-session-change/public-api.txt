@@ -985,6 +985,64 @@ pub fn nika_session_change::review::propose_over(root: &std::path::Path, goal: &
 pub fn nika_session_change::review::render(set: &nika_session_change::change::ProjectChangeSet, out: &nika_compile::types::CompileOutcome, bytes: &str) -> alloc::string::String
 pub fn nika_session_change::review::workflow_id(candidate: &str) -> alloc::string::String
 pub mod nika_session_change::work
+#[non_exhaustive] pub enum nika_session_change::work::AuthoringStatus
+pub nika_session_change::work::AuthoringStatus::Incomplete
+pub nika_session_change::work::AuthoringStatus::Other
+pub nika_session_change::work::AuthoringStatus::Ready
+pub nika_session_change::work::AuthoringStatus::Refused
+impl core::clone::Clone for nika_session_change::work::AuthoringStatus
+pub fn nika_session_change::work::AuthoringStatus::clone(&self) -> nika_session_change::work::AuthoringStatus
+impl core::cmp::Eq for nika_session_change::work::AuthoringStatus
+impl core::cmp::PartialEq for nika_session_change::work::AuthoringStatus
+pub fn nika_session_change::work::AuthoringStatus::eq(&self, other: &nika_session_change::work::AuthoringStatus) -> bool
+impl core::convert::From<nika_compile::types::CompileStatus> for nika_session_change::work::AuthoringStatus
+pub fn nika_session_change::work::AuthoringStatus::from(status: nika_compile::types::CompileStatus) -> Self
+impl core::fmt::Debug for nika_session_change::work::AuthoringStatus
+pub fn nika_session_change::work::AuthoringStatus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session_change::work::AuthoringStatus
+impl core::marker::StructuralPartialEq for nika_session_change::work::AuthoringStatus
+impl serde_core::ser::Serialize for nika_session_change::work::AuthoringStatus
+pub fn nika_session_change::work::AuthoringStatus::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_session_change::work::AuthoringStatus
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::AuthoringStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringStatus::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::AuthoringStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringStatus::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::AuthoringStatus where U: core::convert::From<T>
+pub fn nika_session_change::work::AuthoringStatus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::AuthoringStatus where U: core::convert::Into<T>
+pub type nika_session_change::work::AuthoringStatus::Error = core::convert::Infallible
+pub fn nika_session_change::work::AuthoringStatus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::AuthoringStatus where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::AuthoringStatus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::AuthoringStatus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::AuthoringStatus where T: core::clone::Clone
+pub type nika_session_change::work::AuthoringStatus::Owned = T
+pub fn nika_session_change::work::AuthoringStatus::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::AuthoringStatus::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::AuthoringStatus where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringStatus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::AuthoringStatus where T: ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringStatus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::AuthoringStatus where T: ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringStatus::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::AuthoringStatus where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::AuthoringStatus::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::AuthoringStatus
+pub fn nika_session_change::work::AuthoringStatus::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::AuthoringStatus where T: core::clone::Clone
+pub fn nika_session_change::work::AuthoringStatus::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::AuthoringStatus where T: 'static
+pub fn nika_session_change::work::AuthoringStatus::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session_change::work::AuthoringStatus where T: core::marker::Copy
+pub fn nika_session_change::work::AuthoringStatus::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::AuthoringStatus where T: ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringStatus::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::AuthoringStatus::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::AuthoringStatus
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::AuthoringStatus
+impl<T> typenum::type_operators::Same for nika_session_change::work::AuthoringStatus
+pub type nika_session_change::work::AuthoringStatus::Output = T
 #[non_exhaustive] pub enum nika_session_change::work::Landing
 pub nika_session_change::work::Landing::Create
 pub nika_session_change::work::Landing::Update
@@ -1039,6 +1097,66 @@ impl<T> tracing::instrument::Instrument for nika_session_change::work::Landing
 impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::Landing
 impl<T> typenum::type_operators::Same for nika_session_change::work::Landing
 pub type nika_session_change::work::Landing::Output = T
+#[non_exhaustive] pub enum nika_session_change::work::NoteKind
+pub nika_session_change::work::NoteKind::Applied
+pub nika_session_change::work::NoteKind::Missed
+pub nika_session_change::work::NoteKind::Other
+pub nika_session_change::work::NoteKind::Refused
+pub nika_session_change::work::NoteKind::RequiresHuman
+pub nika_session_change::work::NoteKind::Unknown
+impl core::clone::Clone for nika_session_change::work::NoteKind
+pub fn nika_session_change::work::NoteKind::clone(&self) -> nika_session_change::work::NoteKind
+impl core::cmp::Eq for nika_session_change::work::NoteKind
+impl core::cmp::PartialEq for nika_session_change::work::NoteKind
+pub fn nika_session_change::work::NoteKind::eq(&self, other: &nika_session_change::work::NoteKind) -> bool
+impl core::convert::From<nika_compile::types::DiagnosticKind> for nika_session_change::work::NoteKind
+pub fn nika_session_change::work::NoteKind::from(kind: nika_compile::types::DiagnosticKind) -> Self
+impl core::fmt::Debug for nika_session_change::work::NoteKind
+pub fn nika_session_change::work::NoteKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session_change::work::NoteKind
+impl core::marker::StructuralPartialEq for nika_session_change::work::NoteKind
+impl serde_core::ser::Serialize for nika_session_change::work::NoteKind
+pub fn nika_session_change::work::NoteKind::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_session_change::work::NoteKind
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::NoteKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::NoteKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::NoteKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::NoteKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::NoteKind where U: core::convert::From<T>
+pub fn nika_session_change::work::NoteKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::NoteKind where U: core::convert::Into<T>
+pub type nika_session_change::work::NoteKind::Error = core::convert::Infallible
+pub fn nika_session_change::work::NoteKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::NoteKind where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::NoteKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::NoteKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::NoteKind where T: core::clone::Clone
+pub type nika_session_change::work::NoteKind::Owned = T
+pub fn nika_session_change::work::NoteKind::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::NoteKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::NoteKind where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::NoteKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::NoteKind where T: ?core::marker::Sized
+pub fn nika_session_change::work::NoteKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::NoteKind where T: ?core::marker::Sized
+pub fn nika_session_change::work::NoteKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::NoteKind where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::NoteKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::NoteKind
+pub fn nika_session_change::work::NoteKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::NoteKind where T: core::clone::Clone
+pub fn nika_session_change::work::NoteKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::NoteKind where T: 'static
+pub fn nika_session_change::work::NoteKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session_change::work::NoteKind where T: core::marker::Copy
+pub fn nika_session_change::work::NoteKind::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::NoteKind where T: ?core::marker::Sized
+pub fn nika_session_change::work::NoteKind::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::NoteKind::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::NoteKind
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::NoteKind
+impl<T> typenum::type_operators::Same for nika_session_change::work::NoteKind
+pub type nika_session_change::work::NoteKind::Output = T
 #[non_exhaustive] pub enum nika_session_change::work::RunEnd
 pub nika_session_change::work::RunEnd::Failed
 pub nika_session_change::work::RunEnd::Interrupted
@@ -1275,6 +1393,113 @@ impl<T> tracing::instrument::Instrument for nika_session_change::work::Audit
 impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::Audit
 impl<T> typenum::type_operators::Same for nika_session_change::work::Audit
 pub type nika_session_change::work::Audit::Output = T
+#[non_exhaustive] pub struct nika_session_change::work::Authoring
+pub nika_session_change::work::Authoring::candidate: core::option::Option<nika_session_change::change::Witness>
+pub nika_session_change::work::Authoring::diagnostics: alloc::vec::Vec<nika_session_change::work::AuthoringNote>
+pub nika_session_change::work::Authoring::questions: alloc::vec::Vec<alloc::string::String>
+pub nika_session_change::work::Authoring::status: nika_session_change::work::AuthoringStatus
+impl nika_session_change::work::Authoring
+pub fn nika_session_change::work::Authoring::of(outcome: &nika_compile::types::CompileOutcome) -> Self
+impl core::clone::Clone for nika_session_change::work::Authoring
+pub fn nika_session_change::work::Authoring::clone(&self) -> nika_session_change::work::Authoring
+impl core::cmp::Eq for nika_session_change::work::Authoring
+impl core::cmp::PartialEq for nika_session_change::work::Authoring
+pub fn nika_session_change::work::Authoring::eq(&self, other: &nika_session_change::work::Authoring) -> bool
+impl core::fmt::Debug for nika_session_change::work::Authoring
+pub fn nika_session_change::work::Authoring::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_change::work::Authoring
+impl serde_core::ser::Serialize for nika_session_change::work::Authoring
+pub fn nika_session_change::work::Authoring::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_session_change::work::Authoring
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::Authoring where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::Authoring::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::Authoring where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::Authoring::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::Authoring where U: core::convert::From<T>
+pub fn nika_session_change::work::Authoring::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::Authoring where U: core::convert::Into<T>
+pub type nika_session_change::work::Authoring::Error = core::convert::Infallible
+pub fn nika_session_change::work::Authoring::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::Authoring where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::Authoring::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::Authoring::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::Authoring where T: core::clone::Clone
+pub type nika_session_change::work::Authoring::Owned = T
+pub fn nika_session_change::work::Authoring::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::Authoring::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::Authoring where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::Authoring::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::Authoring where T: ?core::marker::Sized
+pub fn nika_session_change::work::Authoring::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::Authoring where T: ?core::marker::Sized
+pub fn nika_session_change::work::Authoring::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::Authoring where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::Authoring::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::Authoring
+pub fn nika_session_change::work::Authoring::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::Authoring where T: core::clone::Clone
+pub fn nika_session_change::work::Authoring::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::Authoring where T: 'static
+pub fn nika_session_change::work::Authoring::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::Authoring where T: ?core::marker::Sized
+pub fn nika_session_change::work::Authoring::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::Authoring::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::Authoring
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::Authoring
+impl<T> typenum::type_operators::Same for nika_session_change::work::Authoring
+pub type nika_session_change::work::Authoring::Output = T
+#[non_exhaustive] pub struct nika_session_change::work::AuthoringNote
+pub nika_session_change::work::AuthoringNote::kind: nika_session_change::work::NoteKind
+pub nika_session_change::work::AuthoringNote::message: alloc::string::String
+pub nika_session_change::work::AuthoringNote::target: alloc::string::String
+impl core::clone::Clone for nika_session_change::work::AuthoringNote
+pub fn nika_session_change::work::AuthoringNote::clone(&self) -> nika_session_change::work::AuthoringNote
+impl core::cmp::Eq for nika_session_change::work::AuthoringNote
+impl core::cmp::PartialEq for nika_session_change::work::AuthoringNote
+pub fn nika_session_change::work::AuthoringNote::eq(&self, other: &nika_session_change::work::AuthoringNote) -> bool
+impl core::fmt::Debug for nika_session_change::work::AuthoringNote
+pub fn nika_session_change::work::AuthoringNote::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_change::work::AuthoringNote
+impl serde_core::ser::Serialize for nika_session_change::work::AuthoringNote
+pub fn nika_session_change::work::AuthoringNote::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_session_change::work::AuthoringNote
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::AuthoringNote where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringNote::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::AuthoringNote where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringNote::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::AuthoringNote where U: core::convert::From<T>
+pub fn nika_session_change::work::AuthoringNote::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::AuthoringNote where U: core::convert::Into<T>
+pub type nika_session_change::work::AuthoringNote::Error = core::convert::Infallible
+pub fn nika_session_change::work::AuthoringNote::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::AuthoringNote where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::AuthoringNote::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::AuthoringNote::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::AuthoringNote where T: core::clone::Clone
+pub type nika_session_change::work::AuthoringNote::Owned = T
+pub fn nika_session_change::work::AuthoringNote::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::AuthoringNote::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::AuthoringNote where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringNote::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::AuthoringNote where T: ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringNote::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::AuthoringNote where T: ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringNote::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::AuthoringNote where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::AuthoringNote::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::AuthoringNote
+pub fn nika_session_change::work::AuthoringNote::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::AuthoringNote where T: core::clone::Clone
+pub fn nika_session_change::work::AuthoringNote::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::AuthoringNote where T: 'static
+pub fn nika_session_change::work::AuthoringNote::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::AuthoringNote where T: ?core::marker::Sized
+pub fn nika_session_change::work::AuthoringNote::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::AuthoringNote::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::AuthoringNote
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::AuthoringNote
+impl<T> typenum::type_operators::Same for nika_session_change::work::AuthoringNote
+pub type nika_session_change::work::AuthoringNote::Output = T
 #[non_exhaustive] pub struct nika_session_change::work::Bound
 pub nika_session_change::work::Bound::path: alloc::string::String
 pub nika_session_change::work::Bound::value: serde_json::value::Value
@@ -1813,6 +2038,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::Saved
 impl<T> typenum::type_operators::Same for nika_session_change::work::Saved
 pub type nika_session_change::work::Saved::Output = T
 #[non_exhaustive] pub struct nika_session_change::work::Work
+pub nika_session_change::work::Work::authoring: core::option::Option<nika_session_change::work::Authoring>
 pub nika_session_change::work::Work::candidate: core::option::Option<nika_session_change::work::Candidate>
 pub nika_session_change::work::Work::contract: &'static str
 pub nika_session_change::work::Work::rail: nika_session_change::work::Rail
@@ -1824,6 +2050,7 @@ pub nika_session_change::work::Work::saved: core::option::Option<nika_session_ch
 pub nika_session_change::work::Work::waiting: nika_session_change::work::Waiting
 impl nika_session_change::work::Work
 pub fn nika_session_change::work::Work::new(root: std::path::PathBuf, request: nika_session_change::work::Request, waiting: nika_session_change::work::Waiting, candidate: core::option::Option<nika_session_change::work::Candidate>, saved: core::option::Option<nika_session_change::work::Saved>, requested: core::option::Option<nika_session_change::work::RequestedRun>, run: core::option::Option<nika_session_change::work::Run>, rail: nika_session_change::work::Rail) -> Self
+pub fn nika_session_change::work::Work::with_authoring(self, authoring: core::option::Option<nika_session_change::work::Authoring>) -> Self
 impl core::clone::Clone for nika_session_change::work::Work
 pub fn nika_session_change::work::Work::clone(&self) -> nika_session_change::work::Work
 impl core::cmp::PartialEq for nika_session_change::work::Work
