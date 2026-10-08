@@ -22,6 +22,7 @@
 pub mod bind;
 pub mod component;
 pub mod instance;
+pub mod recall;
 pub mod witness;
 
 pub use bind::{Binding, BindingError, EditRefusal, edit_literal};
