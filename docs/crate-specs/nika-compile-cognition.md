@@ -1184,14 +1184,21 @@ refusal, while the laws accept the rest of the document (R7), is not accepted un
 told back once with the refusal it followed (`nika_compile_seats::repairs::gaps_after_refusal`),
 whose findings name the remedies the engine supports, while the policy still grants a round.
 Declared again, or with no round left, it is accepted, and the door surfaces it for the human to
-dispose of (`gap.N`). A gap declared before any refusal stays the author's. The judge of a
-document also reads, as data beside the state, the engine facts a request may condition on
-(A5): the catalogue release the door was lent (null when none) and the components it composed
-into those bytes, by receipt. These facts come from the native record the door's rounds replay
-(`nika_compile_seats::judge::{lent, authoring}`), so a clause such as "use an admitted component
-when the catalogue provides one" is decidable. They bind the context a rejection holds in:
-another release or composition is judged again, and a replay of the same record is not. No Plan
-or Sketch round has to fail first. `sketch` keeps
+dispose of (`gap.N`). A gap declared before any refusal stays the author's.
+
+The judge of a document also reads, as data beside the state, the engine facts a request may
+condition on (A5), as the door recorded them for the bytes it made
+(`nika_compile_seats::judge::{lent, authoring}`, in the native record its rounds replay):
+- the catalogue release it was lent;
+- the admitted components it offered its author;
+- each receipt witnessed on those bytes, a receipt a whole rewrite left behind being `absent`.
+
+A clause such as "use an admitted component when the catalogue provides one" is thus judged on
+what was offered and what the bytes compose. Whether an offered component applies remains the
+judge's decision, never asserted by the engine. The facts bind the context a rejection holds in:
+another release, offer or composition is judged again, while a replay of the same record is not.
+
+No Plan or Sketch round has to fail first. `sketch` keeps
 the sketch door and `off` the private Plan, which Rust assembles; a reading the reader
 composes whole is still checked by a judge. Whole-source recovery remains the sketch door's
 eligible CREATE recovery described above, and whole source remains available for supported

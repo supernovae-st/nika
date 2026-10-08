@@ -91,15 +91,21 @@ as an external consumer.
   world and the candidate's bytes; a revision in words is shown its change beside the request of
   the base it revises, as history, never as its first statement) and `over_document` (a revision
   applied over the complete document, by its decision or by the record a round replays, shows
-  the base whole). The engine facts a request may condition on (A5) also ride that state:
-  - `lent` records the catalogue release a document door was lent (or null) in the native
-    record its rounds replay (`plan.document_create`).
-  - `authoring` shows the judge, as data, the components composed into the bytes (by receipt,
-    `[]` for none) and that release. It reads the outcome's record, else the record a round
-    replays, so a replay shows the facts its rejection was bound to.
+  the base whole). The engine facts a request may condition on (A5) also ride that state.
+  `lent` records them once per settled attempt of a document door, in the native record its
+  rounds replay (`plan.document_create.facts`):
+  - `catalogue`: the identity of the release the door was lent, or null when none was lent;
+  - `offered`: the admitted components the door offered its author (`document::components`),
+    by identity, title, purpose, holes and effects, at most 24 of them, with their `total`;
+  - `composed`: each receipt of the record, witnessed on the bytes that attempt made
+    (`foundry::witness`). A receipt a whole rewrite left behind is `absent`, never current
+    composition, and the record keeps its receipts as lineage.
 
-  Another release or composition is another context, judged again. The verifier that asks the
-  questions and weighs the answers stays in `nika-compile-cognition`.
+  `authoring` shows the judge exactly those facts, as data. It reads the outcome's record, or
+  else the record a round replays, so a replay shows the facts its rejection was bound to.
+  Another release, offer or composition is another context, judged again. Deciding whether an
+  offered component applies stays the judge's. The verifier that asks the questions and weighs
+  the answers stays in `nika-compile-cognition`.
 - `repairs` — the laws that end the verifier's work: `progressed` (a defect set is progress
   when it names a new part or narrows the last set) and `carry_declined` (the record of bytes a
   judge rejected keeps each rejection of them once per judge, context and request, so every

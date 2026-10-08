@@ -307,31 +307,45 @@ async fn a_replayed_document_revision_is_judged_in_the_context_its_rejection_bin
     }
 }
 
-/// The engine facts a document door recorded bind the context its judge's rejection holds in
-/// (A5): the same bytes under the same lent release and composition repeat the rejection with no
-/// call; under another release, or with another composition, they are another context and the
-/// judge is asked again.
+/// The engine facts a document door recorded bind the context its judge's rejection holds in (A5),
+/// counted in whole-request questions: under release r1 the judge rejects the bytes (one whole
+/// question); a round carrying that rejection under the same facts asks none; under release r2
+/// exactly one, and a round carrying that rejection under r2 none; a changed composition witness
+/// again exactly one, then none. Part questions are the localization's own, never counted here.
 #[tokio::test]
-async fn a_rejection_binds_the_release_and_composition_it_was_judged_under() {
-    let lent = |release: &str, composed: &Value| {
+async fn a_rejection_binds_the_facts_it_was_judged_under_one_whole_question_each() {
+    let recorded = |release: &str, verdict: Option<&str>| {
         let mut out = ready();
-        let section = json!({"components": composed, "catalogue": {"version": release}});
+        let composed: Vec<Value> = (verdict.into_iter())
+            .map(|v| json!({"component": "block:x", "verdict": v}))
+            .collect();
+        let facts = json!({"catalogue": {"version": release},
+            "offered": {"total": 0, "components": []}, "composed": composed});
+        let section = json!({"components": [], "facts": facts});
         out.provenance.plan = Some(json!({"strategy": "native", "document_create": section}));
         out
     };
-    let none = json!([]);
-    let fresh = CompileRequest::create(INTENT);
-    let (earlier, _) = declined(judged_under(&doubting(), &fresh, lent("r1", &none)).await);
-    let request = CompileRequest::create(INTENT).with_declined(attempts(&earlier));
-    let receipt = json!([{"component": {"id": "block:stale-filter-report"}}]);
-    for (release, composed, asked) in [
-        ("r1", &none, false),
-        ("r2", &none, true),
-        ("r1", &receipt, true),
-    ] {
+    let whole = |judge: &super::Approving| {
+        let told = judge.told.lock().unwrap();
+        told.iter()
+            .filter(|text| text.contains("Compare the WHOLE user request"))
+            .count()
+    };
+    let mut carried: Vec<Value> = Vec::new();
+    let rounds = [
+        ("r1", None, 1),
+        ("r1", None, 0),
+        ("r2", None, 1),
+        ("r2", None, 0),
+        ("r2", Some("absent"), 1),
+        ("r2", Some("absent"), 0),
+    ];
+    for (release, verdict, asked) in rounds {
         let judge = doubting();
-        let _ = judged_under(&judge, &request, lent(release, composed)).await;
-        let called = !judge.told.lock().unwrap().is_empty();
-        assert_eq!(called, asked, "{release} {composed}");
+        let request = CompileRequest::create(INTENT).with_declined(carried.clone());
+        let judged = judged_under(&judge, &request, recorded(release, verdict)).await;
+        assert_eq!(whole(&judge), asked, "{release} {verdict:?}");
+        let (out, _) = declined(judged);
+        carried.extend(attempts(&out));
     }
 }

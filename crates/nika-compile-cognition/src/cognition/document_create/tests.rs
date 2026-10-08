@@ -176,6 +176,9 @@ struct Scripted {
     answers: std::sync::Mutex<Vec<String>>,
     openings: std::sync::Mutex<Vec<String>>,
     states: std::sync::Mutex<Vec<Value>>,
+    /// Whether the whole request is judged from the transmitted engine facts alone: unfaithful
+    /// when the catalogue offered a component and none is composed, else faithful.
+    conditional: bool,
 }
 
 impl Scripted {
@@ -184,6 +187,15 @@ impl Scripted {
             answers: std::sync::Mutex::new(answers),
             openings: std::sync::Mutex::new(Vec::new()),
             states: std::sync::Mutex::new(Vec::new()),
+            conditional: false,
+        }
+    }
+
+    /// The same seat, judging the whole request from the engine facts it is shown.
+    fn conditional(answers: Vec<String>) -> Self {
+        Self {
+            conditional: true,
+            ..Self::new(answers)
         }
     }
 
@@ -256,10 +268,26 @@ impl nika_kernel::ai::provider::ProviderInferDyn for Scripted {
                     reason: "the scripted seat has no further answer".to_owned(),
                 })?
         } else {
-            if let Some(state) = state_of(&request) {
+            let state = state_of(&request);
+            let whole = schema["properties"]["choice"]["enum"].to_string();
+            let choice = match &state {
+                Some(state) if self.conditional && whole.contains("\"unfaithful\"") => {
+                    let facts = &state["authoring"];
+                    let offered = facts["offered"]["total"].as_u64().unwrap_or(0) > 0;
+                    let composed = (facts["composed"].as_array().into_iter().flatten())
+                        .any(|seen| seen["verdict"] == "expanded");
+                    if offered && !composed {
+                        "unfaithful"
+                    } else {
+                        "faithful"
+                    }
+                }
+                _ => approval(schema),
+            };
+            if let Some(state) = state {
                 self.states.lock().expect("states").push(state);
             }
-            json!({"choice": approval(schema)}).to_string()
+            json!({"choice": choice}).to_string()
         };
         Ok(InferResponse::new(
             vec![ContentBlock::Text { text }],
@@ -294,13 +322,38 @@ fn pack() -> nika_compile::AuthoringKnowledge {
 }
 
 async fn compiled(request: &crate::CompileRequest, seat: &Scripted) -> crate::CompileOutcome {
+    compiled_under(request, seat, &Shelf).await
+}
+
+/// The compile of `request` with `catalog` lent.
+async fn compiled_under(
+    request: &crate::CompileRequest,
+    seat: &Scripted,
+    catalog: &dyn ComponentCatalog,
+) -> crate::CompileOutcome {
     let cognition = crate::Cognition {
         provider: Some(seat),
         seat: None,
     };
-    crate::compile_with_cognition_composed(request, cognition, None, Some(&Shelf))
+    crate::compile_with_cognition_composed(request, cognition, None, Some(catalog))
         .await
         .expect("compiles")
+}
+
+/// A catalogue of another release that offers no component.
+struct Bare;
+
+impl ComponentCatalog for Bare {
+    fn release(&self) -> Release {
+        Release::new(
+            "fixture-document-r0",
+            SNAPSHOT,
+            "nika-knowledge-release-profile/r1",
+        )
+    }
+    fn resolve(&self, reference: &ComponentRef) -> Result<Component, Unresolved> {
+        Err(Unresolved::Unknown(reference.id.clone()))
+    }
 }
 
 /// The roles every call of the outcome's receipt journals.
@@ -507,14 +560,13 @@ async fn a_created_component_is_remembered_reopened_and_rebound_by_a_new_change(
     );
 }
 
-/// The judge reads the engine facts the request conditions on (A5, T3): the catalogue release the
-/// door was lent and the component it composed, by receipt; the same bytes written whole under
-/// the same catalogue composed none.
+/// The judge reads the engine facts the request conditions on (A5, T3), as the door recorded them
+/// for the bytes it made: the catalogue release it was lent, the components it offered its
+/// author, and each receipt witnessed on those bytes (composed: expanded). The same bytes written
+/// whole under the same catalogue carry no receipt: nothing is composed, the offer stands.
 #[tokio::test]
 async fn the_judge_reads_the_lent_release_and_what_the_document_composed() {
-    let request = crate::CompileRequest::create(STALE_INTENT)
-        .with_authoring_policy(policy())
-        .with_authoring_knowledge(pack());
+    let request = stale_request();
     let release = Shelf.release().record();
     let author = Scripted::new(vec![door(ENVELOPE, &[compose(48)])]);
     let out = compiled(&request, &author).await;
@@ -526,9 +578,13 @@ async fn the_judge_reads_the_lent_release_and_what_the_document_composed() {
     );
     let facts = author.judged_facts();
     assert_eq!(facts["catalogue"], release);
+    assert_eq!(facts["offered"]["total"], 1, "{facts:#}");
+    let offered = &facts["offered"]["components"][0];
+    assert_eq!(offered["component"]["id"], "block:stale-filter-report");
     let composed = facts["composed"].as_array().cloned().unwrap_or_default();
     assert_eq!(composed.len(), 1, "{facts:#}");
-    assert_eq!(composed[0]["component"]["id"], "block:stale-filter-report");
+    assert_eq!(composed[0]["component"], "block:stale-filter-report");
+    assert_eq!(composed[0]["verdict"], "expanded");
     let written = out.candidate.clone().expect("the expanded document");
     let author = Scripted::new(vec![door(&written, &[])]);
     let out = compiled(&request, &author).await;
@@ -538,8 +594,101 @@ async fn the_judge_reads_the_lent_release_and_what_the_document_composed() {
         "{:#?}",
         out.diagnostics
     );
+    let facts = author.judged_facts();
     assert_eq!(
-        author.judged_facts(),
-        json!({"catalogue": release, "composed": []})
+        (&facts["catalogue"], &facts["offered"]["total"]),
+        (&release, &json!(1))
     );
+    assert_eq!(facts["composed"], json!([]));
+}
+
+/// The stale-tickets request with the pack lent beside the catalogue.
+fn stale_request() -> crate::CompileRequest {
+    crate::CompileRequest::create(STALE_INTENT)
+        .with_authoring_policy(policy())
+        .with_authoring_knowledge(pack())
+}
+
+/// The document the stale-filter component expands into, as a valid composition makes it.
+async fn expanded() -> String {
+    let author = Scripted::new(vec![door(ENVELOPE, &[compose(48)])]);
+    let out = compiled(&stale_request(), &author).await;
+    out.candidate.expect("the expanded document")
+}
+
+/// A receipt a whole rewrite left behind is never shown as current composition (A5, review F1).
+/// The first document composes the block over an envelope granting a path no word of the
+/// request composes, and is refused; the author rewrites the whole document. The record keeps the earlier
+/// receipt as lineage, but the judge is shown it witnessed on the rewritten bytes: expanded when
+/// the rewrite keeps the component's nodes, absent when it renames them away.
+#[tokio::test]
+async fn a_receipt_a_rewrite_left_behind_is_shown_absent_never_composed() {
+    let invented = ENVELOPE.replace(
+        "read: [\"./in/tickets.json\"]",
+        "read: [\"./in/tickets.json\", \"./zz/qqq.json\"]",
+    );
+    assert_ne!(invented, ENVELOPE);
+    let kept = expanded().await;
+    let renamed = [
+        ("read_records", "load_tickets"),
+        ("parse_records", "decode_tickets"),
+        ("report_text", "render_report"),
+        ("write_report", "save_report"),
+    ];
+    let dropped = renamed
+        .iter()
+        .fold(kept.clone(), |text, (old, new)| text.replace(old, new));
+    for (rewrite, verdict) in [(kept, "expanded"), (dropped, "absent")] {
+        let author = Scripted::new(vec![door(&invented, &[compose(48)]), door(&rewrite, &[])]);
+        let out = compiled(&stale_request(), &author).await;
+        assert_eq!(
+            out.status,
+            crate::CompileStatus::Ready,
+            "{:#?}",
+            out.diagnostics
+        );
+        assert_eq!(
+            calls(&out)
+                .iter()
+                .filter(|c| c.starts_with("document"))
+                .count(),
+            2
+        );
+        let record = &out.provenance.plan.as_ref().expect("the record")["document_create"];
+        let lineage = record["components"].as_array().map_or(0, Vec::len);
+        assert_eq!(lineage, 1, "the earlier receipt is kept: {record:#}");
+        let facts = author.judged_facts();
+        assert_eq!(facts["composed"][0]["verdict"], verdict, "{facts:#}");
+    }
+}
+
+/// The request's conditional ("use an applicable admitted component when the catalogue provides
+/// one; otherwise construct the same requested work") is judged on what the catalogue offered
+/// (A5, review F2): the same written document is shown the stale-filter offer under a catalogue
+/// that has it and an empty offer under one that has none, nothing composed either way. A judge
+/// deciding from those facts alone rejects the first (held, its author not asked again) and
+/// accepts the second.
+#[tokio::test]
+async fn the_conditional_foundry_clause_is_judged_on_what_the_catalogue_offered() {
+    let written = expanded().await;
+    let cases: [(&dyn ComponentCatalog, u64, crate::CompileStatus); 2] = [
+        (&Shelf, 1, crate::CompileStatus::Incomplete),
+        (&Bare, 0, crate::CompileStatus::Ready),
+    ];
+    for (catalog, offered, status) in cases {
+        let author = Scripted::conditional(vec![door(&written, &[])]);
+        let out = compiled_under(&stale_request(), &author, catalog).await;
+        let facts = author.judged_facts();
+        assert_eq!(facts["offered"]["total"], offered, "{facts:#}");
+        assert_eq!(facts["composed"], json!([]));
+        assert_eq!(facts["catalogue"], catalog.release().record());
+        assert_eq!(out.status, status, "{:#?}", out.diagnostics);
+        assert_eq!(
+            calls(&out)
+                .iter()
+                .filter(|c| c.starts_with("document"))
+                .count(),
+            1
+        );
+    }
 }
