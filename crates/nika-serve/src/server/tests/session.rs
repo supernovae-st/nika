@@ -510,6 +510,10 @@ async fn a_session_run_executes_in_the_residents_runtime_and_reads_its_journal()
     assert_eq!(kinds(&ran), ["run_requested", "facts"], "{ran}");
     let observed = ran["outcomes"][1]["text"].as_str().expect("observation");
     assert!(observed.contains("run observed · exit 0"), "{observed}");
+    // The journal is named as the served project holds it, never by the resident's layout.
+    let root = world.root.path().to_str().expect("a UTF-8 root");
+    assert!(observed.contains("· trace `.nika/traces/"), "{observed}");
+    assert!(!observed.contains(root), "{observed}");
     let source = WORKFLOW.to_owned();
     assert_eq!(served.backend.runs(), [(source, Some(0.25))]);
     let run = &ran["snapshot"]["work"]["run"];
