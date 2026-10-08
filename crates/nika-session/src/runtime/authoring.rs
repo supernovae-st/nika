@@ -286,7 +286,7 @@ impl SessionRuntime {
         }
         let original = self.intent.goal.as_ref()?;
         let intent = format!("Original request:\n{original}\n{CORRECTION_FRAME}\n{change}");
-        Some(self.restate_request(intent, change))
+        Some(self.restate_request(intent, change, None))
     }
 
     /// The one workflow file of the project a line names (`stock.nika`), when it names exactly
@@ -419,16 +419,26 @@ impl SessionRuntime {
     /// is read again with the human's own words (the round is dropped, the
     /// plan read a different request). Never a paraphrase.
     pub(super) fn restate_round(&mut self, round: &AuthoringRound, line: &str) -> TurnOutcome {
-        self.restate_request(format!("{}. {}", round.intent, line.trim()), line)
+        let restated = (self.question_id_of(round)).zip(round.current().map(|q| q.key.clone()));
+        self.restate_request(format!("{}. {}", round.intent, line.trim()), line, restated)
     }
 
     /// Compile the host's exact reconstructed request; all money spans bind to these bytes.
-    fn restate_request(&mut self, intent: String, line: &str) -> TurnOutcome {
+    fn restate_request(
+        &mut self,
+        intent: String,
+        line: &str,
+        restated: Option<(crate::outcome::QuestionId, String)>,
+    ) -> TurnOutcome {
         // Its directives, the request's own and the added ones, are spans of this very string (C11).
+        let asked = restated.as_ref().map(|(question, _)| question.clone());
         let money = match self.built_money(&intent, line) {
             Ok(money) => money,
-            Err(refusal) => return refusal,
+            Err(refusal) => return self.answer_refused(asked, refusal),
         };
+        if let Some((question, key)) = restated {
+            self.answer_act(Some(question), crate::work::AnswerAct::Restated { key });
+        }
         self.remember(line, "(the request read again with these words)");
         let mut again = AuthoringRound::new(intent);
         again.money = money;
@@ -953,11 +963,12 @@ impl SessionRuntime {
         };
         let line = if line.trim().is_empty() {
             let Some(default) = seat_default else {
+                let asked = self.question_id_of(&round);
                 self.authoring = Some(round);
-                return TurnOutcome::Refusal(Refusal::new(
+                return self.answer_refused(asked, TurnOutcome::Refusal(Refusal::new(
                     RefusalClass::EmptyAnswer,
                     "the question needs an answer — nothing answers for you (`cancel` drops it)",
-                ));
+                )));
             };
             default
         } else {
@@ -982,11 +993,13 @@ impl SessionRuntime {
                 .and_then(|q| clause_of(&q.label))
                 .unwrap_or_default();
             let mut restated = round.restate_clause(&clause, line.trim());
+            let asked = self.question_id_of(&round);
             restated.money = match self.built_money(&restated.intent, line) {
                 Ok(money) => money,
-                Err(refusal) => return refusal,
+                Err(refusal) => return self.answer_refused(asked, refusal),
             };
-            let asked = self.question_id_of(&round);
+            let key = round.current().map_or_else(String::new, |q| q.key.clone());
+            self.answer_act(asked.clone(), crate::work::AnswerAct::Restated { key });
             self.questions.close(asked);
             self.remember(line, &format!("(restated « {clause} » in words)"));
             return self.compile_again(restated);
@@ -1001,6 +1014,11 @@ impl SessionRuntime {
             && !is_own_seat(&self.seat, line)
             && let Some(text) = unpriced_model_text(line)
         {
+            let waits = crate::work::AnswerAct::Waits {
+                key: "model".to_owned(),
+                why: text.clone(),
+            };
+            self.answer_act(self.question_id_of(&round), waits);
             self.authoring = Some(round);
             return TurnOutcome::Question {
                 key: "model".to_owned(),
@@ -1081,7 +1099,9 @@ impl SessionRuntime {
         };
         match act {
             TurnAct::Cancel => {
+                let key = round.current().map_or_else(String::new, |q| q.key.clone());
                 let asked = self.question_id_of(&round);
+                self.answer_act(asked.clone(), crate::work::AnswerAct::Dropped { key });
                 self.questions.close(asked);
                 self.intent.unresolved.clear();
                 self.remember(line, "(authoring discarded)");

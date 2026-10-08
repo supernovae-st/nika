@@ -22,6 +22,7 @@ use crate::intelligence::{DataLocus, IntelligenceKind};
 use crate::reasoner::{NoReasoner, ProviderReasoner, test_transport};
 use crate::runtime::inference_tests::wire::{Peer, response};
 use crate::turn::{RoutingMethod, TurnAct, TurnClassifier, TurnContext, TurnDecision};
+use crate::work::{AnswerAct, Answered};
 
 /// The first line: free intent the compiler asks to replace, with the ceiling its gate admitted.
 const ORIGINAL: &str = "Sort the payments. Budget: $2.";
@@ -203,12 +204,18 @@ fn conflicting_or_malformed_money_in_a_replacement_refuses_and_nothing_is_compil
     ] {
         let dir = tempfile::tempdir().expect("root");
         let mut s = waiting(dir.path(), ORIGINAL);
+        let asked = s.pending_question_id().expect("asked");
         let outcome = s.turn(line);
-        assert!(
-            matches!(outcome, TurnOutcome::Refusal(_)),
-            "{line}: {outcome:?}"
-        );
+        let TurnOutcome::Refusal(refusal) = &outcome else {
+            panic!("{line}: {outcome:?}");
+        };
         assert!(s.authoring.is_none() && s.last_outcome.is_none(), "{line}");
+        let class = refusal.class;
+        assert_eq!(
+            s.work().answered,
+            Some(Answered::new(asked, AnswerAct::Refused { class })),
+            "{line}"
+        );
     }
 }
 
@@ -250,10 +257,19 @@ fn a_restatement_admits_its_added_directive_on_the_string_it_builds() {
 fn a_restatement_stating_another_ceiling_refuses_and_nothing_is_compiled() {
     let dir = tempfile::tempdir().expect("root");
     let mut s = waiting(dir.path(), ORIGINAL);
+    let asked = s.pending_question_id().expect("asked");
     let round = s.authoring.take().expect("a round waits");
     let outcome = s.restate_round(&round, "also the late ones, budget 3 USD");
-    assert!(matches!(outcome, TurnOutcome::Refusal(_)), "{outcome:?}");
+    let TurnOutcome::Refusal(refusal) = &outcome else {
+        panic!("{outcome:?}");
+    };
     assert!(s.authoring.is_none() && s.last_outcome.is_none());
+    let class = refusal.class;
+    assert_eq!(
+        s.work().answered,
+        Some(Answered::new(asked, AnswerAct::Refused { class })),
+        "refused before the request changed: never restated"
+    );
 }
 
 /// A business amount in a replacement is data, never the ceiling: the gate reads the
@@ -384,9 +400,18 @@ fn a_routed_restatement_moves_the_ceiling_and_binds_its_span_together() {
     s.authoring = Some(round);
     s.with_classifier(Box::new(NewWork));
     assert!(!s.money_blocks_cognition(), "the door reads the line");
+    let asked = s.pending_question_id().expect("asked");
+    let key = s
+        .pending_question()
+        .map(|q| q.key.clone())
+        .expect("its key");
     let line = "also the « réglés » ones, budget 3 USD";
     let _ = s.turn(line);
     assert!(restated(&s, line), "routed as new work: {:?}", s.recent);
+    assert_eq!(
+        s.work().answered,
+        Some(Answered::new(asked, AnswerAct::Restated { key }))
+    );
     assert_eq!(
         ceiling(&s),
         Some(3.0),
@@ -432,8 +457,14 @@ fn a_syntax_restatement_binds_the_requests_money_in_the_string_it_builds() {
     let dir = tempfile::tempdir().expect("root");
     let request = "Write the paid total to ./total.txt. Budget: $2.";
     let mut s = at_a_syntax_question(dir.path(), request, "the paid total");
+    let asked = s.pending_question_id().expect("asked");
     let words = "the sum of the « montant » column of the paid rows";
     let _ = s.turn(words);
+    let key = "const.rule_expression".to_owned();
+    assert_eq!(
+        s.work().answered,
+        Some(Answered::new(asked, AnswerAct::Restated { key }))
+    );
     let built = request.replacen("the paid total", words, 1);
     assert_eq!(
         read_as_money(&s, &built),
@@ -477,12 +508,18 @@ fn a_syntax_restatement_keeps_money_free_words_free_and_refuses_bad_money() {
         "the paid total, budget 3 USD",
     ] {
         let mut s = at_a_syntax_question(dir.path(), with_money, "the paid total");
+        let asked = s.pending_question_id().expect("asked");
         let outcome = s.turn(words);
-        assert!(
-            matches!(outcome, TurnOutcome::Refusal(_)),
-            "{words}: {outcome:?}"
-        );
+        let TurnOutcome::Refusal(refusal) = &outcome else {
+            panic!("{words}: {outcome:?}");
+        };
         assert!(s.authoring.is_none() && s.last_outcome.is_none(), "{words}");
+        let class = refusal.class;
+        assert_eq!(
+            s.work().answered,
+            Some(Answered::new(asked, AnswerAct::Refused { class })),
+            "{words}"
+        );
     }
 }
 

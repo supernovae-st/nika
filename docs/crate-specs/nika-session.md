@@ -613,6 +613,19 @@ revision, not the session — the session is told apart by the value itself, wit
 no clock, randomness or shared counter — so a host keeps the value the session
 handed out; a wire host needs ADR-133's session identity follow-up.
 
+What the last line did to the question it was typed for travels in the work snapshot
+(`Work.answered`), recorded where the session did it, never read from the turn's outcome: the
+value bound and how (`as_typed`, `offered_key`, `model_read`), kept when the compile that
+follows does not finish; the round dropped by a cancel, the word or a route's; the request or a
+clause restated in words, once the money gate admitted them; the question still waiting, with
+the reason; or a refusal before anything committed (an identity door, an empty line, an
+unserved command, the money gate). An identity-door refusal names the identity the host named,
+even a stale one or another session's; a line refused because the host never showed the waiting
+question names none. Asides, read-only commands and lines for another prompt leave it unset:
+each line door (`turn`, `submit`, `answer_question_for`, `consent`, `consent_to`, `choose`,
+`answer_gate`, `answer_gate_for`) clears it first, rereading the snapshot does not, and a
+restored session carries none.
+
 `runtime/inference_tests/question_identity.rs` drives real Session → Compiler
 clarifications: the deterministic compiler's `model` question, and a native
 destination question over the loopback seat in DIALOG-11's shape, where the

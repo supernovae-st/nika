@@ -21,6 +21,7 @@ use super::inference_tests::wire::{Peer, response};
 use super::*;
 use crate::intelligence::{DataLocus, IntelligenceKind};
 use crate::reasoner::{NoReasoner, Reply, test_transport};
+use crate::work::{AnswerAct, Answered, ValueSource};
 
 const INTENT: &str = "Copie entree.txt vers le fichier que je vais choisir.";
 const ORIGINAL: &str = "Écris dans sortie.txt.";
@@ -246,6 +247,7 @@ fn the_original_reply_binds_the_destination_it_names_not_the_sentence() {
         .pending_question()
         .cloned()
         .expect("the destination waits");
+    let asked = s.pending_question_id().expect("its identity");
     // Before: the line as the value, the sentence baked as the path.
     assert_eq!(
         crate::authoring::literal_for(&question, ORIGINAL),
@@ -265,6 +267,12 @@ fn the_original_reply_binds_the_destination_it_names_not_the_sentence() {
         answered(&s, ORIGINAL).as_deref(),
         Some("(answered const.destination_path · read as « sortie.txt »)")
     );
+    let bound = AnswerAct::Bound {
+        key: "const.destination_path".to_owned(),
+        value: "sortie.txt".to_owned(),
+        reading: ValueSource::ModelRead,
+    };
+    assert_eq!(s.work().answered, Some(Answered::new(asked, bound)));
     let source = candidate(&s);
     assert!(
         source.contains("destination_path: \"sortie.txt\""),

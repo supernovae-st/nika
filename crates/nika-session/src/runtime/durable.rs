@@ -135,6 +135,7 @@ impl SessionRuntime {
 
     /// Process one turn, recording its boundaries when history is enabled.
     pub fn turn(&mut self, input: &str) -> TurnOutcome {
+        self.last_answer = None;
         // Closing remains possible even after storage failure.
         if matches!(input.trim(), "/quit" | "/exit") {
             self.set_cost_host_evidence(nika_runtime::cost_choice::CostHostEvidence::default());
@@ -163,6 +164,7 @@ impl SessionRuntime {
 
     /// Answer the current intelligence choice through the same durable boundary.
     pub fn choose(&mut self, answer: &str) -> TurnOutcome {
+        self.last_answer = None;
         self.recorded(Operation::Choice, answer, |s| s.choose_unrecorded(answer))
     }
 
@@ -173,6 +175,7 @@ impl SessionRuntime {
     /// revision, a run's cost review still waiting or a blocked history
     /// decides nothing and writes nothing.
     pub fn consent(&mut self, answer: &str) -> TurnOutcome {
+        self.last_answer = None;
         // Closing a review expires authority through the same door as closing a turn.
         // It must not overwrite the journal that keeps the unaccepted draft.
         if super::is_quit(answer) {
@@ -218,6 +221,7 @@ impl SessionRuntime {
     /// structured record (#1464), even when conversation history is unavailable.
     /// While a run's cost review waits, it answers nothing.
     pub fn answer_gate(&mut self, line: &str) -> TurnOutcome {
+        self.last_answer = None;
         if let Some(refused) = self.review_first(line) {
             return refused;
         }

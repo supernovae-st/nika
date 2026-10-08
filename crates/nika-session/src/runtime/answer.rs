@@ -38,6 +38,7 @@
 //! A reading is never a consent: the candidate it completes is reviewed, and nothing
 //! is written before the human's yes.
 
+use crate::work::{AnswerAct, ValueSource};
 use nika_onboard::compile::{CompileQuestion, QuestionType};
 use nika_session_change::reply::{
     as_typed, carries_an_offer, choice_prompt, names_a_model, names_an_offer_alone, offered_keys,
@@ -227,13 +228,16 @@ impl SessionRuntime {
     /// round again: the line as typed, a verbatim part of it (said beside the outcome),
     /// or nothing — then the question waits and says why.
     pub(super) fn bind_answer(&mut self, mut round: AuthoringRound, line: &str) -> TurnOutcome {
+        let offered = (round.current())
+            .is_some_and(|q| is_offered_choice(q) && names_an_offer_alone(q, line));
         let reading = match round.current() {
             Some(question) => self.read_answer(question, line),
             None => AnswerReading::AsTyped,
         };
-        let value = match reading {
-            AnswerReading::AsTyped => line.to_owned(),
-            AnswerReading::Part(value) => value,
+        let (value, reading) = match reading {
+            AnswerReading::AsTyped if offered => (line.to_owned(), ValueSource::OfferedKey),
+            AnswerReading::AsTyped => (line.to_owned(), ValueSource::AsTyped),
+            AnswerReading::Part(value) => (value, ValueSource::ModelRead),
             AnswerReading::Waits(why) => return self.answer_waits(round, &why),
         };
         // An explicit Create clarification makes its answer the request (C11): new bytes carry
@@ -241,17 +245,21 @@ impl SessionRuntime {
         let fresh = round
             .replacement(&value)
             .filter(|text| *text != round.intent);
+        let asked = self.question_id_of(&round);
         let money = match fresh.map(|text| self.built_money(&text, line)).transpose() {
             Ok(money) => money,
-            Err(refusal) => return refusal,
+            Err(refusal) => return self.answer_refused(asked, refusal),
         };
-        let asked = self.question_id_of(&round);
         let Some(key) = round.answer_current(&value) else {
-            return TurnOutcome::Refusal(Refusal::new(
-                RefusalClass::WrongState,
-                "no authoring question waits",
-            ));
+            let refusal = Refusal::new(RefusalClass::WrongState, "no authoring question waits");
+            return self.answer_refused(asked, TurnOutcome::Refusal(refusal));
         };
+        let bound = AnswerAct::Bound {
+            key: key.clone(),
+            value: value.clone(),
+            reading,
+        };
+        self.answer_act(asked.clone(), bound);
         if let Some(spans) = money {
             round.money = spans;
         }
@@ -279,6 +287,11 @@ impl SessionRuntime {
                 )
             },
         );
+        let waits = AnswerAct::Waits {
+            key: key.clone(),
+            why: why.to_owned(),
+        };
+        self.answer_act(self.question_id_of(&round), waits);
         self.authoring = Some(round);
         TurnOutcome::Question {
             key,

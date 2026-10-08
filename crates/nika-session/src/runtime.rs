@@ -304,6 +304,8 @@ pub struct SessionRuntime {
     requested_run: Option<crate::work::RequestedRun>,
     /// The cost review a requested run's child waits at, while the host holds that child.
     run_review: Option<review::RunReview>,
+    /// What the last line did to the authoring question it was typed for, at the act itself.
+    last_answer: Option<crate::work::Answered>,
     /// How many cost reviews this session asked: a review's turn in its identity.
     reviews_asked: u64,
     /// How the compile that proposed the pending candidate revised its document, as its record
@@ -426,6 +428,7 @@ impl SessionRuntime {
             consented: None,
             requested_run: None,
             run_review: None,
+            last_answer: None,
             reviews_asked: 0,
             proposed_revision: None,
             last_trace: None,
@@ -913,8 +916,9 @@ impl SessionRuntime {
             if let Some(outcome) = self.question_protocol(input) {
                 return self.keep_revising(outcome);
             }
+            let asked = self.pending_question_id();
             if let Err(refusal) = self.admit_money(original, true, false) {
-                return refusal;
+                return self.answer_refused(asked, refusal);
             }
             let outcome = self.answer_question_unrecorded(input);
             return self.keep_revising(outcome);
@@ -1154,6 +1158,7 @@ impl SessionRuntime {
     /// as already consumed when that proposal was decided, as the wrong
     /// state when none is pending. Never applied twice.
     pub fn consent_to(&mut self, id: &ProposalId, answer: &str) -> TurnOutcome {
+        self.last_answer = None;
         if self.waiting_cost_choice() {
             return TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::StaleRevision,
@@ -1211,6 +1216,7 @@ impl SessionRuntime {
     /// was answered, as the wrong state when none waits. The same gate
     /// answers once.
     pub fn answer_gate_for(&mut self, id: &GateId, line: &str) -> TurnOutcome {
+        self.last_answer = None;
         match self.waiting_gate() {
             Some(waiting) if waiting != *id => TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::StaleRevision,

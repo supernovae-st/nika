@@ -26,7 +26,7 @@ use nika_onboard::compile::{
 };
 
 use crate::change::{ProjectChange, ProjectChangeSet, Witness, WorkflowAudit};
-use crate::outcome::{GateId, ProposalId, QuestionId, ReviewId};
+use crate::outcome::{GateId, ProposalId, QuestionId, RefusalClass, ReviewId};
 use crate::world::World;
 
 /// The version a host checks before reading a [`Work`].
@@ -160,6 +160,90 @@ impl Question {
     }
 }
 
+/// What the session did with the last line typed for an authoring question, recorded at the
+/// act itself: a value bound, the round dropped, the request restated in words, the question
+/// still waiting and why, or the line refused before anything committed. A bound answer stays
+/// bound when the compile that follows fails. Never inferred from a turn's final outcome, and
+/// unset when the last line was no answer: an aside, a read-only command, a line for another
+/// prompt. A new line clears it; reading the snapshot again does not.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct Answered {
+    /// The question the line was typed for, by its identity: its witness on the wire.
+    #[serde(serialize_with = "question_witness")]
+    pub question: QuestionId,
+    /// What the session did with the line.
+    #[serde(flatten)]
+    pub act: AnswerAct,
+}
+
+impl Answered {
+    /// The act a line did to the question it was typed for.
+    #[must_use]
+    pub fn new(question: QuestionId, act: AnswerAct) -> Self {
+        Self { question, act }
+    }
+}
+
+/// One act of a line on the authoring question it was typed for.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "act", rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum AnswerAct {
+    /// The question took a value and closed: the key it filled, the value bound and how the
+    /// line gave it.
+    Bound {
+        /// The semantic hole the value filled.
+        key: String,
+        /// The value bound, exactly.
+        value: String,
+        /// How the line gave it.
+        reading: ValueSource,
+    },
+    /// The line cancelled the whole authoring round; nothing was bound.
+    Dropped {
+        /// The key of the question that was waiting.
+        key: String,
+    },
+    /// The line restated the request or a clause in words; the question no longer owns it.
+    Restated {
+        /// The key of the question that was waiting.
+        key: String,
+    },
+    /// Nothing was bound and the same question still waits.
+    Waits {
+        /// The key of the question that still waits.
+        key: String,
+        /// Why nothing was bound.
+        why: String,
+    },
+    /// The line was refused before anything committed.
+    Refused {
+        /// The refusal's class.
+        #[serde(serialize_with = "class_word")]
+        class: RefusalClass,
+    },
+}
+
+/// How a bound value came from the line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum ValueSource {
+    /// The whole line, as typed.
+    AsTyped,
+    /// One of the keys the question offered, named alone.
+    OfferedKey,
+    /// A verbatim part of the line, chosen by the bounded reading call.
+    ModelRead,
+}
+
+/// A refusal class on the wire: its stable word.
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde's serialize_with contract
+fn class_word<S: serde::Serializer>(class: &RefusalClass, out: S) -> Result<S::Ok, S::Error> {
+    out.serialize_str(class.as_str())
+}
+
 /// One snapshot of the work, for every host.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[non_exhaustive]
@@ -181,6 +265,10 @@ pub struct Work {
     /// absent from the wire otherwise.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub question: Option<Question>,
+    /// What the session did with the last line typed for an authoring question ([`Answered`]),
+    /// recorded where it happened; absent from the wire when that line was no answer.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub answered: Option<Answered>,
     /// The candidate under review, when one is.
     pub candidate: Option<Candidate>,
     /// The workflow saved by the last consent of this session, when one was.
@@ -1095,6 +1183,7 @@ impl Work {
             intelligence: None,
             waiting,
             question: None,
+            answered: None,
             candidate,
             saved,
             requested,
@@ -1124,6 +1213,13 @@ impl Work {
     pub fn with_question(mut self, question: Option<&CompileQuestion>) -> Self {
         let waits = |q: &&CompileQuestion| matches!(&self.waiting, Waiting::Question { key, .. } if *key == q.key);
         self.question = question.filter(waits).map(Question::of);
+        self
+    }
+
+    /// The same snapshot with what the session did with the last line typed for a question.
+    #[must_use]
+    pub fn with_answered(mut self, answered: Option<Answered>) -> Self {
+        self.answered = answered;
         self
     }
 }

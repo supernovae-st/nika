@@ -597,12 +597,22 @@ fn an_unpriced_cloud_model_is_refused_at_the_question_in_words() {
         panic!("the compiler asks for the model");
     };
     assert_eq!(key, "model");
+    let asked = s.pending_question_id().expect("its identity");
     let TurnOutcome::Question { key, question } = s.turn("deepseek/deepseek-unpriced-v0") else {
         panic!("refused in words, still a question");
     };
     assert_eq!(key, "model");
     assert!(question.contains("not priced"), "{question}");
     assert!(s.pending_question().is_some(), "the question still waits");
+    // The line waits at the question it was typed for, said with the very words shown.
+    let waits = crate::work::AnswerAct::Waits {
+        key: "model".to_owned(),
+        why: question,
+    };
+    assert_eq!(
+        s.work().answered,
+        Some(crate::work::Answered::new(asked, waits))
+    );
     assert!(matches!(s.turn("mock/echo"), TurnOutcome::Proposal { .. }));
 }
 

@@ -716,3 +716,36 @@ fn save_and_run_reaches_the_run_door_once_for_the_bytes_it_saved() {
     assert_eq!(kinds(&settle(&host, "c-2", "yes")), ["facts"]);
     assert!(door.runs().is_empty(), "Save only asks no run");
 }
+
+/// What a line did to the question it was typed for rides the snapshot frame as the session
+/// recorded it, under the identity the host was shown; a resync reads the same act, and a new
+/// request is no answer.
+#[test]
+fn the_answer_act_rides_the_snapshot_under_the_identity_shown() {
+    let root = world();
+    let host = host(runtime(root.path()));
+    let asked = settle(&host, "c-1", DRAFT);
+    let shown = asked["snapshot"]["work"]["waiting"]["id"].clone();
+    assert!(asked["snapshot"]["work"].get("answered").is_none());
+    let dropped = settle(&host, "c-2", "cancel");
+    assert_eq!(
+        dropped["snapshot"]["work"]["answered"],
+        serde_json::json!({"question": shown, "act": "dropped", "key": "model"})
+    );
+    let again = settle(&host, "c-3", DRAFT);
+    let current = again["snapshot"]["work"]["waiting"]["id"].clone();
+    assert_ne!(current, shown, "asked again is another question");
+    assert!(again["snapshot"]["work"].get("answered").is_none());
+    let bound = settle(&host, "c-4", "mock/echo");
+    let act = &bound["snapshot"]["work"]["answered"];
+    assert_eq!(
+        *act,
+        serde_json::json!({"question": current, "act": "bound", "key": "model",
+            "value": "mock/echo", "reading": "as_typed"})
+    );
+    assert_eq!(
+        json(&host.snapshot())["snapshot"]["work"]["answered"],
+        *act,
+        "a resync reads the same act"
+    );
+}

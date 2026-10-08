@@ -8,14 +8,14 @@ use nika_onboard::compile::{
 };
 
 use super::{
-    Audit, Author, Authoring, AuthoringStatus, CONTRACT, Candidate, DecisionSeat, Intelligence,
-    Landing, NoteKind, Rail, Request, RequestedRun, Run, RunEnd, Saved, Selected, Stage, Waiting,
-    Work,
+    AnswerAct, Answered, Audit, Author, Authoring, AuthoringStatus, CONTRACT, Candidate,
+    DecisionSeat, Intelligence, Landing, NoteKind, Rail, Request, RequestedRun, Run, RunEnd, Saved,
+    Selected, Stage, ValueSource, Waiting, Work,
 };
 use crate::change::{
     ProjectChange, ProjectChangeSet, RunRequest, Witness, WorkflowAudit, check_on_disk,
 };
-use crate::outcome::{GateId, ProposalId};
+use crate::outcome::{GateId, Incarnation, ProposalId, QuestionId, RefusalClass};
 use crate::world::{Basis, Reach, World};
 
 const SINK: &str = r#"nika: stock-sink
@@ -177,6 +177,82 @@ fn waiting_states_carry_the_identity_an_answer_names() {
         serde_json::to_value(Waiting::Free).expect("serializes"),
         serde_json::json!({"kind": "free"})
     );
+}
+
+/// What a line did to the question it was typed for travels as that question's witness, the act's
+/// word and the act's own fields, nothing else; a snapshot where no line answered carries no key.
+#[test]
+fn an_answer_act_travels_with_its_question_and_only_its_own_fields() {
+    let asker = std::sync::Arc::new(Incarnation);
+    let witness = "0f".repeat(32);
+    let question = QuestionId::new(witness.clone(), &asker);
+    let wire =
+        |act| serde_json::to_value(Answered::new(question.clone(), act)).expect("serializes");
+    let key = || "const.destination_path".to_owned();
+    let bound = |reading| AnswerAct::Bound {
+        key: key(),
+        value: "sortie.txt".to_owned(),
+        reading,
+    };
+    for (reading, word) in [
+        (ValueSource::AsTyped, "as_typed"),
+        (ValueSource::OfferedKey, "offered_key"),
+        (ValueSource::ModelRead, "model_read"),
+    ] {
+        assert_eq!(
+            wire(bound(reading)),
+            serde_json::json!({"question": witness, "act": "bound",
+                "key": "const.destination_path", "value": "sortie.txt", "reading": word})
+        );
+    }
+    assert_eq!(
+        wire(AnswerAct::Dropped { key: key() }),
+        serde_json::json!({"question": witness, "act": "dropped", "key": "const.destination_path"})
+    );
+    assert_eq!(
+        wire(AnswerAct::Restated { key: key() }),
+        serde_json::json!({"question": witness, "act": "restated", "key": "const.destination_path"})
+    );
+    let waits = AnswerAct::Waits {
+        key: key(),
+        why: "the reply names no value".to_owned(),
+    };
+    assert_eq!(
+        wire(waits),
+        serde_json::json!({"question": witness, "act": "waits",
+            "key": "const.destination_path", "why": "the reply names no value"})
+    );
+    let refused = AnswerAct::Refused {
+        class: RefusalClass::StaleRevision,
+    };
+    assert_eq!(
+        wire(refused),
+        serde_json::json!({"question": witness, "act": "refused", "class": "stale_revision"})
+    );
+    let rail = Rail {
+        draft: Stage::Pending,
+        saved: Stage::Pending,
+        checked: Stage::Pending,
+        active: Stage::Pending,
+        run: Stage::Pending,
+    };
+    let request = Request::new(None, Vec::new(), Vec::new());
+    let work = Work::new(
+        PathBuf::from("/project"),
+        request,
+        Waiting::Free,
+        None,
+        None,
+        None,
+        None,
+        rail,
+    );
+    let quiet = serde_json::to_value(&work).expect("serializes");
+    assert!(quiet.get("answered").is_none(), "{quiet}");
+    let restated = Answered::new(question.clone(), AnswerAct::Restated { key: key() });
+    let told = serde_json::to_value(work.with_answered(Some(restated))).expect("serializes");
+    assert_eq!(told["answered"]["act"], "restated");
+    assert_eq!(told["answered"]["question"], serde_json::json!(witness));
 }
 
 #[test]

@@ -108,6 +108,7 @@ impl SessionRuntime {
     /// decided or stale, and a value or a choice no longer asked takes nothing: an answer is
     /// never read as a new request.
     pub fn submit(&mut self, line: &str, shown: &Waiting) -> TurnOutcome {
+        self.last_answer = None;
         match self.waiting() {
             Waiting::RunReview { review } => match shown {
                 Waiting::RunReview { review: seen } => self.answer_run_review(seen, line),
@@ -215,6 +216,7 @@ impl SessionRuntime {
         .with_authoring(self.last_outcome.as_ref().map(Authoring::of))
         .with_intelligence(Some(self.intelligence_work()))
         .with_question(self.pending_question())
+        .with_answered(self.last_answer.clone())
     }
 
     /// Who prepares with this session, as selected and resolved here: the configured facts a
