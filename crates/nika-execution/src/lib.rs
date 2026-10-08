@@ -17,7 +17,7 @@ pub use model_admission::{
 };
 pub use service::{
     AdmittedExecution, ExecutionContext, ExecutionService, ExecutionSession, ExecutionVerdict,
-    InputRefusal,
+    InputRefusal, check_world,
 };
 pub use snapshot::{
     CapturedUnit, ExecutionSnapshot, SNAPSHOT_FORMAT_VERSION, SnapshotLimits, SnapshotUnitKind,

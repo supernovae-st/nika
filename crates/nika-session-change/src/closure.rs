@@ -36,37 +36,63 @@ pub(crate) fn capture(root: &Path, path: &Path) -> Result<ExecutionSnapshot, Str
     ExecutionSnapshot::capture(&project, path, SnapshotLimits::default()).map_err(|e| e.to_string())
 }
 
-/// The bytes the check reads at `read` (a path it resolved lexically from the workflow's own),
-/// served from the captured world, never from the disk a second time.
+/// The bytes the check reads at `read` (a path it resolved lexically from the workflow's own, or
+/// a project-relative one such as the MCP registry), served from the captured world, never from
+/// the disk a second time.
 pub(crate) fn served(world: &ExecutionSnapshot, root: &Path, read: &str) -> Result<String, String> {
-    let logical = lexical(Path::new(read))
-        .strip_prefix(lexical(root))
-        .ok()
-        .map(|relative| {
-            let parts: Vec<_> = (relative.components())
-                .map(|part| part.as_os_str().to_string_lossy())
-                .collect();
-            parts.join("/")
-        });
+    let read_path = Path::new(read);
+    let relative = if read_path.is_relative() {
+        contained(read_path)
+    } else {
+        (lexical(read_path).strip_prefix(lexical(root)).ok()).map(Path::to_path_buf)
+    };
+    let logical = relative.map(|relative| {
+        let parts: Vec<_> = (relative.components())
+            .map(|part| part.as_os_str().to_string_lossy())
+            .collect();
+        parts.join("/")
+    });
     (logical.as_deref())
         .and_then(|logical| world.text(logical))
         .map(str::to_owned)
         .ok_or_else(|| format!("`{read}` is not in the world this check captured"))
 }
 
-/// The closure a check judged: the world captured before it, when the world captured after it is
-/// the same. Otherwise none, and a check that found nothing else says why the run cannot hold it.
+/// The closure a check judged: the world captured before it, when the run's own admission admits
+/// that world (models aside: the root and every child checked against the captured units, their
+/// skills resolved among them) and the world captured after the check is the same. Otherwise none,
+/// and a check that found nothing else says why the run cannot hold it.
 pub(crate) fn settled(
     before: Result<ExecutionSnapshot, String>,
     root: &Path,
     path: &Path,
 ) -> Result<Closure, String> {
     let before = before.map_err(|e| format!("the run cannot capture this workflow: {e}"))?;
+    nika_execution::check_world(&before)
+        .map_err(|e| format!("the run's admission refuses this world: {e}"))?;
     match capture(root, path) {
         Ok(after) if after.digest() == before.digest() => Ok(Closure::of(&before)),
         Ok(_) => Err("the workflow or a workflow it calls changed while it was checked".into()),
         Err(e) => Err(format!("the run cannot capture this workflow: {e}")),
     }
+}
+
+/// A project-relative path resolved lexically; `None` when a `..` would leave the project.
+fn contained(path: &Path) -> Option<PathBuf> {
+    let mut out = PathBuf::new();
+    for part in path.components() {
+        match part {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !out.pop() {
+                    return None;
+                }
+            }
+            Component::Normal(name) => out.push(name),
+            Component::RootDir | Component::Prefix(_) => return None,
+        }
+    }
+    Some(out)
 }
 
 /// `.` and `..` resolved lexically, the way the check resolves a child's path.
@@ -153,5 +179,70 @@ mod tests {
         let outside = dir.path().join("../elsewhere.nika");
         let refused = super::served(&world, dir.path(), &outside.display().to_string());
         assert!(refused.is_err(), "{refused:?}");
+        let escaping = super::served(&world, dir.path(), "../child.nika");
+        assert!(
+            escaping.is_err(),
+            "a relative read never leaves the project: {escaping:?}"
+        );
+        assert_eq!(
+            super::served(&world, dir.path(), "./child.nika").as_deref(),
+            Ok(CHILD)
+        );
+    }
+
+    /// The MCP registry is read project-relative by the check; it rides the captured world, so a
+    /// workflow naming a configured server is clean, whatever the process's own directory.
+    #[test]
+    fn the_mcp_registry_rides_the_check_s_captured_world() {
+        let dir = tempfile::tempdir().expect("project");
+        std::fs::create_dir_all(dir.path().join(".nika")).expect(".nika");
+        std::fs::write(
+            dir.path().join(".nika/mcp_servers.json"),
+            "{\"mcp_servers_format\":1,\"servers\":{\"sandbox\":{\"command\":[\"true\"]}}}",
+        )
+        .expect("registry");
+        std::fs::write(
+            dir.path().join(".nika/mcp_pins.json"),
+            "{\"sandbox\":{\"echo\":\"0000\"}}",
+        )
+        .expect("pins");
+        std::fs::write(
+            dir.path().join("mcp.nika"),
+            "nika: mcp\npermits:\n  tools: [\"mcp:sandbox/echo\"]\ntasks:\n  call:\n    invoke:\n      tool: \"mcp:sandbox/echo\"\n      args: { text: hi }\n",
+        )
+        .expect("workflow");
+        let audit = check_on_disk(dir.path(), Path::new("mcp.nika"));
+        assert!(audit.clean, "{:?}", audit.findings);
+        assert!(audit.closure.is_some());
+    }
+
+    /// A child naming a skill the run's admission refuses (no frontmatter) is not clean at the
+    /// check either: the check judges the world with the admission's own validators.
+    #[test]
+    fn a_child_skill_the_admission_refuses_is_not_clean() {
+        let dir = tempfile::tempdir().expect("project");
+        std::fs::create_dir_all(dir.path().join("skills/review")).expect("skills");
+        std::fs::write(
+            dir.path().join("skills/review/SKILL.md"),
+            "No frontmatter.\n",
+        )
+        .expect("skill");
+        std::fs::write(dir.path().join("parent.nika"), PARENT).expect("parent");
+        std::fs::write(
+            dir.path().join("child.nika"),
+            "nika: kid\nmodel: mock/echo\npermits:\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  review:\n    agent: { prompt: review, skills: [\"skills/review/SKILL.md\"] }\n",
+        )
+        .expect("child");
+        let audit = check_on_disk(dir.path(), Path::new("parent.nika"));
+        assert!(!audit.clean, "{audit:?}");
+        assert_eq!(audit.closure, None);
+        assert!(
+            audit
+                .findings
+                .iter()
+                .any(|f| f.contains("the run's admission refuses this world")),
+            "{:?}",
+            audit.findings
+        );
     }
 }

@@ -235,27 +235,10 @@ impl ExecutionService {
         probes: &[nika_providers::probe::ProviderProbe],
     ) -> Result<AdmittedExecution, ExecutionError> {
         snapshot.revalidate(self.limits)?;
-        let root = snapshot.root().to_owned();
-        let root_text = snapshot
-            .text(&root)
-            .ok_or_else(|| ExecutionError::MissingUnit {
-                logical_path: root.clone(),
-            })?;
-        let workflow = parse(&root, root_text)?;
-        let mut reader = |path: &str| {
-            snapshot
-                .text(path)
-                .map(str::to_owned)
-                .ok_or_else(|| format!("captured world has no unit `{path}`"))
-        };
-        let check = nika_check::check_composed(&workflow, &root, &mut reader);
-        if !check.is_clean() {
-            let findings = crate::snapshot::report_findings(&root, &check);
-            return Err(ExecutionError::CheckFailed { findings });
-        }
+        let (root, workflow, check) = checked_root(&snapshot)?;
         validate_models(&root, &workflow, model_override, probes)?;
         let skills = validate_skills(&snapshot, &root, &workflow)?;
-        validate_child_worlds(&snapshot, &root, probes)?;
+        validate_child_worlds(&snapshot, &root, Some(probes))?;
         let execution_id = ExecutionId::generate();
         Ok(AdmittedExecution {
             execution_id,
@@ -571,10 +554,49 @@ fn validate_skills(
     })
 }
 
+/// The admission's own judgment of a captured world, models aside: the root and every child are
+/// checked composed against the captured units, and the skills each names resolve among them. A
+/// host that checks a world before handing it to a run judges it with the validators the run's
+/// admission applies; model readiness stays the admission's, which knows the route.
+///
+/// # Errors
+/// The refusal the run's admission would give this world, models aside.
+pub fn check_world(snapshot: &ExecutionSnapshot) -> Result<(), ExecutionError> {
+    let (root, workflow, _) = checked_root(snapshot)?;
+    validate_skills(snapshot, &root, &workflow)?;
+    validate_child_worlds(snapshot, &root, None)
+}
+
+/// The captured root, parsed and checked composed against the captured units only.
+fn checked_root(
+    snapshot: &ExecutionSnapshot,
+) -> Result<(String, RawWorkflow, CheckReport), ExecutionError> {
+    let root = snapshot.root().to_owned();
+    let root_text = snapshot
+        .text(&root)
+        .ok_or_else(|| ExecutionError::MissingUnit {
+            logical_path: root.clone(),
+        })?;
+    let workflow = parse(&root, root_text)?;
+    let mut reader = |path: &str| {
+        snapshot
+            .text(path)
+            .map(str::to_owned)
+            .ok_or_else(|| format!("captured world has no unit `{path}`"))
+    };
+    let check = nika_check::check_composed(&workflow, &root, &mut reader);
+    if !check.is_clean() {
+        let findings = crate::snapshot::report_findings(&root, &check);
+        return Err(ExecutionError::CheckFailed { findings });
+    }
+    Ok((root, workflow, check))
+}
+
+/// Every child world checked as the root is; its models too when the route's probes are given.
 fn validate_child_worlds(
     snapshot: &ExecutionSnapshot,
     root: &str,
-    probes: &[nika_providers::probe::ProviderProbe],
+    probes: Option<&[nika_providers::probe::ProviderProbe]>,
 ) -> Result<(), ExecutionError> {
     for unit in snapshot.units() {
         if unit.logical_path() == root || unit.kind() != SnapshotUnitKind::Child {
@@ -596,7 +618,9 @@ fn validate_child_worlds(
                 findings: crate::snapshot::report_findings(unit.logical_path(), &report),
             });
         }
-        validate_models(unit.logical_path(), &workflow, None, probes)?;
+        if let Some(probes) = probes {
+            validate_models(unit.logical_path(), &workflow, None, probes)?;
+        }
         validate_skills(snapshot, unit.logical_path(), &workflow)?;
     }
     Ok(())

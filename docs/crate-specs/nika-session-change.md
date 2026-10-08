@@ -39,9 +39,11 @@ those paths as an external consumer.
   under the human's pinned execution access when they pinned one. That check reads its world
   once, with the run's own reader (`nika_execution::ExecutionSnapshot::capture`): the workflow and
   every child it reaches are judged from the captured bytes, the world is captured again after the
-  check, and only a world that held still names a `Closure` (the snapshot digest over the
-  workflow, its children and its skills). A world the run cannot capture, a symlinked workflow
-  among them, is not clean. A run request carries the witness of the checked bytes and that
+  check, and only a world that held still and that the run's own admission admits, models aside
+  (`nika_execution::check_world`: every child and every skill, from the captured units), names a
+  `Closure` (the snapshot digest over the workflow, its children and its skills). A
+  project-relative read such as the MCP registry is served from the captured world too. A world
+  the run cannot capture or admit, a symlinked workflow among them, is not clean. A run request carries the witness of the checked bytes and that
   closure; a door runs only that world (`RunRequest::admits_world`, and the child's
   `--expect-world`). A paused run's gate is read from the trace's own pause event
   (`nika_trace::run_view`).
