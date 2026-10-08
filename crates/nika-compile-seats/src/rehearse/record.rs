@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! A bounded host report as data in the existing compile decision record. No serialized
-//! field grants authority or is accepted as a later invocation's rehearsal.
+//! A bounded host report as data in the compile decision record (`decision.rehearsal`), as a
+//! preparation journals it. No serialized field grants authority or is accepted as a later
+//! invocation's rehearsal. Held by `nika-compile-cognition` until its size cap (2026-10-08).
 
-use super::Result;
-use crate::rehearse::{Attempt, FinalState, Held, RecordedCause, Rehearsal, RehearsalReport};
+use super::{Attempt, FinalState, Held, RecordedCause, Rehearsal, RehearsalReport};
 use nika_compile_fidelity::behavior::{Run, Usage};
 use serde_json::{Value, json};
 use std::time::Duration;
 
-pub(super) fn usage(usage: &Usage) -> Value {
+/// What a preparation's rehearsals spent, as its record states it.
+#[must_use]
+pub fn usage(usage: &Usage) -> Value {
     json!({"fixtures": usage.fixtures, "attempts": usage.attempts,
         "copied_bytes": usage.copied_bytes, "read_back_bytes": usage.read_back_bytes,
         "elapsed_ms": usage.elapsed_ms})
 }
 
-pub(super) fn report(
-    report: &RehearsalReport,
-    bound: Duration,
-    run: &Run,
-    result: &Result,
-) -> Value {
+/// One report as its record states it: the run it was judged as, the host's runtime `bound`,
+/// and the `decision` the preparation took on it (`proceed`, a `repair` or a `stop`).
+#[must_use]
+pub fn report(report: &RehearsalReport, bound: Duration, run: &Run, decision: &Value) -> Value {
     let observation = &report.observation;
     let copies: Vec<Value> = observation.copies.iter().map(|copy| json!({
         "path": copy.path, "source": {"bytes": copy.source.bytes, "sha256": copy.source.sha256},
@@ -36,16 +36,6 @@ pub(super) fn report(
         Attempt::NeverAttempted => ("never_attempted", None),
         Attempt::Completed { elapsed_ms } => ("completed", Some(elapsed_ms)),
         Attempt::Stopped { elapsed_ms } => ("stopped", Some(elapsed_ms)),
-        // The rehearsal's enums are non-exhaustive across the member boundary (ADR-146): a kind
-        // this record does not know is named unknown, never one of the kinds above.
-        _ => ("unknown", None),
-    };
-    let decision = match result {
-        Result::Proceed => json!({"kind": "proceed"}),
-        Result::Repair(diagnostic) => {
-            json!({"kind": "repair", "code": diagnostic.kind, "message": diagnostic.message})
-        }
-        Result::Stop(reason) => json!({"kind": "stop", "reason": reason}),
     };
     json!({
         "candidate_sha256": report.candidate_sha256, "admitted_digest": report.admitted_digest,
@@ -61,12 +51,11 @@ pub(super) fn report(
         "ledger": {"written": observation.ledger.written, "drained": observation.ledger.drained,
             "leftovers": observation.ledger.leftovers, "late_refused": observation.ledger.late_refused, "panicked": observation.ledger.panicked},
         "bounds": {"time_ms": observation.bounds.time_ms, "room_bytes": observation.bounds.room_bytes, "preview_bytes": observation.bounds.preview_bytes},
-        "refusal": observation.refusal.map(crate::rehearse::Refusal::word), "usage": usage(&run.usage),
+        "refusal": observation.refusal.map(super::Refusal::word), "usage": usage(&run.usage),
         "failure": observation.failure.as_ref().map(|failure| json!({
             "task": failure.task, "code": failure.code,
             "cause": match failure.cause { RecordedCause::Engine => "engine", RecordedCause::VerbError => "verb_error",
-                RecordedCause::Timeout => "timeout", RecordedCause::RetryExhausted => "retry_exhausted",
-                _ => "unknown" },
+                RecordedCause::Timeout => "timeout", RecordedCause::RetryExhausted => "retry_exhausted" },
         })),
     })
 }
@@ -82,7 +71,6 @@ fn outcome(outcome: &Rehearsal) -> Value {
             message,
         } => json!({"kind": "failed", "task": task, "code": code, "message": message}),
         Rehearsal::NotRun { reason } => json!({"kind": "not_run", "reason": reason}),
-        _ => json!({"kind": "unknown"}),
     }
 }
 
@@ -93,8 +81,6 @@ fn final_state(state: &FinalState) -> Value {
         FinalState::Unreadable => json!({"kind": "unreadable"}),
         FinalState::File { digest, held } => json!({"kind": "file", "bytes": digest.bytes,
             "sha256": digest.sha256, "text": held.text(),
-            "coverage": match held { Held::Whole(_) => "complete", Held::Preview(_) => "prefix", Held::NotText => "not_text",
-                _ => "unknown" }}),
-        _ => json!({"kind": "unknown"}),
+            "coverage": match held { Held::Whole(_) => "complete", Held::Preview(_) => "prefix", Held::NotText => "not_text" }}),
     }
 }

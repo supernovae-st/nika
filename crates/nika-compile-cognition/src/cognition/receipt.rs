@@ -6,15 +6,18 @@
 //! digests of what it was shown, its bounds, its result, its usage).
 
 use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, InferResponse, Message, ProviderError, ProviderInferDyn,
-    ResponseFormat, Role, StopReason,
+    InferRequest, InferResponse, Message, ProviderError, ProviderInferDyn, StopReason,
 };
 use serde_json::{Value, json};
 
-use super::{effort, reasoning_record};
+use super::reasoning_record;
+use nika_compile_seats::reasoning::{authoring_request, context_entry, response_identity};
+
 use crate::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileOutcome, DiagnosticKind,
 };
+/// A refused or ignored model payload as a record keeps it ([`withheld`](nika_compile_seats::reasoning::withheld)).
+pub(super) use nika_compile_seats::reasoning::withheld;
 
 /// The observer of authoring calls, owned by the provider layer; this module produces its
 /// observations.
@@ -189,25 +192,6 @@ fn timeout_message(policy: &AuthoringPolicy) -> String {
     )
 }
 
-/// The identity of what one answered call returned (its text blocks, by digest and length, and
-/// how many blocks of any kind it held), so a later decode, refusal or repair names the bytes it
-/// read. A call that returned nothing records `null`, never an empty answer.
-fn response_identity(response: &InferResponse) -> Value {
-    let text: String = response
-        .content
-        .iter()
-        .filter_map(|block| match block {
-            ContentBlock::Text { text } => Some(text.as_str()),
-            _ => None,
-        })
-        .collect();
-    json!({
-        "sha256": super::knowledge::sha256(&text),
-        "bytes": text.len(),
-        "blocks": response.content.len(),
-    })
-}
-
 /// The semantic object a call's answer proposed, on that call's journal entry. An object that
 /// decoded as the door's closed shape (`known` are its keys) is kept exactly; a refused one is
 /// [`withheld`]: a model's arbitrary text never reaches the shared record. Data for forensics,
@@ -250,33 +234,6 @@ pub(super) const PLAN_KEYS: &[&str] = &[
     "approval_bypass",
 ];
 
-/// A refused or ignored model payload as a record keeps it: its digest and length, its shape (the
-/// JSON type, the door's own `known` keys it carries and how many other keys) and the reason it
-/// was not used — never its text, which may echo anything the model was shown.
-pub(super) fn withheld(text: &str, known: &[&str], reason: &str) -> Value {
-    let shape = match serde_json::from_str::<Value>(text) {
-        Ok(Value::Object(map)) => {
-            let mut keys: Vec<&str> = known
-                .iter()
-                .copied()
-                .filter(|key| map.contains_key(*key))
-                .collect();
-            keys.sort_unstable();
-            json!({"type": "object", "known_keys": keys, "other_keys": map.len() - keys.len()})
-        }
-        Ok(Value::Array(items)) => json!({"type": "array", "items": items.len()}),
-        Ok(_) => json!({"type": "scalar"}),
-        Err(_) => json!({"type": "not_json"}),
-    };
-    json!({
-        "withheld": true,
-        "sha256": super::knowledge::sha256(text),
-        "bytes": text.len(),
-        "shape": shape,
-        "reason": reason,
-    })
-}
-
 /// The references a call's messages actually carried, on the journal entry of the call made
 /// after `before` entries (R4 A11, E36): a call that was never journaled is left alone.
 pub(super) fn stamp_references(out: &mut CompileOutcome, before: usize, receipts: &Value) {
@@ -294,53 +251,6 @@ pub(super) fn journaled(out: &CompileOutcome) -> usize {
         .authoring
         .as_ref()
         .map_or(0, |receipt| receipt.context.len())
-}
-
-/// What one call received: its role, the sha256 of its instruction (the system message)
-/// and of its answer schema, the bytes of its messages, and the references sent with it.
-fn context_entry(role: &str, messages: &[Message], schema: &Value) -> Value {
-    let sha = super::knowledge::sha256;
-    let text_of = |m: &Message| -> String {
-        m.content
-            .iter()
-            .filter_map(|block| match block {
-                ContentBlock::Text { text } => Some(text.as_str()),
-                _ => None,
-            })
-            .collect()
-    };
-    let instruction = messages
-        .iter()
-        .find(|m| matches!(m.role, Role::System))
-        .map(text_of)
-        .unwrap_or_default();
-    let bytes: usize = messages.iter().map(|m| text_of(m).len()).sum();
-    json!({
-        "call": role,
-        "instruction_sha256": sha(&instruction),
-        "schema_sha256": sha(&schema.to_string()),
-        "message_bytes": bytes,
-        "references": [],
-    })
-}
-
-/// The bounded JSON-schema request every authoring call makes, whatever its messages, at the
-/// output limit `cap` (never above the policy's ceiling), with the policy's explicit reasoning
-/// effort; `None` when that effort has no provider level.
-fn authoring_request(
-    policy: &AuthoringPolicy,
-    messages: Vec<Message>,
-    schema: Value,
-    cap: u32,
-) -> Option<InferRequest> {
-    let mut infer = InferRequest::new(&policy.model, messages);
-    infer.max_tokens = Some(cap.min(policy.max_tokens));
-    infer.timeout = Some(policy.timeout);
-    infer.response_format = ResponseFormat::JsonSchema(schema);
-    if let Some(reasoning) = policy.reasoning {
-        infer.reasoning_effort = Some(effort(reasoning)?);
-    }
-    Some(infer)
 }
 
 #[cfg(test)]

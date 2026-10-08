@@ -14,7 +14,6 @@ use crate::rehearse::{Attempt, Rehearsal, RehearsalReport, Rehearse, judged_run,
 use crate::{CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind};
 use nika_compile_seats::foundry::ComponentCatalog;
 
-mod record;
 #[cfg(test)]
 mod tests;
 
@@ -159,7 +158,7 @@ impl<'a> Rehearsals<'a> {
         let declared = declared(&report);
         let run = judged_run("observed", &report, &inputs, &targets, &declared);
         let result = classify(candidate, &report, &run.end);
-        let entry = record::report(&report, bound, &run, &result);
+        let entry = crate::rehearse::record::report(&report, bound, &run, &decided(&result));
         let spent_before = self.usage;
         self.usage = self.usage.plus(&run.usage);
         self.records.push(entry);
@@ -293,7 +292,7 @@ impl<'a> Rehearsals<'a> {
             "version": 1,
             "scope": "this compile invocation",
             "reports": self.records,
-            "usage": record::usage(&self.usage),
+            "usage": crate::rehearse::record::usage(&self.usage),
         });
         out.provenance.decision = Some(decision);
     }
@@ -520,6 +519,17 @@ fn classify(candidate: &str, report: &RehearsalReport, end: &RunEnd) -> Result {
         _ => Result::Stop(
             "The rehearsal reported an outcome this compiler does not read.".to_owned(),
         ),
+    }
+}
+
+/// The decision on a checked report, as its record states it.
+fn decided(result: &Result) -> Value {
+    match result {
+        Result::Proceed => json!({"kind": "proceed"}),
+        Result::Repair(diagnostic) => {
+            json!({"kind": "repair", "code": diagnostic.kind, "message": diagnostic.message})
+        }
+        Result::Stop(reason) => json!({"kind": "stop", "reason": reason}),
     }
 }
 

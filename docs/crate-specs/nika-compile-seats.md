@@ -73,8 +73,25 @@ as an external consumer.
   budget sees it (two template islands or more in one string, a CEL list holding a value
   reference, an array or an object holding a template that reads a value, or a template the
   scanner cannot read), in the words of its field; the screen states each as a data bound.
+  `record::report` and `record::usage` state one report (with the decision a preparation took
+  on it) and a preparation's rehearsal spend as data in `decision.rehearsal`, held by
+  `nika-compile-cognition` until its size cap (2026-10-08); no field grants authority.
 - `reasoning` — `effort` (the provider level an authoring level names) and `reasoning_record`
-  (one call's reasoning, each fact apart), shared with every authoring call of the doors.
+  (one call's reasoning, each fact apart), shared with every authoring call of the doors. The
+  receipt of an authoring call is stated here too, held by `nika-compile-cognition` until its
+  size cap (2026-10-08): `authoring_request` (the bounded JSON-schema request at an output
+  limit never above the policy's ceiling, with its explicit reasoning effort, or `None` when
+  that effort has no provider level), `context_entry` (a call's role, the digests of its
+  instruction and answer schema, the bytes of its messages), `response_identity` (the text
+  blocks an answered call returned, by digest and length; `null` for nothing) and `withheld`
+  (a refused or ignored payload by digest, length and shape with its reason, never its text).
+- `judge` — the untrusted state a judging seat reads, apart from the compiler-owned reference
+  every question also carries, held by `nika-compile-cognition` until its size cap
+  (2026-10-08): `state` (the request as compiled and as first stated, its answers, the observed
+  world and the candidate's bytes; a revision in words is shown its change beside the request of
+  the base it revises, as history, never as its first statement) and `over_document` (a revision
+  applied over the complete document, by its decision or by the record a round replays, shows
+  the base whole). The verifier that asks the questions and weighs the answers stays there.
 - `objects` — the JSON objects of a seat's text (`first_json_object`, `answer_objects` and
   `Objects`, `answer_shaped`, `syntax_target`), descended from the doors on 2026-10-07.
 - `shelf` — the references an authoring seat reads beside its card (`Reference`, `references`:

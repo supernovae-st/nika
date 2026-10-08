@@ -14,6 +14,9 @@
 //!   the observed world says what the run did, and the report maps to the behavioural judge's
 //!   run.
 //! - [`reasoning`] · the reasoning one call is asked for and the record of what it reported.
+//! - [`judge`] · the untrusted state a judging seat reads: the request as compiled and as
+//!   first stated, its answers, the observed world, the candidate's bytes, and a revision's
+//!   change beside the request of the base it revises.
 //! - [`objects`] · the JSON objects of a seat's text: its one answer, competing answers, the
 //!   group a syntax diagnostic targets.
 //! - [`shelf`] · the references an authoring seat reads (the embedded recall, the callable
@@ -38,6 +41,7 @@
 pub mod compose;
 pub mod decide;
 pub mod foundry;
+pub mod judge;
 pub mod objects;
 pub mod reasoning;
 pub mod rehearse;

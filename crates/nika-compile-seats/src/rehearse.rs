@@ -24,6 +24,7 @@ mod judged;
 #[cfg(test)]
 mod judged_tests;
 mod observed;
+pub mod record;
 mod shown;
 
 pub use judged::{judged_run, targets_of};

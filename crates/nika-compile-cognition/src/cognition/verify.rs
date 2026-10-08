@@ -32,7 +32,6 @@ use crate::decide::{
 };
 use crate::lexicon::Reading;
 use crate::plan::Plan;
-use crate::types::{EditChange, Input};
 use crate::{
     AuthoringPolicy, CompileError, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind,
     Strategy,
@@ -54,6 +53,7 @@ use grounding::grounding;
 use held::held_text;
 pub(super) use held::{HELD_TARGET, held, kept, preserve_unjudged, withdrawn};
 use nika_compile_clauses::parts::{parts, restricts};
+use nika_compile_seats::judge::{over_document, state};
 
 /// Who judges a candidate: a decision seat the caller permits (its calls and usage are its own,
 /// recorded here), or the authoring provider through the journaled authoring call.
@@ -256,68 +256,6 @@ const REVISED_APPENDED: &str = "This candidate REVISES an earlier workflow. `req
 /// for a step writing its own file. It attests no save, path or name: a stated name is judged on
 /// the bytes, and every write the program itself does (another `.nika` too) stays judged.
 const CREATED: &str = "This candidate is the workflow the request asks Nika to author. A clause asking to create this workflow asks for this program; it does not ask the program to write its own file. Saving that file is the host's step after review, outside these bytes: it is neither missing nor done here. A name the request gives this workflow is judged against the candidate's own `nika:` name. A workflow identity is not proof of a Save filename or path; do not infer a destination absent from the state. Every other clause is judged on what the bytes do, including every file the program itself writes (another `.nika` file among them).";
-
-/// The state every question and every repair carries: the request as compiled and as first
-/// stated, its answers, the observed world and the candidate's bytes. The first statement is
-/// the one the binding holds ([`Binding::of`]): the preserved original request, else the
-/// submitted text the compiled request was folded or clarified from. A revision in words is
-/// judged on the request it resolves (`intent`); the request of the base it revises, which the
-/// change partly supersedes, is never shown as its first statement: it stays apart as history
-/// (`revision.base_request`) beside the change as the human stated it (`revision.change`).
-fn state(intent: &str, request: &CompileRequest, candidate: &str) -> Value {
-    let (submitted, change) = match &request.input {
-        Input::Create(text) if text != intent => (Some(text.clone()), None),
-        Input::Edit {
-            change: EditChange::Text(words),
-            ..
-        } => (None, Some(words)),
-        _ => (None, None),
-    };
-    let first = request.original_intent.clone().or(submitted);
-    // A revision judged on the earlier request with the change appended (`… Change: …`) is
-    // told so: its replaced clauses are still in the words, superseded by the change.
-    let appended = request.original_intent.is_some()
-        && nika_compile::revise_intent(request).is_some_and(|resolved| resolved == intent);
-    let unknown = first.is_none();
-    let (first, revision) = match change {
-        Some(change) => {
-            let mut revision = json!({"change": change, "base_request": first});
-            if appended {
-                revision["appended"] = json!(true);
-            }
-            // A base whose request is unknown is shown whole: the change is judged over it.
-            if let (true, Input::Edit { source, .. }) = (unknown, &request.input) {
-                revision["base_nika"] = json!(source);
-            }
-            (None, revision)
-        }
-        None => (first, Value::Null),
-    };
-    let mut state = json!({
-        "request": intent,
-        "original_request": first,
-        "answers": request.answers,
-        "observed": request.knowledge,
-        "candidate_nika": candidate,
-    });
-    if !revision.is_null() {
-        state["revision"] = revision;
-    }
-    state
-}
-
-/// A revision the compiler applied over the complete document (its record says so) is judged as
-/// the base with exactly the change: the base shown whole, whatever request it answers.
-fn over_document(base: &mut Value, request: &CompileRequest, out: &CompileOutcome) {
-    let applied = (out.provenance.decision.as_ref())
-        .is_some_and(|decision| decision.get("document_revision").is_some());
-    if let (true, Some(revision), Input::Edit { source, .. }) =
-        (applied, base.get_mut("revision"), &request.input)
-    {
-        revision["base_nika"] = json!(source);
-        revision["over_document"] = json!(true);
-    }
-}
 
 const REPAIR_REFERENCE: &str = "The compiler emits the workflow from your plan as the reference below states: how it writes and what each tool it calls does, so you can read the candidate's bytes in the STATE. Your answer stays the complete JSON plan.";
 

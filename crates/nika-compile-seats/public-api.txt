@@ -2635,6 +2635,9 @@ pub fn nika_compile_seats::foundry::trace(shown: &[nika_compile::types::Knowledg
 pub fn nika_compile_seats::foundry::traced(qualified: &nika_compile::types::CompileRequest, record: serde_json::value::Value, out: &mut nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::foundry::verdict(question: &nika_compile_seats::decide::ChoiceQuestion, answer: core::result::Result<&nika_compile_seats::decide::ChoiceAnswer, &nika_compile_seats::decide::DecisionError>) -> nika_compile_seats::foundry::Verdict
 pub fn nika_compile_seats::foundry::witness_child(receipt: &serde_json::value::Value, child: &str) -> serde_json::value::Value
+pub mod nika_compile_seats::judge
+pub fn nika_compile_seats::judge::over_document(base: &mut serde_json::value::Value, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome)
+pub fn nika_compile_seats::judge::state(intent: &str, request: &nika_compile::types::CompileRequest, candidate: &str) -> serde_json::value::Value
 pub mod nika_compile_seats::objects
 pub enum nika_compile_seats::objects::Objects<'a>
 pub nika_compile_seats::objects::Objects::None
@@ -2672,11 +2675,18 @@ pub fn nika_compile_seats::objects::first_json_object(text: &str) -> core::optio
 pub fn nika_compile_seats::objects::record_objects(out: &mut nika_compile::types::CompileOutcome, field: &str, objects: &[&str])
 pub fn nika_compile_seats::objects::syntax_target(text: &str) -> core::option::Option<&str>
 pub mod nika_compile_seats::reasoning
+pub fn nika_compile_seats::reasoning::authoring_request(policy: &nika_compile::types::AuthoringPolicy, messages: alloc::vec::Vec<nika_kernel_ai::provider::Message>, schema: serde_json::value::Value, cap: u32) -> core::option::Option<nika_kernel_ai::provider::InferRequest>
+pub fn nika_compile_seats::reasoning::context_entry(role: &str, messages: &[nika_kernel_ai::provider::Message], schema: &serde_json::value::Value) -> serde_json::value::Value
 pub fn nika_compile_seats::reasoning::effort(reasoning: nika_compile::types::AuthoringReasoning) -> core::option::Option<nika_kernel_ai::provider::ReasoningEffort>
 pub fn nika_compile_seats::reasoning::reasoning_record(configured: core::option::Option<nika_compile::types::AuthoringReasoning>, response: core::option::Option<&nika_kernel_ai::provider::InferResponse>) -> serde_json::value::Value
+pub fn nika_compile_seats::reasoning::response_identity(response: &nika_kernel_ai::provider::InferResponse) -> serde_json::value::Value
+pub fn nika_compile_seats::reasoning::withheld(text: &str, known: &[&str], reason: &str) -> serde_json::value::Value
 pub mod nika_compile_seats::rehearse
 pub mod nika_compile_seats::rehearse::arguments
 pub fn nika_compile_seats::rehearse::arguments::evaluated(workflow: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<(), alloc::string::String>
+pub mod nika_compile_seats::rehearse::record
+pub fn nika_compile_seats::rehearse::record::report(report: &nika_compile_seats::rehearse::RehearsalReport, bound: core::time::Duration, run: &nika_compile_fidelity::behavior::Run, decision: &serde_json::value::Value) -> serde_json::value::Value
+pub fn nika_compile_seats::rehearse::record::usage(usage: &nika_compile_fidelity::behavior::accounting::Usage) -> serde_json::value::Value
 #[non_exhaustive] pub enum nika_compile_seats::rehearse::Attempt
 pub nika_compile_seats::rehearse::Attempt::Completed
 pub nika_compile_seats::rehearse::Attempt::Completed::elapsed_ms: u64
