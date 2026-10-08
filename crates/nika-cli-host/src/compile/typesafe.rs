@@ -3,20 +3,23 @@
 
 //! A `TypeSafe` System One seat behind the compiler's bounded-decision capability.
 //!
-//! One unary `POST /v1/systemone` per question, one Choice with a `none`
-//! criterion, no SDK retry loop, no fallback. The key rides only in the
+//! One unary `POST /v1/systemone` per question, or per batch of independent questions
+//! ([`batch`]: one request whose questions map carries every item by its id), each a Choice with
+//! a `none` criterion, no SDK retry loop, no fallback. The key rides only in the
 //! Authorization header; [`TypesafeSeat::from_env`] reads it from `TYPESAFE_API_KEY` only after
 //! a door named the seat, and nothing prints it (the seat has no `Debug`). The seat returns the
 //! selected key, the reported distribution, the concentration statistic and the returned model
 //! identity; the compiler revalidates the choice against the options it offered. `nika compile`
 //! (`--decision-model typesafe/<jev>`) and the Session (an operator-selected seat) share this ONE
 //! adapter. A vendor is a seat, never an owner.
+pub mod batch;
 pub mod session;
 
 use nika_http::{HttpConfig, NetBoundary, ReqwestHttp};
-use nika_kernel::http::{HttpPostDyn as _, HttpRequest};
+use nika_kernel::http::{HttpPostDyn as _, HttpRequest, HttpResponse};
 use nika_onboard::compile::decide::{
-    ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionError, DecisionSeat,
+    BatchFuture, ChoiceAnswer, ChoiceBatch, ChoiceFuture, ChoiceQuestion, DecisionError,
+    DecisionSeat,
 };
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, future::Future, pin::Pin, time::Duration};
@@ -68,6 +71,50 @@ pub struct ExchangeError {
     pub error: DecisionError,
     /// Whether the request left, and what came back.
     pub delivery: Delivery,
+    /// The usage a response reported although it answered nothing usable (a malformed answer);
+    /// all unknown when no response was read.
+    pub usage: Usage,
+}
+
+/// What one request's response reported it used, counted once per physical request, never per
+/// question: `None` when it did not say.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Usage {
+    /// Reported input tokens.
+    pub input_tokens: Option<u64>,
+    /// Reported output tokens.
+    pub output_tokens: Option<u64>,
+    /// The seat's reported billing units — never relabelled as input tokens.
+    pub billing_units: Option<u64>,
+}
+
+impl Usage {
+    /// The usage a parsed System One response reports.
+    fn of(parsed: &Value) -> Self {
+        let count = |name: &str| parsed["usage"].get(name).and_then(Value::as_u64);
+        Self {
+            input_tokens: count("input_tokens"),
+            output_tokens: count("output_tokens"),
+            billing_units: count("billing_units"),
+        }
+    }
+
+    /// Whether the response reported any of it.
+    #[must_use]
+    pub fn reported(&self) -> bool {
+        self.input_tokens.is_some() || self.output_tokens.is_some() || self.billing_units.is_some()
+    }
+
+    /// Its journal projection.
+    #[must_use]
+    pub fn record(&self) -> Value {
+        json!({
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "billing_units": self.billing_units,
+        })
+    }
 }
 
 /// The object-safe future of one exchange.
@@ -168,53 +215,26 @@ impl TypesafeSeat {
     #[must_use]
     pub fn exchange<'a>(&'a self, question: &'a ChoiceQuestion) -> ExchangeFuture<'a> {
         Box::pin(async move {
-            let unsent = |message: String| ExchangeError {
-                error: DecisionError(message),
-                delivery: Delivery::NotSent,
-            };
-            let criteria: serde_json::Map<String, Value> = question
-                .options
-                .iter()
-                .map(|o| (o.key.clone(), Value::String(o.description.clone())))
-                .collect();
             let body = json!({
                 "model": self.model,
                 "state": question.state,
-                "questions": {question.id.clone(): {"type": "choice", "instructions": question.instructions, "criteria": criteria}}
+                "questions": {question.id.clone(): {"type": "choice", "instructions": question.instructions, "criteria": criteria(question)}}
             });
-            let bytes = serde_json::to_vec(&body).map_err(|e| unsent(e.to_string()))?;
-            // Jev's context is token-based, not a JSON byte count. The selected service
-            // validates its context; a local byte threshold must not impersonate that limit.
-            let host = url::Url::parse(&self.base)
-                .ok()
-                .and_then(|u| u.host_str().map(str::to_owned))
-                .ok_or_else(|| unsent("invalid seat base URL".to_owned()))?;
-            let http = decision_http(host).map_err(unsent)?;
-            let mut request = HttpRequest::post(format!("{}/v1/systemone", self.base));
-            request.follow_redirects = false;
-            request.timeout = Some(self.timeout);
-            request
-                .headers
-                .insert("authorization".to_owned(), format!("Bearer {}", self.key));
-            request
-                .headers
-                .insert("content-type".to_owned(), "application/json".to_owned());
-            request.body = Some(bytes::Bytes::from(bytes));
-            let response = http.post(request).await.map_err(|e| ExchangeError {
-                error: DecisionError(format!("transport: {e}")),
-                delivery: Delivery::Unknown,
-            })?;
+            let response = self.post(&body).await?;
             let status = response.status;
-            let answered = |message: String| ExchangeError {
+            let answered = |message: String, usage: Usage| ExchangeError {
                 error: DecisionError(message),
                 delivery: Delivery::Responded(status),
+                usage,
             };
             if !(200..300).contains(&status) {
-                return Err(answered(format!("typesafe http status {status}")));
+                let message = format!("typesafe http status {status}");
+                return Err(answered(message, Usage::default()));
             }
             let parsed: Value = serde_json::from_slice(&response.body)
-                .map_err(|e| answered(format!("response is not JSON: {e}")))?;
-            let (answer, billing_units) = parse(&parsed, &question.id).map_err(answered)?;
+                .map_err(|e| answered(format!("response is not JSON: {e}"), Usage::default()))?;
+            let (answer, billing_units) =
+                parse(&parsed, &question.id).map_err(|e| answered(e, Usage::of(&parsed)))?;
             Ok(Exchange {
                 answer,
                 status,
@@ -222,6 +242,46 @@ impl TypesafeSeat {
             })
         })
     }
+
+    /// The ONE single-attempt POST of `body` to the seat's endpoint, the key in its header only:
+    /// the response whatever its status, or how far the request went.
+    async fn post(&self, body: &Value) -> Result<HttpResponse, ExchangeError> {
+        let unsent = |message: String| ExchangeError {
+            error: DecisionError(message),
+            delivery: Delivery::NotSent,
+            usage: Usage::default(),
+        };
+        let bytes = serde_json::to_vec(body).map_err(|e| unsent(e.to_string()))?;
+        // Jev's context is token-based, not a JSON byte count. The selected service
+        // validates its context; a local byte threshold must not impersonate that limit.
+        let host = url::Url::parse(&self.base)
+            .ok()
+            .and_then(|u| u.host_str().map(str::to_owned))
+            .ok_or_else(|| unsent("invalid seat base URL".to_owned()))?;
+        let http = decision_http(host).map_err(unsent)?;
+        let mut request = HttpRequest::post(format!("{}/v1/systemone", self.base));
+        request.follow_redirects = false;
+        request.timeout = Some(self.timeout);
+        request
+            .headers
+            .insert("authorization".to_owned(), format!("Bearer {}", self.key));
+        request
+            .headers
+            .insert("content-type".to_owned(), "application/json".to_owned());
+        request.body = Some(bytes::Bytes::from(bytes));
+        http.post(request).await.map_err(|e| ExchangeError {
+            error: DecisionError(format!("transport: {e}")),
+            delivery: Delivery::Unknown,
+            usage: Usage::default(),
+        })
+    }
+}
+
+/// The Choice criteria of `question`: each offered key and what choosing it means.
+fn criteria(question: &ChoiceQuestion) -> serde_json::Map<String, Value> {
+    (question.options.iter())
+        .map(|o| (o.key.clone(), Value::String(o.description.clone())))
+        .collect()
 }
 
 /// The seat's client: the endpoint host only, no redirect hop and no protocol-NACK replay, so a
@@ -299,8 +359,14 @@ impl DecisionSeat for TypesafeSeat {
                 .map_err(|failure| failure.error)
         })
     }
+    /// The batch in ONE request ([`TypesafeSeat::exchange_each`]): each item bound by its id.
+    fn choose_each<'a>(&'a self, batch: &'a ChoiceBatch) -> BatchFuture<'a> {
+        Box::pin(async move { self.exchange_each(batch).await.answers })
+    }
 }
 
+#[cfg(test)]
+mod regression_tests;
 #[cfg(test)]
 mod wire_tests;
 
