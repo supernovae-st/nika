@@ -53,11 +53,11 @@
           },
           {
             "type": "command",
-            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git commit\\b' && git log -1 --format=%B 2>/dev/null | grep -qE 'admit to workspace'; then printf '🆕 Crate admission detected.\\n  → Update MEMORY.md Quick State (HEAD + count + LOC)\\n  → Tag: git tag v0.90.0-alpha.N\\n  → Run hygiene dashboard\\n' >&2; ./scripts/hygiene/check-all.sh --quiet >&2 2>&1 || true; fi"
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git commit\\b' && git log -1 --format=%B 2>/dev/null | grep -qE 'admit to workspace'; then printf '🆕 Crate admission commit.\\n  → Refresh generated status: bash scripts/refresh-status.sh --write\\n  → Before pushing: bash scripts/hygiene/check-all.sh (the pre-push gate runs it too)\\n  → Tags and releases follow RELEASING.md and their own authorization, never this hint\\n' >&2; fi"
           },
           {
             "type": "command",
-            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git push\\b' && ! echo \"$CMD\" | grep -qE '(^|[[:space:]])(--force|-f)([[:space:]]|$)'; then HEAD=$(git log -1 --format=%h 2>/dev/null); echo \"📤 Pushed. HEAD is now $HEAD — update MEMORY.md Quick State if this session ends.\" >&2; fi"
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git push\\b' && ! echo \"$CMD\" | grep -qE '(^|[[:space:]])(--force|-f)([[:space:]]|$)'; then HEAD=$(git log -1 --format=%h 2>/dev/null); echo \"📤 Pushed. HEAD is now $HEAD — report it with the checks actually run.\" >&2; fi"
           }
         ]
       },
@@ -81,11 +81,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && HEAD=$(git log -1 --format=%h 2>/dev/null || echo ?); BRANCH=$(git branch --show-current 2>/dev/null || echo ?); CRATES=$(ls crates/*/Cargo.toml 2>/dev/null | wc -l | tr -d ' '); echo \"💎 Nika Diamond — branch: $BRANCH | HEAD: $HEAD | crates admitted: $CRATES/40-42. Read MEMORY.md Quick State first.\""
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && HEAD=$(git log -1 --format=%h 2>/dev/null || echo ?); BRANCH=$(git branch --show-current 2>/dev/null || echo ?); CRATES=$(ls crates/*/Cargo.toml 2>/dev/null | wc -l | tr -d ' '); echo \"💎 Nika Diamond — branch: $BRANCH | HEAD: $HEAD | workspace crates: $CRATES (a projected count, never a gate). The contract is AGENTS.md.\""
           },
           {
             "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && if [ -x scripts/hygiene/check-all.sh ]; then RESULT=$(scripts/hygiene/check-all.sh --quiet 2>&1 | tail -1); echo \"🩺 Hygiene: $RESULT\"; fi"
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && RECORDED=$(grep -m1 -E '^\\| HEAD ' .claude/CLAUDE.md 2>/dev/null | sed -E 's/^\\| HEAD +\\| *//; s/ *\\|$//'); echo \"🩺 Hygiene is not run at session start: run bash scripts/hygiene/check-all.sh when verifying (the pre-push gate runs it). Recorded status: ${RECORDED:-none}.\""
           }
         ]
       }
@@ -96,7 +96,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '🦋 Session end. If crate admitted: update MEMORY.md Quick State + run scripts/hygiene/check-all.sh'"
+            "command": "echo '🦋 Session end. Hand off the exact HEAD and the checks actually run; this hook runs none.'"
           }
         ]
       }
