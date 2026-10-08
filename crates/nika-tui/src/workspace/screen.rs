@@ -7,21 +7,30 @@
 //! caller passes; the transcript, the status, the composer and the hint are
 //! painted by the same functions as the focus presentation, so typing, pasting
 //! and history behave the same in every presentation.
+//!
+//! The chrome is painted once: the header's right end names the two layouts,
+//! the one in view in brackets, and the key between them (`F4`); a
+//! transcript scrolled back carries one marker back to its latest row; a
+//! separator the pointer holds is shown reversed. Each is a plain word or a
+//! weight, never a hue alone, and none of them moves.
 
 use nika_display::theme::Role;
 use ratatui::Frame;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Paragraph, Widget};
+use unicode_width::UnicodeWidthStr;
 
 use super::aside::{self, Aside};
 use super::conversation::{self, Thread};
 use super::focus::{Extent, Focus, Region};
-use super::geometry::Geometry;
+use super::geometry::{self, Arrangement, Geometry, Separator};
 use super::header::{self, Place};
 use super::object::{self, Object, Paint};
 use super::pinned::{self, Pinned};
+use super::text::marks;
 use crate::composer::Composer;
 use crate::model::UiState;
 use crate::render::{activity_marker, live_rows, render_live, render_transcript, wrapped_rows};
@@ -64,27 +73,43 @@ impl Screen {
     }
 }
 
-/// What the regions hold on a frame of `area`, for [`Focus::handle`]; none
-/// when the terminal is below
+/// What the regions hold on a frame of `area` in the Session layout, for
+/// [`Focus::handle`]; none when the terminal is below
 /// [`super::geometry::MIN_SIZE`]. The aside is always reachable: where the
 /// width folds it, it is drawn over the object while it holds the keys, so
 /// a workflow can be chosen at every size the workspace fits.
 #[must_use]
 pub fn extent(screen: &Screen, area: Rect) -> Option<Extent> {
     let geometry = Geometry::of(area, screen.pinned.is_some())?;
-    Some(Extent {
+    Some(extent_in(screen, &geometry))
+}
+
+/// What the regions hold in `geometry`, whatever its arrangement.
+#[must_use]
+pub(crate) fn extent_in(screen: &Screen, geometry: &Geometry) -> Extent {
+    Extent {
         aside_shown: true,
         aside_entries: screen.aside.entries.len(),
         object_lines: object::length(&screen.object),
         // The title row stays; the rest scrolls.
         object_rows: geometry.object.height.saturating_sub(1),
-    })
+    }
 }
 
-/// Draw the workspace on the whole frame, the aside selection and the object
-/// scroll following `focus`. Returns `false`, drawing nothing, when the
-/// terminal is below [`super::geometry::MIN_SIZE`]: the caller draws the focus
-/// view there.
+/// How a frame is arranged beyond its facts: the layout and the separators'
+/// shares, and the separator the pointer holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Chrome {
+    /// The layout in view and the separators' shares.
+    pub(crate) arrangement: Arrangement,
+    /// The separator the pointer is moving, shown reversed.
+    pub(crate) dragging: Option<Separator>,
+}
+
+/// Draw the workspace on the whole frame in the Session layout, the aside
+/// selection and the object scroll following `focus`. Returns `false`,
+/// drawing nothing, when the terminal is below [`super::geometry::MIN_SIZE`]:
+/// the caller draws the focus view there.
 pub fn draw(
     frame: &mut Frame<'_>,
     screen: &Screen,
@@ -93,24 +118,75 @@ pub fn draw(
     state: &UiState,
     composer: &Composer,
 ) -> bool {
-    let Some(geometry) = Geometry::of(frame.area(), screen.pinned.is_some()) else {
+    let chrome = Chrome {
+        arrangement: Arrangement::of(geometry::Layout::Session),
+        dragging: None,
+    };
+    draw_in(frame, screen, paint, focus, state, composer, chrome)
+}
+
+/// [`draw`] in the arrangement `chrome` names.
+pub(crate) fn draw_in(
+    frame: &mut Frame<'_>,
+    screen: &Screen,
+    paint: Paint,
+    focus: &Focus,
+    state: &UiState,
+    composer: &Composer,
+    chrome: Chrome,
+) -> bool {
+    let area = frame.area();
+    let pinned = screen.pinned.is_some();
+    let Some(geometry) = Geometry::arranged(area, pinned, &chrome.arrangement) else {
         return false;
     };
     let (ascii, color) = (paint.ascii, paint.color);
-    let area = frame.area();
     frame
         .buffer_mut()
         .set_style(area, role::surface(color, false));
     frame
         .buffer_mut()
         .set_style(geometry.header, role::surface(color, true));
-    header::render(
+    header_row(
         &screen.place,
         geometry.header,
         frame.buffer_mut(),
-        ascii,
-        color,
+        chrome.arrangement.layout,
+        (ascii, color),
     );
+    aside_and_object(frame, screen, &geometry, paint, focus);
+    panel(
+        frame,
+        screen,
+        &geometry,
+        paint,
+        state,
+        composer,
+        focus.region,
+    );
+    if let (Some(run), Some(area)) = (&screen.pinned, geometry.pinned) {
+        let row = pinned::line(run, area.width, ascii, color);
+        frame.render_widget(Paragraph::new(row), area);
+    }
+    if let Some(cells) = chrome.dragging.and_then(|held| geometry.handle(held)) {
+        // The separator the pointer holds, reversed: a weight, not a hue.
+        let held = Style::default().add_modifier(Modifier::REVERSED);
+        frame.buffer_mut().set_style(cells, held);
+    }
+    true
+}
+
+/// The project aside (or, where the width folds it, the aside over the
+/// object while it holds the keys) and the object in view, its title row
+/// underlined while it holds the keys.
+fn aside_and_object(
+    frame: &mut Frame<'_>,
+    screen: &Screen,
+    geometry: &Geometry,
+    paint: Paint,
+    focus: &Focus,
+) {
+    let (ascii, color) = (paint.ascii, paint.color);
     let selected = (focus.region == Region::Aside).then_some(focus.selected);
     if let Some(area) = geometry.aside {
         frame
@@ -170,20 +246,132 @@ pub fn draw(
             ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::UNDERLINED),
         );
     }
-    panel(
-        frame,
-        screen,
-        &geometry,
-        paint,
-        state,
-        composer,
-        focus.region,
-    );
-    if let (Some(run), Some(area)) = (&screen.pinned, geometry.pinned) {
-        let row = pinned::line(run, area.width, ascii, color);
-        frame.render_widget(Paragraph::new(row), area);
+}
+
+/// What a click on the layout switch asks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Switch {
+    /// Show this layout.
+    To(geometry::Layout),
+    /// Show the other one (the switch's key, `F4`).
+    Toggle,
+}
+
+/// The layout switch: both layouts, the one in view in brackets and strong,
+/// then the key between them; each part with what a click on it asks. Its
+/// width does not change with the layout in view.
+fn switch_parts(
+    layout: geometry::Layout,
+    ascii: bool,
+    color: bool,
+) -> Vec<(Span<'static>, Option<Switch>)> {
+    let dim = role::style(Role::Dim, color);
+    let mut parts = Vec::new();
+    for (index, each) in geometry::Layout::ALL.into_iter().enumerate() {
+        if index > 0 {
+            parts.push((Span::raw(" "), None));
+        }
+        let part = if each == layout {
+            Span::styled(
+                format!("[{}]", each.label()),
+                role::style(Role::Strong, color),
+            )
+        } else {
+            Span::styled(each.label(), dim)
+        };
+        parts.push((part, Some(Switch::To(each))));
     }
-    true
+    parts.push((Span::styled(marks(ascii).0, dim), None));
+    parts.push((Span::styled("F4", dim), Some(Switch::Toggle)));
+    parts
+}
+
+/// Where the layout switch stands in `header`: the right end of its first
+/// row, one blank cell after the place, when that row has room for both;
+/// `None` otherwise (`F4` still switches).
+#[must_use]
+pub(crate) fn switch_area(place: &Place, header: Rect, ascii: bool) -> Option<Rect> {
+    let parts = switch_parts(geometry::Layout::Session, ascii, false);
+    let width: usize = parts.iter().map(|(span, _)| span.content.width()).sum();
+    let width = u16::try_from(width).ok()?;
+    let room = header.width.checked_sub(width + 1)?;
+    let first = header::lines(place, room, header.height, ascii, false);
+    let fits = first
+        .first()
+        .is_some_and(|line| line.width() <= usize::from(room));
+    (fits && header.height > 0).then(|| Rect::new(header.right() - width, header.y, width, 1))
+}
+
+/// What a click at `column` of the header row asks of the layout switch.
+#[must_use]
+pub(crate) fn switch_at(
+    place: &Place,
+    header: Rect,
+    layout: geometry::Layout,
+    ascii: bool,
+    column: u16,
+) -> Option<Switch> {
+    let area = switch_area(place, header, ascii)?;
+    let offset = usize::from(column.checked_sub(area.x)?);
+    let mut start = 0;
+    for (span, asks) in switch_parts(layout, ascii, false) {
+        let end = start + span.content.width();
+        if (start..end).contains(&offset) {
+            return asks;
+        }
+        start = end;
+    }
+    None
+}
+
+/// The header with the layout switch at the right end of its first row; the
+/// place alone where the row has no room for both.
+fn header_row(
+    place: &Place,
+    area: Rect,
+    buf: &mut Buffer,
+    layout: geometry::Layout,
+    (ascii, color): (bool, bool),
+) {
+    let Some(switch) = switch_area(place, area, ascii) else {
+        header::render(place, area, buf, ascii, color);
+        return;
+    };
+    let room = switch.x - area.x - 1;
+    let first = header::lines(place, room, area.height, ascii, color);
+    let full = header::lines(place, area.width, area.height, ascii, color);
+    let mut rows = first.into_iter().take(1).chain(full.into_iter().skip(1));
+    if let Some(line) = rows.next() {
+        Paragraph::new(line).render(Rect::new(area.x, area.y, room, 1), buf);
+    }
+    for (offset, line) in (1..area.height).zip(rows) {
+        Paragraph::new(line).render(Rect::new(area.x, area.y + offset, area.width, 1), buf);
+    }
+    let parts = switch_parts(layout, ascii, color);
+    let line = Line::from(parts.into_iter().map(|(span, _)| span).collect::<Vec<_>>());
+    Paragraph::new(line).render(switch, buf);
+}
+
+/// The marker that returns a scrolled transcript to its latest row.
+fn latest_line(ascii: bool, color: bool) -> Line<'static> {
+    let words = if ascii { " v latest " } else { " ↓ latest " };
+    let style = role::style(Role::Accent, color).add_modifier(Modifier::REVERSED);
+    Line::from(Span::styled(words, style))
+}
+
+/// Where the marker back to the latest row stands on a `transcript` scrolled
+/// back: the right end of its last row; `None` where the row cannot hold it.
+#[must_use]
+pub(crate) fn latest_area(transcript: Rect, ascii: bool) -> Option<Rect> {
+    let width = u16::try_from(latest_line(ascii, false).width()).ok()?;
+    (transcript.height > 0 && transcript.width >= width).then(|| {
+        Rect::new(
+            transcript.right() - width,
+            transcript.bottom() - 1,
+            width,
+            1,
+        )
+    })
 }
 
 /// The conversation panel: its title, the transcript, the context row, then
@@ -255,6 +443,13 @@ fn panel(
         title,
     );
     render_transcript(frame, state, transcript);
+    if state.focus_scroll > 0
+        && let Some(marker) = latest_area(transcript, ascii)
+    {
+        // Scrolled back, new activity keeps the reading place; this marker
+        // (or `End`) is the way back, never an automatic jump.
+        frame.render_widget(Paragraph::new(latest_line(ascii, color)), marker);
+    }
     let with = conversation::context(&screen.thread, context.width, ascii, color);
     frame.render_widget(Paragraph::new(with), context);
     render_live(frame, state, composer, bottom);

@@ -17,12 +17,14 @@
 //! otherwise); a resize below its minimum draws the focus view until the size
 //! allows it again, the draft and the keyboard focus intact.
 //!
-//! Key precedence, first match wins: `Ctrl+C` (the interruption, in every
-//! presentation and region), `Ctrl+T` (inline to full screen and back),
-//! `Ctrl+L` (everything drawn again), then the full-screen presentation's own
-//! keys (`decide`; the workspace's table is the crate-private
-//! `workspace::desk`'s), then the composer. `Tab` stays the composer's
-//! completion key everywhere.
+//! Key precedence, first match wins: the shell's own readers (the full
+//! diagnostic while open, the palette's `Ctrl+O`, the diagnostic's `F2`, the
+//! composer's command chooser), then `Ctrl+C` (the interruption, in every
+//! presentation and region, never taken by a reader), `Ctrl+T` (inline to
+//! full screen and back), `Ctrl+L` (everything drawn again), the full-screen
+//! presentation's own keys (the workspace's table is the crate-private
+//! `workspace::desk`'s), then the composer (`commands`). Choosing a command
+//! inserts it into the draft and never sends it; `Tab` chooses.
 //!
 //! Opening a workflow in the workspace asks the conversation for one look
 //! ([`Conversation::inspect`]) on this thread, never while drawing; a look
@@ -64,11 +66,14 @@ mod pointer;
 use crate::workspace::{conversation, project};
 
 mod acquire;
+mod commands;
 mod opening;
 mod progress;
 mod stop;
 mod welcome;
 mod worker;
+
+use commands::{Busy, Caught, ENTER_WAITS, KeyDecision, LEAVE_WAITS, busy_key, decide};
 
 /// How the shell runs.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -163,52 +168,18 @@ struct Shell<C: Conversation> {
     /// the keyboard focus, the object in view and its look. Kept across
     /// presentations.
     desk: Desk,
-    /// The composer's placeholder in effect: the workspace names the
-    /// recipient there; the other presentations show none.
+    /// The composer's placeholder in effect: the workspace invites the work
+    /// and the commands there; the other presentations show none.
     placeholder: String,
     /// One reveal per shell, never an idle animation.
     welcome: welcome::Reveal,
     /// The running turn's stop and the correction queued during it.
     hold: stop::Hold,
-}
-
-/// What one key press decides, before anything is done about it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum KeyDecision {
-    /// `Ctrl+C`: the state-aware interruption, in every presentation.
-    Interrupt,
-    /// `Ctrl+T`: go to this presentation.
-    Present(Presentation),
-    /// `Ctrl+L`: everything drawn again, in every presentation.
-    Repaint,
-    /// A full-screen presentation read the key.
-    Route(Route),
-    /// The composer's key.
-    Compose,
-}
-
-/// Decide one key by the precedence the module names: `Ctrl+C`, `Ctrl+T`,
-/// `Ctrl+L`, the full-screen presentation's keys, then the composer. The
-/// workspace's focus moves here when the key moves it; nothing else changes.
-fn decide(state: &UiState, desk: &mut Desk, key: KeyEvent) -> KeyDecision {
-    let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
-    match key.code {
-        KeyCode::Char('c') if ctrl => return KeyDecision::Interrupt,
-        KeyCode::Char('t') if ctrl => {
-            return KeyDecision::Present(state.presentation.toggled_at(state.size));
-        }
-        KeyCode::Char('l') if ctrl => return KeyDecision::Repaint,
-        _ => {}
-    }
-    let route = match state.presentation {
-        Presentation::Inline => return KeyDecision::Compose,
-        Presentation::Focus => desk::composer_route(key),
-        Presentation::Workspace => desk.route(key, state.size),
-    };
-    match route {
-        Route::Compose => KeyDecision::Compose,
-        other => KeyDecision::Route(other),
-    }
+    /// The full diagnostic, while open over the frame.
+    diagnostic: Option<commands::diagnostic::Diagnostic>,
+    /// The region that held the keys when the palette opened: cancelling the
+    /// palette, or a view key chosen in it, gives the keys back there.
+    palette_from: Option<crate::workspace::focus::Region>,
 }
 
 /// A terminal the renderer holds, between [`enter`] and [`run_on`].
@@ -276,7 +247,15 @@ pub fn run_on<C: Conversation + 'static>(
         placeholder: String::new(),
         welcome: welcome::Reveal::default(),
         hold: stop::Hold::default(),
+        diagnostic: None,
+        palette_from: None,
     };
+    // The layout this conversation kept from an earlier session, if any.
+    if let Some(conversation) = shell.conversation.as_ref()
+        && let Some(kept) = conversation.arrangement()
+    {
+        shell.desk.arrange(kept);
+    }
     if let Some(title) = shell.options.title.as_deref() {
         // The previous title rides the terminal's stack; the restore pops it.
         let _ = crate::terminal::set_title(title);
@@ -439,83 +418,6 @@ enum Heard {
     Nothing,
 }
 
-/// What a key does while Nika works.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Busy {
-    /// An edit of the draft, live: a word, a correction, a line break, a
-    /// history recall, a completion.
-    Edit,
-    /// A bare `Enter`: nothing is sent while Nika works.
-    Hold,
-    /// Scroll the transcript one page back (a full screen).
-    Older,
-    /// Scroll the transcript one page forward (a full screen).
-    Newer,
-    /// Anything else: it waits for the turn.
-    Later,
-    /// `Esc` from the workspace's composer region: it leaves once the turn is
-    /// over, and the hint row says so.
-    Leave,
-    /// A workspace region read the key (a selection, a scroll, a face, an
-    /// opened entry, the keyboard focus): only the view changed.
-    Region,
-}
-
-/// The hint row's words when `Enter` is pressed while Nika works.
-const ENTER_WAITS: &str = "Nika is working · Enter sends when it is your turn";
-
-/// The hint row's words when `Esc` would leave the workspace while Nika works.
-const LEAVE_WAITS: &str = "Nika is working · Esc leaves when it is your turn";
-
-/// Sort a key typed while a turn runs: in the workspace the region that holds
-/// the keyboard reads it first (only the view changes; a look it asks for is
-/// taken when the turn ends), leaving waits for the turn, and what reaches
-/// the composer follows [`during_turn`].
-fn busy_key(state: &UiState, desk: &mut Desk, key: KeyEvent) -> Busy {
-    let ctrl_t = key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('t');
-    if state.presentation != Presentation::Workspace || ctrl_t {
-        return during_turn(state.presentation, key);
-    }
-    match desk.route(key, state.size) {
-        Route::Compose => during_turn(state.presentation, key),
-        Route::Older => Busy::Older,
-        Route::Newer => Busy::Newer,
-        Route::Leave => Busy::Leave,
-        Route::Inspect => {
-            desk.wants_look = true;
-            Busy::Region
-        }
-        Route::Repaint | Route::Nothing => Busy::Region,
-    }
-}
-
-/// Sort a key typed while a turn runs in `presentation` (`Ctrl+C` is heard
-/// before this).
-fn during_turn(presentation: Presentation, key: KeyEvent) -> Busy {
-    let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
-    let alt = key.modifiers.contains(KeyModifiers::ALT);
-    let shift = key.modifiers.contains(KeyModifiers::SHIFT);
-    let full_screen = presentation != Presentation::Inline;
-    match key.code {
-        KeyCode::Enter if alt || shift || ctrl => Busy::Edit,
-        KeyCode::Enter => Busy::Hold,
-        KeyCode::Char('j') if ctrl => Busy::Edit,
-        KeyCode::Char(_) if !ctrl => Busy::Edit,
-        KeyCode::PageUp if full_screen => Busy::Older,
-        KeyCode::PageDown if full_screen => Busy::Newer,
-        KeyCode::Backspace
-        | KeyCode::Delete
-        | KeyCode::Left
-        | KeyCode::Right
-        | KeyCode::Home
-        | KeyCode::End
-        | KeyCode::Up
-        | KeyCode::Down
-        | KeyCode::Tab => Busy::Edit,
-        _ => Busy::Later,
-    }
-}
-
 /// The notice when a spending question clears the draft typed while Nika
 /// worked: that question takes only an answer typed after it shows.
 fn cleared_notice(draft: &str, ascii: bool) -> String {
@@ -527,7 +429,7 @@ fn cleared_notice(draft: &str, ascii: bool) -> String {
     };
     let sep = if ascii { " - " } else { " · " };
     format!(
-        "{}{sep}cleared: this cost question takes only an answer typed after it",
+        "{}{sep}cleared: this cost question takes only an answer typed after it{sep}kept in this conversation, whole:\n{draft}",
         typed.strip_suffix(kept).unwrap_or(&typed)
     )
 }
@@ -576,7 +478,7 @@ impl<C: Conversation + 'static> Shell<C> {
                     Step::Stay
                 }
                 UiEvent::Paste(text) => {
-                    self.composer.paste(&text);
+                    self.paste(&text);
                     Step::Stay
                 }
                 UiEvent::Resize(cols, rows) => {
@@ -621,6 +523,8 @@ impl<C: Conversation + 'static> Shell<C> {
                 Step::Repaint => self.repaint(&broker)?,
                 Step::Stay => {}
             }
+            // An idle checkpoint: a layout the desk settled is kept.
+            self.keep_arrangement()?;
             // The last blocks are drawn before the door closes: a result the
             // human never saw is not a result.
             self.draw()?;
@@ -636,6 +540,16 @@ impl<C: Conversation + 'static> Shell<C> {
     }
 
     fn on_key(&mut self, key: KeyEvent, broker: &mut Broker) -> io::Result<Step> {
+        match self.catch(key) {
+            Some(Caught::Read) => Ok(Step::Stay),
+            // A view key the palette chose, pressed past the chooser.
+            Some(Caught::Press(chosen)) => self.route_key(chosen, broker),
+            None => self.route_key(key, broker),
+        }
+    }
+
+    /// One key by the ordinary precedence ([`decide`]).
+    fn route_key(&mut self, key: KeyEvent, broker: &mut Broker) -> io::Result<Step> {
         if crate::scroll::end(&mut self.state, &self.desk, key) {
             return Ok(Step::Stay);
         }
@@ -669,20 +583,14 @@ impl<C: Conversation + 'static> Shell<C> {
             KeyDecision::Route(_) => return Ok(Step::Stay),
             KeyDecision::Interrupt | KeyDecision::Repaint | KeyDecision::Compose => {}
         }
+        // `Tab` reaches here only where the chooser has nothing to offer.
         match self.composer.handle(key) {
             ComposerAction::Submit(line) => match self.submit(&line, broker)? {
                 Submitted::Left(exit) => return Ok(Step::Leave(exit)),
                 Submitted::Handoff(Some(handoff)) => return Ok(Step::Handoff(handoff)),
                 Submitted::Handoff(None) => {}
             },
-            ComposerAction::Complete => {
-                if let crate::composer::Completion::Several(list) =
-                    self.composer.complete(&self.commands)
-                {
-                    self.state.completion = Some(list.join("  "));
-                }
-            }
-            ComposerAction::Edited | ComposerAction::Ignored => {}
+            ComposerAction::Complete | ComposerAction::Edited | ComposerAction::Ignored => {}
         }
         Ok(Step::Stay)
     }
@@ -783,18 +691,33 @@ impl<C: Conversation + 'static> Shell<C> {
             self.state.quit = true;
         }
         self.next_correction(queued, fresh, turn.handoff.is_some())?;
+        // The turn returned the conversation: a layout settled meanwhile is kept.
+        self.keep_arrangement()?;
         Ok(Submitted::Handoff(turn.handoff))
+    }
+
+    /// Keep the layout the desk settled (once per settled change, never
+    /// mid-drag), only while this thread holds the conversation; what
+    /// keeping it says is applied like any beat. No I/O while drawing.
+    fn keep_arrangement(&mut self) -> io::Result<()> {
+        let Some(conversation) = self.conversation.as_mut() else {
+            return Ok(());
+        };
+        let Some(settled) = self.desk.take_settled() else {
+            return Ok(());
+        };
+        let beats = conversation.keep_arrangement(settled);
+        self.apply_all(beats)
     }
 
     /// Paint before accepting a fresh answer, retaining cancellation signals.
     fn fresh_input(&mut self, broker: &mut Broker) -> io::Result<Option<Exit>> {
         // A spending question takes only an answer typed after it shows:
         // what was typed while Nika worked is cleared, and a notice says so.
-        let draft = self.composer.text();
+        let draft = self.keep_reading(|_, composer| composer.discard_before_question());
         if !draft.trim().is_empty() {
             let notice = cleared_notice(&draft, self.state.ascii);
-            self.keep_reading(|state, composer| {
-                composer.clear();
+            self.keep_reading(|state, _| {
                 state.transcript.push(Committed::new(Kind::Notice, notice));
             });
             self.commit_inline()?;
@@ -931,6 +854,8 @@ impl<C: Conversation + 'static> Shell<C> {
             self.desk.view = conversation.project();
             self.desk.proposed(conversation.candidate());
             self.desk.kept(conversation.kept_run());
+            // The commands it answers now (`/restore` comes and goes).
+            self.commands = conversation.commands();
         }
         if self.desk.wants_look || self.desk.opened_workflow().is_some() {
             self.look();
@@ -1022,8 +947,8 @@ impl<C: Conversation + 'static> Shell<C> {
         Ok(())
     }
 
-    /// Show `placeholder` in the empty composer (the workspace names the
-    /// recipient of the next message there; the other presentations none).
+    /// Show `placeholder` in the empty composer (the workspace invites the
+    /// work and the commands there; the other presentations show none).
     fn name_recipient(&mut self, placeholder: String) {
         if placeholder != self.placeholder {
             self.composer.set_placeholder(&placeholder);
@@ -1105,7 +1030,7 @@ impl<C: Conversation + 'static> Shell<C> {
             }
             let was_armed = armed;
             while let Some(event) = broker.try_recv() {
-                match self.hear(event, &mut armed) {
+                match self.hear_first(event, &mut armed) {
                     Heard::Leave(exit) => return Ok(TurnEnd::Left(exit)),
                     Heard::Redraw => shown = u64::MAX,
                     Heard::Repaint => {
@@ -1211,17 +1136,20 @@ impl<C: Conversation + 'static> Shell<C> {
             self.state.size = (size.width, size.height);
         }
         if self.state.presentation == Presentation::Workspace {
-            let thread = project::thread(self.desk.view.as_ref(), None);
-            self.name_recipient(conversation::placeholder(&thread));
+            // The panel's title names the recipient; the empty box invites.
+            self.name_recipient(conversation::invitation(self.state.ascii).to_owned());
             // The face in view is rendered here, before the frame, only when
             // it changed; the frame paints its lines.
             let (ascii, color) = (self.state.ascii, self.state.color);
             self.desk.prepare(self.state.size, ascii, color);
         }
+        self.sync_choices();
         let paint = self.welcome_paint();
         let (state, composer, desk) = (&self.state, &self.composer, &self.desk);
-        self.screen
-            .draw(|frame| draw_frame(frame, state, composer, desk, paint))?;
+        let diagnostic = self.diagnostic.as_mut();
+        self.screen.draw(|frame| {
+            draw_frame(frame, state, composer, desk, paint, diagnostic);
+        })?;
         Ok(())
     }
 }
@@ -1238,13 +1166,15 @@ fn spinner_frame(elapsed: std::time::Duration) -> u8 {
 
 /// Draw one frame of the presentation in effect. Below the workspace's
 /// minimum the focus view stands in, whole, until the size allows the
-/// workspace again. The shell supplies the welcome clock; painting reads none.
+/// workspace again. The full diagnostic, while open, covers the frame. The
+/// shell supplies the welcome clock; painting reads none.
 fn draw_frame(
     frame: &mut Frame<'_>,
     state: &UiState,
     composer: &Composer,
     desk: &Desk,
     paint: Paint,
+    diagnostic: Option<&mut commands::diagnostic::Diagnostic>,
 ) {
     match state.presentation {
         Presentation::Inline => render::draw_inline(frame, state, composer),
@@ -1254,6 +1184,11 @@ fn draw_frame(
                 render::draw_focus(frame, state, composer);
             }
         }
+    }
+    if let Some(diagnostic) = diagnostic {
+        let area = frame.area();
+        diagnostic.fit((area.width, area.height));
+        diagnostic.render(frame, area, state.ascii, state.color);
     }
 }
 
@@ -1387,53 +1322,11 @@ mod typeahead_tests {
         assert!(!ends_on_decision(&[]));
     }
 
-    /// While Nika works the composer takes words and edits, a bare `Enter`
-    /// is held, the page keys scroll only a full screen, and the rest waits.
-    #[test]
-    fn keys_typed_while_nika_works_edit_hold_scroll_or_wait() {
-        use super::{Busy, during_turn};
-        use crate::model::Presentation;
-        let during = |presentation, code, modifiers| {
-            during_turn(presentation, KeyEvent::new(code, modifiers))
-        };
-        let inline = Presentation::Inline;
-        let none = KeyModifiers::NONE;
-        for code in [
-            KeyCode::Char('y'),
-            KeyCode::Backspace,
-            KeyCode::Left,
-            KeyCode::Up,
-            KeyCode::Tab,
-        ] {
-            assert_eq!(during(inline, code, none), Busy::Edit, "{code:?}");
-        }
-        assert_eq!(during(inline, KeyCode::Enter, none), Busy::Hold);
-        assert_eq!(
-            during(inline, KeyCode::Enter, KeyModifiers::ALT),
-            Busy::Edit
-        );
-        assert_eq!(
-            during(inline, KeyCode::Char('j'), KeyModifiers::CONTROL),
-            Busy::Edit
-        );
-        assert_eq!(during(inline, KeyCode::PageUp, none), Busy::Later);
-        let focus = Presentation::Focus;
-        assert_eq!(during(focus, KeyCode::PageUp, none), Busy::Older);
-        assert_eq!(during(focus, KeyCode::PageDown, none), Busy::Newer);
-        for later in [
-            (KeyCode::Char('t'), KeyModifiers::CONTROL),
-            (KeyCode::Esc, none),
-            (KeyCode::F(6), none),
-        ] {
-            assert_eq!(during(inline, later.0, later.1), Busy::Later, "{later:?}");
-        }
-    }
-
     #[test]
     fn a_cleared_draft_is_named_and_why() {
         assert_eq!(
             super::cleared_notice("yes", false),
-            "you typed « yes » while Nika worked · cleared: this cost question takes only an answer typed after it"
+            "you typed « yes » while Nika worked · cleared: this cost question takes only an answer typed after it · kept in this conversation, whole:\nyes"
         );
         assert!(super::cleared_notice("yes", true).is_ascii());
     }

@@ -70,12 +70,21 @@ default) and says what it cut.
 
 ## 3. Boundary
 
+The member also owns the unit's pure visual vocabulary and workspace views
+(`visual`, `workspace`): geometry, header, listing, pinned row, object and
+conversation chrome, and text fitting. The native renderer keeps compatibility
+source paths while Desk/input/event/Session/host ownership stays native. These
+views use passed facts, bounds and elapsed time; they never acquire a project,
+read the clock or change consent. Native-project integration tests stay at the
+native boundary rather than adding an edge back. The brand provenance test uses
+the existing workspace `sha2` dev dependency.
+
 - Nothing here reads a file, a clock or the environment, spawns, blocks or stores. The faces
   tests are the only callers of `nika_cli_host::oracle::audit_source`, as the owner's stand-in,
   once per fixture.
-- A viewer takes its colour from a semantic role, through the crate's private `role::style`:
-  a copy of the renderer's product RGB mapping, with both members pinned to the same palette
-  values. The CLI retains its terminal-theme colours. Cards add a dark surface
+- A viewer takes its colour from a semantic role through the shared `visual::role`
+  implementation. The renderer uses that same owner through its compatibility
+  path; the CLI retains its terminal-theme colours. Cards add a dark surface
   background only with colour enabled; NO_COLOR retains borders and words. This crate never
   depends on `nika-tui`.
 - The renderer paints a `Rendered` in the workspace object region, preparing it when

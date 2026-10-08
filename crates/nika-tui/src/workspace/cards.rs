@@ -3,14 +3,24 @@
 
 //! Conversation cards for the workspace. Labels follow typed blocks, never
 //! parsed prose. Clipping can start inside a card without losing wrapped text.
+//! A refusal recognised by the Session's exact sentence reads first as a short
+//! summary ([`diagnostics`]); the block keeps the Session's words whole, and
+//! measuring and painting use the same lines.
+
+// The presenter's file sits beside the root modules; the cards that paint it
+// own the module.
+#[path = "../diagnostics.rs"]
+pub(crate) mod diagnostics;
 
 use nika_display::theme::Role;
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::text::Line;
+use ratatui::style::Style;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use unicode_width::UnicodeWidthStr;
 
+use self::diagnostics::{Shown, Summary};
 use super::text::fit_head;
 
 use crate::model::{Committed, Kind, UiState};
@@ -33,6 +43,38 @@ fn heading(kind: Kind) -> (&'static str, Role) {
     }
 }
 
+/// The lines one card paints: the Session's words, or the summary of a
+/// recognised refusal; the block itself is never rewritten.
+fn card_lines(block: &Committed, color: bool, ascii: bool) -> Vec<Line<'static>> {
+    match diagnostics::shown(block) {
+        Shown::Said => block_lines(block, color, ascii),
+        Shown::Banner(text) => block_lines(&Committed::new(block.kind, text), color, ascii),
+        Shown::Refusal(summary) => summary_lines(block.kind, summary, color, ascii),
+    }
+}
+
+/// A summary under the block's own glyph and tone: the cause first, then the
+/// scope, the way on (strong) and where the details are read (dim), each
+/// aligned under the cause.
+fn summary_lines(kind: Kind, summary: &Summary, color: bool, ascii: bool) -> Vec<Line<'static>> {
+    let mut lines = block_lines(&Committed::new(kind, summary.cause), color, ascii);
+    let indent = (lines.first())
+        .and_then(|line| line.spans.first())
+        .map_or(0, Span::width);
+    for (text, tone) in [
+        (summary.scope, None),
+        (summary.next, Some(Role::Strong)),
+        (summary.details, Some(Role::Dim)),
+    ] {
+        let style = tone.map_or_else(Style::default, |tone| role::style(tone, color));
+        lines.push(Line::from(vec![
+            Span::raw(" ".repeat(indent)),
+            Span::styled(text, style),
+        ]));
+    }
+    lines
+}
+
 /// Paint the visible end of the conversation without allocating off-screen cells.
 pub(crate) fn render(frame: &mut Frame<'_>, state: &UiState, area: Rect) {
     if area.is_empty() {
@@ -46,7 +88,7 @@ pub(crate) fn render(frame: &mut Frame<'_>, state: &UiState, area: Rect) {
         .transcript
         .iter()
         .map(|block| {
-            let lines = block_lines(block, state.color, state.ascii);
+            let lines = card_lines(block, state.color, state.ascii);
             let rows = content_rows(&lines, width);
             (block, lines, rows)
         })
@@ -89,14 +131,14 @@ pub(crate) fn height(state: &UiState, area: Rect) -> usize {
         let lines: Vec<_> = state
             .transcript
             .iter()
-            .flat_map(|block| block_lines(block, state.color, state.ascii))
+            .flat_map(|block| card_lines(block, state.color, state.ascii))
             .collect();
         return content_rows(&lines, area.width);
     };
     state
         .transcript
         .iter()
-        .map(|block| content_rows(&block_lines(block, state.color, state.ascii), width) + 3)
+        .map(|block| content_rows(&card_lines(block, state.color, state.ascii), width) + 3)
         .sum()
 }
 
@@ -110,7 +152,7 @@ fn compact(frame: &mut Frame<'_>, state: &UiState, area: Rect) {
     let lines: Vec<_> = state
         .transcript
         .iter()
-        .flat_map(|block| block_lines(block, state.color, state.ascii))
+        .flat_map(|block| card_lines(block, state.color, state.ascii))
         .collect();
     let skip = content_rows(&lines, area.width)
         .saturating_sub(usize::from(area.height))
@@ -190,9 +232,172 @@ fn paint(
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
+    use super::diagnostics::tests::{
+        ROOT, WARNING_LINE, knowledge_refusal, opening_banner, provider_failure,
+    };
     use super::*;
     use crate::model::Presentation;
-    use ratatui::{Terminal, backend::TestBackend};
+    use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
+
+    /// Every row the cards paint at `width` with the whole conversation in
+    /// view, the measured height exactly.
+    fn painted(state: &UiState, width: u16) -> (Vec<String>, Buffer) {
+        let rows = u16::try_from(height(state, Rect::new(0, 0, width, 6))).expect("rows");
+        let mut terminal = Terminal::new(TestBackend::new(width, rows)).expect("terminal");
+        terminal
+            .draw(|frame| render(frame, state, frame.area()))
+            .expect("draw");
+        let buffer = terminal.backend().buffer().clone();
+        let text = (0..rows)
+            .map(|y| (0..width).map(|x| buffer[(x, y)].symbol()).collect())
+            .collect();
+        (text, buffer)
+    }
+
+    /// The words between the cards' side borders, one space apart.
+    fn words(rows: &[String]) -> String {
+        let inner = |row: &String| {
+            let cells: Vec<char> = row.chars().collect();
+            (cells.len() > 2 && matches!(cells[0], '│' | '|'))
+                .then(|| cells[1..cells.len() - 1].iter().collect::<String>())
+        };
+        let words: Vec<String> = (rows.iter().filter_map(inner))
+            .flat_map(|row| {
+                row.split_whitespace()
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        words.join(" ")
+    }
+
+    /// The knowledge refusal reads as its four sentences at every width, glyph
+    /// column and colour mode, never as its root or its codes; the measured
+    /// height ends on the bottom border, and the transcript keeps its words.
+    #[test]
+    fn a_recognised_refusal_reads_as_its_summary_at_every_width() {
+        let refusal = knowledge_refusal(ROOT);
+        for ascii in [false, true] {
+            for color in [false, true] {
+                for width in [24, 44, 72, 120] {
+                    let mut state = UiState::new(Presentation::Workspace, color, (width, 40));
+                    state.ascii = ascii;
+                    state.transcript.push(Committed::new(
+                        Kind::Human,
+                        "read notes.md and write digest.md",
+                    ));
+                    state
+                        .transcript
+                        .push(Committed::new(Kind::Refusal, refusal.clone()));
+                    let (rows, buffer) = painted(&state, width);
+                    let glyph = if ascii { "x" } else { "✖" };
+                    let summary = format!(
+                        "{glyph} Nika cannot verify the knowledge release named by NIKA_KNOWLEDGE. This authoring request was not sent; no write. Earlier routing may have reached the model. Next: quit and restart Nika with NIKA_KNOWLEDGE unset (built-in knowledge) or NIKA_KNOWLEDGE=off. Details: F2"
+                    );
+                    let case = format!("width {width} ascii {ascii} color {color}");
+                    assert!(words(&rows).ends_with(&summary), "{case}: {rows:#?}");
+                    let all = rows.join("\n");
+                    for wall in [ROOT, "ADMISSION_UNTRUSTED", "NIKA_AUTHORING_STRATEGY"] {
+                        assert!(!all.contains(wall), "{case}: {wall} in {all}");
+                    }
+                    assert!(all.contains("Could not continue"), "{case}: {all}");
+                    // A card is its title, body and bottom border, then one gap row.
+                    assert!(rows.len() >= 4, "{case}");
+                    let (foot, gap) = (&rows[rows.len() - 2], &rows[rows.len() - 1]);
+                    assert!(foot.starts_with(if ascii { "+" } else { "╰" }), "{case}");
+                    assert!(gap.trim().is_empty(), "{case}: {gap:?}");
+                    assert!(!ascii || all.is_ascii(), "{case}: {all}");
+                    assert!(
+                        color
+                            || buffer
+                                .content()
+                                .iter()
+                                .all(|cell| cell.fg == ratatui::style::Color::Reset),
+                        "{case}"
+                    );
+                    assert_eq!(state.transcript[1].text, refusal, "{case}");
+                }
+            }
+        }
+    }
+
+    /// In a split too short for cards, the summary's end is what shows, and
+    /// the measure counts the same lines.
+    #[test]
+    fn a_short_split_shows_the_summary_end() {
+        let area = Rect::new(0, 0, 40, 5);
+        let mut state = UiState::new(Presentation::Workspace, false, (40, 5));
+        let block = Committed::new(Kind::Refusal, knowledge_refusal(ROOT));
+        state.transcript.push(block.clone());
+        assert_eq!(
+            height(&state, area),
+            content_rows(&card_lines(&block, false, false), 40)
+        );
+        let mut terminal = Terminal::new(TestBackend::new(40, 5)).expect("terminal");
+        terminal
+            .draw(|frame| render(frame, &state, area))
+            .expect("draw");
+        let buffer = terminal.backend().buffer();
+        let last: String = (0..40).map(|x| buffer[(x, 4)].symbol()).collect();
+        assert_eq!(last.trim_end(), "  Details: F2");
+    }
+
+    /// A provider failure may have sent its call: its card paints the
+    /// Session's words exactly, the uncertain scope included, and claims
+    /// nothing more.
+    #[test]
+    fn a_provider_failure_card_paints_the_session_words() {
+        let block = Committed::new(Kind::Refusal, provider_failure());
+        for (color, ascii) in [(false, false), (true, true)] {
+            assert_eq!(
+                card_lines(&block, color, ascii),
+                block_lines(&block, color, ascii)
+            );
+        }
+        let mut state = UiState::new(Presentation::Workspace, false, (60, 40));
+        state.transcript.push(block.clone());
+        let (rows, _) = painted(&state, 60);
+        let words = words(&rows);
+        assert!(
+            words.starts_with("✖ I couldn't use the authoring seat for this part — "),
+            "{words}"
+        );
+        assert!(
+            words.contains("a failed call can still have been sent."),
+            "{words}"
+        );
+        assert!(
+            !words.to_lowercase().contains("nothing was sent"),
+            "{words}"
+        );
+        assert_eq!(state.transcript[0], block);
+    }
+
+    /// The opening banner warns in one short line; its other lines, and the
+    /// block, stay as the Session wrote them.
+    #[test]
+    fn the_banner_card_warns_in_one_short_line() {
+        let said = opening_banner(ROOT);
+        let mut state = UiState::new(Presentation::Workspace, false, (72, 40));
+        state
+            .transcript
+            .push(Committed::new(Kind::Banner, said.clone()));
+        let (rows, _) = painted(&state, 72);
+        let all = words(&rows);
+        let warning = WARNING_LINE
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            all.starts_with("Nika ·") && all.ends_with(&warning),
+            "{all}"
+        );
+        assert!(
+            !all.contains(ROOT) && !all.contains("ADMISSION_UNTRUSTED"),
+            "{all}"
+        );
+        assert_eq!(state.transcript[0].text, said);
+    }
 
     #[test]
     fn compact_view_keeps_the_tail_beyond_u16_rows() {

@@ -10,9 +10,15 @@
 //! the human presses `Enter`), and that `Up`/`Down` recall history only when
 //! the cursor stands at the buffer's first or last line.
 //!
+//! The composer also keeps the command chooser (`chooser`): the slash list
+//! of a command being typed and the palette. Choosing inserts words into the
+//! draft and never sends them; `Enter` stays the only way a line leaves.
+//!
 //! Exit criterion (written down, ADR-139 §5): the day this wrapper needs to
 //! re-implement cursor movement or wrapping, the crate is replaced by an
 //! owned editor.
+
+pub(crate) mod chooser;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::buffer::Buffer;
@@ -54,6 +60,11 @@ pub struct Composer {
     history: Vec<String>,
     recall: Option<usize>,
     draft: Option<Vec<String>>,
+    /// The slash list and the palette (`chooser`).
+    chooser: chooser::Chooser,
+    /// Words the palette set aside to insert a command: back in the box once
+    /// the line that replaced them is taken, or at once with `Esc`.
+    aside: Option<String>,
 }
 
 impl Default for Composer {
@@ -75,6 +86,8 @@ impl Composer {
             history: Vec::new(),
             recall: None,
             draft: None,
+            chooser: chooser::Chooser::default(),
+            aside: None,
         }
     }
 
@@ -117,8 +130,10 @@ impl Composer {
         rows.max(1)
     }
 
-    /// Insert pasted text as data.
+    /// Insert pasted text as data. An open palette closes first: the draft is
+    /// never edited out of view.
     pub fn paste(&mut self, text: &str) {
+        self.close_palette();
         self.recall = None;
         self.area
             .insert_str(text.replace("\r\n", "\n").replace('\r', "\n"));
@@ -131,8 +146,10 @@ impl Composer {
         self.area.set_placeholder_style(PLACEHOLDER);
     }
 
-    /// Handle one key press.
+    /// Handle one key press. An open palette closes first: the draft is never
+    /// edited out of view.
     pub fn handle(&mut self, key: KeyEvent) -> ComposerAction {
+        self.close_palette();
         let alt = key.modifiers.contains(KeyModifiers::ALT);
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         let shift = key.modifiers.contains(KeyModifiers::SHIFT);
@@ -194,12 +211,14 @@ impl Composer {
             self.history.push(text.clone());
         }
         self.clear();
+        // Words the palette set aside for this line come back, unsent.
+        self.restore_aside();
         ComposerAction::Submit(text)
     }
 
     /// Take the buffer as sent, exactly as `Enter` does: kept whole in
-    /// history (`Up` recalls it) and the box cleared. Sending it is the
-    /// caller's act.
+    /// history (`Up` recalls it) and the box cleared, then refilled with any
+    /// words the palette set aside for it. Sending it is the caller's act.
     pub fn take(&mut self) -> String {
         match self.submit() {
             ComposerAction::Submit(text) => text,
@@ -207,11 +226,28 @@ impl Composer {
         }
     }
 
-    /// Empty the buffer and forget the recall position.
+    /// Empty the buffer and forget the recall position. Words the palette
+    /// set aside stay aside: they return after the next line is taken.
     pub fn clear(&mut self) {
+        self.close_palette();
         self.area = fresh_like(&self.area);
         self.recall = None;
         self.draft = None;
+    }
+
+    /// A fresh answer clears every pre-question draft, returning its exact
+    /// words for the conversation's notice rather than restoring them later.
+    pub(crate) fn discard_before_question(&mut self) -> String {
+        let mut kept: Vec<String> = self.aside.take().into_iter().collect();
+        if let Some(draft) = self.draft.take() {
+            kept.push(draft.join("\n"));
+        }
+        let text = self.text();
+        if !text.trim().is_empty() {
+            kept.push(text);
+        }
+        self.clear();
+        kept.join("\n")
     }
 
     fn at_first_line(&self) -> bool {
@@ -454,6 +490,9 @@ fn fresh_like(previous: &TextArea<'static>) -> TextArea<'static> {
 
 /// The placeholder's look in every glyph column and colour mode.
 const PLACEHOLDER: Style = Style::new().add_modifier(Modifier::DIM);
+
+#[cfg(test)]
+mod chooser_tests;
 
 #[cfg(test)]
 mod tests {

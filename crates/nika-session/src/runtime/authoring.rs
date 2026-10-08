@@ -284,7 +284,11 @@ impl SessionRuntime {
             return self.cognition_money_refusal();
         }
         self.authoring_context = self.project_context();
-        self.activity(&Activity::now(Phase::Authoring, self.authoring_note()));
+        // A configuration already refused at open cannot start generation.
+        // Keep the ordinary compile/refusal path, including its state cleanup.
+        if self.authoring_context.refusal().is_none() {
+            self.activity(&Activity::now(Phase::Authoring, self.authoring_note()));
+        }
         let mut round = round;
         let out = loop {
             let out = self.compile_round(&round, &self.seat.clone());
@@ -696,8 +700,10 @@ impl SessionRuntime {
     /// The compiler's machinery failed under a seat, or the compiler
     /// itself: a seat failure is a recovery (the goal is kept, the ways on
     /// are named); a compiler failure is a refusal that names it; an
-    /// authoring configuration that cannot be honored is refused before
-    /// anything is sent — never authored without the knowledge it names.
+    /// authoring configuration that cannot be honored blocks the refused
+    /// workflow-authoring call before dispatch — never authored without the
+    /// knowledge it names. Only that call is said unsent: earlier routing of
+    /// the same line may already have used the selected intelligence.
     pub(super) fn machinery(&mut self, error: &AuthoringError) -> TurnOutcome {
         match error {
             AuthoringError::Cancelled => TurnOutcome::Cancelled(error.to_string()),
@@ -709,7 +715,7 @@ impl SessionRuntime {
             AuthoringError::Context(_) => TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::AuthoringRefused,
                 format!(
-                    "{error} · nothing was sent to the authoring model, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again"
+                    "{error} · this workflow-authoring request was not sent, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again"
                 ),
             )),
             AuthoringError::Compiler(_) | AuthoringError::Runtime(_) => {
@@ -1430,3 +1436,8 @@ pub(super) fn updated_target(set: &ProjectChangeSet) -> Option<(PathBuf, Witness
         _ => None,
     })
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+#[path = "authoring/activity_tests.rs"]
+mod activity_tests;

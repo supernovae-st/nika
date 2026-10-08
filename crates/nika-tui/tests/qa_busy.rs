@@ -137,7 +137,23 @@ fn resize_during_a_busy_turn(
 ) {
     let release = Release::new(tag);
     let mut term = busy(mode, &release);
+    let redraw_from = term.mark();
     term.resize(80, 24);
+    if mode == "slow-free" {
+        // Shrinking the emulator can leave the old busy row and prompt
+        // visible. Wait for the shell's inline resize clear before releasing
+        // the turn, so its completion is painted in the new viewport.
+        let deadline = Instant::now() + qa_support::WAIT;
+        while !term
+            .bytes_since(redraw_from)
+            .windows(4)
+            .any(|bytes| bytes == b"\x1b[2J")
+        {
+            term.pump();
+            assert!(Instant::now() < deadline, "{}", term.dump());
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
     term.wait_until("the busy screen at 80x24", |screen| {
         screen.contains(BUSY) && laid_out(screen)
     });
@@ -319,5 +335,45 @@ fn a_gate_that_asks_for_fresh_input_drops_the_typeahead() {
     );
     term.send("yes\r");
     term.wait_until(AFTER_GATE, |screen| screen.seen(AFTER_GATE));
+    leave(&mut term);
+}
+
+/// A fresh spending answer cannot recover pre-question words with Escape.
+/// The controlled conversation exercises the production shell's fresh-input
+/// law, without a provider or any billing effect.
+#[test]
+fn a_fresh_question_keeps_palette_aside_words_only_in_the_transcript() {
+    let release = Release::new("palette-fresh");
+    let mut term = busy("slow-gate-fresh", &release);
+    term.send("yes");
+    term.wait_text("nika › yes");
+    term.send("\x0f");
+    term.wait_text("commands ›");
+    term.send("status\r");
+    term.wait_text("nika › /status");
+    release.open();
+    term.wait_prompt(ANSWER);
+    term.send("\x1b");
+    term.settle(SETTLE);
+    term.wait_until("the fresh answer remains empty after Escape", |screen| {
+        screen.lines().iter().any(|row| row == ANSWER)
+    });
+    assert!(!term.screen.contains("set aside:"), "{}", term.dump());
+    assert!(
+        term.screen.seen("you typed « yes /status »")
+            && term.screen.seen("kept in this conversation, whole:"),
+        "{}",
+        term.dump()
+    );
+    term.send("\r");
+    term.settle(SETTLE);
+    assert!(
+        !term.screen.seen(AFTER_GATE),
+        "old words answered a fresh question: {}",
+        term.dump()
+    );
+    term.send("no\r");
+    term.wait_text(AFTER_GATE);
+    assert!(term.screen.seen("qa fresh answer: no"), "{}", term.dump());
     leave(&mut term);
 }
