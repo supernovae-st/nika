@@ -934,6 +934,7 @@ pub use nika_cli::verbs::serve::ServeArgs
 pub fn nika_cli::verbs::serve::run(args: &nika_cli_host::serve_args::ServeArgs) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::session
 pub fn nika_cli::verbs::session::run(theme: nika_display::theme::Theme, jq: core::option::Option<nika_service_execution::rehearsal::isolated_jq::JqHelper>) -> u8
+pub fn nika_cli::verbs::session::run_machine(jq: core::option::Option<nika_service_execution::rehearsal::isolated_jq::JqHelper>) -> u8
 pub fn nika_cli::verbs::session::run_tui(theme: nika_display::theme::Theme, jq: core::option::Option<nika_service_execution::rehearsal::isolated_jq::JqHelper>) -> u8
 pub mod nika_cli::verbs::sign
 pub struct nika_cli::verbs::sign::SignArgs

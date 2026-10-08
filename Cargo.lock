@@ -4626,6 +4626,7 @@ dependencies = [
  "nika-serve",
  "nika-service-execution",
  "nika-session",
+ "nika-session-host",
  "nika-source",
  "nika-store",
  "nika-trace",
