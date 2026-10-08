@@ -14,7 +14,7 @@ use super::bind::{Binding, BindingError, EditRefusal, edit_literal, kind};
 use super::component::{
     Component, ComponentCatalog, ComponentRef, Hole, Release, Unresolved, pinned,
 };
-use super::instance::{ExpandError, adopt, expand, instantiate};
+use super::instance::{Entry, ExpandError, adopt, expand, instantiate};
 use super::invoke::invoke;
 use super::witness::{reuse, reuse_of, revise, witness, witness_child};
 use super::{trace, traced};
@@ -812,4 +812,64 @@ fn a_component_kept_behind_a_child_boundary_never_meets_the_parents_names() {
             "{path}"
         );
     }
+}
+
+/// Another editor's exact-text insert of `entries` under the parent's name and boundary: an
+/// inline value after its key, its further lines (a block scalar's content) under it, and a
+/// task's block under its name.
+fn insert(entries: &[Entry]) -> String {
+    use std::fmt::Write as _;
+    let mut doc = String::from("nika: stale-tickets-report\nconst:\n");
+    let mut tasks = String::from("tasks:\n");
+    let mut outputs = String::from("outputs:\n");
+    for entry in entries {
+        let target = match entry.section.as_str() {
+            "tasks" => &mut tasks,
+            "const" => &mut doc,
+            _ => &mut outputs,
+        };
+        let mut lines = entry.text.lines();
+        if entry.section == "tasks" {
+            let _ = writeln!(target, "    {}:", entry.name);
+        } else {
+            let first = lines.next().unwrap_or_default();
+            let _ = writeln!(target, "    {}: {first}", entry.name);
+        }
+        for line in lines {
+            let _ = writeln!(target, "        {line}");
+        }
+    }
+    let permits = PARENT
+        .split("permits:\n")
+        .nth(1)
+        .unwrap()
+        .replace("tasks: {}\n", "");
+    format!("{doc}permits:\n{permits}{tasks}{outputs}")
+}
+
+#[test]
+fn an_insert_is_never_adopted_where_the_expansion_is_refused() {
+    let clocked = STALE.replace(
+        "model: mock/echo\n",
+        "model: mock/echo\nrun:\n  clock: virtual\n",
+    );
+    let instance = instantiate(&component(&clocked), &bound(48)).unwrap();
+    let refused = ExpandError::Unmergeable("run".to_owned());
+    assert_eq!(expand(PARENT, &instance).unwrap_err(), refused);
+    let candidate = insert(&instance.entries().unwrap());
+    assert_eq!(adopt(&candidate, &instance).unwrap_err(), refused);
+    let sharing = candidate.replace("permits:\n", "run:\n  clock: virtual\npermits:\n");
+    assert!(
+        adopt(&sharing, &instance).is_ok(),
+        "the document's own run is the component's"
+    );
+    let secret = STALE.replace(
+        "model: mock/echo\n",
+        "model: mock/echo\nsecrets:\n  token:\n    source: env\n    key: TOKEN\n",
+    );
+    let instance = instantiate(&component(&secret), &bound(48)).unwrap();
+    let refused = ExpandError::Unmergeable("secrets".to_owned());
+    assert_eq!(expand(PARENT, &instance).unwrap_err(), refused);
+    let candidate = insert(&instance.entries().unwrap());
+    assert_eq!(adopt(&candidate, &instance).unwrap_err(), refused);
 }

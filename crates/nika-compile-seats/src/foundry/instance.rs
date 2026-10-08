@@ -165,14 +165,7 @@ pub fn expand(parent: &str, instance: &Instance) -> Result<Expansion, ExpandErro
     let base = literal_projection(parent).ok_or(ExpandError::Parent)?;
     let bound = literal_projection(&instance.source)
         .ok_or_else(|| ExpandError::Unproven("the bound component cannot be read".to_owned()))?;
-    if bound.get("secrets").is_some() {
-        return Err(ExpandError::Unmergeable("secrets".to_owned()));
-    }
-    if let Some(run) = bound.get("run")
-        && base.get("run") != Some(run)
-    {
-        return Err(ExpandError::Unmergeable("run".to_owned()));
-    }
+    compatible(&base, &bound)?;
     let mut expected = base.clone();
     let mut candidate = parent.to_owned();
     for section in MERGED {
@@ -211,6 +204,21 @@ pub fn expand(parent: &str, instance: &Instance) -> Result<Expansion, ExpandErro
         ));
     }
     Ok(checked(candidate, instance, &bound))
+}
+
+/// Whether the component's whole-program sections fit the document: a component's `secrets`
+/// never merge, and its `run` must be the document's own. Both the expansion and the adoption of
+/// another editor's insert judge it, so neither carries a component the other refuses.
+fn compatible(document: &Value, bound: &Value) -> Result<(), ExpandError> {
+    if bound.get("secrets").is_some() {
+        return Err(ExpandError::Unmergeable("secrets".to_owned()));
+    }
+    if let Some(run) = bound.get("run")
+        && document.get("run") != Some(run)
+    {
+        return Err(ExpandError::Unmergeable("run".to_owned()));
+    }
+    Ok(())
 }
 
 /// One entry an expansion adds: its section, its name, and its value as the component writes it
@@ -284,7 +292,8 @@ impl Instance {
 /// receipts its own.
 ///
 /// # Errors
-/// [`ExpandError`]: open holes, or an entry the candidate does not hold as bound.
+/// [`ExpandError`]: open holes, a section the component cannot merge (its `secrets`, a `run`
+/// the candidate does not share), or an entry the candidate does not hold as bound.
 pub fn adopt(candidate: &str, instance: &Instance) -> Result<Expansion, ExpandError> {
     if !instance.open.is_empty() {
         return Err(ExpandError::Binding(BindingError::Unbound(
@@ -294,6 +303,7 @@ pub fn adopt(candidate: &str, instance: &Instance) -> Result<Expansion, ExpandEr
     let document = literal_projection(candidate).ok_or(ExpandError::Parent)?;
     let bound = literal_projection(&instance.source)
         .ok_or_else(|| ExpandError::Unproven("the bound component cannot be read".to_owned()))?;
+    compatible(&document, &bound)?;
     for section in MERGED {
         for (name, value) in bound
             .get(section)
