@@ -21,7 +21,6 @@ mod final_gate;
 mod instants;
 mod record_scope;
 mod records;
-mod role;
 mod scope;
 pub use final_gate::unbound_final_gate;
 pub use instants::instant_shape;
@@ -164,11 +163,7 @@ pub fn laws_observed(
 ) {
     let mut literals = Vec::new();
     strings(doc, &mut literals);
-    let origins: Vec<&str> = (plan.bindings.iter())
-        .filter(|binding| binding.role == "url")
-        .map(|binding| binding.literal.as_str())
-        .collect();
-    stated_paths_in(intent, doc, (waived, clarified), world, &origins, out);
+    stated_paths_in(intent, doc, waived, clarified, world, out);
     approvals(plan, doc, out);
     invented_gates(plan, doc, out);
     dropped_effects(plan, doc, out);
@@ -281,27 +276,24 @@ pub fn stated_paths(
     clarified: &[String],
     out: &mut Vec<Diagnostic>,
 ) {
-    stated_paths_in(intent, doc, (waived, clarified), None, &[], out);
+    stated_paths_in(intent, doc, waived, clarified, None, out);
 }
 
 /// [`stated_paths`] over the host's observation `world` (the compile request's knowledge): a
 /// source occurrence of a bare file name (`orders.csv`) is also realized by the one file the
 /// observation places under that name (`./data/orders.csv`), when `permits.fs.read` covers it
 /// and a task opens it. No observation, two observed files of that name, another name, or no
-/// task opening it leaves the path unrealized; a destination keeps its own law, where a send to
-/// exactly that route of a URL the request states (`origins`) also realizes a path the reader
-/// states only as a destination, sentence by sentence (`role`).
+/// task opening it leaves the path unrealized; a destination keeps its own law.
 fn stated_paths_in(
     intent: &str,
     doc: &Value,
-    (waived, clarified): (&[String], &[String]),
+    waived: &[String],
+    clarified: &[String],
     world: Option<&Value>,
-    origins: &[&str],
     out: &mut Vec<Diagnostic>,
 ) {
     let mut stated = crate::hot::stated_sources(intent);
-    let destinations = crate::hot::stated_destinations(intent);
-    stated.extend(destinations.iter().cloned());
+    stated.extend(crate::hot::stated_destinations(intent));
     // The reader deliberately leaves an unquoted multiword compound name unresolved.
     // Its extent still cannot disappear from native fidelity: shortening it to the last
     // word names a different file. Dynamic placeholders remain for the typed answer door.
@@ -346,7 +338,6 @@ fn stated_paths_in(
             _ => None,
         })
         .collect::<BTreeSet<_>>();
-    let routes = role::routes(doc, origins);
     let lower = intent.to_lowercase();
     for path in &stated {
         if waived.contains(path) || granted(doc, "read", path) || granted(doc, "write", path) {
@@ -370,7 +361,7 @@ fn stated_paths_in(
             let destination = objects::destination_at(&lower, lowered).is_some();
             held(&owners)
                 || if destination {
-                    held(&written) || (destinations.contains(path) && routes.contains(path))
+                    held(&written)
                 } else {
                     observed || held(&typed) || calls.contains(path)
                 }
@@ -380,7 +371,7 @@ fn stated_paths_in(
             let boundary = doc
                 .pointer("/permits/fs")
                 .map_or_else(|| "none".to_owned(), Value::to_string);
-            out.push(Diagnostic { kind: "path", message: format!("UNREALIZED PATH: the request names `{path}`; that occurrence is not realized by a `permits.fs.read` or `permits.fs.write` entry (permits.fs = {boundary}), an exact native `invoke.workflow` dependency, or a send to exactly that route of a URL the request states. Read it (nika:read / nika:glob + fs.read), write it (nika:write + fs.write), send to it (nika:fetch, not GET, to the stated URL followed by it) when the request names it as an endpoint's route, or invoke the stated child workflow as the request means; name it in `gaps` if it cannot be reached.") });
+            out.push(Diagnostic { kind: "path", message: format!("UNREALIZED PATH: the request names `{path}`; that occurrence is not realized by a `permits.fs.read` or `permits.fs.write` entry (permits.fs = {boundary}) or an exact native `invoke.workflow` dependency. Read it (nika:read / nika:glob + fs.read), write it (nika:write + fs.write), or invoke the stated child workflow as the request means; name it in `gaps` if it cannot be reached.") });
         }
     }
 }

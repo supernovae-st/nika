@@ -140,15 +140,6 @@ needs keeps its default.
   candidate that drafts and writes nothing is refused by name (`UNWRITTEN DESTINATION`), at the
   native and sketch doors as at the assembler's emission. Law 1 witnesses stated paths only,
   and Law 22 leaves writes to their paths, so such a write was judged by neither.
-- Added after the move, Law 1's route witness (`fidelity::role`, private). A rooted literal
-  the reader states only as a destination (`hot::stated_destinations`, sentence by sentence)
-  is also realized, at a destination occurrence, by a sending `nika:fetch` (any method but
-  GET) whose URL is exactly one of the reader's `url` bindings followed by that literal. Each
-  bare `${{ const.<name> }}` is read from `const:`, and a query or fragment is ignored:
-  `POST /notifications/stock` to a stated `http://127.0.0.1:57468`. A source never is, even
-  after a destination sentence, and no fs authority is granted. An unquoted spaced name keeps
-  its exact extent: no neighbouring literal, article or last words settle it.
-  `stated_paths`, which takes no plan, passes no `url` binding: it realizes no route.
 - Added after the move, Law 1's observed placement (`fidelity::laws_observed`, the door that
   also takes the host's observation; `laws` runs it with none and is unchanged). It applies to
   a bare file name the request states (`orders.csv`: one component, with no directory, home,
