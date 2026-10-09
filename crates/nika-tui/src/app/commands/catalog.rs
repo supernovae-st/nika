@@ -125,6 +125,8 @@ pub(crate) struct View {
 pub(crate) enum Read {
     /// A summarized refusal or a shortened banner.
     Diagnostic,
+    /// A run's story, folded.
+    Run,
     /// The current proposal the cards review.
     Proposal,
     /// The typed question waiting at the answer line.
@@ -133,11 +135,12 @@ pub(crate) enum Read {
 
 impl Read {
     /// What the reader opens for a block of `kind`: a proposal's preview, a
-    /// question's words, else a summarized diagnostic.
+    /// question's words, a run's story, else a summarized diagnostic.
     pub(crate) fn of(kind: Kind) -> Self {
         match kind {
             Kind::Proposal => Self::Proposal,
             Kind::Question => Self::Question,
+            Kind::Run => Self::Run,
             _ => Self::Diagnostic,
         }
     }
@@ -176,7 +179,8 @@ fn press(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
 
 /// The `F2` entry while a block's whole words are read there, read only: the
 /// question waiting at the answer line, the current proposal the cards
-/// review, or a summarized refusal at the reading position.
+/// review, a summarized refusal or a folded run's story, at the reading
+/// position.
 fn details(view: View) -> Option<Entry> {
     let (effect, scope, help, words) = match view.read? {
         Read::Question => (
@@ -196,6 +200,12 @@ fn details(view: View) -> Option<Entry> {
             "summarized refusal · read only",
             "The Session's own words of the summarized refusal at your reading position; nothing is sent.",
             "details diagnostic error refusal raw evidence words",
+        ),
+        Read::Run => (
+            "Full run story",
+            "folded run · read only",
+            "The whole story of the folded run at your reading position; nothing is sent or run.",
+            "details run story steps folded full words",
         ),
     };
     let pressed = press(DIAGNOSTIC_KEY, KeyModifiers::NONE);
@@ -396,9 +406,9 @@ mod tests {
     }
 
     /// `F2` names the words it opens, read only: the question waiting at the
-    /// answer line, the current proposal the cards review, or a summarized
-    /// refusal at the reading position; no entry while no block's words are
-    /// read there.
+    /// answer line, the current proposal the cards review, a summarized
+    /// refusal or a folded run's story at the reading position; no entry while
+    /// no block's words are read there.
     #[test]
     fn the_f2_entry_names_the_words_it_opens() {
         for (read, effect, scope) in [
@@ -417,6 +427,7 @@ mod tests {
                 "Full diagnostic",
                 "summarized refusal · read only",
             ),
+            (Read::Run, "Full run story", "folded run · read only"),
         ] {
             let entries = keys(View {
                 read: Some(read),

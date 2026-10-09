@@ -3,11 +3,11 @@
 
 //! The full words: the Session's own words of a block shown short of whole
 //! (the typed question waiting at the answer line, the current proposal the
-//! cards review, a refusal summarized), read over the frame and never
-//! edited.
+//! cards review, a refusal summarized, a run's story folded), read over the
+//! frame and never edited.
 //!
-//! The transcript keeps the Session's block untouched; a summary only
-//! changes how a card shows it. `F2` (or the palette) opens this view on
+//! The transcript keeps the Session's block untouched; a summary or a fold
+//! only changes how a card shows it. `F2` (or the palette) opens this view on
 //! the block at the reading position ([`read_at`]), a press on such a block
 //! opens it on that block; the arrows and the page keys scroll it, and `Esc`,
 //! `Enter` or `F2` closes it with the composer, its draft, the keyboard focus
@@ -35,8 +35,9 @@ use crate::workspace::desk::Desk;
 const PAGE: usize = 10;
 
 /// Whether the conversation's cards show `block` short of whole (a recognized
-/// refusal, a shortened banner): its full words are then this view's to show.
-/// Every other block, a provider failure included, is painted as said.
+/// refusal, a shortened banner, a folded run's story): its full words are then
+/// this view's to show. Every other block, a provider failure included, is
+/// painted as said.
 pub(crate) fn summarized(block: &Committed) -> bool {
     !matches!(shown(block), Shown::Said)
 }
@@ -113,11 +114,12 @@ pub(crate) struct Diagnostic {
 impl Diagnostic {
     /// The view of `block`'s own words, from their top: the whole proposal
     /// for a proposal's preview, the whole question for a question's words,
-    /// the full diagnostic for anything else.
+    /// the whole story of a run's, the full diagnostic for anything else.
     pub(crate) fn of(block: &Committed) -> Self {
         let what = match block.kind {
             Kind::Proposal => "Full proposal",
             Kind::Question => "Full question",
+            Kind::Run => "Full run story",
             _ => "Full diagnostic",
         };
         Self {
@@ -216,6 +218,13 @@ mod tests {
         KeyEvent::new(code, KeyModifiers::NONE)
     }
 
+    /// A run's story folded at its commit under `label`.
+    fn folded(label: &str, story: &str) -> Committed {
+        let mut block = Committed::new(Kind::Run, story);
+        block.run = Some((label.to_owned(), "succeeded"));
+        block
+    }
+
     /// The conversation's rows of the frame the shell paints for `state`.
     fn conversation(state: &UiState, desk: &Desk, composer: &Composer) -> Vec<String> {
         let (width, height) = state.size;
@@ -297,6 +306,13 @@ mod tests {
         named_at_the_reading_position(&refusal, "Could not continue", &refusal);
     }
 
+    #[test]
+    fn an_old_folded_run_is_named_at_its_reading_position() {
+        let old = folded("run 0123456789ab", "running · digest\n  read_notes · 2 ms");
+        let new = folded("run fedcba987654", "running · again");
+        named_at_the_reading_position(&old, "run 0123456789ab", &new);
+    }
+
     /// A press on a summarized refusal's card names that refusal, wherever on
     /// the card; a press on the human's line names nothing; inline and the
     /// focus view, which paint every block as said, name nothing.
@@ -322,6 +338,29 @@ mod tests {
             assert_eq!(read_at(&state, &desk, &composer, Some(title)), None);
             assert_eq!(read_at(&state, &desk, &composer, None), None);
         }
+    }
+
+    /// A folded run's story opens whole under its own title, its bytes kept.
+    #[test]
+    fn a_folded_story_opens_whole_as_the_run_story() {
+        let story = "running · digest\n  read_notes · 2 ms\nsucceeded · 1/1 tasks\n";
+        let block = folded("run 0123456789ab", story);
+        assert!(summarized(&block), "a fold is shown short of whole");
+        let view = Diagnostic::of(&block);
+        assert_eq!(view.words().as_bytes(), story.as_bytes());
+        let mut terminal = Terminal::new(TestBackend::new(70, 8)).expect("terminal");
+        terminal
+            .draw(|frame| view.render(frame, frame.area(), false, false))
+            .expect("draw");
+        let top: String = (0..70)
+            .map(|x| terminal.backend().buffer()[(x, 0)].symbol())
+            .collect();
+        assert!(top.contains("Full run story"), "{top}");
+        let untagged = Committed::new(Kind::Run, story);
+        assert!(
+            !summarized(&untagged),
+            "an untagged story is painted as said"
+        );
     }
 
     #[test]

@@ -566,3 +566,28 @@ fn the_scroll_follows_a_moved_pick_and_leaves_the_page_keys_alone() {
         "{title}"
     );
 }
+
+/// A story said now folds under the leg this turn observed only once that leg
+/// came typed, whole and settled: its label and state word. A paused leg, a
+/// leg still running, one that lost a frame, or no leg at all fold nothing.
+#[test]
+fn a_story_folds_only_under_a_whole_settled_leg() {
+    let run = |status: &str| {
+        let mut seen = vec![asked(None, false), start(EXEC, "nika: two")];
+        seen.extend((!status.is_empty()).then(|| settled(EXEC, status)));
+        desk(seen)
+    };
+    let label = "run 01a0ef110212".to_owned();
+    assert_eq!(
+        run("succeeded").folded(),
+        Some((label.clone(), "succeeded"))
+    );
+    assert_eq!(run("failed").folded(), Some((label.clone(), "failed")));
+    assert_eq!(run("cancelled").folded(), Some((label, "cancelled")));
+    assert_eq!(run("paused").folded(), None, "a gate still asks");
+    assert_eq!(run("").folded(), None, "still running");
+    let mut lost = run("succeeded");
+    lost.lost(1, 0);
+    assert_eq!(lost.folded(), None, "a frame was lost");
+    assert_eq!(Desk::new().folded(), None);
+}

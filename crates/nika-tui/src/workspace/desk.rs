@@ -52,7 +52,7 @@ use super::live::{LiveRun, Pick, RunFace, Want};
 use crate::model::Conversation;
 use crate::session::acquire::{ChildRead, Fetched, Proven};
 use crate::session::feed::{Gap, Observed};
-use nika_display::run_story::ExecutionId;
+use nika_display::run_story::{ExecutionId, RunState};
 use nika_session::KeptRun;
 
 /// How many past legs of runs the desk keeps beside the one in flight.
@@ -319,6 +319,15 @@ impl Desk {
     pub(crate) fn close_turn(&mut self, queued: &std::sync::mpsc::Receiver<Observed>, gap: &Gap) {
         self.observe(queued.try_iter());
         self.lost(gap.dropped(), gap.unread());
+    }
+
+    /// What a run's story said now folds under: the label and state word of
+    /// the leg this turn observed, once it came typed, whole and settled; a
+    /// paused, partial or untyped leg folds nothing and its story stays whole.
+    pub(crate) fn folded(&self) -> Option<(String, &'static str)> {
+        let leg = self.live.as_ref().filter(|leg| leg.whole())?;
+        let state = leg.reported().filter(|state| *state != RunState::Paused)?;
+        Some((leg.label(), state.as_str()))
     }
 
     /// What the turn's queue could not carry, to the leg in flight.

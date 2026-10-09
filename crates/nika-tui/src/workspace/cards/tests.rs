@@ -1300,6 +1300,60 @@ fn a_cost_question_keeps_its_warning_and_the_carried_row_stays_quiet() {
     assert_eq!(cell.fg, warn, "{rows:#?}");
 }
 
+/// A run's story folded at its commit under `label`, settled `state`.
+fn folded(label: &str, state: &'static str, story: &str) -> Committed {
+    let mut block = Committed::new(Kind::Run, story);
+    block.run = Some((label.to_owned(), state));
+    block
+}
+
+/// A run's story folded at its commit reads as one quiet row under the run's
+/// sublabel: its label, its settled state and the reader key, in both glyph
+/// columns and both forms, none of the story's words painted; the same story
+/// untagged keeps every word and offers no key.
+#[test]
+fn a_folded_run_story_reads_as_one_quiet_row() {
+    for (tall, ascii) in [(14, false), (14, true), (24, false), (24, true)] {
+        let case = format!("rows {tall} ascii {ascii}");
+        let mut state = UiState::new(Presentation::Workspace, true, (60, tall));
+        state.ascii = ascii;
+        for block in [
+            Committed::new(Kind::Human, "run it"),
+            Committed::new(Kind::Report, "check · digest.nika · ok"),
+            folded(
+                "run 0123456789ab",
+                "failed",
+                "running · digest\n  read_notes · 2 ms\nfailed · 0/1 tasks",
+            ),
+            Committed::new(Kind::Result, "the run failed: see its journal"),
+        ] {
+            state.transcript.push(block);
+        }
+        let (rows, buffer) = painted(&state, 60, tall);
+        let sep = if ascii { " - " } else { " · " };
+        let fold = format!("run 0123456789ab{sep}failed{sep}F2");
+        let at: Vec<usize> = (rows.iter().enumerate())
+            .filter(|(_, row)| row.contains(&fold))
+            .map(|(y, _)| y)
+            .collect();
+        assert_eq!(at.len(), 1, "{case}: one row\n{rows:#?}");
+        let x = rows[at[0]].find("run 0123").expect("the fold's words");
+        let x = u16::try_from(rows[at[0]][..x].chars().count()).expect("a column");
+        let y = u16::try_from(at[0]).expect("a row");
+        let dim = role::style(Role::Dim, true).fg;
+        assert_eq!(buffer[(x, y)].fg, dim.expect("a dim hue"), "{case}: quiet");
+        assert!(
+            rows.iter()
+                .any(|row| row.trim().trim_matches(['│', '|']).trim() == "Run")
+        );
+        assert!(!rows.join("").contains("read_notes"), "{case}\n{rows:#?}");
+        state.transcript[2].run = None;
+        let (rows, _) = painted(&state, 60, tall);
+        assert!(rows.join("").contains("read_notes"), "{case}\n{rows:#?}");
+        assert!(!rows.join("").contains("F2"), "{case}\n{rows:#?}");
+    }
+}
+
 /// The plan names, on each painted row, the block painted there
 /// ([`shown_at`]): at every scroll position, in both forms, inside bubbles
 /// and cards alike, one block a row at most, and over the whole window the

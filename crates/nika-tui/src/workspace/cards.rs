@@ -9,7 +9,8 @@
 //! paints, so the scroll bounds are the rows drawn; clipping can start inside
 //! a piece without losing wrapped text, and no block's words are rewritten.
 //! A refusal recognised by the Session's exact sentence reads first as a short
-//! summary ([`diagnostics`]), and the current proposal, tied to the candidate
+//! summary ([`diagnostics`]), a run's story folded at its commit as one quiet
+//! row of its run and state, and the current proposal, tied to the candidate
 //! by identity, as its typed review ([`review`]), its identity and reader key
 //! on its bottom border; any other proposal is history, quietly titled. Each
 //! block keeps the Session's words whole, and measuring and painting use the
@@ -38,7 +39,7 @@ use unicode_width::UnicodeWidthStr;
 use self::bubble::{Bubble, Form};
 use self::diagnostics::{Shown, Summary};
 use self::review::Review;
-use super::text::fit_head;
+use super::text::{fit_head, marks};
 
 use crate::model::{Committed, Kind, UiState};
 use crate::render::{block_lines, content_rows, window};
@@ -77,6 +78,10 @@ fn card_lines(block: &Committed, color: bool, ascii: bool) -> Vec<Line<'static>>
         Shown::Said => block_lines(block, color, ascii),
         Shown::Banner(text) => block_lines(&Committed::new(block.kind, text), color, ascii),
         Shown::Refusal(summary) => summary_lines(block.kind, summary, color, ascii),
+        Shown::Folded((run, state)) => {
+            let (sep, dim) = (marks(ascii).0, role::style(Role::Dim, color));
+            vec![Line::styled(format!("{run}{sep}{state}{sep}F2"), dim)]
+        }
     }
 }
 
