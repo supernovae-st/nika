@@ -395,10 +395,11 @@ pub(super) fn conclude(
             // The door never judged a candidate (a failed call, an answer that was not an
             // answer, an ask the laws refused): the previous round's questions and diagnostics
             // stand, nothing is replaced by a clarification the human could not act on. A
-            // refused ask spent the budget: the exhaustion is stated as a candidate's is.
+            // refused ask ends as a candidate does: on the cause its talk recorded.
             if refused_ask {
-                route.push("native: exhausted".to_owned());
-                super::super::finding(out, DiagnosticKind::Unknown, "authoring_native", EXHAUSTED);
+                let (step, said) = nika_compile_seats::repairs::stopped(&talk.route, &talk.rounds);
+                route.extend(step.map(str::to_owned));
+                super::super::finding(out, DiagnosticKind::Unknown, "authoring_native", said);
             } else {
                 route.push("native: no candidate".to_owned());
             }
@@ -415,9 +416,10 @@ pub(super) fn conclude(
             // not invent a business decision or ask the human to replace their intent.
         }
         None => {
-            route.push("native: exhausted".to_owned());
+            let (step, said) = nika_compile_seats::repairs::stopped(&talk.route, &talk.rounds);
+            route.extend(step.map(str::to_owned));
             super::record_route(out, &route);
-            super::super::finding(out, DiagnosticKind::Unknown, "authoring_native", EXHAUSTED);
+            super::super::finding(out, DiagnosticKind::Unknown, "authoring_native", said);
         }
     }
 }
@@ -443,9 +445,6 @@ fn continued(out: &CompileOutcome, talk: &[String]) -> Vec<String> {
     }
     route
 }
-
-/// An exhausted budget, stated: never a replacement request or a substitute workflow.
-const EXHAUSTED: &str = "No candidate passed the checks within the repair budget; the original request, candidates and diagnostics are retained. No workflow was emitted. Inspect the last diagnostic before another bounded attempt.";
 
 pub(super) fn system_message(references: &[Reference], callables: &[Reference]) -> String {
     let mut text = format!("{}\n\n{}", knowledge::card(), knowledge::CONVENTIONS);

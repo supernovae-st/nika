@@ -3,8 +3,9 @@
 
 //! The laws that end the verifier's work: its repairs when no repair count bounds them
 //! ([`progressed`]), and its questions on bytes a judge already rejected, whose record
-//! carries each rejection to every round that replays it ([`carry_declined`]); and the law of
-//! a gap an author first declares after a refusal ([`gaps_after_refusal`]).
+//! carries each rejection to every round that replays it ([`carry_declined`]); the law of a
+//! gap an author first declares after a refusal ([`gaps_after_refusal`]); and why a native
+//! authoring talk ended with no candidate accepted ([`stopped`]).
 
 use nika_compile::CompileOutcome;
 use nika_compile::surface::sha256;
@@ -94,8 +95,44 @@ pub fn gaps_after_refusal(
         .collect()
 }
 
+/// The conclusion of rounds that stopped on no progress.
+const NO_PROGRESS: &str = "No candidate passed the checks: the last repair named only findings already named, so the rounds stopped on no progress, not on a repair budget. The original request, candidates and diagnostics are retained. No workflow was emitted. Inspect the repeated diagnostic before another attempt.";
+
+/// The conclusion of rounds a failed authoring call ended.
+const CALL_FAILED: &str = "No candidate passed the checks: the authoring call failed after a candidate was judged (its receipt states why), not on a repair budget. The original request, candidates and diagnostics are retained. No workflow was emitted.";
+
+/// The conclusion of rounds an answer the door could not read or represent ended.
+const UNREAD: &str = "No candidate passed the checks: the seat's last answer could not be read or represented (the finding before this one says why), not on a repair budget. The original request, candidates and diagnostics are retained. No workflow was emitted.";
+
+/// The conclusion of rounds that reached the repair limit the policy states.
+const EXHAUSTED: &str = "No candidate passed the checks within the repair budget; the original request, candidates and diagnostics are retained. No workflow was emitted. Inspect the last diagnostic before another bounded attempt.";
+
+/// Why a native authoring talk that judged a candidate ended with none accepted, read from what
+/// it recorded: the route step it adds (none when its route already ends on the cause) and the
+/// conclusion stated. Its route ending on no progress (the last repair named only findings
+/// already named), its last round a failed call or an answer it could not read or represent;
+/// else the rounds reached the repair limit the policy states. No count bounds them by default,
+/// so only that last cause is a budget.
+#[must_use]
+pub fn stopped(route: &[String], rounds: &[Value]) -> (Option<&'static str>, &'static str) {
+    let last = rounds.last();
+    if route
+        .last()
+        .is_some_and(|step| step == "native: no progress")
+    {
+        (None, NO_PROGRESS)
+    } else if last.is_some_and(|round| round["call"] == "failed") {
+        (Some("native: call failed"), CALL_FAILED)
+    } else if last.is_some_and(|round| round.get("answer").is_some()) {
+        (Some("native: answer unread"), UNREAD)
+    } else {
+        (Some("native: exhausted"), EXHAUSTED)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::{CALL_FAILED, EXHAUSTED, NO_PROGRESS, UNREAD, stopped};
     use super::{
         CompileOutcome, Diagnostic, Value, carry_declined, gaps_after_refusal, json, progressed,
         sha256,
@@ -200,5 +237,42 @@ mod tests {
         assert!(progressed(&seen, &set(&["a"])));
         assert!(!progressed(&seen, &set(&["a", "b"])));
         assert!(!progressed(&[set(&["a"]), set(&["b"])], &set(&["a"])));
+    }
+
+    /// The cause a stopped talk states is the one it recorded: no progress ends its route (and
+    /// is not added again), a failed call or an unread answer is its last round, and only the
+    /// rounds that ran out under a stated limit are an exhausted budget.
+    #[test]
+    fn a_stopped_talk_states_the_cause_it_recorded() {
+        let judged = json!({"round": 0, "phase": "document", "diagnostics": [{"kind": "path"}]});
+        let stalled = [
+            "native: document".to_owned(),
+            "native: no progress".to_owned(),
+        ];
+        assert_eq!(
+            stopped(&stalled, &[judged.clone(), judged.clone()]),
+            (None, NO_PROGRESS)
+        );
+        let opened = ["native: document".to_owned()];
+        let failed = json!({"round": 1, "phase": "document-repair", "call": "failed"});
+        assert_eq!(
+            stopped(&opened, &[judged.clone(), failed]),
+            (Some("native: call failed"), CALL_FAILED)
+        );
+        let unread = json!({"round": 1, "answer": "not one complete JSON text"});
+        assert_eq!(
+            stopped(&opened, &[judged.clone(), unread]),
+            (Some("native: answer unread"), UNREAD)
+        );
+        assert_eq!(
+            stopped(&opened, &[judged]),
+            (Some("native: exhausted"), EXHAUSTED)
+        );
+        // An earlier stall the talk moved past (a recovery opened after it) is not its cause.
+        let moved = [stalled[1].clone(), "native: source recovery".to_owned()];
+        assert_eq!(stopped(&moved, &[]).0, Some("native: exhausted"));
+        for said in [NO_PROGRESS, CALL_FAILED, UNREAD] {
+            assert!(!said.contains("within the repair budget"), "{said}");
+        }
     }
 }

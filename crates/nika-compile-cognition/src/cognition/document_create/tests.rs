@@ -953,3 +953,5 @@ async fn a_revision_doubt_is_settled_by_one_trial_of_its_exact_bytes() {
 }
 
 mod construction;
+/// Why the door ended with no document accepted.
+mod stopped;

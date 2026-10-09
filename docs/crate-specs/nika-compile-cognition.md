@@ -746,7 +746,9 @@ never reset it), and with no repair count a set is progress only when it names a
 earlier set named or narrows the last set (fewer findings, all among the last), so a judge's
 variance over which parts it names never reopens the door without end. A verdict repeated on
 the same bytes of this compile reopens nothing; one carried from an earlier round reopens from
-its located defects (above).
+its located defects (above). A talk that judged a candidate and accepted none concludes on the
+cause it recorded (`nika_compile_seats::repairs::stopped`): no progress, a failed call, an
+answer it could not read, or the stated repair limit, the only one said to exhaust a budget.
 
 The R4 A11 / E39 C3 whole-request check is the historical basis of native and sketch
 verification. Its earlier author-only account, without a post-judgment repair round, no longer

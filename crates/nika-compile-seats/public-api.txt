@@ -4345,6 +4345,7 @@ pub mod nika_compile_seats::repairs
 pub fn nika_compile_seats::repairs::carry_declined(out: &mut nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::repairs::gaps_after_refusal(gaps: &[alloc::string::String], honest: &[alloc::string::String], refusal: &[nika_compile_fidelity::fidelity::Diagnostic]) -> alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>
 pub fn nika_compile_seats::repairs::progressed(seen: &[alloc::vec::Vec<alloc::string::String>], key: &[alloc::string::String]) -> bool
+pub fn nika_compile_seats::repairs::stopped(route: &[alloc::string::String], rounds: &[serde_json::value::Value]) -> (core::option::Option<&'static str>, &'static str)
 pub mod nika_compile_seats::shelf
 pub struct nika_compile_seats::shelf::Reference
 pub nika_compile_seats::shelf::Reference::id: alloc::string::String

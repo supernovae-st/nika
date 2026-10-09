@@ -138,7 +138,12 @@ as an external consumer.
   rejection to carry, or for a semantic record whose closed format holds none, the record is
   dropped) and `gaps_after_refusal` (each gap a repair round's answer declares for the first
   time after a refusal, told back as a finding that carries the refusal it followed, whose
-  findings name the remedies the engine supports; the caller tells them once, then accepts).
+  findings name the remedies the engine supports; the caller tells them once, then accepts);
+  and `stopped`, why a native authoring talk that judged a candidate ended with none accepted,
+  read from its route and its last round as the route step it adds and the conclusion stated:
+  no progress (the route already ends on it), a failed call (`native: call failed`), an answer
+  it could not read or represent (`native: answer unread`), else the repair limit the policy
+  states (`native: exhausted`, the only budget: no count bounds the rounds by default).
 - `objects` — the JSON objects of a seat's text (`first_json_object`, `answer_objects` and
   `Objects`, `answer_shaped`, `syntax_target`), descended from the doors on 2026-10-07.
 - `shelf` — the references an authoring seat reads beside its card (`Reference`, `references`:
