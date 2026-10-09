@@ -4,10 +4,12 @@
 //! The current proposal, reviewed in the conversation: while the Session
 //! waits for consent on a proposal, the latest block that carries a proposal
 //! identity reads as the candidate's typed facts when that identity is the
-//! candidate's own. Its card then says what a yes answers, every change it
-//! lands (where, over which witnessed bytes, and how many changes the faces
-//! do not show), what the workflow reaches when it runs, how it was revised
-//! and rehearsed, and where the Session's whole words are read.
+//! candidate's own. Its card then holds what changes the decision: every
+//! change it lands (where, over which witnessed bytes, and how many changes
+//! the faces do not show), how it was revised, the run a `save & run` asks
+//! when the request itself carried one, what the workflow reaches when it
+//! runs and where, and its rehearsal. The identity a consent names and the
+//! key that reads the Session's whole words ride its bottom border.
 //!
 //! The review is a view: the block keeps its words, `F2` reads them whole,
 //! and nothing here consents, saves or runs. Recognition is identity alone,
@@ -18,55 +20,150 @@
 use nika_display::theme::Role;
 use nika_session::ProposalId;
 use ratatui::text::Line;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::model::{Kind, UiState, Waiting};
+use crate::render::own;
 use crate::visual::role;
 use crate::workspace::text::twins;
 
-/// Where the card says the Session's whole words are read.
-const FULL: &str = "Full proposal, in the Session's words: F2";
+/// Binds a count to its unit (`61 lines`): a review row never parts them,
+/// and paints a plain space between them.
+pub(crate) const KEEP: char = '\u{a0}';
+
+/// The cells every row of a fact after its first hangs in: deeper than any
+/// first row, so a continuation never reads as a fact or an effect of its own.
+const HANG: usize = 4;
 
 /// The candidate a consent can name, as the conversation reviews it: its
-/// identity and the facts above every face of it, each with its role.
+/// identity, each fact a yes decides with its role and the cells its first
+/// row stands in, and whether the Session's typed method admits a
+/// `save & run` of it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Review {
     id: ProposalId,
-    facts: Vec<(String, Role)>,
+    facts: Vec<(String, Role, usize)>,
+    runs: bool,
 }
 
 impl Review {
-    /// The review of the candidate `id` over its typed `facts`.
-    pub(crate) fn new(id: ProposalId, facts: Vec<(String, Role)>) -> Self {
-        Self { id, facts }
+    /// The review of the candidate `id` over its typed `facts` (words, role
+    /// and the indent of the first row), `runs` when the Session's typed
+    /// method admits a `save & run` of it.
+    pub(crate) fn new(id: ProposalId, facts: Vec<(String, Role, usize)>, runs: bool) -> Self {
+        Self { id, facts, runs }
     }
 
-    /// The lines its card paints: the facts in the glyph column in use, then
-    /// where the Session's whole words are read.
-    pub(crate) fn lines(&self, color: bool, ascii: bool) -> Vec<Line<'static>> {
-        let facts = (self.facts.iter())
-            .map(|(words, tone)| Line::styled(twins(words, ascii), role::style(*tone, color)));
-        let full = Line::styled(FULL, role::style(Role::Dim, color));
-        facts.chain([full]).collect()
+    /// Whether the Session's typed method admits a `save & run` of it: the
+    /// decision row names that word only then.
+    pub(crate) fn runs(&self) -> bool {
+        self.runs
+    }
+
+    /// The rows its card paints `width` cells wide, in the glyph column in
+    /// use: each fact from its own indent, every further row hung under it
+    /// ([`hang`]). Measuring, painting and scrolling read these same rows.
+    pub(crate) fn lines(&self, color: bool, ascii: bool, width: u16) -> Vec<Line<'static>> {
+        (self.facts.iter())
+            .flat_map(|(words, tone, indent)| {
+                let style = role::style(*tone, color);
+                let rows = hang(&twins(words, ascii), *indent, usize::from(width));
+                rows.into_iter().map(move |row| Line::styled(row, style))
+            })
+            .collect()
+    }
+
+    /// The identity a consent names and the key that reads the Session's
+    /// whole words, in the longest whole form `room` cells hold, else the
+    /// shortest: a border carries it only where it fits whole, a row of its
+    /// own wraps it.
+    pub(crate) fn foot(&self, room: usize, ascii: bool) -> String {
+        let id = &self.id;
+        let [whole, short, bare] = [
+            format!("proposal {id} · F2: whole words"),
+            format!("proposal {id} · F2"),
+            format!("{id} · F2"),
+        ]
+        .map(|form| own(&form, ascii));
+        [whole, short]
+            .into_iter()
+            .find(|form| form.width() <= room)
+            .unwrap_or(bare)
     }
 }
 
-/// The block of `state`'s transcript the conversation reviews, by index, and
-/// its review: the latest block that carries a proposal identity, while the
-/// Session waits for consent on a proposal and that identity is the
-/// candidate's (`review`). `None` keeps every block's words as said.
-pub(crate) fn summarized<'a>(
-    state: &UiState,
-    review: Option<&'a Review>,
-) -> Option<(usize, &'a Review)> {
-    let review = review?;
+/// `words` broken at their plain spaces into rows of at most `width` cells:
+/// the first row `indent` cells in, every further row [`HANG`] cells in. A
+/// word stays whole on a row where it fits one (a [`KEEP`] binds a count to
+/// its unit); a wider one breaks between its characters, never inside one.
+/// Widths are the layout's cells, and no row is cut.
+fn hang(words: &str, indent: usize, width: usize) -> Vec<String> {
+    if width == 0 {
+        return Vec::new();
+    }
+    let hung = HANG.min(width - 1);
+    let start = indent.min(hung);
+    let mut rows = Vec::new();
+    let mut row = " ".repeat(start);
+    let (mut used, mut from, mut bare) = (start, start, true);
+    for word in words.split(' ').filter(|word| !word.is_empty()) {
+        if !bare && used + 1 + word.width() <= width {
+            row.push(' ');
+            row.push_str(word);
+            used += 1 + word.width();
+            continue;
+        }
+        if !bare {
+            rows.push(std::mem::replace(&mut row, " ".repeat(hung)));
+            (used, from) = (hung, hung);
+        }
+        for glyph in word.chars() {
+            let cells = glyph.width().unwrap_or(0);
+            if used + cells > width && used > from {
+                rows.push(std::mem::replace(&mut row, " ".repeat(hung)));
+                (used, from) = (hung, hung);
+            }
+            row.push(glyph);
+            used += cells;
+        }
+        bare = false;
+    }
+    if !bare {
+        rows.push(row);
+    }
+    rows.into_iter().map(|row| row.replace(KEEP, " ")).collect()
+}
+
+/// The block of `state`'s transcript the Session waits on for consent, by
+/// index: the latest block that carries a proposal identity, while a
+/// proposal waits. Every other proposal block is history.
+pub(crate) fn pending(state: &UiState) -> Option<usize> {
     if !matches!(state.waiting, Waiting::Proposal) {
         return None;
     }
     let (index, block) = (state.transcript.iter().enumerate())
         .rev()
         .find(|(_, block)| block.proposal_id().is_some())?;
-    let current = block.kind == Kind::Proposal && block.proposal_id() == Some(&review.id);
+    (block.kind == Kind::Proposal).then_some(index)
+}
+
+/// The block of `state`'s transcript the conversation reviews, by index, and
+/// its review: the pending proposal ([`pending`]) while its identity is the
+/// candidate's (`review`). `None` keeps every block's words as said.
+pub(crate) fn summarized<'a>(
+    state: &UiState,
+    review: Option<&'a Review>,
+) -> Option<(usize, &'a Review)> {
+    let review = review?;
+    let index = pending(state)?;
+    let current = state.transcript.get(index)?.proposal_id() == Some(&review.id);
     current.then_some((index, review))
+}
+
+/// The review the live area reads for the standing, the rail and the
+/// decision row: the current proposal's ([`summarized`]), else none.
+pub(crate) fn consent<'a>(state: &UiState, review: Option<&'a Review>) -> Option<&'a Review> {
+    summarized(state, review).map(|(_, review)| review)
 }
 
 /// A candidate, its proposal and a conversation waiting for consent on it,
@@ -89,10 +186,11 @@ pub(crate) mod fixture {
     /// The human's request, said before the proposal.
     pub(crate) const REQUEST: &str = "nika › copy the brief into out";
 
-    /// What each change and effect of [`candidate`] says.
-    pub(crate) const CREATES: &str = "creates compiled-workflow.nika · 33 lines · new";
+    /// What each change and effect of [`candidate`] says, as the Live host
+    /// adapter words a change (a count bound to its unit).
+    pub(crate) const CREATES: &str = "creates compiled-workflow.nika (33\u{a0}lines)";
     pub(crate) const REPLACES: &str =
-        "replaces ./notes/plan.md · 4 lines · over the bytes witnessed 0123456789ab";
+        "replaces ./notes/plan.md (4\u{a0}lines) · over the bytes witnessed 0123456789ab";
     pub(crate) const READS: &str = "reads ./notes/brief.md";
     pub(crate) const REACH: &str = "api.example.com, a connected service";
 

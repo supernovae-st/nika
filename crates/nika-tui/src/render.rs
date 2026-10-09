@@ -14,7 +14,9 @@
 //! (`chooser`): while it shows, the area may take all but two rows of what
 //! it is given, so the transcript and its rule always keep a row. A typed
 //! question's card stands above that line (`question`): it may take as much,
-//! and it gives way first, so the line that answers keeps its row.
+//! and it gives way first, so the line that answers keeps its row. In the
+//! workspace's conversation the current proposal's review (`Consent`) gives
+//! the live area its standing and the one row that names every consent word.
 
 mod chooser;
 #[cfg(test)]
@@ -37,6 +39,24 @@ use ratatui::widgets::{Block, Paragraph, Widget, Wrap};
 use crate::composer::Composer;
 use crate::model::{Committed, Kind, Presentation, UiState, Waiting};
 use crate::visual::role;
+use crate::workspace::cards::review::Review;
+
+/// The current proposal the workspace's conversation reviews
+/// (`review::consent`): what the live area's standing, rail and decision row
+/// read. `None` wherever no review is painted: inline, focus, and any held,
+/// untagged, older or other proposal or other waiting state.
+pub(crate) type Consent<'a> = Option<&'a Review>;
+
+/// How the workspace's conversation panel draws its live area: its composer
+/// boxed under a slim caption or plain, and the [`Consent`] it reads. Demand,
+/// painting, the rest rows and the pointer take the same one.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Panel<'a> {
+    /// The composer stands in a box under its caption ([`render_panel_live`]).
+    pub(crate) boxed: bool,
+    /// The current proposal the conversation reviews.
+    pub(crate) consent: Consent<'a>,
+}
 
 /// The glyph and the style of one kind of block; `ascii` draws the ASCII twin
 /// of each glyph (the theme's glyph column, never the renderer's choice).
@@ -109,7 +129,8 @@ fn status_rows(state: &UiState, choosing: bool, width: u16, lent: bool) -> u16 {
     if lent {
         0
     } else if state.busy.is_some() {
-        wrapped_rows(&[status_line(state, choosing, width)], width).min(3)
+        // Work names its phases, never a standing: no review is read.
+        wrapped_rows(&[status_line(state, choosing, width, None)], width).min(3)
     } else {
         1
     }
@@ -186,24 +207,21 @@ pub fn render_block(block: &Committed, color: bool, ascii: bool, buf: &mut Buffe
 /// a typed question's card shows; never more than all but two.
 #[must_use]
 pub fn live_rows(state: &UiState, composer: &Composer, width: u16, height: u16) -> u16 {
-    rows_of_live(state, composer, width, height, false)
+    panel_rows(state, composer, width, height, Panel::default())
 }
 
-/// [`live_rows`] of the workspace's composer boxed under its caption
-/// ([`render_boxed_live`]): the caption and the box's two edges as well, the
-/// line wrapped inside the box exactly as it is painted there.
+/// [`live_rows`] of the workspace's conversation panel
+/// ([`render_panel_live`]): boxed, the caption and the box's two edges as
+/// well, the line wrapped inside the box exactly as it is painted there; the
+/// rail, the status and the hint as the panel's [`Consent`] reads them.
 #[must_use]
-pub(crate) fn boxed_live_rows(
+pub(crate) fn panel_rows(
     state: &UiState,
     composer: &Composer,
     width: u16,
     height: u16,
+    Panel { boxed, consent }: Panel<'_>,
 ) -> u16 {
-    rows_of_live(state, composer, width, height, true)
-}
-
-/// The rows a live area `width` wide asks for within `height`, `boxed` or not.
-fn rows_of_live(state: &UiState, composer: &Composer, width: u16, height: u16, boxed: bool) -> u16 {
     let chooser = chooser::rows(state, composer, width);
     let input = if composer.palette_open() {
         1
@@ -216,12 +234,13 @@ fn rows_of_live(state: &UiState, composer: &Composer, width: u16, height: u16, b
             .max(if boxed { 2 } else { 1 })
     };
     // The chooser borrows the rail's row while it shows; the question's live
-    // home takes the rows that only repeat it ([`Lent`]).
+    // home and the reviewed proposal take the rows that only repeat them ([`Lent`]).
     let homed = question::homed(state, composer);
-    let lent = Lent::of(state, homed, state.interrupt_armed);
+    let lent = Lent::of(state, homed, state.interrupt_armed, consent);
     let rail = usize::from(rail_shown(state) && chooser == 0 && !lent.rail);
     let aside = usize::from(composer.aside().is_some());
-    let hint = usize::from(wrapped_rows(&hint_lines(state, composer, width), width).min(3));
+    let hint = hint_lines(state, composer, width, consent);
+    let hint = usize::from(wrapped_rows(&hint, width).min(3));
     let listing = composer.listing().is_some();
     let status = usize::from(status_rows(state, listing, width, lent.status));
     let edges = if boxed {
@@ -253,18 +272,17 @@ fn rows_of_live(state: &UiState, composer: &Composer, width: u16, height: u16, b
 /// The rows a live area `width` wide asks for at rest, as [`live_rows`]
 /// counts them with nothing typed, listed, set aside or busy and no room
 /// limit: the rail and one status row (but those the question's live home
-/// takes over, [`Lent`]), a typed question's whole card, a one-row line and
-/// the waiting state's own hint. A decision's demand reads it, so typing, the
+/// or the reviewed proposal takes over, [`Lent`]), a typed question's whole
+/// card, a one-row line and the waiting state's own hint ([`decision_hint`],
+/// read with `consent`). A decision's demand reads it, so typing, the
 /// chooser and work never move the regions.
-pub(crate) fn rest_rows(state: &UiState, width: u16) -> u16 {
+pub(crate) fn rest_rows(state: &UiState, width: u16, consent: Consent<'_>) -> u16 {
     let card = question::rest_rows(state, width);
-    let words = own(
-        waiting_hint(&state.waiting, state.ascii, width),
-        state.ascii,
-    );
+    let hint = decision_hint(&state.waiting, consent, state.ascii, width);
+    let words = own(hint, state.ascii);
     let lines: Vec<Line<'_>> = words.split('\n').map(Line::raw).collect();
     // At rest no exit is armed: the same rule the live rows read ([`Lent`]).
-    let lent = Lent::of(state, question::rest_homed(state), false);
+    let lent = Lent::of(state, question::rest_homed(state), false, consent);
     let rail = u16::from(rail_shown(state) && !lent.rail);
     let status = u16::from(!lent.status);
     rail + status + card + 1 + wrapped_rows(&lines, width).min(3)
@@ -275,19 +293,25 @@ pub(crate) fn rest_rows(state: &UiState, width: u16) -> u16 {
 /// says nothing the question's live home and the object's standing do not.
 const FIRST_QUESTION_RAIL: &str = "Draft ● · Saved ○ · Checked ○ · Active ○ · Run ○";
 
+/// The lifecycle rail while a proposal waits and nothing else stands: the
+/// draft proposed, nothing saved, checked, active or run. Only this exact
+/// rail says nothing the reviewed proposal's standing does not.
+const PROPOSAL_RAIL: &str = "Draft ✓ · Saved ○ · Checked ○ · Active ○ · Run ○";
+
 /// The Session's own status while a typed question waits, before the
 /// question's label (`SessionRuntime::status_line`): the one status the
 /// question's live home may take over, and only for its own label.
 const QUESTION_STATUS: &str = "Needs one answer · ";
 
-/// The live area's state rows a homed typed question takes over: the
-/// lifecycle rail while it is exactly a first question's
-/// ([`FIRST_QUESTION_RAIL`]), and the status while it is exactly the
-/// Session's sentence for this question ([`QUESTION_STATUS`] and its label),
-/// never while an exit is armed. Any other rail or status (an earlier run, a
-/// saved or active workflow, a cost, a gate, words unknown here) keeps its
-/// row, and nothing is read out of either. Demand, painting and the rest
-/// rows read this one rule.
+/// The live area's state rows a homed typed question or the reviewed proposal
+/// takes over: the lifecycle rail while it is exactly a first question's
+/// ([`FIRST_QUESTION_RAIL`]) or exactly the waiting proposal's own
+/// ([`PROPOSAL_RAIL`], its standing on the status row), and, for the
+/// question, the status while it is exactly the Session's sentence for it
+/// ([`QUESTION_STATUS`] and its label), never while an exit is armed. Any
+/// other rail or status (an earlier run, a saved or active workflow, a cost,
+/// a gate, words unknown here) keeps its row, and nothing is read out of
+/// either. Demand, painting and the rest rows read this one rule.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct Lent {
     /// The rail's row goes to the card.
@@ -297,9 +321,15 @@ struct Lent {
 }
 
 impl Lent {
-    /// The rows `state`'s homed question (`homed`) takes over, an exit
-    /// `armed` or not.
-    fn of(state: &UiState, homed: bool, armed: bool) -> Self {
+    /// The rows `state`'s homed question (`homed`) or reviewed proposal
+    /// (`consent`) takes over, an exit `armed` or not.
+    fn of(state: &UiState, homed: bool, armed: bool, consent: Consent<'_>) -> Self {
+        if consent.is_some() && state.waiting == Waiting::Proposal {
+            return Self {
+                rail: state.rail == PROPOSAL_RAIL,
+                status: false,
+            };
+        }
         let Waiting::QuestionDocument { asked, .. } = &state.waiting else {
             return Self::default();
         };
@@ -378,12 +408,34 @@ fn rail_shown(state: &UiState) -> bool {
 }
 
 /// The lifecycle rail, dim like the chrome: five facts, never one badge, on a
-/// row `width` cells wide, cut with a visible mark rather than clipped.
+/// row `width` cells wide, cut with a visible mark rather than clipped
+/// ([`newest`]).
 fn rail_line(state: &UiState, width: u16) -> Line<'static> {
     Line::from(Span::styled(
-        cut(&state.rail, width, state.ascii),
+        newest(&state.rail, width, state.ascii),
         Style::default().add_modifier(Modifier::DIM),
     ))
+}
+
+/// `rail` on a row of `width` cells, its newest stages kept: whole when it
+/// fits; else each leading done stage that the next done stage implies (a
+/// save after its draft, a check after its save) gives way under one mark at
+/// its head, only while the rest still does not fit, then the end is cut
+/// ([`cut`]). Its fixed fields are read as [`rail_shown`] reads them.
+fn newest(rail: &str, width: u16, ascii: bool) -> String {
+    let done = |field: &str| field.ends_with(" ✓");
+    let mark = if ascii { "... " } else { "… " };
+    let mut fields: Vec<&str> = rail.split(" · ").collect();
+    let mut head = "";
+    let fits = |head: &str, fields: &[&str]| {
+        let text = format!("{head}{}", fields.join(" · "));
+        unicode_width::UnicodeWidthStr::width(text.as_str()) <= usize::from(width)
+    };
+    while fields.len() > 1 && done(fields[0]) && done(fields[1]) && !fits(head, &fields) {
+        fields.remove(0);
+        head = mark;
+    }
+    cut(&format!("{head}{}", fields.join(" · ")), width, ascii)
 }
 
 /// `text` on a row of `width` cells: whole when it fits, else cut at a cell
@@ -403,12 +455,18 @@ fn cut(text: &str, width: u16, ascii: bool) -> String {
 /// plain `yes` does. It claims no other request unavailable.
 const PROPOSAL_STATUS: &str = "Not saved yet · yes means Save only";
 
+/// The reviewed proposal's standing, longest first: its decision row names
+/// what each word does, so the status keeps the standing alone, scoped to
+/// this proposal (an earlier Run keeps its own facts on the rail).
+const STANDING: [&str; 2] = ["Not saved yet · this proposal has not run", "Not saved yet"];
+
 /// The status row on a row `width` cells wide. While work runs its phases
 /// wrap ([`status_rows`]); otherwise it is one row: the shell's own note
 /// follows the Session's words only when both fit, and never while a decision
 /// waits in the fitting workspace; the Session's words are cut with a visible
-/// mark, never rewritten.
-fn status_line(state: &UiState, choosing: bool, width: u16) -> Line<'static> {
+/// mark, never rewritten. A proposal waiting says its standing, alone where
+/// the conversation reviews it (`consent`).
+fn status_line(state: &UiState, choosing: bool, width: u16, consent: Consent<'_>) -> Line<'static> {
     let dim = role::style(Role::Dim, state.color);
     let accent = accent(state.color);
     if state.interrupt_armed {
@@ -446,8 +504,16 @@ fn status_line(state: &UiState, choosing: bool, width: u16) -> Line<'static> {
         }
         Line::from(spans)
     } else if state.waiting == Waiting::Proposal {
-        // What a plain `yes` does, never what else may be asked for.
-        let words = own(PROPOSAL_STATUS, state.ascii);
+        // Reviewed, the standing alone in its longest whole form; else what a
+        // plain `yes` does, never what else may be asked for.
+        let words = match consent {
+            Some(_) => STANDING
+                .into_iter()
+                .find(|words| fits_row(words, state.ascii, width))
+                .unwrap_or(STANDING[1]),
+            None => PROPOSAL_STATUS,
+        };
+        let words = own(words, state.ascii);
         let style = role::style(Role::Warn, state.color).add_modifier(Modifier::BOLD);
         Line::styled(cut(&words, width, state.ascii), style)
     } else {
@@ -548,6 +614,33 @@ fn waiting_hint(waiting: &Waiting, ascii: bool, width: u16) -> &'static str {
         .unwrap_or_else(|| forms.last().copied().unwrap_or(full))
 }
 
+/// The decision row while the reviewed proposal's `save & run` is admitted
+/// ([`Review::runs`]), longest first: each consent word typed at `Save? ›`
+/// with what it does, the combined act first. A narrower row drops a whole
+/// cue (the key, an effect, `/show`), never an action: the last form still
+/// names all three words in 36 cells, in either glyph column.
+const SAVE_RUN_HINTS: [&str; 5] = [
+    "save & run + Enter: Save, then Run once · yes: Save only · no: discard · /show: bytes",
+    "save & run: Save, then Run once · yes: Save only · no: discard · /show: bytes",
+    "save & run · yes: Save only · no: discard · /show: bytes",
+    "save & run · yes: Save only · no: discard",
+    "save & run · yes: save · no: discard",
+];
+
+/// The decision row's words on a row `width` cells wide: the reviewed
+/// proposal's every consent word while its `save & run` is admitted
+/// ([`SAVE_RUN_HINTS`]); else `waiting`'s own hint ([`waiting_hint`]). Words
+/// only: nothing here sends, saves or runs.
+fn decision_hint(waiting: &Waiting, consent: Consent<'_>, ascii: bool, width: u16) -> &'static str {
+    if *waiting != Waiting::Proposal || !consent.is_some_and(Review::runs) {
+        return waiting_hint(waiting, ascii, width);
+    }
+    let last = SAVE_RUN_HINTS[SAVE_RUN_HINTS.len() - 1];
+    (SAVE_RUN_HINTS.into_iter())
+        .find(|hint| fits_row(hint, ascii, width))
+        .unwrap_or(last)
+}
+
 /// Whether each row of `text` holds in `width` cells as the row paints it: in
 /// the glyph column in use, measured with the layout's own width table.
 fn fits_row(text: &str, ascii: bool, width: u16) -> bool {
@@ -562,8 +655,14 @@ fn fits_row(text: &str, ascii: bool, width: u16) -> bool {
 /// the palette key; the workspace's composer also says how `Enter` sends and
 /// `Alt+Enter` breaks a line, and keeps `F6` and `Esc` on its status row and
 /// the empty composer invites `/`, so neither repeats here. One row, unless a
-/// decision's form sets a whole cue on a second ([`narrower`]).
-fn hint_lines(state: &UiState, composer: &Composer, width: u16) -> Vec<Line<'static>> {
+/// decision's form sets a whole cue on a second ([`narrower`]); the reviewed
+/// proposal's row names every consent word ([`decision_hint`]).
+fn hint_lines(
+    state: &UiState,
+    composer: &Composer,
+    width: u16,
+    consent: Consent<'_>,
+) -> Vec<Line<'static>> {
     let choosing = composer
         .listing()
         .map(|listing| chooser::hint(&listing, state.busy.is_some(), state.ascii));
@@ -604,7 +703,7 @@ fn hint_lines(state: &UiState, composer: &Composer, width: u16) -> Vec<Line<'sta
         }
     } else {
         // A narrower row drops a whole cue, never a key from what it does.
-        waiting_hint(&state.waiting, state.ascii, width).to_owned()
+        decision_hint(&state.waiting, consent, state.ascii, width).to_owned()
     };
     let text = match (&state.completion, choosing) {
         (Some(notice), _) => own(notice, state.ascii),
@@ -641,18 +740,30 @@ struct LiveAreas {
     hint: Rect,
 }
 
+/// [`areas_of`] a live area reviewing nothing: the question's card, the
+/// chooser and the line read the same rectangles everywhere.
+fn live_areas(state: &UiState, composer: &Composer, area: Rect, boxed: bool) -> LiveAreas {
+    let panel = Panel {
+        boxed,
+        consent: None,
+    };
+    areas_of(state, composer, area, panel)
+}
+
 /// Cut `area` into the live rows. Closed, the line being written takes every
 /// spare row, as it always did; while the chooser shows, the line takes its
 /// own rows, the chooser what it asks for, and the spare rows go below it.
 /// `boxed`, the line stands in a box under its caption, one cell of air
 /// inside each edge: sizing, wrapping and painting read these same cells.
-fn live_areas(state: &UiState, composer: &Composer, area: Rect, boxed: bool) -> LiveAreas {
+fn areas_of(state: &UiState, composer: &Composer, area: Rect, panel: Panel<'_>) -> LiveAreas {
+    let Panel { boxed, consent } = panel;
     let chooser_wanted =
         u16::try_from(chooser::rows(state, composer, area.width)).unwrap_or(u16::MAX);
     let choosing = chooser_wanted > 0;
-    let hint_wanted = wrapped_rows(&hint_lines(state, composer, area.width), area.width).min(3);
+    let hint = hint_lines(state, composer, area.width, consent);
+    let hint_wanted = wrapped_rows(&hint, area.width).min(3);
     let homed = question::homed(state, composer);
-    let lent = Lent::of(state, homed, state.interrupt_armed);
+    let lent = Lent::of(state, homed, state.interrupt_armed, consent);
     let listing = composer.listing().is_some();
     let status_wanted = status_rows(state, listing, area.width, lent.status);
     let inner = inner_width(area.width, boxed);
@@ -671,7 +782,7 @@ fn live_areas(state: &UiState, composer: &Composer, area: Rect, boxed: bool) -> 
     // sentences; one 80-column row cannot hold them side by side), yields it
     // on a terminal too short for four rows or to the first lines of a
     // multi-line draft, and lends it to the chooser, a short live home and a
-    // live home it only repeats ([`Lent`]).
+    // live home or a reviewed proposal's standing it only repeats ([`Lent`]).
     let rail_rows = u16::from(
         rail_shown(state)
             && !choosing
@@ -759,39 +870,32 @@ fn editor_width(state: &UiState, composer: &Composer, width: u16) -> u16 {
 }
 
 /// Draw the live area (status · prompt + composer · chooser · hint) into
-/// `area`: the same live area inline, under the focus transcript and in a
-/// short workspace panel.
+/// `area`: the same live area inline and under the focus transcript.
 pub(crate) fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Composer, area: Rect) {
-    render_live_in(frame, state, composer, area, false);
+    render_panel_live(frame, state, composer, area, Panel::default());
 }
 
-/// The workspace's live area with its composer boxed under a slim caption
-/// (« Your message », or « Your answer » while a decision waits; none where
-/// the question's live home or the decision's own prompt names the line,
-/// [`box_rows`]): the same prompt, line, chooser and hint as [`render_live`],
-/// in quiet edges.
-pub(crate) fn render_boxed_live(
+/// The live area of the workspace's conversation panel: its composer boxed
+/// under a slim caption where `panel` says so (« Your message », or « Your
+/// answer » while a decision waits; none where the question's live home or
+/// the decision's own prompt names the line, [`box_rows`]), its standing,
+/// rail and decision row as the panel's [`Consent`] reads them: the same
+/// prompt, line, chooser and hint as [`render_live`].
+pub(crate) fn render_panel_live(
     frame: &mut Frame<'_>,
     state: &UiState,
     composer: &Composer,
     area: Rect,
+    panel: Panel<'_>,
 ) {
-    render_live_in(frame, state, composer, area, true);
-}
-
-fn render_live_in(
-    frame: &mut Frame<'_>,
-    state: &UiState,
-    composer: &Composer,
-    area: Rect,
-    boxed: bool,
-) {
-    let areas = live_areas(state, composer, area, boxed);
+    let (boxed, consent) = (panel.boxed, panel.consent);
+    let areas = areas_of(state, composer, area, panel);
     if areas.rail.height > 0 {
         let rail = rail_line(state, areas.rail.width);
         frame.render_widget(Paragraph::new(rail), areas.rail);
     }
-    let status = status_line(state, composer.listing().is_some(), areas.status.width);
+    let choosing = composer.listing().is_some();
+    let status = status_line(state, choosing, areas.status.width, consent);
     frame.render_widget(
         Paragraph::new(status).wrap(Wrap { trim: false }),
         areas.status,
@@ -850,10 +954,8 @@ fn render_live_in(
         }
     }
     chooser::render(state, composer, areas.chooser, frame.buffer_mut());
-    frame.render_widget(
-        Paragraph::new(hint_lines(state, composer, area.width)).wrap(Wrap { trim: false }),
-        areas.hint,
-    );
+    let hint = hint_lines(state, composer, area.width, consent);
+    frame.render_widget(Paragraph::new(hint).wrap(Wrap { trim: false }), areas.hint);
 }
 
 /// The inline presentation: the frame IS the live area (the transcript is

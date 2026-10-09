@@ -42,7 +42,7 @@ mod child;
 mod faces;
 mod task;
 use super::pinned::Pinned;
-use super::text::{fit_head, marks, wrap};
+use super::text::{fit_head, marks, twins, wrap};
 use crate::visual::icon::Icon;
 use crate::visual::{role, state};
 pub use faces::{FILES_READ, RunFace, Want};
@@ -392,7 +392,8 @@ impl LiveRun {
         } else {
             "a fresh run"
         };
-        let (_, words) = self.standing();
+        // The state's one home, in the glyph column in use.
+        let words = twins(&self.standing().1, ascii);
         let mut rows = vec![(
             format!("{}{sep}{leg}{sep}{words}", self.workflow),
             Role::Strong,
@@ -473,7 +474,9 @@ impl LiveRun {
         rows
     }
 
-    /// The settlement's report, or what is known without one.
+    /// The settlement's report, or what is known without one. Its state has
+    /// one home, the standing on the header row ([`Self::standing`]): the
+    /// settlement row says its cause, its tasks and its time.
     fn report(&self, sep: &str) -> String {
         if self.kept.is_some() {
             return format!(
@@ -498,11 +501,7 @@ impl LiveRun {
         let elapsed = s
             .elapsed_ms
             .map_or(String::new(), |ms| format!("{sep}{ms} ms"));
-        format!(
-            "settled{sep}{}{sep}{}{tasks}{elapsed}",
-            s.state.as_str(),
-            s.cause.as_str()
-        )
+        format!("settlement{sep}{}{tasks}{elapsed}", s.cause.as_str())
     }
 
     /// Whether the stream arrived whole, and what is missing when not.

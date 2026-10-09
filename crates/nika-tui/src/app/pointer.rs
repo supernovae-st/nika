@@ -147,8 +147,8 @@ fn offer_at_press(
     let (live, boxed) = match (state.presentation, workspace) {
         (Presentation::Inline, _) => return None,
         (_, Some(geometry)) => {
-            let thread = desk.screen(state.ascii).thread;
-            let areas = screen::panel_areas(&geometry, state, composer, &thread);
+            let shown = desk.screen(state.ascii);
+            let areas = screen::panel_areas(&geometry, state, composer, &shown);
             (areas[3], screen::boxed(&geometry))
         }
         (_, None) => {
@@ -213,7 +213,7 @@ fn chrome_pointer(
         return Some(Route::Repaint);
     }
     if state.focus_scroll > 0 {
-        let transcript = screen::panel_areas(geometry, state, composer, &shown.thread)[1];
+        let transcript = screen::panel_areas(geometry, state, composer, &shown)[1];
         let marker = screen::latest_area(transcript, state.ascii);
         if marker.is_some_and(|marker| marker.contains(point)) {
             desk.focus.region = Region::Conversation;
@@ -790,8 +790,8 @@ mod tests {
             desk.focus.region = Region::Object;
             state.focus_scroll = 9;
             let g = desk.geometry(state.size).expect("geometry");
-            let thread = desk.screen(state.ascii).thread;
-            let transcript = screen::panel_areas(&g, &state, &composer, &thread)[1];
+            let shown = desk.screen(state.ascii);
+            let transcript = screen::panel_areas(&g, &state, &composer, &shown)[1];
             let marker = screen::latest_area(transcript, state.ascii).expect("marker");
             let click = |x| mouse(MouseEventKind::Down(MouseButton::Left), x, marker.y);
             assert_eq!(
@@ -1153,8 +1153,8 @@ mod tests {
             .then(|| desk.geometry(state.size))
             .flatten();
         if let Some(geometry) = workspace {
-            let thread = desk.screen(state.ascii).thread;
-            let live = screen::panel_areas(&geometry, state, composer, &thread)[3];
+            let shown = desk.screen(state.ascii);
+            let live = screen::panel_areas(&geometry, state, composer, &shown)[3];
             return (painted(state, desk, composer), live);
         }
         let backend = ratatui::backend::TestBackend::new(frame.width, frame.height);

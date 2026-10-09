@@ -178,12 +178,14 @@ fn workspace_navigation_fits_one_row_and_yields_to_the_current_action() {
                 }
                 // `F6` and `Esc` keep their one home, the status row.
                 assert!(!text.contains("F6"), "{scroll} {width}: {text}");
-                assert!(words(status_line(&state, false, u16::MAX)).contains("F6 panel"));
+                assert!(words(status_line(&state, false, u16::MAX, None)).contains("F6 panel"));
                 assert_eq!(wrapped_rows(&[hint], width), 1, "{scroll} {width}: {text}");
                 if ascii {
                     assert!(text.is_ascii());
                 }
-                assert!(words(status_line(&state, false, u16::MAX)).starts_with(&state.status));
+                assert!(
+                    words(status_line(&state, false, u16::MAX, None)).starts_with(&state.status)
+                );
             }
         }
     }
@@ -211,14 +213,14 @@ fn workspace_navigation_fits_one_row_and_yields_to_the_current_action() {
     state.waiting = Waiting::Free;
     state.busy = Some("checking files locally".into());
     assert_eq!(words(hint_line(&state, &composer, 44)), WORKING_HINT);
-    assert!(words(status_line(&state, false, u16::MAX)).contains("checking files locally"));
+    assert!(words(status_line(&state, false, u16::MAX, None)).contains("checking files locally"));
     state.completion = Some(ENTER.into());
     assert_eq!(words(hint_line(&state, &composer, 44)), ENTER);
     state.completion = None;
     state.busy = None;
     state.spinner = Some(3); // A stale animation frame is not active work.
-    assert!(words(status_line(&state, false, u16::MAX)).starts_with(&state.status));
-    assert!(!words(status_line(&state, false, u16::MAX)).contains("Idle"));
+    assert!(words(status_line(&state, false, u16::MAX, None)).starts_with(&state.status));
+    assert!(!words(status_line(&state, false, u16::MAX, None)).contains("Idle"));
     state.focus_scroll = 0;
     state.presentation = Presentation::Inline;
     // The free prompt names the palette key once, where the row holds it.
@@ -296,7 +298,7 @@ fn below_the_minimum_the_status_row_names_only_keys_that_work() {
         for ascii in [false, true] {
             let mut state = UiState::new(Presentation::Workspace, false, size);
             state.ascii = ascii;
-            let note = words(status_line(&state, false, u16::MAX));
+            let note = words(status_line(&state, false, u16::MAX, None));
             assert_eq!(note.contains("F6 panel"), fits, "{size:?}: {note}");
             assert_eq!(note.contains(&minimum), !fits, "{size:?}: {note}");
             let small = note.contains("Esc inline") && note.contains("PgUp/PgDn");
@@ -532,12 +534,12 @@ fn the_ascii_loader_turns_through_ascii_frames() {
     state.apply(Beat::Busy("thinking".to_owned()));
     for frame in 0..8u8 {
         state.spinner = Some(frame);
-        let line = status_line(&state, false, u16::MAX);
+        let line = status_line(&state, false, u16::MAX, None);
         let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
         assert!(text.is_ascii() && text.ends_with("thinking"), "{text:?}");
     }
     state.spinner = None;
-    let still: String = status_line(&state, false, u16::MAX)
+    let still: String = status_line(&state, false, u16::MAX, None)
         .spans
         .iter()
         .map(|s| s.content.as_ref())
@@ -650,7 +652,7 @@ fn activity_rows_wear_their_glyph_tone_and_keep_their_words() {
     );
     let mut state = UiState::new(Presentation::Workspace, true, (80, 4));
     state.apply(Beat::Busy("↻ a stronger model reads it".to_owned()));
-    let busy = status_line(&state, false, u16::MAX);
+    let busy = status_line(&state, false, u16::MAX, None);
     assert_eq!(busy.spans[1].style, role::style(Role::Warn, true));
 }
 
@@ -701,7 +703,7 @@ const ENTER: &str = "Nika is working - Enter sends when it is your turn";
 #[test]
 fn a_scrolled_back_transcript_names_the_way_back_to_the_latest() {
     let words = |state: &UiState| -> String {
-        status_line(state, false, u16::MAX)
+        status_line(state, false, u16::MAX, None)
             .spans
             .iter()
             .map(|s| s.content.as_ref())
@@ -769,11 +771,11 @@ fn a_boxed_composer_asks_its_caption_edges_and_inner_rows() {
     let mut short = Composer::new();
     short.paste("short");
     let plain = live_rows(&state, &short, 40, 40);
-    assert_eq!(boxed_live_rows(&state, &short, 40, 40), plain + 4);
+    assert_eq!(panel_rows(&state, &short, 40, 40, BOXED), plain + 4);
     let mut long = Composer::new();
     long.paste(&"x".repeat(31));
     assert_eq!(live_rows(&state, &long, 40, 40), plain);
-    assert_eq!(boxed_live_rows(&state, &long, 40, 40), plain + 4);
+    assert_eq!(panel_rows(&state, &long, 40, 40, BOXED), plain + 4);
 }
 
 /// The words of `line`, its spans joined.
@@ -786,14 +788,14 @@ fn spans(line: &Line<'_>) -> String {
 
 /// The hint's one row, where it takes one.
 fn hint_line(state: &UiState, composer: &Composer, width: u16) -> Line<'static> {
-    let mut lines = hint_lines(state, composer, width);
+    let mut lines = hint_lines(state, composer, width, None);
     assert_eq!(lines.len(), 1, "one hint row at {width}");
     lines.remove(0)
 }
 
 /// The hint's rows, each row's words, a `\n` between rows.
 fn hint_text(state: &UiState, composer: &Composer, width: u16) -> String {
-    let lines = hint_lines(state, composer, width);
+    let lines = hint_lines(state, composer, width, None);
     lines.iter().map(spans).collect::<Vec<_>>().join("\n")
 }
 
@@ -831,7 +833,7 @@ fn the_rail_and_the_status_cut_visibly_on_a_narrow_row() {
             "the note only when it fits: {status}"
         );
         state.status = "Needs one answer".into();
-        let note = spans(&status_line(&state, false, 60));
+        let note = spans(&status_line(&state, false, 60, None));
         let whole = own("Needs one answer · workspace · F6 panel · Esc back", ascii);
         assert_eq!(note, whole);
     }
@@ -859,7 +861,7 @@ fn a_decision_keeps_each_key_with_its_effect_on_narrow_rows() {
         for width in [35_u16, 44, 92] {
             let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
             state.waiting = waiting.clone();
-            let hint = hint_lines(&state, &composer, width);
+            let hint = hint_lines(&state, &composer, width, None);
             let text = hint_text(&state, &composer, width);
             let at = format!("{waiting:?} {width}: {text}");
             // Every row holds whole: none wraps.
@@ -946,7 +948,7 @@ fn a_decision_prompt_names_its_line_without_a_caption() {
         let at = format!("{:?}", state.waiting);
         assert_eq!(caption(&state), Some(0), "{at}");
         let plain = live_rows(&state, &composer, 44, 40);
-        let boxed = boxed_live_rows(&state, &composer, 44, 40);
+        let boxed = panel_rows(&state, &composer, 44, 40, BOXED);
         // The box's two edges and its second writing row, no caption.
         assert_eq!(boxed, plain + 3, "{at}");
     }
@@ -965,18 +967,18 @@ fn a_decision_waiting_leaves_the_panel_note_to_the_free_prompt() {
         state.status = "Ready for review".to_owned();
         state.waiting = waiting;
         let at = format!("{:?}", state.waiting);
-        let note = spans(&status_line(&state, false, u16::MAX));
+        let note = spans(&status_line(&state, false, u16::MAX, None));
         assert!(!note.contains("F6 panel"), "{at}: {note}");
         if state.waiting != Waiting::Proposal {
             assert_eq!(note, "Ready for review", "{at}");
             state.size = (59, 15);
-            let small = spans(&status_line(&state, false, u16::MAX));
+            let small = spans(&status_line(&state, false, u16::MAX, None));
             let recovery = small.contains("60x16") && small.contains("Esc inline");
             assert!(recovery, "{at}: {small}");
         }
     }
     let free = UiState::new(Presentation::Workspace, false, (120, 40));
-    let note = spans(&status_line(&free, false, u16::MAX));
+    let note = spans(&status_line(&free, false, u16::MAX, None));
     assert!(note.contains("F6 panel"), "the free prompt: {note}");
 }
 
@@ -1026,10 +1028,10 @@ fn a_homed_question_takes_over_only_the_rows_that_repeat_it() {
         assert_eq!((fit.card.height, fit.input.height), (2, 1), "{at}");
         // At rest the same rows: the rail and status shown, the card, the line, the hint.
         let rest = shown.0 + shown.1 + 4;
-        assert_eq!(rest_rows(&state, 44), rest, "{at}");
+        assert_eq!(rest_rows(&state, 44, None), rest, "{at}");
         state.interrupt_armed = true;
         assert_eq!(rows(&state).1, 1, "{at}: an armed exit keeps its row");
-        assert_eq!(rest_rows(&state, 44), rest, "{at}: armed");
+        assert_eq!(rest_rows(&state, 44, None), rest, "{at}: armed");
     }
     let mut prose = UiState::new(Presentation::Workspace, false, (120, 40));
     prose.waiting = Waiting::Question {
@@ -1042,4 +1044,162 @@ fn a_homed_question_takes_over_only_the_rows_that_repeat_it() {
     proposal.waiting = Waiting::Proposal;
     proposal.rail = "Draft ✓ · Saved ○ · Checked ○ · Active ○ · Run ○".to_owned();
     assert_eq!(rows(&proposal), (1, 1), "the proposal keeps its rail");
+}
+
+/// The workspace panel's boxed composer, reviewing nothing.
+const BOXED: Panel<'static> = Panel {
+    boxed: true,
+    consent: None,
+};
+
+/// The fixture's candidate as the conversation reviews it, a `save & run` of
+/// it admitted by the Session's typed method or not (`runs`).
+fn reviewed_candidate(runs: bool, ascii: bool) -> Review {
+    use crate::workspace::candidate::RunAfter;
+    use crate::workspace::cards::review::fixture;
+    let after = runs.then_some(RunAfter::Saved);
+    let candidate = fixture::candidate(fixture::id(), false).running(after);
+    candidate.review(ascii).expect("a consent can name it")
+}
+
+/// A proposal waiting in the workspace under the Session's rail `rail`.
+fn proposing(rail: &str, ascii: bool) -> UiState {
+    let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
+    state.waiting = Waiting::Proposal;
+    state.rail = rail.to_owned();
+    state.ascii = ascii;
+    state
+}
+
+/// While the reviewed proposal's `save & run` is admitted, its decision row
+/// names every consent word with what it does, `save & run` first, in the
+/// longest whole form the row holds: a narrower row drops a whole cue, never
+/// an action, down to the narrowest panel, one row in both glyph columns,
+/// the row the rest rows measure. Refused, or with no review, the waiting
+/// state's own hint stays.
+#[test]
+fn a_reviewed_proposal_names_every_consent_word_on_its_row() {
+    let composer = Composer::new();
+    for ascii in [false, true] {
+        let review = reviewed_candidate(true, ascii);
+        let state = proposing("", ascii);
+        for (width, form) in [
+            (120, 0),
+            (85, 0),
+            (84, 1),
+            (77, 1),
+            (76, 2),
+            (56, 2),
+            (55, 3),
+            (41, 3),
+            (40, 4),
+            (37, 4),
+            (36, 4),
+        ] {
+            let at = format!("{width} ascii={ascii}");
+            let hint = hint_lines(&state, &composer, width, Some(&review));
+            assert_eq!(hint.len(), 1, "{at}");
+            let text = spans(&hint[0]);
+            assert_eq!(text, own(SAVE_RUN_HINTS[form], ascii), "{at}");
+            assert_eq!(wrapped_rows(&hint, width), 1, "{at}");
+            for word in ["save & run", "yes: ", "no: discard"] {
+                assert!(text.contains(word), "{at}: {text}");
+            }
+            assert!(!ascii || text.is_ascii(), "{at}: {text}");
+            assert_eq!(rest_rows(&state, width, Some(&review)), 3, "{at}");
+        }
+        let refused = reviewed_candidate(false, ascii);
+        for width in [44_u16, 92] {
+            let hint = hint_lines(&state, &composer, width, Some(&refused));
+            let text = spans(&hint[0]);
+            assert!(text.starts_with("yes + Enter: Save"), "{width}: {text}");
+            assert!(!text.contains("save & run"), "{width}: {text}");
+            assert_eq!(hint_lines(&state, &composer, width, None), hint, "{width}");
+        }
+    }
+}
+
+/// The reviewed proposal lends the rail only while it is exactly the waiting
+/// proposal's own: a saved, checked, run or earlier rail keeps its row, and
+/// so does any rail with no review. The status keeps the standing, scoped to
+/// this proposal (never a session-wide « nothing has run »), in its longest
+/// whole form; demand, painting and the rest rows read the one rule.
+#[test]
+fn a_reviewed_proposal_lends_only_its_exact_empty_rail() {
+    let composer = Composer::new();
+    let live = Rect::new(0, 0, 44, 20);
+    let empty = "Draft ✓ · Saved ○ · Checked ○ · Active ○ · Run ○";
+    let earlier = format!("{empty} (earlier ✓)");
+    let ran = "Draft ✓ · Saved ✓ · Checked ✓ · Active ○ · Run ✓";
+    let saved = "Draft ✓ · Saved ✓ · Checked ○ · Active ○ · Run ○";
+    for ascii in [false, true] {
+        let review = reviewed_candidate(true, ascii);
+        for (rail, reviewed, lent) in [
+            (empty, true, true),
+            (saved, true, false),
+            (ran, true, false),
+            (earlier.as_str(), true, false),
+            (empty, false, false),
+        ] {
+            let at = format!("{rail} reviewed={reviewed} ascii={ascii}");
+            let state = proposing(rail, ascii);
+            let consent = reviewed.then_some(&review);
+            let panel = Panel {
+                boxed: false,
+                consent,
+            };
+            let areas = areas_of(&state, &composer, live, panel);
+            assert_eq!(areas.rail.height, u16::from(!lent), "{at}");
+            assert_eq!(areas.status.height, 1, "{at}: the standing keeps its row");
+            let asked = panel_rows(&state, &composer, 44, 40, panel);
+            assert_eq!(asked, rest_rows(&state, 44, consent), "{at}: at rest");
+            let fit = areas_of(&state, &composer, Rect::new(0, 0, 44, asked), panel);
+            let shown = (fit.rail.height, fit.status.height, fit.input.height);
+            assert_eq!(shown, (u16::from(!lent), 1, 1), "{at}");
+            let status = spans(&status_line(&state, false, 44, consent));
+            let standing = if reviewed {
+                STANDING[0]
+            } else {
+                PROPOSAL_STATUS
+            };
+            assert_eq!(status, own(standing, ascii), "{at}");
+            assert!(!status.contains("nothing has run"), "{at}");
+        }
+        let state = proposing(empty, ascii);
+        let narrow = spans(&status_line(&state, false, 40, Some(&review)));
+        assert_eq!(narrow, "Not saved yet", "a whole shorter form");
+    }
+}
+
+/// A rail too wide for its row keeps its newest stages: a leading done stage
+/// the next done stage implies gives way under one mark at its head, only as
+/// far as the row needs, then the end is cut as before; a rail that fits, or
+/// whose head no later stage implies, reads as it did. Painting reads it.
+#[test]
+fn a_cut_rail_keeps_its_newest_stages() {
+    let ran = "Draft ✓ · Saved ✓ · Checked ✓ · Active ○ · Run ✓";
+    let kept = "Saved ✓ · Checked ✓ · Active ○ · Run ✓";
+    assert_eq!(newest(ran, 60, false), ran);
+    assert_eq!(newest(ran, 44, false), format!("… {kept}"));
+    assert_eq!(newest(ran, 36, false), "… Checked ✓ · Active ○ · Run ✓");
+    assert_eq!(newest(ran, 44, true), format!("... {kept}"));
+    let asked = "Draft ● · Saved ○ · Checked ○ · Active ○ · Run ○";
+    let cut = "Draft ● · Saved ○ · Checked ○ · Active ○…";
+    assert_eq!(newest(asked, 44, false), cut, "no stage implies its head");
+    for width in [20_u16, 30, 36, 40, 44] {
+        for ascii in [false, true] {
+            let shown = newest(ran, width, ascii);
+            let cells = unicode_width::UnicodeWidthStr::width(shown.as_str());
+            assert!(cells <= usize::from(width), "{width}: {shown}");
+        }
+    }
+    let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
+    state.rail = ran.to_owned();
+    state.status = "Last Run · Done · the run succeeded".to_owned();
+    let mut terminal = Terminal::new(TestBackend::new(44, 6)).expect("terminal");
+    terminal
+        .draw(|frame| render_live(frame, &state, &Composer::new(), frame.area()))
+        .expect("draw");
+    let first = row(terminal.backend().buffer(), 0);
+    assert_eq!(first, format!("… {kept}"));
 }

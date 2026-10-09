@@ -405,9 +405,24 @@ impl Live {
 
     /// One outcome to beats, and the handoff it asks for.
     fn map(&mut self, outcome: TurnOutcome) -> (Vec<Beat>, Option<Handoff>) {
+        let reply = footer::reply_label(&outcome);
+        self.mapped(outcome, reply)
+    }
+
+    /// A Run's own observation to beats: its status is that Run's, never a
+    /// reply beside a retained Run, so its footer takes no reply label.
+    fn observed(&mut self, outcome: TurnOutcome) -> (Vec<Beat>, Option<Handoff>) {
+        self.mapped(outcome, None)
+    }
+
+    /// [`Self::map`] with the footer's `reply` label, as its caller scopes it.
+    fn mapped(
+        &mut self,
+        outcome: TurnOutcome,
+        reply: Option<&str>,
+    ) -> (Vec<Beat>, Option<Handoff>) {
         let mut beats = Vec::new();
         let mut handoff = None;
-        let reply = footer::reply_label(&outcome);
         match outcome {
             TurnOutcome::Quit => return (self.quit_beats(), None),
             TurnOutcome::RunReviewed { review, approve } => {
@@ -624,7 +639,7 @@ impl Live {
             Some(leg) => runtime.observe_run_leg(code, trace.as_deref(), leg),
             None => runtime.observe_run(code, trace.as_deref()),
         };
-        let (more, again) = self.map(outcome);
+        let (more, again) = self.observed(outcome);
         beats.extend(more);
         if again.is_some() {
             self.pending = None;
@@ -1101,7 +1116,7 @@ impl Live {
             return vec![Beat::Quit];
         };
         let outcome = runtime.observe_run(code, trace.as_deref());
-        let (mut beats, again) = self.map(outcome);
+        let (mut beats, again) = self.observed(outcome);
         if again.is_some() {
             self.pending = None;
             beats.push(Beat::Say(Committed::new(

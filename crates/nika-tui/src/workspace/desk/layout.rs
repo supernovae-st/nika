@@ -30,10 +30,10 @@ use crate::workspace::geometry::{Arrangement, Geometry, Layout, Separator};
 use crate::workspace::project::{self, Opened};
 use crate::workspace::screen;
 
-/// The rows of the exchange that led to a homed question its restored
-/// stacked conversation keeps above the question's own row at rest; short of
-/// them, the object folds to its strip.
-pub(super) const QUESTION_CONTEXT: usize = 3;
+/// The rows of the exchange that led to a homed question or a reviewed
+/// proposal its restored stacked conversation keeps above the decision at
+/// rest; short of them, the object folds to its strip.
+pub(super) const DECISION_CONTEXT: usize = 3;
 
 /// The columns a separator key moves the aside or the conversation by.
 const COLUMN_STEP: u16 = 2;
@@ -84,11 +84,12 @@ impl Desk {
     /// conversation of the workspace: the proposal the conversation reviews
     /// or the question its live card carries (never a gate, a choice, a draft
     /// or set-aside candidate, or another identity), from its piece to the
-    /// end, beside the live area at rest ([`screen::rest_transcript`]); a
-    /// homed question also asks [`QUESTION_CONTEXT`] rows of the exchange
-    /// that led to it.
+    /// end, beside the live area at rest as that review reads it
+    /// ([`screen::rest_transcript`]); a reviewed proposal and a homed question
+    /// also ask [`DECISION_CONTEXT`] rows of the exchange that led to them.
     pub(super) fn overflowed(&self, state: &UiState, review: Option<&Review>) -> bool {
-        let reviewed = review::summarized(state, review).map(|(at, _)| at);
+        let current = review::summarized(state, review);
+        let reviewed = current.map(|(at, _)| at);
         let asked = question::asked_block(state);
         let (Some(from), Some(geometry)) = (reviewed.or(asked), self.arranged(state.size)) else {
             return false;
@@ -101,9 +102,10 @@ impl Desk {
         }
         let label = self.shown().map(Opened::label);
         let thread = project::thread(self.view.as_ref(), label.as_deref());
-        let transcript = screen::rest_transcript(&geometry, state, &thread);
-        let context = if reviewed.is_none() && question::rest_homed(state) {
-            QUESTION_CONTEXT
+        let consent = current.map(|(_, review)| review);
+        let transcript = screen::rest_transcript(&geometry, state, &thread, consent);
+        let context = if reviewed.is_some() || question::rest_homed(state) {
+            DECISION_CONTEXT
         } else {
             0
         };

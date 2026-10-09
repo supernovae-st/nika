@@ -1064,11 +1064,13 @@ fn a_reopened_footer_tells_an_earlier_success_from_this_session() {
     );
     let (narrow, narrow_rows) = footer_rows(told, 40);
     // The complete earlier-session note stays visible; a cut mark tells that
-    // both rows continue instead of silently dropping their remaining facts.
+    // both rows continue instead of silently dropping their remaining facts,
+    // the rail giving way first at its head (the draft its save implies) so
+    // its newest stages stay.
     assert_eq!(
         narrow,
         [
-            "Draft ✓ · Saved ✓ · Checked ○ · Active…",
+            "… Saved ✓ · Checked ○ · Active ○ · Run…",
             &format!("{note}…")
         ]
     );

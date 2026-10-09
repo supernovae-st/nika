@@ -12,15 +12,19 @@
 //!
 //! A previous fold lends only its look, and only to the very same bytes at the
 //! very same path; every other fact (the identity, the changes and their
-//! witnesses, what the workflow reaches, the rehearsal, the standing) is taken
-//! from the Session anew. The fold grants nothing and joins no consent.
+//! witnesses, what the workflow reaches, what a `save & run` would run, the
+//! rehearsal, the standing) is taken from the Session anew. The fold grants
+//! nothing and joins no consent.
 
-use nika_session::change::{ProjectChange, Witness};
+use std::fmt::Write as _;
+
+use nika_session::change::{ProjectChange, ProjectChangeSet, Witness};
 use nika_session::work::Waiting;
 use nika_session::{ProposalId, SessionRuntime};
 
 use super::look::judge;
-use crate::workspace::candidate::Proposed;
+use crate::workspace::candidate::{Proposed, RunAfter};
+use crate::workspace::cards::review::KEEP;
 use crate::workspace::inspect::Inspected;
 
 /// The runtime's candidate, folded; `kept` is the previous fold.
@@ -81,9 +85,34 @@ pub(crate) fn take(runtime: &SessionRuntime, kept: Option<&Proposed>) -> Option<
                 .map_or_else(Vec::new, |r| revised(&r)),
         )
         .declaring(world)
+        .running(run_after(set))
         .unshown(set.changes.len().saturating_sub(1))
         .rehearsed(candidate.rehearsed.map(str::to_owned));
     Some(fold)
+}
+
+/// What a `save & run` of `set` runs once its save checked clean, as the
+/// Session's own typed method admits it (`ProjectChangeSet::save_run`): the
+/// run its request carried, in words (the workflow, the ceiling it states and
+/// the names of its inputs, never their values), else the one workflow it
+/// saves; `None` where the method refuses. Nothing here reads a file.
+fn run_after(set: &ProjectChangeSet) -> Option<RunAfter> {
+    let run = set.save_run().ok()?;
+    if set.run.is_none() {
+        return Some(RunAfter::Saved);
+    }
+    let mut words = format!("asked run · {} once", run.workflow.display());
+    if let Some(ceiling) = run.max_cost_usd {
+        let _ = write!(words, " · ceiling ${ceiling:.2}");
+    }
+    // `name=value`: the name alone, as the work snapshot keeps it.
+    let names: Vec<&str> = (run.vars.iter())
+        .filter_map(|var| var.split_once('=').map(|(name, _)| name))
+        .collect();
+    if !names.is_empty() {
+        let _ = write!(words, " · inputs {}", names.join(", "));
+    }
+    Some(RunAfter::Asked(words))
 }
 
 /// Where the draft's look is named: it lands nowhere until a proposal says where.
@@ -151,15 +180,16 @@ fn reaches_outside(reach: nika_session::world::Reach) -> bool {
     !matches!(reach, Reach::Local | Reach::LocalServices)
 }
 
-/// One change in words: what it creates or replaces, where, how long, and
-/// over which witnessed bytes a replacement stands.
+/// One change in words: what it creates or replaces, where, how long (the
+/// count bound to its unit, [`KEEP`]), and over which witnessed bytes a
+/// replacement stands.
 fn words(change: &ProjectChange) -> String {
     let path = change.path().display().to_string();
     let lines = change.content().lines().count();
     match change.witness() {
-        None => format!("creates {path} · {lines} lines · new"),
+        None => format!("creates {path} ({lines}{KEEP}lines)"),
         Some(before) => format!(
-            "replaces {path} · {lines} lines · over the bytes witnessed {}",
+            "replaces {path} ({lines}{KEEP}lines) · over the bytes witnessed {}",
             before.short()
         ),
     }

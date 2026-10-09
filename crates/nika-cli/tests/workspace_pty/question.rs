@@ -311,16 +311,22 @@ fn the_compact_proposal_keeps_its_identity_effects_and_unsent_input_in_view() {
                     .collect::<Vec<_>>()
                     .join(" ")
             };
-            [
-                "proposal ",
-                "what a yes answers",
-                "not saved",
-                "nothing has run on your files",
+            // The identity a yes answers rides the card's border beside its
+            // reader key, whatever else names the proposal; the status row
+            // keeps the scoped standing, the card the material facts.
+            let footed = words.split("proposal ").skip(1).any(|rest| {
+                rest.split_once(" · F2: whole words")
+                    .is_some_and(|(id, _)| {
+                        id.len() == 12 && id.chars().all(|c| c.is_ascii_hexdigit())
+                    })
+            });
+            let facts = [
+                "Not saved yet",
                 "creates aggregate-by-key.nika",
                 "when it runs",
-            ]
-            .iter()
-            .all(|fact| words.contains(fact))
+            ];
+            footed
+                && facts.iter().all(|fact| words.contains(fact))
                 && screen
                     .lines()
                     .iter()
