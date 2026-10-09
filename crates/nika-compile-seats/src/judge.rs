@@ -14,6 +14,9 @@ use serde_json::{Value, json};
 use crate::foundry::ComponentCatalog;
 use crate::foundry::witness::witness;
 
+mod construction;
+pub use construction::{Construction, Construed};
+
 /// The state every question and every repair carries: the request as compiled and as first
 /// stated, its answers, the observed world and the candidate's bytes. The first statement is
 /// the one the binding holds ([`Binding::of`](nika_compile::surface::Binding::of)): the
@@ -92,7 +95,9 @@ const SECTIONS: [&str; 2] = ["document_create", "document_revision"];
 /// - `catalogue`: the identity of the release the door was lent, or null when none was;
 /// - `offered`: every admitted component the door offered its author (`document::components`),
 ///   by identity, title, purpose, holes and effects, with their `total` (0: none offered, or no
-///   catalogue);
+///   catalogue); on bytes made, each with its `construction` on them ([`Construction`]): the
+///   strongest witness of its receipts and the callables its admitted row declares, or why the
+///   catalogue resolves no admitted bytes for it;
 /// - `composed`: each receipt the section holds, witnessed on the bytes this attempt made
 ///   (`expanded`, `revised`, `invoked`, `absent`, `unreadable`); a receipt a rewrite left behind
 ///   is `absent`, never current composition;
@@ -125,6 +130,9 @@ pub fn lent(catalog: Option<&dyn ComponentCatalog>, out: &mut CompileOutcome) {
                     "verdict": seen["verdict"]})
             })
             .collect();
+        if let Some(catalog) = catalog {
+            construction::assess(catalog, &mut facts["offered"]["components"], &composed);
+        }
         facts["composed"] = json!(composed);
         facts["candidate_sha256"] = json!(sha256(bytes));
     }
@@ -237,6 +245,14 @@ mod tests {
             offered[29]["component"]["id"], "block:x",
             "the applicable one, last"
         );
+        // Why no offer resolves (unknown, never no fit); the receipt pins no release digest,
+        // so it witnesses no offer of this release.
+        let unresolved = "the admitted release holds no component `block:x`";
+        assert_eq!(
+            offered[29]["construction"],
+            json!({"held": null, "unresolved": unresolved})
+        );
+        assert_eq!(offered[0]["construction"]["held"], Value::Null);
         let absent = json!([{"component": "block:x", "release": {"version": "r1"},
             "verdict": "absent"}]);
         assert_eq!(facts["composed"], absent);

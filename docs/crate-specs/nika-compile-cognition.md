@@ -399,7 +399,19 @@ each part of the request asked alone.
   a run does. A named task makes the part a defect noted « the judge points to the task
   `<id>` », and `omitted` one noted « the judge finds no task performing it »; `no_task` leaves
   the part contested, and no choice leaves it unknown. A pointer that gets no answer stops the
-  localization.
+  localization. When the judged state carries the engine facts of a lent catalogue with each
+  offer's construction status (`nika_compile_seats::judge::Construction`), the pointer also
+  offers, before `no_task`, `component-<k>` for each offered component that resolves and the
+  bytes do not hold as admitted, then `no_fit`; its instructions say a clause may concern how
+  the document is built, judged against the original request, its explicit constraints and each
+  contract, never against the candidate's own permits or tasks. A named component makes the part
+  a defect noted with that component (release, holes with their owners, declared effects and
+  callables), what the document door's repair composes from; `no_fit` settles that part alone,
+  its own alternative standing, when every offer was examinable, and leaves it unknown when one
+  could not be resolved. The pointer's record keeps the basis (`construction`). Over a whole run,
+  a part named and then found with no offer fitting leaves the request unsettled (« the judge
+  named a part in the trial run, then no offer fitting it »). The per-clause pointer of
+  `judge_clause` leaves such a fallback contested: the core admits no judgment for it.
 - **A trial run** (below), when the sketch door passes a run of these exact bytes that proves
   whole outputs and the localization did not stop: each part left unknown or contested, and each
   restricting part judged a defect, is asked again over the run (`verify-observed-part-<k>`,

@@ -102,7 +102,11 @@ as an external consumer.
   native record its rounds replay (`facts`):
   - `catalogue`: the identity of the release the door was lent, or null when none was lent;
   - `offered`: every admitted component the door offered its author (`document::components`),
-    by identity, title, purpose, holes and effects, with their `total`, and no quota;
+    by identity, title, purpose, holes and effects, with their `total`, and no quota. On bytes
+    made, each also states its `construction` on them: `held`, the strongest witness of a
+    receipt of that component pinned to the lent release by version and digest (null when none
+    names it there), and the `callables` its admitted row declares, or `unresolved` with the
+    reason the catalogue gives no admitted bytes for it;
   - `composed`: each receipt of the section, witnessed on the bytes that attempt made
     (`foundry::witness`). A receipt a rewrite left behind is `absent`, never current
     composition, and the section keeps its receipts as lineage;
@@ -113,8 +117,15 @@ as an external consumer.
   round replays. A replay of those bytes therefore shows the facts its rejection was bound to,
   while a revision (other bytes) never shows its base's facts. Another release, offer or
   composition is another context, judged again. Deciding whether an offered component applies
-  stays the judge's. The verifier that asks the questions and weighs the answers stays in
-  `nika-compile-cognition`.
+  stays the judge's, against the original request, its explicit constraints and each contract;
+  the candidate's own permits or tasks never decide it. `Construction` reads a judged state's
+  facts into the alternatives a localization of a missing clause may answer (a construction
+  obligation, R5): `component-<k>` for each offer that resolves and the bytes do not hold as
+  admitted, and `no_fit`. `Construed::Defect` names the component (release, holes with their
+  owners, declared effects and callables) for the document repair; `Construed::Fallback` lets
+  that clause's own alternative stand when every offer was examinable; `Construed::Undecided`
+  keeps the fit unknown when an offer could not be resolved. The verifier that asks the
+  questions and weighs the answers stays in `nika-compile-cognition`.
 - `repairs` — the laws that end the verifier's work: `progressed` (a defect set is progress
   when it names a new part or narrows the last set) and `carry_declined` (the record of bytes a
   judge rejected keeps each rejection of them once per judge, context and request, so every

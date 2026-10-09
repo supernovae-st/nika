@@ -61,7 +61,10 @@ async fn omitted_is_withheld_from_a_pure_prohibition_and_offered_to_a_demand() {
         assert_eq!(asked["options"], json!(options), "{part}");
         assert_eq!(asked["clause"]["text"], part);
         if omittable {
-            assert!(matches!(pointed, Some(Pointed::Omitted)), "{part}");
+            assert!(
+                matches!(&pointed, Some(Pointed::Defect(note)) if note == OMITTED),
+                "{part}"
+            );
             assert_eq!(asked["choice"], "omitted");
             assert_eq!(counts(&verdict), (1, 1, 1));
         } else {
