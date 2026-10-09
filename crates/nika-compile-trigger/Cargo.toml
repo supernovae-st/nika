@@ -10,10 +10,10 @@ repository  = "https://github.com/supernovae-st/nika"
 publish     = false  # member of the nika-onboard unit — never on crates.io alone
 
 [dependencies]
-nika-compile-reader = { path = "../nika-compile-reader", version = "0.122.0" } # the fold, the cadence tables, the day-part compounds, the recurrences and the quantifier heads the reading reads (ONE unit, several members · ADR-142)
+nika-compile-reader = { path = "../nika-compile-reader", version = "0.123.0-preview.1" } # the fold, the cadence tables, the day-part compounds, the recurrences and the quantifier heads the reading reads (ONE unit, several members · ADR-142)
 
 [dev-dependencies]
-nika-cadence = { path = "../nika-cadence", version = "0.122.0" } # the tests prove every proposal parses in the one canonical scheduler grammar
+nika-cadence = { path = "../nika-cadence", version = "0.123.0-preview.1" } # the tests prove every proposal parses in the one canonical scheduler grammar
 
 [package.metadata.lore]
 daemon        = "forgeron"

@@ -102,10 +102,20 @@ readiness_cadence=10
 [ "$readiness_budget" -ge "$readiness_cadence" ] || readiness_budget="$readiness_cadence"
 readiness_attempts=$((readiness_budget / readiness_cadence))
 
+# A prerelease (any version carrying `-`) is published under the `next`
+# dist-tag: npm refuses an untagged prerelease, and forcing it would move
+# `latest` to a preview, since npm only guards against a lower version. A
+# stable version keeps npm's default tag. Never `--force`.
+dist_tag=()
+case "${coordinate##*@}" in
+  *-*) dist_tag=(--tag next) ;;
+esac
+
 # npm records its OIDC exchange in the private debug log even at the
 # default console level. Keep that log ephemeral; emit only fixed diagnoses,
 # never its token-bearing contents or a registry-supplied error message.
-if npm publish "$tgz" --provenance --access public --logs-dir "$scratch/npm-logs"; then
+if npm publish "$tgz" --provenance --access public ${dist_tag[@]+"${dist_tag[@]}"} \
+  --logs-dir "$scratch/npm-logs"; then
   publish_failed=false
 else
   publish_failed=true

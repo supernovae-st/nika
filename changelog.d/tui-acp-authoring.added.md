@@ -1,1 +1,0 @@
-- **Explicit Claude ACP preparation.** Session can persist an explicit Claude ACP choice for conversation and workflow authoring, preserving native choices, bounded calls, unknown subscription billing and existing API exposure. The audited adapter profile disables tools before a prompt; unsupported adapters or incomplete answers refuse without fallback.

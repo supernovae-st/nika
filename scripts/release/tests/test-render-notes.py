@@ -10,13 +10,13 @@ SCRIPT = pathlib.Path(__file__).resolve().parents[1] / "render-notes.sh"
 
 
 class ReleaseNotes(unittest.TestCase):
-    def render(self, section: str) -> str:
+    def render(self, section: str, version: str = "0.121.0") -> str:
         with tempfile.TemporaryDirectory() as scratch:
             path = pathlib.Path(scratch) / "CHANGELOG.md"
-            source = f"# Changelog\n\n## [0.121.0]\n\n{section}\n\n## [0.120.3]\nOLD\n"
+            source = f"# Changelog\n\n## [{version}]\n\n{section}\n\n## [0.120.3]\nOLD\n"
             path.write_text(source)
             result = subprocess.run(
-                ["bash", str(SCRIPT), "v0.121.0"], cwd=scratch,
+                ["bash", str(SCRIPT), f"v{version}"], cwd=scratch,
                 text=True, capture_output=True, check=True,
             ).stdout
             self.assertEqual(path.read_text(), source)
@@ -24,6 +24,20 @@ class ReleaseNotes(unittest.TestCase):
             self.assertIn("## Install", result)
             self.assertIn("## Provenance", result)
             return result
+
+    def test_stable_install_offers_brew_and_the_script(self):
+        result = self.render("- Stable.")
+        self.assertIn("brew install supernovae-st/tap/nika", result)
+        self.assertIn("curl -LsSf https://nika.sh/install.sh | sh   # script install", result)
+
+    def test_prerelease_install_pins_its_version(self):
+        result = self.render("- Preview.", "0.123.0-preview.1")
+        install = result.split("## Install", 1)[1].split("## Verify", 1)[0]
+        self.assertNotIn("brew install", install)
+        self.assertNotIn("install.sh | sh   #", install)
+        self.assertIn("install.sh | sh -s -- --version 0.123.0-preview.1", install)
+        self.assertIn("ghcr.io/supernovae-st/nika:0.123.0-preview.1", install)
+        self.assertIn("pre-release", install)
 
     def test_small_section_is_preserved(self):
         self.assertIn("- Preserve the user's columns.",

@@ -162,6 +162,7 @@ frozen forever and is orthogonal to the engine's binary version. See
 Version ladder (no per-tag dates · quality > speed):
 
 - **release-candidate grade reached at 0.91.0**: usable vertical slice (4 verbs, 16 providers per canon.yaml, effects, static-check, MCP/LSP, CLI), headless workspace build — the CHANGELOG top names the current release.
+- **0.x previews** (`vX.Y.Z-preview.N`) — an optional pre-release of a 0.x wave: never the Latest release, never in the Homebrew formula, on npm under `next` only, never announced. `rc` stays reserved for 1.0.0.
 - **1.0.0-rc.N** — design-partner hardening, 7 shadow zones green.
 - **1.0.0** — **first public launch**: language + installable binary, validated.
 - **1.x minors** — add the remaining crates additively under the ADR-037 count horizon (50-90 · cap 100 · projected, never a gate) (pck, native API adapters, WASM plugins, full observability, full LSP, keys subsystem).

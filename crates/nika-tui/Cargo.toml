@@ -27,13 +27,13 @@ crossterm        = { workspace = true, features = ["use-dev-tty"] }
 ratatui-textarea = { workspace = true }
 tokio            = { workspace = true, features = ["sync", "signal", "time", "rt", "macros"] }
 unicode-width    = "0.2"
-nika-session     = { path = "../nika-session", version = "0.122.0", default-features = false }   # the live conversation (UX-2): TurnOutcome → beats, L4 lateral like nika-cli
+nika-session     = { path = "../nika-session", version = "0.123.0-preview.1", default-features = false }   # the live conversation (UX-2): TurnOutcome → beats, L4 lateral like nika-cli
 
-nika-cli-host    = { path = "../nika-cli-host", version = "0.122.0", default-features = false } # live one-use child review, no admission authority
-nika-display     = { path = "../nika-display", version = "0.122.0" }   # the theme seam (Role · verb and state glyphs), already under nika-session and nika-cli-host
-nika-fs          = { path = "../nika-fs", version = "0.122.0" }   # OwnedDir · read_capped — the Live host adapter reads one listed workflow below the root, no symlink, bounded (never the renderer)
-nika-tui-view    = { path = "../nika-tui-view", version = "0.122.0" }   # the faces of an opened workflow, from the Session's look (ADR-143 · nika-tui → nika-tui-view, never back)
-nika-trace       = { path = "../nika-trace", version = "0.122.0", default-features = false }   # the ONE verifier over a captured journal (verify_captured) and its fold (RunFacts::of) for the Proof face · L4 lateral, never back
+nika-cli-host    = { path = "../nika-cli-host", version = "0.123.0-preview.1", default-features = false } # live one-use child review, no admission authority
+nika-display     = { path = "../nika-display", version = "0.123.0-preview.1" }   # the theme seam (Role · verb and state glyphs), already under nika-session and nika-cli-host
+nika-fs          = { path = "../nika-fs", version = "0.123.0-preview.1" }   # OwnedDir · read_capped — the Live host adapter reads one listed workflow below the root, no symlink, bounded (never the renderer)
+nika-tui-view    = { path = "../nika-tui-view", version = "0.123.0-preview.1" }   # the faces of an opened workflow, from the Session's look (ADR-143 · nika-tui → nika-tui-view, never back)
+nika-trace       = { path = "../nika-trace", version = "0.123.0-preview.1", default-features = false }   # the ONE verifier over a captured journal (verify_captured) and its fold (RunFacts::of) for the Proof face · L4 lateral, never back
 serde_json       = { workspace = true }   # host parsing of bytes it already holds: the verifier's versioned --json verdict, a write's JSON-encoded output path, a kept execution read back through ExecutionId's own Deserialize
 
 [dev-dependencies]

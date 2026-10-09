@@ -7,7 +7,7 @@
     "diagnostics": [],
     "provenance": {
       "cognition": "deterministicOnly",
-      "compiler_version": "0.122.0",
+      "compiler_version": "0.123.0-preview.1",
       "decision": {
         "intent_sha256": "84d3fa61fcefb8be4c598537d25cf6fc3aa1b8ed2532c12b1c91f361c426c24f",
         "ledger": [

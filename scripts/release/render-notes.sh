@@ -48,6 +48,27 @@ if [ "$(printf '%s' "$what" | wc -c | tr -d ' ')" -gt 64000 ]; then
 Read the [complete changes for ${tag}](https://github.com/${repo}/blob/${tag}/CHANGELOG.md). The full changelog is preserved in this release's source tree; the pull request index follows below."
 fi
 
+# A prerelease is installed by its version only: Homebrew and the default
+# install script deliver the latest stable release, never this one.
+case "$version" in
+  *-*)
+    install="This is a pre-release. Homebrew and the default install script install the latest
+stable release, not this one; pin this version instead:
+
+\`\`\`sh
+curl -LsSf https://nika.sh/install.sh | sh -s -- --version ${version}
+docker run --rm ghcr.io/${repo}:${version} --version
+\`\`\`"
+    ;;
+  *)
+    install="\`\`\`sh
+brew install supernovae-st/tap/nika          # macOS · Linux
+curl -LsSf https://nika.sh/install.sh | sh   # script install
+docker run --rm ghcr.io/${repo}:${version} --version
+\`\`\`"
+    ;;
+esac
+
 cat <<EOF
 ## What
 
@@ -55,11 +76,7 @@ ${what}
 
 ## Install
 
-\`\`\`sh
-brew install supernovae-st/tap/nika          # macOS · Linux
-curl -LsSf https://nika.sh/install.sh | sh   # script install
-docker run --rm ghcr.io/${repo}:${version} --version
-\`\`\`
+${install}
 
 Tarballs below: macOS arm64 / x64 · Linux x64 / arm64, plus \`SHA256SUMS\`.
 

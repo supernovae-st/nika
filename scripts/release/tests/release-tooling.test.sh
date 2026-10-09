@@ -57,6 +57,7 @@ TEST_ROOT="$(mktemp -d)"
 FIXTURE="$TEST_ROOT/clean"
 DIRTY_FIXTURE="$TEST_ROOT/dirty"
 ROLLBACK_FIXTURE="$TEST_ROOT/rollback"
+PREVIEW_FIXTURE="$TEST_ROOT/preview"
 trap 'rm -rf "$TEST_ROOT"; verify_caller_untouched' EXIT
 
 fail() {
@@ -154,6 +155,7 @@ git -C "$FIXTURE" -c user.name=fixture -c user.email=fixture@example.invalid \
 
 cp -R "$FIXTURE" "$DIRTY_FIXTURE"
 cp -R "$FIXTURE" "$ROLLBACK_FIXTURE"
+cp -R "$FIXTURE" "$PREVIEW_FIXTURE"
 
 tree_digest() {
   local repo="$1"
@@ -291,6 +293,21 @@ fi
 grep -q 'crates/nika-acp/Cargo.lock disagrees' "$FIXTURE/uniform.out" \
   || fail 'the uniformity failure did not name the stale excluded-crate lock'
 
+# A 0.x preview (`-preview.N`) is a semver prerelease every release gate takes:
+# the sweep folds it into its own heading, and the uniformity gate and the
+# version surfaces (run on the fixture through a copy) agree on it.
+CARGO_NET_OFFLINE=true SPN_WAVE_REPO="$PREVIEW_FIXTURE" \
+  bash "$ROOT/scripts/release/wave-sweep.sh" 0.115.0-preview.1 >/dev/null \
+  || fail 'the release sweep refused a preview version'
+grep -q '^## \[0\.115\.0-preview\.1\]' "$PREVIEW_FIXTURE/CHANGELOG.md" \
+  || fail 'a preview sweep did not fold into its own heading'
+SPN_VERSION_REPO="$PREVIEW_FIXTURE" bash "$ROOT/scripts/ci/check-version-uniform.sh" \
+  >/dev/null || fail 'the uniformity gate refused a preview version'
+mkdir -p "$PREVIEW_FIXTURE/scripts/hygiene"
+cp "$ROOT/scripts/hygiene/check-version-surfaces.sh" "$PREVIEW_FIXTURE/scripts/hygiene/"
+bash "$PREVIEW_FIXTURE/scripts/hygiene/check-version-surfaces.sh" >/dev/null \
+  || fail 'the version surfaces refused a preview version'
+
 grep -q 'crates/nika-acp/Cargo.lock' "$ROOT/RELEASING.md" \
   || fail 'the canonical carrier list omits crates/nika-acp/Cargo.lock'
 grep -q 'before declaring the release complete' "$ROOT/RELEASING.md" \
@@ -333,7 +350,7 @@ printf '%s\n' "$build_job" | grep -q '^    needs: coordinate' \
 # shellcheck disable=SC2016
 printf '%s\n' "$build_job" | grep -q 'ref: \${{ needs.coordinate.outputs.sha }}' \
   || fail 'release builders do not consume the frozen commit sha'
-for tag in v1.0.0 v1.0.0-rc.1 v0.80.0-alpha.1; do
+for tag in v1.0.0 v1.0.0-rc.1 v0.123.0-preview.1 v0.80.0-alpha.1; do
   bash "$ROOT/scripts/release/check-release-tag.sh" "$tag" \
     || fail "canonical publication coordinate $tag was refused"
 done
@@ -708,6 +725,8 @@ bash "$ROOT/scripts/release/tests/publication-barrier.test.sh" >/dev/null \
   || fail 'the cross-registry publication barrier regression failed'
 bash "$ROOT/scripts/release/tests/npm-oidc-diagnostic.test.sh" >/dev/null \
   || fail 'the npm OIDC diagnostic regression failed'
+bash "$ROOT/scripts/release/tests/npm-dist-tag.test.sh" >/dev/null \
+  || fail 'a prerelease npm publish was not confined to the next dist-tag'
 bash "$ROOT/scripts/release/tests/finalize-release.test.sh" >/dev/null \
   || fail 'the write-only finalizer barrier regression failed'
 python3 "$ROOT/scripts/release/tests/test-draft-authority.py" \

@@ -14,10 +14,10 @@ publish                = false
 test-support = []
 
 [dependencies]
-nika-cadence = { path = "../nika-cadence", version = "0.122.0" }
-nika-fs      = { path = "../nika-fs", version = "0.122.0" }
-nika-execution = { path = "../nika-execution", version = "0.122.0" }
-nika-providers = { path = "../nika-providers", version = "0.122.0" } # injected endpoint observations for owned-world admission; no environment reads
+nika-cadence = { path = "../nika-cadence", version = "0.123.0-preview.1" }
+nika-fs      = { path = "../nika-fs", version = "0.123.0-preview.1" }
+nika-execution = { path = "../nika-execution", version = "0.123.0-preview.1" }
+nika-providers = { path = "../nika-providers", version = "0.123.0-preview.1" } # injected endpoint observations for owned-world admission; no environment reads
 jiff         = { workspace = true }
 nix          = { workspace = true }
 serde_json   = { workspace = true }
