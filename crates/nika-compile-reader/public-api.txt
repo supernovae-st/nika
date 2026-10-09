@@ -550,7 +550,9 @@ pub fn nika_compile_reader::paths::composed_from(lower: &str, token: &str) -> bo
 pub fn nika_compile_reader::paths::directory_of(path: &str) -> alloc::string::String
 pub fn nika_compile_reader::paths::extension(path: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_compile_reader::paths::literals(text: &str) -> alloc::vec::Vec<nika_compile_reader::paths::PathShape>
+pub fn nika_compile_reader::paths::open_names(text: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_reader::paths::origin_and_path(stated: &str, token: &str) -> bool
+pub fn nika_compile_reader::paths::readings(name: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_reader::paths::single_file(text: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_compile_reader::paths::stem(path: &str) -> alloc::string::String
 pub fn nika_compile_reader::paths::token(word: &str) -> core::option::Option<nika_compile_reader::paths::PathShape>

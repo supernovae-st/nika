@@ -17,12 +17,14 @@ use nika_schema::{FileId, ParseMode, raw::RawAction};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
+mod asked;
 mod final_gate;
 mod instants;
 mod record_scope;
 mod records;
 mod role;
 mod scope;
+pub use asked::{asked_names, asked_readings};
 pub use final_gate::unbound_final_gate;
 /// The date-time shape classifier Law 25 reads, owned by `nika-compile-behavior` since
 /// 2026-10-09 (ADR-149), whose judge reads it too; this path names the very same function.
@@ -308,18 +310,8 @@ fn stated_paths_in(
     // The reader deliberately leaves an unquoted multiword compound name unresolved.
     // Its extent still cannot disappear from native fidelity: shortening it to the last
     // word names a different file. Dynamic placeholders remain for the typed answer door.
-    stated.extend(
-        paths::literals(intent)
-            .into_iter()
-            .filter_map(|shape| match shape {
-                PathShape::Placeholder(path)
-                    if path.contains('/') && !path.contains(['<', '>', '{', '}', '$']) =>
-                {
-                    Some(path)
-                }
-                _ => None,
-            }),
-    );
+    let open = paths::open_names(intent);
+    stated.extend(open.iter().cloned());
     stated.dedup();
     let literals: Vec<String> = paths::literals(intent)
         .into_iter()
@@ -383,7 +375,7 @@ fn stated_paths_in(
             let boundary = doc
                 .pointer("/permits/fs")
                 .map_or_else(|| "none".to_owned(), Value::to_string);
-            out.push(Diagnostic { kind: "path", message: format!("UNREALIZED PATH: the request names `{path}`; that occurrence is not realized by a `permits.fs.read` or `permits.fs.write` entry (permits.fs = {boundary}), an exact native `invoke.workflow` dependency, or a send to exactly that route of a URL the request states. Read it (nika:read / nika:glob + fs.read), write it (nika:write + fs.write), send to it (nika:fetch, not GET, to the stated URL followed by it) when the request names it as an endpoint's route, or invoke the stated child workflow as the request means; name it in `gaps` if it cannot be reached.") });
+            out.push(Diagnostic { kind: "path", message: format!("UNREALIZED PATH: the request names `{path}`; that occurrence is not realized by a `permits.fs.read` or `permits.fs.write` entry (permits.fs = {boundary}), an exact native `invoke.workflow` dependency, or a send to exactly that route of a URL the request states. Read it (nika:read / nika:glob + fs.read), write it (nika:write + fs.write), send to it (nika:fetch, not GET, to the stated URL followed by it) when the request names it as an endpoint's route, or invoke the stated child workflow as the request means; name it in `gaps` if it cannot be reached.{}", if open.contains(path) { asked::REMEDY } else { "" }) });
         }
     }
 }

@@ -953,5 +953,7 @@ async fn a_revision_doubt_is_settled_by_one_trial_of_its_exact_bytes() {
 }
 
 mod construction;
+/// An open name asked through the document door and answered on its recorded document.
+mod open_extent;
 /// Why the door ended with no document accepted.
 mod stopped;

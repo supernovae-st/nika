@@ -5,8 +5,9 @@
 //! route, realized by a send to exactly that URL, never a local directory to grant. A local path
 //! the request reads stays a path, even after a sentence that writes. An unquoted spaced name
 //! (`un payload out/notification.json`) keeps its exact extent: neither its last words nor any
-//! neighbouring literal settle it, and a quoted name owns its whole extent.
-use nika_compile_fidelity::fidelity::{Diagnostic, laws_observed};
+//! neighbouring literal settle it, and a quoted name owns its whole extent. Only the human's
+//! typed answer settles it, asked by the question that names it.
+use nika_compile_fidelity::fidelity::{Diagnostic, asked_names, laws_observed};
 use nika_compile_reader::lexicon;
 use serde_json::{Map, Value, json};
 
@@ -144,6 +145,62 @@ fn a_source_after_a_destination_sentence_is_never_realized_by_a_send() {
     let url = Some("http://127.0.0.1:57468/srv/stock");
     let doc = candidate(&[], &["./out/report.json"], url, &json!({}));
     assert_eq!(unrealized(intent, &doc), ["/srv/stock"]);
+}
+
+/// The open name is left to the typed answer of the question naming it (its blank constant read
+/// whole as the payload's path, one empty write entry beside the report's grant): nothing else
+/// is owed. Unnamed, it stays owed exactly, and the finding tells how the human settles it; an
+/// exact path's finding never does.
+#[test]
+fn an_open_name_is_left_to_the_question_naming_it_and_owed_exactly_otherwise() {
+    let consts = json!({"payload_path": ""});
+    let asked_path = "${{ const.payload_path }}";
+    let mut doc = candidate(
+        &["world/source.json"],
+        &["out/report.json", ""],
+        Some(ROUTE_URL),
+        &consts,
+    );
+    doc["tasks"]["write_1"]["invoke"]["args"]["path"] = json!(asked_path);
+    let label = format!("Quel fichier désigne « {PAYLOAD} » ?");
+    let named = [json!({"key": "const.payload_path", "label": label, "why": ""})];
+    let waived = asked_names(STOCK, &doc, &named);
+    assert_eq!(waived, [PAYLOAD]);
+    let plan = lexicon::read(STOCK).plan;
+    let mut out: Vec<Diagnostic> = Vec::new();
+    laws_observed(STOCK, &plan, &doc, &[], &waived, &[], None, &mut out);
+    assert!(out.iter().all(|d| d.kind != "path"), "{out:#?}");
+    let unnamed = [json!({"key": "const.payload_path", "label": "Où va le payload ?", "why": ""})];
+    assert!(asked_names(STOCK, &doc, &unnamed).is_empty());
+    let mut out: Vec<Diagnostic> = Vec::new();
+    laws_observed(STOCK, &plan, &doc, &[], &[], &[], None, &mut out);
+    let owed: Vec<&str> = (out.iter())
+        .filter(|d| d.kind == "path")
+        .map(|d| d.message.as_str())
+        .collect();
+    assert_eq!(owed.len(), 1, "the open name alone is owed: {out:#?}");
+    assert!(owed[0].contains(&format!("`{PAYLOAD}`")), "{}", owed[0]);
+    assert!(owed[0].contains("the human settles it"), "{}", owed[0]);
+    let route = unrealized(STOCK, &stock(&OUTPUTS, None));
+    assert_eq!(route, ["/notifications/stock", PAYLOAD]);
+    let mut out: Vec<Diagnostic> = Vec::new();
+    laws_observed(
+        STOCK,
+        &plan,
+        &stock(&OUTPUTS, None),
+        &[],
+        &[],
+        &[],
+        None,
+        &mut out,
+    );
+    let exact = out
+        .iter()
+        .find(|d| d.message.contains("`/notifications/stock`"));
+    assert!(
+        !exact.is_some_and(|d| d.message.contains("the human settles it")),
+        "{out:#?}"
+    );
 }
 
 /// A local path the request reads stays a path to read: a send to the stated sink at that route

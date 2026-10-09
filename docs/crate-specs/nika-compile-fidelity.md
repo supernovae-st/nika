@@ -149,6 +149,18 @@ needs keeps its default.
   after a destination sentence, and no fs authority is granted. An unquoted spaced name keeps
   its exact extent: no neighbouring literal, article or last words settle it.
   `stated_paths`, which takes no plan, passes no `url` binding: it realizes no route.
+- Added after the move, an open name's typed answer (`fidelity::asked_names`,
+  `fidelity::asked_readings`). An open name is the reader's unquoted spaced name holding a path
+  whose first word it leaves open (`paths::open_names`: `un payload out/notification.json`).
+  Law 1 still owes it exactly, and its finding says how the human settles it. A question asks
+  it when its label or why names it verbatim and no other open name, its `const.<slug>` is
+  declared blank, and a task reads `${{ const.<slug> }}` whole as its `path`. The native judge
+  then passes it as waived, and the admitted question is the closed choice of the name's
+  readings (`paths::readings`: the whole name, then from each later word to the path alone),
+  the only answers the replay bakes. A name no question names, or two name, stays owed; a
+  quoted name is no open name. `literal::answered::grant_paths` completes the side's one empty
+  `permits.fs` entry in place with the inferred paths the record's questions answered, every
+  other entry kept, as `grant_host` completes an answered endpoint.
 - Added after the move, Law 1's observed placement (`fidelity::laws_observed`, the door that
   also takes the host's observation; `laws` runs it with none and is unchanged). It applies to
   a bare file name the request states (`orders.csv`: one component, with no directory, home,
