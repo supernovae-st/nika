@@ -267,6 +267,12 @@ enum Answer {
     Fail,
     Refuse,
     Hang,
+    /// A deadline an inner layer met first (a harness's), as the adapters type it: API 408.
+    Deadline,
+    /// The same, behind a call ledger.
+    LedgeredDeadline,
+    /// A provider refusal whose words merely say it timed out.
+    SaysTimedOut,
 }
 
 /// Answers its script in order (the last answer repeats); keeps every request's messages and
@@ -318,7 +324,22 @@ impl ProviderInferDyn for Canned {
                 reason: "scripted local admission refusal".to_owned(),
             }),
             Answer::Hang => std::future::pending().await,
+            Answer::Deadline => Err(deadline()),
+            Answer::LedgeredDeadline => Err(ProviderError::Observed {
+                source: Box::new(deadline()),
+                calls: Vec::new(),
+            }),
+            Answer::SaysTimedOut => Err(ProviderError::Other {
+                reason: "upstream timed out".to_owned(),
+            }),
         }
+    }
+}
+
+fn deadline() -> ProviderError {
+    ProviderError::Api {
+        status: 408,
+        message: "harness authoring timed out; no answer accepted".to_owned(),
     }
 }
 
@@ -608,6 +629,31 @@ async fn no_response_zero_text_and_empty_text_are_three_different_answers() {
             Some(3),
             Some(framed(&["é✨", "{}"]))
         )
+    );
+}
+
+/// A deadline an inner layer met before the compiler's own (a harness's, typed API 408) is a
+/// timeout to the observer and to the receipt, behind a call ledger or not, with no usage; a
+/// provider refusal whose words merely say it timed out stays a provider error.
+#[tokio::test]
+async fn an_inner_deadline_is_a_timeout_and_its_words_alone_are_not() {
+    for answer in [Answer::Deadline, Answer::LedgeredDeadline] {
+        let (out, seen, _) = observed(vec![answer]).await;
+        assert!(!seen.is_empty(), "{out:#?}");
+        for meta in &seen {
+            assert_eq!(meta.failure, Some(Failure::Timeout));
+            assert_eq!((meta.usage_reported, meta.tokens), (None, [None; 3]));
+        }
+        let receipt = out.provenance.authoring.as_ref().unwrap();
+        assert_eq!(receipt.context[0]["result"]["failure_kind"], "timeout");
+        assert_eq!(receipt.context[0]["result"].get("input_tokens"), None);
+    }
+    let (out, seen, _) = observed(vec![Answer::SaysTimedOut]).await;
+    assert_eq!(seen[0].failure, Some(Failure::ProviderError));
+    let receipt = out.provenance.authoring.as_ref().unwrap();
+    assert_eq!(
+        receipt.context[0]["result"]["failure_kind"],
+        "provider_error"
     );
 }
 

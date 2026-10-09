@@ -364,6 +364,10 @@ pub fn answered(
     match result {
         Ok(Ok(response)) => Ok(response),
         Ok(Err(ProviderError::AdmissionDenied { .. })) => Err(Failure::AdmissionRefused),
+        // A deadline an inner layer met first, typed as the adapters type it (API 408).
+        Ok(Err(e)) if matches!(e.unobserved(), ProviderError::Api { status: 408, .. }) => {
+            Err(Failure::Timeout)
+        }
         Ok(Err(_)) => Err(Failure::ProviderError),
         Err(_) => Err(Failure::Timeout),
     }

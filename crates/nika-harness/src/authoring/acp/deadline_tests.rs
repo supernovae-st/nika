@@ -278,6 +278,16 @@ async fn an_answer_beyond_the_deadline_stays_timed_out() {
         matches!(&refused, Err(e) if e.to_string().contains("timed out; no answer accepted")),
         "{refused:?}"
     );
+    assert!(
+        matches!(
+            &refused,
+            Err(nika_kernel::ai::provider::ProviderError::Api { status: 408, .. })
+        ),
+        "{refused:?}"
+    );
+    // The established timeout form under its code: NIKA-330, where the untyped refusal said 339.
+    let code = (refused.as_ref().err()).map(nika_error::traits::NikaErrorCode::nika_code);
+    assert_eq!(code, Some(nika_kernel::ai::errors::NIKA_330));
     tokio::time::sleep(DEADLINE).await;
     let observed = observed(&seat);
     assert_eq!(observed.len(), 2, "no late record: {observed:?}");
@@ -297,7 +307,14 @@ async fn an_answer_beyond_the_deadline_stays_timed_out() {
 async fn a_deadline_passed_during_setup_spawns_nothing() {
     let door = door(Duration::from_secs(700), silent(Duration::ZERO));
     let seat = authoring(&door);
-    assert!(seat.infer(request(None)).await.is_err());
+    let refused = seat.infer(request(None)).await;
+    assert!(
+        matches!(
+            &refused,
+            Err(nika_kernel::ai::provider::ProviderError::Api { status: 408, .. })
+        ),
+        "{refused:?}"
+    );
     let timed_out = &observed(&seat)[1];
     assert_eq!(timed_out["status"], "timed_out");
     assert_eq!(timed_out["phase"], "open");
@@ -473,6 +490,13 @@ async fn a_deadline_passed_as_the_answer_becomes_ready_wins() {
     let refused = seat.infer(late).await;
     assert!(
         matches!(&refused, Err(e) if e.to_string().contains("timed out; no answer accepted")),
+        "{refused:?}"
+    );
+    assert!(
+        matches!(
+            &refused,
+            Err(nika_kernel::ai::provider::ProviderError::Api { status: 408, .. })
+        ),
         "{refused:?}"
     );
     assert_eq!(observed(&seat)[1]["status"], "timed_out");

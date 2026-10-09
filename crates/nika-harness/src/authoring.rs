@@ -211,7 +211,12 @@ impl HarnessAuthoring {
                 self.record(conclude(
                     json!({"status": "timed_out", "answer_accepted": false}),
                 ))?;
-                Err(refused("harness authoring timed out; no answer accepted"))
+                // Typed as the adapters type a deadline met before any status exists: a timeout
+                // to every classifier, never a provider error.
+                Err(ProviderError::Api {
+                    status: 408,
+                    message: "harness authoring timed out; no answer accepted".to_owned(),
+                })
             }
             Ended::Done(Ok((text, metadata))) => {
                 self.record(conclude(metadata))?;

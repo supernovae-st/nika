@@ -115,18 +115,18 @@ async fn send<P: ProviderInferDyn>(
         receipt.elapsed_ms = receipt.elapsed_ms.saturating_add(elapsed_ms);
         if let Some(context) = receipt.context.last_mut() {
             context["elapsed_ms"] = json!(elapsed_ms);
-            context["result"] = match &result {
-                Ok(Ok(response)) => json!({
+            context["result"] = match observe::answered(&result) {
+                Ok(response) => json!({
                     "stop_reason": format!("{:?}", response.stop_reason),
                     "usage_reported": response.usage_reported,
                     "input_tokens": response.usage_reported.then_some(response.usage.input_tokens),
                     "output_tokens": response.usage_reported.then_some(response.usage.output_tokens),
                 }),
-                Ok(Err(ProviderError::AdmissionDenied { .. })) => {
+                Err(observe::Failure::AdmissionRefused) => {
                     json!({"failure_kind": "admission_refused"})
                 }
-                Ok(Err(_)) => json!({"failure_kind": "provider_error"}),
-                Err(_) => json!({"failure_kind": "timeout"}),
+                Err(observe::Failure::Timeout) => json!({"failure_kind": "timeout"}),
+                Err(_) => json!({"failure_kind": "provider_error"}),
             };
             let answered = result.as_ref().ok().and_then(|r| r.as_ref().ok());
             context["reasoning"] = reasoning_record(policy.reasoning, answered);
