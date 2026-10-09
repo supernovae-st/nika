@@ -10,8 +10,10 @@
 //! the verdict: carried, missing, superseded by a later part, or (outside a restriction, in a
 //! request of several parts) asking no operation of the workflow. A part judged missing becomes
 //! a defect only when the judge also says why: the task that does it differently or does what it
-//! forbids, or an operation of its own that no task performs (a prohibition or a structure law
-//! asks none, so it is never offered that reason). A part the judge then
+//! forbids, an operation of its own that no task performs (a prohibition or a structure law asks
+//! none, so it is never offered that reason), or an offered component the bytes do not hold
+//! ([`Construction`]: the engine facts of the lent catalogue; its `no_fit` lets that clause's own
+//! alternative stand when every offer was examinable). A part the judge then
 //! finds no task failing is contested; a part left without a choice stays unknown: never a
 //! certain defect, never a success. When no part is missing, one question asks which task, if
 //! any, does something the request does not ask; a task that only reads a source the request
@@ -44,6 +46,7 @@ use crate::rehearse::trial_receipts;
 pub(super) use crate::rehearse::trial_whole;
 use nika_compile::surface::{Binding, Disposition, Judgment};
 use nika_compile_clauses::parts::{asks_an_operation, restricts};
+use nika_compile_seats::judge::{Construction, Construed};
 use nika_kernel::ai::provider::ProviderInferDyn;
 
 /// What a part asked alone adds to the clause instructions: a later part replaces it.
@@ -96,6 +99,7 @@ const UNEXERCISED: &str =
 const READ_ONLY_OVER_RUN: &str =
     "the judge named a task with no effect the request could leave unasked, which decides nothing";
 const UNPOINTED: &str = "the judge named a part in the trial run but no task that fails it";
+const ALTERNATIVE: &str = "the judge named a part in the trial run, then no offer fitting it";
 
 /// The reason a part is missing: no task performs its operation.
 pub(super) const OMITTED: &str = "the judge finds no task performing it";
@@ -159,8 +163,10 @@ enum Observed {
 pub(super) enum Pointed {
     /// The task the judge names.
     Task(String),
-    /// An operation of the clause's own that no task performs.
-    Omitted,
+    /// A reason no task carries, as its note: an operation of its own, or a component unheld.
+    Defect(String),
+    /// No offer fits and each was examinable: the clause's own alternative stands.
+    Fallback,
     /// No task fails it.
     NoTask,
     /// No choice was made.
@@ -461,7 +467,8 @@ fn part_question<P: ProviderInferDyn>(
 fn missing(pointed: Pointed, over: &str) -> State {
     match pointed {
         Pointed::Task(task) => State::Defect(format!("{over}{}", pointed_to(&task))),
-        Pointed::Omitted => State::Defect(format!("{over}{OMITTED}")),
+        Pointed::Defect(note) => State::Defect(format!("{over}{note}")),
+        Pointed::Fallback => State::Settled,
         Pointed::NoTask => State::Contested,
         Pointed::Unsettled => State::Unknown,
     }
@@ -473,10 +480,10 @@ pub(super) fn pointed_to(task: &str) -> String {
 }
 
 /// Why a part judged missing is missing: the task that fails it, an operation of its own no
-/// task performs (never offered for a prohibition or a structure law, which ask none), or no
-/// task failing it after all. `state` is what the part was judged on (the base
-/// state, or the base and a trial run). `None` when the call got no answer: the localization
-/// stops.
+/// task performs (never offered for a prohibition or a structure law, which ask none), an
+/// offered component the bytes do not hold or no offer fitting ([`Construction`]), or no task
+/// failing it after all. `state` is what the part was judged on (the base state, or the base
+/// and a trial run). `None` when the call got no answer: the localization stops.
 pub(super) async fn point<P: ProviderInferDyn>(
     id: &str,
     part: &str,
@@ -488,6 +495,7 @@ pub(super) async fn point<P: ProviderInferDyn>(
 ) -> Option<Pointed> {
     let restricting = restricts(part);
     let omittable = asks_an_operation(part);
+    let construction = Construction::of(state);
     let mut options: Vec<ChoiceOption> = (tasks.iter())
         .map(|task| ChoiceOption::new(format!("task-{task}"), format!("the task `{task}`")))
         .collect();
@@ -497,6 +505,7 @@ pub(super) async fn point<P: ProviderInferDyn>(
             "the clause asks an operation of its own that no task performs",
         ));
     }
+    options.extend(construction.options());
     options.push(ChoiceOption::new(
         "no_task",
         "no task fails it: the clause is carried as written",
@@ -515,20 +524,25 @@ pub(super) async fn point<P: ProviderInferDyn>(
     if restricting {
         instructions = format!("{instructions} {RESTRICTING}");
     }
+    let instructions = construction.told(instructions);
     let question = ChoiceQuestion::new(id, told(state, reference, &instructions), asked, options);
     let returned = verdict.answers();
     let answer = ask(judge, &question, "judge_point", verdict, out).await;
     annotate(verdict, part, restricting);
+    construction.annotate(verdict.records.last_mut(), answer.as_deref());
     if verdict.answers() == returned {
         verdict.stopped = true;
         return None;
     }
     let pointed = match answer.as_deref() {
-        Some("omitted") if omittable => Pointed::Omitted,
+        Some("omitted") if omittable => Pointed::Defect(OMITTED.to_owned()),
         Some("no_task") => Pointed::NoTask,
-        Some(key) => {
-            named(key, tasks).map_or(Pointed::Unsettled, |task| Pointed::Task(task.to_owned()))
-        }
+        Some(key) => match construction.read(key) {
+            Some(Construed::Defect(note)) => Pointed::Defect(note),
+            Some(Construed::Fallback) => Pointed::Fallback,
+            Some(_) => Pointed::Unsettled,
+            None => named(key, tasks).map_or(Pointed::Unsettled, |t| Pointed::Task(t.to_owned())),
+        },
         None => Pointed::Unsettled,
     };
     if !matches!(pointed, Pointed::Unsettled) {
@@ -881,6 +895,7 @@ async fn observe<P: ProviderInferDyn>(
         None => Observed::Stopped,
         Some(State::Defect(note)) => Observed::Defect(part.clone(), note),
         Some(State::Contested) => Observed::Unsettled(UNPOINTED),
+        Some(State::Settled) => Observed::Unsettled(ALTERNATIVE),
         Some(_) => Observed::Unsettled(NO_CHOICE_OVER_RUN),
     }
 }

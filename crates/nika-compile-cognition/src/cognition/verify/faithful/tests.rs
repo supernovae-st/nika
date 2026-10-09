@@ -726,7 +726,7 @@ async fn a_prohibition_is_never_offered_omitted_and_a_conditional_is() {
         &mut verdict,
         &mut out,
     );
-    assert!(matches!(pointed.await, Some(Pointed::Omitted)));
+    assert!(matches!(pointed.await, Some(Pointed::Defect(note)) if note == OMITTED));
     let asked = &verdict.records[0];
     assert_eq!(asked["options"], json!(POINTER));
     assert_eq!(
@@ -766,7 +766,7 @@ async fn a_computation_part_judged_missing_may_be_an_operation_no_task_performs(
     );
     let pointed = pointed.await;
     assert_eq!(verdict.records[0]["options"], json!(POINTER));
-    assert!(matches!(pointed, Some(Pointed::Omitted)));
+    assert!(matches!(pointed, Some(Pointed::Defect(note)) if note == OMITTED));
     let judge = Scripted::new(pointing(3, 1, Choose("omitted")));
     let Judged { verdict, .. } = provided(intent, &judge, None).await;
     let located = found(&[(sum, OMITTED)], &[], &[], &["unfaithful"], &[]);

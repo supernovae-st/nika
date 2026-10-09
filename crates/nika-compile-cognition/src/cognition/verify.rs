@@ -748,12 +748,14 @@ async fn judge_clause<P: ProviderInferDyn>(
                         let note = faithful::pointed_to(&task);
                         verdict.notes.push((clause.clone(), note));
                     }
-                    Some(Pointed::Omitted) => {
+                    Some(Pointed::Defect(note)) => {
                         verdict.defects.push(clause.clone());
-                        let note = faithful::OMITTED.to_owned();
                         verdict.notes.push((clause.clone(), note));
                     }
-                    Some(Pointed::NoTask) => verdict.contested.push(clause.clone()),
+                    // A clause's alternative is no judgment the core admits: still contested.
+                    Some(Pointed::NoTask | Pointed::Fallback) => {
+                        verdict.contested.push(clause.clone());
+                    }
                     Some(Pointed::Unsettled) => verdict.unknown.push(clause.clone()),
                     None => {
                         verdict.unknown.push(clause.clone());
