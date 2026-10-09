@@ -55,6 +55,9 @@ impl SessionRuntime {
         // Fridays ») is not a run: its act is a bounded decision, and a
         // change comes before any run.
         if !run_line_is_plain(&lower) {
+            if let Some(held) = self.hold_for_knowledge(input, self.routes_by_model()) {
+                return Some(held);
+            }
             return match self.classify(SessionPhase::Idle, input).act {
                 TurnAct::RequestRun => Some(self.run_plain(&line, ceiling, access_pin)),
                 TurnAct::Modify | TurnAct::Mixed => Some(TurnOutcome::Refusal(Refusal::new(

@@ -81,6 +81,13 @@ Legacy absence stays absent. An unreadable kept value is preserved and reported,
 not repaired; a present null is refused. Older engines whose closed history
 format lacks `last_run` refuse new records rather than silently discarding it.
 
+A conversation's own explicit knowledge choice (`/knowledge embedded`) is kept as
+an optional `knowledge` word (`embedded`). Reopening that conversation names the
+embedded release for it again before its first turn; it is never the operator's
+default and grants nothing. Records without the choice keep their bytes; a word
+this engine does not read is kept unchanged. Older engines whose closed format
+lacks `knowledge` refuse such records rather than silently discarding the choice.
+
 ## Format and limits
 
 The private format is versioned and hash chained. Unknown versions/fields,

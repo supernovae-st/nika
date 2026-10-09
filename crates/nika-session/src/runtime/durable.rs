@@ -114,6 +114,8 @@ impl SessionRuntime {
                 Err(error) => self.unreadable_choice(raw, &error.to_string()),
             }
         }
+        // Its own knowledge choice resumes with it too, for it alone.
+        self.restore_knowledge(history.state.knowledge.clone());
         self.restored_draft = history.state.pending.clone().map(Restored::from_raw);
         self.money.reconfirm |= history.restored && history.monetary_seen;
         if self.money.reconfirm {
@@ -169,6 +171,10 @@ impl SessionRuntime {
         // refuses it.
         if input.trim() == "/restore" {
             return self.restore_kept();
+        }
+        // The knowledge choice is recorded as the choice it is, whatever else waits beside it.
+        if super::knowledge::is_choice(input) && !self.waiting_cost_choice() {
+            return self.knowledge_turn(input.trim());
         }
         let operation = if self.local_run_line(input) {
             Operation::Run
@@ -883,6 +889,7 @@ impl SessionRuntime {
             inference_checkpoint: self.account_checkpoint(),
             last_run: self.kept_run.clone(),
             selection: (self.conversation.as_ref()).and_then(super::ConversationChoice::value),
+            knowledge: self.knowledge.conversation.clone(),
         }
     }
 

@@ -772,6 +772,8 @@ pub fn nika_session::runtime::SessionRuntime::inference_receipt(&self) -> core::
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::candidate(&self) -> core::option::Option<nika_session::runtime::Candidate<'_>>
 impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::choose_knowledge(&mut self, answer: &str) -> nika_session::runtime::TurnOutcome
+impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::cost_choice_details(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::runtime::SessionRuntime::cost_observations(&self) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn nika_session::runtime::SessionRuntime::decline_cost_choice(&mut self) -> core::option::Option<nika_session::runtime::TurnOutcome>
@@ -1420,6 +1422,8 @@ pub fn nika_session::runtime::SessionRuntime::enable_continuous_preparation(&mut
 pub fn nika_session::runtime::SessionRuntime::inference_receipt(&self) -> core::result::Result<core::option::Option<nika_providers::admission::InferenceReceipt>, nika_session_intelligence::reasoner::ReasonError>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::candidate(&self) -> core::option::Option<nika_session::runtime::Candidate<'_>>
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::choose_knowledge(&mut self, answer: &str) -> nika_session::runtime::TurnOutcome
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::cost_choice_details(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::runtime::SessionRuntime::cost_observations(&self) -> alloc::vec::Vec<serde_json::value::Value>

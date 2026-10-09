@@ -53,9 +53,9 @@ fn beside_any_answer(line: &str) -> bool {
 
 impl SessionRuntime {
     /// What the next line answers, by the one precedence every host shares: a requested run's
-    /// cost review, the one-time cost decision, the choice of intelligence, a proposal's consent,
-    /// a run's gate, then the value an authoring question, a run input or an activation asks;
-    /// else a new turn.
+    /// cost review, the one-time cost decision, the choice of intelligence, the knowledge choice
+    /// a held line waits for, a proposal's consent, a run's gate, then the value an authoring
+    /// question, a run input or an activation asks; else a new turn.
     #[must_use]
     pub fn waiting(&self) -> Waiting {
         if let Some(review) = self.waiting_review() {
@@ -64,6 +64,8 @@ impl SessionRuntime {
             Waiting::CostChoice
         } else if self.pending_choice {
             Waiting::IntelligenceChoice
+        } else if let Some(line) = &self.knowledge.held {
+            Waiting::KnowledgeChoice { line: line.clone() }
         } else if let Some(proposal) = self.pending_proposal() {
             Waiting::Consent { proposal }
         } else if let Some(gate) = self.waiting_gate() {
@@ -120,6 +122,7 @@ impl SessionRuntime {
                 )),
             },
             Waiting::IntelligenceChoice => self.choose(line.trim()),
+            Waiting::KnowledgeChoice { .. } => self.choose_knowledge(line),
             Waiting::Consent { .. } => match shown {
                 Waiting::Consent { proposal } => self.consent_to(proposal, line.trim()),
                 _ if declines(line) => self.consent(line.trim()),
@@ -215,6 +218,7 @@ impl SessionRuntime {
         )
         .with_authoring(self.last_outcome.as_ref().map(Authoring::of))
         .with_intelligence(Some(self.intelligence_work()))
+        .with_knowledge(Some(self.knowledge_work()))
         .with_question(self.pending_question())
         .with_answered(self.last_answer.clone())
     }

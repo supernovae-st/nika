@@ -16,7 +16,7 @@ use crate::authoring::{is_cancel, is_meaning, is_what_happened, is_why};
 use crate::outcome::{Refusal, RefusalClass};
 
 /// Commands served beyond the help card's list, then those a turn serves after its read-only lines.
-const ALSO_KNOWN: &[&str] = &["/exit", "/restore", "/cancel", "/last"];
+const ALSO_KNOWN: &[&str] = &["/exit", "/restore", "/cancel", "/last", "/knowledge"];
 const TURN_SERVED: &[&str] = &["/quit", "/exit", "/intelligence"];
 
 /// What every refused command says last.
@@ -47,6 +47,8 @@ pub(super) fn unserved_command(line: &str) -> Option<String> {
     let known = || SLASH_COMMANDS.iter().chain(ALSO_KNOWN).copied();
     let said = if word == "/" {
         "`/` needs a command name after it".to_owned()
+    } else if word == "/knowledge" && line != word {
+        format!("`{line}` applies once what waits here is answered")
     } else if known().any(|k| k == word) && line == word {
         format!("`{word}` does not apply here")
     } else if known().any(|k| k == word) {
@@ -122,6 +124,7 @@ impl SessionRuntime {
             "/status" => TurnOutcome::Facts(self.status()),
             "/proof" => self.proof_unrecorded(),
             "/details" => TurnOutcome::Facts(self.details()),
+            "/knowledge" => TurnOutcome::Facts(self.knowledge_card()),
             _ if is_why(input) => self.explain_pending(),
             _ if is_meaning(input) => self.meaning_unrecorded(),
             _ if is_what_happened(input) => match self.last_recovery() {
@@ -129,7 +132,11 @@ impl SessionRuntime {
                 None if owned => self.beside(input, QUESTION_WAITS)?,
                 None => TurnOutcome::Facts(crate::facts::last_run(&self.snapshot.root)),
             },
-            _ if owned || TURN_SERVED.contains(&input) || input.starts_with("/intelligence ") => {
+            _ if owned
+                || TURN_SERVED.contains(&input)
+                || input.starts_with("/intelligence ")
+                || super::knowledge::is_choice(input) =>
+            {
                 return None;
             }
             _ => TurnOutcome::Refusal(Refusal::new(
@@ -172,6 +179,9 @@ impl SessionRuntime {
     /// declared input, an activation's value, a gate, a proposal; a fact when
     /// nothing waits.
     pub(super) fn explain_pending(&self) -> TurnOutcome {
+        if self.knowledge.held.is_some() {
+            return TurnOutcome::Aside(self.knowledge_card());
+        }
         if let Some(round) = &self.authoring
             && let Some(question) = round.current()
         {

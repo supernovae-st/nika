@@ -790,6 +790,26 @@ Deterministic authoring presents no knowledge to a model. Explicit knowledge
 off and strategy off with nothing named compose none.
 A named source must be admitted against the host's trusted identity; a missing
 identity or invalid release refuses without falling back to the embedded one.
+
+When the configuration names a source the strict door refuses (a historical
+`NIKA_KNOWLEDGE` root, a pack), the Session still opens on its conversation. Its
+work snapshot types the refusal (`knowledge.state = refused`, the source's kind,
+the layer, the stable code and the cause), the banner keeps its warning and adds
+the one supported action, and `/knowledge embedded` joins the completions and the
+help card. A line that would reach a model next (the route, the conversation, an
+answer the seat compiles, a run line the route reads) is held before any model
+request, exactly as typed (`Waiting::KnowledgeChoice`): the words say what failed,
+that this message reached no model, and the one action; `/details` keeps the whole
+diagnostic. Lines that need no model (facts, deterministic proposals and questions,
+plain run lines) are read as before; `cancel` drops the held line, sent nowhere. The
+action is explicit: `/knowledge embedded` resolves the same settings with the
+embedded release named on the explicit layer (`with_embedded_knowledge`), re-pins
+it, keeps the decision seat, intelligence, effort and draft, records the choice in
+the conversation's history (a reopening keeps it, for that conversation alone) and
+resumes the held line once; asked again, it is a no-op, said. Where the embedded
+release cannot be read (the strategy `off`), it changes nothing and says why. A
+configuration refused for another reason, a release that changes under the Session,
+a revision at the consent prompt and a gate's open language keep their refusal.
 See the [shared knowledge door](nika-onboard.md#shared-authoring-knowledge-door)
 and [pin migration](nika-onboard.md#the-knowledge-pin-and-its-records-read-by-session)
 for the typed choices and disk/embedded origins. Operator overrides are read

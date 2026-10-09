@@ -43,6 +43,7 @@ mod durable_tests;
 mod fresh;
 mod history;
 mod inference;
+mod knowledge;
 mod landed;
 mod money_gate;
 // The lexical money reader grants no authority; admission stays here.
@@ -344,6 +345,8 @@ pub struct SessionRuntime {
     /// This conversation's own explicit choice (named by its opener, chosen in it or kept by
     /// its history): it holds here only, never written as the operator's default.
     conversation: Option<ConversationChoice>,
+    /// This conversation's knowledge choice and the line it holds (`knowledge.rs`).
+    knowledge: knowledge::State,
     /// The last recovery card (a turn that could not be finished), kept so
     /// « what happened? » repeats it without a call.
     last_recovery: Option<String>,
@@ -456,6 +459,7 @@ impl SessionRuntime {
             interrupted: None,
             pending_choice: false,
             conversation: None,
+            knowledge: knowledge::State::default(),
             last_recovery: None,
             classifier: None,
             routes: Vec::new(),
@@ -480,6 +484,9 @@ impl SessionRuntime {
         }
         if self.pending_choice {
             return "Needs your choice of intelligence · the request waits".to_owned();
+        }
+        if let Some(status) = self.knowledge_status() {
+            return status;
         }
         if let Some(gate) = &self.pending_gate {
             return nika_cli_host::display::front_door::status::gate(&gate.workflow, &gate.task);
@@ -844,6 +851,7 @@ impl SessionRuntime {
         // A named authoring configuration this session cannot honor is the
         // same kind of warning: said at open, refused at the first seated turn.
         if let Some(why) = self.authoring_context.refusal() {
+            text.push_str(&self.knowledge_banner());
             let _ = write!(text, "\n  ⚠ authoring knowledge: {why}");
         }
         text
@@ -894,6 +902,7 @@ impl SessionRuntime {
             "/quit" | "/exit" => return TurnOutcome::Quit,
             _ if input.starts_with("/intelligence ") => return self.choose_unrecorded(input),
             "/intelligence" => return self.intelligence_screen(),
+            _ if knowledge::is_choice(input) => return self.knowledge_command(input),
             _ => {}
         }
         // An open authoring question owns the next line — before any
@@ -910,7 +919,8 @@ impl SessionRuntime {
             if let Err(refusal) = self.admit_money(original, true, false) {
                 return self.answer_refused(asked, refusal);
             }
-            let outcome = self.answer_question_unrecorded(input);
+            let held = self.hold_for_knowledge(original, self.answers_by_model());
+            let outcome = held.unwrap_or_else(|| self.answer_question_unrecorded(input));
             return self.keep_revising(outcome);
         }
         // A run waiting on a declared input owns the next line the same way.
@@ -965,7 +975,8 @@ impl SessionRuntime {
         if !self.chosen {
             return self.ask_for_intelligence(input, Need::Conversation);
         }
-        self.converse_unrecorded(input)
+        self.hold_for_knowledge(original, self.routes_by_model())
+            .unwrap_or_else(|| self.converse_unrecorded(input))
     }
 
     /// `/intelligence`: the first screen again when the census is known, the next line

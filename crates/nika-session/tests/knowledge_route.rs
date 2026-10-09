@@ -33,6 +33,7 @@ use common::{
 };
 use nika_cli_host::compile::knowledge::Snapshot;
 use nika_onboard::compile::revise_intent;
+use nika_onboard::knowledge::pin::KnowledgePin;
 use serde_json::{Value, json};
 
 /// The verifier's closed choice, approved (native step 1, R4 A11): the explicit answer scripted at
@@ -40,6 +41,9 @@ use serde_json::{Value, json};
 /// that finishes a native record READY (native step 2, the seat permitted as its judge). The
 /// judge's call is a real call, counted like any other.
 const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
+
+/// A line only an intelligence answers, in words: the conversation's.
+const CHAT: &str = "hello there, how are you today?";
 
 /// The seat's typed revision of the proposal: the change adds one destination, written like the
 /// base's own; the compiler owns the resulting source (a whole-source reply is no revision answer).
@@ -486,7 +490,7 @@ fn a_deterministic_session_calls_no_one_and_reads_no_pack_whatever_is_configured
 }
 
 /// A release the environment names carries no trusted identity: refused, typed, when the
-/// session opens, and its first seated turn sends nothing.
+/// session opens, and its first seated line waits for the one action, sending nothing.
 #[test]
 fn a_release_the_environment_names_is_refused_at_open_and_no_seat_is_called() {
     let world = world();
@@ -506,7 +510,7 @@ fn a_release_the_environment_names_is_refused_at_open_and_no_seat_is_called() {
     let banner = report["banner"].as_str().unwrap();
     assert!(banner.contains("ADMISSION_UNTRUSTED"), "{banner}");
     let step = &report["steps"][0];
-    assert_eq!(step["kind"], "refusal", "{report:#}");
+    assert_eq!(step["kind"], "ask", "{report:#}");
     assert!(
         step["text"]
             .as_str()
@@ -514,6 +518,113 @@ fn a_release_the_environment_names_is_refused_at_open_and_no_seat_is_called() {
             .contains("ADMISSION_UNTRUSTED"),
         "{step}"
     );
+    assert_eq!(
+        report["waiting"],
+        json!({"kind": "knowledge_choice", "line": INTENT})
+    );
+}
+
+/// The incident's override, end to end: an old delivery's release root in `NIKA_KNOWLEDGE`, no
+/// trusted identity. The session opens on its conversation; the typed knowledge says what was
+/// refused (no host path); a chat line and a work line each wait before any request;
+/// `/knowledge embedded` names the embedded release for this conversation and resumes the work
+/// line once — the seat receives exactly that one authoring call, carrying the request as typed —
+/// under the same intelligence; a second choice is a no-op, said; reopening the conversation keeps
+/// the embedded release with no warning.
+#[test]
+fn an_override_waits_then_resumes_once_under_the_embedded_release() {
+    let world = world();
+    let seat = LoopbackSeat::start(vec![document_answer()]);
+    let snapshot = world.foundry.snapshot.display().to_string();
+    let report = run_child(&world, "override", &seat, &[("NIKA_KNOWLEDGE", &snapshot)]);
+    seat.shutdown();
+    let bodies = seat.bodies();
+    assert_eq!(bodies.len(), 1, "the resumed request alone: {bodies:#?}");
+    let opening: Value = serde_json::from_str(&message(&bodies[0], "user")).unwrap();
+    assert_eq!(opening["request"], INTENT, "the request as typed");
+    let refused = &report["before"]["knowledge"];
+    assert_eq!(
+        (
+            &refused["state"],
+            &refused["source"],
+            &refused["by"],
+            &refused["code"]
+        ),
+        (
+            &json!("refused"),
+            &json!("snapshot"),
+            &json!("environment"),
+            &json!("ADMISSION_UNTRUSTED")
+        ),
+        "{refused:#}"
+    );
+    let banner = report["banner"].as_str().unwrap();
+    assert!(banner.contains("`/knowledge embedded`"), "{banner}");
+    let kinds: Vec<&str> = (report["steps"].as_array().unwrap().iter())
+        .map(|s| s["kind"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        kinds,
+        ["ask", "facts", "ask", "resumed", "facts"],
+        "{report:#}"
+    );
+    for held in [&report["steps"][0], &report["steps"][2]] {
+        let text = held["text"].as_str().unwrap();
+        assert!(
+            text.contains("this message reached no model and waits"),
+            "{text}"
+        );
+        for wall in [
+            "--no-knowledge",
+            "open the session again",
+            snapshot.as_str(),
+        ] {
+            assert!(!text.contains(wall), "{wall}: {text}");
+        }
+    }
+    assert!(
+        refused["cause"]
+            .as_str()
+            .is_some_and(|cause| !cause.contains(&snapshot)),
+        "{refused:#}"
+    );
+    assert_eq!(
+        report["held_chat"],
+        json!({"kind": "knowledge_choice", "line": CHAT})
+    );
+    assert_eq!(
+        report["held_work"],
+        json!({"kind": "knowledge_choice", "line": INTENT})
+    );
+    let resumed = &report["steps"][3];
+    assert!(
+        resumed["notice"]
+            .as_str()
+            .unwrap()
+            .ends_with("holds for this conversation"),
+        "{resumed:#}"
+    );
+    assert_eq!(resumed["outcome"]["kind"], "question", "{resumed:#}");
+    let pin = KnowledgePin::embedded(None).unwrap();
+    let admitted = json!({
+        "state": "admitted", "source": "embedded", "version": pin.version,
+        "manifest_sha256": pin.manifest_sha256, "by": "conversation",
+    });
+    assert_eq!(report["after"]["knowledge"], admitted);
+    assert_eq!(
+        report["after"]["intelligence"], report["before"]["intelligence"],
+        "the intelligence and its effort are unchanged"
+    );
+    assert!(
+        report["steps"][4]["text"]
+            .as_str()
+            .unwrap()
+            .contains("already in use"),
+        "{report:#}"
+    );
+    assert_eq!(report["reopened"]["knowledge"], admitted);
+    let reopened = report["reopened_banner"].as_str().unwrap();
+    assert!(!reopened.contains("authoring knowledge"), "{reopened}");
 }
 
 #[test]
@@ -577,6 +688,7 @@ mod drive {
     use nika_session::turn::{
         RoutingMethod, SessionPhase, TurnAct, TurnClassifier, TurnContext, TurnDecision,
     };
+    pub(super) use nika_session::work::Waiting;
     use serde_json::{Value, json};
     use std::path::{Path, PathBuf};
 
@@ -648,6 +760,10 @@ mod drive {
             TurnOutcome::Held { id, preview } => {
                 json!({"kind": "held", "id": id.to_string(), "text": preview})
             }
+            TurnOutcome::Ask(text) => json!({"kind": "ask", "text": text}),
+            TurnOutcome::Resumed { notice, outcome } => {
+                json!({"kind": "resumed", "notice": notice, "outcome": step(outcome)})
+            }
             other => json!({"kind": "other", "text": format!("{other:?}")}),
         }
     }
@@ -714,7 +830,33 @@ fn child_drive(scenario: &str, root: &Path, home: &Path) -> Value {
             let mut session = drive::open(root, home, local);
             let banner = session.banner();
             steps.push(drive::step(&session.turn(INTENT)));
-            json!({"steps": steps, "banner": banner})
+            let waiting = serde_json::to_value(session.waiting()).unwrap();
+            json!({"steps": steps, "banner": banner, "waiting": waiting})
+        }
+        "override" => {
+            let work = |session: &nika_session::runtime::SessionRuntime| {
+                serde_json::to_value(session.work()).unwrap()
+            };
+            let mut session = drive::open(root, home, local.clone());
+            session.enable_history(home).unwrap();
+            let (banner, before) = (session.banner(), work(&session));
+            steps.push(drive::step(&session.submit(CHAT, &drive::Waiting::Free)));
+            let held_chat = serde_json::to_value(session.waiting()).unwrap();
+            steps.push(drive::step(&session.submit("cancel", &session.waiting())));
+            steps.push(drive::step(&session.submit(INTENT, &drive::Waiting::Free)));
+            let held_work = serde_json::to_value(session.waiting()).unwrap();
+            let choice = "/knowledge embedded";
+            steps.push(drive::step(&session.submit(choice, &session.waiting())));
+            let after = work(&session);
+            steps.push(drive::step(&session.submit(choice, &session.waiting())));
+            drop(session);
+            let mut reopened = drive::open(root, home, local);
+            reopened.enable_history(home).unwrap();
+            json!({
+                "steps": steps, "banner": banner, "before": before, "after": after,
+                "held_chat": held_chat, "held_work": held_work,
+                "reopened": work(&reopened), "reopened_banner": reopened.banner(),
+            })
         }
         other => panic!("unknown scenario {other}"),
     }

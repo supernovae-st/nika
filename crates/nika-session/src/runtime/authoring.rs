@@ -174,6 +174,10 @@ impl SessionRuntime {
                 if super::route::question_outside_money(intent, &round.money) {
                     return None;
                 }
+                // Under a refused knowledge source the line waits before the route reads it.
+                if let Some(held) = self.hold_for_knowledge(intent, self.routes_by_model()) {
+                    return Some(held);
+                }
                 let seat_reads = self.seat.has_model();
                 match self.classify(SessionPhase::Idle, intent).act {
                     // Work the deterministic reader did not recognise, routed
@@ -204,7 +208,8 @@ impl SessionRuntime {
                     self.refused_unsettled(out)
                 }
                 AuthoringSeat::Provider { .. } | AuthoringSeat::Harness { .. } => self
-                    .beside_goal(intent, earlier)
+                    .hold_for_knowledge(intent, true)
+                    .or_else(|| self.beside_goal(intent, earlier))
                     .unwrap_or_else(|| self.compile_under_seat(round)),
                 // No usable intelligence is chosen: ask here, in context,
                 // and resume this request under the resulting choice.
