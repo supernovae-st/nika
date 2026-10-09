@@ -117,7 +117,7 @@ fn yes_saves_only_and_never_runs() {
     let TurnOutcome::Facts(report) = s.submit("yes", &shown) else {
         panic!("a yes saves and is never a run");
     };
-    assert!(report.contains("applied · wrote"), "{report}");
+    assert!(report.contains("applied · wrote"), "report");
     assert_eq!(read(dir.path(), COPY_DEST), bytes);
     assert_eq!(last_consent_run(dir.path()), None);
     assert!(s.work().requested.is_none(), "no run was requested");
@@ -194,7 +194,7 @@ fn a_stale_or_moved_proposal_saves_nothing_and_runs_nothing() {
     let TurnOutcome::Held { preview, .. } = s.submit("save & run", &shown) else {
         panic!("nothing to run: the proposal is held");
     };
-    assert!(preview.contains("saves no workflow to run"), "{preview}");
+    assert!(preview.contains("saves no workflow to run"), "preview");
     assert!(!s.snapshot.root.join("nika.yaml").exists());
 }
 
@@ -220,7 +220,7 @@ fn findings_on_the_saved_bytes_save_but_never_run() {
     };
     assert!(
         report.contains("findings ✖") && report.contains("the run was not started"),
-        "{report}"
+        "the findings report"
     );
     assert_eq!(
         read(dir.path(), "ungranted.nika"),
@@ -254,7 +254,7 @@ fn a_run_read_in_words_never_saves_or_runs() {
     assert_eq!(held, id);
     assert!(
         preview.contains("`save & run` saves this proposal and runs it once"),
-        "{preview}"
+        "the save and run preview"
     );
     assert!(!dir.path().join(COPY_DEST).exists());
     assert!(s.work().requested.is_none());
@@ -361,7 +361,7 @@ fn a_carried_run_request_runs_exactly_on_save_and_run_and_never_on_yes() {
     let TurnOutcome::Facts(report) = s.submit("yes", &shown) else {
         panic!("a yes saves only, whatever run the set carries");
     };
-    assert!(report.contains("applied · wrote"), "{report}");
+    assert!(report.contains("applied · wrote"), "report");
     assert_eq!(last_consent_run(other.path()), None, "no run was asked");
     assert!(s.work().requested.is_none());
 }
@@ -378,7 +378,7 @@ fn a_composed_proposal_runs_only_the_workflow_its_request_names() {
     let TurnOutcome::Held { preview, .. } = s.submit("save & run", &shown) else {
         panic!("several workflows and no target: held");
     };
-    assert!(preview.contains("saves several workflows"), "{preview}");
+    assert!(preview.contains("saves several workflows"), "preview");
     assert!(!dir.path().join("child.nika").exists(), "nothing written");
     assert!(!dir.path().join("parent.nika").exists(), "nothing written");
     assert!(
@@ -472,7 +472,7 @@ fn a_carried_request_with_an_invalid_ceiling_is_held() {
         };
         assert!(
             preview.contains("not a finite nonnegative amount"),
-            "{preview}"
+            "the held ceiling"
         );
         assert!(!dir.path().join("greet.nika").exists(), "nothing written");
     }
@@ -496,7 +496,7 @@ fn a_waiting_gate_or_an_unconfirmed_exposure_saves_but_never_runs() {
     };
     assert!(
         report.contains("the run was not started: a paused gate waits"),
-        "{report}"
+        "the gate report"
     );
     assert_eq!(read(dir.path(), COPY_DEST), bytes, "the save stands");
     assert!(s.work().requested.is_none());
@@ -507,7 +507,7 @@ fn a_waiting_gate_or_an_unconfirmed_exposure_saves_but_never_runs() {
     let TurnOutcome::Facts(report) = s.submit("save & run", &shown) else {
         panic!("an unconfirmed exposure stops the run, never the save");
     };
-    assert!(report.contains("the run was not started"), "{report}");
+    assert!(report.contains("the run was not started"), "report");
     assert!(other.path().join(COPY_DEST).exists(), "the save stands");
     assert!(s.work().requested.is_none());
 }

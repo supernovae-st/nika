@@ -72,7 +72,7 @@ fn every_host_text_names_the_trace_as_the_project_holds_it() {
         proof.contains(
             "the trace `.nika/traces/gone.ndjson` cannot be read now · `nika trace verify .nika/traces/gone.ndjson`"
         ),
-        "{proof}"
+        "the unreadable trace"
     );
     // `details` tells the last run beside the last reading of a workflow.
     let read = compile(&CompileRequest::create(
@@ -90,7 +90,7 @@ fn every_host_text_names_the_trace_as_the_project_holds_it() {
         "read on its real path"
     );
     for text in [&observed, &proof, &details] {
-        assert!(!text.contains(&root_text), "{text}");
+        assert!(!text.contains(&root_text), "the root text");
     }
 
     let elsewhere = Path::new("/elsewhere/.nika/traces/t.ndjson");

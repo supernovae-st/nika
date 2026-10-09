@@ -873,7 +873,7 @@ fn a_choice_holds_for_this_conversation_and_resumes_with_it() {
     let TurnOutcome::Facts(notice) = s.turn("/intelligence 1 codex") else {
         panic!("chosen at once");
     };
-    assert!(notice.contains("holds for this conversation"), "{notice}");
+    assert!(notice.contains("holds for this conversation"), "notice");
     let chosen = selected(&s);
     assert_eq!(
         (chosen.0.as_str(), chosen.1.as_deref(), chosen.2),
@@ -896,11 +896,7 @@ fn a_choice_holds_for_this_conversation_and_resumes_with_it() {
         (Some("codex"), "conversation", false),
         "kept as chosen, never the operator's default"
     );
-    assert!(
-        gone.status().contains('⚠'),
-        "its fix said: {}",
-        gone.status()
-    );
+    assert!(gone.status().contains('⚠'), "its fix said");
     drop(gone);
     let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
     let mut named = open(true, &none);

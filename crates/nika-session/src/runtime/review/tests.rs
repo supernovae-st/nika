@@ -96,7 +96,7 @@ fn evidence_help_status_and_unknown_lines_answer_beside_and_the_review_keeps_wai
     }
     for command in ["/help", "/status"] {
         let text = aside(s.submit(command, &shown(&review)));
-        assert!(text.ends_with(RUN_STILL_WAITS), "{command}: {text}");
+        assert!(text.ends_with(RUN_STILL_WAITS), "{command}");
     }
     for unknown in ["change input to revised", "/proof", "maybe"] {
         let text = aside(s.submit(unknown, &shown(&review)));
@@ -104,7 +104,7 @@ fn evidence_help_status_and_unknown_lines_answer_beside_and_the_review_keeps_wai
             text.starts_with(&format!(
                 "« {unknown} » is not a yes or a no · nothing was sent"
             )),
-            "{text}"
+            "the unknown line"
         );
     }
     assert_eq!(s.waiting(), shown(&review), "nothing decided it");

@@ -726,7 +726,7 @@ fn work_the_compiler_cannot_settle_keeps_its_reasons_in_the_snapshot() {
     };
     assert!(
         text.starts_with("I read this as work but cannot build it yet"),
-        "{text}"
+        "the honest incomplete"
     );
     let work = s.work();
     assert_eq!(work.waiting, Waiting::Free);

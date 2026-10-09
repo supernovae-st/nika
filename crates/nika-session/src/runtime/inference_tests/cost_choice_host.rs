@@ -29,10 +29,10 @@ fn the_cost_choice_evidence_is_read_beside_it_and_nothing_is_recorded() {
             text.starts_with(
                 "Authoring cost decision details · the same review; reading them approves nothing\n"
             ),
-            "{line}: {text}"
+            "{line}"
         );
-        assert!(text.contains(&details), "{line}: {text}");
-        assert!(text.ends_with("Continue once? yes / no"), "{line}: {text}");
+        assert!(text.contains(&details), "{line}");
+        assert!(text.ends_with("Continue once? yes / no"), "{line}");
     }
     assert!(
         s.waiting_cost_choice(),

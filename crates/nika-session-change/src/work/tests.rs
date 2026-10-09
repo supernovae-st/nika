@@ -587,7 +587,7 @@ fn each_call_is_projected_through_the_allowlist_and_never_its_text() {
         "block:x",
         "drop table",
     ] {
-        assert!(!json.contains(secret), "{secret} leaked: {json}");
+        assert!(!json.contains(secret), "a marker leaked");
     }
     let wire = serde_json::to_value(&calls).expect("serializes");
     assert_eq!(wire["per_call"][1]["input_tokens"], serde_json::Value::Null);
