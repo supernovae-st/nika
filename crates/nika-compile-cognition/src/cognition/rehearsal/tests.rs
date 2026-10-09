@@ -783,9 +783,10 @@ async fn judged_greeting(judge: &Judging, host: Option<&Host>) -> CompileOutcome
 }
 
 /// A disagreement no part locates is decided by this compile's run of the same bytes (R6): the
-/// judge doubts the whole request, carries its one part and names no task doing more, then is
-/// shown the run the evidence made of the candidate (nothing read, the greeting written whole)
-/// and finds it consistent. The candidate is READY on that judgment, the only one asked over
+/// judge doubts the whole request and carries its one part (the write is the output that part
+/// states, so the engine's facts leave no task to ask about), then is shown the run the
+/// evidence made of the candidate (nothing read, the greeting written whole) and finds it
+/// consistent. The candidate is READY on that judgment, the only one asked over
 /// the run, and the barrier reuses the run the judge read.
 #[tokio::test]
 async fn a_disagreement_is_decided_by_this_compiles_run_of_the_same_bytes() {
@@ -793,7 +794,6 @@ async fn a_disagreement_is_decided_by_this_compiles_run_of_the_same_bytes() {
     let judge = Judging::new([
         ("verify-request", "unfaithful"),
         ("verify-part-0", "carried"),
-        ("verify-extra", "only_requested"),
         ("verify-observed", "consistent"),
     ]);
     let out = judged_greeting(&judge, Some(&host)).await;
@@ -808,23 +808,18 @@ async fn a_disagreement_is_decided_by_this_compiles_run_of_the_same_bytes() {
     );
     let asked = judge.asked();
     let ids: Vec<&str> = asked.iter().map(|q| q.id.as_str()).collect();
-    let questions = [
-        "verify-request",
-        "verify-part-0",
-        "verify-extra",
-        "verify-observed",
-    ];
+    let questions = ["verify-request", "verify-part-0", "verify-observed"];
     assert_eq!(ids, questions);
     let observation = json!({
         "candidate_sha256": crate::cognition::knowledge::sha256(&candidate),
         "inputs": [],
         "outputs": [{"path": TARGET, "text": "hello", "written": true, "read_whole": true}],
     });
-    assert_eq!(asked[3].state["observation"], observation);
-    let over_the_run = ["consistent", "unexercised", "part-0", "task-save", "none"];
-    assert_eq!(asked[3].keys(), over_the_run);
+    assert_eq!(asked[2].state["observation"], observation);
+    let over_the_run = ["consistent", "unexercised", "part-0", "none"];
+    assert_eq!(asked[2].keys(), over_the_run);
     assert!(
-        asked[..3]
+        asked[..2]
             .iter()
             .all(|q| q.state.get("observation").is_none())
     );
@@ -835,9 +830,10 @@ async fn a_disagreement_is_decided_by_this_compiles_run_of_the_same_bytes() {
         assert_eq!(verified[list], json!([]), "{list}: {verified:#}");
     }
     let counts = (&verified["attempted"], &verified["consumed"]);
-    assert_eq!(counts, (&json!(4), &json!(4)));
+    assert_eq!(counts, (&json!(3), &json!(3)));
     assert_eq!(verified["settled_by"], "verify-observed");
-    let run = &verified["questions"][3];
+    assert_eq!(verified["engine"][0]["settled"], "only_requested");
+    let run = &verified["questions"][2];
     assert_eq!(run["choice"], "consistent");
     // The record keeps what the judge read by digest and size, never the texts.
     let sha256 = crate::cognition::knowledge::sha256;
@@ -857,12 +853,13 @@ async fn a_disagreement_is_decided_by_this_compiles_run_of_the_same_bytes() {
     );
 }
 
-/// What a candidate judged and rejected with no defect located offers (the `verify_held`
-/// finding, as the verifier states it).
-const HELD: &str = "The candidate was judged and not accepted, with no defect a repair could start from: it is shown, never offered, and nothing was written. A correction of the request or another verifier can decide it.";
+/// What a candidate whose whole request the judge rejected, nothing narrower standing, offers
+/// (the `verify_held` finding of an unresolved doubt, as the verifier states it).
+const HELD: &str = "The verifier doubted the request as a whole but located nothing: asked alone, none of its parts (1) was found missing, no task was found doing anything the request does not ask, and no run of these bytes decided it. Nothing is verified: the workflow is shown, never proposed, and nothing was written. Review it and describe a correction, or choose another verifier.";
 
-/// Without a host there is no run of these bytes to show: the same doubt stays contested and
-/// nothing is READY; no question is asked over a run. The candidate the judge read is held: shown
+/// Without a host there is no run of these bytes to show: the judge is asked once where its
+/// doubt is, names nothing, and the same doubt stays contested, unresolved, nothing READY; no
+/// question is asked over a run. The candidate the judge read is held: shown
 /// as the preview, never offered, its replayable record dropped so no later round asks the same
 /// judge again on these bytes, the finding naming the disagreement and what can decide it.
 #[tokio::test]
@@ -870,7 +867,7 @@ async fn without_a_run_of_the_same_bytes_the_disagreement_is_held() {
     let judge = Judging::new([
         ("verify-request", "unfaithful"),
         ("verify-part-0", "carried"),
-        ("verify-extra", "only_requested"),
+        ("verify-doubt", "unlocated"),
     ]);
     let out = judged_greeting(&judge, None).await;
     assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
@@ -893,6 +890,7 @@ async fn without_a_run_of_the_same_bytes_the_disagreement_is_held() {
         (&verified["defects"], &verified["unknown"]),
         (&json!([]), &json!([]))
     );
+    assert_eq!(verified["unresolved"], true, "{verified:#}");
     let held = (out.diagnostics.iter()).find(|d| d.target == "verify_held");
     let held = held.expect("the held candidate is named");
     assert_eq!(
@@ -982,7 +980,6 @@ async fn an_answer_round_decides_a_disagreement_over_a_run_of_the_bytes_it_repla
     let judge = Judging::new([
         ("verify-request", "unfaithful"),
         ("verify-part-0", "carried"),
-        ("verify-extra", "only_requested"),
         ("verify-observed", "consistent"),
     ]);
     let cognition = crate::Cognition {
@@ -994,13 +991,13 @@ async fn an_answer_round_decides_a_disagreement_over_a_run_of_the_bytes_it_repla
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(judge.left(), 0);
     let asked = judge.asked();
-    let output = &asked[3].state["observation"]["outputs"][0];
+    let output = &asked[2].state["observation"]["outputs"][0];
     assert_eq!(
         (&output["path"], &output["text"]),
         (&json!(TARGET), &json!("hello"))
     );
     assert!(
-        asked[..3]
+        asked[..2]
             .iter()
             .all(|q| q.state.get("observation").is_none())
     );

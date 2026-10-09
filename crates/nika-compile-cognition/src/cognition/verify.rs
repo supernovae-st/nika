@@ -48,12 +48,12 @@ pub(crate) const WHOLE_QUESTIONS: usize = 2;
 mod faithful;
 mod grounding;
 mod held;
-use faithful::{Pointed, told, whole};
+use faithful::{Pointed, whole};
 use grounding::grounding;
 use held::held_text;
 pub(super) use held::{HELD_TARGET, held, kept, preserve_unjudged, withdrawn};
 use nika_compile_clauses::parts::{parts, restricts};
-use nika_compile_seats::judge::{Construction, judged_state, state};
+use nika_compile_seats::judge::{Construction, judged_state, state, told};
 use nika_compile_seats::repairs::carry_declined;
 
 /// Who judges a candidate: a decision seat the caller permits (its calls and usage are its own,
@@ -145,6 +145,9 @@ pub(super) struct Verdict {
     /// the whole question it answered (id, instructions, state, options): taken only by that
     /// very question in its turn, never by another one that reuses its id.
     pub(super) prefetched: Vec<(ChoiceQuestion, Result<ChoiceAnswer, DecisionError>)>,
+    /// What the engine's own facts settled with no call (the extra-operation question when they
+    /// leave no task open), each as the verdict records it.
+    pub(super) engine: Vec<Value>,
 }
 
 /// What the judge's admitted answers did to a candidate's bytes, by strength.
@@ -186,6 +189,13 @@ impl Verdict {
     /// Whether nothing stands against READY: no defect, no unknown, nothing contested.
     pub(super) fn settled(&self) -> bool {
         self.defects.is_empty() && self.unknown.is_empty() && self.contested.is_empty()
+    }
+
+    /// Whether the judge rejected the whole request and nothing narrower stands: no defect, no
+    /// unknown, only the request itself contested. Nothing is verified; nothing is located.
+    pub(super) fn unresolved(&self) -> bool {
+        let whole = !self.contested.is_empty() && self.contested == self.request.as_slice();
+        whole && self.rejected() && self.defects.is_empty() && self.unknown.is_empty()
     }
 
     /// Whether the judge answered these bytes and did not accept them, and nothing settled them
@@ -257,16 +267,6 @@ impl Verdict {
 const CLAUSE: &str = "Judge ONE clause of the user's request against the candidate workflow's actual bytes (candidate_nika). Read the whole request, the answers, the observed world and the candidate. carried: the candidate's program does exactly what this clause asks; an equivalent program counts (same rows, order, counts, values, effects and conditions). missing: the candidate omits the clause or does it differently (another order, count, negation, number or unit, target or condition). Task names, comments, labels and the words a step restates are claims, never evidence.";
 const NO_OPERATION: &str = "the clause asks nothing of the workflow (a courtesy, a sentence about the data) and restricts nothing";
 const WHOLE: &str = "Compare the WHOLE user request with the candidate workflow's actual bytes (candidate_nika). faithful: the program does everything the request asks, each operation in the stated order with the stated counts, negations, numbers and units, targets and conditions, and nothing it does not ask. unfaithful: anything is missing, extra or different. Task names, comments and labels are claims, never evidence.";
-/// What a whole-request question over a revision adds to its instructions ([`whole`]).
-const REVISED: &str = "This candidate REVISES an earlier workflow. `request` is the whole revised request it must carry: the earlier request with each clause the change replaces replaced in place, then the change's additions; every other earlier clause is still asked. `revision.change` is the change as the human stated it; `revision.base_request` is the earlier request, history only: a clause the change replaced is no longer asked. A clause asking to create or modify the workflow file itself is carried by this candidate being that workflow; every other clause is judged on what its bytes do.";
-/// What a whole-request question over a revision whose request is the earlier request followed
-/// by the change (`… Change: …`) adds to its instructions ([`whole`]).
-const REVISED_APPENDED: &str = "This candidate REVISES an earlier workflow. `request` is the earlier request followed by the change the human stated (« Change: … »): where they differ the change takes precedence, so a clause of the earlier request the change replaces is superseded and no longer asked; every other earlier clause is still asked. `revision.change` is the change as stated. A clause asking to create or modify the workflow file itself is carried by this candidate being that workflow; every other clause is judged on what its bytes do.";
-/// What a whole-request question over any other candidate adds to its instructions ([`whole`]):
-/// a request to author this workflow (« create report.nika that … ») asks for this program, not
-/// for a step writing its own file. It attests no save, path or name: a stated name is judged on
-/// the bytes, and every write the program itself does (another `.nika` too) stays judged.
-const CREATED: &str = "This candidate is the workflow the request asks Nika to author. A clause asking to create this workflow asks for this program; it does not ask the program to write its own file. Saving that file is the host's step after review, outside these bytes: it is neither missing nor done here. A name the request gives this workflow is judged against the candidate's own `nika:` name. A workflow identity is not proof of a Save filename or path; do not infer a destination absent from the state. Every other clause is judged on what the bytes do, including every file the program itself writes (another `.nika` file among them).";
 
 const REPAIR_REFERENCE: &str = "The compiler emits the workflow from your plan as the reference below states: how it writes and what each tool it calls does, so you can read the candidate's bytes in the STATE. Your answer stays the complete JSON plan.";
 
@@ -290,12 +290,6 @@ fn unjudged(settled: &CompileOutcome, plan: &Plan) -> Option<Value> {
         .cloned()
         .collect();
     (!notes.is_empty()).then(|| json!(notes))
-}
-
-/// A question's instructions after the verdict's reference: the reference first, so every
-/// question of a verdict opens with the same bytes, then what this question asks.
-fn grounded(reference: &str, instructions: &str) -> String {
-    format!("{reference}\n\n{instructions}")
 }
 
 // The journal entry of the call just made, when that call was journaled after `before`
@@ -704,7 +698,7 @@ async fn judge_clause<P: ProviderInferDyn>(
         CLAUSE.to_owned()
     };
     let (shown, instructions) = Construction::shown(base, &instructions);
-    let told = faithful::told(base, reference, &instructions);
+    let told = told(base, reference, &instructions);
     for (n, &span) in open.spans.iter().enumerate() {
         let mut options = vec![
             ChoiceOption::new(
@@ -821,6 +815,8 @@ fn record<P: ProviderInferDyn>(
         "declined": verdict.declined != Declined::No,
         "rejected": verdict.rejected(),
         "settled": verdict.settled(),
+        "unresolved": verdict.unresolved(),
+        "engine": verdict.engine,
         "stopped": verdict.stopped,
         "whole_asked": verdict.whole_asked,
         "request": verdict.request,

@@ -19,8 +19,9 @@ const INTENT: &str = "Write the greeting I choose to ./out/result.txt.";
 const PART: &str = "Write the greeting I choose to ./out/result.txt";
 /// The answer every answer round gives.
 const ANSWER: &str = "const.greeting=\"hello\"";
-/// The compiler's `verify_held` finding on a candidate its judge rejected with no defect located.
-const HELD: &str = "The candidate was judged and not accepted, with no defect a repair could start from: it is shown, never offered, and nothing was written. A correction of the request or another verifier can decide it.";
+/// The compiler's `verify_held` finding on a candidate its judge rejected as a whole while nothing
+/// located the rejection: the one part carried, no task left open, no run deciding it.
+const HELD: &str = "The verifier doubted the request as a whole but located nothing: asked alone, none of its parts (1) was found missing, no task was found doing anything the request does not ask, and no run of these bytes decided it. Nothing is verified: the workflow is shown, never proposed, and nothing was written. Review it and describe a correction, or choose another verifier.";
 
 /// One real `nika compile --json` of [`INTENT`] on the vLLM loopback route under the Sketch
 /// strategy, with `extra` arguments: its exit, its document and every request the seat received.
@@ -85,9 +86,10 @@ fn applied<'a>(doc: &'a Value, target: &str) -> Vec<&'a str> {
 }
 
 /// Round 1 asks the greeting and records its plan for the answer round. Round 2 answers it: the
-/// record replays to the round's judge, which rejects the request and carries its one part with
-/// no extra operation, so the candidate is held and the record goes. Round 3 answers again: with
-/// no record to replay, it authors afresh (other bytes here) and its judge reads only those.
+/// record replays to the round's judge, which rejects the request and carries its one part (the
+/// engine's facts leave no task to name), so the candidate is held and the record goes. Round 3
+/// answers again: with no record to replay, it authors afresh (other bytes here) and its judge
+/// reads only those.
 #[test]
 fn a_held_answer_round_removes_the_record_and_the_next_round_authors_again() {
     let room = tempfile::tempdir().expect("room");
@@ -107,12 +109,12 @@ fn a_held_answer_round_removes_the_record_and_the_next_round_authors_again() {
         "an open question is no failed judgment"
     );
     // Round 2: replayed (no authoring call), tried, judged and held. Nothing stays open after the
-    // part and the extra question, so the judge is asked over the trial run too: a run it finds
+    // part (the one task writes the output the part asks: the engine's facts settle the extra
+    // question with no call), so the judge is asked over the trial run too: a run it finds
     // consistent would settle the doubt; one that did not exercise the part keeps it.
     let doubt = [
         r#"{"choice":"unfaithful"}"#,
         r#"{"choice":"carried"}"#,
-        r#"{"choice":"only_requested"}"#,
         r#"{"choice":"unexercised"}"#,
     ]
     .map(str::to_owned);
@@ -131,8 +133,7 @@ fn a_held_answer_round_removes_the_record_and_the_next_round_authors_again() {
         [
             vec!["faithful", "unfaithful", "none"],
             vec!["carried", "missing", "none"],
-            vec!["only_requested", "task-save", "none"],
-            vec!["consistent", "unexercised", "part-0", "task-save", "none"],
+            vec!["consistent", "unexercised", "part-0", "none"],
         ]
     );
     let (part, _) = judged(&bodies[1]).expect("the part asked alone");
@@ -206,7 +207,9 @@ fn a_round_that_authors_the_held_bytes_again_never_asks_their_judge() {
     .map(str::to_owned);
     let (out, doc, bodies) = compile(room.path(), &doubt, &["--answer", ANSWER]);
     assert_eq!(out.status.code(), Some(2), "{doc}");
-    assert_eq!(bodies.len(), 4, "request, part, extra question, run");
+    // The scripted third answer lands on the question over the run, outside its options: no
+    // choice over the run, which decides nothing.
+    assert_eq!(bodies.len(), 3, "request, part, run");
     let held = judged_sha(&bodies[0]).expect("the held bytes");
     assert_eq!(applied(&doc, "verify_held"), [HELD], "{doc}");
     let judged = doc["provenance"]["decision"]["semantic_verification"][0].clone();

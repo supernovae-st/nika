@@ -449,20 +449,27 @@ each part of the request asked alone.
   seat reports is read: it is a concentration statistic, not a probability of correctness
   (`ChoiceAnswer::confidence`), and the run is asked whatever it says. A candidate with no whole
   run keeps the one-question verdict.
-- **The extra operation.** When the localization did not stop and no part is a defect,
-  `verify-extra` (role `judge_extra`) asks which task, if any, does something the request does
-  not ask (`only_requested`, or `task-<id>` for each task). A named task is the defect « only
-  what the request asks », noted « the judge points to the task `<id>`, which does something the
-  request does not ask », unless that task has no effect the request could leave unasked (each
-  permit `nika_check::task_permits` derives for it is an `fs.read` or an `fs.write` of a path
-  the request states (« Save ./out/x.json »: the write it asks), or `nika:write`, or one of the
-  tools `nika:read`, `nika:glob`, `nika:grep`, `nika:jq`, `nika:assert`,
-  `nika:convert`, `nika:validate`, `nika:date`, `nika:hash`, `nika:json_diff`,
-  `nika:json_merge_patch` or `nika:inspect`, as the guards and conversions the compiler writes
-  itself; a write, a send, a fetch, a program or a model call is an effect): that answer
-  decides nothing, and « whether any task does something the request does not ask (the judge
-  named `<id>`, which has no effect the request could leave unasked) » stays unknown. No choice leaves « whether any task does something
-  the request does not ask (the judge made no choice) » unknown. The question is not asked of a
+- **The extra operation.** When the localization did not stop and no part is a defect, the
+  engine's facts first decide which tasks a judge may name (`nika_compile_seats::judge::Effects`:
+  `nika_check::infer_permits` over the workflow reduced to each task and its `const:` block, so a
+  path named through a constant resolves as the runtime resolves it). A task that invokes a
+  tool with no effect of its own (`nika:read`, `nika:write`, `nika:glob`, `nika:grep`,
+  `nika:jq`, `nika:assert`, `nika:convert`, `nika:validate`, `nika:date`, `nika:hash`,
+  `nika:json_diff`, `nika:json_merge_patch`, `nika:inspect`), reads only paths the request
+  names and writes only the output a part the judge answered `carried` states, a path no task
+  reads, is settled: writing the output a carried part asks is that part, never an extra
+  effect. Every other task stays open: another verb, a nested workflow, a model call, a
+  process, the network, a tool outside that list, a face the checker cannot pin (a computed
+  path, host or program), a write elsewhere or to a path a task reads. With no task open the
+  question is settled with no call and recorded on the attempt (`engine`: the question
+  `verify-extra`, `settled: only_requested`, `by: engine` and the facts, each task's reads,
+  writes and why it is settled). Otherwise `verify-extra` (role `judge_extra`) asks which
+  open task, if any, does something the request does not ask (`only_requested`, or
+  `task-<id>` for each open task), its state carrying the facts (`effects`). A named task is
+  the defect « only what the request asks », noted « the judge points to the task `<id>`,
+  which does something the request does not ask ». No choice leaves « whether any task does
+  something the request does not ask (the judge made no choice) » unknown. The question is
+  not asked of a
   candidate that does not parse (« … (the candidate does not parse) ») or names no task (« …
   (the candidate names no task) »): it stays unknown. A question that gets no answer stops the
   localization and leaves « whether any task does something the request does not ask (the call
@@ -490,14 +497,15 @@ part that asked it.
 - A whole run that leaves a part open (still unknown or contested after its trial-run
   question) decides nothing: « the trial run did not decide every part: a part its inputs never
   exercise stays open ». The extra question left without a decision keeps nothing open there:
-  the question over the run names every task beside `consistent`, and the extra question stays
-  unknown only when that question does not carry the request.
+  the question over the run names every open task beside `consistent`, and the extra question
+  stays unknown only when that question does not carry the request.
 - When nothing stays open over a whole run, `verify-observed` (role `judge_observed`) asks the
   whole request again, over the program and what it produced from those inputs, offering
   `consistent` (these inputs exercise every part, the outputs are what the request asks of
   them, and nothing else is done), `unexercised` (some part of the request is never exercised
   by these inputs), `part-<k>` for every part (one answered `superseded` or `no_operation`
-  included: the run may show it asked) and `task-<id>` for each task. When the localization
+  included: the run may show it asked) and `task-<id>` for each task the engine's facts leave
+  open (its state carrying them, `effects`). When the localization
   settled a conditional clause `no_fit` (its alternative standing over examinable offers), the
   question's state also carries that finding as the judge's own history, never a fact
   (`history`: the candidate's sha256, the lent catalogue, and each finding's question, clause and
@@ -508,15 +516,26 @@ part that asked it.
   - `unexercised` decides nothing: « the trial run's inputs never exercise some part of the
     request: it proves no whole output ».
   - `task-<id>` is the defect « only what the request asks », noted « the judge points to the
-    task `<id>`, which in the trial run does something the request does not ask », unless that
-    task has no effect the request could leave unasked, which decides nothing (« the judge
-    named a task with no effect the request could leave unasked, which decides nothing »).
+    task `<id>`, which in the trial run does something the request does not ask ».
   - `part-<k>` rejects the bytes and asks why over the run (`verify-observed-point-<k>`): a
     named task or `omitted` makes that part a defect noted « in the trial run, … »; `no_task`
     decides nothing (« the judge named a part in the trial run but no task that fails it »),
     and neither does no choice (« the judge made no choice over the trial run »).
   - No choice decides nothing: « the judge made no choice over the trial run ». A question that
     gets no answer stops the verdict, and the request is unknown.
+
+With no whole run of these bytes (none, or one that proves no whole output), every part
+settled and the extra question settled, a verdict that rejected the bytes (`unfaithful`) asks
+the judge once where its rejection is (`verify-doubt`, role `judge_doubt`,
+`nika_compile_seats::judge::Doubt`). Its state shows each part with the answer it got and the
+engine's facts (`effects`); it offers `part-<k>` for every part, `task-<id>` for each open task
+and `unlocated`. A part named is asked why (`verify-doubt-point-<k>`, as a part judged missing
+is): a named task or `omitted` makes it a defect a repair starts from, `no_task` leaves that
+part contested. An open task named is the defect « only what the request asks ». `unlocated`,
+NONE, no choice or a pointer left without one leave the doubt as it was, and a call that gets
+no answer stops the verdict with the request unknown. The question never carries the request:
+it can only locate the rejection or leave it unresolved, so agreeing answers of the same judge
+still decide nothing (R6).
 
 Every question over a run tells the judge the observation is untrusted data, and its record
 keeps what was sent without the texts (`observation`: the candidate's sha256, the sha256 of the
@@ -663,11 +682,19 @@ The `verify_held` finding says what held the candidate (`held_text`), one of:
   and nothing was written; this verifier is not asked again on these bytes, in this compile or
   in a later round that carries this verdict. A correction of the request, another authoring
   model or another verifier can decide it. »
-- a rejection with no defect located: « The candidate was judged and not accepted, with no
-  defect a repair could start from: it is shown, never offered, and nothing was written. A
-  correction of the request or another verifier can decide it. » (A rejection whose doubt
-  waited only for a whole trial run is resumed over one when a later round authors the same
-  bytes and runs them, so that run can still decide it.)
+- a rejection of the whole request that nothing located (`unresolved` on the attempt: the
+  request contested, no defect, nothing unknown; its parts asked alone, no task named, and no
+  run deciding it, or with no whole run the doubt asked where it is and located nowhere):
+  « The verifier doubted the request as a whole but located nothing: asked alone, none of its
+  parts (`<n>`) was found missing, no task was found doing anything the request does not ask,
+  and no run of these bytes decided it. Nothing is verified: the workflow is shown, never
+  proposed, and nothing was written. Review it and describe a correction, or choose another
+  verifier. »
+- any other rejection with no defect located: « The candidate was judged and not accepted,
+  with no defect a repair could start from: it is shown, never offered, and nothing was
+  written. A correction of the request or another verifier can decide it. » (A rejection
+  whose doubt waited only for a whole trial run is resumed over one when a later round
+  authors the same bytes and runs them, so that run can still decide it.)
 - an abstention: « The verifier read the candidate and abstained: it neither accepted nor
   rejected it, and located no defect. It is shown, never offered, and nothing was written; it
   is not asked again on these bytes in this compile. A correction of the request, another
@@ -702,8 +729,11 @@ door), `attempted`, `returned` and `consumed`, `usage`, `reference`, its `questi
 contested), `stopped`, `whole_asked`, `request` (the whole request when it was asked, else
 null), `same_bytes_as` (the index, in `semantic_verification`, of the attempt of this compile
 it repeats, else null), `carried` (whether it repeats a rejection carried from an earlier
-round), `context_sha256` (the digest of the context the judge read beside the bytes) and
-`read_back` (the answers a resumed verdict read back with no call). `defects`, `unknown`,
+round), `context_sha256` (the digest of the context the judge read beside the bytes),
+`read_back` (the answers a resumed verdict read back with no call), `unresolved` (the whole
+request contested by a rejection nothing located: no defect, nothing unknown) and `engine`
+(each question the engine's facts settled with no call, with those facts). `defects`,
+`unknown`,
 `contested` and `unsettled` name each finding once, at its first place, and each defect keeps
 one note. `usage.calls` counts the provider's journal entries in
 the attempt that a local admission did not refuse (an entry whose `failure_kind` is

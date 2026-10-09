@@ -62,7 +62,6 @@ async fn a_prohibition_judged_missing_is_never_a_defect_without_a_task_named() {
         ("verify-part-1", "missing"),
         ("verify-point-1", "omitted"),
         ("verify-part-2", "carried"),
-        ("verify-extra", "only_requested"),
     ]);
     let author = (events(), filled("shape_events", AS_THEY_ARE));
     let (out, authored) = judged_by(FIELD, author, &judge, 2).await;
@@ -90,13 +89,18 @@ async fn a_prohibition_judged_missing_is_never_a_defect_without_a_task_named() {
     let refused = (&record["choice"], &record["error"]);
     let error = json!("seat chose `omitted`, outside the offered options");
     assert_eq!(refused, (&Value::Null, &error), "{record:#}");
-    // Six questions asked, all answered; the unoffered one is not consumed.
+    // Five questions asked, all answered; the unoffered one is not consumed. The read and the
+    // write are the request's own: the engine's facts settle the extra-operation question.
     let counts = (
         &attempt["attempted"],
         &attempt["returned"],
         &attempt["consumed"],
     );
-    assert_eq!(counts, (&json!(6), &json!(6), &json!(5)), "{attempt:#}");
+    assert_eq!(counts, (&json!(5), &json!(5), &json!(4)), "{attempt:#}");
+    assert_eq!(
+        attempt["engine"][0]["settled"], "only_requested",
+        "{attempt:#}"
+    );
     let told = findings(&out, "semantic_verification");
     let want = [unsettled(LOCAL_TIMES), contested_whole(NO_TRIAL)];
     assert_eq!(told, want, "{told:?}");
@@ -138,18 +142,13 @@ async fn a_selection_judged_missing_may_lack_an_operation_of_its_own() {
 /// The machine document of a held candidate (`outcome_document`, the one projection the CLI and
 /// Serve print) masks nothing and offers nothing: status incomplete, the very bytes the judge
 /// declined and their Check preview, no question, no boundary, no replay record, and the
-/// verifier's findings followed by the `verify_held` finding, as typed; the decision keeps the
-/// verdict bound to those bytes, with how it declined them.
+/// verifier's findings followed by the `verify_held` finding, as typed (here an unresolved doubt:
+/// nothing verified); the decision keeps the verdict bound to those bytes, with how it declined
+/// them.
 #[tokio::test]
 async fn the_wire_document_of_a_held_candidate_shows_it_unmasked_and_never_offered() {
     let mut replies = ranked(HIGHEST_FIRST);
-    for choice in [
-        "unfaithful",
-        "carried",
-        "carried",
-        "carried",
-        "only_requested",
-    ] {
+    for choice in ["unfaithful", "carried", "carried", "carried", "unlocated"] {
         replies.push(json!({"choice": choice}).to_string());
     }
     let provider = Rotating::new(replies);
@@ -171,9 +170,10 @@ async fn the_wire_document_of_a_held_candidate_shows_it_unmasked_and_never_offer
         .map(|d| (d.target.as_str(), d.message.as_str()))
         .collect();
     let contested = contested_whole(NO_TRIAL);
+    let held = "The verifier doubted the request as a whole but located nothing: asked alone, none of its parts (3) was found missing, no task was found doing anything the request does not ask, and no run of these bytes decided it. Nothing is verified: the workflow is shown, never proposed, and nothing was written. Review it and describe a correction, or choose another verifier.";
     let want = [
         ("semantic_verification", contested.as_str()),
-        ("verify_held", HELD),
+        ("verify_held", held),
     ];
     assert_eq!(typed, want, "{out:#?}");
     let shown: Vec<Value> = (document["diagnostics"].as_array().into_iter().flatten())
@@ -182,7 +182,7 @@ async fn the_wire_document_of_a_held_candidate_shows_it_unmasked_and_never_offer
         .collect();
     let printed = json!([
         {"kind": "unknown", "target": "semantic_verification", "message": contested},
-        {"kind": "applied", "target": "verify_held", "message": HELD},
+        {"kind": "applied", "target": "verify_held", "message": held},
     ]);
     assert_eq!(json!(shown), printed, "{document:#}");
     let attempt = &document["provenance"]["decision"]["semantic_verification"][0];

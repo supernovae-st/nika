@@ -35,6 +35,13 @@ const HELD_DEFECTS: &str = "The candidate was judged and not accepted: the parts
 /// What a candidate the verifier only abstained on is held with: an abstention is not carried
 /// to a later round, so a new round that authors again can decide it.
 const HELD_ABSTAINED: &str = "The verifier read the candidate and abstained: it neither accepted nor rejected it, and located no defect. It is shown, never offered, and nothing was written; it is not asked again on these bytes in this compile. A correction of the request, another verifier, or a new round that authors again can decide it.";
+/// What a candidate is held with when its judge rejected the whole request and nothing narrower
+/// stands (unresolved): nothing is verified; `parts` were asked alone.
+fn unresolved_held(parts: usize) -> String {
+    format!(
+        "The verifier doubted the request as a whole but located nothing: asked alone, none of its parts ({parts}) was found missing, no task was found doing anything the request does not ask, and no run of these bytes decided it. Nothing is verified: the workflow is shown, never proposed, and nothing was written. Review it and describe a correction, or choose another verifier."
+    )
+}
 /// What a verification stopped at a call that got no answer adds to the findings.
 const STOPPED: &str = "The verification stopped at a judge call that got no answer (refused by the call bound, or failed: the receipt says which); nothing after it was asked of that judge. Next: another round, or a larger call bound.";
 
@@ -80,6 +87,8 @@ impl nika_kernel::ai::provider::ProviderInferDyn for Approving {
             "only_requested"
         } else if keys.contains("\"consistent\"") {
             "consistent"
+        } else if keys.contains("\"unlocated\"") {
+            "unlocated"
         } else {
             let at = (self.clauses).fetch_add(1, Ordering::SeqCst);
             if self.missing.contains(&at) {
@@ -374,6 +383,29 @@ tasks:
         create_dirs: true
 "#;
 
+/// An approval gate guarding one write: the source read, request 7 picked, a person asked, the
+/// notice written only on their approval, through a constant.
+const GATED: &str = r#"nika: release-notice
+const:
+  notice_path: ./out/notice.json
+permits:
+  tools: ["nika:read", "nika:jq", "nika:prompt", "nika:write"]
+  fs: { read: ["./in/requests.json"], write: ["./out/notice.json"] }
+tasks:
+  read_requests:
+    invoke: { tool: "nika:read", args: { path: "./in/requests.json" } }
+  pick:
+    with: { raw: "${{ tasks.read_requests.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.raw }}", expression: "fromjson | map(select(.id == 7)) | .[0]" } }
+  review:
+    with: { request: "${{ tasks.pick.output }}" }
+    invoke: { tool: "nika:prompt", args: { mode: confirm, message: "Release request 7? ${{ with.request }}" } }
+  write_notice:
+    with: { approved: "${{ tasks.review.output }}", notice: "${{ tasks.pick.output }}" }
+    when: "${{ with.approved == true }}"
+    invoke: { tool: "nika:write", args: { path: "${{ const.notice_path }}", content: "${{ with.notice }}", overwrite: true, create_dirs: true } }
+"#;
+
 /// One pending clause judged by `provider` at its statements `spans` of `intent`, over
 /// [`GREETING`].
 async fn clause_judged(
@@ -601,10 +633,11 @@ async fn greeting_judged(
 
 /// An observation binds only to the bytes it ran (R6): a native verdict shows its judge the run
 /// of these exact bytes, and never another candidate's. A doubt nothing locates, over a run of
-/// other bytes, stays contested with no question over that run; over a run of these bytes whose
-/// one output it never wrote, no question is asked over the run either (it proves no whole
-/// output); over a run of these bytes read whole and written, the judge's consistent answer
-/// carries the request.
+/// other bytes, stays contested with no question over that run (asked where it is, the judge
+/// names nothing: unresolved); over a run of these bytes whose one output it never wrote, no
+/// question is asked over the run either (it proves no whole output); over a run of these bytes
+/// read whole and written, the judge's consistent answer carries the request. The write of the
+/// greeting is the output its one carried part states: no extra question is asked.
 #[tokio::test]
 async fn a_native_verdict_shows_its_judge_only_a_run_of_the_same_bytes() {
     let intent = "Write the text hello to ./out/result.txt.";
@@ -613,8 +646,9 @@ async fn a_native_verdict_shows_its_judge_only_a_run_of_the_same_bytes() {
     let sha = super::knowledge::sha256(&ready.candidate.unwrap());
     let elsewhere = greeted(&super::knowledge::sha256("nika: another-workflow\n"));
     let verdict = not_ready(greeting_judged(&elsewhere).await);
-    let asked = ["verify-request", "verify-part-0", "verify-extra"];
+    let asked = ["verify-request", "verify-part-0", "verify-doubt"];
     assert_eq!(ids(&verdict.records), asked);
+    assert!(verdict.unresolved());
     assert_eq!(verdict.contested, [intent]);
     let unobserved = "no trial run of these exact bytes exists in this compile";
     assert_eq!(verdict.unsettled, [unobserved]);
@@ -637,14 +671,10 @@ async fn a_native_verdict_shows_its_judge_only_a_run_of_the_same_bytes() {
     let decision = out.provenance.decision.as_ref().unwrap();
     let verified = &decision["semantic_verification"][0];
     let questions = verified["questions"].as_array().unwrap();
-    let asked = [
-        "verify-request",
-        "verify-part-0",
-        "verify-extra",
-        "verify-observed",
-    ];
+    let asked = ["verify-request", "verify-part-0", "verify-observed"];
     assert_eq!(ids(questions), asked);
-    let receipt = &questions[3]["observation"];
+    assert_eq!(verified["engine"][0]["settled"], "only_requested");
+    let receipt = &questions[2]["observation"];
     let digest = super::knowledge::sha256(&observed.to_string());
     assert_eq!(
         (&receipt["candidate_sha256"], &receipt["sha256"]),
@@ -658,6 +688,64 @@ async fn a_native_verdict_shows_its_judge_only_a_run_of_the_same_bytes() {
     assert_eq!(verified["candidate_sha256"], json!(sha));
     let route = decision["route"].as_array().unwrap();
     assert_eq!(route.last().unwrap(), "verify: judged (authoring_provider)");
+}
+
+/// The counterexample a doubt nothing located must never turn into a proposal: an approval gate
+/// guarding one write, judged unfaithful as a whole, each part carried, the read of the source,
+/// the pick and the write of the notice the request states settled by the engine's facts, the
+/// gate (a person's answer, which no rehearsal gives) the one task left open and named by no one,
+/// no run of these bytes; asked where its doubt is, the judge names nothing. The candidate is
+/// held, never READY: shown, never offered, its verdict typed unresolved with no question that
+/// settled it, the held finding saying nothing is verified.
+#[tokio::test]
+async fn an_unresolved_doubt_over_a_gate_is_held_never_ready() {
+    let intent = "Read ./in/requests.json, show request 7 to me for approval first, and only if I approve write its release notice to ./out/notice.json.";
+    let request = crate::CompileRequest::create(intent);
+    let reading = crate::lexicon::read(intent);
+    let policy = crate::AuthoringPolicy::new("mock/judge", 256, std::time::Duration::from_secs(2));
+    let mut ready = crate::initial();
+    nika_compile::surface::finish(GATED.to_owned(), &mut ready);
+    assert_eq!(ready.status, crate::CompileStatus::Ready, "{ready:#?}");
+    let provider = Approving {
+        doubt: true,
+        ..Approving::default()
+    };
+    let seats = (&provider, None);
+    let out = super::judged_native(intent, &reading, &policy, seats, &request, ready, None).await;
+    assert_eq!(out.status, crate::CompileStatus::Incomplete, "{out:#?}");
+    assert_eq!(
+        out.candidate.as_deref(),
+        Some(GATED),
+        "shown, never offered"
+    );
+    assert!(out.questions.is_empty() && out.requested_boundary.is_none());
+    let decision = out.provenance.decision.as_ref().unwrap();
+    let verified = &decision["semantic_verification"][0];
+    assert_eq!(verified["unresolved"], true, "{verified:#}");
+    assert_eq!(verified["settled_by"], Value::Null);
+    assert_eq!(verified["contested"], json!([intent]));
+    assert_eq!(verified["defects"], json!([]));
+    let questions = verified["questions"].as_array().unwrap();
+    let asked = |id: &str| (questions.iter().find(|question| question["question"] == id)).cloned();
+    let extra = asked("verify-extra").expect("the gate is asked about");
+    assert_eq!(
+        extra["options"],
+        json!(["only_requested", "task-review", "none"])
+    );
+    let doubt = asked("verify-doubt").expect("where the doubt is");
+    assert_eq!(doubt["choice"], "unlocated");
+    let count = parts(intent).len();
+    let mut options: Vec<String> = (0..count).map(|k| format!("part-{k}")).collect();
+    options.extend(["task-review", "unlocated", "none"].map(str::to_owned));
+    assert_eq!(doubt["options"], json!(options));
+    let routed = route(&out);
+    assert_eq!(
+        routed.last().map(String::as_str),
+        Some("verify: not ready, candidate held")
+    );
+    let held = unresolved_held(count);
+    let applied = crate::DiagnosticKind::Applied;
+    assert_eq!(held_findings(&out), [(applied, held.as_str())]);
 }
 
 /// The route steps a decision records, in order.
@@ -950,12 +1038,12 @@ fn a_record_less_revision_is_judged_over_its_base() {
     let request = crate::CompileRequest::edit(base, "change it");
     let state = super::state("the workflow — change it", &request, "nika: x\n");
     assert_eq!(state["revision"]["base_nika"], base);
-    let told = super::faithful::told(&state, "", "WHOLE");
+    let told = nika_compile_seats::judge::told(&state, "", "WHOLE");
     assert!(told.contains("whose own request is unknown"), "{told}");
     let known = crate::CompileRequest::edit(base, "change it").with_original_intent("a base");
     let state = super::state("a base — change it", &known, "nika: x\n");
     assert!(state["revision"].get("base_nika").is_none(), "{state}");
-    assert!(!super::faithful::told(&state, "", "WHOLE").contains("whose own request"));
+    assert!(!nika_compile_seats::judge::told(&state, "", "WHOLE").contains("whose own request"));
 }
 
 /// A revision the compiler applied over the complete document is judged as the base with exactly
@@ -979,7 +1067,7 @@ fn a_document_revision_with_a_known_request_is_judged_over_its_base() {
         Some(serde_json::json!({"document_revision": {"mode": "operations"}}));
     nika_compile_seats::judge::over_document(&mut state, &known, &out);
     assert_eq!(state["revision"]["base_nika"], base);
-    let told = super::faithful::told(&state, "", "WHOLE");
+    let told = nika_compile_seats::judge::told(&state, "", "WHOLE");
     assert!(
         told.contains("applied over its complete document"),
         "{told}"

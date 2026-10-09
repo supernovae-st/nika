@@ -402,9 +402,10 @@ async fn a_create_tells_every_whole_request_question_what_authoring_this_workflo
 /// What an unjudged candidate's kept record offers the next round (the `verify_resume` finding,
 /// as the verifier states it).
 const RESUME: &str = "The candidate was not judged, so it is not offered; its bytes are kept: a round that replays this record under a judge asks it on the same candidate, with no new authoring call (a replay with no judge judges nothing).";
-/// What a candidate judged and rejected with no defect located offers (the `verify_held`
-/// finding, as the verifier states it).
-const HELD: &str = "The candidate was judged and not accepted, with no defect a repair could start from: it is shown, never offered, and nothing was written. A correction of the request or another verifier can decide it.";
+/// What a candidate whose whole request the judge rejected, nothing narrower standing, offers
+/// (the `verify_held` finding of an unresolved doubt, as the verifier states it): its one part
+/// was asked alone.
+const HELD: &str = "The verifier doubted the request as a whole but located nothing: asked alone, none of its parts (1) was found missing, no task was found doing anything the request does not ask, and no run of these bytes decided it. Nothing is verified: the workflow is shown, never proposed, and nothing was written. Review it and describe a correction, or choose another verifier.";
 /// What a candidate the verifier only abstained on offers: an abstention is never carried to a
 /// later round, so a new round that authors again can decide it.
 const HELD_ABSTAINED: &str = "The verifier read the candidate and abstained: it neither accepted nor rejected it, and located no defect. It is shown, never offered, and nothing was written; it is not asked again on these bytes in this compile. A correction of the request, another verifier, or a new round that authors again can decide it.";
@@ -413,8 +414,9 @@ const EXTRA_UNSETTLED: &str =
     "whether any task does something the request does not ask (the judge made no choice)";
 /// Why a disagreement with no run of these bytes stays contested.
 const UNOBSERVED: &str = "no trial run of these exact bytes exists in this compile";
-/// A doubt no part locates: the request unfaithful, its one part carried, no task doing more.
-const UNLOCATED: [Result<&str, &str>; 3] = [Ok("unfaithful"), Ok("carried"), Ok("only_requested")];
+/// A doubt no part locates: the request unfaithful, its one part carried (the write is the
+/// output it states, so no extra question), and asked where the doubt is, nowhere.
+const UNLOCATED: [Result<&str, &str>; 3] = [Ok("unfaithful"), Ok("carried"), Ok("unlocated")];
 
 /// The verification steps of the route `out` records, in order.
 fn verify_route(out: &CompileOutcome) -> Vec<String> {
@@ -518,7 +520,7 @@ async fn a_doubted_sketch_candidate_is_held_never_offered() {
     assert_eq!(author.calls(), 2);
     let asked = judge.questions();
     let ids: Vec<&str> = asked.iter().map(|q| q.id.as_str()).collect();
-    assert_eq!(ids, ["verify-request", "verify-part-0", "verify-extra"]);
+    assert_eq!(ids, ["verify-request", "verify-part-0", "verify-doubt"]);
     let verified = &verification(&out)[0];
     let lists = ["defects", "unknown", "contested", "doubt", "unsettled"].map(|k| &verified[k]);
     let expected = [
@@ -567,7 +569,7 @@ async fn a_replayed_record_the_judge_doubts_is_never_replayed_again() {
     .await;
     assert_eq!(author.calls(), 2, "the record replays with no author call");
     let ids: Vec<String> = doubting.questions().into_iter().map(|q| q.id).collect();
-    assert_eq!(ids, ["verify-request", "verify-part-0", "verify-extra"]);
+    assert_eq!(ids, ["verify-request", "verify-part-0", "verify-doubt"]);
     assert_eq!(replayed.status, CompileStatus::Incomplete, "{replayed:#?}");
     // A semantic record's closed format holds no rejection: it is dropped, never replayed to it.
     assert_eq!(replayed.provenance.plan, None);

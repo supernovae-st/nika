@@ -350,9 +350,10 @@ const NO_PROGRESS: &str = "The workflow is built but not proposed: the verifier 
 /// (`nika_onboard`'s held words): built, shown, never proposed, nothing written; a correction or
 /// another authoring model, which also judges unless a decision model is set, can decide it.
 pub(super) const DOUBTED: &str = "The workflow is built but not proposed: the verifier did not accept it and located no defect a repair could start from; nothing was written.\n  describe a correction, or `/intelligence` for another authoring model (it also judges unless a decision model is set) · `/meaning` shows what was understood";
-/// The compiler's `verify_held` finding on a candidate its verifier rejected with no defect
-/// located.
-pub(super) const HELD: &str = "The candidate was judged and not accepted, with no defect a repair could start from: it is shown, never offered, and nothing was written. A correction of the request or another verifier can decide it.";
+/// The compiler's `verify_held` finding on a candidate its verifier rejected as a whole while
+/// nothing located the rejection: [`WORK`]'s one part carried, no task left open, and asked
+/// where its doubt is, nowhere.
+pub(super) const UNRESOLVED: &str = "The verifier doubted the request as a whole but located nothing: asked alone, none of its parts (1) was found missing, no task was found doing anything the request does not ask, and no run of these bytes decided it. Nothing is verified: the workflow is shown, never proposed, and nothing was written. Review it and describe a correction, or choose another verifier.";
 /// Why no trial decided the held bytes, as the held text names it (A4): the room refused them.
 pub(super) const UNTRIED: &str = " No trial of these bytes ran: the rehearsal room refused them before any attempt (./entree.txt is read but not observed: the room holds the observed inputs only).";
 /// The applied `verify_held` findings of an outcome, in order.
@@ -363,8 +364,9 @@ pub(super) fn held_findings(out: &nika_onboard::compile::CompileOutcome) -> Vec<
         .map(|d| d.message.as_str())
         .collect()
 }
-/// A replayed candidate its judge doubts while its one part, asked alone, is carried and no task
-/// does what the request does not ask: the verdict and its localization disagree, and agreeing
+/// A replayed candidate its judge doubts while its one part, asked alone, is carried, the
+/// engine's facts leave no task that could do what the request does not ask, and asked where its
+/// doubt is the judge names nothing: the verdict and its localization disagree, and agreeing
 /// answers of the same judge decide nothing (R6), while an answer round has no trial run that
 /// could. No defect was located, so nothing is written again from one; the candidate is held,
 /// never proposed, and no record of its bytes is kept, so no later line asks the same judge
@@ -383,7 +385,7 @@ fn a_replayed_doubt_no_part_settles_is_never_written_again() {
     let again = Peer::start(vec![
         (200, response(r#"{"choice":"unfaithful"}"#)),
         (200, response(r#"{"choice":"carried"}"#)),
-        (200, response(r#"{"choice":"only_requested"}"#)),
+        (200, response(r#"{"choice":"unlocated"}"#)),
     ]);
     let _again = test_transport::install(&again.url);
     let out = s.turn("RePrEnD");
@@ -394,15 +396,17 @@ fn a_replayed_doubt_no_part_settles_is_never_written_again() {
     assert_eq!(
         bodies.len(),
         3,
-        "the doubt, its one part, the extra question: no authoring round"
+        "the doubt, its one part, then where the doubt is: no authoring round"
     );
     let (_, verdicts) = asked(&bodies[0]).expect("the whole request judged");
     assert_eq!(verdicts, ["faithful", "unfaithful", "none"]);
     let (part, choices) = asked(&bodies[1]).expect("its one part asked alone");
     assert_eq!(part["clause"], json!({"text": PART}));
     assert_eq!(choices, ["carried", "missing", "none"]);
-    let (_, extra) = asked(&bodies[2]).expect("the extra-operation question");
-    assert_eq!(extra, ["only_requested", TASKS[0], TASKS[1], "none"]);
+    // No task to name: the engine's facts settle both (the read and the write are the
+    // request's own).
+    let (_, doubt) = asked(&bodies[2]).expect("where the doubt is");
+    assert_eq!(doubt, ["part-0", "unlocated", "none"]);
     assert!(s.pending_proposal().is_none());
     assert!(!dir.path().join("compiled-workflow.nika").exists());
     assert!(!dir.path().join("sortie.txt").exists(), "never run");
@@ -436,7 +440,7 @@ fn a_replayed_doubt_no_part_settles_is_never_written_again() {
         ),
         (&json!(true), &json!(true), &json!(false))
     );
-    let untried = format!("{HELD}{UNTRIED}");
+    let untried = format!("{UNRESOLVED}{UNTRIED}");
     assert_eq!(held_findings(held), [untried.as_str()]);
     let route = &held.provenance.decision.as_ref().expect("decision")["route"];
     let last = route.as_array().and_then(|steps| steps.last());

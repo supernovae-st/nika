@@ -108,10 +108,11 @@ fn doubting(asked: &Asked<'_>) -> String {
 }
 
 /// A COLD candidate whose whole-request verdict does not carry the request while every part,
-/// asked alone, is carried and no task does more than it asks (R6): the same judge agreeing with
-/// itself part by part decides nothing, and no trial run of these bytes exists. The request is
-/// contested: never READY, never repaired from though a repair round is granted, the finding
-/// naming the disagreement and its next action, never a defect, and its record dropped.
+/// asked alone, is carried and no task does more than it asks (the engine's facts settle every
+/// task: no extra question) (R6): no trial run of these bytes exists, so the judge is asked once
+/// where its doubt is, and names nothing. The request is contested, unresolved: never READY,
+/// never repaired from though a repair round is granted, the finding naming the disagreement
+/// and its next action, never a defect, and its record dropped.
 #[tokio::test]
 async fn a_doubted_cold_candidate_whose_every_part_is_carried_is_contested_never_repaired() {
     let sum = format!("{GENERATED} // 0");
@@ -121,7 +122,7 @@ async fn a_doubted_cold_candidate_whose_every_part_is_carried_is_contested_never
     assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
     assert_eq!(authored(&out), ["plan", "transform"], "{out:#?}");
     assert_eq!(seat.calls(), 2);
-    // The clause no law reads, the whole request, its three parts alone, the extra question.
+    // The clause no law reads, the whole request, its three parts alone, where the doubt is.
     assert_eq!(
         judged(&out),
         [
@@ -130,7 +131,7 @@ async fn a_doubted_cold_candidate_whose_every_part_is_carried_is_contested_never
             "judge_part",
             "judge_part",
             "judge_part",
-            "judge_extra"
+            "judge_doubt"
         ]
     );
     // Each question over the whole request, a part of it alone or its tasks is told what a

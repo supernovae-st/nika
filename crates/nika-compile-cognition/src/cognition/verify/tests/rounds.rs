@@ -19,6 +19,7 @@ use nika_kernel::ai::provider::{
 };
 use serde_json::{Value, json};
 
+use super::{parts, unresolved_held};
 use crate::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionError, DecisionSeat};
 use crate::{
     AuthoringPolicy, Cognition, CompileOutcome, CompileRequest, CompileStatus, HotPolicy,
@@ -589,14 +590,13 @@ fn unknown(clause: &str) -> String {
 
 /// Why a verification left the rest of its questions unasked.
 const STOPPED: &str = "The verification stopped at a judge call that got no answer (refused by the call bound, or failed: the receipt says which); nothing after it was asked of that judge. Next: another round, or a larger call bound.";
-/// What a candidate judged and rejected with no defect located is held with.
-const HELD: &str = "The candidate was judged and not accepted, with no defect a repair could start from: it is shown, never offered, and nothing was written. A correction of the request or another verifier can decide it.";
 
 /// A COLD candidate the judge doubts with no defect located (its computation clause carried,
-/// every part carried, no task doing more) is never repaired from and never READY; its record is
-/// dropped and the candidate held, so no replay asks the same judge again on these bytes. The
-/// clause the judge carried stays settled: the core names only the whole request pending, then
-/// the verifier the disagreement. A judge that answered nothing (its first call failed) is asked
+/// every part carried, its read and write the request's own so the engine's facts settle every
+/// task, and asked where its doubt is it names nothing) is never repaired from and never READY;
+/// its record is dropped and the candidate held as unresolved, so no replay asks the same judge
+/// again on these bytes. The clause the judge carried stays settled: the core names only the
+/// whole request pending, then the verifier the disagreement. A judge that answered nothing (its first call failed) is asked
 /// nothing more and keeps the record: a later round asks it; the core names both clauses
 /// pending, the verifier each one unknown and why it stopped.
 #[tokio::test]
@@ -607,7 +607,7 @@ async fn a_doubted_cold_round_carries_its_rejection_and_an_unanswered_one_keeps_
         ("verify-part-0", Ok("carried")),
         ("verify-part-1", Ok("carried")),
         ("verify-part-2", Ok("carried")),
-        ("verify-extra", Ok("only_requested")),
+        ("verify-doubt", Ok("unlocated")),
     ];
     let unanswered: &[(&str, Result<&str, &str>)] =
         &[("verify-clause-0", Err("the seat is unavailable"))];
@@ -668,7 +668,7 @@ async fn a_doubted_cold_round_carries_its_rejection_and_an_unanswered_one_keeps_
             // The clause the judge carried is no longer named pending.
             let expected = [pending(&intent(), UNNAMED, candidate), contested.clone()];
             assert_eq!(told, expected);
-            assert_eq!(kept, [HELD]);
+            assert_eq!(kept, [unresolved_held(parts(&intent()).len()).as_str()]);
         }
         assert_eq!(verify_route(&out), steps);
     }
@@ -680,7 +680,8 @@ const WARM: &str = "Trova la voce B-8 in ./voci.json e scrivila in ./out/voce.js
 const WARM_FIELD: &str = "const.voce_id_field";
 
 /// A WARM seat: it settles the reading with a lookup and answers each verifier question by its
-/// id: the clauses and parts carried, the whole request `request`, no task doing more.
+/// id: the clauses and parts carried, the whole request `request`, no task doing more, and
+/// asked where a doubt is, nowhere.
 struct Warm {
     request: Result<&'static str, &'static str>,
     asked: Mutex<Vec<String>>,
@@ -699,6 +700,8 @@ impl DecisionSeat for Warm {
                 self.request
             } else if id == "verify-extra" {
                 Ok("only_requested")
+            } else if id == "verify-doubt" {
+                Ok("unlocated")
             } else if id.starts_with("verify-") {
                 Ok("carried")
             } else {
@@ -711,8 +714,9 @@ impl DecisionSeat for Warm {
     }
 }
 
-/// A WARM candidate the seat doubts with no defect located is never READY and keeps no
-/// replayable record; one whose whole-request call failed keeps it.
+/// A WARM candidate the seat doubts with no defect located (its read and write the request's
+/// own, no run, the doubt located nowhere) is never READY and keeps no replayable record; one
+/// whose whole-request call failed keeps it.
 #[tokio::test]
 async fn a_doubted_warm_round_carries_its_rejection_and_an_unanswered_one_keeps_its_record() {
     for (request, replayable) in [(Ok("unfaithful"), false), (Err("unavailable"), true)] {
@@ -741,11 +745,12 @@ async fn a_doubted_warm_round_carries_its_rejection_and_an_unanswered_one_keeps_
                 .expect("an unjudged round is kept");
             assert_eq!(record["strategy"], "warm");
         } else {
-            let localized = ["verify-part-0", "verify-extra"];
+            let localized = ["verify-part-0", "verify-doubt"];
             assert_eq!(asked[2..], localized, "{asked:?}");
             steps.push("verify: doubted, not replayable");
             assert!(carries_rejection(&out), "{out:#?}");
-            assert_eq!(findings(&out).1, [HELD]);
+            let held = unresolved_held(parts(WARM).len());
+            assert_eq!(findings(&out).1, [held.as_str()]);
         }
         assert_eq!(verify_route(&out), steps);
     }
@@ -838,7 +843,8 @@ async fn a_doubted_cold_round_asks_no_question_and_an_unanswered_one_keeps_them(
         assert_eq!(flags, (kept, true), "{verdict:?}");
         assert!(kept || carries_rejection(&out), "{verdict:?}");
         assert_eq!(verify_route(&out).last().map(String::as_str), Some(last));
-        let held: &[&str] = if kept { &[] } else { &[HELD] };
+        let unresolved = unresolved_held(parts(&format!("Every weekday at 8, {}", intent())).len());
+        let held: &[&str] = if kept { &[] } else { &[unresolved.as_str()] };
         assert_eq!(findings(&out).1, held, "{verdict:?}");
     }
 }

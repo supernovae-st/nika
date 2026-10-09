@@ -8,8 +8,8 @@
 //! replaced clause asks nothing of the candidate, while the change and every clause it leaves
 //! untouched stay judged. The last part is never offered it, and no choice keeps a part open.
 
-use super::super::REVISED_OVER_DOCUMENT;
 use super::*;
+use nika_compile_seats::judge::REVISED_OVER_DOCUMENT;
 use nika_compile_seats::judge::over_document;
 
 /// The base the revision starts from: it keeps the tickets older than 48 hours.

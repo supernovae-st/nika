@@ -17,6 +17,13 @@ pub(super) const HELD: &str = "The candidate was judged and not accepted, with n
 /// What a candidate the verifier only abstained on is held with: an abstention is never carried
 /// to a later round, so a new round that authors again can decide it.
 const HELD_ABSTAINED: &str = "The verifier read the candidate and abstained: it neither accepted nor rejected it, and located no defect. It is shown, never offered, and nothing was written; it is not asked again on these bytes in this compile. A correction of the request, another verifier, or a new round that authors again can decide it.";
+/// What a candidate is held with when the judge rejected the whole request and nothing narrower
+/// stands (unresolved): nothing is verified; `parts` were asked alone.
+pub(super) fn unresolved(parts: usize) -> String {
+    format!(
+        "The verifier doubted the request as a whole but located nothing: asked alone, none of its parts ({parts}) was found missing, no task was found doing anything the request does not ask, and no run of these bytes decided it. Nothing is verified: the workflow is shown, never proposed, and nothing was written. Review it and describe a correction, or choose another verifier."
+    )
+}
 /// What a held candidate adds when locating what it lacks stopped at a call with no answer.
 const HELD_STOPPED: &str = "Locating what it lacks stopped at a judge call that got no answer (refused by the call bound, or failed).";
 /// Why a verification left the rest of its questions unasked.
@@ -149,7 +156,11 @@ async fn a_failed_extra_question_stops_before_any_question_over_the_run() {
     script.extend(repeat_n((Part, Choose("carried")), 3));
     script.push((Extra, Fail));
     let judge = Scripted::new(script);
-    let Judged { verdict, .. } = provided(ORDERS, &judge, Some(&observed(true, true))).await;
+    let policy = AuthoringPolicy::new(MODEL, 256, Duration::from_secs(2));
+    let provider = Judge::Provider(&policy, &judge);
+    let request = CompileRequest::create(ORDERS);
+    let run = Some(&observed(true, true));
+    let Judged { verdict, .. } = judged(ORDERS, &request, &elsewhere(), &provider, run).await;
     assert_eq!(ids(&verdict).last(), Some(&"verify-extra"));
     let stopped = found(&[], &[EXTRA_UNANSWERED, ORDERS], &[], &["unfaithful"], &[]);
     assert_eq!(lists(&verdict), stopped);
@@ -166,29 +177,36 @@ async fn a_failed_extra_question_stops_before_any_question_over_the_run() {
 }
 
 /// A doubt no part locates, no task explains and no run of these bytes decides is held by how
-/// the judge declined (R6): a whole-request NONE whose every part is carried and whose extra
-/// question names no task only abstained, so the request is unknown, never contested, and the
-/// candidate is held as an abstention; the same answers after « unfaithful » rejected it: the
-/// request is contested with why nothing decided it, and the candidate held as a rejection.
+/// the judge declined (R6): a whole-request NONE whose every part is carried only abstained (the
+/// engine's facts settle every task, and an abstention is never asked where it is), so the
+/// request is unknown, never contested, and the candidate is held as an abstention; the same
+/// answers after « unfaithful » rejected it, and asked where that rejection is, the judge named
+/// nothing: the request is unresolved, contested with why nothing decided it, and the candidate
+/// held saying nothing is verified and how many parts were asked alone.
 #[tokio::test]
 async fn a_doubt_nothing_decided_is_held_by_how_the_judge_declined() {
     let judge = Scripted::new(undisputed("none", 3, None));
     let Judged { verdict, .. } = provided(ORDERS, &judge, None).await;
     assert_eq!(lists(&verdict), found(&[], &[ORDERS], &[], &["none"], &[]));
-    assert_eq!(counts(&verdict), (5, 5, 4));
+    assert_eq!(counts(&verdict), (4, 4, 3));
     assert_eq!(verdict.declined, Declined::Abstained);
     assert!(!verdict.rejected() && verdict.doubted() && !verdict.stopped);
+    assert!(!verdict.unresolved());
     assert_eq!(told(&verdict), [unsettled(ORDERS)]);
     assert_held(&verdict, HELD_ABSTAINED);
     assert_eq!(judge.left(), 0);
-    let judge = Scripted::new(undisputed("unfaithful", 3, None));
+    let judge = Scripted::new(undisputed(
+        "unfaithful",
+        3,
+        Some((Locate, Choose("unlocated"))),
+    ));
     let Judged { verdict, .. } = provided(ORDERS, &judge, None).await;
     let disputed = found(&[], &[], &[ORDERS], &["unfaithful"], &[UNOBSERVED]);
     assert_eq!(lists(&verdict), disputed);
     assert_eq!(verdict.declined, Declined::Rejected);
-    assert!(verdict.doubted());
+    assert!(verdict.doubted() && verdict.unresolved());
     assert_eq!(told(&verdict), [disagreement("unfaithful")]);
-    assert_held(&verdict, HELD);
+    assert_held(&verdict, &unresolved(3));
     assert_eq!(judge.left(), 0);
 }
 

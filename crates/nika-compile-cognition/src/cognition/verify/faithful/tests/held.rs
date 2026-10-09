@@ -283,6 +283,9 @@ impl Reader {
             answer.to_owned()
         } else if offers("only_requested") {
             "only_requested".to_owned()
+        } else if offers("unlocated") {
+            // Where its doubt is, asked with no run: it locates none.
+            "unlocated".to_owned()
         } else if offers("no_task") {
             Self::why(clause, question)
         } else if offers("consistent") {
@@ -356,9 +359,10 @@ fn part(words: &str) -> (usize, String) {
 /// The whole request, every part question and the whole request over the run carry what the
 /// composed bytes hold: the filter component, `expanded` with its source bound, bound to these
 /// bytes and this release (`construction`), beside the construction context and what holding
-/// means (`expanded` and `invoked` each said apart), never a localization's alternatives. The
-/// extra-operation question reads the bytes as it did. A judge that follows the context carries
-/// the clause.
+/// means (`expanded` and `invoked` each said apart), never a localization's alternatives. A judge
+/// that follows the context carries the clause; every part carried, the engine's facts settle
+/// every task (the component's read of the stated source, the jq programs, the write of the
+/// stated report), so no extra-operation question is asked.
 #[tokio::test]
 async fn every_question_judging_the_bytes_is_told_what_they_hold() {
     let candidate = composed(48, true);
@@ -367,8 +371,10 @@ async fn every_question_judging_the_bytes_is_told_what_they_hold() {
     let count = parts(TICKETS).len();
     let mut asked = vec!["verify-request".to_owned()];
     asked.extend((0..count).map(|k| format!("verify-part-{k}")));
-    asked.extend(["verify-extra".to_owned(), "verify-observed".to_owned()]);
+    asked.push("verify-observed".to_owned());
     assert_eq!(ids(&verdict), asked);
+    assert_eq!(verdict.engine.len(), 1, "{:?}", verdict.engine);
+    assert_eq!(verdict.engine[0]["settled"], "only_requested");
     let shown = holding(&candidate, "expanded");
     let context = "A clause may concern how the document is built rather than what a task does.";
     let expanded = "`expanded`: its admitted nodes are in these bytes, digest for digest";
@@ -397,9 +403,9 @@ async fn every_question_judging_the_bytes_is_told_what_they_hold() {
     let over_run = reader.question("verify-observed");
     assert_eq!(over_run.state["observation"], run(&candidate));
     assert_eq!(over_run.state.get("history"), None, "no finding to recall");
-    let extra = reader.question("verify-extra");
-    assert_eq!(extra.state.get("construction"), None);
-    assert!(!extra.instructions.contains(HOLDING_SAID));
+    let keys = over_run.keys();
+    let open = keys.iter().any(|key| key.starts_with("task-"));
+    assert!(!open, "no task left open to name: {keys:?}");
 }
 
 /// A judge that follows what each question shows settles the clause asking to use an admitted
@@ -643,7 +649,7 @@ fn a_rejection_binds_to_the_whole_request_told_what_the_bytes_hold() {
         if let Some(state) = shown.as_object_mut() {
             state.remove("candidate_nika");
         }
-        shown["contract"] = json!(super::super::told(base, "", WHOLE));
+        shown["contract"] = json!(nika_compile_seats::judge::told(base, "", WHOLE));
         sha256(&shown.to_string())
     };
     for (witness, another) in [

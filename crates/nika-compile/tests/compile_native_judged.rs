@@ -206,6 +206,9 @@ fn contested_part(part: &str) -> String {
 
 /// What a held candidate offers, as the verifier states it.
 const HELD: &str = "The candidate was judged and not accepted, with no defect a repair could start from: it is shown, never offered, and nothing was written. A correction of the request or another verifier can decide it.";
+/// How a held candidate whose whole request the judge rejected, nothing narrower standing
+/// (unresolved), is introduced: nothing is verified.
+const UNRESOLVED: &str = "The verifier doubted the request as a whole but located nothing";
 
 /// A candidate the judge answered and did not accept, no defect located (R6): shown as the
 /// preview its verdict judged, never offered, its questions and boundary cleared, and never a
@@ -244,7 +247,11 @@ fn assert_held(out: &CompileOutcome) {
         .collect();
     assert_eq!(held.len(), 1, "{out:#?}");
     assert_eq!(held[0].0, DiagnosticKind::Applied, "{out:#?}");
-    assert!(held[0].1.starts_with(HELD), "{out:#?}");
+    let words = held[0].1;
+    assert!(
+        words.starts_with(HELD) || words.starts_with(UNRESOLVED),
+        "{out:#?}"
+    );
     assert_eq!(findings(out, "verify_resume"), Vec::<String>::new());
     assert!(
         route(out).contains("verify: not ready, candidate held"),
@@ -466,13 +473,7 @@ fn findings(out: &CompileOutcome, target: &str) -> Vec<String> {
 #[tokio::test]
 async fn a_doubted_native_candidate_whose_every_part_is_carried_is_contested_never_ready() {
     let mut replies = ranked(HIGHEST_FIRST);
-    for choice in [
-        "unfaithful",
-        "carried",
-        "carried",
-        "carried",
-        "only_requested",
-    ] {
+    for choice in ["unfaithful", "carried", "carried", "carried", "unlocated"] {
         replies.push(json!({"choice": choice}).to_string());
     }
     let provider = Rotating::new(replies);
@@ -490,7 +491,7 @@ async fn a_doubted_native_candidate_whose_every_part_is_carried_is_contested_nev
             "judge_part",
             "judge_part",
             "judge_part",
-            "judge_extra"
+            "judge_doubt"
         ]
     );
     let attempt = &verification(&out)[0];
@@ -500,22 +501,21 @@ async fn a_doubted_native_candidate_whose_every_part_is_carried_is_contested_nev
     assert_eq!(attempt["contested"], json!([INTENT]), "{attempt:#}");
     assert_eq!(attempt["unsettled"], json!([NO_TRIAL]), "{attempt:#}");
     assert_eq!(attempt["settled_by"], Value::Null, "{attempt:#}");
-    // The whole request, its three parts and the extra question all answered and consumed.
+    // The whole request, its three parts and where the doubt is all answered and consumed.
     let counts = (&attempt["attempted"], &attempt["consumed"]);
     assert_eq!(counts, (&json!(5), &json!(5)), "{attempt:#}");
-    // The extra-operation question offers every task of the candidate, in its document's order.
-    let extra = question(&out, "verify-extra");
-    assert_eq!(extra["choice"], "only_requested", "{extra:#}");
+    assert_eq!(attempt["unresolved"], true, "{attempt:#}");
+    // Every task only reads the request's source or writes the output a carried part states:
+    // the engine's facts settle the extra-operation question, so no task is offered anywhere.
     assert_eq!(
-        extra["options"],
-        json!([
-            "only_requested",
-            "task-compute",
-            "task-parse_source",
-            "task-read_source",
-            "task-write_output",
-            "none"
-        ])
+        attempt["engine"][0]["settled"], "only_requested",
+        "{attempt:#}"
+    );
+    let doubt = question(&out, "verify-doubt");
+    assert_eq!(doubt["choice"], "unlocated", "{doubt:#}");
+    assert_eq!(
+        doubt["options"],
+        json!(["part-0", "part-1", "part-2", "unlocated", "none"])
     );
     let told = findings(&out, "semantic_verification");
     assert_eq!(told, [contested_whole(NO_TRIAL)], "{told:?}");
@@ -665,17 +665,10 @@ async fn field(shape: &str, choices: &[&str], again: &[String]) -> (CompileOutco
 /// prohibition: its task question never offers an operation of its own that no task performs.
 #[tokio::test]
 async fn a_restriction_no_task_violates_is_contested_and_never_repaired() {
-    let choices = [
-        "unfaithful",
-        "carried",
-        "missing",
-        "no_task",
-        "carried",
-        "only_requested",
-    ];
+    let choices = ["unfaithful", "carried", "missing", "no_task", "carried"];
     let (out, sent) = field(AS_THEY_ARE, &choices, &[]).await;
     assert_held(&out);
-    assert_eq!(sent, 8, "{out:#?}");
+    assert_eq!(sent, 7, "{out:#?}");
     assert_eq!(
         calls(&out),
         [
@@ -685,8 +678,7 @@ async fn a_restriction_no_task_violates_is_contested_and_never_repaired() {
             "judge_part",
             "judge_part",
             "judge_point",
-            "judge_part",
-            "judge_extra"
+            "judge_part"
         ]
     );
     let attempt = &verification(&out)[0];
@@ -740,14 +732,7 @@ async fn a_restriction_no_task_violates_is_contested_and_never_repaired() {
 /// trial run decided; the same finding is never told twice.
 #[tokio::test]
 async fn a_contested_restriction_is_named_apart_from_the_contested_request() {
-    let choices = [
-        "unfaithful",
-        "carried",
-        "missing",
-        "no_task",
-        "carried",
-        "only_requested",
-    ];
+    let choices = ["unfaithful", "carried", "missing", "no_task", "carried"];
     let (out, _) = field(AS_THEY_ARE, &choices, &[]).await;
     let told = findings(&out, "semantic_verification");
     let want = [contested_part(LOCAL_TIMES), contested_whole(NO_TRIAL)];
