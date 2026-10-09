@@ -42,6 +42,9 @@ fn a_recorded_workflow_takes_a_change_its_graph_refuses_over_its_whole_document(
         .map(|t| (200, response(t)))
         .collect();
     replies.push((200, response(JUDGE_APPROVES)));
+    // The room copies the source in and runs the bytes whole: « faithful » stands once the
+    // request's one part is carried over that run.
+    replies.push((200, response(r#"{"choice":"carried"}"#)));
     replies.push((200, response(&links.to_string())));
     replies.extend((0..6).map(|_| (200, response(JUDGE_APPROVES))));
     let peer = Peer::start(replies);

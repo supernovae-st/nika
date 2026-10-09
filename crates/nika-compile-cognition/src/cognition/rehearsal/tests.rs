@@ -421,6 +421,47 @@ tasks:
     );
 }
 
+/// A path the request names right after « in » (« look in ./x », « stay in ./x », « In ./x »),
+/// which the reader takes for a destination, that the candidate only reads is material the
+/// room copies, never an output it reads back, so the trial can run; the stated path the
+/// candidate writes stays the target.
+#[tokio::test]
+async fn a_stated_path_the_candidate_only_reads_is_an_input_never_a_target() {
+    let candidate = r#"nika: copy-source
+permits:
+  tools: ["nika:read", "nika:write"]
+  fs:
+    read: ["./in/source.txt"]
+    write: ["./out/result.txt"]
+tasks:
+  load:
+    invoke:
+      tool: "nika:read"
+      args: { path: "./in/source.txt" }
+  save:
+    with: { text: "${{ tasks.load.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "./out/result.txt", content: "${{ with.text }}" }
+"#;
+    for words in [
+        "Look in ./in/source.txt and save its text to ./out/result.txt.",
+        "For each booking stay in ./in/source.txt, copy its line to ./out/result.txt.",
+        "In ./in/source.txt each row is a note: write the notes to ./out/result.txt.",
+    ] {
+        let host = Host::new(Mode::NotRun);
+        let mut state = Rehearsals::new(Some(&host));
+        let mut out = crate::initial();
+        nika_compile::surface::finish(candidate.into(), &mut out);
+        assert!(ready(&out), "{words}: {out:#?}");
+        state.inspect(&CompileRequest::create(words), &out).await;
+        let inputs = host.inputs.lock().unwrap().clone();
+        let targets = host.targets.lock().unwrap().clone();
+        assert_eq!(inputs, [vec![SOURCE.to_owned()]], "{words}");
+        assert_eq!(targets, [vec![TARGET.to_owned()]], "{words}");
+    }
+}
+
 #[tokio::test]
 async fn a_changed_final_candidate_cannot_reuse_an_earlier_report() {
     let host = Host::new(Mode::ByDirectories);

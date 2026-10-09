@@ -381,14 +381,19 @@ fn effective_paths(
         }
     }
     // A path the request names that the candidate writes and never reads (« Save ./out/x.json
-    // as … ») is its output, never an input the room must find.
+    // as … ») is its output, never an input the room must find; one it reads and never writes
+    // (« look in ./x.json ») is material the room copies, never an output it reads back.
     let fs = (nika_compile::parse(out.candidate.as_deref().unwrap_or_default()).ok())
         .and_then(|workflow| nika_check::infer_permits(&workflow).permits.fs);
     if let Some(fs) = fs {
         let output = |path: &String| fs.write.contains(path) && !fs.read.contains(path);
         let outputs: Vec<String> = inputs.iter().filter(|path| output(path)).cloned().collect();
         inputs.retain(|path| !output(path));
+        let input = |path: &String| fs.read.contains(path) && !fs.write.contains(path);
+        let sources: Vec<String> = targets.iter().filter(|path| input(path)).cloned().collect();
+        targets.retain(|path| !input(path));
         extend_paths(&mut targets, &outputs);
+        extend_paths(&mut inputs, &sources);
     }
     Ok((inputs, targets))
 }

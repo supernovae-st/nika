@@ -553,8 +553,12 @@ not run has none, and COLD, WARM, a transform regeneration and the revisions are
 one. The paths the room is given are the request's (`stated_sources`, `stated_destinations`)
 with its answered paths, except that a stated path the candidate writes and never reads
 (« Save ./out/x.json as … », where no connector marks the destination) is a target read back,
-never an input the room must find. The configured verifier (a decision service, or the
-authoring provider) receives a trial run's observations by default, as preparation context: the
+never an input the room must find, and a stated path the candidate reads and never writes
+(« Look in ./x.json », « In ./x.json each row is … », where the reader takes the locative for a
+write's connector) is an input the room copies in, never an output it reads back. Both rules
+compare the request's spelling of a path with the candidate's. The configured verifier (a
+decision service, or the authoring provider) receives a trial run's observations by default,
+as preparation context: the
 texts as the room's report keeps them (the Session's room keeps at most 64 KiB of each file,
 `ObservedRoom::PREVIEW_BOUND`) are sent with every question over the run, and the records keep
 their digests and sizes, never the texts.
