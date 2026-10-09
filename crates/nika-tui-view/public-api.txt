@@ -996,7 +996,10 @@ impl<T> typenum::type_operators::Same for nika_tui_view::workspace::pinned::Pinn
 pub type nika_tui_view::workspace::pinned::Pinned::Output = T
 pub fn nika_tui_view::workspace::pinned::line(pinned: &nika_tui_view::workspace::pinned::Pinned, width: u16, ascii: bool, color: bool) -> ratatui_core::text::line::Line<'static>
 pub mod nika_tui_view::workspace::text
+pub const nika_tui_view::workspace::text::HANG: usize
+pub const nika_tui_view::workspace::text::KEEP: char
 pub fn nika_tui_view::workspace::text::fit_head(text: &str, width: usize, cut: &str) -> alloc::string::String
+pub fn nika_tui_view::workspace::text::hang(words: &str, indent: usize, width: usize) -> alloc::vec::Vec<alloc::string::String>
 pub const fn nika_tui_view::workspace::text::marks(ascii: bool) -> (&'static str, &'static str)
 pub fn nika_tui_view::workspace::text::twins(text: &str, ascii: bool) -> alloc::string::String
 pub fn nika_tui_view::workspace::text::wrap(text: &str, width: usize, cut: &str) -> alloc::vec::Vec<alloc::string::String>

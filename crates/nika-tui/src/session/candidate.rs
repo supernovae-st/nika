@@ -21,10 +21,10 @@ use std::fmt::Write as _;
 use nika_session::change::{ProjectChange, ProjectChangeSet, Witness};
 use nika_session::work::{DocumentRevision, Waiting};
 use nika_session::{ProposalId, SessionRuntime};
+use nika_tui_view::workspace::text::KEEP;
 
 use super::look::judge;
 use crate::workspace::candidate::{Proposed, RunAfter, admitted};
-use crate::workspace::cards::review::KEEP;
 use crate::workspace::inspect::Inspected;
 
 /// The runtime's candidate, folded; `kept` is the previous fold.

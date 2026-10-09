@@ -5,4 +5,4 @@
 //! [`nika_tui_view::workspace::text`] (ADR-143): this path keeps the
 //! renderer's callers unchanged.
 
-pub(crate) use nika_tui_view::workspace::text::{fit_head, marks, twins, wrap};
+pub(crate) use nika_tui_view::workspace::text::{fit_head, hang, marks, twins, wrap};

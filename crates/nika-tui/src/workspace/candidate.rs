@@ -28,9 +28,9 @@ use nika_tui_view::Face;
 use ratatui::text::{Line, Span};
 use unicode_width::UnicodeWidthStr;
 
-use super::cards::review::{Review, hang};
+use super::cards::review::Review;
 use super::inspect::{Inspected, title_row};
-use super::text::{fit_head, marks, twins, wrap};
+use super::text::{fit_head, hang, marks, twins, wrap};
 use crate::visual::role;
 
 /// The cells each effect after the first stands in under the review's one

@@ -20,20 +20,12 @@
 use nika_display::theme::Role;
 use nika_session::ProposalId;
 use ratatui::text::Line;
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_width::UnicodeWidthStr;
 
 use crate::model::{Kind, UiState, Waiting};
 use crate::render::own;
 use crate::visual::role;
-use crate::workspace::text::twins;
-
-/// Binds a count to its unit (`61 lines`): a review row never parts them,
-/// and paints a plain space between them.
-pub(crate) const KEEP: char = '\u{a0}';
-
-/// The cells every row of a fact after its first hangs in: deeper than any
-/// first row, so a continuation never reads as a fact or an effect of its own.
-const HANG: usize = 4;
+use crate::workspace::text::{hang, twins};
 
 /// The candidate a consent can name, as the conversation reviews it: its
 /// identity, each fact a yes decides with its role and the cells its first
@@ -90,48 +82,6 @@ impl Review {
             .find(|form| form.width() <= room)
             .unwrap_or(bare)
     }
-}
-
-/// `words` broken at their plain spaces into rows of at most `width` cells:
-/// the first row `indent` cells in, every further row [`HANG`] cells in. A
-/// word stays whole on a row where it fits one (a [`KEEP`] binds a count to
-/// its unit); a wider one breaks between its characters, never inside one.
-/// Widths are the layout's cells, and no row is cut.
-pub(crate) fn hang(words: &str, indent: usize, width: usize) -> Vec<String> {
-    if width == 0 {
-        return Vec::new();
-    }
-    let hung = HANG.min(width - 1);
-    let start = indent.min(hung);
-    let mut rows = Vec::new();
-    let mut row = " ".repeat(start);
-    let (mut used, mut from, mut bare) = (start, start, true);
-    for word in words.split(' ').filter(|word| !word.is_empty()) {
-        if !bare && used + 1 + word.width() <= width {
-            row.push(' ');
-            row.push_str(word);
-            used += 1 + word.width();
-            continue;
-        }
-        if !bare {
-            rows.push(std::mem::replace(&mut row, " ".repeat(hung)));
-            (used, from) = (hung, hung);
-        }
-        for glyph in word.chars() {
-            let cells = glyph.width().unwrap_or(0);
-            if used + cells > width && used > from {
-                rows.push(std::mem::replace(&mut row, " ".repeat(hung)));
-                (used, from) = (hung, hung);
-            }
-            row.push(glyph);
-            used += cells;
-        }
-        bare = false;
-    }
-    if !bare {
-        rows.push(row);
-    }
-    rows.into_iter().map(|row| row.replace(KEEP, " ")).collect()
 }
 
 /// The block of `state`'s transcript the Session waits on for consent, by
