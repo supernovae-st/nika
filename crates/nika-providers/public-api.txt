@@ -1103,6 +1103,7 @@ pub const nika_providers::authoring::policy::AUTHORING_MAX_TOKENS: u32
 pub const nika_providers::authoring::policy::AUTHORING_REPAIRS: u32
 pub const nika_providers::authoring::policy::AUTHORING_TIMEOUT: core::time::Duration
 pub fn nika_providers::authoring::policy::completion_bounds(model: &str, harness: bool, config: nika_providers::registry::ProvidersConfig) -> nika_providers::authoring::policy::CompletionBounds
+pub fn nika_providers::authoring::policy::harness_route(model: &str) -> bool
 pub fn nika_providers::authoring::policy::label_ceiling(model: &str) -> u32
 pub fn nika_providers::authoring::policy::legacy_completion_bounds(harness: bool) -> nika_providers::authoring::policy::CompletionBounds
 pub mod nika_providers::authoring::preparation

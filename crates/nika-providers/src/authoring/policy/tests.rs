@@ -41,3 +41,19 @@ fn gateway_tariff_is_used_for_limits_without_inventing_usd_or_a_larger_model() {
         Duration::from_secs(180)
     );
 }
+#[test]
+fn a_harness_route_is_named_by_its_runtime_never_by_an_api_or_a_retired_alias() {
+    for model in ["codex/gpt-6", "claude-code/opus[1m]", "grok-build/default"] {
+        assert!(harness_route(model), "{model}");
+    }
+    let others = [
+        "openai/gpt-oss-120b",
+        "deepseek/deepseek-v4-pro",
+        "mock/authoring",
+        "claude-agent-acp/default",
+        "codex",
+    ];
+    for model in others {
+        assert!(!harness_route(model), "{model}");
+    }
+}
