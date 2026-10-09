@@ -666,16 +666,23 @@ fn a_ninth_child_edge_is_refused_before_the_leaf_writes() {
 
 /// The root's `timeout:` destroys a leaf process eight levels down: the call
 /// fails with `NIKA-TIMEOUT-001` within its bound, no level completes, and the
-/// running leaf's delayed write never lands, even after its own delay passed.
+/// running leaf's delayed write never lands, observed a full leaf delay after the
+/// run returned. The fixture timings give the eight-level descent real headroom on
+/// a slow runner (the leaf must be running before the root bound fires); they are
+/// not runtime defaults.
 #[test]
 fn a_root_timeout_destroys_a_pending_leaf_eight_levels_down() {
+    const ROOT_TIMEOUT_S: u64 = 10;
+    const LEAF_DELAY_S: u64 = 15;
     let dir = tmp_dir("comp-deep-timeout");
     let permits = "permits:\n  exec: [\"sh\"]\n  fs: { read: [\"./late.sh\"], write: [\"./out/started.txt\", \"./out/late.txt\"] }\n";
     std::fs::create_dir_all(dir.join("out")).expect("out dir");
     write_fixture(
         &dir,
         "late.sh",
-        "echo started > ./out/started.txt\nsleep 5\necho late > ./out/late.txt\n",
+        &format!(
+            "echo started > ./out/started.txt\nsleep {LEAF_DELAY_S}\necho late > ./out/late.txt\n"
+        ),
     );
     for i in 0..=8 {
         let body = if i == 8 {
@@ -683,7 +690,11 @@ fn a_root_timeout_destroys_a_pending_leaf_eight_levels_down() {
                 "nika: f8\n{permits}tasks:\n  leaf:\n    exec: {{ command: [\"sh\", \"./late.sh\"] }}\n"
             )
         } else {
-            let timeout = if i == 0 { "    timeout: 3s\n" } else { "" };
+            let timeout = if i == 0 {
+                format!("    timeout: {ROOT_TIMEOUT_S}s\n")
+            } else {
+                String::new()
+            };
             format!(
                 "nika: f{i}\n{permits}tasks:\n  descend:\n    invoke: {{ workflow: \"./f{next}.nika\" }}\n{timeout}",
                 next = i + 1
@@ -691,7 +702,6 @@ fn a_root_timeout_destroys_a_pending_leaf_eight_levels_down() {
         };
         write_fixture(&dir, &format!("f{i}.nika"), &body);
     }
-    let started = std::time::Instant::now();
     let (code, text) = run_in(&dir, &["run", dir.join("f0.nika").to_str().expect("utf8")]);
     assert_eq!(code, 1, "the root settles a task failure:\n{text}");
     let forest = forest(&dir);
@@ -709,8 +719,8 @@ fn a_root_timeout_destroys_a_pending_leaf_eight_levels_down() {
         .parse()
         .expect("milliseconds");
     assert!(
-        duration_ms < 6_000,
-        "the 3s bound holds eight levels down: {duration_ms}ms"
+        duration_ms < (ROOT_TIMEOUT_S + 3) * 1_000,
+        "the {ROOT_TIMEOUT_S}s bound holds eight levels down: {duration_ms}ms"
     );
     assert!(
         journal_of(&forest, "f8")
@@ -731,9 +741,10 @@ fn a_root_timeout_destroys_a_pending_leaf_eight_levels_down() {
             .all(|(_, _, events)| !events.iter().any(|e| e["kind"] == "task_completed")),
         "no level completed after the deadline"
     );
-    std::thread::sleep(std::time::Duration::from_millis(6_500).saturating_sub(started.elapsed()));
+    // A full leaf delay after the run returned: a leaf that had survived would have written.
+    std::thread::sleep(std::time::Duration::from_secs(LEAF_DELAY_S + 1));
     assert!(
         !dir.join("out").join("late.txt").exists(),
-        "the destroyed leaf never wrote, past its own 5s delay"
+        "the destroyed leaf never wrote, a full leaf delay after the run returned"
     );
 }
