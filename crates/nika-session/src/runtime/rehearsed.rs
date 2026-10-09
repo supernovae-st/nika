@@ -158,7 +158,8 @@ impl SessionRuntime {
             self.snapshot.root.clone(),
             self.native_host(target),
             Allowance::new(ROUND, TURN, self.rehearsals.turn),
-        );
+        )
+        .stating(intent);
         let out = compile(self, &scoped);
         let (turn, preview) = scoped.finish().into_parts();
         self.rehearsals.turn = turn;
