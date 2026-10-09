@@ -15,7 +15,8 @@
 //!   profile, the one ACP authoring uses: SDK options sent with
 //!   `session/new` before any prompt (built-in `tools: []`, `mcpServers:
 //!   {}` under `strictMcpConfig`, `settingSources: []`, no plugins, skills
-//!   or agents, `maxTurns: 1`, no persisted session), a fresh scratch
+//!   or agents, `maxTurns: 1`, no persisted session, its thinking summary
+//!   displayed: no effort or model change), a fresh scratch
 //!   directory as the adapter's cwd, its identity admitted at
 //!   `initialize`, the model and native effort applied and read back
 //!   before the single prompt, every update judged (a tool, media or
@@ -204,16 +205,18 @@ impl AcpOneShot {
         R: AsyncRead + Unpin + Send + 'static,
         W: AsyncWrite + Unpin + Send + 'static,
     {
+        let one_shot = crate::authoring::acp::OneShot {
+            role: Completion::Infer,
+            profile: self.profile,
+        };
         crate::client::drive_profile(
             reader,
             writer,
             request,
             Duration::from_secs(crate::IDLE_TIMEOUT_SECS),
-            Some(crate::authoring::acp::OneShot {
-                role: Completion::Infer,
-                profile: self.profile,
-            }),
+            Some(one_shot),
             None,
+            one_shot.session_meta(),
         )
     }
 }

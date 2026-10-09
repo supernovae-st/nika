@@ -891,8 +891,18 @@ impl SpawnedHarness {
         // stream drops the driver, the driver drops the child, and
         // kill_on_drop reaps it — the cancel-safety contract.
         let (completion, marks) = (self.completion, call.map(|(_, marks)| marks));
-        let stream = drive_with_child(stdout, stdin, request, child, completion, idle, marks);
+        let meta = self.session_meta();
+        let stream = drive_with_child(stdout, stdin, request, child, completion, idle, marks, meta);
         Ok((stream, idle))
+    }
+
+    /// The options this seat's sessions send with `session/new`: a one-shot's audited profile, or
+    /// an agent session's own (a Claude Code session shows its thinking, whatever the role).
+    pub(crate) fn session_meta(&self) -> Option<serde_json::Value> {
+        match self.completion {
+            Some(one_shot) => one_shot.session_meta(),
+            None => crate::authoring::acp::agent_meta(&self.adapter.id),
+        }
     }
 }
 
@@ -928,7 +938,8 @@ impl Door for SpawnedHarness {
 /// The driver with the child's lifetime tied to the stream — the child
 /// handle parks inside a wrapper stream so its `Drop` (and the OS kill
 /// underneath) fires exactly when the consumer lets go. `idle` bounds each
-/// frame read and each write ([`crate::client::drive_profile`]).
+/// frame read and each write; `meta` rides `session/new`
+/// ([`crate::client::drive_profile`]).
 fn drive_with_child(
     stdout: tokio::process::ChildStdout,
     stdin: tokio::process::ChildStdin,
@@ -937,8 +948,10 @@ fn drive_with_child(
     completion: Option<OneShot>,
     idle: std::time::Duration,
     progress: Option<crate::authoring::acp::Progress>,
+    meta: Option<serde_json::Value>,
 ) -> HarnessEventStream {
-    let inner = crate::client::drive_profile(stdout, stdin, request, idle, completion, progress);
+    let inner =
+        crate::client::drive_profile(stdout, stdin, request, idle, completion, progress, meta);
     #[cfg(unix)]
     let group = completion.and_then(|_| child.id());
     Box::pin(ChildStream {

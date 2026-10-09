@@ -142,6 +142,30 @@ Harness rows emit `access=harness` · `billing=included_quota|extra_usage|unknow
 ledger law is untouched (`unmetered never trips` · `ledger.rs:190`); the
 epilogue speaks the quota line only when observable.
 
+## 7bis · Visible thinking (2026-10-09)
+
+Silence is the transport's signal only when the agent is genuinely silent. Measured on Claude
+Code ACP authoring calls (`@agentclientprotocol/claude-agent-acp` 0.81.1, effort `max`): no
+thought frame ever arrived, so a call that thought for minutes wrote only its answer chunks at
+the end, and a call still thinking at the silence allowance was cut with nothing but one status
+and one usage frame. The adapter writes `agent_thought_chunk` only for non-empty thinking
+text, and recent models default the SDK's `thinking.display` to `omitted` (signature-only
+blocks whose text is empty). Codex ACP streams its reasoning unchanged.
+
+So every Claude Code session the engine opens, the audited one-shot profile (authoring,
+`infer:`) and the `agent:` seat alike, sends `_meta.claudeCode.options.thinking =
+{type: adaptive, display: summarized}` with `session/new`: the adapter spreads those options
+over its defaults, and the SDK maps them to `--thinking adaptive --thinking-display
+summarized`. Adaptive thinking is the SDK's default for the models that support it, so this
+changes what is displayed, never the model, the effort, a budget or a tool; an agent session
+carries no other option, and its own loop, tools and settings stay its own. A thinking option a
+caller already names is kept as given. Codex and every other adapter send no options. Thought
+frames stay counted, never stored as text, and the 600 s silence allowance and the frames that
+re-arm it are unchanged: a thought frame shows the adapter wrote one, not what the model is
+doing. How the option meets a thinking setting of the user's own Claude Code configuration
+(which an `agent:` session reads, and the one-shot profile does not), and whether every offered
+Claude model accepts adaptive thinking, are to be verified live on the integrated binary.
+
 ## 8 · Non-goals (P3)
 
 - No `infer:` on a harness (P4 · capability attestation first).

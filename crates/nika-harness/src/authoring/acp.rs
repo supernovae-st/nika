@@ -102,7 +102,8 @@ impl OneShot {
         self.role.label()
     }
 
-    /// The options sent with `session/new` before any prompt, when the profile has any.
+    /// The options sent with `session/new` before any prompt, when the profile has any: Claude
+    /// Code's audited options, its thinking shown ([`show_thinking`]); Codex none.
     pub(crate) fn session_meta(self) -> Option<Value> {
         match self.profile {
             Profile::ClaudeCode => Some(profile()),
@@ -149,11 +150,39 @@ pub(crate) fn admit(init: &Value, one_shot: OneShot) -> Result<(), HarnessError>
 /// Options passed by this exact adapter to SDK query before any prompt.
 /// MCP and disk settings are excluded independently of the empty built-in tools.
 pub(crate) fn profile() -> Value {
-    json!({"claudeCode":{"options":{
+    show_thinking(json!({"claudeCode":{"options":{
         "tools":[], "mcpServers":{}, "strictMcpConfig":true,
         "settingSources":[], "plugins":[], "skills":[], "agents":{},
         "allowDangerouslySkipPermissions":false, "maxTurns":1, "persistSession":false
-    }}})
+    }}}))
+}
+
+/// `meta` asking a Claude Code session to show its thinking: the SDK option
+/// `claudeCode.options.thinking` set to adaptive thinking (the SDK's default for the models that
+/// support it) with its summary displayed, unless the options already name a thinking option,
+/// which is kept as given, like every other option. Recent models default the display to
+/// `omitted`: signature-only thinking blocks whose text is empty, which the adapter never writes
+/// as `agent_thought_chunk`, so a turn that thinks for minutes reads as silence. Display only:
+/// no model, effort, budget or tool changes. A `meta` whose `claudeCode` or `options` is not an
+/// object is returned unchanged.
+pub(crate) fn show_thinking(mut meta: Value) -> Value {
+    let options = (meta.as_object_mut())
+        .map(|fields| fields.entry("claudeCode").or_insert_with(|| json!({})))
+        .and_then(Value::as_object_mut)
+        .map(|claude| claude.entry("options").or_insert_with(|| json!({})))
+        .and_then(Value::as_object_mut);
+    if let Some(options) = options {
+        let summarized = || json!({"type": "adaptive", "display": "summarized"});
+        options.entry("thinking").or_insert_with(summarized);
+    }
+    meta
+}
+
+/// The options an agent session on `adapter` sends with `session/new`, outside any one-shot
+/// profile: its own loop, tools and settings untouched, a Claude Code session only shows its
+/// thinking ([`show_thinking`]); every other adapter sends none.
+pub(crate) fn agent_meta(adapter: &str) -> Option<Value> {
+    (Profile::for_seat(adapter) == Some(Profile::ClaudeCode)).then(|| show_thinking(json!({})))
 }
 
 /// No tool/media-bearing answer is accepted, even from an admitted implementation.
