@@ -29,7 +29,22 @@ fn a_run_is_followed_from_its_frames_before_it_settles() {
     let rig = Rig::new("live");
     std::fs::write(rig.path("slow.nika"), SLOW).expect("slow");
     let mut term = rig.spawn("13-live", 120, 36);
-    wait_workspace(&mut term);
+    followed_to_its_settlement(&mut term);
+}
+
+/// The same proof with the terminal read in 64-byte slices: the settlement
+/// and the rows asserted with it hold on one complete frame, whatever the
+/// scheduling (the race a whole read only shows under load).
+#[test]
+fn a_run_is_followed_to_a_complete_settled_frame_read_in_slices() {
+    let rig = Rig::new("live-sliced");
+    std::fs::write(rig.path("slow.nika"), SLOW).expect("slow");
+    let mut term = rig.spawn("13-live-sliced", 120, 36).reading_at_most(64);
+    followed_to_its_settlement(&mut term);
+}
+
+fn followed_to_its_settlement(term: &mut Term) {
+    wait_workspace(term);
     term.send("run slow.nika\r");
     term.wait_until("the leg bound to the bytes it runs", |s| {
         s.contains("graph · the bytes") && s.contains("it was asked over")
@@ -37,7 +52,10 @@ fn a_run_is_followed_from_its_frames_before_it_settles() {
     term.wait_until("the first task done, the run not settled", |s| {
         s.contains("✔ first") && s.contains("○ second") && !s.contains("settled · succeeded")
     });
-    term.wait_until("the settlement", |s| s.contains("settled · succeeded"));
+    // A settled frame can outgrow the process's line buffer: the rows
+    // asserted below are judged on one complete native frame, never on
+    // the header a first write already repainted.
+    term.wait_workspace_frame("the settlement", |s| s.contains("settled · succeeded"));
     let shown = term.text();
     for said in [
         "events and the settlement, whole",
