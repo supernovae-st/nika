@@ -11,10 +11,12 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
 use super::{Admission, Allowance, Budget, RunEnd, Usage, Witness, WorldBefore};
+use nika_compile::surface::literal_projection;
 use nika_compile_cognition::rehearse::{
     Attempt, Composed, EffectCounts, Observation, Refusal, Rehearsal, RehearsalFuture,
     RehearsalReport, Rehearse, judged_run,
 };
+use nika_compile_fidelity::fidelity::stated_routes;
 use nika_event::source_id::sha256_hex;
 
 /// Evidence produced in this dispatch only, with no public constructor or writable fields.
@@ -75,6 +77,8 @@ pub struct Scoped {
     root: PathBuf,
     host: Box<dyn Rehearse>,
     allowance: Allowance,
+    /// The request its candidates are compiled for, when the caller names it.
+    intent: Option<String>,
     state: Mutex<State>,
 }
 
@@ -86,6 +90,7 @@ impl Scoped {
             root,
             host,
             allowance,
+            intent: None,
             state: Mutex::new(State {
                 turn: allowance.before,
                 in_flight: false,
@@ -93,6 +98,27 @@ impl Scoped {
                 blocked: None,
             }),
         }
+    }
+
+    /// The same account over `intent`, the request its candidates are compiled for: a
+    /// destination it states that a candidate sends to as an endpoint's route
+    /// ([`stated_routes`]) is no file, so the world observed before that rehearsal leaves it
+    /// out, while the host is still handed it. Without it, every destination is a file.
+    #[must_use]
+    pub fn stating(mut self, intent: &str) -> Self {
+        self.intent = Some(intent.to_owned());
+        self
+    }
+
+    /// The `targets` the world before a rehearsal of `candidate` observes as files: each one,
+    /// but a route the request states ([`Self::stating`]).
+    fn files(&self, candidate: &str, targets: &[String]) -> Vec<String> {
+        let routes = (self.intent.as_deref())
+            .and_then(|intent| literal_projection(candidate).map(|doc| stated_routes(intent, &doc)))
+            .unwrap_or_default();
+        let mut files = targets.to_vec();
+        files.retain(|target| !routes.contains(target));
+        files
     }
 
     fn state(&self) -> MutexGuard<'_, State> {
@@ -159,7 +185,8 @@ impl Scoped {
             Ok(account) => account,
             Err(why) => return refused(candidate, why, Refusal::NotBuilt),
         };
-        let before = match WorldBefore::capture(&self.root, candidate, inputs, targets).await {
+        let files = self.files(candidate, targets);
+        let before = match WorldBefore::capture(&self.root, candidate, inputs, &files).await {
             Ok(before) => before,
             Err(why) => {
                 let mut state = self.state();
@@ -306,6 +333,8 @@ fn passed_lines<'a>(reads: impl Iterator<Item = (&'a str, &'a str, bool, bool)>)
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::compile::room::ObservedRoom;
+    use std::sync::Arc;
 
     fn synthetic_preview() -> Preview {
         Preview {
@@ -389,5 +418,157 @@ mod tests {
         let (witness, lines) = preview.into_parts();
         assert_eq!(witness.unwrap().candidate_sha256(), "synthetic-candidate");
         assert_eq!(lines, "synthetic evidence");
+    }
+
+    /// The stock request in brief: its source, its report and the route of the sink it states.
+    const STOCK: &str = "Read ./in.txt, write the report to ./out.txt, then send a POST to \
+        /notifications/stock on the local sink http://127.0.0.1:57468.";
+
+    /// The route the stock request states.
+    const ROUTE: &str = "/notifications/stock";
+
+    /// A candidate for it: it reads the source, writes the report and sends a POST to the route.
+    const POSTING: &str = r#"nika: stock-alerts
+permits:
+  tools: ["nika:read", "nika:write", "nika:fetch"]
+  fs:
+    read: ["./in.txt"]
+    write: ["./out.txt"]
+  net:
+    http: ["127.0.0.1"]
+tasks:
+  source:
+    invoke: { tool: "nika:read", args: { path: "./in.txt" } }
+  report:
+    invoke: { tool: "nika:write", args: { path: "./out.txt", content: "report" } }
+  post:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "http://127.0.0.1:57468/notifications/stock", method: POST, body: "{}" }
+"#;
+
+    /// The same candidate, also writing the route as a file it permits: a file stays a file.
+    const KEPT: &str = r#"nika: stock-alerts
+permits:
+  tools: ["nika:read", "nika:write", "nika:fetch"]
+  fs:
+    read: ["./in.txt"]
+    write: ["./out.txt", "/notifications/stock"]
+  net:
+    http: ["127.0.0.1"]
+tasks:
+  source:
+    invoke: { tool: "nika:read", args: { path: "./in.txt" } }
+  report:
+    invoke: { tool: "nika:write", args: { path: "./out.txt", content: "report" } }
+  kept:
+    invoke: { tool: "nika:write", args: { path: "/notifications/stock", content: "kept" } }
+  post:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "http://127.0.0.1:57468/notifications/stock", method: POST, body: "{}" }
+"#;
+
+    /// The targets each rehearsal was handed, in order.
+    type Handed = Arc<Mutex<Vec<Vec<String>>>>;
+
+    /// The real observed room over a project, recording the targets each rehearsal is handed.
+    struct Recording {
+        room: ObservedRoom,
+        seen: Handed,
+    }
+
+    impl Rehearse for Recording {
+        fn rehearse<'a>(&'a self, candidate: &'a str, inputs: &'a [String]) -> RehearsalFuture<'a> {
+            self.rehearse_reading(candidate, inputs, &[])
+        }
+        fn rehearse_reading<'a>(
+            &'a self,
+            candidate: &'a str,
+            inputs: &'a [String],
+            targets: &'a [String],
+        ) -> RehearsalFuture<'a> {
+            self.seen.lock().unwrap().push(targets.to_vec());
+            self.room.rehearse_reading(candidate, inputs, targets)
+        }
+        fn bound(&self) -> Duration {
+            self.room.bound()
+        }
+    }
+
+    /// A project holding the request's source, and an account over the recorded real room
+    /// there, told `intent` when one is given.
+    fn project(intent: Option<&str>) -> (tempfile::TempDir, Scoped, Handed) {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("in.txt"), "stock").unwrap();
+        let seen = Handed::default();
+        let host = Box::new(Recording {
+            room: ObservedRoom::new(root.path()),
+            seen: Arc::clone(&seen),
+        });
+        let limits = super::super::Limits::new(3, 3, 1024 * 1024, 30_000);
+        let allowance = Allowance::new(limits, limits, Usage::new(0, 0, 0, 0, 0));
+        let scoped = Scoped::new(root.path().to_owned(), host, allowance);
+        let scoped = match intent {
+            Some(intent) => scoped.stating(intent),
+            None => scoped,
+        };
+        (root, scoped, seen)
+    }
+
+    /// The stock request: its report is a file of the project, its route an endpoint's. The
+    /// world observed before the trial holds the file alone; the room is handed both and refuses
+    /// the send before any run (it opens no socket); the account settles open on a source-only
+    /// decision, and nothing was written.
+    #[tokio::test]
+    async fn a_stated_route_is_no_file_of_the_observed_world_and_the_trial_proceeds() {
+        let (root, scoped, seen) = project(Some(STOCK));
+        let inputs = ["./in.txt".to_owned()];
+        let targets = ["./out.txt".to_owned(), ROUTE.to_owned()];
+        let report = scoped.rehearse_reading(POSTING, &inputs, &targets).await;
+        assert_eq!(report.observation.refusal, Some(Refusal::Effect));
+        assert_eq!(*seen.lock().unwrap(), [targets.to_vec()]);
+        assert_eq!(scoped.files(POSTING, &targets), ["./out.txt"]);
+        let (spent, preview) = scoped.finish().into_parts();
+        assert_eq!(spent, Usage::new(1, 0, 0, 0, 0));
+        let preview = preview.unwrap().expect("a live source-only decision");
+        let (witness, lines) = preview.into_parts();
+        assert!(witness.is_none(), "no run binds a world");
+        let opening = "Rehearsal not run · task post needs the network";
+        assert!(lines.starts_with(opening), "{lines}");
+        assert!(!root.path().join("out.txt").exists());
+    }
+
+    /// Still no path inside the project, in today's words, with no room asked: the route of a
+    /// request that states no sink, a send to another origin, an account told no request, the
+    /// route the candidate also writes as a file, and a rooted or escaping file named before
+    /// the stated route.
+    #[tokio::test]
+    async fn an_unstated_route_or_a_file_outside_the_project_still_blocks_the_account() {
+        let unstated = STOCK.replace(" on the local sink http://127.0.0.1:57468", "");
+        let elsewhere = POSTING.replace("127.0.0.1:57468", "127.0.0.1:9");
+        let cases = [
+            (Some(unstated.as_str()), POSTING, ROUTE),
+            (Some(STOCK), elsewhere.as_str(), ROUTE),
+            (None, POSTING, ROUTE),
+            (Some(STOCK), KEPT, ROUTE),
+            (Some(STOCK), POSTING, "/outside/report.json"),
+            (Some(STOCK), POSTING, "../report.json"),
+        ];
+        for (intent, candidate, refused) in cases {
+            let (_root, scoped, seen) = project(intent);
+            let inputs = ["./in.txt".to_owned()];
+            let mut targets = Vec::from(["./out.txt", refused, ROUTE].map(str::to_owned));
+            targets.dedup();
+            let report = scoped.rehearse_reading(candidate, &inputs, &targets).await;
+            let words = format!("`{refused}` is not a path inside the project");
+            let refusal = report.observation.refusal;
+            assert_eq!(refusal, Some(Refusal::CopyIn), "{refused}");
+            assert!(matches!(&report.outcome, Rehearsal::NotRun { reason } if *reason == words));
+            assert!(seen.lock().unwrap().is_empty(), "{refused}");
+            let (_, preview) = scoped.finish().into_parts();
+            let why = format!("the original world could not be observed: {words}");
+            assert_eq!(preview.err(), Some(why), "{intent:?}");
+        }
     }
 }

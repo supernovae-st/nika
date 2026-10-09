@@ -109,6 +109,7 @@ pub type nika_onboard::compile::copy::native::Preview::Output = T
 impl nika_onboard::compile::copy::native::Scoped
 pub fn nika_onboard::compile::copy::native::Scoped::finish(self) -> nika_onboard::compile::copy::native::Settled
 pub fn nika_onboard::compile::copy::native::Scoped::new(root: std::path::PathBuf, host: alloc::boxed::Box<dyn nika_compile_seats::rehearse::Rehearse>, allowance: nika_onboard::compile::copy::Allowance) -> Self
+pub fn nika_onboard::compile::copy::native::Scoped::stating(self, intent: &str) -> Self
 impl nika_compile_seats::rehearse::Rehearse for nika_onboard::compile::copy::native::Scoped
 pub fn nika_onboard::compile::copy::native::Scoped::bound(&self) -> core::time::Duration
 pub fn nika_onboard::compile::copy::native::Scoped::compose(&self, candidate: &str) -> nika_compile_seats::rehearse::Composed

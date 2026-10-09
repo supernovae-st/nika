@@ -793,6 +793,14 @@ the room's screen refuses what a rehearsal cannot bound or confine; its last pas
 argument law of `nika-compile-seats` (`rehearse::arguments`, held here until this crate's size
 cap), and each value that law refuses is a data bound in the words of its field.
 
+Before each rehearsal, `Scoped` observes the request's sources and destinations in the original
+project (`WorldBefore::capture`); a path outside the project, a symlink or an unreadable file
+blocks the dispatch's account. Told the request (`Scoped::stating`, which Session passes), it
+leaves out of that observation each destination the request states as an endpoint's route that
+the candidate sends to, as the fidelity path law reads it (`fidelity::stated_routes`): a route
+is no file. The host is still handed every destination. An unstated route, a rooted or `..`
+file, and a route the candidate also opens as a file still block the account in the same words.
+
 ### Child workflows checked composed
 
 `ObservedRoom::located` tells the room where its host will save each candidate's bytes, as a
