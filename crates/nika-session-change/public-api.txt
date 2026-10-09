@@ -1575,6 +1575,67 @@ impl<T> tracing::instrument::Instrument for nika_session_change::work::Authoring
 impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::AuthoringStatus
 impl<T> typenum::type_operators::Same for nika_session_change::work::AuthoringStatus
 pub type nika_session_change::work::AuthoringStatus::Output = T
+#[non_exhaustive] pub enum nika_session_change::work::Knowledge
+pub nika_session_change::work::Knowledge::Admitted
+pub nika_session_change::work::Knowledge::Admitted::by: &'static str
+pub nika_session_change::work::Knowledge::Admitted::manifest_sha256: alloc::string::String
+pub nika_session_change::work::Knowledge::Admitted::source: &'static str
+pub nika_session_change::work::Knowledge::Admitted::version: core::option::Option<alloc::string::String>
+pub nika_session_change::work::Knowledge::Refused
+pub nika_session_change::work::Knowledge::Refused::by: &'static str
+pub nika_session_change::work::Knowledge::Refused::cause: alloc::string::String
+pub nika_session_change::work::Knowledge::Refused::code: alloc::string::String
+pub nika_session_change::work::Knowledge::Refused::source: &'static str
+pub nika_session_change::work::Knowledge::Unread
+pub nika_session_change::work::Knowledge::Unread::why: alloc::string::String
+impl core::clone::Clone for nika_session_change::work::Knowledge
+pub fn nika_session_change::work::Knowledge::clone(&self) -> nika_session_change::work::Knowledge
+impl core::cmp::Eq for nika_session_change::work::Knowledge
+impl core::cmp::PartialEq for nika_session_change::work::Knowledge
+pub fn nika_session_change::work::Knowledge::eq(&self, other: &nika_session_change::work::Knowledge) -> bool
+impl core::fmt::Debug for nika_session_change::work::Knowledge
+pub fn nika_session_change::work::Knowledge::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_change::work::Knowledge
+impl serde_core::ser::Serialize for nika_session_change::work::Knowledge
+pub fn nika_session_change::work::Knowledge::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_session_change::work::Knowledge
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::Knowledge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::Knowledge::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::Knowledge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::Knowledge::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::Knowledge where U: core::convert::From<T>
+pub fn nika_session_change::work::Knowledge::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::Knowledge where U: core::convert::Into<T>
+pub type nika_session_change::work::Knowledge::Error = core::convert::Infallible
+pub fn nika_session_change::work::Knowledge::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::Knowledge where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::Knowledge::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::Knowledge::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::Knowledge where T: core::clone::Clone
+pub type nika_session_change::work::Knowledge::Owned = T
+pub fn nika_session_change::work::Knowledge::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::Knowledge::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::Knowledge where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::Knowledge::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::Knowledge where T: ?core::marker::Sized
+pub fn nika_session_change::work::Knowledge::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::Knowledge where T: ?core::marker::Sized
+pub fn nika_session_change::work::Knowledge::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::Knowledge where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::Knowledge::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::Knowledge
+pub fn nika_session_change::work::Knowledge::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::Knowledge where T: core::clone::Clone
+pub fn nika_session_change::work::Knowledge::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::Knowledge where T: 'static
+pub fn nika_session_change::work::Knowledge::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::Knowledge where T: ?core::marker::Sized
+pub fn nika_session_change::work::Knowledge::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::Knowledge::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::Knowledge
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::Knowledge
+impl<T> typenum::type_operators::Same for nika_session_change::work::Knowledge
+pub type nika_session_change::work::Knowledge::Output = T
 #[non_exhaustive] pub enum nika_session_change::work::Landing
 pub nika_session_change::work::Landing::Create
 pub nika_session_change::work::Landing::Update
@@ -1881,6 +1942,8 @@ pub nika_session_change::work::Waiting::Gate::gate: nika_session_change::outcome
 pub nika_session_change::work::Waiting::Input
 pub nika_session_change::work::Waiting::Input::name: alloc::string::String
 pub nika_session_change::work::Waiting::IntelligenceChoice
+pub nika_session_change::work::Waiting::KnowledgeChoice
+pub nika_session_change::work::Waiting::KnowledgeChoice::line: alloc::string::String
 pub nika_session_change::work::Waiting::Question
 pub nika_session_change::work::Waiting::Question::id: nika_session_change::outcome::QuestionId
 pub nika_session_change::work::Waiting::Question::key: alloc::string::String
@@ -3145,6 +3208,7 @@ pub nika_session_change::work::Work::authoring: core::option::Option<nika_sessio
 pub nika_session_change::work::Work::candidate: core::option::Option<nika_session_change::work::Candidate>
 pub nika_session_change::work::Work::contract: &'static str
 pub nika_session_change::work::Work::intelligence: core::option::Option<nika_session_change::work::Intelligence>
+pub nika_session_change::work::Work::knowledge: core::option::Option<nika_session_change::work::Knowledge>
 pub nika_session_change::work::Work::question: core::option::Option<nika_session_change::work::Question>
 pub nika_session_change::work::Work::rail: nika_session_change::work::Rail
 pub nika_session_change::work::Work::request: nika_session_change::work::Request
@@ -3158,6 +3222,7 @@ pub fn nika_session_change::work::Work::new(root: std::path::PathBuf, request: n
 pub fn nika_session_change::work::Work::with_answered(self, answered: core::option::Option<nika_session_change::work::Answered>) -> Self
 pub fn nika_session_change::work::Work::with_authoring(self, authoring: core::option::Option<nika_session_change::work::Authoring>) -> Self
 pub fn nika_session_change::work::Work::with_intelligence(self, intelligence: core::option::Option<nika_session_change::work::Intelligence>) -> Self
+pub fn nika_session_change::work::Work::with_knowledge(self, knowledge: core::option::Option<nika_session_change::work::Knowledge>) -> Self
 pub fn nika_session_change::work::Work::with_question(self, question: core::option::Option<&nika_compile::types::CompileQuestion>) -> Self
 impl core::clone::Clone for nika_session_change::work::Work
 pub fn nika_session_change::work::Work::clone(&self) -> nika_session_change::work::Work

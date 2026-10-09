@@ -9,8 +9,8 @@ use nika_onboard::compile::{
 
 use super::{
     AnswerAct, Answered, Audit, Author, Authoring, AuthoringStatus, CONTRACT, Candidate,
-    DecisionSeat, Intelligence, Landing, NoteKind, Rail, Request, RequestedRun, Run, RunEnd, Saved,
-    Selected, Stage, ValueSource, Waiting, Work,
+    DecisionSeat, Intelligence, Knowledge, Landing, NoteKind, Rail, Request, RequestedRun, Run,
+    RunEnd, Saved, Selected, Stage, ValueSource, Waiting, Work,
 };
 use crate::change::{
     ProjectChange, ProjectChangeSet, RunRequest, Witness, WorkflowAudit, check_on_disk,
@@ -176,6 +176,77 @@ fn waiting_states_carry_the_identity_an_answer_names() {
     assert_eq!(
         serde_json::to_value(Waiting::Free).expect("serializes"),
         serde_json::json!({"kind": "free"})
+    );
+    // The line a refused knowledge configuration holds travels exactly as typed.
+    let held = Waiting::KnowledgeChoice {
+        line: "  summarize « today's » news\n".to_owned(),
+    };
+    assert_eq!(
+        serde_json::to_value(&held).expect("serializes"),
+        serde_json::json!({"kind": "knowledge_choice", "line": "  summarize « today's » news\n"})
+    );
+    assert!(!held.requires_fresh_input(), "no spending decision");
+}
+
+/// The knowledge a session reads travels as one typed state: an admitted release's identity and
+/// manifest digest, a refused source's kind, layer, stable code and cause, or why none is read; a
+/// snapshot that does not state it carries no key.
+#[test]
+fn the_knowledge_is_one_typed_state_on_the_wire() {
+    let rail = Rail {
+        draft: Stage::Pending,
+        saved: Stage::Pending,
+        checked: Stage::Pending,
+        active: Stage::Pending,
+        run: Stage::Pending,
+    };
+    let work = Work::new(
+        PathBuf::from("/project"),
+        Request::default(),
+        Waiting::Free,
+        None,
+        None,
+        None,
+        None,
+        rail,
+    );
+    let quiet = serde_json::to_value(&work).expect("serializes");
+    assert!(quiet.get("knowledge").is_none(), "{quiet}");
+    let admitted = Knowledge::Admitted {
+        source: "embedded",
+        version: Some("knowledge-r2".to_owned()),
+        manifest_sha256: "a".repeat(64),
+        by: "conversation",
+    };
+    let json = serde_json::to_value(work.clone().with_knowledge(Some(admitted))).expect("json");
+    assert_eq!(
+        json["knowledge"],
+        serde_json::json!({
+            "state": "admitted", "source": "embedded", "version": "knowledge-r2",
+            "manifest_sha256": "a".repeat(64), "by": "conversation"
+        })
+    );
+    let refused = Knowledge::Refused {
+        source: "snapshot",
+        by: "environment",
+        code: "ADMISSION_UNTRUSTED".to_owned(),
+        cause: "no trusted expected identity".to_owned(),
+    };
+    let json = serde_json::to_value(work.clone().with_knowledge(Some(refused))).expect("json");
+    assert_eq!(
+        json["knowledge"],
+        serde_json::json!({
+            "state": "refused", "source": "snapshot", "by": "environment",
+            "code": "ADMISSION_UNTRUSTED", "cause": "no trusted expected identity"
+        })
+    );
+    let unread = Knowledge::Unread {
+        why: "knowledge off (NIKA_KNOWLEDGE=off)".to_owned(),
+    };
+    let json = serde_json::to_value(work.with_knowledge(Some(unread))).expect("json");
+    assert_eq!(
+        json["knowledge"],
+        serde_json::json!({"state": "unread", "why": "knowledge off (NIKA_KNOWLEDGE=off)"})
     );
 }
 

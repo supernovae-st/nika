@@ -94,6 +94,13 @@ Two typed readings joined these modules on 2026-10-08, so every host reads the s
   reasoning and usage the provider reported. A fact the receipt does not hold is null, never
   guessed or summed; prompts, answers, proposed objects, served model names and error text never
   pass.
+  `Knowledge` is the authoring knowledge the session reads, one typed state: `admitted` (the
+  release's `source` — `embedded` or `disk` —, `version`, `manifest_sha256` and who chose it:
+  `default`, `conversation`, `host` or `environment`), `refused` (the named source's kind, the
+  layer that named it, the refusal's stable code and its cause, never a host path) or `unread`
+  (why none is read). It is a configured fact, never a call receipt. While a refused source
+  holds a line that would reach a model, `Waiting::KnowledgeChoice` carries that line exactly as
+  typed, between the intelligence choice and a proposal's consent in the precedence.
   `Answered` says what the last line typed for an authoring question did, as the session recorded
   it at the act: the question's witness and one act, `bound` (the key, the value and how the
   line gave it: `as_typed`, `offered_key`, `model_read` or `seat_default`), `dropped`, `restated`, `waits` (with
