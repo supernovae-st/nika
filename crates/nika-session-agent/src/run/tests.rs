@@ -505,7 +505,7 @@ fn the_window_compacts_before_a_request_that_would_not_fit() {
 }
 
 #[test]
-fn a_request_carries_the_branchs_instructions_and_the_persons_citations() {
+fn a_request_carries_the_branch_instructions_and_the_persons_citations() {
     let (mut tree, mut lines) = fresh();
     let system = EntryKind::System {
         text: "Author with the person.".into(),
