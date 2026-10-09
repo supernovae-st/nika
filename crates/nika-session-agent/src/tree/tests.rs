@@ -327,6 +327,11 @@ fn a_summary_stands_for_the_entries_it_folded() {
             "third".into()
         ]
     );
+    // The summary comes back as the model's evidence, never as the person's words.
+    assert!(
+        SUMMARY_LEAD.contains("not the person's words"),
+        "{SUMMARY_LEAD}"
+    );
     // Every entry stays in the tree: a folded line is still the person's to cite.
     assert_eq!(tree.cited("u1").map(|(_, words)| words), Some("first"));
 }
