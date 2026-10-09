@@ -682,9 +682,11 @@ async fn workflow_started_attests_engine_and_platform() {
         .find(|e| e.kind == EventKind::WorkflowStarted)
         .expect("a workflow_started frame");
     let version = str_field(started, "engine_version").expect("engine_version attested");
-    assert_eq!(
-        version.split('.').count(),
-        3,
+    // MAJOR.MINOR.PATCH, then an optional `-pre-release` or `+build` suffix whose own dots
+    // (`0.123.0-preview.1`) are not part of the version core.
+    let core = version.split(['-', '+']).next().unwrap_or(version);
+    assert!(
+        core.split('.').count() == 3 && core.split('.').all(|part| part.parse::<u64>().is_ok()),
         "semver shape (got {version})"
     );
     let platform = str_field(started, "platform").expect("platform attested");
