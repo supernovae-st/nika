@@ -597,3 +597,68 @@ fn source_recovery_binds_the_identity_only_when_named() {
     let error = AuthoringContextError::Config(ConfigError::SourceRecovery("4294967296".into()));
     assert_eq!(refused.refusal(), Some(&error));
 }
+
+/// The embedded release named explicitly over a refused environment source: the strategy, the
+/// effort, the held-out corpus, the decision seat, the project root and the source word stay as
+/// resolved and the release is pinned now; the source named before admission stays readable, and
+/// the seat's own refusal, which the knowledge refusal stood before, is said now.
+#[test]
+fn the_embedded_choice_resolves_the_same_settings_with_only_the_knowledge_named() {
+    use nika_cli_host::compile::config::{KnowledgeChoice, KnowledgeLayer, KnowledgeSource};
+    use nika_onboard::compile::NativeMode;
+    let release = tempfile::tempdir().expect("an old release root");
+    let env = AuthoringSettings::none()
+        .with_strategy("only")
+        .with_reasoning("max")
+        .with_knowledge(release.path(), Some("heldout".to_owned()));
+    let seat = crate::authoring::DecisionSetup::with_key("typesafe/jev-1.13.0", None, None);
+    let refused = AuthoringContext::from_settings(&AuthoringSettings::none(), &env)
+        .with_decision(Some(seat.clone()))
+        .with_project_root("/project");
+    assert!(
+        matches!(refused.refusal(), Some(AuthoringContextError::Knowledge(_))),
+        "{refused:?}"
+    );
+    let named = refused.knowledge_named();
+    assert!(
+        matches!(
+            named,
+            Some(KnowledgeChoice::Named {
+                source: KnowledgeSource::Snapshot { .. },
+                by: KnowledgeLayer::Environment,
+            })
+        ),
+        "{named:?}"
+    );
+    let embedded = refused.with_embedded_knowledge();
+    let pin = embedded
+        .knowledge()
+        .expect("the embedded release is pinned");
+    let issued = KnowledgePin::embedded(None).expect("this build's embedded release");
+    assert_eq!(pin.manifest_sha256, issued.manifest_sha256);
+    assert_eq!(pin.exclude_corpus.as_deref(), Some("heldout"));
+    assert_eq!(
+        (embedded.strategy(), embedded.reasoning()),
+        (NativeMode::Only, Some(AuthoringReasoning::Max))
+    );
+    assert_eq!(embedded.source(), "environment");
+    assert_eq!(
+        embedded.project_root(),
+        Some(std::path::Path::new("/project"))
+    );
+    assert_eq!(embedded.decision(), Some(&seat));
+    assert!(
+        matches!(
+            embedded.refusal(),
+            Some(AuthoringContextError::Decision { .. })
+        ),
+        "{embedded:?}"
+    );
+    assert!(matches!(
+        embedded.knowledge_named(),
+        Some(KnowledgeChoice::Named {
+            source: KnowledgeSource::Embedded { .. },
+            by: KnowledgeLayer::Explicit,
+        })
+    ));
+}

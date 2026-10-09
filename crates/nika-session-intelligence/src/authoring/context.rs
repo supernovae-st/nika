@@ -91,6 +91,9 @@ pub struct AuthoringContext {
     reasoning: Result<Option<AuthoringReasoning>, ConfigError>,
     /// The source recovery rounds the operator named (0: none), printed only when named.
     pub(crate) recovery: u32,
+    /// The host's settings and the environment's this configuration was resolved from, as read
+    /// once: a later explicit choice resolves through the same parser, never another read.
+    settings: (AuthoringSettings, AuthoringSettings),
 }
 
 #[allow(clippy::missing_fields_in_debug)] // the hashed identity bytes stay the pre-choice form
@@ -193,6 +196,7 @@ impl AuthoringContext {
         };
         // The level resolves apart, through the same parser: no other refusal drops it.
         let reasoning = config::reasoning(explicit, env);
+        let settings = (explicit.clone(), env.clone());
         match Self::pin(explicit, env) {
             Ok((resolved, knowledge)) => Self {
                 strategy: resolved.strategy,
@@ -204,6 +208,7 @@ impl AuthoringContext {
                 project: None,
                 reasoning,
                 recovery: resolved.source_recovery,
+                settings,
             },
             // Field by field, never through `Default`, which resolves and may refuse in turn: a
             // refused configuration pins nothing and reads nothing.
@@ -217,8 +222,33 @@ impl AuthoringContext {
                 project: None,
                 reasoning,
                 recovery: 0,
+                settings,
             },
         }
+    }
+
+    /// The same configuration with the release this build embeds named explicitly over either
+    /// layer's knowledge: the strategy, the effort, a held-out corpus, the decision seat, the
+    /// project root and the source word stay as they were; the release is admitted and pinned now.
+    #[must_use]
+    pub fn with_embedded_knowledge(&self) -> Self {
+        let (explicit, env) = &self.settings;
+        let explicit = explicit.clone().with_knowledge_embedded();
+        let mut context = Self::from_settings(&explicit, env).with_decision(self.decision.clone());
+        context.source = self.source;
+        context.project.clone_from(&self.project);
+        context
+    }
+
+    /// What the knowledge resolved to before any admission: the source a layer named (kept when
+    /// the strict door refused it), the embedded default, off or unread; `None` when the
+    /// configuration itself does not resolve.
+    #[must_use]
+    pub fn knowledge_named(&self) -> Option<KnowledgeChoice> {
+        let (explicit, env) = &self.settings;
+        config::resolve(explicit, env)
+            .ok()
+            .map(|config| config.choice)
     }
 
     /// The resolved configuration and the pinned release, or why they cannot be honored.

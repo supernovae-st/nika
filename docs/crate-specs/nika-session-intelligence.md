@@ -53,7 +53,12 @@ consumer.
   authoring context pinned when the session opened (the strategy, the pinned knowledge, the
   decision seat, the explicit reasoning effort), and the round (`AuthoringRound`: the answers by
   stable key, the replayed plan, the questions still open, a revision's base and the admitted
-  monetary directives).
+  monetary directives). The context keeps the settings it was resolved from, read once:
+  `AuthoringContext::knowledge_named` says what a layer named before admission (a source the
+  strict door refused stays named), and `with_embedded_knowledge` resolves the same settings with
+  the release this build embeds named on the explicit layer, keeping the strategy, the effort, a
+  held-out corpus, the decision seat, the project root and the source word; the session applies
+  it only on the conversation's explicit `/knowledge embedded`.
 
 ## 3. Boundary
 
