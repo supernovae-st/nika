@@ -328,9 +328,55 @@ impl<T> typenum::type_operators::Same for nika_harness::infer::InferGradeSeat
 pub type nika_harness::infer::InferGradeSeat::Output = T
 pub fn nika_harness::infer::meet_infer_grade(seat: &str, need: nika_harness::infer::StructuredOutputGrade) -> core::result::Result<nika_harness::infer::InferGradeSeat, nika_harness::infer::InferGradeError>
 pub mod nika_harness::probe
+#[non_exhaustive] pub enum nika_harness::probe::LoginCheck
+pub nika_harness::probe::LoginCheck::SignedIn
+pub nika_harness::probe::LoginCheck::SignedOut
+pub nika_harness::probe::LoginCheck::Unanswered
+pub nika_harness::probe::LoginCheck::Unanswered::within: core::time::Duration
+pub nika_harness::probe::LoginCheck::Unreadable
+impl nika_harness::probe::LoginCheck
+pub const fn nika_harness::probe::LoginCheck::signed_in(self) -> core::option::Option<bool>
+pub fn nika_harness::probe::LoginCheck::unknown_words(self) -> core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::clone(&self) -> nika_harness::probe::LoginCheck
+impl core::cmp::Eq for nika_harness::probe::LoginCheck
+impl core::cmp::PartialEq for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::eq(&self, other: &nika_harness::probe::LoginCheck) -> bool
+impl core::fmt::Debug for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::probe::LoginCheck
+impl core::marker::StructuralPartialEq for nika_harness::probe::LoginCheck
+impl<D> owo_colors::OwoColorize for nika_harness::probe::LoginCheck
+impl<T, U> core::convert::Into<U> for nika_harness::probe::LoginCheck where U: core::convert::From<T>
+pub fn nika_harness::probe::LoginCheck::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::probe::LoginCheck where U: core::convert::Into<T>
+pub type nika_harness::probe::LoginCheck::Error = core::convert::Infallible
+pub fn nika_harness::probe::LoginCheck::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::probe::LoginCheck where U: core::convert::TryFrom<T>
+pub type nika_harness::probe::LoginCheck::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::probe::LoginCheck::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::probe::LoginCheck where T: core::clone::Clone
+pub type nika_harness::probe::LoginCheck::Owned = T
+pub fn nika_harness::probe::LoginCheck::clone_into(&self, target: &mut T)
+pub fn nika_harness::probe::LoginCheck::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::probe::LoginCheck where T: 'static + ?core::marker::Sized
+pub fn nika_harness::probe::LoginCheck::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::probe::LoginCheck where T: ?core::marker::Sized
+pub fn nika_harness::probe::LoginCheck::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::probe::LoginCheck where T: ?core::marker::Sized
+pub fn nika_harness::probe::LoginCheck::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::probe::LoginCheck where T: core::clone::Clone
+pub unsafe fn nika_harness::probe::LoginCheck::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::probe::LoginCheck where T: 'static
+pub fn nika_harness::probe::LoginCheck::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::probe::LoginCheck
+pub type nika_harness::probe::LoginCheck::Output = T
 #[non_exhaustive] pub struct nika_harness::probe::AdapterProbeRow
 pub nika_harness::probe::AdapterProbeRow::authenticated: core::option::Option<bool>
 pub nika_harness::probe::AdapterProbeRow::id: alloc::string::String
+pub nika_harness::probe::AdapterProbeRow::login: core::option::Option<nika_harness::probe::LoginCheck>
 pub nika_harness::probe::AdapterProbeRow::note: alloc::string::String
 pub nika_harness::probe::AdapterProbeRow::package: alloc::string::String
 pub nika_harness::probe::AdapterProbeRow::product_present: bool
@@ -376,6 +422,7 @@ pub type nika_harness::probe::AdapterProbeRow::Output = T
 pub nika_harness::probe::PresenceFact::acp_present: bool
 pub nika_harness::probe::PresenceFact::configured: bool
 pub nika_harness::probe::PresenceFact::id: alloc::string::String
+pub nika_harness::probe::PresenceFact::login: core::option::Option<nika_harness::probe::LoginCheck>
 pub nika_harness::probe::PresenceFact::product_present: bool
 pub nika_harness::probe::PresenceFact::serves: alloc::vec::Vec<alloc::string::String>
 impl core::clone::Clone for nika_harness::probe::PresenceFact
@@ -1258,6 +1305,51 @@ impl<T> nika_error::traits::AsAny for nika_harness::infer::InferGradeError where
 pub fn nika_harness::infer::InferGradeError::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_harness::infer::InferGradeError
 pub type nika_harness::infer::InferGradeError::Output = T
+#[non_exhaustive] pub enum nika_harness::LoginCheck
+pub nika_harness::LoginCheck::SignedIn
+pub nika_harness::LoginCheck::SignedOut
+pub nika_harness::LoginCheck::Unanswered
+pub nika_harness::LoginCheck::Unanswered::within: core::time::Duration
+pub nika_harness::LoginCheck::Unreadable
+impl nika_harness::probe::LoginCheck
+pub const fn nika_harness::probe::LoginCheck::signed_in(self) -> core::option::Option<bool>
+pub fn nika_harness::probe::LoginCheck::unknown_words(self) -> core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::clone(&self) -> nika_harness::probe::LoginCheck
+impl core::cmp::Eq for nika_harness::probe::LoginCheck
+impl core::cmp::PartialEq for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::eq(&self, other: &nika_harness::probe::LoginCheck) -> bool
+impl core::fmt::Debug for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::probe::LoginCheck
+impl core::marker::StructuralPartialEq for nika_harness::probe::LoginCheck
+impl<D> owo_colors::OwoColorize for nika_harness::probe::LoginCheck
+impl<T, U> core::convert::Into<U> for nika_harness::probe::LoginCheck where U: core::convert::From<T>
+pub fn nika_harness::probe::LoginCheck::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::probe::LoginCheck where U: core::convert::Into<T>
+pub type nika_harness::probe::LoginCheck::Error = core::convert::Infallible
+pub fn nika_harness::probe::LoginCheck::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::probe::LoginCheck where U: core::convert::TryFrom<T>
+pub type nika_harness::probe::LoginCheck::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::probe::LoginCheck::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::probe::LoginCheck where T: core::clone::Clone
+pub type nika_harness::probe::LoginCheck::Owned = T
+pub fn nika_harness::probe::LoginCheck::clone_into(&self, target: &mut T)
+pub fn nika_harness::probe::LoginCheck::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::probe::LoginCheck where T: 'static + ?core::marker::Sized
+pub fn nika_harness::probe::LoginCheck::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::probe::LoginCheck where T: ?core::marker::Sized
+pub fn nika_harness::probe::LoginCheck::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::probe::LoginCheck where T: ?core::marker::Sized
+pub fn nika_harness::probe::LoginCheck::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::probe::LoginCheck where T: core::clone::Clone
+pub unsafe fn nika_harness::probe::LoginCheck::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::probe::LoginCheck where T: 'static
+pub fn nika_harness::probe::LoginCheck::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::probe::LoginCheck
+pub type nika_harness::probe::LoginCheck::Output = T
 #[non_exhaustive] pub enum nika_harness::StructuredOutputGrade
 pub nika_harness::StructuredOutputGrade::Json
 pub nika_harness::StructuredOutputGrade::JsonSchema
@@ -1393,6 +1485,7 @@ pub type nika_harness::run_acp::AcpOneShotRefused::Output = T
 #[non_exhaustive] pub struct nika_harness::AdapterProbeRow
 pub nika_harness::AdapterProbeRow::authenticated: core::option::Option<bool>
 pub nika_harness::AdapterProbeRow::id: alloc::string::String
+pub nika_harness::AdapterProbeRow::login: core::option::Option<nika_harness::probe::LoginCheck>
 pub nika_harness::AdapterProbeRow::note: alloc::string::String
 pub nika_harness::AdapterProbeRow::package: alloc::string::String
 pub nika_harness::AdapterProbeRow::product_present: bool
@@ -1689,6 +1782,7 @@ pub type nika_harness::infer::InferGradeSeat::Output = T
 pub nika_harness::PresenceFact::acp_present: bool
 pub nika_harness::PresenceFact::configured: bool
 pub nika_harness::PresenceFact::id: alloc::string::String
+pub nika_harness::PresenceFact::login: core::option::Option<nika_harness::probe::LoginCheck>
 pub nika_harness::PresenceFact::product_present: bool
 pub nika_harness::PresenceFact::serves: alloc::vec::Vec<alloc::string::String>
 impl core::clone::Clone for nika_harness::probe::PresenceFact

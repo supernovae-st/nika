@@ -113,6 +113,12 @@ the distinct `mcp/` subtree). It honors `KIMI_CODE_HOME` and fails closed on
 absent, empty, ambiguous, unreadable, swapped, or symlinked stores. This is a
 configuration witness, not a token-validity claim: the first ACP session owns
 expiry/parse judgment and must fail without any native-provider fallback.
+A Command-auth row's login command (its exit code alone) has 30 s to answer:
+valid checks were measured at 12 s and 25.8 s (2026-10-09), and the former
+10 s read a signed-in seat as signed out. A check that does not answer in time,
+or cannot run, is an unknown sign-in (`LoginCheck::Unanswered` · `Unreadable`,
+carried as `login` on the probe facts), never signed out; admission still
+requires an answer (`configured` stays fail-closed).
 
 ## 5 · The mock ACP agent (P3.3 · the load-bearing instrument)
 

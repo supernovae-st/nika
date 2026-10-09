@@ -44,8 +44,8 @@ pub use infer::{
     InferGradeSeat, StructuredOutputGrade, meet_infer_grade,
 };
 pub use probe::{
-    AdapterProbeRow, PresenceFact, VersionPin, judge_version, parse_version, presence_facts,
-    probe_adapters, probe_adapters_sync,
+    AdapterProbeRow, LoginCheck, PresenceFact, VersionPin, judge_version, parse_version,
+    presence_facts, probe_adapters, probe_adapters_sync,
 };
 pub use registry::{AdapterRow, AuthProbe, DISABLE_ENV, registry, registry_with};
 pub use run_acp::{AcpOneShot, AcpOneShotRefused, meet_acp_one_shot};
