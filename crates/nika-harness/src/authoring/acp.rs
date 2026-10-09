@@ -7,6 +7,7 @@ use nika_kernel::ai::provider::StopReason;
 use serde_json::{Value, json};
 use std::{fmt::Write as _, pin::Pin};
 
+pub(crate) mod activity;
 mod call;
 pub(crate) mod codex;
 
@@ -346,3 +347,6 @@ mod tests;
 
 #[cfg(test)]
 mod deadline_tests;
+
+#[cfg(test)]
+mod activity_tests;

@@ -17,7 +17,7 @@
 //! returns, dropping the transport (B3.2's confined spawn adds
 //! kill-on-drop on the child underneath).
 
-use crate::authoring::acp::Milestone;
+use crate::authoring::acp::{Milestone, activity};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -123,6 +123,7 @@ where
             progress,
         };
         if let Err(e) = driver.run(request).await {
+            activity::failed(driver.progress.as_ref());
             let e = driver.media.no_replay(e);
             // The stream may already be dropped — best-effort final word.
             let _ = driver.event_tx.send(Err(e)).await;
@@ -162,7 +163,8 @@ struct Driver<R, W> {
     media: crate::media::MediaState,
     /// The audited one-shot completion profile this session runs under, if any.
     completion: Option<crate::authoring::acp::OneShot>,
-    /// The authoring call this session's closed protocol milestones are told to, if any.
+    /// The authoring call this session's closed protocol milestones, and what it receives after
+    /// the prompt (`activity`), are told to, if any.
     progress: Option<crate::authoring::acp::Progress>,
 }
 
@@ -249,8 +251,9 @@ where
         loop {
             tokio::select! {
                 line = read_bounded_line(&mut self.reader, &mut self.pending, self.idle) => {
-                    let line = line?;
-                    match wire::parse_line(&line).map_err(|e| HarnessError::Session {
+                    let read = line.map(|line| wire::parse_line(&line));
+                    activity::received(self.progress.as_ref(), &read, session_id, ID_PROMPT);
+                    match read?.map_err(|e| HarnessError::Session {
                         reason: e.to_string(),
                     })? {
                         Incoming::Response { id: ID_PROMPT, result } => {
@@ -265,6 +268,7 @@ where
                                 )));
                             }
                             let outcome = self.close_turn(&done, request);
+                            activity::completed(self.progress.as_ref());
                             let _ = self
                                 .event_tx
                                 .send(Ok(HarnessEvent::Completed { outcome: Box::new(outcome) }))
@@ -594,11 +598,18 @@ where
         self.write_line(&line).await
     }
 
-    /// Write one line — deadlined like the read half: a peer that
+    /// Write one line; a write that fails after the prompt ends the call's activity on the
+    /// transport, whatever frame it was answering.
+    async fn write_line(&mut self, line: &str) -> Result<(), HarnessError> {
+        let written = self.write_frame(line).await;
+        written.inspect_err(|_| activity::write_failed(self.progress.as_ref()))
+    }
+
+    /// Write one line's bytes — deadlined like the read half: a peer that
     /// stops READING its stdin fills the pipe and blocks us here, and
     /// a driver blocked in `write_all` is not reading either (the
     /// mutual wedge · review 2026-08-06).
-    async fn write_line(&mut self, line: &str) -> Result<(), HarnessError> {
+    async fn write_frame(&mut self, line: &str) -> Result<(), HarnessError> {
         let idle = self.idle;
         let stalled = || HarnessError::Session {
             reason: format!(
