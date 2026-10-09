@@ -517,3 +517,37 @@ fn a_draft_takes_its_object_title_never_its_placeholder_path() {
     let proposal = Proposed::new(ProposalId::of("p"), false, bare);
     assert_eq!(proposal.label(), "proposal draft.nika");
 }
+
+/// A release name that cannot stand whole on a row of the card leaves the
+/// component's row to its shorter whole form (the check face keeps the name),
+/// never broken mid-word; a name that fits keeps its place; the faces' head
+/// reads the first form.
+#[test]
+fn a_release_name_too_long_for_the_card_leaves_its_row_whole() {
+    let long = "knowledge-0.123.0-r2-json-filter-records-20261009";
+    let row = |version: &str| {
+        let id = "block:json-filter-records";
+        format!("component · {id} {version} · invoked{OR}component · {id} · invoked")
+    };
+    for (version, width, kept) in [(long, 40, false), (long, 76, true), ("1.0.0", 40, true)] {
+        let candidate = fold("preview R", false, None).revising(vec![(row(version), false)]);
+        let review = candidate.review(false).expect("a review");
+        let shown = rows(&review.lines(false, false, width));
+        assert!(
+            shown.iter().all(|r| r.width() <= usize::from(width)),
+            "{shown:#?}"
+        );
+        let text = shown.join("\n");
+        assert_eq!(text.contains(version), kept, "{version} at {width}: {text}");
+        let words = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(
+            words.contains("block:json-filter-records · invoked") || kept,
+            "{text}"
+        );
+        assert!(!text.contains(OR), "{text}");
+    }
+    let candidate = fold("preview R", false, None).revising(vec![(row(long), false)]);
+    let (_, body) = candidate.face_lines(Face::Source, 120, false, false);
+    let head = rows(&body).join("\n");
+    assert!(head.contains(long) && !head.contains(OR), "{head}");
+}

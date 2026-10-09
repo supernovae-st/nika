@@ -25,6 +25,7 @@ use nika_tui_view::workspace::text::KEEP;
 
 use super::look::judge;
 use crate::workspace::candidate::{Proposed, RunAfter, admitted};
+use crate::workspace::cards::review::OR;
 use crate::workspace::inspect::Inspected;
 
 /// The runtime's candidate, folded; `kept` is the previous fold.
@@ -143,7 +144,8 @@ fn bound(set: &ProjectChangeSet, record: Option<DocumentRevision>) -> Option<Doc
 /// How the typed compile record describes the pending document: a creation without earlier
 /// bytes, literal edits, or a whole replacement. An unknown mode claims none of those. A
 /// component `expanded` or `invoked` on these bytes is admitted held reuse ([`admitted`]);
-/// any other witness needs attention.
+/// any other witness needs attention. A component's row names its version where the card
+/// holds it whole, else leaves it to the check face's detail ([`OR`]).
 fn revised(revision: &DocumentRevision) -> Vec<(String, bool)> {
     let mut rows = vec![match revision.mode.as_str() {
         "operations" if revision.changed.is_empty() => {
@@ -163,19 +165,16 @@ fn revised(revision: &DocumentRevision) -> Vec<(String, bool)> {
         _ => ("document record · mode not described".to_owned(), true),
     }];
     rows.extend(revision.components.iter().map(|component| {
-        let bound: Vec<String> = (component.bindings.iter())
+        let bound = (component.bindings.iter())
             .map(|b| format!("{} = {}", b.path, b.value))
-            .collect();
+            .reduce(|all, one| format!("{all}, {one}"))
+            .map_or_else(String::new, |all| format!(" · {all}"));
         let version = component.version.as_deref().unwrap_or("unversioned");
-        let mut words = format!(
-            "component · {} {version} · {}",
-            component.id, component.witness
+        let (id, witness) = (&component.id, &component.witness);
+        let words = format!(
+            "component · {id} {version} · {witness}{bound}{OR}component · {id} · {witness}{bound}"
         );
-        if !bound.is_empty() {
-            words.push_str(" · ");
-            words.push_str(&bound.join(", "));
-        }
-        (words, !admitted(&component.witness))
+        (words, !admitted(witness))
     }));
     rows
 }

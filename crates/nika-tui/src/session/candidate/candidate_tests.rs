@@ -347,8 +347,11 @@ fn a_revision_names_what_changed_and_warns_on_a_rewrite_or_a_moved_component() {
                 false
             ),
             (
-                "component · block:stale-filter-report r1 · expanded · const.max_age_hours = 72"
-                    .to_owned(),
+                format!(
+                    "component · block:stale-filter-report r1 · expanded · const.max_age_hours = 72{}{}",
+                    super::OR,
+                    "component · block:stale-filter-report · expanded · const.max_age_hours = 72"
+                ),
                 false
             ),
         ]
@@ -383,7 +386,9 @@ fn an_invoked_component_is_admitted_like_an_expanded_one_and_named_apart() {
         ("unwitnessed", true),
     ] {
         let revision = DocumentRevision::of(&record, &[witness.to_owned()]).expect("revision");
-        let words = format!("component · block:json-filter-records 1.0.0 · {witness}");
+        let id = "block:json-filter-records";
+        let or = super::OR;
+        let words = format!("component · {id} 1.0.0 · {witness}{or}component · {id} · {witness}");
         assert_eq!(
             super::revised(&revision)[1],
             (words, attention),

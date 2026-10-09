@@ -25,7 +25,11 @@ use unicode_width::UnicodeWidthStr;
 use crate::model::{Kind, UiState, Waiting};
 use crate::render::own;
 use crate::visual::role;
-use crate::workspace::text::{hang, twins};
+use crate::workspace::text::{HANG, hang, twins};
+
+/// Parts a fact's whole form from the shorter whole form its card shows
+/// where a name in the first (a release) cannot stand whole on one row.
+pub(crate) const OR: char = '\u{1f}';
 
 /// The candidate a consent can name, as the conversation reviews it: its
 /// identity, each fact a yes decides with its role and the cells its first
@@ -53,13 +57,18 @@ impl Review {
     }
 
     /// The rows its card paints `width` cells wide, in the glyph column in
-    /// use: each fact from its own indent, every further row hung under it
+    /// use: each fact in its longest form whose every word stands whole on a
+    /// row ([`OR`]), from its own indent, every further row hung under it
     /// ([`hang`]). Measuring, painting and scrolling read these same rows.
     pub(crate) fn lines(&self, color: bool, ascii: bool, width: u16) -> Vec<Line<'static>> {
+        let room = usize::from(width).saturating_sub(HANG);
+        let whole = |form: &&str| form.split(' ').all(|word| word.width() <= room);
         (self.facts.iter())
             .flat_map(|(words, tone, indent)| {
                 let style = role::style(*tone, color);
-                let rows = hang(&twins(words, ascii), *indent, usize::from(width));
+                let form = (words.split(OR).find(&whole)).or_else(|| words.split(OR).next_back());
+                let words = twins(form.unwrap_or_default(), ascii);
+                let rows = hang(&words, *indent, usize::from(width));
                 rows.into_iter().map(move |row| Line::styled(row, style))
             })
             .collect()

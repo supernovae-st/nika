@@ -28,7 +28,7 @@ use nika_tui_view::Face;
 use ratatui::text::{Line, Span};
 use unicode_width::UnicodeWidthStr;
 
-use super::cards::review::Review;
+use super::cards::review::{OR, Review};
 use super::inspect::{Inspected, title_row};
 use super::text::{fit_head, hang, marks, twins, wrap};
 use crate::visual::role;
@@ -331,7 +331,9 @@ impl Proposed {
         }
         rows.extend(self.revision.iter().map(|(words, warn)| {
             let role = if *warn { Role::Warn } else { Role::Dim };
-            (words.clone(), role, 0)
+            // The card chooses among a row's whole forms; the faces' head shows the first.
+            let first = words.split(OR).next().filter(|_| !grouped);
+            (first.unwrap_or(words).to_owned(), role, 0)
         }));
         if let Some(RunAfter::Asked(asked)) = &self.after {
             rows.push((asked.clone(), Role::Accent, 0));
