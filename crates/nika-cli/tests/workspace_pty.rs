@@ -1350,7 +1350,7 @@ fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
     assert_eq!(rig.tree(), before, "a revision writes nothing");
     term.send("yes\r");
     let landed = rig.path("compiled-workflow.nika");
-    term.wait_until("the exact bytes saved", |s| {
+    term.wait_workspace_frame("the exact bytes saved", |s| {
         landed.exists() && s.contains("as last read")
     });
     let saved = short_witness(&std::fs::read(&landed).expect("landed"));
