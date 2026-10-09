@@ -143,4 +143,14 @@ timeout boundary (spec 03 · catchable · never retryable).
    precedent. Zero NIKA range owed; propagating this refusal into a
    workflow task would require a separate registry/spec decision.
 
+8. **`ModelError` · `AgentError` · `TreeError`** (nika-session-agent
+   `run.rs`, `tree.rs`) — the conversation the Session's selected
+   intelligence leads (ADR-153): a model's failure in its own words, a
+   run's end, a tree line not written or a tree read back damaged. The
+   Session maps each onto its own refusal and speaks it on the terminal;
+   nothing is written beyond the tree's own lines. Deferred with the
+   unit's other members (`ReasonError`, `ChangeError`, `AuthoringError`
+   rows): **Trigger** · the nika-session unit's admission (Gate 12 ·
+   wave 5) mints the range and the `NikaErrorCode` impls.
+
 🦋
