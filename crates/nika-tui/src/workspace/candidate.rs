@@ -7,10 +7,11 @@
 //! names, every change a yes would land (what it creates or replaces, where,
 //! over which witnessed bytes), what the Session's audit says each audited
 //! workflow reaches when it runs (under its own path when it lands several),
-//! the words of the rehearsal proof bound to that identity, and the look of
-//! the exact pending bytes of ONE workflow (their witness, the check facade's
-//! verdict of them alone, their graph); the changes whose bytes are not shown
-//! are counted, never passed off as shown. Every fact of one
+//! what a `save & run` of it would run when the Session's typed method admits
+//! one, the words of the rehearsal proof bound to that identity, and the look
+//! of the exact pending bytes of ONE workflow (their witness, the check
+//! facade's verdict of them alone, their graph); the changes whose bytes are
+//! not shown are counted, never passed off as shown. Every fact of one
 //! [`Proposed`] belongs to one identity: the fields are private, and a new
 //! identity is a new fold.
 //!
@@ -24,20 +25,36 @@ use nika_display::theme::Role;
 use nika_session::ProposalId;
 use nika_tui_view::Face;
 use ratatui::text::{Line, Span};
+use unicode_width::UnicodeWidthStr;
 
 use super::cards::review::Review;
 use super::inspect::{Inspected, title_row};
-use super::text::{marks, twins, wrap};
+use super::text::{fit_head, marks, twins, wrap};
 use crate::visual::role;
 
-/// The indent of each effect after the first under the review's one
+/// The cells each effect after the first stands in under the review's one
 /// `when it runs` heading.
-const HUNG: &str = "  ";
+const HUNG: usize = 2;
+
+/// How the faces' witness row says a key turns the face.
+const FACES: &str = "Left/Right change the face";
 
 /// What a yes answers while a proposal waits: nothing is saved yet and
 /// nothing has run.
 fn answers(sep: &str) -> String {
     format!("what a yes answers{sep}not saved{sep}nothing has run on your files")
+}
+
+/// What a `save & run` of a candidate runs once its save checked clean, as
+/// the Session's typed method admits it (`ProjectChangeSet::save_run`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum RunAfter {
+    /// The one workflow the candidate saves, at the run admission's own
+    /// spending.
+    Saved,
+    /// The run the request itself carried, in words: its workflow, the
+    /// ceiling it states and the names of its inputs, never their values.
+    Asked(String),
 }
 
 /// The candidate under review, fixed at its fold.
@@ -56,6 +73,8 @@ pub struct Proposed {
     /// Where each audited workflow reaches as declared, and whether that leaves this machine
     /// (or cannot be told): `(words, outside)`.
     world: Vec<(String, bool)>,
+    /// What a `save & run` of it runs, when the Session's typed method admits one.
+    after: Option<RunAfter>,
     rehearsed: Option<String>,
     unshown: usize,
     look: Inspected,
@@ -63,8 +82,8 @@ pub struct Proposed {
 
 impl PartialEq for Proposed {
     /// Two folds are the same candidate when every fact they show is the
-    /// same: the identity, the standing, the changes, the reach, the
-    /// rehearsal, and the bytes at the same path.
+    /// same: the identity, the standing, the changes, the reach, what a
+    /// `save & run` would run, the rehearsal, and the bytes at the same path.
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
             && self.aside == other.aside
@@ -73,6 +92,7 @@ impl PartialEq for Proposed {
             && self.effects == other.effects
             && self.revision == other.revision
             && self.world == other.world
+            && self.after == other.after
             && self.rehearsed == other.rehearsed
             && self.unshown == other.unshown
             && self.look == other.look
@@ -93,6 +113,7 @@ impl Proposed {
             effects: None,
             revision: Vec::new(),
             world: Vec::new(),
+            after: None,
             rehearsed: None,
             unshown: 0,
             look,
@@ -131,6 +152,13 @@ impl Proposed {
     /// leaves this machine (or cannot be told).
     pub(crate) fn declaring(mut self, world: Vec<(String, bool)>) -> Self {
         self.world = world;
+        self
+    }
+
+    /// With what a `save & run` of it runs once its save checked clean, as
+    /// the Session's typed method admits it (`None`: the method refuses).
+    pub(crate) fn running(mut self, after: Option<RunAfter>) -> Self {
+        self.after = after;
         self
     }
 
@@ -207,36 +235,21 @@ impl Proposed {
     }
 
     /// The conversation's review of it while a consent can name it (neither
-    /// the compiler's draft nor set aside), the facts a yes decides first:
-    /// what a yes answers, every change it lands, what the workflow reaches
-    /// when it runs (one `when it runs` heading), how it was revised and
-    /// rehearsed; then one quiet footnote with the identity a consent names
-    /// and the witness of the exact pending bytes. Every fact once, each with
-    /// its role.
+    /// the compiler's draft nor set aside): only what changes the decision,
+    /// every change it lands, how it was revised, the run a `save & run`
+    /// would ask when the request carried one, what the workflow reaches
+    /// when it runs (one `when it runs` heading, each further effect hung
+    /// under it) and where, and its rehearsal. Every fact once, each with its
+    /// role; the identity a consent names rides the card's border, and the
+    /// standing has the status row.
     #[must_use]
     pub(crate) fn review(&self, ascii: bool) -> Option<Review> {
         if self.draft || self.aside {
             return None;
         }
         let (sep, _) = marks(ascii);
-        let mut facts = vec![(answers(sep), Role::Strong)];
-        facts.extend(self.facts(sep, true));
-        facts.push((self.identity(sep), Role::Dim));
-        Some(Review::new(self.id.clone(), facts))
-    }
-
-    /// The review's footnote: the identity a consent names, then the witness
-    /// of the exact pending bytes (`/show` prints every byte, `F2` reads the
-    /// Session's whole words).
-    fn identity(&self, sep: &str) -> String {
-        let id = &self.id;
-        match self.witness() {
-            Some(witness) => {
-                let short: String = witness.chars().take(12).collect();
-                format!("proposal {id}{sep}these bytes {short}")
-            }
-            None => format!("proposal {id}"),
-        }
+        let runs = self.after.is_some();
+        Some(Review::new(self.id.clone(), self.facts(sep, true), runs))
     }
 
     /// The facts above every face: the identity and what a yes answers, the
@@ -255,18 +268,20 @@ impl Proposed {
             answers(sep)
         };
         let mut rows = vec![(format!("proposal {id}{sep}{standing}"), Role::Strong)];
-        rows.extend(self.facts(sep, false));
+        let facts = self.facts(sep, false).into_iter();
+        rows.extend(facts.map(|(words, role, _)| (words, role)));
         rows
     }
 
-    /// The facts under the standing, in their order and with their roles:
-    /// every change, the changes whose bytes no face shows, how the workflow
-    /// was revised, what it reaches when it runs (`grouped`: each effect after
-    /// the first hung under one `when it runs` heading), where it reaches as
-    /// declared, and its rehearsal.
-    fn facts(&self, sep: &str, grouped: bool) -> Vec<(String, Role)> {
-        let mut rows: Vec<(String, Role)> = Vec::new();
-        rows.extend(self.changes.iter().map(|c| (c.clone(), Role::Accent)));
+    /// The facts under the standing, in their order, each with its role and
+    /// the cells its first row stands in: every change, the changes whose
+    /// bytes no face shows, how the workflow was revised, the run its own
+    /// request carried, what it reaches when it runs (`grouped`: each effect
+    /// after the first hung under one `when it runs` heading), where it
+    /// reaches as declared, and its rehearsal.
+    fn facts(&self, sep: &str, grouped: bool) -> Vec<(String, Role, usize)> {
+        let mut rows: Vec<(String, Role, usize)> = Vec::new();
+        rows.extend(self.changes.iter().map(|c| (c.clone(), Role::Accent, 0)));
         if self.unshown > 0 {
             rows.push((
                 format!(
@@ -274,47 +289,53 @@ impl Proposed {
                     self.unshown
                 ),
                 Role::Warn,
+                0,
             ));
         }
-        rows.extend(
-            self.revision
-                .iter()
-                .map(|(words, warn)| (words.clone(), if *warn { Role::Warn } else { Role::Dim })),
-        );
+        rows.extend(self.revision.iter().map(|(words, warn)| {
+            let role = if *warn { Role::Warn } else { Role::Dim };
+            (words.clone(), role, 0)
+        }));
+        if let Some(RunAfter::Asked(asked)) = &self.after {
+            rows.push((asked.clone(), Role::Accent, 0));
+        }
         match self.effects.as_deref() {
             None => rows.push((
                 format!("when it runs{sep}not a workflow the Session audited: it runs nothing"),
                 Role::Dim,
+                0,
             )),
             Some([]) => rows.push((
                 format!("when it runs{sep}nothing outside the process"),
                 Role::Dim,
+                0,
             )),
             Some(effects) => {
                 for (at, effect) in effects.iter().enumerate() {
                     let row = if grouped && at > 0 {
-                        format!("{HUNG}{effect}")
+                        (effect.clone(), Role::Dim, HUNG)
                     } else {
-                        format!("when it runs{sep}{effect}")
+                        (format!("when it runs{sep}{effect}"), Role::Dim, 0)
                     };
-                    rows.push((row, Role::Dim));
+                    rows.push(row);
                 }
             }
         }
         rows.extend(self.world.iter().map(|(words, outside)| {
             let role = if *outside { Role::Warn } else { Role::Dim };
-            (format!("reaches, as declared{sep}{words}"), role)
+            (format!("reaches, as declared{sep}{words}"), role, 0)
         }));
         match &self.rehearsed {
             Some(words) => rows.extend(
                 words
                     .lines()
                     .filter(|l| !l.trim().is_empty())
-                    .map(|l| (format!("rehearsal{sep}{}", l.trim()), Role::Dim)),
+                    .map(|l| (format!("rehearsal{sep}{}", l.trim()), Role::Dim, 0)),
             ),
             None => rows.push((
-                format!("rehearsal{sep}no proof is bound to this identity"),
+                format!("rehearsal{sep}none bound to this identity"),
                 Role::Dim,
+                0,
             )),
         }
         rows
@@ -348,8 +369,10 @@ impl Proposed {
 
     /// The face while the conversation reviews this candidate
     /// ([`Self::review`]): the review is the one home of the facts above
-    /// every face, so the face keeps its title, the witness of its bytes and
-    /// the face itself.
+    /// every face and the object's header the one home of its bytes, so the
+    /// title names the workflow, the first row says whose exact bytes these
+    /// are (the key that turns the face where it fits whole), and the face
+    /// follows with no second witness row.
     pub(crate) fn reviewed_face_lines(
         &self,
         face: Face,
@@ -358,11 +381,36 @@ impl Proposed {
         color: bool,
         compact: bool,
     ) -> (Line<'static>, Vec<Line<'static>>) {
-        self.face_with(Vec::new(), face, width, ascii, color, compact)
+        let (title, mut body) = self.face_with(Vec::new(), face, width, ascii, color, compact);
+        let (sep, cut) = marks(ascii);
+        let (own, cells) = (self.own_bytes(), usize::from(width));
+        let said = format!("{own}{sep}{FACES}");
+        let dim = role::style(Role::Dim, color);
+        // The face's own witness row, exactly as it is painted, gives way to the first row.
+        let witness = Line::from(Span::styled(fit_head(&said, cells, cut), dim));
+        if let Some(at) = body.iter().position(|line| *line == witness) {
+            body.remove(at);
+        }
+        let first = [said, own.clone()]
+            .into_iter()
+            .find(|row| row.width() <= cells)
+            .unwrap_or_else(|| fit_head(&own, cells, cut));
+        body.insert(0, Line::from(Span::styled(first, dim)));
+        (title, body)
+    }
+
+    /// Whose exact pending bytes the faces show: their witness, the
+    /// candidate's own.
+    fn own_bytes(&self) -> String {
+        let kind = if self.draft { "draft" } else { "proposal" };
+        let short: String = self.witness().unwrap_or("").chars().take(12).collect();
+        format!("these bytes {short}, the {kind}'s own")
     }
 
     /// The title row, `facts` (wrapped, never cut), the witness of the
-    /// pending bytes, then the viewer's face of those bytes. Pure.
+    /// pending bytes, then the viewer's face of those bytes. The title names
+    /// the workflow alone, the first row standing for what it is; a draft
+    /// says it is one, never where it would land. Pure.
     fn face_with(
         &self,
         facts: Vec<(String, Role)>,
@@ -373,8 +421,11 @@ impl Proposed {
         compact: bool,
     ) -> (Line<'static>, Vec<Line<'static>>) {
         let (sep, cut) = marks(ascii);
-        let kind = if self.draft { "draft" } else { "proposal" };
-        let name = format!("{kind}{sep}{}", self.look.title());
+        let name = if self.draft {
+            format!("draft{sep}{}", self.look.title())
+        } else {
+            self.look.title().to_owned()
+        };
         let title = title_row(&name, face, width, ascii, color);
         let mut body = Vec::new();
         for (row, tone) in facts {
@@ -382,8 +433,7 @@ impl Proposed {
                 body.push(Line::from(Span::styled(part, role::style(tone, color))));
             }
         }
-        let short: String = self.witness().unwrap_or("").chars().take(12).collect();
-        let said = format!("these bytes {short}, the {kind}'s own{sep}Left/Right change the face");
+        let said = format!("{}{sep}{FACES}", self.own_bytes());
         body.extend(
             self.look
                 .judged_lines_in(face, width, ascii, color, &said, compact),

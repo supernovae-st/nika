@@ -32,7 +32,7 @@ use ratatui::widgets::{Paragraph, Widget};
 use unicode_width::UnicodeWidthStr;
 
 use super::aside::{self, Aside};
-use super::cards::{self, review::Review};
+use super::cards::{self, review, review::Review};
 use super::conversation::{self, Thread};
 use super::focus::{Extent, Focus, Region};
 use super::geometry::{self, Arrangement, Geometry, Separator};
@@ -41,9 +41,7 @@ use super::object::{self, Object, Paint};
 use super::pinned::{self, Pinned};
 use crate::composer::Composer;
 use crate::model::UiState;
-use crate::render::{
-    activity_marker, boxed_live_rows, live_rows, render_boxed_live, render_live, rest_rows,
-};
+use crate::render::{Consent, Panel, activity_marker, panel_rows, render_panel_live, rest_rows};
 use crate::visual::role;
 
 mod masthead;
@@ -559,8 +557,7 @@ fn panel(
         .areas(area);
         rule_column(edge, ascii, color, frame.buffer_mut());
     }
-    let [title, transcript, context, bottom] =
-        panel_areas(geometry, state, composer, &screen.thread);
+    let [title, transcript, context, bottom] = panel_areas(geometry, state, composer, screen);
     let marker = activity_marker(state);
     let prefix = marker.as_ref().map_or(0, |mark| {
         u16::try_from(mark.width() + 1).unwrap_or(u16::MAX)
@@ -603,11 +600,8 @@ fn panel(
         let with = conversation::context(&screen.thread, context.width, ascii, color);
         frame.render_widget(Paragraph::new(with), context);
     }
-    if boxed(geometry) {
-        render_boxed_live(frame, state, composer, bottom);
-    } else {
-        render_live(frame, state, composer, bottom);
-    }
+    let live = live_panel(geometry, state, screen);
+    render_panel_live(frame, state, composer, bottom, live);
 }
 
 /// The panel rows from which its title takes a thin rule under it.
@@ -641,30 +635,43 @@ pub(crate) fn boxed(geometry: &Geometry) -> bool {
     !geometry.stacked && panel_content(geometry).height >= BOXED_ROWS
 }
 
-/// The exact conversation rectangles, shared by painting, the scroll bounds
-/// and the pointer: the title, the transcript, the attachments of `thread`
-/// (no row while nothing is attached) and the live area.
+/// The exact conversation rectangles of `screen`, shared by painting, the
+/// scroll bounds and the pointer: the title, the transcript, the attachments
+/// of its thread (no row while nothing is attached) and the live area, which
+/// reads the screen's review as painting does ([`live_panel`]).
 pub(crate) fn panel_areas(
     geometry: &Geometry,
     state: &UiState,
     composer: &Composer,
-    thread: &Thread,
+    screen: &Screen,
 ) -> [Rect; 4] {
-    split_panel(geometry, thread, |width, room| {
-        if boxed(geometry) {
-            boxed_live_rows(state, composer, width, room)
-        } else {
-            live_rows(state, composer, width, room)
-        }
+    let live = live_panel(geometry, state, screen);
+    split_panel(geometry, &screen.thread, |width, room| {
+        panel_rows(state, composer, width, room, live)
     })
 }
 
+/// How `screen`'s conversation panel on `geometry` draws its live area: boxed
+/// where the panel has the rows ([`boxed`]), reading the review of the
+/// current proposal ([`review::consent`]).
+fn live_panel<'a>(geometry: &Geometry, state: &UiState, screen: &'a Screen) -> Panel<'a> {
+    Panel {
+        boxed: boxed(geometry),
+        consent: review::consent(state, screen.review.as_ref()),
+    }
+}
+
 /// The transcript of `geometry`'s conversation at rest, its live area as
-/// [`rest_rows`] asks, whatever is typed, listed or busy: where a decision's
-/// demand is measured.
-pub(crate) fn rest_transcript(geometry: &Geometry, state: &UiState, thread: &Thread) -> Rect {
+/// [`rest_rows`] asks with `consent`, whatever is typed, listed or busy:
+/// where a decision's demand is measured.
+pub(crate) fn rest_transcript(
+    geometry: &Geometry,
+    state: &UiState,
+    thread: &Thread,
+    consent: Consent<'_>,
+) -> Rect {
     split_panel(geometry, thread, |width, room| {
-        rest_rows(state, width).min(room)
+        rest_rows(state, width, consent).min(room)
     })[1]
 }
 
@@ -903,7 +910,7 @@ mod tests {
         let mut state = UiState::new(Presentation::Workspace, true, (120, 40));
         let composer = Composer::new();
         let geometry = Geometry::of(Rect::new(0, 0, 120, 40), true).expect("fits");
-        let title = panel_areas(&geometry, &state, &composer, &view.thread)[0];
+        let title = panel_areas(&geometry, &state, &composer, &view)[0];
         let mut terminal = Terminal::new(TestBackend::new(120, 40)).expect("terminal");
         let paint = Paint {
             color: true,
@@ -1025,8 +1032,9 @@ mod tests {
                     composer.paste("draft stays here");
                     let geometry =
                         Geometry::of(Rect::new(0, 0, width, height), true).expect("fits");
-                    let selected = panel_areas(&geometry, &state, &composer, &view.thread);
-                    let unseated = view.thread.clone().seated(None);
+                    let selected = panel_areas(&geometry, &state, &composer, &view);
+                    let mut unseated = view.clone();
+                    unseated.thread = view.thread.clone().seated(None);
                     let before = panel_areas(&geometry, &state, &composer, &unseated);
                     assert_eq!(
                         selected, before,
@@ -1097,8 +1105,9 @@ mod tests {
             let mut composer = Composer::new();
             composer.paste("draft stays here");
             let geometry = Geometry::of(Rect::new(0, 0, width, height), true).expect("fits");
-            let selected = panel_areas(&geometry, &state, &composer, &view.thread);
-            let unseated = view.thread.clone().seated(None);
+            let selected = panel_areas(&geometry, &state, &composer, &view);
+            let mut unseated = view.clone();
+            unseated.thread = view.thread.clone().seated(None);
             let before = panel_areas(&geometry, &state, &composer, &unseated);
             assert_eq!(selected, before, "{width}x{height}: the rows stay");
             assert!(

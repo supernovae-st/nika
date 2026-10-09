@@ -10,10 +10,12 @@
 //! a piece without losing wrapped text, and no block's words are rewritten.
 //! A refusal recognised by the Session's exact sentence reads first as a short
 //! summary ([`diagnostics`]), and the current proposal, tied to the candidate
-//! by identity, as its typed review ([`review`]); each block keeps the
-//! Session's words whole, and measuring and painting use the same lines. The
-//! question the live card carries with its words (`render::question`) reads
-//! one quiet row where its block stands, the block itself untouched.
+//! by identity, as its typed review ([`review`]), its identity and reader key
+//! on its bottom border; any other proposal is history, quietly titled. Each
+//! block keeps the Session's words whole, and measuring and painting use the
+//! same lines. The question the live card carries with its words
+//! (`render::question`) reads one quiet row where its block stands, the block
+//! itself untouched.
 
 // The presenter's file sits beside the root modules; the cards that paint it
 // own the module.
@@ -53,6 +55,16 @@ fn heading(kind: Kind) -> (&'static str, Role) {
         Kind::Activity => ("Activity", Role::Accent),
         Kind::Banner => ("Nika", Role::VerbAgent),
         Kind::Notice | Kind::Reply => ("Nika", Role::Accent),
+    }
+}
+
+/// The title a card wears: a proposal reads as the decision under review only
+/// while the Session waits on it (`pending`); any other proposal is history.
+fn card_heading(block: &Committed, pending: bool) -> (&'static str, Role) {
+    if block.kind == Kind::Proposal && !pending {
+        ("Proposal", Role::Dim)
+    } else {
+        heading(block.kind)
     }
 }
 
@@ -133,17 +145,27 @@ fn summary_lines(kind: Kind, summary: &Summary, color: bool, ascii: bool) -> Vec
     lines
 }
 
-/// The lines `block`, at `index` in the transcript, paints: the candidate's
-/// review for the current proposal (`current`), else the card's own lines.
+/// The lines `block`, at `index` in the transcript, paints `width` cells
+/// wide: the candidate's review for the current proposal (`current`), its
+/// identity and reader key on a row of their own where no border carries them
+/// (`bare`), else the card's own lines.
 fn shown_lines(
-    block: &Committed,
-    index: usize,
+    state: &UiState,
+    (index, block): (usize, &Committed),
     current: Option<(usize, &Review)>,
-    color: bool,
-    ascii: bool,
+    width: u16,
+    bare: bool,
 ) -> Vec<Line<'static>> {
+    let (color, ascii) = (state.color, state.ascii);
     match current {
-        Some((at, review)) if at == index => review.lines(color, ascii),
+        Some((at, review)) if at == index => {
+            let mut lines = review.lines(color, ascii, width);
+            if bare {
+                let foot = review.foot(usize::from(width), ascii);
+                lines.push(Line::styled(foot, role::style(Role::Dim, color)));
+            }
+            lines
+        }
         _ => card_lines(block, color, ascii),
     }
 }
@@ -163,34 +185,43 @@ fn compact_lines(
 ) -> Vec<Line<'static>> {
     let (review, carried) = context;
     let current = review::summarized(state, review);
-    let (color, ascii) = (state.color, state.ascii);
     (state.transcript.iter().enumerate().skip(from))
         .flat_map(|(index, block)| {
             if carried == Some(index) {
-                vec![carried_line(width, color, ascii)]
+                vec![carried_line(width, state.color, state.ascii)]
             } else {
-                shown_lines(block, index, current, color, ascii)
+                shown_lines(state, (index, block), current, width, true)
             }
         })
         .collect()
 }
 
+/// A decision or a refusal in its bounded card, as both measured and painted.
+struct Card {
+    /// Its title and the role its title and edges wear.
+    heading: (&'static str, Role),
+    /// The lines it paints, and their rows inside the card.
+    lines: Vec<Line<'static>>,
+    rows: usize,
+    /// The current proposal's identity and reader key, for its bottom border.
+    foot: Option<String>,
+}
+
 /// One piece of the conversation, as both measured and painted.
-enum Piece<'a> {
-    /// A decision or a refusal in its bounded card: the block, the lines it
-    /// paints and their rows inside the card.
-    Card(&'a Committed, Vec<Line<'static>>, usize),
+enum Piece {
+    /// A decision or a refusal in its bounded card.
+    Card(Card),
     /// One speaker's consecutive blocks.
     Bubble(Bubble),
     /// The question the live card carries: one quiet row where it stood.
     Marker,
 }
 
-impl Piece<'_> {
+impl Piece {
     /// Every row it takes, its row of air included.
     fn rows(&self) -> usize {
         match self {
-            Self::Card(_, _, rows) => card_height(*rows),
+            Self::Card(card) => card_height(card.rows),
             Self::Bubble(bubble) => bubble.rows(),
             Self::Marker => MARKER_ROWS,
         }
@@ -202,16 +233,14 @@ impl Piece<'_> {
 /// one speaker share a bubble; a decision or a refusal stands alone in its
 /// card (so the pieces from one are those of the whole plan), the current
 /// proposal's card reads as the candidate's `review` ([`review::summarized`])
-/// and the carried block as the live question's one row.
-fn plan<'a>(
-    state: &'a UiState,
-    area: Rect,
-    (review, carried): Context<'_>,
-    from: usize,
-) -> Vec<Piece<'a>> {
+/// wrapped to the card's words, its identity on its bottom border, and the
+/// carried block as the live question's one row.
+fn plan(state: &UiState, area: Rect, (review, carried): Context<'_>, from: usize) -> Vec<Piece> {
     let form = Form::of(area);
     let (color, ascii) = (state.color, state.ascii);
     let current = review::summarized(state, review);
+    let pending = review::pending(state);
+    let words = area.width.saturating_sub(4);
     let mut pieces = Vec::new();
     let mut group: Vec<&Committed> = Vec::new();
     for (index, block) in state.transcript.iter().enumerate().skip(from) {
@@ -227,9 +256,15 @@ fn plan<'a>(
         if bound && carried == Some(index) {
             pieces.push(Piece::Marker);
         } else if bound {
-            let lines = shown_lines(block, index, current, color, ascii);
-            let rows = content_rows(&lines, area.width.saturating_sub(4));
-            pieces.push(Piece::Card(block, lines, rows));
+            let lines = shown_lines(state, (index, block), current, words, false);
+            let reviewed = current.filter(|(at, _)| *at == index);
+            let room = usize::from(area.width).saturating_sub(5);
+            pieces.push(Piece::Card(Card {
+                heading: card_heading(block, pending == Some(index)),
+                rows: content_rows(&lines, words),
+                lines,
+                foot: reviewed.map(|(_, review)| review.foot(room, ascii)),
+            }));
         } else {
             group.push(block);
         }
@@ -270,9 +305,7 @@ pub(crate) fn render(frame: &mut Frame<'_>, state: &UiState, area: Rect, context
         let visible = u16::try_from(visible).unwrap_or(area.height);
         let at = Rect::new(area.x, y, area.width, visible);
         match piece {
-            Piece::Card(block, lines, rows) => {
-                paint_card(frame, block, lines, *rows, at, skip, state);
-            }
+            Piece::Card(card) => paint_card(frame, card, at, skip, state),
             Piece::Bubble(bubble) => {
                 bubble.paint(frame.buffer_mut(), at, skip, state.color, state.ascii);
             }
@@ -357,19 +390,13 @@ fn continued(label: &str, above: usize, room: usize, ascii: bool) -> Option<Stri
 }
 
 /// A decision or a refusal on its bounded raised surface: the title in the
-/// top border, the words one cell inside each edge, the bottom border, from
-/// its row `offset` on. Entered part-way, its first row shown names it and
-/// counts the rows of words above ([`continued`]), the words one row lower:
-/// no row's cost changes, and one row back shows the words that row covers.
-fn paint_card(
-    frame: &mut Frame<'_>,
-    block: &Committed,
-    lines: &[Line<'static>],
-    rows: usize,
-    area: Rect,
-    offset: usize,
-    state: &UiState,
-) {
+/// top border, the words one cell inside each edge, the bottom border (the
+/// current proposal's identity on it, [`bottom_border`]), from its row
+/// `offset` on. Entered part-way, its first row shown names it and counts the
+/// rows of words above ([`continued`]), the words one row lower: no row's
+/// cost changes, and one row back shows the words that row covers.
+fn paint_card(frame: &mut Frame<'_>, card: &Card, area: Rect, offset: usize, state: &UiState) {
+    let (lines, rows) = (&card.lines, card.rows);
     let height = usize::from(area.height);
     let painted = height.min(rows.saturating_add(2).saturating_sub(offset));
     let painted = u16::try_from(painted).unwrap_or(area.height);
@@ -377,12 +404,12 @@ fn paint_card(
         Rect::new(area.x, area.y, area.width, painted),
         role::surface(state.color, true),
     );
-    let (label, tone) = heading(block.kind);
+    let (label, tone) = card.heading;
     let style = role::style(tone, state.color);
-    let (top, top_end, edge, bottom, bottom_end, rule, cut) = if state.ascii {
-        ("+-", "+", "|", "+", "+", "-", "...")
+    let (top, top_end, edge, rule, cut) = if state.ascii {
+        ("+-", "+", "|", "-", "...")
     } else {
-        ("╭─", "╮", "│", "╰", "╯", "─", "…")
+        ("╭─", "╮", "│", "─", "…")
     };
     let room = usize::from(area.width).saturating_sub(5);
     let entered = if offset > 0 && offset <= rows && height >= 2 {
@@ -424,12 +451,9 @@ fn paint_card(
     }
     let foot = rows.saturating_add(1);
     if foot >= offset && foot < offset.saturating_add(height) {
-        let line = format!(
-            "{bottom}{}{bottom_end}",
-            rule.repeat(usize::from(area.width).saturating_sub(2))
-        );
+        let line = bottom_border(card.foot.as_deref(), area.width, style, state);
         frame.render_widget(
-            Paragraph::new(Line::styled(line, style)),
+            Paragraph::new(line),
             Rect::new(
                 area.x,
                 area.y + u16::try_from(foot - offset).unwrap_or(area.height),
@@ -437,6 +461,32 @@ fn paint_card(
                 1,
             ),
         );
+    }
+}
+
+/// A card's bottom border `width` cells wide, its edges in `style`: the
+/// current proposal's identity and reader key (`foot`, quiet) one cell in
+/// where they fit whole, the plain rule otherwise.
+fn bottom_border(foot: Option<&str>, width: u16, style: Style, state: &UiState) -> Line<'static> {
+    let (bottom, end, rule) = if state.ascii {
+        ("+", "+", "-")
+    } else {
+        ("╰", "╯", "─")
+    };
+    let width = usize::from(width);
+    match foot.filter(|words| words.width() + 5 <= width) {
+        Some(foot) => Line::from(vec![
+            Span::styled(format!("{bottom}{rule} "), style),
+            Span::styled(foot.to_owned(), role::style(Role::Dim, state.color)),
+            Span::styled(
+                format!(" {}{end}", rule.repeat(width - foot.width() - 5)),
+                style,
+            ),
+        ]),
+        None => Line::styled(
+            format!("{bottom}{}{end}", rule.repeat(width.saturating_sub(2))),
+            style,
+        ),
     }
 }
 

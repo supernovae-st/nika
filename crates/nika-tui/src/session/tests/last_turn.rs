@@ -65,6 +65,8 @@ fn a_failed_saved_revision_is_not_presented_as_the_old_runs_success() {
         joined(&ran.beats).contains("run observed · exit 0"),
         "the fixture Run was observed"
     );
+    let observed = shown_status(&ran.beats);
+    assert!(observed.starts_with("Last Run · "), "{observed}");
     let kept = live
         .runtime
         .as_ref()

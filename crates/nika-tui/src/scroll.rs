@@ -23,8 +23,7 @@ fn regions(state: &UiState, desk: &Desk, composer: &Composer) -> (Rect, Option<u
         && let Some(geometry) = desk.geometry(state.size)
     {
         let shown = desk.screen(state.ascii);
-        let [_, transcript, _, live] =
-            screen::panel_areas(&geometry, state, composer, &shown.thread);
+        let [_, transcript, _, live] = screen::panel_areas(&geometry, state, composer, &shown);
         let carried = question::carried(state, composer, live, screen::boxed(&geometry));
         return (transcript, carried);
     }
@@ -174,8 +173,8 @@ mod tests {
                         .with_conversation_height(Some(250)),
                 );
                 let geometry = desk.geometry(size).expect("workspace");
-                let thread = desk.screen(state.ascii).thread;
-                let expected = screen::panel_areas(&geometry, &state, &composer, &thread)[1];
+                let shown = desk.screen(state.ascii);
+                let expected = screen::panel_areas(&geometry, &state, &composer, &shown)[1];
                 assert_eq!(area(&state, &desk, &composer), expected);
                 state.focus_scroll = 0;
                 page(&mut state, &desk, &composer, true);
@@ -454,11 +453,12 @@ mod tests {
                 let (mut state, mut desk, composer) = selected_workspace(size, ascii);
                 let geometry =
                     Geometry::of(Rect::new(0, 0, size.0, size.1), desk.pins()).expect("geometry");
-                let screen = desk.screen(ascii);
-                let measured = screen::panel_areas(&geometry, &state, &composer, &screen.thread);
+                let view = desk.screen(ascii);
+                let measured = screen::panel_areas(&geometry, &state, &composer, &view);
                 assert_eq!(area(&state, &desk, &composer), measured[1]);
                 assert!(measured[1].height >= 1);
-                let unseated = screen.thread.clone().seated(None);
+                let mut unseated = view.clone();
+                unseated.thread = view.thread.clone().seated(None);
                 assert_eq!(
                     measured,
                     screen::panel_areas(&geometry, &state, &composer, &unseated),

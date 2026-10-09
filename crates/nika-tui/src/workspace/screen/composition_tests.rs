@@ -133,8 +133,8 @@ fn frame_of(
 }
 
 /// The conversation's rectangles, as painting and scrolling share them.
-fn areas(geometry: &Geometry, state: &UiState, composer: &Composer, thread: &Thread) -> [Rect; 4] {
-    panel_areas(geometry, state, composer, thread)
+fn areas(geometry: &Geometry, state: &UiState, composer: &Composer, screen: &Screen) -> [Rect; 4] {
+    panel_areas(geometry, state, composer, screen)
 }
 
 /// What the conversation region shows, row by row.
@@ -333,7 +333,7 @@ fn the_conversation_title_is_quiet_and_separators_stay_dim() {
                 .expect("draw");
             let buffer = terminal.backend().buffer().clone();
             let geometry = Geometry::of(Rect::new(0, 0, width, height), false).expect("fits");
-            let [title, ..] = areas(&geometry, &state, &composer, &screen.thread);
+            let [title, ..] = areas(&geometry, &state, &composer, &screen);
             let heading = row_text(&buffer, title.y, title.x, title.right());
             assert!(
                 heading.starts_with("◌ this conversation"),
@@ -364,7 +364,7 @@ fn an_empty_attachment_context_takes_no_row() {
     let state = state(size, false, false, Waiting::Free);
     let composer = composer(DRAFT, false);
     let geometry = Geometry::of(Rect::new(0, 0, size.0, size.1), false).expect("fits");
-    let [_, transcript, context, live] = areas(&geometry, &state, &composer, &screen.thread);
+    let [_, transcript, context, live] = areas(&geometry, &state, &composer, &screen);
     assert_eq!(context.height, 0, "nothing attached takes no row");
     assert_eq!(
         transcript.bottom(),
@@ -373,7 +373,7 @@ fn an_empty_attachment_context_takes_no_row() {
     );
     screen.thread = screen.thread.clone().attaching("notes.md");
     let [transcript, context, live] = {
-        let [_, transcript, context, live] = areas(&geometry, &state, &composer, &screen.thread);
+        let [_, transcript, context, live] = areas(&geometry, &state, &composer, &screen);
         [transcript, context, live]
     };
     assert_eq!(context.height, 1, "an attachment keeps its row");
@@ -408,7 +408,7 @@ fn the_composer_is_one_box_under_its_caption_where_the_panel_has_rows() {
                 let (_, buffer) =
                     frame_of(&screen, &state, &composer, paint(ascii, false), restored());
                 let geometry = Geometry::of(Rect::new(0, 0, width, height), false).expect("fits");
-                let [_, _, _, live] = areas(&geometry, &state, &composer, &screen.thread);
+                let [_, _, _, live] = areas(&geometry, &state, &composer, &screen);
                 let lines = rows_of(&buffer, live);
                 let top = lines.iter().position(|line| line.trim_end() == caption);
                 let top = top.expect(caption);
@@ -462,7 +462,7 @@ fn a_long_draft_wraps_inside_the_box_and_the_cursor_stays_in_its_cells() {
             let composer = composer(&draft, ascii);
             let (_, buffer) = frame_of(&screen, &state, &composer, paint(ascii, false), restored());
             let geometry = Geometry::of(Rect::new(0, 0, width, height), false).expect("fits");
-            let [_, _, _, live] = areas(&geometry, &state, &composer, &screen.thread);
+            let [_, _, _, live] = areas(&geometry, &state, &composer, &screen);
             let lines = rows_of(&buffer, live);
             let top = lines
                 .iter()
@@ -551,13 +551,16 @@ fn the_draft_stays_the_same_text_across_resizes_and_expansion() {
 }
 
 /// The panel paints the current proposal as the screen's review at every
-/// qualified size: the latest view ends on where the whole words are read,
-/// the cost prose stays with the reader, the human's request stays in view
-/// where the transcript holds both, and the draft stays; a screen with no
-/// review paints the Session's words.
+/// qualified size: the latest view ends on the card's border, which carries
+/// the identity and where the whole words are read, the status keeps the
+/// proposal's own standing, the cost prose stays with the reader, the
+/// human's request stays in view where the transcript holds both, and the
+/// draft stays; a screen with no review paints the Session's words and the
+/// standing with what a plain `yes` does.
 #[test]
 fn the_panel_paints_the_current_proposal_as_its_review() {
     use crate::workspace::cards::review::fixture;
+    let foot = format!("proposal {} · F2: whole words", fixture::id());
     for (width, height) in [(80, 24), (120, 40), (180, 48)] {
         let at = format!("{width}x{height}");
         let proposal = Committed::proposal(fixture::id(), fixture::PREVIEW);
@@ -567,8 +570,9 @@ fn the_panel_paints_the_current_proposal_as_its_review() {
         let screen = studio(Some(SEAT)).reviewing(review);
         let (rows, _) = frame_of(&screen, &state, &composer, paint(false, false), restored());
         let shown = rows.join("\n");
-        let reviewed = shown.contains("Full proposal, in the Session's words");
-        assert!(reviewed, "{at}\n{shown}");
+        assert!(shown.contains(&foot), "{at}\n{shown}");
+        let standing = "Not saved yet · this proposal has not run";
+        assert!(shown.contains(standing), "{at}\n{shown}");
         assert!(!shown.contains(fixture::COST), "{at}\n{shown}");
         let request = shown.contains("copy the brief into out");
         assert!(width == 80 || request, "{at}\n{shown}");
@@ -576,8 +580,73 @@ fn the_panel_paints_the_current_proposal_as_its_review() {
         let plain = studio(Some(SEAT));
         let (rows, _) = frame_of(&plain, &state, &composer, paint(false, false), restored());
         let said = rows.join("\n");
-        let reviewed = said.contains("Full proposal, in the Session's words");
-        assert!(!reviewed, "{at}\n{said}");
+        assert!(!said.contains(&foot), "{at}\n{said}");
+        let unreviewed = "Not saved yet · yes means Save only";
+        assert!(said.contains(unreviewed), "{at}\n{said}");
+    }
+}
+
+/// The reviewed proposal's live area keeps one geometry where it is measured
+/// and where it is painted, at 60x18, 80x24, 120x40 and 180x48 and in the
+/// expanded arrangement's narrowest panel, in both glyph columns: its exact
+/// empty rail lent, the standing first, the `Save?` line holding the draft
+/// once, the decision row last and whole, naming every consent word, and the
+/// card's identity on its border.
+#[test]
+fn the_reviewed_proposal_keeps_one_live_geometry_at_every_size() {
+    use crate::workspace::candidate::RunAfter;
+    use crate::workspace::cards::review::fixture;
+    let expanded = restored().with_layout(geometry::Layout::Workbench);
+    for (width, height, arrangement) in [
+        (60, 18, restored()),
+        (80, 24, restored()),
+        (120, 40, restored()),
+        (180, 48, restored()),
+        (120, 40, expanded),
+    ] {
+        for ascii in [false, true] {
+            let at = format!("{width}x{height} {:?} ascii={ascii}", arrangement.layout);
+            let proposal = Committed::proposal(fixture::id(), fixture::PREVIEW);
+            let mut state = fixture::state((width, height), proposal, Waiting::Proposal);
+            state.ascii = ascii;
+            state.rail = "Draft ✓ · Saved ○ · Checked ○ · Active ○ · Run ○".to_owned();
+            let candidate = fixture::candidate(fixture::id(), false);
+            let review = candidate.running(Some(RunAfter::Saved)).review(ascii);
+            let screen = studio(Some(SEAT)).reviewing(review.clone());
+            let composer = composer(DRAFT, ascii);
+            let drawn = paint(ascii, false);
+            let (rows, buffer) = frame_of(&screen, &state, &composer, drawn, arrangement);
+            let area = Rect::new(0, 0, width, height);
+            let geometry = Geometry::arranged(area, false, &arrangement).expect("fits");
+            let [_, transcript, _, live] = areas(&geometry, &state, &composer, &screen);
+            // The card's words at this arrangement's own width hang as everywhere.
+            let words = transcript.width - 4;
+            let card = review.map_or_else(Vec::new, |review| review.lines(false, ascii, words));
+            for row in card.iter().map(ToString::to_string) {
+                let indent = row.len() - row.trim_start().len();
+                let hung = row.width() <= usize::from(words) && [0, 2, 4].contains(&indent);
+                assert!(hung, "{at}: {row}");
+            }
+            let lines = rows_of(&buffer, live);
+            let talk = conversation_text(&buffer, &geometry);
+            assert!(!talk.contains("Draft ✓"), "{at}: the rail is lent\n{talk}");
+            assert!(lines[0].starts_with("Not saved yet"), "{at}\n{lines:#?}");
+            assert_eq!(talk.matches("Not saved yet").count(), 1, "{at}\n{talk}");
+            let prompt = if ascii { "Save? > " } else { "Save? › " };
+            let decision = format!("{prompt}{DRAFT}");
+            let typed = lines.iter().filter(|row| row.contains(&decision)).count();
+            assert_eq!(typed, 1, "{at}\n{lines:#?}");
+            assert_eq!(rows.join("\n").matches(DRAFT).count(), 1, "{at}");
+            let hint = lines.last().map_or("", |row| row.trim_end());
+            for word in ["save & run", "yes: ", "no: discard"] {
+                assert!(hint.contains(word), "{at}: {hint}");
+            }
+            let whole = !hint.ends_with('…') && !hint.ends_with("...");
+            assert!(whole, "{at}: {hint}");
+            let sep = if ascii { "-" } else { "·" };
+            let foot = format!("{} {sep} F2", fixture::id());
+            assert!(rows.join("\n").contains(&foot), "{at}: {foot}");
+        }
     }
 }
 

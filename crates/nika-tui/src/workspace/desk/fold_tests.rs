@@ -16,7 +16,7 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 
-use super::{Desk, Route, draw, layout::QUESTION_CONTEXT};
+use super::{Desk, Route, draw, layout::DECISION_CONTEXT};
 use crate::composer::Composer;
 use crate::model::{
     Asked, Committed, Kind, Offer, Presentation, Shape, UiState, Waiting, demo_project,
@@ -24,7 +24,7 @@ use crate::model::{
 use crate::render::question;
 use crate::visual::logomark::REVEAL_ENDS;
 use crate::workspace::cards;
-use crate::workspace::cards::review::fixture;
+use crate::workspace::cards::review::{self, fixture};
 use crate::workspace::focus::Region;
 use crate::workspace::geometry::{Arrangement, Geometry, Layout};
 use crate::workspace::object::{self, Paint};
@@ -136,9 +136,10 @@ fn a_folded_frame_tiles_the_screen_exactly() {
 }
 
 /// At 80x24, 80x30 and 99x30 the review fits only folded: at rest the
-/// card's title and standing, its changes and effects, its identity
-/// footnote, the `Save?` line with the draft (once) and the hint all show
-/// together, in both glyph columns, a run pinned or not.
+/// card's title, its changes, effects and rehearsal, its identity on its
+/// border, the standing, the `Save?` line with the draft (once), the hint and
+/// the strip's own bytes all show together, in both glyph columns, a run
+/// pinned or not; the lead the standing replaced is gone.
 #[test]
 fn the_review_shows_whole_at_rest_above_the_folded_object() {
     let id = fixture::id().to_string();
@@ -168,14 +169,18 @@ fn the_review_shows_whole_at_rest_above_the_folded_object() {
             let sep = if ascii { "-" } else { "·" };
             for fact in [
                 "Review before saving".to_owned(),
-                format!("what a yes answers {sep} not saved"),
-                "nothing has run on your files".to_owned(),
-                "creates compiled-workflow.nika".to_owned(),
+                "creates compiled-workflow.nika (33 lines)".to_owned(),
                 "when it runs".to_owned(),
-                format!("proposal {id} {sep} these bytes 51835c93e564"),
+                "rehearsal".to_owned(),
+                format!("proposal {id} {sep} F2"),
+                format!("Not saved yet {sep} this proposal has not run"),
                 "yes + Enter: Save".to_owned(),
+                "these bytes 51835c93e564, the proposal's own".to_owned(),
             ] {
                 assert!(read.contains(&fact), "{at}: {fact}\n{shown:#?}");
+            }
+            for lead in ["what a yes answers", "nothing has run on your files"] {
+                assert!(!read.contains(lead), "{at}: {lead}\n{shown:#?}");
             }
             let input: Vec<&String> = shown.iter().filter(|row| row.contains(DRAFT)).collect();
             assert_eq!(input.len(), 1, "{at}: the draft once\n{shown:#?}");
@@ -184,6 +189,49 @@ fn the_review_shows_whole_at_rest_above_the_folded_object() {
                 !read.contains("Approved") && !read.contains("Applied"),
                 "{at}"
             );
+        }
+    }
+}
+
+/// A reviewed proposal keeps [`DECISION_CONTEXT`] rows of its exchange above
+/// its card at rest, measured beside the live area its one consent context
+/// sizes (its exact empty rail lent to the transcript): short of them the
+/// object folds, even where the card alone would fit (80x30, 99x30), and
+/// folded they hold; 80x40 keeps the restored split.
+#[test]
+fn a_reviewed_proposal_keeps_three_rows_of_its_exchange_in_view() {
+    let rail = "Draft ✓ · Saved ○ · Checked ○ · Active ○ · Run ○";
+    for (size, folds) in [
+        ((80, 24), true),
+        ((80, 30), true),
+        ((99, 30), true),
+        ((80, 40), false),
+    ] {
+        let mut desk = reviewing();
+        let (mut state, _) = waiting(size);
+        state.rail = rail.to_owned();
+        let review = desk.review(false);
+        let consent = review::consent(&state, review.as_ref());
+        let from = review::summarized(&state, consent).map(|(at, _)| at);
+        let from = from.expect("the current proposal is reviewed");
+        let thread = desk.screen(false).thread;
+        let rest = screen::rest_transcript(&restored(&desk, size), &state, &thread, consent);
+        let unlent = screen::rest_transcript(&restored(&desk, size), &state, &thread, None);
+        assert_eq!(rest.height, unlent.height + 1, "{size:?}: the rail is lent");
+        let card = cards::rows_from(&state, rest, (consent, None), from);
+        let at = format!("{size:?}: {card} rows and context of {}", rest.height);
+        let short = card + DECISION_CONTEXT > usize::from(rest.height);
+        assert_eq!(short, folds, "{at}");
+        if size.1 == 30 {
+            assert!(card <= usize::from(rest.height), "{at}: the card fits");
+        }
+        desk.prepare_for(&state, false, false);
+        assert_eq!(desk.folds(size), folds, "{at}");
+        if folds {
+            let geometry = desk.geometry(size).expect("fits");
+            let held = screen::rest_transcript(&geometry, &state, &thread, consent);
+            let kept = cards::rows_from(&state, held, (consent, None), from) + DECISION_CONTEXT;
+            assert!(kept <= usize::from(held.height), "{at}: folded they hold");
         }
     }
 }
@@ -204,9 +252,8 @@ fn the_frame_and_the_extent_read_the_one_folded_geometry() {
             shown[title].contains("this conversation"),
             "{size:?}\n{shown:#?}"
         );
-        let thread = desk.screen(false).thread;
-        let [heading, transcript, _, _] =
-            screen::panel_areas(&geometry, &state, &composer, &thread);
+        let view = desk.screen(false);
+        let [heading, transcript, _, _] = screen::panel_areas(&geometry, &state, &composer, &view);
         assert_eq!(heading.y, geometry.conversation.y, "{size:?}");
         assert_eq!(transcript.y, heading.bottom(), "{size:?}");
         let length = object::length(&desk.screen(false).object);
@@ -449,8 +496,8 @@ fn a_homed_question_keeps_three_rows_of_its_exchange_in_view() {
         let thread = desk.screen(false).thread;
         let from = question::asked_block(&state).expect("the question's block");
         let context = (None, Some(from));
-        let rest = screen::rest_transcript(&restored(&desk, size), &state, &thread);
-        let need = cards::rows_from(&state, rest, context, from) + QUESTION_CONTEXT;
+        let rest = screen::rest_transcript(&restored(&desk, size), &state, &thread, None);
+        let need = cards::rows_from(&state, rest, context, from) + DECISION_CONTEXT;
         let folds = need > usize::from(rest.height);
         desk.prepare_for(&state, false, false);
         let at = format!("{size:?}: {need} rows asked of {}", rest.height);
@@ -458,8 +505,8 @@ fn a_homed_question_keeps_three_rows_of_its_exchange_in_view() {
         if folds {
             let geometry = desk.geometry(size).expect("fits");
             assert_eq!(geometry.object.height, 3, "{at}: the strip");
-            let held = screen::rest_transcript(&geometry, &state, &thread);
-            let kept = cards::rows_from(&state, held, context, from) + QUESTION_CONTEXT;
+            let held = screen::rest_transcript(&geometry, &state, &thread, None);
+            let kept = cards::rows_from(&state, held, context, from) + DECISION_CONTEXT;
             assert!(kept <= usize::from(held.height), "{at}: folded they hold");
         }
         outcomes.push(folds);

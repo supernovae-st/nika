@@ -406,24 +406,22 @@ fn the_rectangle_alone_chooses_slabs_or_outlines() {
 }
 
 /// While the Session waits for consent, the latest proposal it tagged with
-/// the candidate's identity reads as the candidate's typed review: what a yes
-/// answers, every change, the bytes the faces do not show, what it reads and
-/// reaches, the identity and its bytes in one footnote, and where the whole
-/// words are read. The human's turn stays readable, the cost prose stays with
-/// the reader, and the block keeps every byte; at the 80, 120 and 180
+/// the candidate's identity reads as the candidate's typed review: every
+/// change, the bytes the faces do not show, what it reads and reaches, its
+/// rehearsal, the identity a consent names and where the whole words are read
+/// on its bottom border; no lead and no footnote repeat the standing or the
+/// bytes. The human's turn stays readable, the cost prose stays with the
+/// reader, and the block keeps every byte; at the 80, 120 and 180
 /// transcripts, in both glyph columns.
 #[test]
 fn the_current_proposal_reads_as_its_typed_review() {
-    let footnote = format!("proposal {} · these bytes 51835c93e564", fixture::id());
     let facts = [
-        "what a yes answers · not saved · nothing has run on your files",
         fixture::CREATES,
         fixture::REPLACES,
-        "1 more change(s) whose bytes these faces do not show",
+        UNSHOWN,
         fixture::READS,
         fixture::REACH,
-        footnote.as_str(),
-        "Full proposal, in the Session's words: F2",
+        "rehearsal · none bound to this identity",
     ];
     for (width, tall) in [(80, 8), (44, 29), (68, 37)] {
         for ascii in [false, true] {
@@ -433,11 +431,22 @@ fn the_current_proposal_reads_as_its_typed_review() {
             let mut state = fixture::state((width, tall), proposal, Waiting::Proposal);
             state.ascii = ascii;
             let before = state.transcript.clone();
-            let read = readings(&mut state, Rect::new(0, 0, width, tall), review.as_ref());
+            let area = Rect::new(0, 0, width, tall);
+            let read = readings(&mut state, area, review.as_ref());
             for fact in facts {
                 let shown = seen(&read, &twins(fact, ascii));
                 assert!(shown, "{case}: {fact}\n{read:#?}");
             }
+            for gone in ["what a yes answers", "Full proposal", "these bytes"] {
+                assert!(!seen(&read, gone), "{case}: {gone}\n{read:#?}");
+            }
+            let (rows, _) = reviewed(&state, area, review.as_ref());
+            let foot = format!("proposal {} · F2: whole words", fixture::id());
+            let foot = twins(&foot, ascii);
+            let border = rows.iter().find(|row| row.contains(&foot));
+            let low = if ascii { "+- " } else { "╰─ " };
+            let edged = border.is_some_and(|row| row.starts_with(low));
+            assert!(edged, "{case}\n{rows:#?}");
             let turn = seen(&read, "copy the brief into out");
             assert!(turn, "{case}: the human's turn");
             let cost = seen(&read, fixture::COST);
@@ -445,6 +454,91 @@ fn the_current_proposal_reads_as_its_typed_review() {
             assert_eq!(state.transcript, before, "{case}");
         }
     }
+}
+
+/// The current proposal's identity and reader key ride its bottom border one
+/// cell in, quiet beside the decision's edges, in the longest whole form the
+/// border holds and never cut: the card stays its words plus three rows, and
+/// a border too narrow for even the identity stays a plain rule.
+#[test]
+fn the_reviewed_card_carries_its_identity_on_its_border() {
+    let id = fixture::id().to_string();
+    for (width, form) in [
+        (72, format!("proposal {id} · F2: whole words")),
+        (44, format!("proposal {id} · F2: whole words")),
+        (43, format!("proposal {id} · F2")),
+        (31, format!("proposal {id} · F2")),
+        (30, format!("{id} · F2")),
+    ] {
+        for ascii in [false, true] {
+            let at = format!("{width} ascii={ascii}");
+            let review = fixture::candidate(fixture::id(), false).review(ascii);
+            let proposal = Committed::proposal(fixture::id(), fixture::PREVIEW);
+            let mut state = fixture::state((width, 60), proposal, Waiting::Proposal);
+            state.ascii = ascii;
+            state.color = true;
+            state.transcript.remove(0);
+            let area = Rect::new(0, 0, width, 60);
+            let rows = height(&state, area, (review.as_ref(), None));
+            let words = (review.as_ref())
+                .map(|review| review.lines(true, ascii, width - 4))
+                .unwrap_or_default();
+            assert_eq!(rows, words.len() + 3, "{at}: the words plus three rows");
+            let (shown, buffer) = reviewed(&state, area, review.as_ref());
+            let y = shown.iter().rposition(|row| row.trim() != "");
+            let y = y.expect("a border");
+            let low = if ascii { "+- " } else { "╰─ " };
+            let opens = format!("{low}{} ", twins(&form, ascii));
+            assert!(shown[y].starts_with(&opens), "{at}: {}", shown[y]);
+            let end = if ascii { "+" } else { "╯" };
+            assert!(shown[y].trim_end().ends_with(end), "{at}: {}", shown[y]);
+            let row = u16::try_from(y).expect("a row");
+            let (edge, quiet) = (role::style(Role::Warn, true), role::style(Role::Dim, true));
+            assert_eq!(Some(buffer[(0, row)].fg), edge.fg, "{at}: edge");
+            assert_eq!(Some(buffer[(3, row)].fg), quiet.fg, "{at}: a quiet foot");
+        }
+    }
+    let review = fixture::candidate(fixture::id(), false).review(false);
+    let proposal = Committed::proposal(fixture::id(), fixture::PREVIEW);
+    let state = fixture::state((20, 40), proposal, Waiting::Proposal);
+    let (shown, _) = reviewed(&state, Rect::new(0, 0, 20, 40), review.as_ref());
+    let y = shown.iter().rposition(|row| row.trim() != "");
+    let (y, rule) = (y.expect("a border"), format!("╰{}╯", "─".repeat(18)));
+    assert_eq!(shown[y], rule, "too narrow: a plain rule");
+}
+
+/// A proposal block the Session no longer waits on is history: its card is
+/// titled `Proposal`, quietly, and keeps the Session's whole words; the one
+/// the Session waits on keeps the decision's title, reviewed or not.
+#[test]
+fn a_proposal_no_longer_waited_on_is_titled_as_history() {
+    let area = Rect::new(0, 0, 68, 60);
+    let proposal = Committed::proposal(fixture::id(), fixture::PREVIEW);
+    let title = |state: &UiState, review: Option<&Review>| {
+        let (rows, buffer) = reviewed(state, area, review);
+        let y = rows.iter().position(|row| row.starts_with("╭─ "));
+        let y = y.expect("its title");
+        (
+            rows[y].clone(),
+            buffer[(3, u16::try_from(y).expect("a row"))].fg,
+        )
+    };
+    let review = fixture::candidate(fixture::id(), false).review(false);
+    let mut state = fixture::state((68, 60), proposal, Waiting::Proposal);
+    state.transcript.remove(0);
+    state.color = true;
+    let decision = "╭─ Review before saving ─";
+    let (waiting, tone) = title(&state, review.as_ref());
+    assert!(waiting.starts_with(decision), "{waiting}");
+    let (unreviewed, _) = title(&state, None);
+    assert!(unreviewed.starts_with(decision), "{unreviewed}");
+    state.waiting = Waiting::Free;
+    let (saved, quiet) = title(&state, review.as_ref());
+    assert!(saved.starts_with("╭─ Proposal ─"), "{saved}");
+    assert_eq!(Some(quiet), role::style(Role::Dim, true).fg, "quiet");
+    assert_ne!(quiet, tone);
+    let read = readings(&mut state, area, review.as_ref());
+    assert!(seen(&read, fixture::COST), "its whole words: {read:#?}");
 }
 
 /// Anything but the current proposal keeps the Session's whole words:
@@ -484,9 +578,20 @@ fn every_other_proposal_keeps_the_sessions_words() {
         let read = readings(&mut state, Rect::new(0, 0, 68, 37), review.as_ref());
         let said = seen(&read, fixture::COST);
         assert!(said, "{case}: the Session's words\n{read:#?}");
-        let reviewed = seen(&read, "Full proposal, in the Session's words");
+        let reviewed = seen(&read, UNSHOWN);
         assert!(!reviewed, "{case}");
+        let (rows, _) = reviewed_frame(&state, review.as_ref());
+        assert!(!rows.contains(" F2: whole words "), "{case}\n{rows}");
     }
+}
+
+/// The words only the review says: how many changes the faces do not show.
+const UNSHOWN: &str = "1 more change(s) whose bytes these faces do not show";
+
+/// The whole frame of `state`'s conversation at 68x37, read with `review`.
+fn reviewed_frame(state: &UiState, review: Option<&Review>) -> (String, Buffer) {
+    let (rows, buffer) = reviewed(state, Rect::new(0, 0, 68, 37), review);
+    (rows.join("\n"), buffer)
 }
 
 /// Only the latest proposal the Session tagged can be reviewed: an older
@@ -509,7 +614,10 @@ fn only_the_latest_tagged_proposal_is_reviewed() {
     let read = readings(&mut state, Rect::new(0, 0, 68, 37), review.as_ref());
     let older = seen(&read, fixture::COST);
     assert!(older, "the older preview keeps its words");
-    assert!(seen(&read, "Full proposal, in the Session's words: F2"));
+    assert!(seen(&read, UNSHOWN));
+    let (rows, _) = reviewed_frame(&state, review.as_ref());
+    assert!(rows.contains("╭─ Proposal ─"), "history\n{rows}");
+    assert!(rows.contains("╭─ Review before saving ─"), "{rows}");
     let newer = ProposalId::of("a newer preview");
     state
         .transcript
@@ -596,25 +704,28 @@ fn the_object_leaves_its_facts_to_the_review_alone() {
 }
 
 /// In a pane too small for cards the current proposal still reads as its
-/// review, the measure counting exactly the lines painted, and the cost
-/// prose stays with the reader.
+/// review, its identity and reader key on a last row of their own (no border
+/// carries them there), the measure counting exactly the lines painted, and
+/// the cost prose stays with the reader.
 #[test]
 fn a_short_split_reads_the_current_proposal_as_its_review() {
     let area = Rect::new(0, 0, 40, 5);
     let review = fixture::candidate(fixture::id(), false).review(false);
     let proposal = Committed::proposal(fixture::id(), fixture::PREVIEW);
     let state = fixture::state((40, 5), proposal, Waiting::Proposal);
+    let foot = format!("proposal {} · F2: whole words", fixture::id());
     let facts = (review.as_ref())
-        .map(|review| review.lines(false, false))
+        .map(|review| review.lines(false, false, 40))
         .unwrap_or_default();
     let human = card_lines(&Committed::new(Kind::Human, fixture::REQUEST), false, false);
-    let expected = content_rows(&[human, facts].concat(), 40);
+    let expected = content_rows(&[human, facts, vec![Line::raw(foot.clone())]].concat(), 40);
     assert_eq!(height(&state, area, (review.as_ref(), None)), expected);
     let (rows, _) = reviewed(&state, area, review.as_ref());
-    assert!(rows.join(" ").contains("Session's words:"), "{rows:#?}");
     let last = rows.last().map(|row| row.trim_end());
-    assert_eq!(last, Some("F2"), "{rows:#?}");
-    assert!(!rows.join("\n").contains(fixture::COST), "{rows:#?}");
+    assert_eq!(last, Some(foot.as_str()), "{rows:#?}");
+    let read = rows.join(" ");
+    assert!(read.contains("rehearsal · none bound"), "{rows:#?}");
+    assert!(!read.contains(fixture::COST), "{rows:#?}");
 }
 
 /// Short panes still distinguish a sent message from the assistant reply.

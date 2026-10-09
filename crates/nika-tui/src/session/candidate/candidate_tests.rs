@@ -10,7 +10,7 @@
 use std::path::{Path, PathBuf};
 
 use nika_session::ScriptedReasoner;
-use nika_session::change::Witness;
+use nika_session::change::{ProjectChange, ProjectChangeSet, RunRequest, Witness};
 use nika_session::intelligence::{
     IntelligenceCensus, IntelligenceKind, UserIntelligencePreference,
 };
@@ -130,6 +130,78 @@ fn a_proposal_is_folded_with_the_sessions_identity_and_its_exact_bytes() {
         "{source:?}"
     );
     assert!(!room.0.join(DEST).exists(), "nothing written");
+    // One workflow and no run request: the Session's own typed method admits
+    // a `save & run` of exactly this proposal, and nothing ran or was saved.
+    let review = candidate.review(false).expect("a consent can name it");
+    assert!(review.runs(), "the one workflow it saves");
+    let lines = review.lines(false, false, 76);
+    let rows: Vec<String> = lines.iter().map(ToString::to_string).collect();
+    let head = format!("creates {DEST} (");
+    let created = rows.iter().find(|row| row.starts_with(&head));
+    let counted = created.is_some_and(|row| row.ends_with(" lines)"));
+    assert!(counted, "the count bound to its unit: {rows:?}");
+    assert!(!room.0.join("out/copy.md").exists(), "nothing ran");
+}
+
+/// A set whose changes create `workflows` (and one supporting file), carrying
+/// `run` as its own run request.
+fn set(workflows: &[&str], run: Option<RunRequest>) -> ProjectChangeSet {
+    let mut changes: Vec<ProjectChange> = (workflows.iter())
+        .map(|path| ProjectChange::CreateWorkflow {
+            path: PathBuf::from(path),
+            content: "nika: x\n".to_owned(),
+        })
+        .collect();
+    changes.push(ProjectChange::CreateSupportingFile {
+        path: PathBuf::from("notes/brief.md"),
+        content: "brief\n".to_owned(),
+    });
+    ProjectChangeSet {
+        root: PathBuf::from("/project"),
+        goal: "copy the brief".to_owned(),
+        changes,
+        run,
+        repairs: Vec::new(),
+        audits: Vec::new(),
+    }
+}
+
+/// A run request over `workflow` binding `vars` under the ceiling `max`.
+fn asked(workflow: &str, vars: &[&str], max: f64) -> RunRequest {
+    RunRequest {
+        workflow: PathBuf::from(workflow),
+        vars: vars.iter().map(|var| (*var).to_owned()).collect(),
+        max_cost_usd: max,
+        access_pin: None,
+        bytes: None,
+        closure: None,
+    }
+}
+
+/// What a `save & run` would run is folded from the Session's own typed
+/// method, never from words or the disk: the one workflow saved; the run the
+/// request carried, named by its workflow, its ceiling and the names of its
+/// inputs, never a value; nothing where the method refuses (several
+/// workflows and no request, no workflow, a ceiling that is no amount).
+#[test]
+fn a_save_and_run_is_folded_from_the_sessions_typed_method() {
+    use crate::workspace::candidate::RunAfter;
+    let one = super::run_after(&set(&["one.nika"], None));
+    assert_eq!(one, Some(RunAfter::Saved));
+    assert_eq!(super::run_after(&set(&["a.nika", "b.nika"], None)), None);
+    assert_eq!(super::run_after(&set(&[], None)), None);
+    // The names alone: no value, no `=`, and no entry that names no input.
+    let carried = asked("report.nika", &["region=north", "limit=5", "unnamed"], 0.25);
+    let words = "asked run · report.nika once · ceiling $0.25 · inputs region, limit";
+    let folded = super::run_after(&set(&["a.nika", "b.nika"], Some(carried)));
+    assert_eq!(folded, Some(RunAfter::Asked(words.to_owned())));
+    let bare = asked("report.nika", &[], 0.0);
+    let words = "asked run · report.nika once · ceiling $0.00";
+    let folded = super::run_after(&set(&["report.nika"], Some(bare)));
+    assert_eq!(folded, Some(RunAfter::Asked(words.to_owned())));
+    let nowhere = asked("report.nika", &[], f64::NAN);
+    let refused = super::run_after(&set(&["report.nika"], Some(nowhere)));
+    assert_eq!(refused, None, "a ceiling that is no amount");
 }
 
 #[test]

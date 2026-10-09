@@ -719,8 +719,8 @@ fn a_scrolled_transcript_shows_one_way_back_in_both_layouts() {
             );
             state.focus_scroll = 4;
             let geometry = desk.geometry(LARGE).expect("fits");
-            let thread = desk.screen(ascii).thread;
-            let transcript = screen::panel_areas(&geometry, &state, &composer, &thread)[1];
+            let view = desk.screen(ascii);
+            let transcript = screen::panel_areas(&geometry, &state, &composer, &view)[1];
             let area = screen::latest_area(transcript, ascii).expect("room for the marker");
             let (rows, buffer) = frame(&desk, LARGE, &state, &composer, paint(ascii, false));
             assert_eq!(rows.join("\n").matches(marker).count(), 1, "{layout:?}");
