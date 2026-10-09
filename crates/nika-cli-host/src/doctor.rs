@@ -1123,12 +1123,14 @@ pub(crate) fn harness_findings() -> Vec<Finding> {
 
 #[cfg(feature = "access-harness")]
 fn harness_finding(row: &nika_harness::AdapterProbeRow) -> Finding {
+    let unknown = row.login.and_then(nika_harness::LoginCheck::unknown_words);
     harness_finding_from_parts(
         &row.id,
         row.version,
         row.authenticated,
         &row.package,
         row.product_present,
+        unknown.as_deref(),
     )
 }
 
@@ -1139,6 +1141,7 @@ fn harness_finding_from_parts(
     authenticated: Option<bool>,
     package: &str,
     product_present: bool,
+    unknown: Option<&str>,
 ) -> Finding {
     let display = nika_types::access::HarnessRuntime::lookup(id).map_or(id, |rt| rt.display);
     if id == "codex" && product_present && version.is_none() {
@@ -1166,11 +1169,15 @@ fn harness_finding_from_parts(
             level: Level::Warn,
             label: "runtime".to_owned(),
             detail: format!(
-                "{id} — {display} · detected (v{major}.{minor}) · not signed in · `--access {id}`"
+                "{id} — {display} · detected (v{major}.{minor}) · {} · `--access {id}`",
+                unknown.map_or_else(
+                    || "not signed in".to_owned(),
+                    |why| format!("sign-in unknown: {why}")
+                )
             ),
-            fix: Some(format!(
-                "sign in to {display} itself · then `--access {id}`"
-            )),
+            fix: unknown
+                .is_none()
+                .then(|| format!("sign in to {display} itself · then `--access {id}`")),
         },
         (true, None, _) => Finding {
             level: Level::Warn,

@@ -507,6 +507,10 @@ from advertised models. JSON exposes `local_model_probes` and `inference_tested:
 human rows state that inference was not tested. No opt-in leaves observations absent.
 The existing `Probe` and render function signatures remain compatible.
 
+A harness seat row reads its login check from the harness probe (`AdapterProbeRow::login`):
+a check that did not answer within its deadline is `sign-in unknown` in the harness's words,
+a warning that teaches no sign-in, never `not signed in`.
+
 The direct-API authoring backend records `cost_basis: unpriced; billing_unverified`. Its usage completeness and requested/observed model evidence are separate observations; this door does not calculate a catalog valuation or certify billing. Harness-provided descriptors retain their own basis.
 
 `redact_authoring_error` re-exports the provider-owned authoring error projection. It preserves local AdmissionDenied with an engine-authored remedy and removes provider text from all other failures. Serve consumes this shared host boundary; the compiler keeps its typed refusal distinction.
