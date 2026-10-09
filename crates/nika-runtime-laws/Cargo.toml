@@ -30,6 +30,7 @@ serde            = { workspace = true }
 serde_json       = { workspace = true }
 thiserror        = { workspace = true }
 miette           = { workspace = true }
+stacker          = { workspace = true }   # stack.rs: a nested run's guaranteed stack, grown on the SAME thread (no executor · no spawn)
 
 [dev-dependencies]
 uuid          = { workspace = true }

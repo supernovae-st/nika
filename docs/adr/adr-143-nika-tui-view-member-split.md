@@ -24,6 +24,51 @@ follow_ups: ["the admission evidence of the member, pending with its WIP unit", 
 
 # ADR-143: nika-tui size-cap member split — nika-tui-view
 
+## Amendment · 9 October 2026 · completed native interaction composition
+
+The composed native renderer now includes the live question home, retained
+identity-bound replies, a report of the value the Session took, and a shared
+geometry that gives an active decision the rows it needs. With all new source
+included in the counter and normal formatting applied, the native composition
+exceeds the earlier 18,000 production-LOC ceiling. The complete inventory stays
+within the scoped ceiling below and the unchanged 1,500-line file limit.
+
+Under the explicitly authorized native size exception, the ceiling is now
+**19,000 LOC for `crates/nika-tui` only**, superseding the 8 October ceiling.
+The viewer/renderer boundary stays intact. Every other crate retains 15,000 LOC,
+and the 1,500-line file limit, source counter, lowered probe, per-crate dashboard,
+review, tests and normal hooks stay in force. Boundary tests check 19,000,
+19,001 and a probe that cannot raise the limit. No code or documentation was
+removed to satisfy the counter, and no crate was added solely for this budget.
+
+This amendment changes a bounded maintainability budget; it does not certify
+visual quality, workflow effects or completion of the product. Review cohesion
+when further native capabilities are integrated. The original split and earlier
+measurements remain historical evidence.
+
+## Amendment · 8 October 2026 · native composition ceiling
+
+The native workspace combines continuous conversation, contextual object
+expansion and retained input; typed inline interactions continue this same
+integration. Its production counter reached 15,158 lines during this work. Keep the existing viewer/renderer
+boundary while completing that cohesive experience; deleting explanatory code
+or adding another crate solely to pass the counter would obscure this change.
+
+The reviewed production ceiling is **18,000 LOC for `crates/nika-tui` only**.
+Every other crate retains 15,000 LOC. The per-file 1,500-line rule, dependency
+boundaries, tests, review and normal hooks remain in force. This is a bounded
+exception, not a new workspace default or a reusable exemption marker.
+
+`scripts/ci/crate-size-policy.sh` owns both ceilings; the existing counter and
+hygiene dashboard consume it. A probe can only lower a ceiling. The dashboard
+sorts by remaining headroom and shows each actual limit so the exception cannot
+hide another crate approaching its own wall. Tests cover both exact limits,
+one-line violations, and the lowered probe. Review the renderer's cohesion again
+after the native interaction integration; this amendment does not prescribe a
+new architectural split in advance.
+
+The original split and its dated measurements below remain historical evidence.
+
 ## Context
 
 `nika-tui` (ADR-139) measures **13,879 prod LOC** at the terminal UI head `887fb8459`, against
@@ -143,6 +188,29 @@ the member stays pure and the dependency direction is unchanged. The earlier
 measurements and unrecovered gallery remain historical facts. Workspace PTYs
 cover an output and a Markdown file, not every viewer format, the full workspace
 journey or a stamped integrated build.
+
+## Amendment 2026-10-07 · pure workspace presentation
+
+The Session/Workbench layouts and contextual command chooser exceed the
+renderer member's production-size budget when composed with the native host.
+The existing viewer member also owns the pure visual vocabulary and workspace
+views: geometry, header, project listing, pinned row, object and conversation
+chrome, with their shared text fitting. These functions consume supplied facts,
+cells and elapsed time; they acquire no data and grant no authority.
+
+The original `nika_tui::visual` and affected `nika_tui::workspace` source paths
+remain compatibility projections of the viewer implementation. Native Desk,
+keyboard and pointer routing, event broker, composer, transcript state, Session
+and Live acquisition/storage keep their owners. A viewer does not depend back
+on `nika-tui`, including in its tests: tests needing the native project adapter
+remain at the native compatibility boundary.
+
+The viewer's visual role mapping supplies both members, resolving the earlier
+duplicate palette owner. The existing `sha2` workspace test dependency follows
+the brand rendition provenance proof into the viewer. There is no new crate,
+production dependency on `sha2`, package version change or second terminal
+owner. The API locks and native reception evidence must cover the composed revision;
+moving pure code alone does not qualify a live provider or business outcome.
 
 ## Related
 

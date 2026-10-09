@@ -16,7 +16,10 @@ use super::{
     lexicon::{self, Reading},
     plan::Plan,
 };
-use nika_compile_fidelity::{literal::answered::grant_host, sketch::same_caller};
+use nika_compile_fidelity::{
+    literal::answered::{grant_host, grant_paths},
+    sketch::same_caller,
+};
 use serde_json::{Value, json};
 
 mod answered_paths;
@@ -122,6 +125,15 @@ pub fn plan_record(plan: &Plan, strategy: Option<Strategy>) -> Value {
         record["strategy"] = json!(strategy.word());
     }
     record
+}
+
+/// The record a replay rebuilds of a plan, the replayed record's `declined` kept on it (A3).
+fn replayed_record(plan: &Plan, strategy: Option<Strategy>, replayed: &Value) -> Value {
+    let mut rebuilt = plan_record(plan, strategy);
+    if let Some(declined) = replayed.get("declined").filter(|kept| kept.is_array()) {
+        rebuilt["declined"] = declined.clone();
+    }
+    rebuilt
 }
 
 /// Record the obligation ledger a plan states in the decision record (the assembler
@@ -239,7 +251,7 @@ pub fn replay_judged(
             QuestionType::Text,
         );
         record_ledger(out, &super::ledger::Ledger::extract(&plan));
-        out.provenance.plan = Some(plan_record(&plan, strategy));
+        out.provenance.plan = Some(replayed_record(&plan, strategy, record));
         return Ok(());
     }
     // A record from an earlier engine may still carry a numeric rule as guidance.
@@ -254,13 +266,13 @@ pub fn replay_judged(
     // A seat's plan (or a record with no strategy word) that works on nothing is asked,
     // never assembled; the reader's own HOT plan was already judged explicit.
     if strategy != Some(Strategy::Hot) && super::assemble::unfed(&plan, intent, out) {
-        out.provenance.plan = Some(plan_record(&plan, strategy));
+        out.provenance.plan = Some(replayed_record(&plan, strategy, record));
         return Ok(());
     }
     super::assemble::assemble_judged(&plan, intent, request, judgments, whole, out)?;
     record_retrieval(out, intent, Some(&plan));
     out.provenance.strategy = strategy;
-    out.provenance.plan = Some(plan_record(&plan, strategy));
+    out.provenance.plan = Some(replayed_record(&plan, strategy, record));
     Ok(())
 }
 
@@ -598,11 +610,7 @@ fn apply_native(
         }
     }
     if !open {
-        paths = grant_answered_paths(
-            record["source"].as_str().unwrap_or_default(),
-            &mut source,
-            out,
-        );
+        paths = grant_answered_paths(record, &mut source, out);
     }
     // An unused envelope model is not a runtime requirement. Ask only when Check
     // proves language work remains, including parametric fan-out calls.
@@ -756,20 +764,23 @@ fn bake(source: &mut String, question: &Value, literal: &str, out: &mut CompileO
     }
 }
 
-/// Complete the read or write boundary a seat left as its empty placeholder (`[""]`, the
-/// one narrow shape the judge admits while a path is still asked) with the exact paths the
-/// answers introduced, as `grant_host` completes an answered endpoint. The paths are the
-/// capability inference's own (`nika check --infer-permits`), taken over the seat's source
-/// and over the answered one: only their difference, in the direction the tool uses, bound
-/// to a bare `${{ const.<slug> }}` (the inference resolves nothing else). A path that
-/// escapes the workspace is never inferred; a glob, or a direction the seat declared with
-/// any other entry, is never touched — the check then refuses the candidate, as before.
+/// Complete the read or write boundary a seat left with one empty entry (`""`, the shape the
+/// judge admits while a path is still asked) with the exact paths the answers introduced, as
+/// `grant_host` completes an answered endpoint: in place, every other entry kept ([`grant_paths`]).
+/// The paths are the capability inference's own on that side (`nika check --infer-permits`, over
+/// the seat's source and the answered one: their difference, a bare `${{ const.<slug> }}` the only
+/// form it resolves), and each must be the answer of one of the record's questions. A path that
+/// escapes the workspace is never inferred; a glob, a side with no empty entry or two, or a path no
+/// question answered is never touched — the check then refuses the candidate, as before.
 fn grant_answered_paths(
-    seat_source: &str,
+    record: &Value,
     source: &mut String,
     out: &mut CompileOutcome,
 ) -> AnsweredPaths {
-    let paths = AnsweredPaths::introduced(seat_source, source);
+    let paths = AnsweredPaths::introduced(record["source"].as_str().unwrap_or_default(), source);
+    let keys: Vec<&str> = (record["questions"].as_array().into_iter().flatten())
+        .filter_map(|question| question["key"].as_str())
+        .collect();
     for (direction, introduced) in [("read", paths.reads()), ("write", paths.writes())] {
         if introduced.is_empty() {
             continue;
@@ -777,15 +788,10 @@ fn grant_answered_paths(
         let Some(before) = crate::edit::literal_projection(source) else {
             break;
         };
-        let placeholder = before
-            .pointer(&format!("/permits/fs/{direction}"))
-            .and_then(Value::as_array)
-            .is_some_and(|list| matches!(list.as_slice(), [only] if only.as_str() == Some("")));
-        if !placeholder {
+        let mut after = before.clone();
+        if !grant_paths(&mut after, direction, &keys, introduced) {
             continue;
         }
-        let mut after = before.clone();
-        after["permits"]["fs"][direction] = json!(introduced);
         if let Some(edited) =
             crate::edit_source::emit_at(source, &before, &after, &["permits", "fs", direction])
         {

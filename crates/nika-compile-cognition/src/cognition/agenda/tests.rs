@@ -61,18 +61,18 @@ fn open_readings_go_to_the_seat_once_then_to_a_composer() {
     };
     assert_eq!(
         next(settled, both),
-        Action::Plan,
+        Action::Document,
         "the seat left a clause open"
     );
     let settled_typed = Missing {
         settled: true,
         ..CHOICES
     };
-    assert_eq!(next(settled_typed, both), Action::Plan);
+    assert_eq!(next(settled_typed, both), Action::Document);
     // No seat: the author composes at once; nothing at all: what is missing is named.
     assert_eq!(
         next(CHOICES, selected(true, false, NativeMode::Escalate)),
-        Action::Plan
+        Action::Document
     );
     assert_eq!(
         next(CHOICES, selected(false, false, NativeMode::Off)),
@@ -81,18 +81,25 @@ fn open_readings_go_to_the_seat_once_then_to_a_composer() {
 }
 
 #[test]
-fn the_author_composes_through_the_plan_and_the_sketch_policy_names_its_composer() {
+fn the_author_composes_the_complete_document_and_the_policies_name_their_composer() {
+    // Wherever a native door is permitted the author composes the complete document at once: no
+    // restricted round has to fail first.
     let escalate = selected(true, true, NativeMode::Escalate);
-    assert_eq!(next(UNTYPED, escalate), Action::Plan);
-    assert_eq!(next(TYPED, escalate), Action::Plan);
+    assert_eq!(next(UNTYPED, escalate), Action::Document);
+    assert_eq!(next(TYPED, escalate), Action::Document);
+    // A policy that permits no native door keeps the private plan.
     assert_eq!(
         next(UNTYPED, selected(true, false, NativeMode::Off)),
         Action::Plan
     );
-    // The sketch policy is the caller's explicit composer, even over a whole reading.
+    // The sketch and only policies are the caller's explicit composer, even over a whole reading.
     assert_eq!(
         next(WHOLE, selected(true, false, NativeMode::Sketch)),
         Action::Sketch
+    );
+    assert_eq!(
+        next(WHOLE, selected(true, false, NativeMode::Only)),
+        Action::Document
     );
     // A seat without an author cannot compose.
     assert_eq!(

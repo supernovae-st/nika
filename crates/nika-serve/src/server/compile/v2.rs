@@ -10,12 +10,16 @@
 //! key at any depth is refused, never read as its last value.
 
 use std::collections::BTreeMap;
-use std::time::Duration;
 
 use hyper::StatusCode;
-use nika_onboard::compile::remote::{self, Observed};
-use nika_onboard::compile::{AuthoringCognition, CompileRequest};
+use nika_onboard::compile::AuthoringCognition;
+use nika_onboard::compile::remote;
 use serde_json::value::RawValue;
+
+// What one round answers — the input a replay must repeat byte for byte — and its bounds.
+pub(super) use nika_onboard::compile::remote::bounds::{Bounds, TOKEN_HEX};
+use nika_onboard::compile::remote::bounds::{Limits, is_token, narrow};
+pub(super) use nika_onboard::compile::remote::input::Input;
 
 use super::super::error::ApiError;
 use super::{Answers, Change, Object, limit, present, unsupported_mode};
@@ -26,50 +30,26 @@ pub(super) const GENERATION: u64 = 2;
 pub(super) const CLARIFICATION: &str = "intent.clarification";
 const EXPLICIT_PROVIDER: &str = AuthoringCognition::ExplicitProvider.word();
 const DETERMINISTIC_ONLY: &str = AuthoringCognition::DeterministicOnly.word();
-/// A replay token: 32 random bytes, lowercase hex.
-pub(super) const TOKEN_HEX: usize = 64;
-
-/// The bounds of one native round: the operator's, or narrower ones a caller asked for.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct Bounds {
-    /// Output tokens per call.
-    pub(super) max_tokens: u32,
-    /// First completion's route capacity, bounded by any explicit token limit.
-    pub(super) initial_tokens: u32,
-    /// The wait for one call.
-    pub(super) call_timeout: Duration,
-    /// The whole round: calls, judging, assembly.
-    pub(super) deadline: Option<Duration>,
-    /// Desired repair rounds, bounded separately by explicit request authority.
-    pub(super) repairs: Option<u32>,
-    /// Explicit request authority, separate from repair preferences.
-    pub(super) max_calls: Option<u32>,
-    /// The operator or caller that narrowed the request grant.
-    pub(super) grant: &'static str,
-}
-
-impl Bounds {
-    pub(super) fn authority(
-        self,
-    ) -> Result<
-        nika_onboard::compile::authority::Authority,
-        nika_onboard::compile::authority::Refusal,
-    > {
-        use nika_onboard::compile::authority::{Authority, Door, Typed};
-        Authority::resolve(
-            self.max_calls,
-            nika_cli_host::compile::config::DEFAULT_STRATEGY,
-            Typed::new(false).with_repairs(self.repairs),
-            Door::new(
-                if self.max_calls.is_some() {
-                    self.grant
-                } else {
-                    "continuous preparation: no request count"
-                },
-                "the explicit max_calls limit was reached; a request may only narrow its ceiling",
-            ),
-        )
-    }
+/// The request authority of a round within `bounds`: its explicit request count, else the
+/// continuous preparation's.
+pub(super) fn authority(
+    bounds: Bounds,
+) -> Result<nika_onboard::compile::authority::Authority, nika_onboard::compile::authority::Refusal>
+{
+    use nika_onboard::compile::authority::{Authority, Door, Typed};
+    Authority::resolve(
+        bounds.max_calls,
+        nika_cli_host::compile::config::DEFAULT_STRATEGY,
+        Typed::new(false).with_repairs(bounds.repairs),
+        Door::new(
+            if bounds.max_calls.is_some() {
+                bounds.grant
+            } else {
+                "continuous preparation: no request count"
+            },
+            "the explicit max_calls limit was reached; a request may only narrow its ceiling",
+        ),
+    )
 }
 
 #[derive(serde::Deserialize)]
@@ -100,102 +80,6 @@ struct Envelope {
     observed_world: Option<Box<RawValue>>,
     #[serde(default, deserialize_with = "present")]
     trial_inputs: Option<Box<RawValue>>,
-}
-
-/// The caller's narrowing of the operator's bounds; each value optional.
-#[derive(serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Limits {
-    #[serde(default, deserialize_with = "present")]
-    max_calls: Option<u32>,
-    #[serde(default, deserialize_with = "present")]
-    repairs: Option<u32>,
-    #[serde(default, deserialize_with = "present")]
-    max_tokens: Option<u32>,
-    #[serde(default, deserialize_with = "present")]
-    call_timeout_ms: Option<u64>,
-    #[serde(default, deserialize_with = "present")]
-    deadline_ms: Option<u64>,
-}
-
-/// What one round answers — the input a replay must repeat byte for byte.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum Input {
-    /// A creation, optionally named.
-    Create {
-        intent: String,
-        workflow_id: Option<String>,
-        observed: Option<Observed>,
-    },
-    /// A revision in words of an accepted base, beside the request that base answered.
-    Revise {
-        source: String,
-        change: String,
-        original_intent: String,
-        observed: Option<Observed>,
-    },
-    /// One constant set from a literal: the deterministic door, zero calls.
-    Constant {
-        source: String,
-        name: String,
-        literal: String,
-    },
-}
-
-impl Input {
-    /// The trial inputs this input carries, if any.
-    pub(super) fn trial(&self) -> Option<&serde_json::Value> {
-        match self {
-            Self::Create { observed, .. } | Self::Revise { observed, .. } => {
-                observed.as_ref()?.trial.as_ref()
-            }
-            Self::Constant { .. } => None,
-        }
-    }
-
-    /// The core's request for this input with these literal answers.
-    pub(super) fn request(&self, answers: &BTreeMap<String, Box<RawValue>>) -> CompileRequest {
-        let mut request = match self {
-            Self::Create {
-                intent,
-                workflow_id,
-                observed,
-            } => {
-                let request = CompileRequest::create(intent.as_str());
-                let request = match workflow_id {
-                    Some(id) => request.with_workflow_id(id.as_str()),
-                    None => request,
-                };
-                // The caller's admitted observation rides as the CLI observer's own does.
-                match observed {
-                    Some(observed) => request.with_knowledge(observed.world.clone()),
-                    None => request,
-                }
-            }
-            Self::Revise {
-                source,
-                change,
-                original_intent,
-                observed,
-            } => {
-                let request = CompileRequest::edit(source.as_str(), change.as_str())
-                    .with_original_intent(original_intent.as_str());
-                match observed {
-                    Some(observed) => request.with_knowledge(observed.world.clone()),
-                    None => request,
-                }
-            }
-            Self::Constant {
-                source,
-                name,
-                literal,
-            } => CompileRequest::set_constant(source.as_str(), name.as_str(), literal.as_str()),
-        };
-        for (key, literal) in answers {
-            request = request.answer(key.as_str(), literal.get());
-        }
-        request
-    }
 }
 
 /// What the round does.
@@ -251,7 +135,11 @@ pub(super) fn parse(body: &[u8], operator: Bounds) -> Result<Request, ApiError> 
     } = envelope;
     let mut input = input(&mode, intent, workflow_id, source, change, original_intent)?;
     match (observed_world, trial_inputs) {
-        (Some(world), trial) => input = observed(input, &world, trial.as_deref())?,
+        // A structured constant states no file: an observation beside it is malformed.
+        (Some(world), trial) => {
+            let observed = input.observe(world.get(), trial.as_deref().map(RawValue::get));
+            input = observed.ok_or_else(malformed)?.map_err(refused)?;
+        }
         (None, Some(_)) => return Err(malformed()),
         (None, None) => {}
     }
@@ -313,97 +201,14 @@ fn input(
     }
 }
 
-/// The input with the caller's observation, admitted against the words it states; a structured
-/// constant states no file.
-fn observed(input: Input, world: &RawValue, trial: Option<&RawValue>) -> Result<Input, ApiError> {
-    let admit = |text: &str| Observed::admit(text, world.get(), trial.map(RawValue::get));
-    match input {
-        Input::Create {
-            intent,
-            workflow_id,
-            observed: None,
-        } => Ok(Input::Create {
-            observed: Some(admit(&intent).map_err(refused)?),
-            intent,
-            workflow_id,
-        }),
-        Input::Revise {
-            source,
-            change,
-            original_intent,
-            observed: None,
-        } => Ok(Input::Revise {
-            observed: Some(admit(&format!("{original_intent}\n{change}")).map_err(refused)?),
-            source,
-            change,
-            original_intent,
-        }),
-        _ => Err(malformed()),
-    }
-}
-
 /// The caller may narrow route capacities and explicitly configured operator limits.
 fn within_limits(envelope: &Envelope, operator: Bounds) -> Result<Bounds, ApiError> {
     let bounds = match &envelope.limits {
         None => operator,
         Some(Object(asked)) => narrow(asked, operator).ok_or_else(limit)?,
     };
-    bounds.authority().map_err(|_| limit())?;
+    authority(bounds).map_err(|_| limit())?;
     Ok(bounds)
-}
-
-/// The operator's bounds narrowed by the caller's: every value asked must be positive (repairs
-/// may be zero). A configured operator ceiling cannot be widened; above is refused, never clamped.
-fn narrow(asked: &Limits, operator: Bounds) -> Option<Bounds> {
-    let mut bounds = operator;
-    if let Some(max_calls) = asked.max_calls {
-        bounds.max_calls = Some(
-            (max_calls > 0
-                && operator
-                    .max_calls
-                    .is_none_or(|ceiling| max_calls <= ceiling))
-            .then_some(max_calls)?,
-        );
-        bounds.grant = "request: limits.max_calls within operator ceiling";
-    }
-    if let Some(repairs) = asked.repairs {
-        bounds.repairs = Some(
-            operator
-                .repairs
-                .is_none_or(|ceiling| repairs <= ceiling)
-                .then_some(repairs)?,
-        );
-    }
-    if let Some(tokens) = asked.max_tokens {
-        bounds.max_tokens = (1..=operator.max_tokens)
-            .contains(&tokens)
-            .then_some(tokens)?;
-    }
-    let duration = |millis: u64, ceiling: Duration| {
-        let asked = Duration::from_millis(millis);
-        (millis > 0 && asked <= ceiling).then_some(asked)
-    };
-    if let Some(millis) = asked.call_timeout_ms {
-        bounds.call_timeout = duration(millis, operator.call_timeout)?;
-    }
-    if let Some(millis) = asked.deadline_ms {
-        let asked = Duration::from_millis(millis);
-        bounds.deadline = Some(
-            (millis > 0
-                && operator.deadline.is_none_or(|ceiling| asked <= ceiling)
-                && std::time::Instant::now().checked_add(asked).is_some())
-            .then_some(asked)?,
-        );
-    }
-    Some(bounds)
-}
-
-/// 64 lowercase hexadecimal digits: the only spelling this server issues.
-fn is_token(token: &str) -> bool {
-    token.len() == TOKEN_HEX
-        && token
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn repeats_a_key(literal: &RawValue) -> bool {

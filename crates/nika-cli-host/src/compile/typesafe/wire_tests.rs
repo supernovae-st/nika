@@ -11,29 +11,39 @@
 )]
 use super::*;
 use nika_onboard::compile::decide::ChoiceOption;
+use serde_json::json;
 use std::io::{ErrorKind, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-const KEY: &str = "fixture-key-0123456789";
+pub(super) const KEY: &str = "fixture-key-0123456789";
 
-enum Reply {
+pub(super) enum Reply {
     Status(u16, String),
     Redirect(u16, String),
     Close,
 }
 
-/// Records each request head that reached it; answers its script, then drops every connection.
-struct Peer {
-    base: String,
-    heads: Arc<Mutex<Vec<String>>>,
+/// Each request that reached a peer: its head and its body.
+type Requests = Arc<Mutex<Vec<(String, Vec<u8>)>>>;
+
+/// Records each request that reached it (its head and its body); answers its script, then
+/// drops every connection.
+pub(super) struct Peer {
+    pub(super) base: String,
+    heads: Requests,
     stop: Arc<AtomicBool>,
     thread: Option<std::thread::JoinHandle<()>>,
 }
 
 impl Peer {
-    fn start(script: Vec<Reply>) -> Self {
+    pub(super) fn start(script: Vec<Reply>) -> Self {
+        Self::start_with(script, || {})
+    }
+
+    /// The same peer, running `on_request` once a request arrived and before it answers.
+    pub(super) fn start_with(script: Vec<Reply>, on_request: impl Fn() + Send + 'static) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("loopback");
         let base = format!("http://{}", listener.local_addr().expect("addr"));
         let heads = Arc::new(Mutex::new(Vec::new()));
@@ -49,10 +59,11 @@ impl Peer {
                 stream
                     .set_read_timeout(Some(std::time::Duration::from_secs(5)))
                     .expect("timeout");
-                let Some(head) = read_request(&mut stream) else {
+                let Some(request) = read_request(&mut stream) else {
                     continue;
                 };
-                log.lock().expect("heads").push(head);
+                log.lock().expect("heads").push(request);
+                on_request();
                 let reply = match script.next() {
                     Some(Reply::Status(status, body)) => format!(
                         "HTTP/1.1 {status} Fixture\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
@@ -74,8 +85,17 @@ impl Peer {
         }
     }
 
-    fn heads(&self) -> Vec<String> {
-        self.heads.lock().expect("heads").clone()
+    pub(super) fn heads(&self) -> Vec<String> {
+        let requests = self.heads.lock().expect("heads");
+        requests.iter().map(|(head, _)| head.clone()).collect()
+    }
+
+    /// Each request body that reached the peer, parsed, in arrival order.
+    pub(super) fn bodies(&self) -> Vec<Value> {
+        let requests = self.heads.lock().expect("heads");
+        (requests.iter())
+            .map(|(_, body)| serde_json::from_slice(body).expect("a JSON request body"))
+            .collect()
     }
 }
 
@@ -89,8 +109,8 @@ impl Drop for Peer {
     }
 }
 
-/// The request head (lower-cased) once its whole declared body arrived.
-fn read_request(stream: &mut TcpStream) -> Option<String> {
+/// The request head (lower-cased) and its body, once the whole declared body arrived.
+fn read_request(stream: &mut TcpStream) -> Option<(String, Vec<u8>)> {
     let mut data = Vec::new();
     let mut chunk = [0; 8192];
     let end = loop {
@@ -115,7 +135,7 @@ fn read_request(stream: &mut TcpStream) -> Option<String> {
         }
         data.extend_from_slice(&chunk[..n]);
     }
-    Some(head)
+    Some((head, data[end..end + length].to_vec()))
 }
 
 fn question(state: Value) -> ChoiceQuestion {
@@ -259,6 +279,33 @@ fn one_answer_is_one_bearer_request_and_missing_usage_stays_unknown() {
         heads[0].lines().any(|l| l == bearer),
         "the key rode outside its header"
     );
+}
+
+/// A question refused alone is named by the closed code its refusal carries (`jev-1.13.0`
+/// answered both bodies with HTTP 400 on 2026-10-08), never by the body's words, and is never
+/// resent; a bare 400 stays its status alone.
+#[test]
+fn a_refusal_of_one_question_is_named_by_its_closed_code_only() {
+    for (body, named) in [
+        (
+            r#"{"detail": {"error_type": "max_tokens_exceeded", "message": "echo sentinel-text"}}"#,
+            "typesafe http status 400: max_tokens_exceeded, the request reads more tokens than the model's context holds",
+        ),
+        (
+            r#"{"detail": {"error_type": "api_usage_error", "message": "Invalid request."}}"#,
+            "typesafe http status 400: api_usage_error, the service refused the request as invalid",
+        ),
+        (r#"{"detail": "sentinel-text"}"#, "typesafe http status 400"),
+    ] {
+        let peer = Peer::start(vec![
+            Reply::Status(400, body.to_owned()),
+            Reply::Status(200, answer(None)),
+        ]);
+        let failure = exchange(&peer, json!("tickets")).expect_err("a refusal answered");
+        assert_eq!(failure.error.0, named, "{body}");
+        assert_eq!(failure.delivery, Delivery::Responded(400));
+        assert_eq!(peer.heads().len(), 1, "{body} was resent");
+    }
 }
 
 #[test]

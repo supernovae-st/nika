@@ -10,10 +10,12 @@ use nika_compile_fidelity::behavior::{
 use serde_json::{Value, json};
 
 use crate::fidelity::Diagnostic;
-use crate::rehearse::{Attempt, Rehearsal, RehearsalReport, Rehearse, judged_run, trial_shown};
+use crate::rehearse::{
+    Attempt, Refusal, Rehearsal, RehearsalReport, Rehearse, judged_run, trial_shown,
+};
 use crate::{CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind};
+use nika_compile_seats::foundry::ComponentCatalog;
 
-mod record;
 #[cfg(test)]
 mod tests;
 
@@ -42,9 +44,20 @@ struct Checked {
     run: Run,
     spent_before: Usage,
     room_bytes: u64,
+    /// The room's refusal of these bytes before any attempt, when the report was one.
+    refused: Option<Refused>,
 }
 
-/// The journal and consumption of one invocation. The native loop owns its repair limit;
+/// The room's refusal of one candidate's exact bytes before any attempt: a source-only
+/// [`Rehearsal::NotRun`] whose host named its [`Refusal`] class, and the host's words.
+#[derive(Clone, Debug)]
+pub(super) struct Refused {
+    pub(super) refusal: Refusal,
+    pub(super) reason: String,
+}
+
+/// The journal and consumption of one invocation, and what its host lends the preparation (a
+/// rehearsal room, the admitted component catalogue). The native loop owns its repair limit;
 /// this bridge adds no retry and the final barrier never repeats its identical last report.
 pub(super) struct Rehearsals<'a> {
     host: Option<&'a dyn Rehearse>,
@@ -54,6 +67,9 @@ pub(super) struct Rehearsals<'a> {
     /// The compile this journal serves: the caller's own basis and request, which bind a
     /// semantic record before its paths are read, and the request the final barrier reads.
     serves: Option<Serves>,
+    /// The admitted release the host lends as executable components: whole-catalogue reach for
+    /// a pack, and the components a revision may compose. Lending it grants no authority.
+    catalog: Option<&'a dyn ComponentCatalog>,
 }
 
 /// The compile a journal serves (slice C): what binds a semantic record, what the barrier reads.
@@ -71,6 +87,26 @@ impl<'a> Rehearsals<'a> {
             records: Vec::new(),
             usage: Usage::default(),
             serves: None,
+            catalog: None,
+        }
+    }
+
+    /// The same journal, its preparation lent `catalog` (none lends nothing).
+    pub(super) fn lending(mut self, catalog: Option<&'a dyn ComponentCatalog>) -> Self {
+        self.catalog = catalog;
+        self
+    }
+
+    /// The admitted component catalogue the host lent, when it lent one.
+    pub(super) fn catalog(&self) -> Option<&'a dyn ComponentCatalog> {
+        self.catalog
+    }
+
+    /// The host's composition check of `out`'s candidate, which lifts the source-only hold on
+    /// its child workflows only for a clean closure of these bytes (R5); no host checks none.
+    pub(super) fn composed(&self, out: &mut CompileOutcome) {
+        if let Some(host) = self.host {
+            crate::rehearse::composed(host, out);
         }
     }
 
@@ -134,7 +170,16 @@ impl<'a> Rehearsals<'a> {
         let declared = declared(&report);
         let run = judged_run("observed", &report, &inputs, &targets, &declared);
         let result = classify(candidate, &report, &run.end);
-        let entry = record::report(&report, bound, &run, &result);
+        let entry = crate::rehearse::record::report(&report, bound, &run, &decided(&result));
+        let refused = match (&report.outcome, report.observation.refusal) {
+            (Rehearsal::NotRun { reason }, Some(refusal))
+                if matches!(report.attempt, Attempt::NeverAttempted) =>
+            {
+                let reason = reason.clone();
+                Some(Refused { refusal, reason })
+            }
+            _ => None,
+        };
         let spent_before = self.usage;
         self.usage = self.usage.plus(&run.usage);
         self.records.push(entry);
@@ -147,6 +192,7 @@ impl<'a> Rehearsals<'a> {
             run,
             spent_before,
             room_bytes: report.observation.bounds.room_bytes,
+            refused,
         });
         verdict
     }
@@ -194,6 +240,17 @@ impl<'a> Rehearsals<'a> {
         let proceeded = matches!(last.verdict.result, Result::Proceed);
         let shown = last.candidate == candidate && completed && proceeded;
         shown.then(|| trial_shown(&super::knowledge::sha256(candidate), &last.run))
+    }
+
+    /// Why no run of exactly `candidate` exists, when this call's last report was the room's
+    /// refusal of those bytes before any attempt; `None` for another candidate, a run that
+    /// began, or no host.
+    pub(super) fn refused(&self, candidate: &str) -> Option<&Refused> {
+        let last = self
+            .last
+            .as_ref()
+            .filter(|last| last.candidate == candidate)?;
+        last.refused.as_ref()
     }
 
     /// The trial an answer round judges over (R6, A1): bytes READY but for that judgment run once
@@ -268,7 +325,7 @@ impl<'a> Rehearsals<'a> {
             "version": 1,
             "scope": "this compile invocation",
             "reports": self.records,
-            "usage": record::usage(&self.usage),
+            "usage": crate::rehearse::record::usage(&self.usage),
         });
         out.provenance.decision = Some(decision);
     }
@@ -495,6 +552,17 @@ fn classify(candidate: &str, report: &RehearsalReport, end: &RunEnd) -> Result {
         _ => Result::Stop(
             "The rehearsal reported an outcome this compiler does not read.".to_owned(),
         ),
+    }
+}
+
+/// The decision on a checked report, as its record states it.
+fn decided(result: &Result) -> Value {
+    match result {
+        Result::Proceed => json!({"kind": "proceed"}),
+        Result::Repair(diagnostic) => {
+            json!({"kind": "repair", "code": diagnostic.kind, "message": diagnostic.message})
+        }
+        Result::Stop(reason) => json!({"kind": "stop", "reason": reason}),
     }
 }
 

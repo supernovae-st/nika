@@ -15,7 +15,7 @@ the authoritative architectural decision, see
 For the project's landing page, see [`README.md`](README.md). For
 the real-semver plan toward a 1.0 launch (amended D-2026-06-20-N1 · was
 "forever-v0.x") — the CHANGELOG top names the latest tagged release, `main` on the next
-dev version → 1.0.0 → 1.x adds the remaining crates → 2.0 the Connectome era — see [`ROADMAP.md`](ROADMAP.md). For the
+dev version → 1.0.0 → 1.x adds the remaining crates — see [`ROADMAP.md`](ROADMAP.md). For the
 **10-year architectural horizon
 (2026 → 2036)** with the ADR-037 count horizon (50-90 · cap 100 ·
 projected, never a gate · ruled D-2026-07-21-N1), 4-verb stress test
@@ -27,8 +27,10 @@ its frontmatter, not here).
 **Memory subsystem note** · Diamond and the memory cluster are
 **orthogonal** (per `naming-memory-subsystem.md` v2.4 external rule).
 Diamond = construction METHOD (modular crates · 12-gate admission ·
-L0→L5). The Connectome = 1 L2 orchestrator + 10 L1 satellite crates ·
-publishable standalone on crates.io · implements `nika-kernel` traits.
+L0→L5). The memory and retrieval satellites = 10 L1 crates · publishable
+standalone on crates.io · implementing `nika-kernel` traits, each capability
+under its own owner and release acceptance; the former Connectome umbrella and
+its L2 orchestrator are retired (D-2026-10-08-N1).
 Moat framing: « unified Rust runtime contract ».
 
 ## Why rewrite into a Diamond
@@ -87,12 +89,12 @@ Strict downward-only layering (L0 → L5):
 L5   nika                         binary, <500 LOC composition root (the `nika` bin target already lives in nika-cli · ADR-135)
 L4   cli · daemon · serve · mcp-server · lsp · sdk · init · catalog-verify
 L3   runtime · shield · wasm-host · sandbox-{linux,macos,windows}
-L2   verb-{exec,invoke,infer,agent} · connectome (the Connectome
-     orchestrator) · policy · builtin · builtin-{github,cloud,workspace} ·
-     mcp · display · media-{cas,image,pdf,document,provenance} · pck
+L2   verb-{exec,invoke,infer,agent} · policy · builtin ·
+     builtin-{github,cloud,workspace} · mcp · display ·
+     media-{cas,image,pdf,document,provenance} · pck
 L1.5 providers (16/16 per canon.yaml) · infer-local (candle · ADR-091)
 L1   clock · fs · http · blob · exec-runner · screen · ocr · a11y ·
-     input · browser · bm25 + the Connectome satellites (hnsw · rrf ·
+     input · browser · bm25 + the memory and retrieval satellites (hnsw · rrf ·
      rerank · fsrs · rdfs-reasoner · temporal · graph-algos ·
      autodesc-{minimal,full}) · git · keys-* · pck-{registry,store}
 L0.5 kernel (facade) · kernel-{core,ai,runtime,plugin} · kernel-mock
@@ -163,7 +165,7 @@ Version ladder (no per-tag dates · quality > speed):
 - **1.0.0-rc.N** — design-partner hardening, 7 shadow zones green.
 - **1.0.0** — **first public launch**: language + installable binary, validated.
 - **1.x minors** — add the remaining crates additively under the ADR-037 count horizon (50-90 · cap 100 · projected, never a gate) (pck, native API adapters, WASM plugins, full observability, full LSP, keys subsystem).
-- **2.0** — **the Connectome era**: memory + cognition (1 L2 orchestrator + 10 L1 satellites, agent-v2). The next epoch.
+- **next major** — reserved, un-numbered and unnamed, its content the operator's to declare (D-2026-07-10-N4). Memory, retrieval and cognition capabilities meet their own release acceptance under explicit owners, with no Connectome umbrella or era (D-2026-10-08-N1).
 
 Full breakdown: [`ROADMAP.md`](ROADMAP.md).
 

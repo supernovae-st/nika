@@ -1,0 +1,79 @@
+{
+ "base": null,
+ "expected": {
+  "policy": {
+   "id": "policy-vectors-r2",
+   "sha256": "631bac7695ec45366bebef3208dbfdca1d18f03a1986430a62376c51a2db63c8"
+  },
+  "profile": "nika-knowledge-release-profile/r2",
+  "snapshot_sha256": "f9c3e412d8e26e1c98576d942b2cb68f5c67852bb1693da71e35ef4aa6dbfe5e"
+ },
+ "fault": null,
+ "files": {
+  "NOTICE.md": {
+   "text": "# Notices \u00b7 Nika knowledge release vectors-r2\n\nRelease policy `policy-vectors-r2`, profile `nika-knowledge-release-profile/r2`.\n\nEach row of this payload is a projection of the material listed below: the fields the release policy\nkeeps, never a copy of an original file except the body files a row names and pins (a block, example\nor counterexample `.nika` program, a skill text). Every source row states its licence and ownership;\nthe licence texts are in LICENSES/.\n\nThis payload retains no source, so it ships no licence text.\n"
+  },
+  "knowledge/blocks.jsonl": {
+   "text": ""
+  },
+  "knowledge/callables.jsonl": {
+   "text": ""
+  },
+  "knowledge/capability_interfaces.jsonl": {
+   "text": ""
+  },
+  "knowledge/constructs.jsonl": {
+   "text": ""
+  },
+  "knowledge/counterexamples.jsonl": {
+   "text": ""
+  },
+  "knowledge/diagnostics.jsonl": {
+   "text": ""
+  },
+  "knowledge/examples.jsonl": {
+   "text": ""
+  },
+  "knowledge/families.jsonl": {
+   "text": ""
+  },
+  "knowledge/intent_facets.jsonl": {
+   "text": ""
+  },
+  "knowledge/manifest.json": {
+   "text": "{\n \"downgrades\": {},\n \"exclusions\": {\n  \"kinds\": [],\n  \"rows\": {}\n },\n \"files\": {\n  \"NOTICE.md\": \"f6641196ca57181113fe9c9e0255655dfecc6e6f8fa5acf9e42b981e64070c7f\",\n  \"knowledge/blocks.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"knowledge/callables.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"knowledge/capability_interfaces.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"knowledge/constructs.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"knowledge/counterexamples.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"knowledge/diagnostics.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"knowledge/examples.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"knowledge/families.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"knowledge/intent_facets.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"knowledge/pattern_packs.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"knowledge/patterns.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"knowledge/relations.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"knowledge/repair_principles.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"knowledge/skeletons.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"knowledge/skills.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n  \"knowledge/source_artifacts.jsonl\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"\n },\n \"format\": \"nika-knowledge-release/3\",\n \"input_digest\": \"91a5131b5e0679b78408638de522a783dc60b65167b8e7b69fdcf7f5c9f583e9\",\n \"knowledge_version\": \"vectors-r2\",\n \"policy\": {\n  \"id\": \"policy-vectors-r2\",\n  \"sha256\": \"631bac7695ec45366bebef3208dbfdca1d18f03a1986430a62376c51a2db63c8\"\n },\n \"profile\": \"nika-knowledge-release-profile/r2\",\n \"relations\": {\n  \"count\": 0,\n  \"file\": \"knowledge/relations.jsonl\"\n },\n \"rows\": {\n  \"block\": {\n   \"count\": 0,\n   \"file\": \"knowledge/blocks.jsonl\"\n  },\n  \"callable\": {\n   \"count\": 0,\n   \"file\": \"knowledge/callables.jsonl\"\n  },\n  \"capability_interface\": {\n   \"count\": 0,\n   \"file\": \"knowledge/capability_interfaces.jsonl\"\n  },\n  \"construct\": {\n   \"count\": 0,\n   \"file\": \"knowledge/constructs.jsonl\"\n  },\n  \"counterexample\": {\n   \"count\": 0,\n   \"file\": \"knowledge/counterexamples.jsonl\"\n  },\n  \"diagnostic\": {\n   \"count\": 0,\n   \"file\": \"knowledge/diagnostics.jsonl\"\n  },\n  \"example\": {\n   \"count\": 0,\n   \"file\": \"knowledge/examples.jsonl\"\n  },\n  \"family\": {\n   \"count\": 0,\n   \"file\": \"knowledge/families.jsonl\"\n  },\n  \"intent_facet\": {\n   \"count\": 0,\n   \"file\": \"knowledge/intent_facets.jsonl\"\n  },\n  \"pattern\": {\n   \"count\": 0,\n   \"file\": \"knowledge/patterns.jsonl\"\n  },\n  \"pattern_pack\": {\n   \"count\": 0,\n   \"file\": \"knowledge/pattern_packs.jsonl\"\n  },\n  \"repair_principle\": {\n   \"count\": 0,\n   \"file\": \"knowledge/repair_principles.jsonl\"\n  },\n  \"skeleton\": {\n   \"count\": 0,\n   \"file\": \"knowledge/skeletons.jsonl\"\n  },\n  \"skill\": {\n   \"count\": 0,\n   \"file\": \"knowledge/skills.jsonl\"\n  },\n  \"source_artifact\": {\n   \"count\": 0,\n   \"file\": \"knowledge/source_artifacts.jsonl\"\n  }\n },\n \"target\": {\n  \"binary\": \"nika 0.123.0 (vectors)\",\n  \"spec_sha\": \"0123456789abcdef0123456789abcdef01234567\",\n  \"verifier_sha256\": \"16dd4ee5651cdffcf1808d92b25e8b08bd95d63f39d93e52b9e2e0a38b2fdb57\"\n },\n \"tool\": {\n  \"id\": \"nika_bench.foundry.release_r2\",\n  \"sha256\": \"65454f9db56e56a8b413c5ac28fd758bc8a95f6e4f31a047e4fcc36f16c76c71\"\n }\n}\n"
+  },
+  "knowledge/pattern_packs.jsonl": {
+   "text": ""
+  },
+  "knowledge/patterns.jsonl": {
+   "text": ""
+  },
+  "knowledge/relations.jsonl": {
+   "text": ""
+  },
+  "knowledge/repair_principles.jsonl": {
+   "text": ""
+  },
+  "knowledge/skeletons.jsonl": {
+   "text": ""
+  },
+  "knowledge/skills.jsonl": {
+   "text": ""
+  },
+  "knowledge/source_artifacts.jsonl": {
+   "text": ""
+  }
+ },
+ "forms": [
+  "memory",
+  "disk"
+ ],
+ "name": "p02-empty",
+ "removed": [],
+ "requirement": "\u00a7r2 an empty payload",
+ "verdict": {
+  "admit": true,
+  "snapshot_sha256": "f9c3e412d8e26e1c98576d942b2cb68f5c67852bb1693da71e35ef4aa6dbfe5e"
+ }
+}

@@ -26,13 +26,12 @@ use nika_kernel::ai::provider::{InferResponse, Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
 use super::knowledge;
-use super::rehearsal::Rehearsals;
+use super::rehearsal::{Refused, Rehearsals};
 use crate::decide::{
     self, ChoiceAnswer, ChoiceOption, ChoiceQuestion, DecisionError, DecisionSeat,
 };
 use crate::lexicon::Reading;
 use crate::plan::Plan;
-use crate::types::{EditChange, Input};
 use crate::{
     AuthoringPolicy, CompileError, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind,
     Strategy,
@@ -49,11 +48,13 @@ pub(crate) const WHOLE_QUESTIONS: usize = 2;
 mod faithful;
 mod grounding;
 mod held;
-use faithful::{Pointed, whole};
+use faithful::{Pointed, told, whole};
 use grounding::grounding;
 use held::held_text;
-pub(super) use held::{HELD_TARGET, held, preserve_unjudged, withdrawn};
+pub(super) use held::{HELD_TARGET, held, kept, preserve_unjudged, withdrawn};
 use nika_compile_clauses::parts::{parts, restricts};
+use nika_compile_seats::judge::{Construction, judged_state, state};
+use nika_compile_seats::repairs::carry_declined;
 
 /// Who judges a candidate: a decision seat the caller permits (its calls and usage are its own,
 /// recorded here), or the authoring provider through the journaled authoring call.
@@ -121,6 +122,9 @@ pub(super) struct Verdict {
     pub(super) declined: Declined,
     /// Whether a call got no answer (refused or failed): nothing more was asked after it.
     pub(super) stopped: bool,
+    /// Why no trial ran on these bytes when the verdict waited for one: the rehearsal room's
+    /// refusal before any attempt (`refusal`, `reason`), recorded on the attempt (A4).
+    pub(super) unobserved: Option<Value>,
     /// The whole request this verdict asked, when it asked it.
     pub(super) request: Option<String>,
     /// The earlier attempt of this compile on the same bytes and judge whose verdict this one
@@ -137,9 +141,10 @@ pub(super) struct Verdict {
     pub(super) earlier: Vec<Value>,
     /// The answers read back from `earlier`.
     pub(super) read_back: u32,
-    /// What a decision seat answered the questions of one step asked together (A1), by
-    /// question id: each taken in its turn as the verdict asks that question.
-    pub(super) prefetched: Vec<(String, Result<ChoiceAnswer, DecisionError>)>,
+    /// What a decision seat answered the questions of one step asked together (A1), each with
+    /// the whole question it answered (id, instructions, state, options): taken only by that
+    /// very question in its turn, never by another one that reuses its id.
+    pub(super) prefetched: Vec<(ChoiceQuestion, Result<ChoiceAnswer, DecisionError>)>,
 }
 
 /// What the judge's admitted answers did to a candidate's bytes, by strength.
@@ -169,6 +174,13 @@ impl Verdict {
     /// Whether an admitted answer rejected these bytes (an abstention alone rejects nothing).
     pub(super) fn rejected(&self) -> bool {
         self.declined == Declined::Rejected
+    }
+
+    /// Whether only a whole trial run of these bytes could still decide them: every reason the
+    /// doubt stayed open is the lack of one.
+    pub(super) fn waits_for_a_run(&self) -> bool {
+        let mut reasons = self.unsettled.iter();
+        !self.unsettled.is_empty() && reasons.all(|why| faithful::waited_for_a_run(why))
     }
 
     /// Whether nothing stands against READY: no defect, no unknown, nothing contested.
@@ -256,50 +268,6 @@ const REVISED_APPENDED: &str = "This candidate REVISES an earlier workflow. `req
 /// the bytes, and every write the program itself does (another `.nika` too) stays judged.
 const CREATED: &str = "This candidate is the workflow the request asks Nika to author. A clause asking to create this workflow asks for this program; it does not ask the program to write its own file. Saving that file is the host's step after review, outside these bytes: it is neither missing nor done here. A name the request gives this workflow is judged against the candidate's own `nika:` name. A workflow identity is not proof of a Save filename or path; do not infer a destination absent from the state. Every other clause is judged on what the bytes do, including every file the program itself writes (another `.nika` file among them).";
 
-/// The state every question and every repair carries: the request as compiled and as first
-/// stated, its answers, the observed world and the candidate's bytes. The first statement is
-/// the one the binding holds ([`Binding::of`]): the preserved original request, else the
-/// submitted text the compiled request was folded or clarified from. A revision in words is
-/// judged on the request it resolves (`intent`); the request of the base it revises, which the
-/// change partly supersedes, is never shown as its first statement: it stays apart as history
-/// (`revision.base_request`) beside the change as the human stated it (`revision.change`).
-fn state(intent: &str, request: &CompileRequest, candidate: &str) -> Value {
-    let (submitted, change) = match &request.input {
-        Input::Create(text) if text != intent => (Some(text.clone()), None),
-        Input::Edit {
-            change: EditChange::Text(words),
-            ..
-        } => (None, Some(words)),
-        _ => (None, None),
-    };
-    let first = request.original_intent.clone().or(submitted);
-    // A revision judged on the earlier request with the change appended (`… Change: …`) is
-    // told so: its replaced clauses are still in the words, superseded by the change.
-    let appended = request.original_intent.is_some()
-        && nika_compile::revise_intent(request).is_some_and(|resolved| resolved == intent);
-    let (first, revision) = match change {
-        Some(change) => {
-            let mut revision = json!({"change": change, "base_request": first});
-            if appended {
-                revision["appended"] = json!(true);
-            }
-            (None, revision)
-        }
-        None => (first, Value::Null),
-    };
-    let mut state = json!({
-        "request": intent,
-        "original_request": first,
-        "answers": request.answers,
-        "observed": request.knowledge,
-        "candidate_nika": candidate,
-    });
-    if !revision.is_null() {
-        state["revision"] = revision;
-    }
-    state
-}
-
 const REPAIR_REFERENCE: &str = "The compiler emits the workflow from your plan as the reference below states: how it writes and what each tool it calls does, so you can read the candidate's bytes in the STATE. Your answer stays the complete JSON plan.";
 
 /// The decision key under which the spelling law keeps its notes on the programs it could not
@@ -371,7 +339,7 @@ async fn ask<P: ProviderInferDyn>(
     verdict.attempted += 1;
     let (returned, answer) = match judge {
         Judge::Seat(seat) => {
-            let at = (verdict.prefetched.iter()).position(|(id, _)| *id == question.id);
+            let at = (verdict.prefetched.iter()).position(|(asked, _)| asked == question);
             let answer = match at {
                 Some(at) => verdict.prefetched.remove(at).1,
                 None => seat.choose(question).await,
@@ -437,18 +405,17 @@ async fn prefetch<P: ProviderInferDyn>(
         let answers = seat
             .choose_each(&decide::ChoiceBatch::of(step, &open))
             .await;
-        let ids = open.into_iter().map(|question| question.id);
-        verdict.prefetched.extend(ids.zip(answers));
+        verdict.prefetched.extend(open.into_iter().zip(answers));
     }
 }
 
 /// The answers a seat gave questions the verdict never reached (it stopped first): sent, so each
 /// is recorded and counted, never read.
 fn unread(verdict: &mut Verdict) {
-    for (id, answer) in std::mem::take(&mut verdict.prefetched) {
+    for (question, answer) in std::mem::take(&mut verdict.prefetched) {
         verdict.attempted += 1;
         verdict.returned += u32::from(answer.is_ok());
-        let record = json!({"question": id, "role": "unread", "answered": answer.is_ok()});
+        let record = json!({"question": question.id, "role": "unread", "answered": answer.is_ok()});
         verdict.records.push(record);
     }
 }
@@ -553,7 +520,12 @@ async fn verdict_on<P: ProviderInferDyn>(
     let sha = knowledge::sha256(candidate);
     // An observation binds only to the bytes it ran: the judge never sees another's.
     let run = observation.filter(|o| o["candidate_sha256"] == sha.as_str());
-    if let Some(earlier) = judged_before(out, (request, intent), &sha, judge) {
+    let mut base = judged_state(intent, request, settled, candidate);
+    if let Some(notes) = unjudged(settled, plan) {
+        base[UNJUDGED_SPELLINGS] = notes;
+    }
+    let shown = context(&base);
+    if let Some(earlier) = judged_before(out, (request, intent, &shown), &sha, judge) {
         if !unfinished(&earlier, run) {
             route(out, if earlier.carried { CARRIED } else { SAME_BYTES });
             return earlier;
@@ -563,11 +535,7 @@ async fn verdict_on<P: ProviderInferDyn>(
         verdict.earlier = earlier.earlier;
     }
     verdict.candidate_sha256 = Some(sha);
-    verdict.context_sha256 = Some(context(intent, request));
-    let mut base = state(intent, request, candidate);
-    if let Some(notes) = unjudged(settled, plan) {
-        base[UNJUDGED_SPELLINGS] = notes;
-    }
+    verdict.context_sha256 = Some(shown);
     let grounding = grounding(Some(candidate));
     verdict.reference = grounding.record;
     for (k, open) in open.iter().enumerate() {
@@ -602,10 +570,11 @@ const RESUMED: &str = "verify: same bytes, localization resumed";
 /// (R6), and the attempt repeats that verdict with no call. A judge that answered nothing is
 /// asked again; an abstention carried from another round is not repeated, so a new round may
 /// still decide what that round left held; a carried rejection binds to the request it judged
-/// (`intent`), so a corrected request asks again.
+/// (`intent`), so a corrected request asks again. Every reuse binds to the context the judge was
+/// shown ([`context`]): another base, another revision mode or another contract asks again.
 fn judged_before<P: ProviderInferDyn>(
     out: &CompileOutcome,
-    (request, intent): (&CompileRequest, &str),
+    (request, intent, context): (&CompileRequest, &str, &str),
     sha: &str,
     judge: &Judge<'_, P>,
 ) -> Option<Verdict> {
@@ -615,6 +584,7 @@ fn judged_before<P: ProviderInferDyn>(
             && attempt["judge"]["kind"] == judge.kind()
             && attempt["declined"] == Value::Bool(true)
             && attempt["settled"] == Value::Bool(false)
+            && attempt["context_sha256"] == context
     };
     let attempts = (out.provenance.decision.as_ref())
         .and_then(|decision| decision["semantic_verification"].as_array())
@@ -626,14 +596,18 @@ fn judged_before<P: ProviderInferDyn>(
         let index = u64::try_from(index).unwrap_or(u64::MAX);
         return Some(Verdict::recorded(attempt, index));
     }
-    // The rejection binds to the context it was judged in: a corrected request, other answers
-    // or another observed world ask again.
-    let context = context(intent, request);
-    let carried = (request.declined.iter().rev()).find(|attempt| {
-        same(attempt)
-            && attempt["rejected"] == Value::Bool(true)
-            && attempt["request"] == intent
-            && attempt["context_sha256"] == context.as_str()
+    // The rejection binds to the context it was judged in: a corrected request, other answers,
+    // another observed world, another base or another contract ask again. A replayed record
+    // carries its own (`declined`, [`carry_declined`]), so a host that keeps nothing still never
+    // asks that judge again on those bytes.
+    let recorded = (request.plan.as_ref()).and_then(|record| record["declined"].as_array());
+    let carried = (request
+        .declined
+        .iter()
+        .chain(recorded.into_iter().flatten())
+        .rev())
+    .find(|attempt| {
+        same(attempt) && attempt["rejected"] == Value::Bool(true) && attempt["request"] == intent
     })?;
     let mut verdict = Verdict::recorded(carried, 0);
     verdict.same_bytes_as = None;
@@ -641,16 +615,17 @@ fn judged_before<P: ProviderInferDyn>(
     Some(verdict)
 }
 
-/// The digest of the context a judge reads beside a candidate's bytes: the request as compiled
-/// and as first stated, the answers and the observed world.
-fn context(intent: &str, request: &CompileRequest) -> String {
-    let read = json!({
-        "request": intent,
-        "original": request.original_intent,
-        "answers": request.answers,
-        "observed": request.knowledge,
-    });
-    knowledge::sha256(&read.to_string())
+/// The digest of the context a judge reads beside a candidate's bytes: the state it is shown
+/// (the request as compiled and as first stated, the answers, the observed world and, for a
+/// revision, the change, the base's request and the base itself when it is shown) and the
+/// whole-request contract that state selects. The bytes themselves are bound apart.
+fn context(base: &Value) -> String {
+    let mut shown = base.clone();
+    if let Some(state) = shown.as_object_mut() {
+        state.remove("candidate_nika");
+    }
+    shown["contract"] = json!(told(base, "", &Construction::shown(base, WHOLE).1));
+    knowledge::sha256(&shown.to_string())
 }
 
 /// Whether a repeated verdict left its localization unfinished: a call got no answer, or it
@@ -728,6 +703,7 @@ async fn judge_clause<P: ProviderInferDyn>(
     } else {
         CLAUSE.to_owned()
     };
+    let (shown, instructions) = Construction::shown(base, &instructions);
     let told = faithful::told(base, reference, &instructions);
     for (n, &span) in open.spans.iter().enumerate() {
         let mut options = vec![
@@ -742,7 +718,7 @@ async fn judge_clause<P: ProviderInferDyn>(
         if open.unclaimed && !restricting && !nika_compile_reader::structure::restricts(clause) {
             options.push(ChoiceOption::new("no_operation", NO_OPERATION));
         }
-        let mut asked = base.clone();
+        let mut asked = shown.clone();
         asked["clause"] = json!({"text": clause, "span": [span.0, span.1]});
         let id = match n {
             0 => format!("verify-clause-{k}"),
@@ -771,12 +747,14 @@ async fn judge_clause<P: ProviderInferDyn>(
                         let note = faithful::pointed_to(&task);
                         verdict.notes.push((clause.clone(), note));
                     }
-                    Some(Pointed::Omitted) => {
+                    Some(Pointed::Defect(note)) => {
                         verdict.defects.push(clause.clone());
-                        let note = faithful::OMITTED.to_owned();
                         verdict.notes.push((clause.clone(), note));
                     }
-                    Some(Pointed::NoTask) => verdict.contested.push(clause.clone()),
+                    // A clause's alternative is no judgment the core admits: still contested.
+                    Some(Pointed::NoTask | Pointed::Fallback) => {
+                        verdict.contested.push(clause.clone());
+                    }
                     Some(Pointed::Unsettled) => verdict.unknown.push(clause.clone()),
                     None => {
                         verdict.unknown.push(clause.clone());
@@ -821,7 +799,7 @@ fn record<P: ProviderInferDyn>(
     attempt: usize,
 ) {
     let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
-    let entry = json!({
+    let mut entry = json!({
         "attempt": attempt,
         "judge": {"seat": judge.name(), "kind": judge.kind()},
         "attempted": verdict.attempted,
@@ -851,6 +829,9 @@ fn record<P: ProviderInferDyn>(
         "context_sha256": verdict.context_sha256,
         "read_back": verdict.read_back,
     });
+    if let Some(why) = &verdict.unobserved {
+        entry["unobserved"] = why.clone();
+    }
     if let Some(attempts) = decision["semantic_verification"].as_array_mut() {
         attempts.push(entry);
     } else {
@@ -858,6 +839,25 @@ fn record<P: ProviderInferDyn>(
     }
     out.provenance.decision = Some(decision);
 }
+
+/// Why no trial ran on these bytes, when the verdict waited for one and the rehearsal room
+/// refused them before any attempt: the room's class and words, on the verdict and on the
+/// attempt it just recorded (A4).
+pub(super) fn unobserved(out: &mut CompileOutcome, verdict: &mut Verdict, refused: &Refused) {
+    if !verdict.waits_for_a_run() {
+        return;
+    }
+    let why = json!({"refusal": refused.refusal.word(), "reason": refused.reason});
+    let attempts = (out.provenance.decision.as_mut())
+        .and_then(|decision| decision["semantic_verification"].as_array_mut());
+    if let Some(attempt) = attempts.and_then(|attempts| attempts.last_mut()) {
+        attempt["unobserved"] = why.clone();
+    }
+    verdict.unobserved = Some(why);
+}
+
+/// The route of a reopening the room's refusal asked for: bytes the room runs, restated.
+pub(super) const RESTATED: &str = "verify: trial refused, restated";
 
 /// One more step of the route the decision records.
 pub(super) fn route(out: &mut CompileOutcome, step: &str) {
@@ -1183,6 +1183,8 @@ pub(super) async fn replayed<P: ProviderInferDyn>(
     let before = out.clone();
     let mut out = out;
     crate::replay_judged(intent, saved, request, &[], whole, &mut out)?;
+    // Each reconstruction states the source-only child hold again: the host checks it afresh.
+    rehearsals.composed(&mut out);
     let open = out
         .provenance
         .decision
@@ -1208,29 +1210,36 @@ pub(super) async fn replayed<P: ProviderInferDyn>(
     let observation = Box::pin(rehearsals.trial(request, &out)).await;
     let mut pre = before;
     let on = (intent, request, &plan);
-    let verdict = verdict_on(on, &out, &judge, observation.as_ref(), &mut pre).await;
+    let mut verdict = verdict_on(on, &out, &judge, observation.as_ref(), &mut pre).await;
     record(&mut pre, &judge, &verdict, 0);
+    // Why no run of these bytes exists, when the room refused them in this round (A4).
+    if let Some(refused) = (out.candidate.as_deref()).and_then(|c| rehearsals.refused(c)) {
+        unobserved(&mut pre, &mut verdict, refused);
+    }
     if verdict.settled() {
         crate::replay_judged(intent, saved, request, &verdict.judgments, whole, &mut pre)?;
+        rehearsals.composed(&mut pre);
         route(&mut pre, &format!("verify: judged ({})", judge.kind()));
         return Ok(pre);
     }
     // The clauses the judge carried stay settled; what it did not carry keeps READY closed.
     crate::replay_judged(intent, saved, request, &verdict.judgments, whole, &mut pre)?;
+    rehearsals.composed(&mut pre);
     route(&mut pre, "verify: not ready");
     blocked(&mut pre, &verdict, 0);
     unreplayed(&mut pre, &verdict);
     Ok(pre)
 }
 
-/// A whole request the judge answered and did not carry is never replayed to it: the record
-/// that would ask it again on the same bytes is dropped, and the candidate stays as the core
-/// left it. A judge that answered nothing keeps the record, so a later round asks it.
+/// A whole request the judge answered and did not carry is never replayed to it: the record is
+/// kept with that rejection inside it ([`carry_declined`]), so a round that replays it repeats
+/// the rejection with no call, and the candidate stays as the core left it. A judge that
+/// answered nothing keeps the record as it is, so a later round asks it.
 fn unreplayed(out: &mut CompileOutcome, verdict: &Verdict) {
     if verdict.doubted() {
         // Bytes the judge did not accept ask nothing more of the human: a later round authors
         // again and asks its own questions.
-        out.provenance.plan = None;
+        carry_declined(out);
         out.requested_boundary = None;
         out.questions.clear();
         route(out, "verify: doubted, not replayable");
@@ -1273,6 +1282,7 @@ pub(super) async fn semantic<P: ProviderInferDyn>(
         out.status = CompileStatus::Incomplete;
         return Ok(out);
     }
+    rehearsals.composed(&mut out);
     let open = (out.provenance.decision.as_ref())
         .and_then(|d| d["pending"]["open"].as_array())
         .is_some_and(|open| !open.is_empty());
@@ -1288,11 +1298,16 @@ pub(super) async fn semantic<P: ProviderInferDyn>(
     let mut pre = crate::initial();
     let plan = crate::lexicon::read(intent).plan;
     let on = (intent, request, &plan);
-    let verdict = verdict_on(on, &out, &judge, observation.as_ref(), &mut pre).await;
+    let mut verdict = verdict_on(on, &out, &judge, observation.as_ref(), &mut pre).await;
     record(&mut pre, &judge, &verdict, 0);
+    // Why no run of these bytes exists, when the room refused them in this round (A4).
+    if let Some(refused) = (out.candidate.as_deref()).and_then(|c| rehearsals.refused(c)) {
+        unobserved(&mut pre, &mut verdict, refused);
+    }
     let settled = verdict.settled();
     // The core's READY law weighs the judgments made; what the judge did not carry stays open.
     let mut done = nika_compile::compile_judged(raw, &verdict.judgments)?;
+    rehearsals.composed(&mut done);
     done.provenance.authoring = pre.provenance.authoring.take();
     done.provenance.cognition = pre.provenance.cognition;
     if let (Some(decision), Some(verified)) =
@@ -1329,9 +1344,10 @@ pub(super) async fn judged_native<P: ProviderInferDyn>(
     (provider, decision): (&P, Option<&dyn DecisionSeat>),
     request: &CompileRequest,
     out: CompileOutcome,
+    observation: Option<&Value>,
 ) -> CompileOutcome {
     let seats = (provider, decision);
-    match native_verdict(intent, reading, policy, seats, request, out, 0, None).await {
+    match native_verdict(intent, reading, policy, seats, request, out, 0, observation).await {
         Ok(out) => out,
         Err(judged) => {
             let (out, verdict) = *judged;
@@ -1369,7 +1385,9 @@ pub(super) async fn native_verdict<P: ProviderInferDyn>(
     // An observation binds only to the bytes it ran: the judge never sees another's.
     let observation = observation.filter(|o| o["candidate_sha256"] == sha.as_str());
     let mut verdict = Verdict::default();
-    if let Some(earlier) = judged_before(&out, (request, intent), &sha, &judge) {
+    let base = judged_state(intent, request, &out, &candidate);
+    let shown = context(&base);
+    if let Some(earlier) = judged_before(&out, (request, intent, &shown), &sha, &judge) {
         if !unfinished(&earlier, observation) {
             route(&mut out, if earlier.carried { CARRIED } else { SAME_BYTES });
             record(&mut out, &judge, &earlier, attempt);
@@ -1385,10 +1403,9 @@ pub(super) async fn native_verdict<P: ProviderInferDyn>(
     let binding = Binding::of(intent, request, &assembled, &candidate);
     let grounding = grounding(Some(&candidate));
     verdict.reference = grounding.record;
-    let base = state(intent, request, &candidate);
     let asked = (&base, grounding.text.as_str());
     verdict.candidate_sha256 = Some(sha);
-    verdict.context_sha256 = Some(context(intent, request));
+    verdict.context_sha256 = Some(shown);
     whole(
         intent,
         asked,

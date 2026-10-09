@@ -44,6 +44,28 @@
 //! The form mirrors the `assert:` vocabulary idiom: the parameterless
 //! values are bare scalars, the one parameterized value is a single-key
 //! map (`{ seeded: 42 }`) — no new micro-grammar for one number.
+//!
+//! The same block declares HOW the run reaches its intelligence, beside
+//! `model:` (which names the intelligence itself):
+//!
+//! ```yaml
+//! run:
+//!   access:
+//!     via: codex        # one route id: an agent application or a provider
+//!     protocol: acp     # acp | api
+//!     fallback: none    # the only value: an explicit selection is exact
+//!   reasoning:
+//!     effort: high      # the route's NATIVE value, verbatim
+//! ```
+//!
+//! Every key is optional and absence keeps today's resolution; an empty
+//! `access:` or `reasoning:` selects nothing and is refused at parse. The
+//! values are literals (no `${{ }}`): they are resolved before task 1.
+//! Whether a route, model or effort is AVAILABLE is never judged here —
+//! the access resolver refuses before task 1, and a live session refuses
+//! an unoffered model or effort before its first prompt.
+
+use nika_types::access::{AccessFallback, AccessProtocol, AccessRequirement};
 
 /// The `run.entropy` declaration (F-P3) — where the run's randomness
 /// comes from.
@@ -120,11 +142,59 @@ impl RunClock {
     }
 }
 
+/// The parsed `run.access:` block — each key `Some` only when authored.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct RunAccess {
+    /// `via:` — the one route id, verbatim (shape-checked at parse; the
+    /// access resolver judges whether this machine offers it).
+    pub via: Option<String>,
+    /// `protocol:` — `acp` | `api`.
+    pub protocol: Option<AccessProtocol>,
+    /// `fallback:` — `none` (the only value; absent behaves the same).
+    pub fallback: Option<AccessFallback>,
+}
+
+impl RunAccess {
+    /// The block as authored (INV-019).
+    #[must_use]
+    pub const fn new(
+        via: Option<String>,
+        protocol: Option<AccessProtocol>,
+        fallback: Option<AccessFallback>,
+    ) -> Self {
+        Self {
+            via,
+            protocol,
+            fallback,
+        }
+    }
+}
+
+/// The parsed `run.reasoning:` block.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct RunReasoning {
+    /// `effort:` — the route's native value, verbatim (required inside
+    /// the block).
+    pub effort: Option<String>,
+}
+
+impl RunReasoning {
+    /// The block as authored (INV-019).
+    #[must_use]
+    pub const fn new(effort: Option<String>) -> Self {
+        Self { effort }
+    }
+}
+
 /// The parsed `run:` envelope block (F-P3) — each axis `Some` only when
 /// EXPLICITLY authored: the refusal (`entropy: ambient` × `clock:
 /// virtual`) and the seam resolution both distinguish « declared » from
-/// « defaulted », so the block never pre-fills its defaults here.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// « defaulted », so the block never pre-fills its defaults here. Not
+/// `Copy`: the access and reasoning declarations carry the author's own
+/// words.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct RunDecl {
     /// `entropy:` — absent = the ambient default (status quo).
@@ -132,6 +202,10 @@ pub struct RunDecl {
     /// `clock:` — absent = the system default (status quo) — forced
     /// `virtual` at seam resolution when `entropy` demands determinism.
     pub clock: Option<RunClock>,
+    /// `access:` — absent = today's access resolution.
+    pub access: Option<RunAccess>,
+    /// `reasoning:` — absent = each route's own default effort.
+    pub reasoning: Option<RunReasoning>,
 }
 
 impl RunDecl {
@@ -139,7 +213,44 @@ impl RunDecl {
     /// `#[non_exhaustive]` struct) — each axis `Some` only when EXPLICIT.
     #[must_use]
     pub const fn new(entropy: Option<RunEntropy>, clock: Option<RunClock>) -> Self {
-        Self { entropy, clock }
+        Self {
+            entropy,
+            clock,
+            access: None,
+            reasoning: None,
+        }
+    }
+
+    /// Attach the authored `access:` block.
+    #[must_use]
+    pub fn with_access(mut self, access: Option<RunAccess>) -> Self {
+        self.access = access;
+        self
+    }
+
+    /// Attach the authored `reasoning:` block.
+    #[must_use]
+    pub fn with_reasoning(mut self, reasoning: Option<RunReasoning>) -> Self {
+        self.reasoning = reasoning;
+        self
+    }
+
+    /// The access requirement this declaration carries — `None` when the
+    /// file declares neither `access:` nor `reasoning:` (today's
+    /// resolution, unchanged).
+    #[must_use]
+    pub fn access_requirement(&self) -> Option<AccessRequirement> {
+        if self.access.is_none() && self.reasoning.is_none() {
+            return None;
+        }
+        let access = self.access.clone().unwrap_or_default();
+        Some(
+            AccessRequirement::new()
+                .with_via(access.via)
+                .with_protocol(access.protocol)
+                .with_fallback(access.fallback)
+                .with_effort(self.reasoning.as_ref().and_then(|r| r.effort.clone())),
+        )
     }
 
     /// The effective entropy (absent = `ambient`, the status quo).
@@ -286,10 +397,7 @@ mod tests {
     #[test]
     fn deterministic_entropy_forces_the_virtual_clock() {
         for e in [RunEntropy::None, RunEntropy::Seeded(42)] {
-            let decl = RunDecl {
-                entropy: Some(e),
-                clock: None,
-            };
+            let decl = RunDecl::new(Some(e), None);
             assert_eq!(decl.clock_or_default(), RunClock::Virtual);
             assert!(decl.contradiction().is_none());
         }
@@ -297,39 +405,53 @@ mod tests {
 
     #[test]
     fn the_two_explicit_contradictions_are_named() {
-        let ambient_virtual = RunDecl {
-            entropy: Some(RunEntropy::Ambient),
-            clock: Some(RunClock::Virtual),
-        };
+        let ambient_virtual = RunDecl::new(Some(RunEntropy::Ambient), Some(RunClock::Virtual));
         assert!(ambient_virtual.contradiction().is_some());
-        let seeded_system = RunDecl {
-            entropy: Some(RunEntropy::Seeded(42)),
-            clock: Some(RunClock::System),
-        };
+        let seeded_system = RunDecl::new(Some(RunEntropy::Seeded(42)), Some(RunClock::System));
         assert!(seeded_system.contradiction().is_some());
         // Redundant but coherent: explicit virtual beside seeded.
-        let coherent = RunDecl {
-            entropy: Some(RunEntropy::Seeded(42)),
-            clock: Some(RunClock::Virtual),
-        };
+        let coherent = RunDecl::new(Some(RunEntropy::Seeded(42)), Some(RunClock::Virtual));
         assert!(coherent.contradiction().is_none());
         // The explicit status quo: ambient + system, said out loud.
-        let spelled = RunDecl {
-            entropy: Some(RunEntropy::Ambient),
-            clock: Some(RunClock::System),
-        };
+        let spelled = RunDecl::new(Some(RunEntropy::Ambient), Some(RunClock::System));
         assert!(spelled.contradiction().is_none());
         // One explicit axis alone never contradicts (defaults compose).
-        let ambient_alone = RunDecl {
-            entropy: Some(RunEntropy::Ambient),
-            clock: None,
-        };
+        let ambient_alone = RunDecl::new(Some(RunEntropy::Ambient), None);
         assert!(ambient_alone.contradiction().is_none());
-        let virtual_alone = RunDecl {
-            entropy: None,
-            clock: Some(RunClock::Virtual),
-        };
+        let virtual_alone = RunDecl::new(None, Some(RunClock::Virtual));
         assert!(virtual_alone.contradiction().is_none());
+    }
+
+    /// The access requirement is the authored words, nothing inferred:
+    /// absent blocks project no requirement, an effort-only block selects
+    /// no path, and entropy/clock never leak into it (nor it into them).
+    #[test]
+    fn the_access_requirement_projects_only_what_was_authored() {
+        assert_eq!(RunDecl::default().access_requirement(), None);
+        let seeded = RunDecl::new(Some(RunEntropy::Seeded(7)), None);
+        assert_eq!(seeded.access_requirement(), None, "entropy is not access");
+        let full = RunDecl::new(Some(RunEntropy::Seeded(7)), None)
+            .with_access(Some(RunAccess::new(
+                Some("codex".to_owned()),
+                Some(AccessProtocol::Acp),
+                Some(AccessFallback::None),
+            )))
+            .with_reasoning(Some(RunReasoning::new(Some("xhigh".to_owned()))));
+        let req = full.access_requirement().expect("declared");
+        assert_eq!(req.via.as_deref(), Some("codex"));
+        assert_eq!(req.protocol, Some(AccessProtocol::Acp));
+        assert_eq!(req.fallback, Some(AccessFallback::None));
+        assert_eq!(req.effort.as_deref(), Some("xhigh"));
+        assert!(req.selects_path());
+        assert_eq!(req.identity(), "via=codex;protocol=acp;effort=xhigh");
+        // The determinism axes are untouched by the access block.
+        assert_eq!(full.clock_or_default(), RunClock::Virtual);
+        assert!(full.contradiction().is_none());
+        let effort_only =
+            RunDecl::default().with_reasoning(Some(RunReasoning::new(Some("max".to_owned()))));
+        let req = effort_only.access_requirement().expect("declared");
+        assert!(!req.selects_path(), "an effort alone keeps today's route");
+        assert_eq!(req.identity(), "effort=max");
     }
 
     #[test]

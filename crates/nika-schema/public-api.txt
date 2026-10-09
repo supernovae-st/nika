@@ -23,6 +23,585 @@ pub use nika_schema::expression
 pub use nika_schema::is_valid_error_code
 pub use nika_schema::nika_builtin_tool_enum_schema
 pub use nika_schema::parse_go_duration
+pub mod nika_schema::document
+#[non_exhaustive] pub enum nika_schema::document::Edit
+pub nika_schema::document::Edit::Insert
+pub nika_schema::document::Edit::Insert::key: alloc::string::String
+pub nika_schema::document::Edit::Insert::path: nika_schema::document::Path
+pub nika_schema::document::Edit::Insert::value: serde_json::value::Value
+pub nika_schema::document::Edit::InsertText
+pub nika_schema::document::Edit::InsertText::key: alloc::string::String
+pub nika_schema::document::Edit::InsertText::path: nika_schema::document::Path
+pub nika_schema::document::Edit::InsertText::text: alloc::string::String
+pub nika_schema::document::Edit::Push
+pub nika_schema::document::Edit::Push::path: nika_schema::document::Path
+pub nika_schema::document::Edit::Push::value: serde_json::value::Value
+pub nika_schema::document::Edit::Remove
+pub nika_schema::document::Edit::Remove::path: nika_schema::document::Path
+pub nika_schema::document::Edit::Rename
+pub nika_schema::document::Edit::Rename::path: nika_schema::document::Path
+pub nika_schema::document::Edit::Rename::to: alloc::string::String
+pub nika_schema::document::Edit::Set
+pub nika_schema::document::Edit::Set::path: nika_schema::document::Path
+pub nika_schema::document::Edit::Set::value: serde_json::value::Value
+impl nika_schema::document::Edit
+pub fn nika_schema::document::Edit::from_json(record: &serde_json::value::Value) -> core::result::Result<Self, alloc::string::String>
+pub fn nika_schema::document::Edit::insert(path: nika_schema::document::Path, key: impl core::convert::Into<alloc::string::String>, value: serde_json::value::Value) -> Self
+pub fn nika_schema::document::Edit::insert_text(path: nika_schema::document::Path, key: impl core::convert::Into<alloc::string::String>, text: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_schema::document::Edit::op(&self) -> &'static str
+pub fn nika_schema::document::Edit::path(&self) -> &nika_schema::document::Path
+pub fn nika_schema::document::Edit::push(path: nika_schema::document::Path, value: serde_json::value::Value) -> Self
+pub fn nika_schema::document::Edit::remove(path: nika_schema::document::Path) -> Self
+pub fn nika_schema::document::Edit::rename(path: nika_schema::document::Path, to: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_schema::document::Edit::set(path: nika_schema::document::Path, value: serde_json::value::Value) -> Self
+pub fn nika_schema::document::Edit::to_json(&self) -> serde_json::value::Value
+impl core::clone::Clone for nika_schema::document::Edit
+pub fn nika_schema::document::Edit::clone(&self) -> nika_schema::document::Edit
+impl core::cmp::PartialEq for nika_schema::document::Edit
+pub fn nika_schema::document::Edit::eq(&self, other: &nika_schema::document::Edit) -> bool
+impl core::fmt::Debug for nika_schema::document::Edit
+pub fn nika_schema::document::Edit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::document::Edit
+impl<D> owo_colors::OwoColorize for nika_schema::document::Edit
+impl<T, U> core::convert::Into<U> for nika_schema::document::Edit where U: core::convert::From<T>
+pub fn nika_schema::document::Edit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::document::Edit where U: core::convert::Into<T>
+pub type nika_schema::document::Edit::Error = core::convert::Infallible
+pub fn nika_schema::document::Edit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::document::Edit where U: core::convert::TryFrom<T>
+pub type nika_schema::document::Edit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::document::Edit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::document::Edit where T: core::clone::Clone
+pub type nika_schema::document::Edit::Owned = T
+pub fn nika_schema::document::Edit::clone_into(&self, target: &mut T)
+pub fn nika_schema::document::Edit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::document::Edit where T: 'static + ?core::marker::Sized
+pub fn nika_schema::document::Edit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::document::Edit where T: ?core::marker::Sized
+pub fn nika_schema::document::Edit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::document::Edit where T: ?core::marker::Sized
+pub fn nika_schema::document::Edit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::document::Edit where T: core::clone::Clone
+pub unsafe fn nika_schema::document::Edit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::document::Edit
+pub fn nika_schema::document::Edit::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::document::Edit where T: 'static
+pub fn nika_schema::document::Edit::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_schema::document::NodeKind
+pub nika_schema::document::NodeKind::Boolean
+pub nika_schema::document::NodeKind::Mapping
+pub nika_schema::document::NodeKind::Null
+pub nika_schema::document::NodeKind::Number
+pub nika_schema::document::NodeKind::Sequence
+pub nika_schema::document::NodeKind::String
+impl nika_schema::document::NodeKind
+pub const fn nika_schema::document::NodeKind::word(self) -> &'static str
+impl core::clone::Clone for nika_schema::document::NodeKind
+pub fn nika_schema::document::NodeKind::clone(&self) -> nika_schema::document::NodeKind
+impl core::cmp::Eq for nika_schema::document::NodeKind
+impl core::cmp::PartialEq for nika_schema::document::NodeKind
+pub fn nika_schema::document::NodeKind::eq(&self, other: &nika_schema::document::NodeKind) -> bool
+impl core::fmt::Debug for nika_schema::document::NodeKind
+pub fn nika_schema::document::NodeKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_schema::document::NodeKind
+impl core::marker::StructuralPartialEq for nika_schema::document::NodeKind
+impl<D> owo_colors::OwoColorize for nika_schema::document::NodeKind
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::document::NodeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::document::NodeKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::document::NodeKind where U: core::convert::From<T>
+pub fn nika_schema::document::NodeKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::document::NodeKind where U: core::convert::Into<T>
+pub type nika_schema::document::NodeKind::Error = core::convert::Infallible
+pub fn nika_schema::document::NodeKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::document::NodeKind where U: core::convert::TryFrom<T>
+pub type nika_schema::document::NodeKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::document::NodeKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::document::NodeKind where T: core::clone::Clone
+pub type nika_schema::document::NodeKind::Owned = T
+pub fn nika_schema::document::NodeKind::clone_into(&self, target: &mut T)
+pub fn nika_schema::document::NodeKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::document::NodeKind where T: 'static + ?core::marker::Sized
+pub fn nika_schema::document::NodeKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::document::NodeKind where T: ?core::marker::Sized
+pub fn nika_schema::document::NodeKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::document::NodeKind where T: ?core::marker::Sized
+pub fn nika_schema::document::NodeKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::document::NodeKind where T: core::clone::Clone
+pub unsafe fn nika_schema::document::NodeKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::document::NodeKind
+pub fn nika_schema::document::NodeKind::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::document::NodeKind where T: 'static
+pub fn nika_schema::document::NodeKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_schema::document::Origin
+pub nika_schema::document::Origin::Edited
+pub nika_schema::document::Origin::Edited::changed: alloc::vec::Vec<nika_schema::document::Path>
+pub nika_schema::document::Origin::Edited::splices: alloc::vec::Vec<nika_schema::document::Splice>
+pub nika_schema::document::Origin::Imported
+pub nika_schema::document::Origin::Replaced
+impl core::clone::Clone for nika_schema::document::Origin
+pub fn nika_schema::document::Origin::clone(&self) -> nika_schema::document::Origin
+impl core::cmp::Eq for nika_schema::document::Origin
+impl core::cmp::PartialEq for nika_schema::document::Origin
+pub fn nika_schema::document::Origin::eq(&self, other: &nika_schema::document::Origin) -> bool
+impl core::fmt::Debug for nika_schema::document::Origin
+pub fn nika_schema::document::Origin::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::document::Origin
+impl<D> owo_colors::OwoColorize for nika_schema::document::Origin
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::document::Origin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::document::Origin::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::document::Origin where U: core::convert::From<T>
+pub fn nika_schema::document::Origin::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::document::Origin where U: core::convert::Into<T>
+pub type nika_schema::document::Origin::Error = core::convert::Infallible
+pub fn nika_schema::document::Origin::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::document::Origin where U: core::convert::TryFrom<T>
+pub type nika_schema::document::Origin::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::document::Origin::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::document::Origin where T: core::clone::Clone
+pub type nika_schema::document::Origin::Owned = T
+pub fn nika_schema::document::Origin::clone_into(&self, target: &mut T)
+pub fn nika_schema::document::Origin::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::document::Origin where T: 'static + ?core::marker::Sized
+pub fn nika_schema::document::Origin::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::document::Origin where T: ?core::marker::Sized
+pub fn nika_schema::document::Origin::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::document::Origin where T: ?core::marker::Sized
+pub fn nika_schema::document::Origin::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::document::Origin where T: core::clone::Clone
+pub unsafe fn nika_schema::document::Origin::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::document::Origin
+pub fn nika_schema::document::Origin::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::document::Origin where T: 'static
+pub fn nika_schema::document::Origin::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_schema::document::Refusal
+pub nika_schema::document::Refusal::Drift
+pub nika_schema::document::Refusal::Drift::detail: alloc::string::String
+pub nika_schema::document::Refusal::Drift::path: nika_schema::document::Path
+pub nika_schema::document::Refusal::Language
+pub nika_schema::document::Refusal::Language::error: alloc::boxed::Box<nika_schema::error::SchemaError>
+pub nika_schema::document::Refusal::Language::path: nika_schema::document::Path
+pub nika_schema::document::Refusal::Layout
+pub nika_schema::document::Refusal::Layout::detail: alloc::string::String
+pub nika_schema::document::Refusal::Layout::path: nika_schema::document::Path
+pub nika_schema::document::Refusal::Shape
+pub nika_schema::document::Refusal::Shape::detail: alloc::string::String
+pub nika_schema::document::Refusal::Shape::path: nika_schema::document::Path
+pub nika_schema::document::Refusal::UnknownPath
+pub nika_schema::document::Refusal::UnknownPath::path: nika_schema::document::Path
+impl nika_schema::document::Refusal
+pub fn nika_schema::document::Refusal::kind(&self) -> &'static str
+pub fn nika_schema::document::Refusal::path(&self) -> &nika_schema::document::Path
+impl core::fmt::Debug for nika_schema::document::Refusal
+pub fn nika_schema::document::Refusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_schema::document::Refusal
+pub fn nika_schema::document::Refusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_schema::document::Refusal
+impl<T, U> core::convert::Into<U> for nika_schema::document::Refusal where U: core::convert::From<T>
+pub fn nika_schema::document::Refusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::document::Refusal where U: core::convert::Into<T>
+pub type nika_schema::document::Refusal::Error = core::convert::Infallible
+pub fn nika_schema::document::Refusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::document::Refusal where U: core::convert::TryFrom<T>
+pub type nika_schema::document::Refusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::document::Refusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_schema::document::Refusal where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_schema::document::Refusal::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_schema::document::Refusal where T: 'static + ?core::marker::Sized
+pub fn nika_schema::document::Refusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::document::Refusal where T: ?core::marker::Sized
+pub fn nika_schema::document::Refusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::document::Refusal where T: ?core::marker::Sized
+pub fn nika_schema::document::Refusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_schema::document::Refusal
+pub fn nika_schema::document::Refusal::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::document::Refusal where T: 'static
+pub fn nika_schema::document::Refusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_schema::document::RevisionRefusal
+pub nika_schema::document::RevisionRefusal::Document(nika_schema::document::Refusal)
+pub nika_schema::document::RevisionRefusal::Stale
+pub nika_schema::document::RevisionRefusal::Stale::base: nika_schema::document::Revision
+pub nika_schema::document::RevisionRefusal::Stale::current: nika_schema::document::Revision
+impl core::fmt::Debug for nika_schema::document::RevisionRefusal
+pub fn nika_schema::document::RevisionRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_schema::document::RevisionRefusal
+pub fn nika_schema::document::RevisionRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_schema::document::RevisionRefusal
+impl<T, U> core::convert::Into<U> for nika_schema::document::RevisionRefusal where U: core::convert::From<T>
+pub fn nika_schema::document::RevisionRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::document::RevisionRefusal where U: core::convert::Into<T>
+pub type nika_schema::document::RevisionRefusal::Error = core::convert::Infallible
+pub fn nika_schema::document::RevisionRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::document::RevisionRefusal where U: core::convert::TryFrom<T>
+pub type nika_schema::document::RevisionRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::document::RevisionRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_schema::document::RevisionRefusal where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_schema::document::RevisionRefusal::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_schema::document::RevisionRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_schema::document::RevisionRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::document::RevisionRefusal where T: ?core::marker::Sized
+pub fn nika_schema::document::RevisionRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::document::RevisionRefusal where T: ?core::marker::Sized
+pub fn nika_schema::document::RevisionRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_schema::document::RevisionRefusal
+pub fn nika_schema::document::RevisionRefusal::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::document::RevisionRefusal where T: 'static
+pub fn nika_schema::document::RevisionRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_schema::document::Style
+pub nika_schema::document::Style::Block
+pub nika_schema::document::Style::DoubleQuoted
+pub nika_schema::document::Style::Empty
+pub nika_schema::document::Style::Flow
+pub nika_schema::document::Style::Folded
+pub nika_schema::document::Style::Literal
+pub nika_schema::document::Style::Plain
+pub nika_schema::document::Style::SingleQuoted
+impl nika_schema::document::Style
+pub const fn nika_schema::document::Style::word(self) -> &'static str
+impl core::clone::Clone for nika_schema::document::Style
+pub fn nika_schema::document::Style::clone(&self) -> nika_schema::document::Style
+impl core::cmp::Eq for nika_schema::document::Style
+impl core::cmp::PartialEq for nika_schema::document::Style
+pub fn nika_schema::document::Style::eq(&self, other: &nika_schema::document::Style) -> bool
+impl core::fmt::Debug for nika_schema::document::Style
+pub fn nika_schema::document::Style::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_schema::document::Style
+impl core::marker::StructuralPartialEq for nika_schema::document::Style
+impl<D> owo_colors::OwoColorize for nika_schema::document::Style
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::document::Style where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::document::Style::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::document::Style where U: core::convert::From<T>
+pub fn nika_schema::document::Style::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::document::Style where U: core::convert::Into<T>
+pub type nika_schema::document::Style::Error = core::convert::Infallible
+pub fn nika_schema::document::Style::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::document::Style where U: core::convert::TryFrom<T>
+pub type nika_schema::document::Style::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::document::Style::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::document::Style where T: core::clone::Clone
+pub type nika_schema::document::Style::Owned = T
+pub fn nika_schema::document::Style::clone_into(&self, target: &mut T)
+pub fn nika_schema::document::Style::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::document::Style where T: 'static + ?core::marker::Sized
+pub fn nika_schema::document::Style::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::document::Style where T: ?core::marker::Sized
+pub fn nika_schema::document::Style::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::document::Style where T: ?core::marker::Sized
+pub fn nika_schema::document::Style::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::document::Style where T: core::clone::Clone
+pub unsafe fn nika_schema::document::Style::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::document::Style
+pub fn nika_schema::document::Style::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::document::Style where T: 'static
+pub fn nika_schema::document::Style::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::document::Applied
+impl nika_schema::document::Applied
+pub fn nika_schema::document::Applied::bytes_preserved(&self, base: &str) -> bool
+pub fn nika_schema::document::Applied::changed(&self) -> &[nika_schema::document::Path]
+pub fn nika_schema::document::Applied::document(&self) -> &nika_schema::document::Document
+pub fn nika_schema::document::Applied::into_document(self) -> nika_schema::document::Document
+pub fn nika_schema::document::Applied::splices(&self) -> &[nika_schema::document::Splice]
+impl core::clone::Clone for nika_schema::document::Applied
+pub fn nika_schema::document::Applied::clone(&self) -> nika_schema::document::Applied
+impl core::fmt::Debug for nika_schema::document::Applied
+pub fn nika_schema::document::Applied::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_schema::document::Applied
+impl<T, U> core::convert::Into<U> for nika_schema::document::Applied where U: core::convert::From<T>
+pub fn nika_schema::document::Applied::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::document::Applied where U: core::convert::Into<T>
+pub type nika_schema::document::Applied::Error = core::convert::Infallible
+pub fn nika_schema::document::Applied::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::document::Applied where U: core::convert::TryFrom<T>
+pub type nika_schema::document::Applied::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::document::Applied::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::document::Applied where T: core::clone::Clone
+pub type nika_schema::document::Applied::Owned = T
+pub fn nika_schema::document::Applied::clone_into(&self, target: &mut T)
+pub fn nika_schema::document::Applied::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::document::Applied where T: 'static + ?core::marker::Sized
+pub fn nika_schema::document::Applied::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::document::Applied where T: ?core::marker::Sized
+pub fn nika_schema::document::Applied::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::document::Applied where T: ?core::marker::Sized
+pub fn nika_schema::document::Applied::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::document::Applied where T: core::clone::Clone
+pub unsafe fn nika_schema::document::Applied::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::document::Applied
+pub fn nika_schema::document::Applied::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::document::Applied where T: 'static
+pub fn nika_schema::document::Applied::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::document::Document
+impl nika_schema::document::Document
+pub fn nika_schema::document::Document::apply(&self, edits: &[nika_schema::document::Edit]) -> core::result::Result<nika_schema::document::Applied, nika_schema::document::Refusal>
+pub fn nika_schema::document::Document::constant_path(&self, name: &str) -> core::option::Option<nika_schema::document::Path>
+pub fn nika_schema::document::Document::literal(&self) -> &serde_json::value::Value
+pub fn nika_schema::document::Document::node(&self, path: &nika_schema::document::Path) -> core::option::Option<nika_schema::document::Node>
+pub fn nika_schema::document::Document::nodes(&self) -> alloc::vec::Vec<nika_schema::document::Node>
+pub fn nika_schema::document::Document::parse(source: impl core::convert::Into<alloc::string::String>) -> core::result::Result<Self, nika_schema::document::Refusal>
+pub fn nika_schema::document::Document::source(&self) -> &str
+pub fn nika_schema::document::Document::value(&self, path: &nika_schema::document::Path) -> core::option::Option<&serde_json::value::Value>
+pub fn nika_schema::document::Document::workflow(&self) -> &nika_schema::raw::workflow::RawWorkflow
+impl core::clone::Clone for nika_schema::document::Document
+pub fn nika_schema::document::Document::clone(&self) -> nika_schema::document::Document
+impl core::fmt::Debug for nika_schema::document::Document
+pub fn nika_schema::document::Document::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_schema::document::Document
+impl<T, U> core::convert::Into<U> for nika_schema::document::Document where U: core::convert::From<T>
+pub fn nika_schema::document::Document::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::document::Document where U: core::convert::Into<T>
+pub type nika_schema::document::Document::Error = core::convert::Infallible
+pub fn nika_schema::document::Document::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::document::Document where U: core::convert::TryFrom<T>
+pub type nika_schema::document::Document::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::document::Document::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::document::Document where T: core::clone::Clone
+pub type nika_schema::document::Document::Owned = T
+pub fn nika_schema::document::Document::clone_into(&self, target: &mut T)
+pub fn nika_schema::document::Document::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::document::Document where T: 'static + ?core::marker::Sized
+pub fn nika_schema::document::Document::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::document::Document where T: ?core::marker::Sized
+pub fn nika_schema::document::Document::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::document::Document where T: ?core::marker::Sized
+pub fn nika_schema::document::Document::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::document::Document where T: core::clone::Clone
+pub unsafe fn nika_schema::document::Document::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::document::Document
+pub fn nika_schema::document::Document::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::document::Document where T: 'static
+pub fn nika_schema::document::Document::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::document::DocumentRevision
+impl nika_schema::document::DocumentRevision
+pub fn nika_schema::document::DocumentRevision::apply(&self, base: &nika_schema::document::Revision, edits: &[nika_schema::document::Edit]) -> core::result::Result<Self, nika_schema::document::RevisionRefusal>
+pub fn nika_schema::document::DocumentRevision::document(&self) -> &nika_schema::document::Document
+pub fn nika_schema::document::DocumentRevision::import(source: impl core::convert::Into<alloc::string::String>, digest: nika_schema::document::Digest) -> core::result::Result<Self, nika_schema::document::Refusal>
+pub fn nika_schema::document::DocumentRevision::origin(&self) -> &nika_schema::document::Origin
+pub fn nika_schema::document::DocumentRevision::parent(&self) -> core::option::Option<&nika_schema::document::Revision>
+pub fn nika_schema::document::DocumentRevision::replace(&self, base: &nika_schema::document::Revision, source: impl core::convert::Into<alloc::string::String>) -> core::result::Result<Self, nika_schema::document::RevisionRefusal>
+pub fn nika_schema::document::DocumentRevision::revision(&self) -> &nika_schema::document::Revision
+pub fn nika_schema::document::DocumentRevision::source(&self) -> &str
+impl core::clone::Clone for nika_schema::document::DocumentRevision
+pub fn nika_schema::document::DocumentRevision::clone(&self) -> nika_schema::document::DocumentRevision
+impl core::fmt::Debug for nika_schema::document::DocumentRevision
+pub fn nika_schema::document::DocumentRevision::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_schema::document::DocumentRevision
+impl<T, U> core::convert::Into<U> for nika_schema::document::DocumentRevision where U: core::convert::From<T>
+pub fn nika_schema::document::DocumentRevision::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::document::DocumentRevision where U: core::convert::Into<T>
+pub type nika_schema::document::DocumentRevision::Error = core::convert::Infallible
+pub fn nika_schema::document::DocumentRevision::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::document::DocumentRevision where U: core::convert::TryFrom<T>
+pub type nika_schema::document::DocumentRevision::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::document::DocumentRevision::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::document::DocumentRevision where T: core::clone::Clone
+pub type nika_schema::document::DocumentRevision::Owned = T
+pub fn nika_schema::document::DocumentRevision::clone_into(&self, target: &mut T)
+pub fn nika_schema::document::DocumentRevision::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::document::DocumentRevision where T: 'static + ?core::marker::Sized
+pub fn nika_schema::document::DocumentRevision::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::document::DocumentRevision where T: ?core::marker::Sized
+pub fn nika_schema::document::DocumentRevision::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::document::DocumentRevision where T: ?core::marker::Sized
+pub fn nika_schema::document::DocumentRevision::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::document::DocumentRevision where T: core::clone::Clone
+pub unsafe fn nika_schema::document::DocumentRevision::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::document::DocumentRevision
+pub fn nika_schema::document::DocumentRevision::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::document::DocumentRevision where T: 'static
+pub fn nika_schema::document::DocumentRevision::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::document::Node
+pub nika_schema::document::Node::keyset: core::option::Option<&'static str>
+pub nika_schema::document::Node::kind: nika_schema::document::NodeKind
+pub nika_schema::document::Node::path: nika_schema::document::Path
+pub nika_schema::document::Node::span: core::option::Option<core::ops::range::Range<usize>>
+pub nika_schema::document::Node::style: nika_schema::document::Style
+pub nika_schema::document::Node::value: serde_json::value::Value
+impl nika_schema::document::Node
+pub fn nika_schema::document::Node::to_json(&self) -> serde_json::value::Value
+impl core::clone::Clone for nika_schema::document::Node
+pub fn nika_schema::document::Node::clone(&self) -> nika_schema::document::Node
+impl core::cmp::PartialEq for nika_schema::document::Node
+pub fn nika_schema::document::Node::eq(&self, other: &nika_schema::document::Node) -> bool
+impl core::fmt::Debug for nika_schema::document::Node
+pub fn nika_schema::document::Node::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::document::Node
+impl<D> owo_colors::OwoColorize for nika_schema::document::Node
+impl<T, U> core::convert::Into<U> for nika_schema::document::Node where U: core::convert::From<T>
+pub fn nika_schema::document::Node::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::document::Node where U: core::convert::Into<T>
+pub type nika_schema::document::Node::Error = core::convert::Infallible
+pub fn nika_schema::document::Node::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::document::Node where U: core::convert::TryFrom<T>
+pub type nika_schema::document::Node::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::document::Node::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::document::Node where T: core::clone::Clone
+pub type nika_schema::document::Node::Owned = T
+pub fn nika_schema::document::Node::clone_into(&self, target: &mut T)
+pub fn nika_schema::document::Node::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::document::Node where T: 'static + ?core::marker::Sized
+pub fn nika_schema::document::Node::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::document::Node where T: ?core::marker::Sized
+pub fn nika_schema::document::Node::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::document::Node where T: ?core::marker::Sized
+pub fn nika_schema::document::Node::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::document::Node where T: core::clone::Clone
+pub unsafe fn nika_schema::document::Node::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::document::Node
+pub fn nika_schema::document::Node::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::document::Node where T: 'static
+pub fn nika_schema::document::Node::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::document::Path
+impl nika_schema::document::Path
+pub fn nika_schema::document::Path::child(&self, segment: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_schema::document::Path::dotted(text: &str) -> core::option::Option<Self>
+pub fn nika_schema::document::Path::is_root(&self) -> bool
+pub fn nika_schema::document::Path::last(&self) -> core::option::Option<&str>
+pub fn nika_schema::document::Path::new<I, S>(segments: I) -> Self where I: core::iter::traits::collect::IntoIterator<Item = S>, S: core::convert::Into<alloc::string::String>
+pub fn nika_schema::document::Path::parent(&self) -> core::option::Option<Self>
+pub fn nika_schema::document::Path::pointer(text: &str) -> core::option::Option<Self>
+pub fn nika_schema::document::Path::root() -> Self
+pub fn nika_schema::document::Path::segments(&self) -> &[alloc::string::String]
+pub fn nika_schema::document::Path::starts_with(&self, prefix: &Self) -> bool
+pub fn nika_schema::document::Path::to_pointer(&self) -> alloc::string::String
+impl core::clone::Clone for nika_schema::document::Path
+pub fn nika_schema::document::Path::clone(&self) -> nika_schema::document::Path
+impl core::cmp::Eq for nika_schema::document::Path
+impl core::cmp::Ord for nika_schema::document::Path
+pub fn nika_schema::document::Path::cmp(&self, other: &nika_schema::document::Path) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_schema::document::Path
+pub fn nika_schema::document::Path::eq(&self, other: &nika_schema::document::Path) -> bool
+impl core::cmp::PartialOrd for nika_schema::document::Path
+pub fn nika_schema::document::Path::partial_cmp(&self, other: &nika_schema::document::Path) -> core::option::Option<core::cmp::Ordering>
+impl core::default::Default for nika_schema::document::Path
+pub fn nika_schema::document::Path::default() -> nika_schema::document::Path
+impl core::fmt::Debug for nika_schema::document::Path
+pub fn nika_schema::document::Path::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_schema::document::Path
+pub fn nika_schema::document::Path::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_schema::document::Path
+pub fn nika_schema::document::Path::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_schema::document::Path
+impl<D> owo_colors::OwoColorize for nika_schema::document::Path
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::document::Path where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::document::Path::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::document::Path where U: core::convert::From<T>
+pub fn nika_schema::document::Path::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::document::Path where U: core::convert::Into<T>
+pub type nika_schema::document::Path::Error = core::convert::Infallible
+pub fn nika_schema::document::Path::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::document::Path where U: core::convert::TryFrom<T>
+pub type nika_schema::document::Path::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::document::Path::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::document::Path where T: core::clone::Clone
+pub type nika_schema::document::Path::Owned = T
+pub fn nika_schema::document::Path::clone_into(&self, target: &mut T)
+pub fn nika_schema::document::Path::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_schema::document::Path where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_schema::document::Path::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_schema::document::Path where T: 'static + ?core::marker::Sized
+pub fn nika_schema::document::Path::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::document::Path where T: ?core::marker::Sized
+pub fn nika_schema::document::Path::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::document::Path where T: ?core::marker::Sized
+pub fn nika_schema::document::Path::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::document::Path where T: core::clone::Clone
+pub unsafe fn nika_schema::document::Path::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::document::Path
+pub fn nika_schema::document::Path::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::document::Path where T: 'static
+pub fn nika_schema::document::Path::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::document::Revision(_)
+impl nika_schema::document::Revision
+pub fn nika_schema::document::Revision::as_str(&self) -> &str
+pub fn nika_schema::document::Revision::new(digest: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_schema::document::Revision
+pub fn nika_schema::document::Revision::clone(&self) -> nika_schema::document::Revision
+impl core::cmp::Eq for nika_schema::document::Revision
+impl core::cmp::Ord for nika_schema::document::Revision
+pub fn nika_schema::document::Revision::cmp(&self, other: &nika_schema::document::Revision) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_schema::document::Revision
+pub fn nika_schema::document::Revision::eq(&self, other: &nika_schema::document::Revision) -> bool
+impl core::cmp::PartialOrd for nika_schema::document::Revision
+pub fn nika_schema::document::Revision::partial_cmp(&self, other: &nika_schema::document::Revision) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_schema::document::Revision
+pub fn nika_schema::document::Revision::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_schema::document::Revision
+pub fn nika_schema::document::Revision::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_schema::document::Revision
+pub fn nika_schema::document::Revision::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_schema::document::Revision
+impl<D> owo_colors::OwoColorize for nika_schema::document::Revision
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::document::Revision where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::document::Revision::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::document::Revision where U: core::convert::From<T>
+pub fn nika_schema::document::Revision::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::document::Revision where U: core::convert::Into<T>
+pub type nika_schema::document::Revision::Error = core::convert::Infallible
+pub fn nika_schema::document::Revision::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::document::Revision where U: core::convert::TryFrom<T>
+pub type nika_schema::document::Revision::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::document::Revision::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::document::Revision where T: core::clone::Clone
+pub type nika_schema::document::Revision::Owned = T
+pub fn nika_schema::document::Revision::clone_into(&self, target: &mut T)
+pub fn nika_schema::document::Revision::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_schema::document::Revision where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_schema::document::Revision::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_schema::document::Revision where T: 'static + ?core::marker::Sized
+pub fn nika_schema::document::Revision::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::document::Revision where T: ?core::marker::Sized
+pub fn nika_schema::document::Revision::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::document::Revision where T: ?core::marker::Sized
+pub fn nika_schema::document::Revision::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::document::Revision where T: core::clone::Clone
+pub unsafe fn nika_schema::document::Revision::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::document::Revision
+pub fn nika_schema::document::Revision::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::document::Revision where T: 'static
+pub fn nika_schema::document::Revision::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::document::Splice
+pub nika_schema::document::Splice::end: usize
+pub nika_schema::document::Splice::replacement: alloc::string::String
+pub nika_schema::document::Splice::start: usize
+impl nika_schema::document::Splice
+pub fn nika_schema::document::Splice::apply(&self, text: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_schema::document::Splice::new(start: usize, end: usize, replacement: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_schema::document::Splice
+pub fn nika_schema::document::Splice::clone(&self) -> nika_schema::document::Splice
+impl core::cmp::Eq for nika_schema::document::Splice
+impl core::cmp::PartialEq for nika_schema::document::Splice
+pub fn nika_schema::document::Splice::eq(&self, other: &nika_schema::document::Splice) -> bool
+impl core::fmt::Debug for nika_schema::document::Splice
+pub fn nika_schema::document::Splice::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::document::Splice
+impl<D> owo_colors::OwoColorize for nika_schema::document::Splice
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::document::Splice where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::document::Splice::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::document::Splice where U: core::convert::From<T>
+pub fn nika_schema::document::Splice::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::document::Splice where U: core::convert::Into<T>
+pub type nika_schema::document::Splice::Error = core::convert::Infallible
+pub fn nika_schema::document::Splice::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::document::Splice where U: core::convert::TryFrom<T>
+pub type nika_schema::document::Splice::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::document::Splice::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::document::Splice where T: core::clone::Clone
+pub type nika_schema::document::Splice::Owned = T
+pub fn nika_schema::document::Splice::clone_into(&self, target: &mut T)
+pub fn nika_schema::document::Splice::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::document::Splice where T: 'static + ?core::marker::Sized
+pub fn nika_schema::document::Splice::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::document::Splice where T: ?core::marker::Sized
+pub fn nika_schema::document::Splice::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::document::Splice where T: ?core::marker::Sized
+pub fn nika_schema::document::Splice::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::document::Splice where T: core::clone::Clone
+pub unsafe fn nika_schema::document::Splice::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::document::Splice
+pub fn nika_schema::document::Splice::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::document::Splice where T: 'static
+pub fn nika_schema::document::Splice::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_schema::document::literal_projection(source: &str) -> core::option::Option<serde_json::value::Value>
+pub type nika_schema::document::Digest = fn(&str) -> alloc::string::String
 pub mod nika_schema::error
 pub use nika_schema::error::DeadForm
 pub mod nika_schema::error::spec_code

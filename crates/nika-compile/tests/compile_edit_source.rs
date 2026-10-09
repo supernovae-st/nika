@@ -256,9 +256,10 @@ fn unsupported_block_presentations_are_refused_without_losing_comments() {
     }
 }
 
-/// Scope limitation, pinned on purpose: CREATE's assembler emits block forms
-/// for multi-line and collection answers, and the bounded EDIT refuses those
-/// presentations instead of re-emitting the whole document.
+/// Scope, pinned on purpose: CREATE's assembler emits block forms for multi-line
+/// and collection answers. The bounded EDIT refuses a block scalar instead of
+/// re-emitting the whole document; a collection's block sequence, indentless as
+/// the assembler writes it, takes its flow form under its key as an indented one.
 #[test]
 fn create_block_output_is_outside_the_bounded_edit() {
     let create = |answer: &str| {
@@ -279,12 +280,19 @@ fn create_block_output_is_outside_the_bounded_edit() {
         edited.candidate,
         Some(one_line.replace("request: One line.", r#"request: "Another line.""#))
     );
-    for (answer, block_form) in [
-        (r#""line one\nline two""#, "request: |-\n"),
-        (r#"["a", "b"]"#, "request:\n  - a\n"),
-    ] {
-        let source = create(answer);
-        assert!(source.contains(block_form), "{source}");
-        assert_refused_unchanged(&source, "request", r#""Another line.""#);
-    }
+    let source = create(r#""line one\nline two""#);
+    assert!(source.contains("request: |-\n"), "{source}");
+    assert_refused_unchanged(&source, "request", r#""Another line.""#);
+    let source = create(r#"["a", "b"]"#);
+    let block = "  request:\n  - a\n  - b\n";
+    assert!(source.contains(block), "{source}");
+    let edited = compile(&CompileRequest::set_constant(
+        &source,
+        "request",
+        r#""Another line.""#,
+    ))
+    .unwrap();
+    assert_eq!(edited.status, CompileStatus::Ready, "{edited:?}");
+    let flow = "  request:\n    \"Another line.\"\n";
+    assert_eq!(edited.candidate, Some(source.replace(block, flow)));
 }

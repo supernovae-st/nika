@@ -23,8 +23,8 @@ nika-vocab   = { path = "../nika-vocab", version = "0.122.0" }   # the project f
 nika-bm25    = { path = "../nika-bm25", version = "0.122.0" }    # intent→template routing (the deterministic floor)
 nika-display = { path = "../nika-display", version = "0.122.0" } # theme + chrome (rail · panel · banner)
 nika-catalog = { path = "../nika-catalog", version = "0.122.0", features = ["providers"] } # the model menu (local first)
-serde        = { workspace = true }                              # the knowledge door's strict JSON: a key stated twice is refused
 serde_json   = { workspace = true }                              # the canvas stamp (parse + re-emit settings.json)
+include_dir  = { workspace = true }                              # the current knowledge release, embedded whole from its directory
 
 nika-schema = { path = "../nika-schema", version = "0.122.0" }  # the same strict parser for in-memory compiler candidates
 nika-source = { path = "../nika-source", version = "0.122.0" }  # lexical program-source naming (#1684)

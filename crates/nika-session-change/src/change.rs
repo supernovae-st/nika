@@ -10,12 +10,17 @@ use std::io::Read as _;
 use std::path::{Component, Path, PathBuf};
 
 use nika_cli_host::oracle::{AuditOptions, audit_source};
+
+pub use crate::closure::Closure;
 // The rows a review shows of a report are the report's render owner's (C10).
 use nika_display::check_render::review::{effect_rows, finding_rows};
 use nika_fs::OwnedDir;
 
-/// The blake3 of the bytes a preview was built over (hex).
-#[derive(Clone, Debug, PartialEq, Eq)]
+use crate::world::World;
+
+/// The blake3 of the bytes a preview was built over (hex). It serializes as the hex digest.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(transparent)]
 pub struct Witness(pub String);
 
 impl Witness {
@@ -146,6 +151,68 @@ pub struct RunRequest {
     pub max_cost_usd: f64,
     /// The human's explicit execution access, never inferred from the authoring seat.
     pub access_pin: Option<String>,
+    /// The witness of the exact bytes the Session's clean check judged before requesting this
+    /// run: a door runs only those bytes and refuses a workflow that changed since, or a request
+    /// that names none ([`RunRequest::admits`]). Boxed, so an outcome carrying a request stays
+    /// small.
+    pub bytes: Option<Box<Witness>>,
+    /// The closure of the world that check judged: the workflow, every child workflow it reaches
+    /// and every skill, as captured ([`Closure`]). A door runs only that world and refuses one a
+    /// child or a skill changed in since, or a request that names none
+    /// ([`RunRequest::admits_world`]).
+    pub closure: Option<Box<Closure>>,
+}
+
+/// What a request that recorded no checked bytes or world binds a run to: no source or world has
+/// it.
+const UNBOUND: &str = "unchecked";
+
+impl RunRequest {
+    /// Whether `source`, the bytes a door captured to run, is exactly what the Session checked
+    /// for this run; a request that recorded none admits nothing.
+    #[must_use]
+    pub fn admits(&self, source: &str) -> bool {
+        self.bytes.as_deref() == Some(&Witness::of(source.as_bytes()))
+    }
+
+    /// Whether `world`, the world a door captured to run, is exactly the one the Session checked
+    /// for this run; a request that recorded none admits nothing.
+    #[must_use]
+    pub fn admits_world(&self, world: &nika_execution::ExecutionSnapshot) -> bool {
+        (self.closure.as_deref()).is_some_and(|closure| closure.admits(world))
+    }
+
+    /// The witness a run of this request must capture: the checked bytes', or one no source has
+    /// when the request recorded none.
+    #[must_use]
+    pub fn expected_source(&self) -> String {
+        self.bytes
+            .as_deref()
+            .map_or(UNBOUND, |bytes| bytes.0.as_str())
+            .to_owned()
+    }
+
+    /// The closure a run of this request must capture: the checked world's, or one no world has
+    /// when the request recorded none.
+    #[must_use]
+    pub fn expected_world(&self) -> String {
+        self.closure
+            .as_deref()
+            .map_or(UNBOUND, |closure| closure.0.as_str())
+            .to_owned()
+    }
+
+    /// The child `nika run` line for this request under `root`, bound to the checked bytes and
+    /// their world: the child compares them with what it captures and runs nothing else.
+    #[must_use]
+    pub fn args(&self, root: &Path) -> Vec<String> {
+        use nika_onboard::run_line::{EXPECT_SOURCE, EXPECT_WORLD, run_args_with_access};
+        let (vars, pin) = (&self.vars, self.access_pin.as_deref());
+        let mut args = run_args_with_access(root, &self.workflow, self.max_cost_usd, vars, pin);
+        args.extend([EXPECT_SOURCE.to_owned(), self.expected_source()]);
+        args.extend([EXPECT_WORLD.to_owned(), self.expected_world()]);
+        args
+    }
 }
 
 /// The engine's audit of one workflow's exact bytes: the preview's truth.
@@ -163,6 +230,15 @@ pub struct WorkflowAudit {
     /// permits and requirements (reads · writes · network · programs ·
     /// tools · models · secrets · spend · human gates).
     pub effects: Vec<String>,
+    /// Where the same bytes reach, typed from the report's data journey: local files, a
+    /// service on this machine, a connected service, or a destination the check cannot
+    /// determine ([`crate::world`]). Unaudited bytes claim no reach.
+    pub world: World,
+    /// The witness of the exact bytes this audit judged; `None` when they could not be read.
+    pub bytes: Option<Witness>,
+    /// The closure of the world this audit judged, read once by the run's own reader; `None`
+    /// for a preview (child-blind) or when that world could not be held still.
+    pub closure: Option<Closure>,
 }
 
 /// What a set could not become.
@@ -490,7 +566,7 @@ impl ProjectChangeSet {
         if let Some(r) = &self.run {
             let _ = writeln!(
                 out,
-                "  then · run `{}` once (--max-cost-usd {:.2} · say « with a ceiling of 0.05 » to change it) · only if the check on disk is clean",
+                "  with `save & run` · then run `{}` once (--max-cost-usd {:.2}) · only if the check on disk is clean · `yes` saves only",
                 r.workflow.display(),
                 r.max_cost_usd
             );
@@ -637,10 +713,21 @@ pub fn check_on_disk(root: &Path, path: &Path) -> WorkflowAudit {
 #[must_use]
 pub fn check_with_access(root: &Path, path: &Path, pin: Option<&str>) -> WorkflowAudit {
     let on_disk = root.join(path);
-    match std::fs::read_to_string(&on_disk) {
+    // One reader: the run's own capture of the world, before the check, which judges the
+    // workflow and its children from those bytes; captured again after it, a world that moved
+    // meanwhile is not the one judged.
+    let world = crate::closure::capture(root, path);
+    let source = match &world {
+        Ok(world) => (world.text(world.root()).map(str::to_owned)).ok_or_else(|| "not text".into()),
+        Err(_) => std::fs::read_to_string(&on_disk).map_err(|e| e.to_string()),
+    };
+    match source {
         Ok(source) => {
             let base = on_disk.parent().map(Path::to_path_buf);
-            let mut read = |p: &str| std::fs::read_to_string(p).map_err(|e| e.to_string());
+            let mut read = |p: &str| match &world {
+                Ok(world) => crate::closure::served(world, root, p),
+                Err(_) => std::fs::read_to_string(p).map_err(|e| e.to_string()),
+            };
             let judged = audit_source(
                 &source,
                 &on_disk.display().to_string(),
@@ -654,9 +741,18 @@ pub fn check_with_access(root: &Path, path: &Path, pin: Option<&str>) -> Workflo
                 .filter(|a| pin.is_some() && !a.verdict.plan.is_admitted())
                 .map(|a| a.verdict.layers.blockers.clone());
             let mut audit = fold_audit(path, judged);
+            audit.bytes = Some(Witness::of(source.as_bytes()));
             if let Some(blocked) = blocked {
                 audit.clean = false;
                 audit.findings.extend(blocked);
+            }
+            match crate::closure::settled(world, root, path) {
+                Ok(closure) => audit.closure = Some(closure),
+                Err(why) if audit.clean => {
+                    audit.clean = false;
+                    audit.findings.push(why);
+                }
+                Err(_) => {}
             }
             audit
         }
@@ -666,6 +762,9 @@ pub fn check_with_access(root: &Path, path: &Path, pin: Option<&str>) -> Workflo
             findings: vec![format!("unreadable after apply: {e}")],
             hints: Vec::new(),
             effects: Vec::new(),
+            world: World::default(),
+            bytes: None,
+            closure: None,
         },
     }
 }
@@ -674,10 +773,12 @@ pub fn check_with_access(root: &Path, path: &Path, pin: Option<&str>) -> Workflo
 /// the preview's rows.
 fn audit_bytes(path: &Path, source: &str) -> WorkflowAudit {
     let logical = path.display().to_string();
-    fold_audit(
+    let mut audit = fold_audit(
         path,
         audit_source(source, &logical, None, None, AuditOptions::default()),
-    )
+    );
+    audit.bytes = Some(Witness::of(source.as_bytes()));
+    audit
 }
 
 /// The ONE fold of the facade's verdict to the preview's rows.
@@ -688,12 +789,26 @@ fn fold_audit<E: std::fmt::Display>(
     match judged {
         Ok(audit) => {
             let (findings, hints) = finding_rows(&audit.report);
+            let journey = &audit.report.data_journey;
+            let models = model_places(&audit.report);
+            let world =
+                World::declared(
+                    (journey.sources.iter().chain(&journey.destinations))
+                        .map(|e| (e.kind, e.target.as_str(), e.tasks.as_slice()))
+                        .chain(models.iter().map(|((kind, target), tasks)| {
+                            (*kind, target.as_str(), tasks.as_slice())
+                        })),
+                    journey.secrets_used.iter().map(|s| s.name.as_str()),
+                );
             WorkflowAudit {
                 path: path.to_path_buf(),
                 clean: audit.verdict.clean,
                 findings,
                 hints,
                 effects: effect_rows(&audit.report),
+                world,
+                bytes: None,
+                closure: None,
             }
         }
         Err(e) => WorkflowAudit {
@@ -702,8 +817,49 @@ fn fold_audit<E: std::fmt::Display>(
             findings: vec![format!("NIKA-PARSE · {e}")],
             hints: Vec::new(),
             effects: Vec::new(),
+            world: World::default(),
+            bytes: None,
+            closure: None,
         },
     }
+}
+
+/// Where each model task's inference goes, as world places `((kind, target), tasks)`: the model
+/// the check resolved, placed by the catalog's locus (`model.remote` · `model.local` ·
+/// `model.undetermined`), and every model task the check could not resolve (a model chosen by
+/// an expression when the run starts) as undetermined under its declared spelling. Declared,
+/// never observed: a run does not turn this into a record of what was contacted.
+fn model_places(
+    report: &nika_check::CheckReport,
+) -> std::collections::BTreeMap<(&'static str, String), Vec<String>> {
+    use nika_check::EndpointLocus;
+    let mut places: std::collections::BTreeMap<(&'static str, String), Vec<String>> =
+        std::collections::BTreeMap::new();
+    let resolved = &report.data_journey.model_endpoints;
+    for endpoint in resolved {
+        let kind = match endpoint.locus {
+            EndpointLocus::Cloud => "model.remote",
+            EndpointLocus::Local => "model.local",
+            _ => "model.undetermined",
+        };
+        places
+            .entry((kind, endpoint.model.clone()))
+            .or_default()
+            .push(endpoint.task.clone());
+    }
+    for declared in &report.requirements.models {
+        let unresolved: Vec<String> = (declared.tasks.iter())
+            .filter(|task| !resolved.iter().any(|e| &e.task == *task))
+            .cloned()
+            .collect();
+        if !unresolved.is_empty() {
+            places
+                .entry(("model.undetermined", declared.model.clone()))
+                .or_default()
+                .extend(unresolved);
+        }
+    }
+    places
 }
 
 /// A relative path with no `..`, no root, no empty component.
@@ -936,6 +1092,34 @@ mod tests {
             assert_eq!(mode, 0o644, "a project file, not private state");
         }
         assert!(check_on_disk(dir.path(), Path::new("daily.nika")).clean);
+    }
+
+    /// A check names the exact bytes it judged, and a run bound to them admits those only: a
+    /// valid workflow replaced after its check is not the one the request names.
+    #[test]
+    fn a_check_names_the_bytes_it_judged_and_a_run_admits_only_those() {
+        let dir = tempfile::tempdir().expect("tmp");
+        std::fs::write(dir.path().join("daily.nika"), WORKFLOW).expect("workflow");
+        let audit = check_on_disk(dir.path(), Path::new("daily.nika"));
+        assert!(audit.clean, "{:?}", audit.findings);
+        assert_eq!(audit.bytes, Some(Witness::of(WORKFLOW.as_bytes())));
+        let run = RunRequest {
+            workflow: PathBuf::from("daily.nika"),
+            vars: Vec::new(),
+            max_cost_usd: 0.1,
+            access_pin: None,
+            bytes: audit.bytes.clone().map(Box::new),
+            closure: audit.closure.clone().map(Box::new),
+        };
+        assert!(run.admits(WORKFLOW));
+        let changed = WORKFLOW.replace("max_tokens: 40", "max_tokens: 41");
+        assert_ne!(changed, WORKFLOW);
+        assert!(!run.admits(&changed), "changed after its check: refused");
+        let unbound = RunRequest { bytes: None, ..run };
+        assert!(!unbound.admits(WORKFLOW), "no recorded bytes admit none");
+        let missing = check_on_disk(dir.path(), Path::new("absent.nika"));
+        assert!(!missing.clean);
+        assert_eq!(missing.bytes, None, "unread bytes are never witnessed");
     }
 
     /// The freeze audit · the check after apply is the one `nika check`

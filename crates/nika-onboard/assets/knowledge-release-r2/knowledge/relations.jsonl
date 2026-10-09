@@ -1,0 +1,1121 @@
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-failure-branch","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-failure-branch","rel":"USES_CALLABLE","to":"callable:nika:log"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-failure-branch","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-failure-branch","rel":"USES_CONSTRUCT","to":"construct:exec"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-failure-branch","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-failure-branch","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-failure-branch","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-failure-branch","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-terminal-report","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-terminal-report","rel":"USES_CALLABLE","to":"callable:nika:log"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-terminal-report","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-terminal-report","rel":"USES_CONSTRUCT","to":"construct:exec"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-terminal-report","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-terminal-report","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-terminal-report","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:after-terminal-report","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:agent-compose-self-check","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:agent-compose-self-check","rel":"USES_CALLABLE","to":"callable:nika:compose"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:agent-compose-self-check","rel":"USES_CALLABLE","to":"callable:nika:done"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:agent-compose-self-check","rel":"USES_CONSTRUCT","to":"construct:agent"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:agent-compose-self-check","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:agent-compose-self-check","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:agent-compose-self-check","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:agent-tools-skills","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:agent-tools-skills","rel":"USES_CALLABLE","to":"callable:nika:done"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:agent-tools-skills","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:agent-tools-skills","rel":"USES_CONSTRUCT","to":"construct:agent"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:agent-tools-skills","rel":"USES_CONSTRUCT","to":"construct:agent.skills"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:agent-tools-skills","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:agent-tools-skills","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:agent-tools-skills","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:bounded-review-cycles","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:bounded-review-cycles","rel":"REALIZES","to":"pattern:lang:guard-on-value"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:bounded-review-cycles","rel":"REALIZES","to":"pattern:lang:read-known-file"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:bounded-review-cycles","rel":"REALIZES","to":"pattern:lang:write-artifact"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:bounded-review-cycles","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:bounded-review-cycles","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:bounded-review-cycles","rel":"USES_CALLABLE","to":"callable:nika:write"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:bounded-review-cycles","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:bounded-review-cycles","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:bounded-review-cycles","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:bounded-review-cycles","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:bounded-review-cycles","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:bounded-review-cycles","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:bounded-review-cycles","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:bounded-review-cycles","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:chart-from-rows","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:chart-from-rows","rel":"USES_CALLABLE","to":"callable:nika:chart"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:chart-from-rows","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:chart-from-rows","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:chart-from-rows","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:child-workflow-typed","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:child-workflow-typed","rel":"REALIZES","to":"pattern:lang:typed-output"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:child-workflow-typed","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:child-workflow-typed","rel":"USES_CONSTRUCT","to":"construct:inputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:child-workflow-typed","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:child-workflow-typed","rel":"USES_CONSTRUCT","to":"construct:invoke.workflow"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:child-workflow-typed","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:child-workflow-typed","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:child-workflow-typed","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:child-workflow-typed","rel":"USES_CONSTRUCT","to":"construct:returns"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:child-workflow-typed","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:csv-filter-total-report","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:csv-filter-total-report","rel":"REALIZES","to":"pattern:lang:aggregate-number"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:csv-filter-total-report","rel":"REALIZES","to":"pattern:lang:read-known-file"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:csv-filter-total-report","rel":"REALIZES","to":"pattern:lang:write-artifact"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:csv-filter-total-report","rel":"USES_CALLABLE","to":"callable:nika:convert"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:csv-filter-total-report","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:csv-filter-total-report","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:csv-filter-total-report","rel":"USES_CALLABLE","to":"callable:nika:write"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:csv-filter-total-report","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:csv-filter-total-report","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:csv-filter-total-report","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:csv-filter-total-report","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:csv-filter-total-report","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:csv-filter-total-report","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:csv-filter-total-report","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:draft-from-facts","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:draft-from-facts","rel":"REALIZES","to":"pattern:lang:read-known-file"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:draft-from-facts","rel":"REALIZES","to":"pattern:lang:write-artifact"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:draft-from-facts","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:draft-from-facts","rel":"USES_CALLABLE","to":"callable:nika:write"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:draft-from-facts","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:draft-from-facts","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:draft-from-facts","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:draft-from-facts","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:draft-from-facts","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:draft-from-facts","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:exec-structured-branch","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:exec-structured-branch","rel":"REALIZES","to":"pattern:lang:guard-on-value"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:exec-structured-branch","rel":"USES_CALLABLE","to":"callable:nika:log"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:exec-structured-branch","rel":"USES_CONSTRUCT","to":"construct:exec"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:exec-structured-branch","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:exec-structured-branch","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:exec-structured-branch","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:exec-structured-branch","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:exec-structured-branch","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:extract-named-bindings","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:extract-named-bindings","rel":"USES_CALLABLE","to":"callable:nika:fetch"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:extract-named-bindings","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:extract-named-bindings","rel":"USES_CONSTRUCT","to":"construct:extract"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:extract-named-bindings","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:extract-named-bindings","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:extract-named-bindings","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:extract-named-bindings","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:fetch-modes-source","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:fetch-modes-source","rel":"USES_CALLABLE","to":"callable:nika:fetch"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:fetch-modes-source","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:fetch-modes-source","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:fetch-modes-source","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:for-each-extract-count","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:for-each-extract-count","rel":"REALIZES","to":"pattern:lang:aggregate-number"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:for-each-extract-count","rel":"USES_CALLABLE","to":"callable:nika:glob"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:for-each-extract-count","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:for-each-extract-count","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:for-each-extract-count","rel":"USES_CONSTRUCT","to":"construct:extract"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:for-each-extract-count","rel":"USES_CONSTRUCT","to":"construct:for_each"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:for-each-extract-count","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:for-each-extract-count","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:for-each-extract-count","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:for-each-extract-count","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:glob-read-many","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:glob-read-many","rel":"REALIZES","to":"pattern:lang:read-many-files"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:glob-read-many","rel":"USES_CALLABLE","to":"callable:nika:glob"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:glob-read-many","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:glob-read-many","rel":"USES_CONSTRUCT","to":"construct:for_each"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:glob-read-many","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:glob-read-many","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:glob-read-many","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:glob-read-many","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:group-fan-in-ledger","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:group-fan-in-ledger","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:group-fan-in-ledger","rel":"USES_CONSTRUCT","to":"construct:exec"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:group-fan-in-ledger","rel":"USES_CONSTRUCT","to":"construct:group"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:group-fan-in-ledger","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:group-fan-in-ledger","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:group-fan-in-ledger","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:group-fan-in-ledger","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:idempotent-post-retry","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:idempotent-post-retry","rel":"USES_CALLABLE","to":"callable:nika:fetch"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:idempotent-post-retry","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:idempotent-post-retry","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:idempotent-post-retry","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:idempotent-post-retry","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:idempotent-post-retry","rel":"USES_CONSTRUCT","to":"construct:retry"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:infer-returns-enum","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:infer-returns-enum","rel":"REALIZES","to":"pattern:lang:typed-output"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:infer-returns-enum","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:infer-returns-enum","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:infer-returns-enum","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:infer-returns-enum","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:infer-returns-enum","rel":"USES_CONSTRUCT","to":"construct:returns"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:infer-structured-schema","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:infer-structured-schema","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:infer-structured-schema","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:infer-structured-schema","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:infer-structured-schema","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:infer-structured-schema","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:json-filter-gate-post","rel":"REALIZES","to":"pattern:lang:parse-json-document"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:json-filter-gate-post","rel":"REALIZES","to":"pattern:lang:read-known-file"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CALLABLE","to":"callable:nika:fetch"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CALLABLE","to":"callable:nika:prompt"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CONSTRUCT","to":"construct:gate"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:json-filter-records","rel":"REALIZES","to":"pattern:lang:parse-json-document"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:json-filter-records","rel":"REALIZES","to":"pattern:lang:read-known-file"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lift-taint-caller-path","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lift-taint-caller-path","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lift-taint-caller-path","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lift-taint-caller-path","rel":"USES_CONSTRUCT","to":"construct:inputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lift-taint-caller-path","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lift-taint-caller-path","rel":"USES_CONSTRUCT","to":"construct:lift"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lift-taint-caller-path","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lift-taint-caller-path","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lift-taint-caller-path","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lookup-enrich-by-key","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:lookup-enrich-by-key","rel":"REALIZES","to":"pattern:lang:join-sources"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:lookup-enrich-by-key","rel":"REALIZES","to":"pattern:lang:parse-json-document"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:lookup-enrich-by-key","rel":"REALIZES","to":"pattern:lang:read-known-file"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:lookup-enrich-by-key","rel":"REALIZES","to":"pattern:lang:write-artifact"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lookup-enrich-by-key","rel":"USES_CALLABLE","to":"callable:nika:assert"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lookup-enrich-by-key","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lookup-enrich-by-key","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lookup-enrich-by-key","rel":"USES_CALLABLE","to":"callable:nika:write"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lookup-enrich-by-key","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lookup-enrich-by-key","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lookup-enrich-by-key","rel":"USES_CONSTRUCT","to":"construct:inputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lookup-enrich-by-key","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lookup-enrich-by-key","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lookup-enrich-by-key","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lookup-enrich-by-key","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:lookup-enrich-by-key","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:multi-csv-group-totals","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:multi-csv-group-totals","rel":"REALIZES","to":"pattern:lang:aggregate-number"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:multi-csv-group-totals","rel":"REALIZES","to":"pattern:lang:group-by"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:multi-csv-group-totals","rel":"REALIZES","to":"pattern:lang:read-many-files"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:multi-csv-group-totals","rel":"REALIZES","to":"pattern:lang:write-artifact"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:multi-csv-group-totals","rel":"USES_CALLABLE","to":"callable:nika:convert"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:multi-csv-group-totals","rel":"USES_CALLABLE","to":"callable:nika:glob"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:multi-csv-group-totals","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:multi-csv-group-totals","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:multi-csv-group-totals","rel":"USES_CALLABLE","to":"callable:nika:write"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:multi-csv-group-totals","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:multi-csv-group-totals","rel":"USES_CONSTRUCT","to":"construct:for_each"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:multi-csv-group-totals","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:multi-csv-group-totals","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:multi-csv-group-totals","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:multi-csv-group-totals","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-recover-cached","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-recover-cached","rel":"USES_CALLABLE","to":"callable:nika:fetch"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-recover-cached","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-recover-cached","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-recover-cached","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-recover-cached","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-recover-cached","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-skip-on-timeout","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-skip-on-timeout","rel":"USES_CALLABLE","to":"callable:nika:fetch"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-skip-on-timeout","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-skip-on-timeout","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-skip-on-timeout","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-skip-on-timeout","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-skip-on-timeout","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-skip-on-timeout","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-skip-on-timeout","rel":"USES_CONSTRUCT","to":"construct:timeout"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:on-error-skip-on-timeout","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:permits-full-boundary","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:permits-full-boundary","rel":"USES_CALLABLE","to":"callable:nika:fetch"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:permits-full-boundary","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:permits-full-boundary","rel":"USES_CALLABLE","to":"callable:nika:write"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:permits-full-boundary","rel":"USES_CONSTRUCT","to":"construct:exec"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:permits-full-boundary","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:permits-full-boundary","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:permits-full-boundary","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:permits-full-boundary","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:prompt-gate-then-post","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:prompt-gate-then-post","rel":"USES_CALLABLE","to":"callable:nika:fetch"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:prompt-gate-then-post","rel":"USES_CALLABLE","to":"callable:nika:prompt"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:prompt-gate-then-post","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:prompt-gate-then-post","rel":"USES_CONSTRUCT","to":"construct:gate"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:prompt-gate-then-post","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:prompt-gate-then-post","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:prompt-gate-then-post","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:prompt-gate-then-post","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:prompt-gate-then-post","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:prompt-gate-then-post","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:prompt-gate-then-post","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:retry-get-with-timeout","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:retry-get-with-timeout","rel":"USES_CALLABLE","to":"callable:nika:fetch"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:retry-get-with-timeout","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:retry-get-with-timeout","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:retry-get-with-timeout","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:retry-get-with-timeout","rel":"USES_CONSTRUCT","to":"construct:retry"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:retry-get-with-timeout","rel":"USES_CONSTRUCT","to":"construct:timeout"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:run-deterministic","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:run-deterministic","rel":"REALIZES","to":"pattern:lang:declared-zero"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:run-deterministic","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:run-deterministic","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:run-deterministic","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:run-deterministic","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:run-deterministic","rel":"USES_CONSTRUCT","to":"construct:run"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-egress-fetch","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-egress-fetch","rel":"USES_CALLABLE","to":"callable:nika:fetch"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-egress-fetch","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-egress-fetch","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-egress-fetch","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-egress-fetch","rel":"USES_CONSTRUCT","to":"construct:secrets"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-egress-fetch","rel":"USES_CONSTRUCT","to":"construct:secrets.egress"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-fetch-parse-write","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:secret-fetch-parse-write","rel":"REALIZES","to":"pattern:lang:write-artifact"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-fetch-parse-write","rel":"USES_CALLABLE","to":"callable:nika:fetch"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-fetch-parse-write","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-fetch-parse-write","rel":"USES_CALLABLE","to":"callable:nika:write"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-fetch-parse-write","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-fetch-parse-write","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-fetch-parse-write","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-fetch-parse-write","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-fetch-parse-write","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-fetch-parse-write","rel":"USES_CONSTRUCT","to":"construct:secrets"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-fetch-parse-write","rel":"USES_CONSTRUCT","to":"construct:secrets.egress"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:secret-fetch-parse-write","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:trifecta-blocking-gate","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:trifecta-blocking-gate","rel":"REALIZES","to":"pattern:lang:read-known-file"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:trifecta-blocking-gate","rel":"REALIZES","to":"pattern:lang:write-artifact"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:trifecta-blocking-gate","rel":"USES_CALLABLE","to":"callable:nika:fetch"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:trifecta-blocking-gate","rel":"USES_CALLABLE","to":"callable:nika:prompt"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:trifecta-blocking-gate","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:trifecta-blocking-gate","rel":"USES_CALLABLE","to":"callable:nika:write"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:trifecta-blocking-gate","rel":"USES_CONSTRUCT","to":"construct:gate"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:trifecta-blocking-gate","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:trifecta-blocking-gate","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:trifecta-blocking-gate","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:trifecta-blocking-gate","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:trifecta-blocking-gate","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:trifecta-blocking-gate","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:typed-inputs-outputs","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:typed-inputs-outputs","rel":"REALIZES","to":"pattern:lang:typed-output"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:typed-inputs-outputs","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:typed-inputs-outputs","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:typed-inputs-outputs","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:typed-inputs-outputs","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:unwind-cleanup","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:unwind-cleanup","rel":"USES_CALLABLE","to":"callable:nika:log"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:unwind-cleanup","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:unwind-cleanup","rel":"USES_CONSTRUCT","to":"construct:after.unwind"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:unwind-cleanup","rel":"USES_CONSTRUCT","to":"construct:exec"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:unwind-cleanup","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:unwind-cleanup","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:unwind-cleanup","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-diff-convert","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:validate-diff-convert","rel":"REALIZES","to":"pattern:lang:compare-snapshots"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:validate-diff-convert","rel":"REALIZES","to":"pattern:lang:parse-json-document"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:validate-diff-convert","rel":"REALIZES","to":"pattern:lang:validate-records"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-diff-convert","rel":"USES_CALLABLE","to":"callable:nika:convert"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-diff-convert","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-diff-convert","rel":"USES_CALLABLE","to":"callable:nika:json_diff"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-diff-convert","rel":"USES_CALLABLE","to":"callable:nika:json_merge_patch"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-diff-convert","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-diff-convert","rel":"USES_CALLABLE","to":"callable:nika:validate"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-diff-convert","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-diff-convert","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-diff-convert","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-diff-convert","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-quarantine-total","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:validate-quarantine-total","rel":"REALIZES","to":"pattern:lang:aggregate-number"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:validate-quarantine-total","rel":"REALIZES","to":"pattern:lang:parse-json-document"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:validate-quarantine-total","rel":"REALIZES","to":"pattern:lang:read-known-file"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:validate-quarantine-total","rel":"REALIZES","to":"pattern:lang:validate-records"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:validate-quarantine-total","rel":"REALIZES","to":"pattern:lang:write-artifact"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-quarantine-total","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-quarantine-total","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-quarantine-total","rel":"USES_CALLABLE","to":"callable:nika:validate"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-quarantine-total","rel":"USES_CALLABLE","to":"callable:nika:write"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-quarantine-total","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-quarantine-total","rel":"USES_CONSTRUCT","to":"construct:for_each"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-quarantine-total","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-quarantine-total","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-quarantine-total","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-quarantine-total","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:validate-quarantine-total","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:when-skipped-fallback","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:when-skipped-fallback","rel":"REALIZES","to":"pattern:lang:guard-on-value"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:when-skipped-fallback","rel":"USES_CALLABLE","to":"callable:nika:log"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:when-skipped-fallback","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:when-skipped-fallback","rel":"USES_CONSTRUCT","to":"construct:inputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:when-skipped-fallback","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:when-skipped-fallback","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:when-skipped-fallback","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:when-skipped-fallback","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:assert","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:assert","rel":"IMPLEMENTS","to":"capability:Guard"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:chart","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:chart","rel":"IMPLEMENTS","to":"capability:MediaRenderer"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:compose","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:compose","rel":"IMPLEMENTS","to":"capability:SelfChecker"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:convert","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:convert","rel":"IMPLEMENTS","to":"capability:FormatConverter"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:convert","rel":"IMPLEMENTS","to":"capability:StructuredRecordSource"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:date","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:date","rel":"IMPLEMENTS","to":"capability:Clock"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:decide","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:decide","rel":"IMPLEMENTS","to":"capability:DeterministicDecider"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:done","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:edit","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:edit","rel":"IMPLEMENTS","to":"capability:ArtifactEditor"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:emit","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:emit","rel":"IMPLEMENTS","to":"capability:Emitter"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:fetch","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:fetch","rel":"IMPLEMENTS","to":"capability:ExternalMutator"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:fetch","rel":"IMPLEMENTS","to":"capability:RemoteResourceSource"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:glob","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:glob","rel":"IMPLEMENTS","to":"capability:EnumerableSource"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:grep","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:grep","rel":"IMPLEMENTS","to":"capability:SearchableCorpus"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:hash","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:hash","rel":"IMPLEMENTS","to":"capability:Hasher"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:image_fx","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:image_fx","rel":"IMPLEMENTS","to":"capability:MediaRenderer"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:image_generate","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:image_generate","rel":"IMPLEMENTS","to":"capability:MediaRenderer"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:inspect","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:inspect","rel":"IMPLEMENTS","to":"capability:RunIntrospector"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:jq","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:jq","rel":"IMPLEMENTS","to":"capability:Aggregator"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:jq","rel":"IMPLEMENTS","to":"capability:Classifier"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:jq","rel":"IMPLEMENTS","to":"capability:Ranker"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:jq","rel":"IMPLEMENTS","to":"capability:RecordTransformer"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:json_diff","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:json_diff","rel":"IMPLEMENTS","to":"capability:Comparator"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:json_merge_patch","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:json_merge_patch","rel":"IMPLEMENTS","to":"capability:RecordTransformer"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:log","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:log","rel":"IMPLEMENTS","to":"capability:Emitter"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:notify","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:notify","rel":"IMPLEMENTS","to":"capability:Notifier"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:prompt","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:prompt","rel":"IMPLEMENTS","to":"capability:HumanApprovalGate"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:read","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:read","rel":"IMPLEMENTS","to":"capability:ReadableSource"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:remove_file","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:tts_generate","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:tts_generate","rel":"IMPLEMENTS","to":"capability:MediaRenderer"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:uuid","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:uuid","rel":"IMPLEMENTS","to":"capability:Clock"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:validate","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:validate","rel":"IMPLEMENTS","to":"capability:Validator"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:wait","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:wait","rel":"IMPLEMENTS","to":"capability:Waiter"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:write","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:write","rel":"IMPLEMENTS","to":"capability:ArtifactWriter"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:after","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":7},"from":"construct:after","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:after.unwind","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:after.unwind","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:agent","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:agent","rel":"IMPLEMENTS","to":"capability:AgenticResearch"}
+{"attrs":{"source":"foundry.probes","verified_count":6},"from":"construct:agent","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:agent.skills","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:agent.skills","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:const","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:const","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:exec","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:exec","rel":"IMPLEMENTS","to":"capability:ProcessRunner"}
+{"attrs":{"source":"foundry.probes","verified_count":6},"from":"construct:exec","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:extract","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:extract","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:for_each","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":6},"from":"construct:for_each","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:gate","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":2},"from":"construct:gate","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:group","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:group","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:infer","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:infer","rel":"IMPLEMENTS","to":"capability:Classifier"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:infer","rel":"IMPLEMENTS","to":"capability:Drafter"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:infer","rel":"IMPLEMENTS","to":"capability:StructuredExtractor"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:infer","rel":"IMPLEMENTS","to":"capability:Summarizer"}
+{"attrs":{"source":"foundry.probes","verified_count":10},"from":"construct:infer","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:infer.schema","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:infer.schema","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:inputs","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":2},"from":"construct:inputs","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:invoke.tool","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":3},"from":"construct:invoke.tool","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:invoke.workflow","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:invoke.workflow","rel":"IMPLEMENTS","to":"capability:SubworkflowCallable"}
+{"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:invoke.workflow","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:lift","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":4},"from":"construct:lift","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:model","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:model","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:nika","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:nika","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:on_error","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":4},"from":"construct:on_error","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:outputs","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":5},"from":"construct:outputs","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:permits","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":10},"from":"construct:permits","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:retry","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":2},"from":"construct:retry","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:returns","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":4},"from":"construct:returns","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:run","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:run","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:secrets","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":4},"from":"construct:secrets","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:secrets.egress","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":3},"from":"construct:secrets.egress","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:tasks","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:tasks","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:timeout","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":2},"from":"construct:timeout","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:when","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:when","rel":"IMPLEMENTS","to":"capability:Guard"}
+{"attrs":{"source":"foundry.probes","verified_count":5},"from":"construct:when","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:with","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"foundry.probes","verified_count":7},"from":"construct:with","rel":"VERIFIED_BY","to":"src:probes"}
+{"attrs":{"because":"verbatim copy of conformance/dag/body-ref-outside-boundary-reject.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:dag-body-ref-outside-boundary-reject","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/dag/cycle-reject.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:dag-cycle-reject","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/dag/recover-ref-downstream-reject.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:dag-recover-ref-downstream-reject","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/dag/undeclared-dep-reject.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:dag-undeclared-dep-reject","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/parse-bad-nika-id.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-parse-bad-nika-id","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/parse-bad-task-id.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-parse-bad-task-id","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/parse-duplicate-task-id.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-parse-duplicate-task-id","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/parse-inline-secret-forbidden.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-parse-inline-secret-forbidden","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/parse-missing-nika-key.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-parse-missing-nika-key","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/parse-reserved-binding-name.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-parse-reserved-binding-name","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/parse-task-no-verb.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-parse-task-no-verb","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/parse-unknown-field.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-parse-unknown-field","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/parse-yaml-syntax-reject.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-parse-yaml-syntax-reject","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/permits-agent-tool-outside-whitelist.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-permits-agent-tool-outside-whitelist","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/permits-exec-absent.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-permits-exec-absent","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/permits-fs-read-escape.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-permits-fs-read-escape","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/permits-fs-write-escape-absolute.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-permits-fs-write-escape-absolute","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/permits-net-absent.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-permits-net-absent","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/permits-tool-not-listed.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-permits-tool-not-listed","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/sec-ssrf-localhost-blocked.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-sec-ssrf-localhost-blocked","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/sec-ssrf-metadata-blocked.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-sec-ssrf-metadata-blocked","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/sec-ssrf-private-range-blocked.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-sec-ssrf-private-range-blocked","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/secrets-direct-output-egress-refused.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-secrets-direct-output-egress-refused","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/secrets-launder-concat.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-secrets-launder-concat","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/secrets-leak-exec-sink.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-secrets-leak-exec-sink","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/secrets-leak-infer-prompt.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-secrets-leak-infer-prompt","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/secrets-leak-outputs-boundary.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-secrets-leak-outputs-boundary","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/secrets-two-sinks-one-sanctioned.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-secrets-two-sinks-one-sanctioned","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/envelope/trifecta-realized-flow-ungated.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:envelope-trifecta-realized-flow-ungated","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/variables/arithmetic-rejected.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:variables-arithmetic-rejected","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/variables/jq-expression-static-reject.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:variables-jq-expression-static-reject","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/variables/missing-task-ref-reject.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:variables-missing-task-ref-reject","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/variables/static-type-error-reject.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:variables-static-type-error-reject","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/variables/unclosed-island-reject.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:variables-unclosed-island-reject","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/variables/unresolved-ref-reject.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:variables-unresolved-ref-reject","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/variables/when-bare-ref-reject.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:variables-when-bare-ref-reject","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/variables/when-string-literal-reject.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:variables-when-string-literal-reject","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of conformance/verbs/invoke-unknown-tool-reject.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:verbs-invoke-unknown-tool-reject","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
+{"attrs":{"because":"verbatim copy of examples/01-hello.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:01-hello","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:01-hello","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:01-hello","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:01-hello","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:01-hello","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"because":"verbatim copy of examples/02-parallel-fanout.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:02-parallel-fanout","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:02-parallel-fanout","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:02-parallel-fanout","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:02-parallel-fanout","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:02-parallel-fanout","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:02-parallel-fanout","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:02-parallel-fanout","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/03-exec-pipeline.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:03-exec-pipeline","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:03-exec-pipeline","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:03-exec-pipeline","rel":"USES_CONSTRUCT","to":"construct:after.unwind"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:03-exec-pipeline","rel":"USES_CONSTRUCT","to":"construct:exec"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:03-exec-pipeline","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:03-exec-pipeline","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:03-exec-pipeline","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:03-exec-pipeline","rel":"USES_CONSTRUCT","to":"construct:run"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:03-exec-pipeline","rel":"USES_CONSTRUCT","to":"construct:timeout"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:03-exec-pipeline","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:03-exec-pipeline","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/04-schema-retry.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:04-schema-retry","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:04-schema-retry","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:04-schema-retry","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:04-schema-retry","rel":"USES_CONSTRUCT","to":"construct:inputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:04-schema-retry","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:04-schema-retry","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:04-schema-retry","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:04-schema-retry","rel":"USES_CONSTRUCT","to":"construct:retry"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:04-schema-retry","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/05-fetch-chain.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:05-fetch-chain","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:05-fetch-chain","rel":"USES_CALLABLE","to":"callable:nika:fetch"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:05-fetch-chain","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:05-fetch-chain","rel":"USES_CONSTRUCT","to":"construct:extract"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:05-fetch-chain","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:05-fetch-chain","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:05-fetch-chain","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:05-fetch-chain","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:05-fetch-chain","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:05-fetch-chain","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:05-fetch-chain","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/06-code-review.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:06-code-review","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:06-code-review","rel":"USES_CALLABLE","to":"callable:nika:done"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:06-code-review","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:06-code-review","rel":"USES_CONSTRUCT","to":"construct:agent"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:06-code-review","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:06-code-review","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:06-code-review","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:06-code-review","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"because":"verbatim copy of examples/07-for-each-locales.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:07-for-each-locales","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:07-for-each-locales","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:07-for-each-locales","rel":"USES_CONSTRUCT","to":"construct:for_each"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:07-for-each-locales","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:07-for-each-locales","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:07-for-each-locales","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:07-for-each-locales","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:07-for-each-locales","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:07-for-each-locales","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/08-config-values.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:08-config-values","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:08-config-values","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:08-config-values","rel":"USES_CALLABLE","to":"callable:nika:log"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:08-config-values","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:08-config-values","rel":"USES_CONSTRUCT","to":"construct:inputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:08-config-values","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:08-config-values","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:08-config-values","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:08-config-values","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:08-config-values","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/09-returns-typed-door.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:09-returns-typed-door","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:09-returns-typed-door","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:09-returns-typed-door","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:09-returns-typed-door","rel":"USES_CONSTRUCT","to":"construct:inputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:09-returns-typed-door","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:09-returns-typed-door","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:09-returns-typed-door","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:09-returns-typed-door","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:09-returns-typed-door","rel":"USES_CONSTRUCT","to":"construct:returns"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:09-returns-typed-door","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/10-compose-child.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:10-compose-child","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:10-compose-child","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:10-compose-child","rel":"USES_CONSTRUCT","to":"construct:inputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:10-compose-child","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:10-compose-child","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:10-compose-child","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"because":"verbatim copy of examples/10-compose-pipeline.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:10-compose-pipeline","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:10-compose-pipeline","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:10-compose-pipeline","rel":"USES_CONSTRUCT","to":"construct:inputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:10-compose-pipeline","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:10-compose-pipeline","rel":"USES_CONSTRUCT","to":"construct:invoke.workflow"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:10-compose-pipeline","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:10-compose-pipeline","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:10-compose-pipeline","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:10-compose-pipeline","rel":"USES_CONSTRUCT","to":"construct:returns"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:10-compose-pipeline","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/11-lift-the-door.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:11-lift-the-door","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:11-lift-the-door","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:11-lift-the-door","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:11-lift-the-door","rel":"USES_CONSTRUCT","to":"construct:inputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:11-lift-the-door","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:11-lift-the-door","rel":"USES_CONSTRUCT","to":"construct:lift"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:11-lift-the-door","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:11-lift-the-door","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:11-lift-the-door","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/12-failure-routing.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:12-failure-routing","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:12-failure-routing","rel":"USES_CALLABLE","to":"callable:nika:assert"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:12-failure-routing","rel":"USES_CALLABLE","to":"callable:nika:log"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:12-failure-routing","rel":"USES_CALLABLE","to":"callable:nika:write"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:12-failure-routing","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:12-failure-routing","rel":"USES_CONSTRUCT","to":"construct:after.unwind"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:12-failure-routing","rel":"USES_CONSTRUCT","to":"construct:inputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:12-failure-routing","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:12-failure-routing","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:12-failure-routing","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:12-failure-routing","rel":"USES_CONSTRUCT","to":"construct:timeout"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:12-failure-routing","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"because":"verbatim copy of examples/13-extract-then-law.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:13-extract-then-law","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:13-extract-then-law","rel":"USES_CALLABLE","to":"callable:nika:assert"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:13-extract-then-law","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:13-extract-then-law","rel":"USES_CALLABLE","to":"callable:nika:log"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:13-extract-then-law","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:13-extract-then-law","rel":"USES_CONSTRUCT","to":"construct:for_each"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:13-extract-then-law","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:13-extract-then-law","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:13-extract-then-law","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:13-extract-then-law","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:13-extract-then-law","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:13-extract-then-law","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:13-extract-then-law","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:13-extract-then-law","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/14-decide-publish.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:14-decide-publish","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:14-decide-publish","rel":"USES_CALLABLE","to":"callable:nika:assert"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:14-decide-publish","rel":"USES_CALLABLE","to":"callable:nika:decide"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:14-decide-publish","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:14-decide-publish","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:14-decide-publish","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:14-decide-publish","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:14-decide-publish","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/15-compose-self-check.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:15-compose-self-check","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:15-compose-self-check","rel":"USES_CALLABLE","to":"callable:nika:compose"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:15-compose-self-check","rel":"USES_CALLABLE","to":"callable:nika:done"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:15-compose-self-check","rel":"USES_CONSTRUCT","to":"construct:agent"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:15-compose-self-check","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:15-compose-self-check","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:15-compose-self-check","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"because":"verbatim copy of examples/16-inspect-self.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:16-inspect-self","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:16-inspect-self","rel":"USES_CALLABLE","to":"callable:nika:assert"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:16-inspect-self","rel":"USES_CALLABLE","to":"callable:nika:inspect"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:16-inspect-self","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:16-inspect-self","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:16-inspect-self","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:16-inspect-self","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:16-inspect-self","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/17-tts-self.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:17-tts-self","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:17-tts-self","rel":"USES_CALLABLE","to":"callable:nika:assert"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:17-tts-self","rel":"USES_CALLABLE","to":"callable:nika:tts_generate"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:17-tts-self","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:17-tts-self","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:17-tts-self","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:17-tts-self","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:17-tts-self","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/18-bounded-batch.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:18-bounded-batch","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:18-bounded-batch","rel":"USES_CALLABLE","to":"callable:nika:assert"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:18-bounded-batch","rel":"USES_CALLABLE","to":"callable:nika:validate"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:18-bounded-batch","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:18-bounded-batch","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:18-bounded-batch","rel":"USES_CONSTRUCT","to":"construct:for_each"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:18-bounded-batch","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:18-bounded-batch","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:18-bounded-batch","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:18-bounded-batch","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:18-bounded-batch","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:18-bounded-batch","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:18-bounded-batch","rel":"USES_CONSTRUCT","to":"construct:run"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:18-bounded-batch","rel":"USES_CONSTRUCT","to":"construct:timeout"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:18-bounded-batch","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/19-validate-records.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:19-validate-records","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:19-validate-records","rel":"USES_CALLABLE","to":"callable:nika:assert"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:19-validate-records","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:19-validate-records","rel":"USES_CALLABLE","to":"callable:nika:validate"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:19-validate-records","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:19-validate-records","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:19-validate-records","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:19-validate-records","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:19-validate-records","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:19-validate-records","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/20-snapshot-diff.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:20-snapshot-diff","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:20-snapshot-diff","rel":"USES_CALLABLE","to":"callable:nika:assert"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:20-snapshot-diff","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:20-snapshot-diff","rel":"USES_CALLABLE","to":"callable:nika:validate"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:20-snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:20-snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:20-snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:20-snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:20-snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:20-snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/21-deduplicate-records.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:21-deduplicate-records","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:21-deduplicate-records","rel":"USES_CALLABLE","to":"callable:nika:assert"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:21-deduplicate-records","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:21-deduplicate-records","rel":"USES_CALLABLE","to":"callable:nika:validate"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:21-deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:21-deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:21-deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:21-deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:21-deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:21-deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/22-project-public-fields.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:22-project-public-fields","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:22-project-public-fields","rel":"USES_CALLABLE","to":"callable:nika:assert"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:22-project-public-fields","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:22-project-public-fields","rel":"USES_CALLABLE","to":"callable:nika:validate"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:22-project-public-fields","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:22-project-public-fields","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:22-project-public-fields","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:22-project-public-fields","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:22-project-public-fields","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:22-project-public-fields","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:22-project-public-fields","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:22-project-public-fields","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:22-project-public-fields","rel":"USES_CONSTRUCT","to":"construct:run"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:22-project-public-fields","rel":"USES_CONSTRUCT","to":"construct:timeout"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:22-project-public-fields","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/23-parallel-review.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:23-parallel-review","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:23-parallel-review","rel":"USES_CALLABLE","to":"callable:nika:assert"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:23-parallel-review","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:23-parallel-review","rel":"USES_CALLABLE","to":"callable:nika:validate"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:23-parallel-review","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:23-parallel-review","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:23-parallel-review","rel":"USES_CONSTRUCT","to":"construct:for_each"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:23-parallel-review","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:23-parallel-review","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:23-parallel-review","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:23-parallel-review","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:23-parallel-review","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:23-parallel-review","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:23-parallel-review","rel":"USES_CONSTRUCT","to":"construct:run"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:23-parallel-review","rel":"USES_CONSTRUCT","to":"construct:timeout"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:23-parallel-review","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/24-recover-optional-file.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:24-recover-optional-file","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:24-recover-optional-file","rel":"USES_CALLABLE","to":"callable:nika:assert"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:24-recover-optional-file","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:24-recover-optional-file","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:24-recover-optional-file","rel":"USES_CALLABLE","to":"callable:nika:validate"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:24-recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:24-recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:24-recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:24-recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:24-recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:24-recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:24-recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:retry"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:24-recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:run"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:24-recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:timeout"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:24-recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"verbatim copy of examples/25-aggregate-by-key.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"example:pack:25-aggregate-by-key","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:25-aggregate-by-key","rel":"USES_CALLABLE","to":"callable:nika:assert"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:25-aggregate-by-key","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:25-aggregate-by-key","rel":"USES_CALLABLE","to":"callable:nika:validate"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:25-aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:25-aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:25-aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:25-aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:25-aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-spec-cases"},"from":"example:pack:25-aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pack:business-intents-20261007","rel":"CONTAINS","to":"pattern:business/async-artifact-materialization"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pack:business-intents-20261007","rel":"CONTAINS","to":"pattern:business/dynamic-worker-result-ledger"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pack:business-intents-20261007","rel":"CONTAINS","to":"pattern:business/event-identity-reconcile"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pack:business-intents-20261007","rel":"CONTAINS","to":"pattern:business/evidence-grounded-escalation"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pack:business-intents-20261007","rel":"CONTAINS","to":"pattern:business/multimodal-normalized-record"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pack:business-intents-20261007","rel":"CONTAINS","to":"pattern:business/paginated-keyed-scan"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pack:business-intents-20261007","rel":"CONTAINS","to":"pattern:business/provenance-preserving-patch"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pack:business-intents-20261007","rel":"CONTAINS","to":"pattern:business/revision-aware-resume"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pattern:business/async-artifact-materialization","rel":"DERIVED_FROM","to":"src:business-intents:20261007"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/async-artifact-materialization","rel":"REQUIRES_CAPABILITY","to":"capability:ArtifactWriter"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/async-artifact-materialization","rel":"REQUIRES_CAPABILITY","to":"capability:RemoteResourceSource"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/async-artifact-materialization","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/async-artifact-materialization","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/async-artifact-materialization","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/async-artifact-materialization","rel":"USES_CONSTRUCT","to":"construct:retry"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/async-artifact-materialization","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pattern:business/dynamic-worker-result-ledger","rel":"DERIVED_FROM","to":"src:business-intents:20261007"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/dynamic-worker-result-ledger","rel":"REQUIRES_CAPABILITY","to":"capability:Aggregator"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/dynamic-worker-result-ledger","rel":"REQUIRES_CAPABILITY","to":"capability:SubworkflowCallable"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/dynamic-worker-result-ledger","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/dynamic-worker-result-ledger","rel":"USES_CONSTRUCT","to":"construct:agent"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/dynamic-worker-result-ledger","rel":"USES_CONSTRUCT","to":"construct:for_each"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/dynamic-worker-result-ledger","rel":"USES_CONSTRUCT","to":"construct:invoke.workflow"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/dynamic-worker-result-ledger","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pattern:business/event-identity-reconcile","rel":"DERIVED_FROM","to":"src:business-intents:20261007"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/event-identity-reconcile","rel":"REQUIRES_CAPABILITY","to":"capability:Comparator"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/event-identity-reconcile","rel":"REQUIRES_CAPABILITY","to":"capability:ExternalMutator"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/event-identity-reconcile","rel":"USES_CONSTRUCT","to":"construct:inputs"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/event-identity-reconcile","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/event-identity-reconcile","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/event-identity-reconcile","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/event-identity-reconcile","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pattern:business/evidence-grounded-escalation","rel":"DERIVED_FROM","to":"src:business-intents:20261007"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/evidence-grounded-escalation","rel":"REQUIRES_CAPABILITY","to":"capability:AgenticResearch"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/evidence-grounded-escalation","rel":"REQUIRES_CAPABILITY","to":"capability:StructuredExtractor"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/evidence-grounded-escalation","rel":"USES_CONSTRUCT","to":"construct:agent"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/evidence-grounded-escalation","rel":"USES_CONSTRUCT","to":"construct:agent.skills"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/evidence-grounded-escalation","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/evidence-grounded-escalation","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/evidence-grounded-escalation","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pattern:business/multimodal-normalized-record","rel":"DERIVED_FROM","to":"src:business-intents:20261007"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/multimodal-normalized-record","rel":"REQUIRES_CAPABILITY","to":"capability:StructuredExtractor"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/multimodal-normalized-record","rel":"REQUIRES_CAPABILITY","to":"capability:Validator"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/multimodal-normalized-record","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/multimodal-normalized-record","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/multimodal-normalized-record","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/multimodal-normalized-record","rel":"USES_CONSTRUCT","to":"construct:returns"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/multimodal-normalized-record","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pattern:business/paginated-keyed-scan","rel":"DERIVED_FROM","to":"src:business-intents:20261007"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/paginated-keyed-scan","rel":"REQUIRES_CAPABILITY","to":"capability:RecordTransformer"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/paginated-keyed-scan","rel":"REQUIRES_CAPABILITY","to":"capability:RemoteResourceSource"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/paginated-keyed-scan","rel":"USES_CONSTRUCT","to":"construct:for_each"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/paginated-keyed-scan","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/paginated-keyed-scan","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/paginated-keyed-scan","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pattern:business/provenance-preserving-patch","rel":"DERIVED_FROM","to":"src:business-intents:20261007"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/provenance-preserving-patch","rel":"REQUIRES_CAPABILITY","to":"capability:Comparator"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/provenance-preserving-patch","rel":"REQUIRES_CAPABILITY","to":"capability:ExternalMutator"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/provenance-preserving-patch","rel":"REQUIRES_CAPABILITY","to":"capability:StructuredExtractor"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/provenance-preserving-patch","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/provenance-preserving-patch","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/provenance-preserving-patch","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/provenance-preserving-patch","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:business-scenarios-v1"},"from":"pattern:business/revision-aware-resume","rel":"DERIVED_FROM","to":"src:business-intents:20261007"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/revision-aware-resume","rel":"REQUIRES_CAPABILITY","to":"capability:Comparator"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/revision-aware-resume","rel":"REQUIRES_CAPABILITY","to":"capability:SubworkflowCallable"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/revision-aware-resume","rel":"USES_CONSTRUCT","to":"construct:invoke.workflow"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/revision-aware-resume","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/revision-aware-resume","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:business-scenarios-v1","status":"CANDIDATE"},"from":"pattern:business/revision-aware-resume","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:aggregate-number","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:aggregate-number","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:compare-snapshots","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:compare-snapshots","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:declared-zero","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:declared-zero","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:group-by","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:group-by","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:guard-on-value","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:guard-on-value","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:join-sources","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:join-sources","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:parse-json-document","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:parse-json-document","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:read-known-file","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:read-known-file","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:read-many-files","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:read-many-files","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:typed-output","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:typed-output","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:validate-records","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:validate-records","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:write-artifact","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:write-artifact","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/agent-loop","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/agent-loop","rel":"USES_CONSTRUCT","to":"construct:agent"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/agent-loop","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/agent-loop","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/agent-loop","rel":"USES_CONSTRUCT","to":"construct:inputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/agent-loop","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/agent-loop","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/agent-loop","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/agent-loop","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/agent-loop","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/aggregate-by-key","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/api-upload-and-create","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/api-upload-and-create","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/api-upload-and-create","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/api-upload-and-create","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/api-upload-and-create","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/api-upload-and-create","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/api-upload-and-create","rel":"USES_CONSTRUCT","to":"construct:secrets"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/api-upload-and-create","rel":"USES_CONSTRUCT","to":"construct:secrets.egress"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/bounded-batch","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:for_each"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:run"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:timeout"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/chain","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/chain","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/chain","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/chain","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/chain","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/chain","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/chain","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/chain","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/chain","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/classify-and-route","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/classify-and-route","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/classify-and-route","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/classify-and-route","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/classify-and-route","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/classify-and-route","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/classify-and-route","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/classify-and-route","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/classify-and-route","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/corpus-qa","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/deduplicate-records","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/docker-report","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/docker-report","rel":"USES_CONSTRUCT","to":"construct:exec"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/docker-report","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/docker-report","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/docker-report","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/docker-report","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/docker-report","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/docker-report","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/docker-report","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/document-to-fields","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/document-to-fields","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/document-to-fields","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/document-to-fields","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/document-to-fields","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/document-to-fields","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/document-to-fields","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/document-to-fields","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/document-to-fields","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/document-to-fields","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/etl-state","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/etl-state","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/etl-state","rel":"USES_CONSTRUCT","to":"construct:gate"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/etl-state","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/etl-state","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/etl-state","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/etl-state","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/etl-state","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/etl-state","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/evaluate-and-optimize","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/evaluate-and-optimize","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/evaluate-and-optimize","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/evaluate-and-optimize","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/evaluate-and-optimize","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/evaluate-and-optimize","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/evaluate-and-optimize","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/evaluate-and-optimize","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/fanout","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:for_each"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:retry"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:run"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:timeout"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/gate-and-act","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:extract"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:secrets"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:secrets.egress"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/hello","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/hello","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/hello","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/hello","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/hello","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/human-gated-ship","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:exec"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:gate"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:secrets"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:secrets.egress"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:when"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/media-asset-pack","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/media-asset-pack","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/media-asset-pack","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/media-asset-pack","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/media-asset-pack","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/media-asset-pack","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/media-asset-pack","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/media-asset-pack","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/media-asset-pack","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/media-asset-pack","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/parallel-review","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:for_each"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:run"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:timeout"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/project-public-fields","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:run"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:timeout"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/recover-optional-file","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:retry"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:run"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:timeout"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/snapshot-diff","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/validate-records","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/validate-records","rel":"USES_CONSTRUCT","to":"construct:after"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/validate-records","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/validate-records","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/validate-records","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/validate-records","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/validate-records","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/website-brief","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/website-brief","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/website-brief","rel":"USES_CONSTRUCT","to":"construct:infer"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/website-brief","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/website-brief","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/website-brief","rel":"USES_CONSTRUCT","to":"construct:model"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/website-brief","rel":"USES_CONSTRUCT","to":"construct:on_error"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/website-brief","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/website-brief","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/website-brief","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"because":"observed in a paired evaluation: one skill alone solved a case that the pair did not","observed_count":1,"source":"authored:foundry-v0-conflicts"},"from":"skill:batch-process-and-report","rel":"CONFLICTS_WITH","to":"skill:validate-and-quarantine"}
+{"attrs":{"because":"observed in a paired evaluation: one skill alone solved a case that the pair did not","observed_count":1,"source":"authored:foundry-v0-conflicts"},"from":"skill:classify-and-route","rel":"CONFLICTS_WITH","to":"skill:transform-and-publish"}
+{"attrs":{"because":"observed in a paired evaluation: one skill alone solved a case that the pair did not","observed_count":1,"source":"authored:foundry-v0-conflicts"},"from":"skill:deduplicate-and-reconcile","rel":"CONFLICTS_WITH","to":"skill:transform-and-publish"}
+{"attrs":{"because":"observed in a paired evaluation: one skill alone solved a case that the pair did not","observed_count":1,"source":"authored:foundry-v0-conflicts"},"from":"skill:parallel-analysis-and-synthesis","rel":"CONFLICTS_WITH","to":"skill:validate-and-quarantine"}
+{"attrs":{"because":"observed in a paired evaluation: one skill alone solved a case that the pair did not","observed_count":1,"source":"authored:foundry-v0-conflicts"},"from":"skill:transform-and-publish","rel":"CONFLICTS_WITH","to":"skill:classify-and-route"}
+{"attrs":{"because":"observed in a paired evaluation: one skill alone solved a case that the pair did not","observed_count":1,"source":"authored:foundry-v0-conflicts"},"from":"skill:transform-and-publish","rel":"CONFLICTS_WITH","to":"skill:deduplicate-and-reconcile"}
+{"attrs":{"because":"observed in a paired evaluation: one skill alone solved a case that the pair did not","observed_count":1,"source":"authored:foundry-v0-conflicts"},"from":"skill:validate-and-quarantine","rel":"CONFLICTS_WITH","to":"skill:batch-process-and-report"}
+{"attrs":{"because":"observed in a paired evaluation: one skill alone solved a case that the pair did not","observed_count":1,"source":"authored:foundry-v0-conflicts"},"from":"skill:validate-and-quarantine","rel":"CONFLICTS_WITH","to":"skill:parallel-analysis-and-synthesis"}

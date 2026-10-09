@@ -46,10 +46,14 @@ mod batched;
 /// The questions a localization that stops, and a doubt held by its cause, kept beside this file
 /// to bound its size.
 mod declined;
+/// What the judged bytes hold of the lent catalogue, told to every question judging them.
+mod held;
 /// The questions over a run of these bytes.
 mod observed;
 /// Which part a task question may call an operation no task performs.
 mod omittable;
+/// A clause a revision's change replaces, over a run of the revised bytes.
+mod superseded;
 
 /// The model the authoring provider is seated as when it judges.
 const MODEL: &str = "mock/judge";
@@ -726,7 +730,7 @@ async fn a_prohibition_is_never_offered_omitted_and_a_conditional_is() {
         &mut verdict,
         &mut out,
     );
-    assert!(matches!(pointed.await, Some(Pointed::Omitted)));
+    assert!(matches!(pointed.await, Some(Pointed::Defect(note)) if note == OMITTED));
     let asked = &verdict.records[0];
     assert_eq!(asked["options"], json!(POINTER));
     assert_eq!(
@@ -766,7 +770,7 @@ async fn a_computation_part_judged_missing_may_be_an_operation_no_task_performs(
     );
     let pointed = pointed.await;
     assert_eq!(verdict.records[0]["options"], json!(POINTER));
-    assert!(matches!(pointed, Some(Pointed::Omitted)));
+    assert!(matches!(pointed, Some(Pointed::Defect(note)) if note == OMITTED));
     let judge = Scripted::new(pointing(3, 1, Choose("omitted")));
     let Judged { verdict, .. } = provided(intent, &judge, None).await;
     let located = found(&[(sum, OMITTED)], &[], &[], &["unfaithful"], &[]);

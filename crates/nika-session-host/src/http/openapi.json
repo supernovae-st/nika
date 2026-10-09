@@ -1,0 +1,165 @@
+{
+  "paths": {
+    "/v1/sessions": {
+      "post": {
+        "summary": "Open the project's native Session, or name the live one",
+        "description": "Only on a server its operator started with sessions (health capability `sessionHost`). The Session opens as bare `nika` opens it in the server's project: the server's kept intelligence choice and census, its HOME history (recovery notice and restored state in `notices`). One live Session per project: its history is one per (HOME, project). A second open answers 409 `session_live` with the live Session's identity to attach to. A history held elsewhere (a terminal Session on that project) answers 409 `session_unavailable` with the Session's own refusal. No field names a path, a model, a provider or a key.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["contract"],
+                "properties": {
+                  "contract": {"const": "nika/session-host@1"},
+                  "intelligence": {
+                    "type": "string",
+                    "description": "The intelligence this conversation selects, in the census's own first-screen words (`1 [acp:]<app>[/<model>]`, `2 [<provider>[/<model>]]`, `3 [<engine>[/<model>]]`, `4`), resolved against this server's census and configuration. It holds for this conversation only: the server's kept choice is neither read nor written. Words the census does not read answer 409 `session_unavailable` with its fix. Never an endpoint or a key."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {"description": "The `opened` frame (event 1)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
+          "400": {"description": "A `refused` frame: malformed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
+          "401": {"description": "Missing or wrong bearer token", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "409": {"description": "A `refused` frame: session_live or session_unavailable", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
+          "415": {"description": "Not application/json", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      }
+    },
+    "/v1/sessions/{session}": {
+      "parameters": [{"$ref": "#/components/parameters/SessionId"}],
+      "get": {
+        "summary": "The current snapshot",
+        "description": "Never waits on a turn: `snapshot.busy` names the command under way and its phase (`preparing`, `running`, `settling`).",
+        "responses": {
+          "200": {"description": "A `snapshot` frame", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
+          "404": {"description": "A `refused` frame: session_not_found (unknown, closed, or another incarnation)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}}
+        }
+      },
+      "delete": {
+        "summary": "Close the Session",
+        "description": "A preparation under way is stopped, nothing more is admitted, the turn under way settles, the runtime releases its history, and `closed` ends the log. A Run under way is not stopped by closing: the close waits for it.",
+        "responses": {
+          "200": {"description": "The `closed` frame (the last event)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
+          "404": {"description": "A `refused` frame: session_not_found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}}
+        }
+      }
+    },
+    "/v1/sessions/{session}/details": {
+      "parameters": [{"$ref": "#/components/parameters/SessionId"}],
+      "get": {
+        "summary": "The details card of the current snapshot",
+        "description": "The Session's own `/details` text, captured when that snapshot was published; it answers while a provider call runs and stops nothing.",
+        "responses": {
+          "200": {"description": "A `details` frame", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
+          "404": {"description": "A `refused` frame: session_not_found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}}
+        }
+      }
+    },
+    "/v1/sessions/{session}/commands": {
+      "parameters": [{"$ref": "#/components/parameters/SessionId"}],
+      "post": {
+        "summary": "Submit a line against a snapshot, or stop the preparation under way",
+        "description": "A submit reaches the Session only when it names the CURRENT snapshot; the Session receives that snapshot's retained `Waiting`, never one rebuilt from the request. A command identity already known answers first: the same bytes (op, snapshot, line) return the recorded result with `replayed: true` (an original still running is awaited, never run twice); other bytes answer 409 command_conflict. One turn at a time: a submit during a turn answers 409 busy with its line returned unconsumed. The answer to a submit comes once it settled; no request deadline applies, and a disconnected request never cancels the accepted turn. A stop answers at once with its receipt (`stop_requested`, `nothing_to_stop`, `run_underway`); the settlement is the target command's own result.",
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionCommand"}}}
+        },
+        "responses": {
+          "200": {"description": "A `result` frame", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
+          "400": {"description": "A `refused` frame: malformed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
+          "401": {"description": "Missing or wrong bearer token", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "A `refused` frame: session_not_found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
+          "409": {"description": "A `refused` frame: stale_snapshot, unknown_snapshot, busy or command_conflict", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
+          "413": {"description": "Body over the server's limit", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "415": {"description": "Not application/json", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      }
+    },
+    "/v1/sessions/{session}/events": {
+      "parameters": [
+        {"$ref": "#/components/parameters/SessionId"},
+        {"name": "Last-Event-ID", "in": "header", "required": false, "schema": {"type": "string", "pattern": "^ses_[0-9a-f]+:[0-9]+$"}, "description": "`<session>:<event>` of this Session: the stream resumes after that event. Any other value (another Session or incarnation, beyond the log) gets one `resync` frame with the current snapshot, then the live events."}
+      ],
+      "get": {
+        "summary": "The Session's log as server-sent events",
+        "description": "Each event's `id` is `<session>:<event>` and its `data` one frame that carries `event`. The stream ends after `closed`. Aborting the stream stops nothing.",
+        "responses": {
+          "200": {"description": "text/event-stream of frames", "content": {"text/event-stream": {"schema": {"type": "string"}}}},
+          "404": {"description": "A `refused` frame: session_not_found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}}
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "SessionId": {"name": "session", "in": "path", "required": true, "schema": {"type": "string", "pattern": "^ses_[0-9a-f]{32}$"}}
+    },
+    "schemas": {
+      "SessionCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["contract", "op", "command"],
+        "properties": {
+          "contract": {"const": "nika/session-host@1"},
+          "op": {"enum": ["submit", "stop"]},
+          "command": {"type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$"},
+          "snapshot": {"type": "string", "description": "submit only: the handle of the snapshot the line was typed against"},
+          "line": {"type": "string", "description": "submit only: the line, exactly as typed"}
+        }
+      },
+      "SessionSnapshot": {
+        "type": "object",
+        "required": ["snapshot", "seq", "busy", "work"],
+        "properties": {
+          "snapshot": {"type": "string", "pattern": "^snp_"},
+          "seq": {"type": "integer", "minimum": 1, "description": "publish order, distinct from event numbers"},
+          "busy": {
+            "oneOf": [
+              {"type": "null"},
+              {"type": "object", "required": ["command", "phase", "stop_requested"], "properties": {"command": {"type": "string"}, "phase": {"enum": ["preparing", "running", "settling"]}, "stop_requested": {"type": "boolean"}}}
+            ]
+          },
+          "work": {"type": "object", "description": "The Session's `nika/session-work@0` snapshot, verbatim: `root` names the server's project world, paths are relative to it."}
+        }
+      },
+      "SessionOutcome": {
+        "type": "object",
+        "required": ["kind"],
+        "description": "One TurnOutcome, projected mechanically: reply, facts, help, aside, ask, cancelled (with `withdrawn` outcomes when a Stop withdrew a late result), quit, refusal (`class`), held and proposal (`proposal`), question (`key`), gate (`trace`, `task`), run_requested (`workflow`, `inputs` names only, `max_cost_usd`), resume_requested (`workflow`, `trace`, `answer`), run_review (`review`: the run waits at its fresh cost review), run_reviewed, run_not_started (nothing ran), run_unobserved (admitted, its end not observed: effects unknown), resumed, other.",
+        "properties": {"kind": {"type": "string"}, "text": {"type": "string"}}
+      },
+      "SessionFrame": {
+        "type": "object",
+        "required": ["contract", "frame", "session"],
+        "properties": {
+          "contract": {"const": "nika/session-host@1"},
+          "frame": {"enum": ["opened", "accepted", "activity", "result", "closed", "refused", "snapshot", "details", "resync"]},
+          "session": {"type": "string"},
+          "event": {"type": "integer", "minimum": 1, "description": "present on frames of the log; a replayed result keeps its original event"},
+          "command": {"type": "string"},
+          "op": {"enum": ["submit", "stop"]},
+          "replayed": {"type": "boolean"},
+          "outcomes": {"type": "array", "items": {"$ref": "#/components/schemas/SessionOutcome"}},
+          "receipt": {"enum": ["stop_requested", "nothing_to_stop", "run_underway"]},
+          "target": {"type": ["string", "null"]},
+          "error": {"enum": ["malformed", "session_not_found", "stale_snapshot", "unknown_snapshot", "busy", "command_conflict", "session_live", "session_unavailable"]},
+          "message": {"type": "string"},
+          "line": {"type": "string", "description": "the refused line, returned whole"},
+          "notices": {"type": "array", "items": {"type": "string"}},
+          "phase": {"type": "string"},
+          "note": {"type": "string"},
+          "done": {"type": "boolean"},
+          "text": {"type": "string"},
+          "snapshot": {"oneOf": [{"$ref": "#/components/schemas/SessionSnapshot"}, {"type": "string"}]}
+        }
+      }
+    }
+  }
+}

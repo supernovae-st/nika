@@ -21,10 +21,10 @@ use nika_trace::lineage::{Standing, lineage_of};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use super::{IntentDraft, Refusal, RefusalClass, SessionRuntime, TurnOutcome};
+use super::{ConversationChoice, IntentDraft, Refusal, RefusalClass, SessionRuntime, TurnOutcome};
 use crate::change::{Applied, ApplyAttempt, PendingGate, ProjectChangeSet};
 use crate::consent::{CONSENTS_FILE, ConsentDecision, ConsentRecord};
-use crate::intelligence::now_rfc3339;
+use crate::intelligence::{IntelligenceKind, ResolvedSessionIntelligence, now_rfc3339};
 use crate::outcome::ProposalId;
 use crate::state::{Pending, STATE_FILE, SessionState};
 
@@ -38,6 +38,28 @@ pub(super) struct PreparationBefore {
 }
 
 impl SessionRuntime {
+    /// A kept choice its history could not read stays this conversation's: unavailable with its
+    /// reason until chosen again, kept unchanged; never the operator's default in its place.
+    fn unreadable_choice(&mut self, raw: serde_json::Value, error: &str) {
+        let why = format!(
+            "this conversation's kept intelligence choice is unreadable ({error}) · `/intelligence` chooses again"
+        );
+        let resolved = ResolvedSessionIntelligence {
+            kind: IntelligenceKind::None,
+            model: None,
+            locus: crate::intelligence::DataLocus::None,
+            ready: false,
+            why: Some(why),
+        };
+        if let Some(factory) = &self.factory {
+            self.reasoner = factory(&resolved);
+        }
+        self.intelligence = resolved;
+        self.refresh_seat();
+        self.chosen = true;
+        self.conversation = Some(ConversationChoice::Unreadable(raw));
+    }
+
     /// Enable private, project-bound conversation history below `home/.nika`.
     ///
     /// Rebuilds the conversation projection and returns a notice on recovery.
@@ -79,8 +101,19 @@ impl SessionRuntime {
         self.last_workflow =
             nika_onboard::compile::program_records::last_saved(self.programs.as_ref())
                 .map(PathBuf::from);
+        // Its program record says a consent saved it.
+        self.consented.clone_from(&self.last_workflow);
         self.recent.clone_from(&history.state.recent);
         self.kept_run.clone_from(&history.state.last_run);
+        // This conversation's own explicit choice resumes, servable or not (its fix said): never
+        // the operator's default instead, unless the opener named another, which replaces it.
+        let opener = self.conversation.is_some();
+        if let (false, Some(raw)) = (opener, history.state.selection.clone()) {
+            match serde_json::from_value(raw.clone()) {
+                Ok(pref) => self.adopt(pref),
+                Err(error) => self.unreadable_choice(raw, &error.to_string()),
+            }
+        }
         self.restored_draft = history.state.pending.clone().map(Restored::from_raw);
         self.money.reconfirm |= history.restored && history.monetary_seen;
         if self.money.reconfirm {
@@ -109,11 +142,22 @@ impl SessionRuntime {
             text
         });
         self.history = HistoryMode::Active(Box::new(history));
+        // The opener's selection replaced the kept one: recorded now, so it is what resumes next;
+        // a history that cannot record it opens nothing.
+        if opener
+            && let TurnOutcome::Refusal(refused) =
+                self.recorded(Operation::Choice, "(the opener's selection)", |s| {
+                    TurnOutcome::Facts(s.intelligence_line())
+                })
+        {
+            return Err(refused);
+        }
         Ok(notice)
     }
 
     /// Process one turn, recording its boundaries when history is enabled.
     pub fn turn(&mut self, input: &str) -> TurnOutcome {
+        self.last_answer = None;
         // Closing remains possible even after storage failure.
         if matches!(input.trim(), "/quit" | "/exit") {
             self.set_cost_host_evidence(nika_runtime::cost_choice::CostHostEvidence::default());
@@ -142,6 +186,7 @@ impl SessionRuntime {
 
     /// Answer the current intelligence choice through the same durable boundary.
     pub fn choose(&mut self, answer: &str) -> TurnOutcome {
+        self.last_answer = None;
         self.recorded(Operation::Choice, answer, |s| s.choose_unrecorded(answer))
     }
 
@@ -149,12 +194,17 @@ impl SessionRuntime {
     /// proposal. A consent that decided (applied · discarded · landed
     /// partially) is a decision of the durable intent and keeps the
     /// project's structured record (#1464); a held question, a stale
-    /// revision or a blocked history decides nothing and writes nothing.
+    /// revision, a run's cost review still waiting or a blocked history
+    /// decides nothing and writes nothing.
     pub fn consent(&mut self, answer: &str) -> TurnOutcome {
+        self.last_answer = None;
         // Closing a review expires authority through the same door as closing a turn.
         // It must not overwrite the journal that keeps the unaccepted draft.
         if super::is_quit(answer) {
             return self.turn(answer);
+        }
+        if let Some(refused) = self.review_first(answer) {
+            return refused;
         }
         if self.waiting_cost_choice() {
             return self.turn(answer);
@@ -191,7 +241,12 @@ impl SessionRuntime {
     /// Record the human's gate answer before returning a resume request;
     /// an answer that resumes or holds a monetary amendment keeps the project's
     /// structured record (#1464), even when conversation history is unavailable.
+    /// While a run's cost review waits, it answers nothing.
     pub fn answer_gate(&mut self, line: &str) -> TurnOutcome {
+        self.last_answer = None;
+        if let Some(refused) = self.review_first(line) {
+            return refused;
+        }
         let waiting = self.waiting_gate();
         let outcome = self.recorded(Operation::Gate, line, |s| {
             let outcome = s.answer_gate_unrecorded(line);
@@ -368,7 +423,7 @@ impl SessionRuntime {
                     let _ = write!(
                         notice,
                         "\n  the run paused at `{task}` no longer waits: its trace `{}` carries no pause",
-                        trace.display()
+                        super::shown_trace(&self.snapshot.root, &trace)
                     );
                 }
             }
@@ -827,6 +882,7 @@ impl SessionRuntime {
             programs: self.programs.clone(),
             inference_checkpoint: self.account_checkpoint(),
             last_run: self.kept_run.clone(),
+            selection: (self.conversation.as_ref()).and_then(super::ConversationChoice::value),
         }
     }
 
@@ -863,6 +919,7 @@ fn outcome_kind(outcome: &TurnOutcome) -> &'static str {
         TurnOutcome::GateAsk { .. } => "gate_ask",
         TurnOutcome::ResumeRequested { .. } => "resume_requested",
         TurnOutcome::Aside(_) => "aside",
+        TurnOutcome::RunReviewed { .. } => "run_reviewed",
         TurnOutcome::Resumed { outcome, .. } => outcome_kind(outcome),
     }
 }
@@ -906,7 +963,9 @@ fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
             notice,
             outcome: Box::new(with_note(*outcome, note)),
         },
-        other @ (TurnOutcome::Quit | TurnOutcome::ResumeRequested { .. }) => other,
+        other @ (TurnOutcome::Quit
+        | TurnOutcome::ResumeRequested { .. }
+        | TurnOutcome::RunReviewed { .. }) => other,
     }
 }
 

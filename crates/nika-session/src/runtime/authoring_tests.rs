@@ -495,14 +495,49 @@ fn an_empty_answer_to_the_model_question_takes_the_seat() {
         question.contains("Enter takes your seat `mock/echo`"),
         "{question}"
     );
+    let asked = s.pending_question_id().expect("its identity");
     let TurnOutcome::Proposal { preview, .. } = s.turn("") else {
         panic!("the empty line takes the offered default");
     };
     assert!(preview.contains("infer · mock/echo"), "{preview}");
+    // The act says the default was taken: nothing typed is claimed.
+    let bound = crate::work::AnswerAct::Bound {
+        key: "model".to_owned(),
+        value: "mock/echo".to_owned(),
+        reading: crate::work::ValueSource::SeatDefault,
+    };
+    assert_eq!(
+        s.work().answered,
+        Some(crate::work::Answered::new(asked, bound))
+    );
+    // The same seat typed explicitly is as typed.
+    let mut typed = open_seated(root.path());
+    assert!(matches!(typed.turn(DRAFT), TurnOutcome::Question { .. }));
+    let asked = typed.pending_question_id().expect("its identity");
+    assert!(matches!(
+        typed.turn("mock/echo"),
+        TurnOutcome::Proposal { .. }
+    ));
+    let bound = crate::work::AnswerAct::Bound {
+        key: "model".to_owned(),
+        value: "mock/echo".to_owned(),
+        reading: crate::work::ValueSource::AsTyped,
+    };
+    assert_eq!(
+        typed.work().answered,
+        Some(crate::work::Answered::new(asked, bound))
+    );
     // Without a seat the same empty line stays a refusal: nothing answers.
     let mut bare = open(root.path(), &[]);
     assert!(matches!(bare.turn(DRAFT), TurnOutcome::Question { .. }));
+    let asked = bare.pending_question_id().expect("its identity");
     assert!(matches!(bare.turn(""), TurnOutcome::Refusal(_)));
+    let class = RefusalClass::EmptyAnswer;
+    let refused = crate::work::AnswerAct::Refused { class };
+    assert_eq!(
+        bare.work().answered,
+        Some(crate::work::Answered::new(asked, refused))
+    );
 }
 
 /// A green run names what it produced: the files the workflow's own

@@ -24,4 +24,4 @@ Answer one JSON object `{"candidate", "candidate_lines", "questions", "gaps", "n
 
 The compiler parses, checks and judges your source against the original request, rehearses it
 when a rehearsal host is offered, and asks the whole-request judgment before anything is READY.
-You grant nothing and run nothing: saving and running stay the human's separate gestures.
+You grant nothing and run nothing: saving and running require the caller's explicit action.

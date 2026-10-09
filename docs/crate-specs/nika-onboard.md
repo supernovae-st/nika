@@ -91,7 +91,14 @@ only the explicit recovery reservation added to its existing allowance.
 (`nika-knowledge-release/2`, profile `nika-knowledge-release-profile/r1`: the
 shared contract for producer and consumer, with common pinned vectors under
 `tests/knowledge-r1`) and the bounded BM25/graph composition shared by CLI,
-Session and Serve. `Snapshot::open(dir, identity)` on disk and
+Session and Serve. The build embeds the current release, the r2 run contract
+(profile r2, `policy-r2`, embedded whole from its directory and admitted against
+its issued snapshot), and retains the a8 and R3 releases for earlier pins
+(`knowledge::bundled`); a pin naming a release this build does not embed meets
+the strict door of its own profile, so its refusal names the identity. A current release
+replaced in place is not retained: an explicit embedded pin to the r2 release `6476372a…`
+that `1be7d610…` replaced is refused as an identity mismatch, while reopening a Session pins
+the current release and keeps its historical receipts. `Snapshot::open(dir, identity)` on disk and
 `Snapshot::from_files(label, files, identity)` in memory are the only doors.
 Without a trusted identity nothing is collected. The disk form holds the root
 and its three layout directories by descriptor (rustix). The root's final
@@ -776,4 +783,25 @@ the authoring provider) the observation of the last completed run of those exact
 default, as preparation context, and asks over it only when the run proves whole outputs. The
 copy door (`copy::qualify`) judges by exact bytes, and no verifier reads its runs. The room's
 isolation, receipts and bounds (`COPY_BOUND`, `PREVIEW_BOUND`) are unchanged and are not
-session-wide creation quotas; a trial run grants no live `.nika` Run authority.
+session-wide creation quotas; a trial run grants no live `.nika` Run authority. Before any room,
+the room's screen refuses what a rehearsal cannot bound or confine; its last pass is the
+argument law of `nika-compile-seats` (`rehearse::arguments`, held here until this crate's size
+cap), and each value that law refuses is a data bound in the words of its field.
+
+### Child workflows checked composed
+
+`ObservedRoom::located` tells the room where its host will save each candidate's bytes, as a
+project-relative path. Its `Rehearse::compose` then captures the candidate with every child
+workflow it invokes, at that place, through `ExecutionSnapshot::capture_root_bytes`:
+
+- the candidate is injected without being written, and the children are read through held
+  directories;
+- every captured workflow is checked composed, and nothing runs;
+- the answer is a clean `Closure`, or a `Refused` that names the capture or Check reason.
+
+A room told no place resolves no relative child (`Unresolved`). `Scoped` forwards the check to
+its host and spends no rehearsal on it. `ObservedRoom::recompose` asks whether a candidate whose
+hold a check lifted still holds where a proposal lands. It captures the same bytes again there,
+even at the very path checked, and holds only for a clean closure whose child units (path and
+digest) are the ones `decision.composition` recorded. A child changed or removed since refuses,
+named; nothing recorded is trusted.

@@ -3,15 +3,17 @@
 
 //! The whole request against the candidate (R4 A11, R5 R6 and A1). The whole-request verdict is
 //! the READY gate: « faithful » carries the request; a call that returns no admitted choice
-//! judges nothing and stays unknown.
+//! judges nothing and stays unknown; it is told what the bytes hold ([`Construction::shown`]).
 //!
 //! Any other answer declines these bytes: they are never asked of the same judge again (R6),
 //! and it is not yet a defect. Each part of the request is asked alone, as evidence and never as
 //! the verdict: carried, missing, superseded by a later part, or (outside a restriction, in a
 //! request of several parts) asking no operation of the workflow. A part judged missing becomes
 //! a defect only when the judge also says why: the task that does it differently or does what it
-//! forbids, or an operation of its own that no task performs (a prohibition or a structure law
-//! asks none, so it is never offered that reason). A part the judge then
+//! forbids, an operation of its own that no task performs (a prohibition or a structure law asks
+//! none, so it is never offered that reason), or an offered component the bytes do not hold
+//! ([`Construction`]: the engine facts of the lent catalogue; its `no_fit` lets that clause's own
+//! alternative stand when every offer was examinable). A part the judge then
 //! finds no task failing is contested; a part left without a choice stays unknown: never a
 //! certain defect, never a success. When no part is missing, one question asks which task, if
 //! any, does something the request does not ask; a task that only reads a source the request
@@ -44,10 +46,13 @@ use crate::rehearse::trial_receipts;
 pub(super) use crate::rehearse::trial_whole;
 use nika_compile::surface::{Binding, Disposition, Judgment};
 use nika_compile_clauses::parts::{asks_an_operation, restricts};
+use nika_compile_seats::judge::{Construction, Construed};
 use nika_kernel::ai::provider::ProviderInferDyn;
 
 /// What a part asked alone adds to the clause instructions: a later part replaces it.
 const PART: &str = "This clause is one part of the request, asked alone. superseded: a later correction or restatement in the request replaces this part, so it asks nothing of this candidate.";
+/// What `superseded` means as an option, offered a part a later one follows.
+const SUPERSEDED: &str = "a later correction in the request replaces this part";
 
 /// What a part that restricts adds to its instructions.
 pub(super) const RESTRICTING: &str = "This clause RESTRICTS (a prohibition, a condition, an exclusion or an only): it is carried when no task does what it forbids and every task honors its condition, even though no task states it.";
@@ -96,6 +101,7 @@ const UNEXERCISED: &str =
 const READ_ONLY_OVER_RUN: &str =
     "the judge named a task with no effect the request could leave unasked, which decides nothing";
 const UNPOINTED: &str = "the judge named a part in the trial run but no task that fails it";
+const ALTERNATIVE: &str = "the judge named a part in the trial run, then no offer fitting it";
 
 /// The reason a part is missing: no task performs its operation.
 pub(super) const OMITTED: &str = "the judge finds no task performing it";
@@ -159,9 +165,11 @@ enum Observed {
 pub(super) enum Pointed {
     /// The task the judge names.
     Task(String),
-    /// An operation of the clause's own that no task performs.
-    Omitted,
-    /// No task fails it.
+    /// A reason no task carries, as its note: an operation of its own, or a component unheld.
+    Defect(String),
+    /// No offer fits and each was examinable: the clause's own alternative stands.
+    Fallback,
+    /// No task fails it, or a component the bytes hold carries it ([`Construed::Held`]).
     NoTask,
     /// No choice was made.
     Unsettled,
@@ -201,8 +209,9 @@ pub(super) async fn whole<P: ProviderInferDyn>(
             "something the request asks is missing, extra or different",
         ),
     ];
-    let instructions = told(base, reference, WHOLE);
-    let question = ChoiceQuestion::new("verify-request", instructions, base.clone(), options);
+    let (state, instructions) = Construction::shown(base, WHOLE);
+    let instructions = told(base, reference, &instructions);
+    let question = ChoiceQuestion::new("verify-request", instructions, state, options);
     let carried = |question: &str| {
         Judgment::new(
             intent,
@@ -437,10 +446,7 @@ fn part_question<P: ProviderInferDyn>(
         ChoiceOption::new("missing", "the candidate omits it or does it differently"),
     ];
     if k + 1 < count {
-        options.push(ChoiceOption::new(
-            "superseded",
-            "a later correction in the request replaces this part",
-        ));
+        options.push(ChoiceOption::new("superseded", SUPERSEDED));
     }
     if count > 1 && !part.restricting {
         options.push(ChoiceOption::new("no_operation", NO_OPERATION));
@@ -450,7 +456,7 @@ fn part_question<P: ProviderInferDyn>(
     } else {
         format!("{CLAUSE} {PART}")
     };
-    let mut state = asked.base.clone();
+    let (mut state, instructions) = Construction::shown(asked.base, &instructions);
     state["clause"] = json!({"text": part.text});
     let instructions = told(asked.base, asked.reference, &instructions);
     ChoiceQuestion::new(format!("verify-part-{k}"), instructions, state, options)
@@ -461,7 +467,8 @@ fn part_question<P: ProviderInferDyn>(
 fn missing(pointed: Pointed, over: &str) -> State {
     match pointed {
         Pointed::Task(task) => State::Defect(format!("{over}{}", pointed_to(&task))),
-        Pointed::Omitted => State::Defect(format!("{over}{OMITTED}")),
+        Pointed::Defect(note) => State::Defect(format!("{over}{note}")),
+        Pointed::Fallback => State::Settled,
         Pointed::NoTask => State::Contested,
         Pointed::Unsettled => State::Unknown,
     }
@@ -473,10 +480,10 @@ pub(super) fn pointed_to(task: &str) -> String {
 }
 
 /// Why a part judged missing is missing: the task that fails it, an operation of its own no
-/// task performs (never offered for a prohibition or a structure law, which ask none), or no
-/// task failing it after all. `state` is what the part was judged on (the base
-/// state, or the base and a trial run). `None` when the call got no answer: the localization
-/// stops.
+/// task performs (never offered for a prohibition or a structure law, which ask none), an
+/// offered component the bytes do not hold or no offer fitting ([`Construction`]), or no task
+/// failing it after all (`held-<k>`: a component they hold). `state` is what the part was judged
+/// on (the base state, or the base and a trial run). `None` when the call got no answer (it stops).
 pub(super) async fn point<P: ProviderInferDyn>(
     id: &str,
     part: &str,
@@ -488,19 +495,7 @@ pub(super) async fn point<P: ProviderInferDyn>(
 ) -> Option<Pointed> {
     let restricting = restricts(part);
     let omittable = asks_an_operation(part);
-    let mut options: Vec<ChoiceOption> = (tasks.iter())
-        .map(|task| ChoiceOption::new(format!("task-{task}"), format!("the task `{task}`")))
-        .collect();
-    if omittable {
-        options.push(ChoiceOption::new(
-            "omitted",
-            "the clause asks an operation of its own that no task performs",
-        ));
-    }
-    options.push(ChoiceOption::new(
-        "no_task",
-        "no task fails it: the clause is carried as written",
-    ));
+    let construction = Construction::of(state);
     let mut asked = state.clone();
     asked["clause"] = json!({"text": part});
     // A question over a trial run says what its observation is, as every question over it does.
@@ -515,20 +510,27 @@ pub(super) async fn point<P: ProviderInferDyn>(
     if restricting {
         instructions = format!("{instructions} {RESTRICTING}");
     }
+    let (instructions, options) =
+        construction.localization((tasks, omittable), &mut asked, instructions);
     let question = ChoiceQuestion::new(id, told(state, reference, &instructions), asked, options);
     let returned = verdict.answers();
     let answer = ask(judge, &question, "judge_point", verdict, out).await;
     annotate(verdict, part, restricting);
+    construction.annotate(verdict.records.last_mut(), answer.as_deref());
     if verdict.answers() == returned {
         verdict.stopped = true;
         return None;
     }
     let pointed = match answer.as_deref() {
-        Some("omitted") if omittable => Pointed::Omitted,
+        Some("omitted") if omittable => Pointed::Defect(OMITTED.to_owned()),
         Some("no_task") => Pointed::NoTask,
-        Some(key) => {
-            named(key, tasks).map_or(Pointed::Unsettled, |task| Pointed::Task(task.to_owned()))
-        }
+        Some(key) => match construction.read(key) {
+            Some(Construed::Defect(note)) => Pointed::Defect(note),
+            Some(Construed::Fallback) => Pointed::Fallback,
+            Some(Construed::Held) => Pointed::NoTask,
+            Some(_) => Pointed::Unsettled,
+            None => named(key, tasks).map_or(Pointed::Unsettled, |t| Pointed::Task(t.to_owned())),
+        },
         None => Pointed::Unsettled,
     };
     if !matches!(pointed, Pointed::Unsettled) {
@@ -545,9 +547,9 @@ fn named<'t>(key: &str, tasks: &'t [String]) -> Option<&'t str> {
 
 /// Each part the bytes left open, and each restriction judged broken, judged again over the
 /// trial run: carried settles an open part, and only notes a broken restriction (a run of some
-/// inputs never removes a defect located in the bytes: it stays, for a repair); missing
-/// confirms a broken restriction, or asks an open part's task over the run; unexercised, or no
-/// choice, leaves it as it stood.
+/// inputs never removes a defect located in the bytes: it stays, for a repair); superseded, only
+/// offered an open part, settles it; missing confirms a broken restriction, or asks an open
+/// part's task over the run; unexercised, or no choice, leaves it as it stood.
 async fn over_run<P: ProviderInferDyn>(
     parts: &mut [Part],
     (asked, confirming): (&Asked<'_, '_, P>, bool),
@@ -558,7 +560,7 @@ async fn over_run<P: ProviderInferDyn>(
     let mut state = asked.base.clone();
     state["observation"] = run.clone();
     let questions: Vec<Option<ChoiceQuestion>> = (parts.iter().enumerate())
-        .map(|(k, part)| observed_question(k, part, &state, asked))
+        .map(|(k, part)| observed_question((k, parts.len()), part, &state, asked))
         .collect();
     let asked_together: Vec<ChoiceQuestion> = questions.iter().flatten().cloned().collect();
     prefetch(
@@ -581,7 +583,7 @@ async fn over_run<P: ProviderInferDyn>(
             return;
         }
         match answer.as_deref() {
-            Some("carried") => {
+            Some("carried" | "superseded") => {
                 verdict.consumed += 1;
                 part.state = match &part.state {
                     // The bytes and the run disagree: the located defect stays, noted.
@@ -647,11 +649,11 @@ async fn confirmed<P: ProviderInferDyn>(
     !keep(&parts, verdict) && verdict.defects.is_empty()
 }
 
-/// Part `k` asked again over a trial run (`state`: the base state and the run's observation),
-/// when it is doubtful there: left unknown or contested by the bytes, or a restriction they
-/// break.
+/// Part `k` of `count` asked again over a trial run (`state`: the base state and the run's
+/// observation), when it is doubtful there: left unknown or contested by the bytes, or a
+/// restriction they break. An open part a later one follows may be superseded, as over the bytes.
 fn observed_question<P: ProviderInferDyn>(
-    k: usize,
+    (k, count): (usize, usize),
     part: &Part,
     state: &Value,
     asked: &Asked<'_, '_, P>,
@@ -664,7 +666,7 @@ fn observed_question<P: ProviderInferDyn>(
     if !doubtful {
         return None;
     }
-    let options = vec![
+    let mut options = vec![
         ChoiceOption::new(
             "carried",
             "these inputs exercise it and the outputs show it done as asked",
@@ -676,10 +678,14 @@ fn observed_question<P: ProviderInferDyn>(
         ),
     ];
     let mut instructions = format!("{RUN} {OBSERVED_PART}");
+    if k + 1 < count && !matches!(part.state, State::Defect(_)) {
+        options.push(ChoiceOption::new("superseded", SUPERSEDED));
+        instructions = format!("{instructions} {PART}");
+    }
     if part.restricting {
         instructions = format!("{instructions} {RESTRICTING}");
     }
-    let mut judged = state.clone();
+    let (mut judged, instructions) = Construction::shown(state, &instructions);
     judged["clause"] = json!({"text": part.text});
     let instructions = told(asked.base, asked.reference, &instructions);
     let id = format!("verify-observed-part-{k}");
@@ -793,7 +799,8 @@ fn reads_stated(candidate: &str, task: &str, intent: &str) -> bool {
 
 /// The whole request over this compile's trial run of the same bytes, once every part is
 /// carried: the discriminating observation a doubt asks for. Every part is offered, the ones
-/// answered superseded or asking no operation included: the run may show them asked.
+/// answered superseded or asking no operation included: the run may show them asked. A clause
+/// the judge settled `no_fit` is shown as its own history ([`Construction::recall`]).
 async fn observe<P: ProviderInferDyn>(
     parts: &[Part],
     asked: &Asked<'_, '_, P>,
@@ -823,10 +830,12 @@ async fn observe<P: ProviderInferDyn>(
     }));
     let mut state = asked.base.clone();
     state["observation"] = run.clone();
+    let (mut shown, said) = (state.clone(), format!("{RUN} {OBSERVED}"));
+    let said = Construction::of(asked.base).recall(&mut shown, &verdict.records, said);
     let question = ChoiceQuestion::new(
         "verify-observed",
-        told(asked.base, asked.reference, &format!("{RUN} {OBSERVED}")),
-        state.clone(),
+        told(asked.base, asked.reference, &said),
+        shown,
         options,
     );
     let (returned, before) = (verdict.answers(), verdict.records.len());
@@ -881,6 +890,7 @@ async fn observe<P: ProviderInferDyn>(
         None => Observed::Stopped,
         Some(State::Defect(note)) => Observed::Defect(part.clone(), note),
         Some(State::Contested) => Observed::Unsettled(UNPOINTED),
+        Some(State::Settled) => Observed::Unsettled(ALTERNATIVE),
         Some(_) => Observed::Unsettled(NO_CHOICE_OVER_RUN),
     }
 }
@@ -916,13 +926,32 @@ fn parsed_tasks(candidate: &str) -> Option<Vec<String>> {
     })
 }
 
+/// What a question over a revision of a base whose own request is unknown adds to its
+/// instructions: the request states only the change, so the base's own behaviour is neither
+/// asked again nor extra, and the candidate is judged as the base with exactly that change.
+const REVISED_DOCUMENT: &str = "This candidate REVISES the existing workflow `revision.base_nika`, whose own request is unknown: `request` and `revision.change` state only the change. What the base already does is not asked again and is not extra: it must stay as in the base wherever the change does not touch it. faithful: the candidate is the base with exactly this change applied. unfaithful: the change is missing or done differently, or the candidate adds, removes or alters anything else of the base. A clause asking to modify the workflow file itself is carried by this candidate being that workflow.";
+
+/// What a question over a revision applied over the complete document of a base whose request
+/// is known adds: the base is shown whole and the change is judged over it, the earlier request
+/// history where the change takes precedence.
+const REVISED_OVER_DOCUMENT: &str = "This candidate REVISES the existing workflow `revision.base_nika` by the change `revision.change`, applied over its complete document. `revision.base_request` is the request the base answers, history only: where it and the change differ, the change takes precedence and a clause it replaces is superseded, never asked. What the base already does is not extra: it must stay as in the base wherever the change does not touch it. faithful: the candidate is the base with exactly this change applied. unfaithful: the change is missing or done differently, or the candidate adds, removes or alters anything else of the base. A clause asking to modify the workflow file itself is carried by this candidate being that workflow.";
+
 /// A whole-request question's instructions: a revision's also say which request is asked and
 /// which is history (the change appended to the earlier request, or that request resolved);
 /// any other's say what a request to author this very workflow asks of its bytes.
 pub(super) fn told(base: &Value, reference: &str, text: &str) -> String {
     match base.get("revision") {
+        Some(revision)
+            if revision["over_document"] == Value::Bool(true)
+                && !revision["base_request"].is_null() =>
+        {
+            grounded(reference, &format!("{text} {REVISED_OVER_DOCUMENT}"))
+        }
         Some(revision) if revision["appended"] == Value::Bool(true) => {
             grounded(reference, &format!("{text} {REVISED_APPENDED}"))
+        }
+        Some(revision) if revision.get("base_nika").is_some() => {
+            grounded(reference, &format!("{text} {REVISED_DOCUMENT}"))
         }
         Some(_) => grounded(reference, &format!("{text} {REVISED}")),
         None => grounded(reference, &format!("{text} {CREATED}")),

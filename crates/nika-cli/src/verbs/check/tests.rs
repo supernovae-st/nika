@@ -893,3 +893,47 @@ fn the_check_help_carries_the_exit_contract() {
         "the run-only classes are named as such: {help}"
     );
 }
+
+/// A typed parser refusal reaches `--json` whole: an authored value holding a line feed or a
+/// carriage return and line feed keeps them, the explain pointer follows, and the human frame
+/// (`-->`, the file, the caret) never enters the finding, while the human lane keeps it.
+#[test]
+fn a_parse_refusal_keeps_its_whole_message_on_the_json_lane() {
+    let dir = std::env::temp_dir().join(format!("nika-cli-typed-fatal-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let theme = Theme::new(false, true, false);
+    for (name, escaped, newline) in [("lf.nika", "\\n", "\n"), ("crlf.nika", "\\r\\n", "\r\n")] {
+        let path = dir.join(name);
+        let body = format!(
+            "nika: t-run-access-via\nrun:\n  access:\n    via: \"codex{escaped}\"\n    protocol: acp\ntasks:\n  greet:\n    infer:\n      prompt: \"hi\"\n"
+        );
+        std::fs::write(&path, body).expect("fixture written");
+        let path = path.to_str().expect("utf8 path");
+        let machine = run(path, true, false, None, theme);
+        assert_eq!(machine.code, crate::verbs::exit::FILE, "{}", machine.text);
+        let payload: serde_json::Value = serde_json::from_str(&machine.text).expect("one object");
+        assert_eq!(payload["parse_fatal"], true);
+        let finding = &payload["findings"][0];
+        assert_eq!(finding["code"], "NIKA-PARSE-019");
+        assert_eq!(
+            finding["message"],
+            format!(
+                "validation error: `run.access.via` is used verbatim — remove the surrounding whitespace from `codex{newline}` · → nika explain NIKA-PARSE-019"
+            ),
+            "{name}: the whole diagnostic"
+        );
+        let message = finding["message"].as_str().expect("text");
+        assert!(
+            !message.contains("-->") && !message.contains(name),
+            "{name}: {message}"
+        );
+        let human = run(path, false, false, None, theme);
+        assert_eq!(human.code, crate::verbs::exit::FILE);
+        assert!(
+            human.text.contains("-->") && human.text.contains(name),
+            "{}",
+            human.text
+        );
+    }
+    std::fs::remove_dir_all(&dir).ok();
+}

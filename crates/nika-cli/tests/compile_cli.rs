@@ -299,28 +299,20 @@ fn cold_authoring_is_bounded_and_ambient_credentials_do_not_opt_in() {
     assert!(result(&invalid)["error"].is_object());
 }
 
-/// The CLI defaults to escalation after the cold plan fails: the sketch door, never source
-/// generation. Its receipt must include both phases and exactly the calls the seat received;
-/// an invalid sketch is never accepted. The seat is a scripted loopback, so the calls are
-/// exact. The first answer is not a plan and every later answer is ONE well-formed sketch with
-/// no task, so each sketch round is judged and refused. The sketch door takes one request more
-/// than the plan's bound once counted: with no repair it opens nothing, and its own allowance is
-/// one less than the policy's.
+/// The CLI defaults to escalation, which opens at the document door: the whole document, never
+/// a private plan first. Its receipt must include every round and exactly the calls the seat
+/// received; an invalid document is never accepted. The seat is a scripted loopback, so the
+/// calls are exact: every answer is ONE document that is no workflow, so each round is judged
+/// and refused, its repair bounded by the policy, and the same refusal again is no progress.
 #[test]
 fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
     let room = tempfile::tempdir().expect("room");
     let intent = "Review this customer request and harmonise the tone of the support reply";
-    let not_a_plan = serde_json::json!({"not": "a plan"}).to_string();
-    let empty_sketch = serde_json::json!({
-        "name": "not-a-workflow",
-        "tasks": [],
-        "questions": [],
-        "gaps": [],
-        "notes": ""
-    })
-    .to_string();
+    let not_a_workflow =
+        serde_json::json!({"candidate": "not a workflow", "questions": [], "gaps": [], "notes": ""})
+            .to_string();
     for repairs in [0_u64, 1, 3] {
-        let seat = LoopbackSeat::start(vec![not_a_plan.clone(), empty_sketch.clone()]);
+        let seat = LoopbackSeat::start(vec![not_a_workflow.clone()]);
         let repairs_arg = repairs.to_string();
         let out = command(room.path())
             .env("NIKA_VLLM_BASE_URL", seat.base())
@@ -369,12 +361,11 @@ fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
             .iter()
             .map(|c| c["call"].as_str().expect("phase"))
             .collect();
-        // An answer that is not a plan ends the cold round at once (no anchoring repair); the
-        // repeated sketch stops on no progress, even with repairs left.
+        // A refused document is repaired within the policy; the same refusal again is no
+        // progress, even with repairs left.
         let expected: &[&str] = match repairs {
-            0 => &["plan"],
-            1 => &["plan", "sketch"],
-            _ => &["plan", "sketch", "sketch-repair"],
+            0 => &["document"],
+            _ => &["document", "document-repair"],
         };
         assert_eq!(phases, expected, "{doc}");
         assert_eq!(
@@ -386,37 +377,26 @@ fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
             context.len(),
             "the receipt counts exactly the calls the seat received"
         );
-        // No round with no repair: the door never opened. Otherwise its rounds stay within the
-        // allowance the door is left (one less than the policy's) and none is accepted.
+        // Each call is one round of the door, journaled and never accepted.
         let native = &provenance["decision"]["native"];
-        let rounds = if repairs == 0 {
-            assert!(native.is_null(), "the sketch door did not open: {doc}");
-            0
-        } else {
-            assert_eq!(native["accepted"], false, "{doc}");
-            native["rounds"].as_array().expect("sketch rounds").len()
-        };
-        assert!(rounds as u64 <= repairs, "{doc}");
-        assert_eq!(rounds + 1, context.len(), "the cold call remains counted");
-        if repairs > 1 {
-            assert_eq!(rounds, 2, "{doc}");
-        }
+        assert_eq!(native["accepted"], false, "{doc}");
+        let rounds = native["rounds"].as_array().expect("document rounds").len();
+        assert_eq!(rounds, context.len(), "{doc}");
         assert_eq!(std::fs::read_dir(room.path()).expect("dir").count(), 0);
     }
 }
 
-/// An explicit one-request authority stops escalation before any further byte leaves. The
-/// outcome states the refusal (the receipt's account and one human line), while the core's
-/// journal keeps its attempt. No flag means no request bound, exercised below.
+/// An explicit one-request authority stops the document's repair before any further byte
+/// leaves. The outcome states the refusal (the receipt's account and one human line), while the
+/// core's journal keeps its attempt. No flag means no request bound, exercised below.
 #[test]
 fn an_explicit_single_request_authority_stops_and_states_the_refusal() {
     let room = tempfile::tempdir().expect("room");
     let intent = "Review this customer request and harmonise the tone of the support reply";
-    let not_a_plan = serde_json::json!({"not": "a plan"}).to_string();
     let native_answer =
         serde_json::json!({"candidate": "not a workflow", "questions": [], "gaps": [], "notes": ""})
             .to_string();
-    let seat = LoopbackSeat::start(vec![not_a_plan.clone(), native_answer.clone()]);
+    let seat = LoopbackSeat::start(vec![native_answer.clone()]);
     let flags = [
         "--authoring-model",
         "vllm/loopback-seat",
@@ -469,7 +449,7 @@ fn an_explicit_single_request_authority_stops_and_states_the_refusal() {
                 .is_some_and(|m| m.contains("refused before any byte left"))),
         "{doc}"
     );
-    let seat = LoopbackSeat::start(vec![not_a_plan, native_answer]);
+    let seat = LoopbackSeat::start(vec![native_answer]);
     let human = command(room.path())
         .env("NIKA_VLLM_BASE_URL", seat.base())
         .args(["compile", intent])
@@ -582,14 +562,57 @@ fn a_seated_decision_model_is_stated_outside_the_authority() {
     assert!(authority.get("decision_seat").is_none(), "{doc}");
 }
 
+/// A revision in words may seat the decision intelligence its caller chose, as the HTTP door
+/// does: the door accepts `--base` beside `--decision-model` and the receipt states the seat.
+#[test]
+fn a_revision_seats_the_chosen_decision_model() {
+    let room = tempfile::tempdir().expect("room");
+    let answer = r#"const.request="https://example.invalid/A""#;
+    let made = call(
+        room.path(),
+        &[
+            "compile",
+            "classify-and-route",
+            "base.nika",
+            "--answer",
+            answer,
+            "--json",
+        ],
+    );
+    assert_eq!(made.status.code(), Some(0), "{}", result(&made));
+    let seat = LoopbackSeat::start(vec![serde_json::json!({"not": "a revision"}).to_string()]);
+    let out = command(room.path())
+        .env("NIKA_VLLM_BASE_URL", seat.base())
+        .args(["compile", "--base", "base.nika"])
+        .args([
+            "--change",
+            "Route the urgent requests to a second queue as well",
+        ])
+        .args(["--authoring-model", "vllm/loopback-seat"])
+        .args(["--decision-model", "vllm/loopback-seat"])
+        .args(["--authoring-timeout", "2", "--json"])
+        .output()
+        .expect("CLI");
+    // The door takes the pair (a usage refusal prints no result); the seat's answer is no
+    // revision, so the compile ends incomplete with its receipt stating the decision seat.
+    let doc = result(&out);
+    let authoring = &doc["provenance"]["authoring"];
+    assert_eq!(authoring["context"][0]["call"], "revision", "{doc}");
+    assert_eq!(
+        authoring["backend"]["authority"]["decision_seat"],
+        "outside this authority: its own client, protocol retries included",
+        "{doc}"
+    );
+}
+
 /// A response that reports no model identity leaves the identity unknown, never the model the
 /// operator requested: the receipt lists no observed model and counts the response apart.
 #[test]
 fn a_response_without_a_model_is_counted_as_unreported() {
     let room = tempfile::tempdir().expect("room");
     let intent = "Review this customer request and harmonise the tone of the support reply";
-    let not_a_plan = serde_json::json!({"not": "a plan"}).to_string();
-    let seat = LoopbackSeat::start(vec![format!("nomodel {not_a_plan}")]);
+    let not_a_document = serde_json::json!({"not": "a document"}).to_string();
+    let seat = LoopbackSeat::start(vec![format!("nomodel {not_a_document}")]);
     let out = command(room.path())
         .env("NIKA_VLLM_BASE_URL", seat.base())
         .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
@@ -598,7 +621,10 @@ fn a_response_without_a_model_is_counted_as_unreported() {
         .expect("CLI");
     let doc = result(&out);
     let received = seat.bodies().len();
-    assert_eq!(received, 3, "plan, sketch, then source recovery: {doc}");
+    assert_eq!(
+        received, 1,
+        "the document door's one call: its answer is none: {doc}"
+    );
     let backend = &doc["provenance"]["authoring"]["backend"];
     assert_eq!(backend["requested_model"], "vllm/loopback-seat");
     assert_eq!(backend["observed_models"], serde_json::json!([]), "{doc}");
@@ -618,7 +644,7 @@ fn a_response_without_a_model_is_counted_as_unreported() {
         .iter()
         .map(|call| call["call"].as_str().expect("phase"))
         .collect();
-    assert_eq!(phases, ["plan", "sketch", "source-recovery"]);
+    assert_eq!(phases, ["document"]);
     assert!(
         context
             .iter()
@@ -664,13 +690,13 @@ fn cold_creation_is_never_refused_up_front_and_its_counters_keep_the_bound() {
 }
 
 /// A typed strategy that needs more requests than the authority grants before its READY can be
-/// judged (escalate: the plan and its judgment; sketch: the sketch, its fills and their judgment)
-/// is refused before any request: the operator's explicit quality is never reduced in silence,
-/// and the number to authorize is named. Typed sketch repairs add no up-front count: the sketch
-/// door's judgment asks each part of a doubted request alone, so its count depends on the
-/// request, and only the strategy's own minimum is named. Source-only authoring is retired for a
-/// new workflow: under `only` the refusal names the semantic doors, before any request, whatever
-/// the authority.
+/// judged (escalate: the document and its judgment; sketch: the sketch, its fills and their
+/// judgment) is refused before any request: the operator's explicit quality is never reduced in
+/// silence, and the number to authorize is named. Typed sketch repairs add no up-front count: the
+/// sketch door's judgment asks each part of a doubted request alone, so its count depends on the
+/// request, and only the strategy's own minimum is named. Under `only` a new workflow is asked
+/// of the document door whatever the authority, and an answer that is no workflow is never
+/// READY.
 #[test]
 fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request() {
     let room = tempfile::tempdir().expect("room");
@@ -687,7 +713,7 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
         (vec!["--authoring-strategy", "sketch"], sketch),
         (
             vec!["--authoring-strategy", "escalate"],
-            "the escalate strategy needs at least 2 authoring requests (the plan, then its judgment): authorize --authoring-max-calls 2 or more",
+            "the escalate strategy needs at least 2 authoring requests (the document, then its judgment): authorize --authoring-max-calls 2 or more",
         ),
     ] {
         let seat = LoopbackSeat::start(vec![answer.clone()]);
@@ -723,10 +749,14 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
         assert_eq!(out.status.code(), Some(2), "{typed:?}");
         assert!(seat.bodies().is_empty(), "no request: {typed:?}");
     }
-    // `only`, with or without the authority it once needed: retired, nothing sent.
-    for granted in [
-        &[][..],
-        &["--authoring-repairs", "0", "--authoring-max-calls", "2"][..],
+    // `only` asks the document door first, with or without a bound: an answer that is no
+    // workflow is never READY, and no repair is sent where the authority grants none.
+    for (granted, sent) in [
+        (&[][..], None),
+        (
+            &["--authoring-repairs", "0", "--authoring-max-calls", "2"][..],
+            Some(1),
+        ),
     ] {
         let seat = LoopbackSeat::start(vec![answer.clone()]);
         let out = command(room.path())
@@ -738,24 +768,19 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
             .output()
             .expect("CLI");
         let doc = result(&out);
-        assert_eq!(out.status.code(), Some(2), "{granted:?}: {doc}");
-        assert_eq!(doc["status"], "refused", "{granted:?}: {doc}");
-        assert!(doc["candidate"].is_null(), "{doc}");
-        let retired = doc["diagnostics"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .any(|d| {
-                d["target"] == "authoring_policy"
-                    && d["message"]
-                        .as_str()
-                        .is_some_and(|m| m.contains("(native: only) is retired"))
-            });
-        assert!(retired, "{granted:?}: {doc}");
+        assert_ne!(doc["status"], "ready", "{granted:?}: {doc}");
+        let bodies = seat.bodies();
         assert!(
-            seat.bodies().is_empty(),
-            "no request under only: {granted:?}"
+            !bodies.is_empty(),
+            "the document door is asked: {granted:?}"
         );
+        assert!(
+            bodies[0].to_string().contains("candidate_lines"),
+            "the first request asks for the whole document: {granted:?}"
+        );
+        if let Some(sent) = sent {
+            assert_eq!(bodies.len(), sent, "no repair beyond the grant: {doc}");
+        }
     }
 }
 

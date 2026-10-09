@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Helpers the compile suites share: one hermetic generative provider that returns a fixed
-//! text and counts its calls, the bounded authoring policy, the question keys of an outcome.
+//! text and counts its calls, the bounded authoring policy, the question keys of an outcome, and
+//! the scripted complete document a suite hands the document door.
 #![allow(dead_code, clippy::unwrap_used, clippy::expect_used)]
 use nika_compile::{AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus};
 use nika_compile_cognition::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
@@ -352,4 +353,31 @@ pub(crate) fn held_for_its_judge(out: &CompileOutcome, intent: &str) -> bool {
             .decision
             .as_ref()
             .is_some_and(|decision| decision["pending"]["open"] == whole)
+}
+
+/// The document door's answer (R5 · C13): the complete document, no operation over an earlier
+/// one, no question.
+pub(crate) fn document_answer(candidate: &str) -> String {
+    json!({"candidate": candidate, "candidate_lines": [], "operations": [], "questions": [],
+        "gaps": [], "notes": "the complete document"})
+    .to_string()
+}
+
+/// The complete document the explicit sketch door (`request` under `native: sketch`) emits from
+/// the scripted structure and fills, its whole-request judgment approved. A suite answers the
+/// document door with these bytes, so its own oracle reads what that door kept; a scripted
+/// document is never a model's.
+pub(crate) async fn sketched(request: &CompileRequest, replies: Vec<String>) -> String {
+    let provider = Rotating::new(replies);
+    let judged = Judged::approving(&provider);
+    let out = nika_compile_cognition::compile_with_provider(request, &judged)
+        .await
+        .unwrap();
+    assert_eq!(
+        out.status,
+        CompileStatus::Ready,
+        "the sketch door: {out:#?}"
+    );
+    out.candidate
+        .expect("a Ready sketch door emits its document")
 }

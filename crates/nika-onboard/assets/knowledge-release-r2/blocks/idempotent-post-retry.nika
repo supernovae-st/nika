@@ -1,0 +1,18 @@
+nika: p45-fetch-post-idempotent-retry
+permits:
+  tools: ["nika:fetch"]
+  net: { http: ["api.example.com"] }
+const:
+  key: "probe-0001"
+tasks:
+  create:
+    retry: { max_attempts: 3 }
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "https://api.example.com/v1/orders"
+        method: POST
+        headers: { content-type: application/json, idempotency-key: "${{ const.key }}" }
+        body: '{"sku": "A"}'
+outputs:
+  created: ${{ tasks.create.output }}

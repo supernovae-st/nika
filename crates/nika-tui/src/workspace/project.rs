@@ -24,6 +24,7 @@ use super::object::Object;
 use super::pinned::Pinned;
 use super::text::marks;
 use crate::visual::icon::Icon;
+use nika_display::run_story::ExecutionId;
 
 /// The name the workspace gives the one conversation a Session holds: no
 /// catalogue of conversations is lent yet, so none is named for it.
@@ -185,6 +186,10 @@ pub(crate) enum Target {
     Candidate,
     /// The run leg the shell observes: it becomes the object while held.
     Live,
+    /// A run leg observed before the one in flight, by its execution: it
+    /// becomes the object in view as it was observed, and opening it runs
+    /// nothing, changes no candidate and gives no authority.
+    Past(ExecutionId),
 }
 
 /// What the object in view is, resolved against the current view.
@@ -242,11 +247,17 @@ pub(crate) fn resolve<'a>(
     view: Option<&'a ProjectView>,
     target: Option<&Target>,
     candidate: Option<&'a Proposed>,
-    live: Option<&'a LiveRun>,
+    (live, past): (Option<&'a LiveRun>, &'a [LiveRun]),
 ) -> Option<Opened<'a>> {
     match target? {
         Target::Candidate => return candidate.map(Opened::Candidate),
         Target::Live => return live.map(Opened::Live),
+        Target::Past(execution) => {
+            return past
+                .iter()
+                .find(|leg| leg.execution() == Some(*execution))
+                .map(Opened::Live);
+        }
         _ => {}
     }
     let view = view?;
@@ -282,7 +293,7 @@ fn entries(
     tab: Tab,
     opened: Option<&Target>,
     candidate: Option<&Proposed>,
-    live: Option<&LiveRun>,
+    (live, past): (Option<&LiveRun>, &[LiveRun]),
 ) -> Vec<(Entry, Target)> {
     if tab != Tab::Nika {
         return Vec::new();
@@ -306,6 +317,13 @@ fn entries(
         let entry = Entry::new(Icon::Run, format!("{} {}", leg.label(), leg.workflow())).at(1);
         out.push((mark(entry, &Target::Live), Target::Live));
     }
+    // The legs observed before it, newest first, by their execution: a leg that never bound
+    // one has nothing to reopen and is not listed.
+    for (leg, execution) in past.iter().filter_map(|leg| Some((leg, leg.execution()?))) {
+        let words = format!("{} {} · earlier", leg.label(), leg.workflow());
+        let target = Target::Past(execution);
+        out.push((mark(Entry::new(Icon::Run, words).at(1), &target), target));
+    }
     for workflow in view.map_or(&[][..], |v| v.workflows.as_slice()) {
         let target = Target::Workflow(workflow.path.clone());
         let entry = Entry::new(Icon::Workflow, &workflow.path).judged(workflow.verdict());
@@ -328,9 +346,9 @@ pub(crate) fn aside(
     tab: Tab,
     opened: Option<&Target>,
     candidate: Option<&Proposed>,
-    live: Option<&LiveRun>,
+    legs: (Option<&LiveRun>, &[LiveRun]),
 ) -> Aside {
-    let listed = entries(view, tab, opened, candidate, live)
+    let listed = entries(view, tab, opened, candidate, legs)
         .into_iter()
         .map(|(entry, _)| entry)
         .collect();
@@ -355,9 +373,9 @@ pub(crate) fn target(
     tab: Tab,
     index: usize,
     candidate: Option<&Proposed>,
-    live: Option<&LiveRun>,
+    legs: (Option<&LiveRun>, &[LiveRun]),
 ) -> Option<Target> {
-    entries(view, tab, None, candidate, live)
+    entries(view, tab, None, candidate, legs)
         .into_iter()
         .nth(index)
         .map(|(_, target)| target)
@@ -376,36 +394,18 @@ pub(crate) fn thread(view: Option<&ProjectView>, on_screen: Option<&str>) -> Thr
     }
 }
 
-/// The listing in words, `sep` between its facts: how many workflows, how
-/// many clean, and whether the counts are lower bounds. An empty project
-/// says what comes next, over several rows.
-fn inventory(view: &ProjectView, sep: &str) -> Vec<String> {
-    let total = view.workflows.len();
-    let clean = view.workflows.iter().filter(|w| w.clean).count();
-    let floor = if view.complete { "" } else { "at least " };
-    let partial = if view.complete {
-        String::new()
-    } else {
-        format!("{sep}partial listing")
-    };
-    match total {
-        0 if view.complete => vec![
-            format!("No workflow in {} yet", view.name),
-            "the first appears here when Nika proposes it".to_owned(),
-            "opening here sends nothing to the model".to_owned(),
-        ],
-        0 => vec![format!("none found in the listed part{sep}listing partial")],
-        1 => vec![format!("{floor}1 workflow{sep}{clean} clean{partial}")],
-        n => vec![format!("{floor}{n} workflows{sep}{clean} clean{partial}")],
-    }
-}
+/// The demo the welcome offers: an exact skeleton of the pack whose records
+/// travel inside the example, so following it needs no file of the user's, no
+/// service and no model; its one open value (the currency) is asked. Typed as
+/// a line, it reaches the Session like any other request.
+pub(crate) const DEMO: &str = "aggregate-by-key";
 
-/// The welcome: where the human stands in one glance (the listing, the
-/// intelligence), what to do, and the one key that moves between regions;
-/// its separators follow the glyph column (`ascii`).
+/// The welcome explains the work once. The aside owns inventory, the
+/// conversation owns intelligence/context, and its hint owns the keys. The
+/// example it offers brings its own data; a request about the user's own
+/// files names them.
 #[must_use]
-pub(crate) fn welcome(view: Option<&ProjectView>, ascii: bool) -> Object {
-    let (sep, _) = marks(ascii);
+pub(crate) fn welcome(view: Option<&ProjectView>, _ascii: bool) -> Object {
     let mut words = vec![
         "N I K A".to_owned(),
         "Turn an intention into a workflow.".to_owned(),
@@ -414,25 +414,15 @@ pub(crate) fn welcome(view: Option<&ProjectView>, ascii: bool) -> Object {
         "2  Answer questions; inspect the proposed plan.".to_owned(),
         "3  Save, then Run with the workflow's models.".to_owned(),
         String::new(),
-        "Try: Read orders.csv, group by customer,".to_owned(),
-        "and write totals to customer-totals.json.".to_owned(),
+        format!("Try: {DEMO}"),
+        "a demo with its own records: totals per".to_owned(),
+        "region, you name the currency.".to_owned(),
+        "For your own data, name the files to read.".to_owned(),
         String::new(),
     ];
-    match view {
-        Some(view) => {
-            words.extend(inventory(view, sep));
-            words.push(match &view.seat {
-                Some(seat) => format!("To prepare{sep}{seat}"),
-                None => format!("To prepare{sep}not chosen yet; asked when needed"),
-            });
-        }
-        None => words.push("no project is known to this conversation".to_owned()),
+    if view.is_none() {
+        words.push("no project is known to this conversation".to_owned());
     }
-    words.push(String::new());
-    words.push("Ways: app account / API / local / no AI".to_owned());
-    words.push("/intelligence: change anytime  /help: commands".to_owned());
-    words.push("Click a panel or press F6; scroll over it.".to_owned());
-    words.push("End: latest messages. Copy: terminal modifier + drag.".to_owned());
     Object::Welcome { words }
 }
 
@@ -501,6 +491,7 @@ mod tests {
             Object::Welcome { words } => words.clone(),
             Object::Shown { lines, .. } => lines.clone(),
             Object::Workflow { body, .. } => body.iter().map(ToString::to_string).collect(),
+            _ => vec!["unsupported object in this fixture".to_owned()],
         }
     }
 
@@ -525,7 +516,7 @@ mod tests {
     fn the_nika_projection_lists_this_conversation_then_the_judged_workflows() {
         let demo = demo_project();
         let enrich = Target::Workflow("enrich.nika".to_owned());
-        let aside = aside(Some(&demo), Tab::Nika, Some(&enrich), None, None);
+        let aside = aside(Some(&demo), Tab::Nika, Some(&enrich), None, (None, &[]));
         let labels: Vec<(&str, Option<Verdict>, bool)> = aside
             .entries
             .iter()
@@ -542,36 +533,36 @@ mod tests {
         );
         assert!(aside.complete && aside.note.is_none());
         assert_eq!(
-            target(Some(&demo), Tab::Nika, 0, None, None),
+            target(Some(&demo), Tab::Nika, 0, None, (None, &[])),
             Some(Target::Conversation)
         );
         assert_eq!(
-            target(Some(&demo), Tab::Nika, 2, None, None),
+            target(Some(&demo), Tab::Nika, 2, None, (None, &[])),
             Some(Target::Workflow("enrich.nika".to_owned()))
         );
-        assert_eq!(target(Some(&demo), Tab::Nika, 4, None, None), None);
+        assert_eq!(target(Some(&demo), Tab::Nika, 4, None, (None, &[])), None);
     }
 
     #[test]
     fn what_cannot_be_listed_is_said_never_left_blank() {
         let demo = demo_project();
-        let files = aside(Some(&demo), Tab::Files, None, None, None);
+        let files = aside(Some(&demo), Tab::Files, None, None, (None, &[]));
         assert!(files.entries.is_empty());
         assert_eq!(files.note.as_deref(), Some(FILES_NOT_LENT));
-        assert_eq!(target(Some(&demo), Tab::Files, 0, None, None), None);
+        assert_eq!(target(Some(&demo), Tab::Files, 0, None, (None, &[])), None);
         let empty = ProjectView::new("local", "veille", "~/veille").listing(Vec::new(), false);
-        let nika = aside(Some(&empty), Tab::Nika, None, None, None);
+        let nika = aside(Some(&empty), Tab::Nika, None, None, (None, &[]));
         assert_eq!(nika.entries.len(), 1, "this conversation only");
         assert_eq!(nika.note.as_deref(), Some("none found in the listed part"));
         assert!(!nika.complete);
         let fresh = ProjectView::new("local", "veille", "~/veille").listing(Vec::new(), true);
         assert_eq!(
-            aside(Some(&fresh), Tab::Nika, None, None, None)
+            aside(Some(&fresh), Tab::Nika, None, None, (None, &[]))
                 .note
                 .as_deref(),
             Some("No workflow in veille yet")
         );
-        let unknown = aside(None, Tab::Nika, None, None, None);
+        let unknown = aside(None, Tab::Nika, None, None, (None, &[]));
         assert_eq!(
             unknown.note.as_deref(),
             Some("no project is known to this conversation")
@@ -579,7 +570,7 @@ mod tests {
     }
 
     #[test]
-    fn welcome_explains_the_path_and_keeps_observed_inventory_and_model() {
+    fn welcome_explains_the_path_without_repeating_inventory_model_or_keys() {
         let demo = demo_project();
         let welcome_words = words(&welcome(Some(&demo), false));
         for expected in [
@@ -587,15 +578,16 @@ mod tests {
             "1  Describe the outcome in the conversation.",
             "2  Answer questions; inspect the proposed plan.",
             "3  Save, then Run with the workflow's models.",
-            "3 workflows · 2 clean",
-            "To prepare · the demo script, no model is called",
-            "Ways: app account / API / local / no AI",
-            "/intelligence: change anytime  /help: commands",
-            "Click a panel or press F6; scroll over it.",
         ] {
             assert!(
                 welcome_words.iter().any(|word| word == expected),
                 "{expected}"
+            );
+        }
+        for repeated in ["3 workflows", "To prepare", "Ways:", "/intelligence:", "F6"] {
+            assert!(
+                !welcome_words.iter().any(|word| word.contains(repeated)),
+                "the welcome repeats another region's information: {repeated}"
             );
         }
         assert!(
@@ -613,26 +605,42 @@ mod tests {
         assert_eq!(thread.on_screen.as_deref(), Some("a.nika"));
     }
 
+    /// The welcome once offered « Read orders.csv … » in a project that had no such file; the
+    /// example it offers now carries its own records, and it names no input file at all.
     #[test]
-    fn an_empty_or_partial_welcome_does_not_invent_workflows() {
+    fn the_welcome_example_brings_its_own_data_and_names_no_absent_file() {
+        let welcome_words = words(&welcome(None, false));
+        assert!(
+            welcome_words
+                .iter()
+                .any(|word| *word == format!("Try: {DEMO}")),
+            "{welcome_words:?}"
+        );
+        for word in &welcome_words {
+            for extension in [".csv", ".json", ".md", ".txt", ".nika"] {
+                assert!(!word.contains(extension), "a file is offered: {word}");
+            }
+        }
+    }
+
+    #[test]
+    fn empty_and_partial_inventory_stays_in_the_aside() {
         let fresh = ProjectView::new("local", "veille", "~/veille").listing(Vec::new(), true);
         let fresh_words = words(&welcome(Some(&fresh), false));
-        assert!(
-            fresh_words
-                .iter()
-                .any(|word| word == "No workflow in veille yet")
-        );
-        assert!(
-            fresh_words
-                .iter()
-                .any(|word| word == "opening here sends nothing to the model")
+        assert!(!fresh_words.iter().any(|word| word.contains("No workflow")));
+        assert_eq!(
+            aside(Some(&fresh), Tab::Nika, None, None, (None, &[]))
+                .note
+                .as_deref(),
+            Some("No workflow in veille yet")
         );
         let cut = ProjectView::new("local", "veille", "~/veille").listing(Vec::new(), false);
         assert!(
             words(&welcome(Some(&cut), true))
                 .iter()
-                .any(|word| word == "none found in the listed part - listing partial")
+                .all(|word| !word.contains("listing partial"))
         );
+        assert!(!aside(Some(&cut), Tab::Nika, None, None, (None, &[])).complete);
     }
 
     #[test]
@@ -674,12 +682,12 @@ mod tests {
         let demo = demo_project();
         let run = Target::Run("#1".to_owned());
         assert!(
-            !aside(Some(&demo), Tab::Nika, None, None, None)
+            !aside(Some(&demo), Tab::Nika, None, None, (None, &[]))
                 .entries
                 .iter()
                 .any(|e| e.icon == Icon::Run)
         );
-        assert_eq!(resolve(Some(&demo), Some(&run), None, None), None);
+        assert_eq!(resolve(Some(&demo), Some(&run), None, (None, &[])), None);
         let pinned = demo.pinning(
             Pinned::new(
                 "demo",
@@ -690,17 +698,17 @@ mod tests {
             )
             .offering("answer the gate"),
         );
-        let listed = aside(Some(&pinned), Tab::Nika, Some(&run), None, None);
+        let listed = aside(Some(&pinned), Tab::Nika, Some(&run), None, (None, &[]));
         let last = listed.entries.last().expect("the run");
         assert_eq!(
             (last.icon, last.label.as_str(), last.open),
             (Icon::Run, "#1 digest-notes.nika", true)
         );
         assert_eq!(
-            target(Some(&pinned), Tab::Nika, 4, None, None),
+            target(Some(&pinned), Tab::Nika, 4, None, (None, &[])),
             Some(run.clone())
         );
-        let opened = resolve(Some(&pinned), Some(&run), None, None).expect("pinned");
+        let opened = resolve(Some(&pinned), Some(&run), None, (None, &[])).expect("pinned");
         assert_eq!(opened.label(), "#1 digest-notes.nika");
         assert_eq!(
             words(&opened.object(true)),
@@ -713,11 +721,11 @@ mod tests {
         );
         let enrich = Target::Workflow("enrich.nika".to_owned());
         assert_eq!(
-            resolve(Some(&pinned), Some(&enrich), None, None)
+            resolve(Some(&pinned), Some(&enrich), None, (None, &[]))
                 .map(Opened::label)
                 .as_deref(),
             Some("enrich.nika")
         );
-        assert_eq!(resolve(None, Some(&enrich), None, None), None);
+        assert_eq!(resolve(None, Some(&enrich), None, (None, &[])), None);
     }
 }

@@ -174,13 +174,14 @@ use std::fmt::Write as _;
 
 use nika_check::CheckReport;
 use nika_check::infer_permits;
+use nika_schema::SchemaError;
 #[cfg(test)]
 use nika_schema::raw::RawWorkflow;
 
 use nika_cli_host::oracle::{Lane, LaneFinding, NATIVE_STRICT_FIX};
 
 use crate::display::theme::{Role, Theme};
-use crate::verbs::{RunSource, VerbOutput, load_checked, load_checked_run_source};
+use crate::verbs::{RunSource, VerbOutput, load_checked, parse_checked, schema_refusal};
 
 mod budget;
 pub(crate) mod energy;
@@ -385,7 +386,7 @@ fn run_target_with_profile_and_slots(
     }
     let source = match RunSource::capture_with_repair_target(&target.path, target.repair_target) {
         Ok(source) => source,
-        Err(out) if json => return parse_fatal_json(&out),
+        Err(out) if json => return parse_fatal_json(&out, None),
         Err(out) => return out,
     };
     run_source_with_profile_and_slots(
@@ -429,10 +430,10 @@ fn run_source_with_profile_and_slots(
     theme: Theme,
     allow_slot_only: bool,
 ) -> VerbOutput {
-    let (wf, report) = match load_checked_run_source(source) {
+    let (wf, report) = match parse_checked(source) {
         Ok(pair) => pair,
-        Err(out) if json => return parse_fatal_json(&out),
-        Err(out) => return out,
+        Err(e) if json => return parse_fatal_json(&schema_refusal(&e, source), Some(&e)),
+        Err(e) => return schema_refusal(&e, source),
     };
     let path = source.logical_path();
     let (wf, report) = overridden(wf, report, model_override, path);
@@ -762,20 +763,22 @@ fn naming_note(text: &mut String, theme: Theme, path: &str, wf: &nika_schema::ra
     );
 }
 
-/// `--json` parse-fatal verdict: one findings row, `parse_fatal: true`.
-pub(crate) fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
+/// `--json` parse-fatal verdict: one findings row, `parse_fatal: true`. A typed parser refusal
+/// gives its own code and whole message, an authored newline kept, never the human frame (#1075);
+/// any other refusal (an unreadable file: codeless) is its text's first line.
+pub(crate) fn parse_fatal_json(out: &VerbOutput, typed: Option<&SchemaError>) -> VerbOutput {
     let text = out.text.trim();
-    // The plain voice is `PARSE ✗  [NIKA-…] message` on the FIRST line;
-    // a span-carrying refusal (#1075) appends a rustc-grade frame under
-    // it. Scrape the diagnostic line only — the frame is human, not
-    // the finding's message.
-    // An env-class refusal (unreadable file) has no code and stays codeless.
     let line = text.lines().next().unwrap_or(text);
-    let code = line
-        .split_once('[')
-        .and_then(|(_, rest)| rest.split_once(']'))
-        .map(|(code, _)| code.to_owned());
-    let message = line.split_once("] ").map_or(line, |(_, m)| m).to_owned();
+    let code = typed.map(|e| e.spec_code().to_string()).or_else(|| {
+        let bracketed = line
+            .split_once('[')
+            .and_then(|(_, rest)| rest.split_once(']'));
+        bracketed.map(|(code, _)| code.to_owned())
+    });
+    let message = match (typed, &code) {
+        (Some(e), Some(c)) => format!("{e} · → nika explain {c}"),
+        _ => line.split_once("] ").map_or(line, |(_, m)| m).to_owned(),
+    };
     let mut finding = serde_json::json!({
         "kind": "parse",
         "gate": "PARSE",

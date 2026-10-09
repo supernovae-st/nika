@@ -2865,6 +2865,72 @@ impl<T> tracing::instrument::Instrument for nika_display::run_story::ChildRun
 impl<T> tracing::instrument::WithSubscriber for nika_display::run_story::ChildRun
 impl<T> typenum::type_operators::Same for nika_display::run_story::ChildRun
 pub type nika_display::run_story::ChildRun::Output = T
+#[non_exhaustive] pub struct nika_display::run_story::RunIdentity
+impl nika_display::run_story::RunIdentity
+pub fn nika_display::run_story::RunIdentity::chain_head(&self) -> core::option::Option<&str>
+pub const fn nika_display::run_story::RunIdentity::chain_len(&self) -> core::option::Option<u64>
+pub fn nika_display::run_story::RunIdentity::event(&mut self, event: &nika_event::event::Event)
+pub const fn nika_display::run_story::RunIdentity::execution(&self) -> core::option::Option<nika_types::id::ExecutionId>
+pub fn nika_display::run_story::RunIdentity::frame(&mut self, frame: &nika_display::run_story::RunFrame)
+pub fn nika_display::run_story::RunIdentity::new() -> Self
+pub fn nika_display::run_story::RunIdentity::of_execution(execution: nika_types::id::ExecutionId) -> Self
+pub fn nika_display::run_story::RunIdentity::of_journal(raw: &str) -> Self
+pub fn nika_display::run_story::RunIdentity::restored(execution: nika_types::id::ExecutionId, workflow_sha256: core::option::Option<alloc::string::String>, trace: core::option::Option<std::path::PathBuf>, (chain_head, chain_len): (core::option::Option<alloc::string::String>, core::option::Option<u64>)) -> Self
+pub fn nika_display::run_story::RunIdentity::settle(&mut self, settled: &nika_display::run_story::Settled)
+pub const fn nika_display::run_story::RunIdentity::settled(&self) -> bool
+pub fn nika_display::run_story::RunIdentity::trace(&self) -> core::option::Option<&std::path::Path>
+pub fn nika_display::run_story::RunIdentity::workflow_sha256(&self) -> core::option::Option<&str>
+impl core::clone::Clone for nika_display::run_story::RunIdentity
+pub fn nika_display::run_story::RunIdentity::clone(&self) -> nika_display::run_story::RunIdentity
+impl core::cmp::Eq for nika_display::run_story::RunIdentity
+impl core::cmp::PartialEq for nika_display::run_story::RunIdentity
+pub fn nika_display::run_story::RunIdentity::eq(&self, other: &nika_display::run_story::RunIdentity) -> bool
+impl core::default::Default for nika_display::run_story::RunIdentity
+pub fn nika_display::run_story::RunIdentity::default() -> nika_display::run_story::RunIdentity
+impl core::fmt::Debug for nika_display::run_story::RunIdentity
+pub fn nika_display::run_story::RunIdentity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_display::run_story::RunIdentity
+impl<D> owo_colors::OwoColorize for nika_display::run_story::RunIdentity
+impl<Q, K> equivalent::Equivalent<K> for nika_display::run_story::RunIdentity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::run_story::RunIdentity::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::run_story::RunIdentity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::run_story::RunIdentity::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::run_story::RunIdentity where U: core::convert::From<T>
+pub fn nika_display::run_story::RunIdentity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::run_story::RunIdentity where U: core::convert::Into<T>
+pub type nika_display::run_story::RunIdentity::Error = core::convert::Infallible
+pub fn nika_display::run_story::RunIdentity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::run_story::RunIdentity where U: core::convert::TryFrom<T>
+pub type nika_display::run_story::RunIdentity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::run_story::RunIdentity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::run_story::RunIdentity where T: core::clone::Clone
+pub type nika_display::run_story::RunIdentity::Owned = T
+pub fn nika_display::run_story::RunIdentity::clone_into(&self, target: &mut T)
+pub fn nika_display::run_story::RunIdentity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::run_story::RunIdentity where T: 'static + ?core::marker::Sized
+pub fn nika_display::run_story::RunIdentity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::run_story::RunIdentity where T: ?core::marker::Sized
+pub fn nika_display::run_story::RunIdentity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::run_story::RunIdentity where T: ?core::marker::Sized
+pub fn nika_display::run_story::RunIdentity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::run_story::RunIdentity where T: core::clone::Clone
+pub unsafe fn nika_display::run_story::RunIdentity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::run_story::RunIdentity
+pub fn nika_display::run_story::RunIdentity::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::run_story::RunIdentity where T: core::clone::Clone
+pub fn nika_display::run_story::RunIdentity::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::run_story::RunIdentity where T: 'static
+pub fn nika_display::run_story::RunIdentity::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::run_story::RunIdentity where T: ?core::marker::Sized
+pub fn nika_display::run_story::RunIdentity::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::run_story::RunIdentity::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::run_story::RunIdentity
+impl<T> tracing::instrument::WithSubscriber for nika_display::run_story::RunIdentity
+impl<T> typenum::type_operators::Same for nika_display::run_story::RunIdentity
+pub type nika_display::run_story::RunIdentity::Output = T
+impl<T> zvariant::optional::NoneValue for nika_display::run_story::RunIdentity where T: core::default::Default
+pub type nika_display::run_story::RunIdentity::NoneType = T
+pub fn nika_display::run_story::RunIdentity::null_value() -> T
 pub struct nika_display::run_story::RunStory
 pub nika_display::run_story::RunStory::lines: alloc::vec::Vec<alloc::string::String>
 pub nika_display::run_story::RunStory::trace: core::option::Option<std::path::PathBuf>

@@ -8,7 +8,9 @@
 //! the retry backoff arithmetic, the secret custody, the sandbox verdict, the
 //! received-image room and the event stamp seams. `nika-runtime` re-exports every item
 //! at its historical path; this crate is the `nika-runtime` unit's second
-//! member, never a new architectural unit.
+//! member, never a new architectural unit. `stack` is the one item without a
+//! historical path: the same-thread stack mechanics the runtime's child call
+//! imports privately.
 
 #![forbid(unsafe_code)]
 
@@ -25,6 +27,7 @@ pub mod resume_fields;
 pub mod retry;
 pub mod sandbox_select;
 pub mod secret;
+pub mod stack;
 pub mod stamp;
 pub mod witness;
 

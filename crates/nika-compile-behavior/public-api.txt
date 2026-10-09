@@ -1,0 +1,1988 @@
+pub mod nika_compile_behavior
+pub mod nika_compile_behavior::behavior
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Admission
+pub nika_compile_behavior::behavior::Admission::Open
+pub nika_compile_behavior::behavior::Admission::RoundSpent(nika_compile_behavior::behavior::Axis)
+pub nika_compile_behavior::behavior::Admission::TurnSpent(nika_compile_behavior::behavior::Axis)
+impl core::clone::Clone for nika_compile_behavior::behavior::Admission
+pub fn nika_compile_behavior::behavior::Admission::clone(&self) -> nika_compile_behavior::behavior::Admission
+impl core::cmp::Eq for nika_compile_behavior::behavior::Admission
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Admission
+pub fn nika_compile_behavior::behavior::Admission::eq(&self, other: &nika_compile_behavior::behavior::Admission) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Admission
+pub fn nika_compile_behavior::behavior::Admission::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_behavior::behavior::Admission
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Admission
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Admission where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Admission::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Admission where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Admission::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Admission::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Admission where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Admission::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Admission::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Admission where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Admission::Owned = T
+pub fn nika_compile_behavior::behavior::Admission::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Admission::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Admission where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Admission::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Admission where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Admission::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Admission where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Admission::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Admission where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Admission::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Admission
+pub fn nika_compile_behavior::behavior::Admission::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Admission
+pub type nika_compile_behavior::behavior::Admission::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Arith
+pub nika_compile_behavior::behavior::Arith::Add
+pub nika_compile_behavior::behavior::Arith::Sub
+impl core::clone::Clone for nika_compile_behavior::behavior::Arith
+pub fn nika_compile_behavior::behavior::Arith::clone(&self) -> nika_compile_behavior::behavior::Arith
+impl core::cmp::Eq for nika_compile_behavior::behavior::Arith
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Arith
+pub fn nika_compile_behavior::behavior::Arith::eq(&self, other: &nika_compile_behavior::behavior::Arith) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Arith
+pub fn nika_compile_behavior::behavior::Arith::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_behavior::behavior::Arith
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Arith
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Arith where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Arith::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Arith where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Arith::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Arith::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Arith where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Arith::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Arith::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Arith where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Arith::Owned = T
+pub fn nika_compile_behavior::behavior::Arith::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Arith::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Arith where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Arith::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Arith where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Arith::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Arith where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Arith::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Arith where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Arith::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Arith
+pub fn nika_compile_behavior::behavior::Arith::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Arith
+pub type nika_compile_behavior::behavior::Arith::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Axis
+pub nika_compile_behavior::behavior::Axis::Attempts
+pub nika_compile_behavior::behavior::Axis::Bytes
+pub nika_compile_behavior::behavior::Axis::Fixtures
+pub nika_compile_behavior::behavior::Axis::Time
+impl core::clone::Clone for nika_compile_behavior::behavior::Axis
+pub fn nika_compile_behavior::behavior::Axis::clone(&self) -> nika_compile_behavior::behavior::Axis
+impl core::cmp::Eq for nika_compile_behavior::behavior::Axis
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Axis
+pub fn nika_compile_behavior::behavior::Axis::eq(&self, other: &nika_compile_behavior::behavior::Axis) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Axis
+pub fn nika_compile_behavior::behavior::Axis::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_behavior::behavior::Axis
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Axis
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Axis where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Axis::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Axis where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Axis::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Axis::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Axis where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Axis::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Axis::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Axis where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Axis::Owned = T
+pub fn nika_compile_behavior::behavior::Axis::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Axis::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Axis where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Axis::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Axis where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Axis::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Axis where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Axis::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Axis where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Axis::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Axis
+pub fn nika_compile_behavior::behavior::Axis::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Axis
+pub type nika_compile_behavior::behavior::Axis::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Cause
+pub nika_compile_behavior::behavior::Cause::Engine
+pub nika_compile_behavior::behavior::Cause::MissingFile
+pub nika_compile_behavior::behavior::Cause::MissingFile::path: alloc::string::String
+pub nika_compile_behavior::behavior::Cause::Stop(nika_compile_behavior::behavior::StopFact)
+pub nika_compile_behavior::behavior::Cause::TimeBound
+pub nika_compile_behavior::behavior::Cause::Unclassified
+pub nika_compile_behavior::behavior::Cause::Unparsable
+pub nika_compile_behavior::behavior::Cause::Unparsable::path: alloc::string::String
+impl core::clone::Clone for nika_compile_behavior::behavior::Cause
+pub fn nika_compile_behavior::behavior::Cause::clone(&self) -> nika_compile_behavior::behavior::Cause
+impl core::cmp::Eq for nika_compile_behavior::behavior::Cause
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Cause
+pub fn nika_compile_behavior::behavior::Cause::eq(&self, other: &nika_compile_behavior::behavior::Cause) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Cause
+pub fn nika_compile_behavior::behavior::Cause::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Cause
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Cause where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Cause::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Cause where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Cause::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Cause::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Cause where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Cause::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Cause::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Cause where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Cause::Owned = T
+pub fn nika_compile_behavior::behavior::Cause::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Cause::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Cause where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Cause::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Cause where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Cause::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Cause where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Cause::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Cause where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Cause::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Cause
+pub fn nika_compile_behavior::behavior::Cause::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Cause
+pub type nika_compile_behavior::behavior::Cause::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Choice
+pub nika_compile_behavior::behavior::Choice::RejectAll
+pub nika_compile_behavior::behavior::Choice::Selected(usize)
+pub nika_compile_behavior::behavior::Choice::Spent(nika_compile_behavior::behavior::Axis)
+pub nika_compile_behavior::behavior::Choice::Unproven
+impl core::clone::Clone for nika_compile_behavior::behavior::Choice
+pub fn nika_compile_behavior::behavior::Choice::clone(&self) -> nika_compile_behavior::behavior::Choice
+impl core::cmp::Eq for nika_compile_behavior::behavior::Choice
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Choice
+pub fn nika_compile_behavior::behavior::Choice::eq(&self, other: &nika_compile_behavior::behavior::Choice) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Choice
+pub fn nika_compile_behavior::behavior::Choice::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_behavior::behavior::Choice
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Choice
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Choice where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Choice::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Choice where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Choice::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Choice::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Choice where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Choice::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Choice::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Choice where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Choice::Owned = T
+pub fn nika_compile_behavior::behavior::Choice::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Choice::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Choice where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Choice::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Choice where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Choice::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Choice where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Choice::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Choice where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Choice::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Choice
+pub fn nika_compile_behavior::behavior::Choice::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Choice
+pub type nika_compile_behavior::behavior::Choice::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Coverage
+pub nika_compile_behavior::behavior::Coverage::Complete
+pub nika_compile_behavior::behavior::Coverage::Sampled
+pub nika_compile_behavior::behavior::Coverage::Truncated
+impl nika_compile_behavior::behavior::Coverage
+pub fn nika_compile_behavior::behavior::Coverage::word(self) -> &'static str
+impl core::clone::Clone for nika_compile_behavior::behavior::Coverage
+pub fn nika_compile_behavior::behavior::Coverage::clone(&self) -> nika_compile_behavior::behavior::Coverage
+impl core::cmp::Eq for nika_compile_behavior::behavior::Coverage
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Coverage
+pub fn nika_compile_behavior::behavior::Coverage::eq(&self, other: &nika_compile_behavior::behavior::Coverage) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Coverage
+pub fn nika_compile_behavior::behavior::Coverage::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_behavior::behavior::Coverage
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Coverage
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Coverage where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Coverage::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Coverage where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Coverage::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Coverage::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Coverage where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Coverage::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Coverage::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Coverage where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Coverage::Owned = T
+pub fn nika_compile_behavior::behavior::Coverage::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Coverage::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Coverage where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Coverage::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Coverage where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Coverage::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Coverage where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Coverage::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Coverage where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Coverage::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Coverage
+pub fn nika_compile_behavior::behavior::Coverage::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Coverage
+pub type nika_compile_behavior::behavior::Coverage::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Form
+pub nika_compile_behavior::behavior::Form::Alone
+pub nika_compile_behavior::behavior::Form::Rows
+pub nika_compile_behavior::behavior::Form::Totals
+impl core::clone::Clone for nika_compile_behavior::behavior::Form
+pub fn nika_compile_behavior::behavior::Form::clone(&self) -> nika_compile_behavior::behavior::Form
+impl core::cmp::Eq for nika_compile_behavior::behavior::Form
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Form
+pub fn nika_compile_behavior::behavior::Form::eq(&self, other: &nika_compile_behavior::behavior::Form) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Form
+pub fn nika_compile_behavior::behavior::Form::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_behavior::behavior::Form
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Form
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Form where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Form::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Form where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Form::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Form::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Form where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Form::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Form::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Form where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Form::Owned = T
+pub fn nika_compile_behavior::behavior::Form::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Form::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Form where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Form::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Form where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Form::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Form where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Form::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Form where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Form::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Form
+pub fn nika_compile_behavior::behavior::Form::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Form
+pub type nika_compile_behavior::behavior::Form::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Format
+pub nika_compile_behavior::behavior::Format::Csv
+pub nika_compile_behavior::behavior::Format::Json
+pub nika_compile_behavior::behavior::Format::JsonLines
+pub nika_compile_behavior::behavior::Format::Text
+impl nika_compile_behavior::behavior::Format
+pub fn nika_compile_behavior::behavior::Format::of_path(path: &str) -> core::option::Option<Self>
+pub fn nika_compile_behavior::behavior::Format::word(self) -> &'static str
+impl core::clone::Clone for nika_compile_behavior::behavior::Format
+pub fn nika_compile_behavior::behavior::Format::clone(&self) -> nika_compile_behavior::behavior::Format
+impl core::cmp::Eq for nika_compile_behavior::behavior::Format
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Format
+pub fn nika_compile_behavior::behavior::Format::eq(&self, other: &nika_compile_behavior::behavior::Format) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Format
+pub fn nika_compile_behavior::behavior::Format::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_behavior::behavior::Format
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Format
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Format where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Format::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Format where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Format::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Format::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Format where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Format::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Format::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Format where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Format::Owned = T
+pub fn nika_compile_behavior::behavior::Format::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Format::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Format where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Format::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Format where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Format::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Format where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Format::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Format where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Format::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Format
+pub fn nika_compile_behavior::behavior::Format::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Format
+pub type nika_compile_behavior::behavior::Format::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Naming
+pub nika_compile_behavior::behavior::Naming::Free
+pub nika_compile_behavior::behavior::Naming::Stated
+pub nika_compile_behavior::behavior::Naming::Unknown
+impl core::clone::Clone for nika_compile_behavior::behavior::Naming
+pub fn nika_compile_behavior::behavior::Naming::clone(&self) -> nika_compile_behavior::behavior::Naming
+impl core::cmp::Eq for nika_compile_behavior::behavior::Naming
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Naming
+pub fn nika_compile_behavior::behavior::Naming::eq(&self, other: &nika_compile_behavior::behavior::Naming) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Naming
+pub fn nika_compile_behavior::behavior::Naming::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_behavior::behavior::Naming
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Naming
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Naming where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Naming::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Naming where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Naming::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Naming::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Naming where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Naming::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Naming::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Naming where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Naming::Owned = T
+pub fn nika_compile_behavior::behavior::Naming::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Naming::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Naming where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Naming::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Naming where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Naming::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Naming where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Naming::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Naming where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Naming::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Naming
+pub fn nika_compile_behavior::behavior::Naming::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Naming
+pub type nika_compile_behavior::behavior::Naming::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::OnEmpty
+pub nika_compile_behavior::behavior::OnEmpty::Stops
+pub nika_compile_behavior::behavior::OnEmpty::Unstated
+pub nika_compile_behavior::behavior::OnEmpty::Zero
+impl core::clone::Clone for nika_compile_behavior::behavior::OnEmpty
+pub fn nika_compile_behavior::behavior::OnEmpty::clone(&self) -> nika_compile_behavior::behavior::OnEmpty
+impl core::cmp::Eq for nika_compile_behavior::behavior::OnEmpty
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::OnEmpty
+pub fn nika_compile_behavior::behavior::OnEmpty::eq(&self, other: &nika_compile_behavior::behavior::OnEmpty) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::OnEmpty
+pub fn nika_compile_behavior::behavior::OnEmpty::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_behavior::behavior::OnEmpty
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::OnEmpty
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::OnEmpty where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::OnEmpty::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::OnEmpty where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::OnEmpty::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::OnEmpty::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::OnEmpty where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::OnEmpty::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::OnEmpty::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::OnEmpty where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::OnEmpty::Owned = T
+pub fn nika_compile_behavior::behavior::OnEmpty::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::OnEmpty::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::OnEmpty where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::OnEmpty::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::OnEmpty where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::OnEmpty::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::OnEmpty where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::OnEmpty::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::OnEmpty where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::OnEmpty::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::OnEmpty
+pub fn nika_compile_behavior::behavior::OnEmpty::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::OnEmpty
+pub type nika_compile_behavior::behavior::OnEmpty::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Operand
+pub nika_compile_behavior::behavior::Operand::AsText(alloc::string::String)
+pub nika_compile_behavior::behavior::Operand::Bool(bool)
+pub nika_compile_behavior::behavior::Operand::Column(alloc::string::String)
+pub nika_compile_behavior::behavior::Operand::Number(nika_compile_behavior::behavior::Decimal)
+pub nika_compile_behavior::behavior::Operand::Text(alloc::string::String)
+impl core::clone::Clone for nika_compile_behavior::behavior::Operand
+pub fn nika_compile_behavior::behavior::Operand::clone(&self) -> nika_compile_behavior::behavior::Operand
+impl core::cmp::Eq for nika_compile_behavior::behavior::Operand
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Operand
+pub fn nika_compile_behavior::behavior::Operand::eq(&self, other: &nika_compile_behavior::behavior::Operand) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Operand
+pub fn nika_compile_behavior::behavior::Operand::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Operand
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Operand where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Operand::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Operand where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Operand::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Operand::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Operand where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Operand::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Operand::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Operand where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Operand::Owned = T
+pub fn nika_compile_behavior::behavior::Operand::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Operand::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Operand where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Operand::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Operand where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Operand::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Operand where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Operand::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Operand where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Operand::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Operand
+pub fn nika_compile_behavior::behavior::Operand::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Operand
+pub type nika_compile_behavior::behavior::Operand::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Operation
+pub nika_compile_behavior::behavior::Operation::Aggregate
+pub nika_compile_behavior::behavior::Operation::Column
+pub nika_compile_behavior::behavior::Operation::Condition
+pub nika_compile_behavior::behavior::Operation::Rank
+pub nika_compile_behavior::behavior::Operation::Test
+impl core::clone::Clone for nika_compile_behavior::behavior::Operation
+pub fn nika_compile_behavior::behavior::Operation::clone(&self) -> nika_compile_behavior::behavior::Operation
+impl core::cmp::Eq for nika_compile_behavior::behavior::Operation
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Operation
+pub fn nika_compile_behavior::behavior::Operation::eq(&self, other: &nika_compile_behavior::behavior::Operation) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Operation
+pub fn nika_compile_behavior::behavior::Operation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_behavior::behavior::Operation
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Operation
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Operation where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Operation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Operation where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Operation::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Operation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Operation where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Operation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Operation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Operation where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Operation::Owned = T
+pub fn nika_compile_behavior::behavior::Operation::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Operation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Operation where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Operation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Operation where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Operation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Operation where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Operation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Operation where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Operation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Operation
+pub fn nika_compile_behavior::behavior::Operation::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Operation
+pub type nika_compile_behavior::behavior::Operation::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Outcome
+pub nika_compile_behavior::behavior::Outcome::Failed
+pub nika_compile_behavior::behavior::Outcome::Incomplete
+pub nika_compile_behavior::behavior::Outcome::InvalidHarness
+pub nika_compile_behavior::behavior::Outcome::NotRun
+pub nika_compile_behavior::behavior::Outcome::Passed
+impl core::clone::Clone for nika_compile_behavior::behavior::Outcome
+pub fn nika_compile_behavior::behavior::Outcome::clone(&self) -> nika_compile_behavior::behavior::Outcome
+impl core::cmp::Eq for nika_compile_behavior::behavior::Outcome
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Outcome
+pub fn nika_compile_behavior::behavior::Outcome::eq(&self, other: &nika_compile_behavior::behavior::Outcome) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Outcome
+pub fn nika_compile_behavior::behavior::Outcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_behavior::behavior::Outcome
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Outcome
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Outcome where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Outcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Outcome where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Outcome::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Outcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Outcome where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Outcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Outcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Outcome where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Outcome::Owned = T
+pub fn nika_compile_behavior::behavior::Outcome::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Outcome::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Outcome where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Outcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Outcome where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Outcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Outcome where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Outcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Outcome where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Outcome::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Outcome
+pub fn nika_compile_behavior::behavior::Outcome::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Outcome
+pub type nika_compile_behavior::behavior::Outcome::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Presence
+pub nika_compile_behavior::behavior::Presence::Approval
+pub nika_compile_behavior::behavior::Presence::Forbidden
+pub nika_compile_behavior::behavior::Presence::OnlyWhen(nika_compile_behavior::behavior::Condition)
+pub nika_compile_behavior::behavior::Presence::Required
+pub nika_compile_behavior::behavior::Presence::Undecided
+pub nika_compile_behavior::behavior::Presence::Unproven
+pub nika_compile_behavior::behavior::Presence::When(nika_compile_behavior::behavior::Condition)
+impl core::clone::Clone for nika_compile_behavior::behavior::Presence
+pub fn nika_compile_behavior::behavior::Presence::clone(&self) -> nika_compile_behavior::behavior::Presence
+impl core::cmp::Eq for nika_compile_behavior::behavior::Presence
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Presence
+pub fn nika_compile_behavior::behavior::Presence::eq(&self, other: &nika_compile_behavior::behavior::Presence) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Presence
+pub fn nika_compile_behavior::behavior::Presence::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Presence
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Presence where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Presence::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Presence where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Presence::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Presence::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Presence where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Presence::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Presence::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Presence where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Presence::Owned = T
+pub fn nika_compile_behavior::behavior::Presence::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Presence::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Presence where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Presence::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Presence where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Presence::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Presence where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Presence::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Presence where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Presence::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Presence
+pub fn nika_compile_behavior::behavior::Presence::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Presence
+pub type nika_compile_behavior::behavior::Presence::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Requirement
+pub nika_compile_behavior::behavior::Requirement::Computed
+pub nika_compile_behavior::behavior::Requirement::Computed::form: nika_compile_behavior::behavior::Form
+pub nika_compile_behavior::behavior::Requirement::Computed::pipeline: nika_compile_behavior::behavior::Pipeline
+pub nika_compile_behavior::behavior::Requirement::Computed::source: alloc::string::String
+pub nika_compile_behavior::behavior::Requirement::Computed::source_format: nika_compile_behavior::behavior::Format
+pub nika_compile_behavior::behavior::Requirement::CopyText
+pub nika_compile_behavior::behavior::Requirement::CopyText::source: alloc::string::String
+pub nika_compile_behavior::behavior::Requirement::PresenceOnly
+pub nika_compile_behavior::behavior::Requirement::Unsupported(alloc::string::String)
+impl core::clone::Clone for nika_compile_behavior::behavior::Requirement
+pub fn nika_compile_behavior::behavior::Requirement::clone(&self) -> nika_compile_behavior::behavior::Requirement
+impl core::cmp::Eq for nika_compile_behavior::behavior::Requirement
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Requirement
+pub fn nika_compile_behavior::behavior::Requirement::eq(&self, other: &nika_compile_behavior::behavior::Requirement) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Requirement
+pub fn nika_compile_behavior::behavior::Requirement::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Requirement
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Requirement where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Requirement::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Requirement where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Requirement::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Requirement::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Requirement where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Requirement::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Requirement::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Requirement where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Requirement::Owned = T
+pub fn nika_compile_behavior::behavior::Requirement::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Requirement::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Requirement where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Requirement::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Requirement where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Requirement::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Requirement where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Requirement::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Requirement where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Requirement::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Requirement
+pub fn nika_compile_behavior::behavior::Requirement::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Requirement
+pub type nika_compile_behavior::behavior::Requirement::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::RunEnd
+pub nika_compile_behavior::behavior::RunEnd::Completed
+pub nika_compile_behavior::behavior::RunEnd::Failed(nika_compile_behavior::behavior::Failure)
+pub nika_compile_behavior::behavior::RunEnd::InvalidHarness
+pub nika_compile_behavior::behavior::RunEnd::InvalidHarness::reason: alloc::string::String
+pub nika_compile_behavior::behavior::RunEnd::NotRun
+pub nika_compile_behavior::behavior::RunEnd::NotRun::reason: alloc::string::String
+impl core::clone::Clone for nika_compile_behavior::behavior::RunEnd
+pub fn nika_compile_behavior::behavior::RunEnd::clone(&self) -> nika_compile_behavior::behavior::RunEnd
+impl core::cmp::Eq for nika_compile_behavior::behavior::RunEnd
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::RunEnd
+pub fn nika_compile_behavior::behavior::RunEnd::eq(&self, other: &nika_compile_behavior::behavior::RunEnd) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::RunEnd
+pub fn nika_compile_behavior::behavior::RunEnd::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::RunEnd
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::RunEnd where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::RunEnd::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::RunEnd where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::RunEnd::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::RunEnd::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::RunEnd where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::RunEnd::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::RunEnd::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::RunEnd where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::RunEnd::Owned = T
+pub fn nika_compile_behavior::behavior::RunEnd::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::RunEnd::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::RunEnd where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::RunEnd::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::RunEnd where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::RunEnd::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::RunEnd where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::RunEnd::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::RunEnd where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::RunEnd::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::RunEnd
+pub fn nika_compile_behavior::behavior::RunEnd::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::RunEnd
+pub type nika_compile_behavior::behavior::RunEnd::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::StopReason
+pub nika_compile_behavior::behavior::StopReason::NoNumber
+pub nika_compile_behavior::behavior::StopReason::NotANumber
+pub nika_compile_behavior::behavior::StopReason::NotANumber::value: core::option::Option<alloc::string::String>
+pub nika_compile_behavior::behavior::StopReason::TiedCut
+impl core::clone::Clone for nika_compile_behavior::behavior::StopReason
+pub fn nika_compile_behavior::behavior::StopReason::clone(&self) -> nika_compile_behavior::behavior::StopReason
+impl core::cmp::Eq for nika_compile_behavior::behavior::StopReason
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::StopReason
+pub fn nika_compile_behavior::behavior::StopReason::eq(&self, other: &nika_compile_behavior::behavior::StopReason) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::StopReason
+pub fn nika_compile_behavior::behavior::StopReason::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::StopReason
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::StopReason where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::StopReason::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::StopReason where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::StopReason::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::StopReason::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::StopReason where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::StopReason::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::StopReason::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::StopReason where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::StopReason::Owned = T
+pub fn nika_compile_behavior::behavior::StopReason::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::StopReason::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::StopReason where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::StopReason::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::StopReason where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::StopReason::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::StopReason where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::StopReason::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::StopReason where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::StopReason::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::StopReason
+pub fn nika_compile_behavior::behavior::StopReason::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::StopReason
+pub type nika_compile_behavior::behavior::StopReason::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Term
+pub nika_compile_behavior::behavior::Term::Column(alloc::string::String)
+pub nika_compile_behavior::behavior::Term::Number(nika_compile_behavior::behavior::Decimal)
+impl core::clone::Clone for nika_compile_behavior::behavior::Term
+pub fn nika_compile_behavior::behavior::Term::clone(&self) -> nika_compile_behavior::behavior::Term
+impl core::cmp::Eq for nika_compile_behavior::behavior::Term
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Term
+pub fn nika_compile_behavior::behavior::Term::eq(&self, other: &nika_compile_behavior::behavior::Term) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Term
+pub fn nika_compile_behavior::behavior::Term::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Term
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Term where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Term::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Term where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Term::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Term::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Term where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Term::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Term::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Term where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Term::Owned = T
+pub fn nika_compile_behavior::behavior::Term::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Term::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Term where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Term::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Term where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Term::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Term where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Term::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Term where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Term::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Term
+pub fn nika_compile_behavior::behavior::Term::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Term
+pub type nika_compile_behavior::behavior::Term::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Verdict
+pub nika_compile_behavior::behavior::Verdict::Certified
+pub nika_compile_behavior::behavior::Verdict::Defective
+pub nika_compile_behavior::behavior::Verdict::Incomplete
+pub nika_compile_behavior::behavior::Verdict::InvalidHarness
+pub nika_compile_behavior::behavior::Verdict::NotRun
+impl core::clone::Clone for nika_compile_behavior::behavior::Verdict
+pub fn nika_compile_behavior::behavior::Verdict::clone(&self) -> nika_compile_behavior::behavior::Verdict
+impl core::cmp::Eq for nika_compile_behavior::behavior::Verdict
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Verdict
+pub fn nika_compile_behavior::behavior::Verdict::eq(&self, other: &nika_compile_behavior::behavior::Verdict) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Verdict
+pub fn nika_compile_behavior::behavior::Verdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_behavior::behavior::Verdict
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Verdict
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Verdict where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Verdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Verdict where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Verdict::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Verdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Verdict where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Verdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Verdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Verdict where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Verdict::Owned = T
+pub fn nika_compile_behavior::behavior::Verdict::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Verdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Verdict where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Verdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Verdict where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Verdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Verdict where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Verdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Verdict where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Verdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Verdict
+pub fn nika_compile_behavior::behavior::Verdict::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Verdict
+pub type nika_compile_behavior::behavior::Verdict::Output = T
+#[non_exhaustive] pub enum nika_compile_behavior::behavior::Written
+pub nika_compile_behavior::behavior::Written::Copy
+pub nika_compile_behavior::behavior::Written::Count
+pub nika_compile_behavior::behavior::Written::Labelled(alloc::string::String)
+pub nika_compile_behavior::behavior::Written::Rows
+impl core::clone::Clone for nika_compile_behavior::behavior::Written
+pub fn nika_compile_behavior::behavior::Written::clone(&self) -> nika_compile_behavior::behavior::Written
+impl core::cmp::Eq for nika_compile_behavior::behavior::Written
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Written
+pub fn nika_compile_behavior::behavior::Written::eq(&self, other: &nika_compile_behavior::behavior::Written) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Written
+pub fn nika_compile_behavior::behavior::Written::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Written
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Written where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Written::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Written where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Written::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Written::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Written where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Written::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Written::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Written where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Written::Owned = T
+pub fn nika_compile_behavior::behavior::Written::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Written::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Written where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Written::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Written where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Written::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Written where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Written::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Written where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Written::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Written
+pub fn nika_compile_behavior::behavior::Written::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Written
+pub type nika_compile_behavior::behavior::Written::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Aggregate
+pub nika_compile_behavior::behavior::Aggregate::field: core::option::Option<alloc::string::String>
+pub nika_compile_behavior::behavior::Aggregate::name: alloc::string::String
+pub nika_compile_behavior::behavior::Aggregate::naming: nika_compile_behavior::behavior::Naming
+pub nika_compile_behavior::behavior::Aggregate::on_empty: nika_compile_behavior::behavior::OnEmpty
+pub nika_compile_behavior::behavior::Aggregate::op: nika_compile_reader::aggregate::AggOp
+pub nika_compile_behavior::behavior::Aggregate::round: core::option::Option<u32>
+impl nika_compile_behavior::behavior::Aggregate
+pub fn nika_compile_behavior::behavior::Aggregate::new(op: nika_compile_reader::aggregate::AggOp, field: core::option::Option<alloc::string::String>, name: impl core::convert::Into<alloc::string::String>, round: core::option::Option<u32>, on_empty: nika_compile_behavior::behavior::OnEmpty) -> Self
+pub fn nika_compile_behavior::behavior::Aggregate::with_naming(self, naming: nika_compile_behavior::behavior::Naming) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Aggregate
+pub fn nika_compile_behavior::behavior::Aggregate::clone(&self) -> nika_compile_behavior::behavior::Aggregate
+impl core::cmp::Eq for nika_compile_behavior::behavior::Aggregate
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Aggregate
+pub fn nika_compile_behavior::behavior::Aggregate::eq(&self, other: &nika_compile_behavior::behavior::Aggregate) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Aggregate
+pub fn nika_compile_behavior::behavior::Aggregate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Aggregate
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Aggregate where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Aggregate::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Aggregate where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Aggregate::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Aggregate::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Aggregate where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Aggregate::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Aggregate::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Aggregate where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Aggregate::Owned = T
+pub fn nika_compile_behavior::behavior::Aggregate::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Aggregate::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Aggregate where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Aggregate::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Aggregate where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Aggregate::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Aggregate where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Aggregate::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Aggregate where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Aggregate::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Aggregate
+pub fn nika_compile_behavior::behavior::Aggregate::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Aggregate
+pub type nika_compile_behavior::behavior::Aggregate::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Budget
+impl nika_compile_behavior::behavior::Budget
+pub fn nika_compile_behavior::behavior::Budget::admission(&self) -> nika_compile_behavior::behavior::Admission
+pub fn nika_compile_behavior::behavior::Budget::charge(&mut self, spent: &nika_compile_behavior::behavior::Usage) -> nika_compile_behavior::behavior::Admission
+pub fn nika_compile_behavior::behavior::Budget::new(round: nika_compile_behavior::behavior::Limits, turn: nika_compile_behavior::behavior::Limits, turn_spent: nika_compile_behavior::behavior::Usage) -> Self
+pub fn nika_compile_behavior::behavior::Budget::round(&self) -> nika_compile_behavior::behavior::Usage
+pub fn nika_compile_behavior::behavior::Budget::turn(&self) -> nika_compile_behavior::behavior::Usage
+impl core::clone::Clone for nika_compile_behavior::behavior::Budget
+pub fn nika_compile_behavior::behavior::Budget::clone(&self) -> nika_compile_behavior::behavior::Budget
+impl core::cmp::Eq for nika_compile_behavior::behavior::Budget
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Budget
+pub fn nika_compile_behavior::behavior::Budget::eq(&self, other: &nika_compile_behavior::behavior::Budget) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Budget
+pub fn nika_compile_behavior::behavior::Budget::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Budget
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Budget where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Budget::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Budget where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Budget::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Budget::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Budget where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Budget::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Budget::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Budget where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Budget::Owned = T
+pub fn nika_compile_behavior::behavior::Budget::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Budget::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Budget where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Budget::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Budget where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Budget::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Budget where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Budget::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Budget where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Budget::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Budget
+pub fn nika_compile_behavior::behavior::Budget::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Budget
+pub type nika_compile_behavior::behavior::Budget::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Candidate
+pub nika_compile_behavior::behavior::Candidate::id: alloc::string::String
+pub nika_compile_behavior::behavior::Candidate::runs: alloc::vec::Vec<nika_compile_behavior::behavior::Run>
+impl nika_compile_behavior::behavior::Candidate
+pub fn nika_compile_behavior::behavior::Candidate::new(id: impl core::convert::Into<alloc::string::String>, runs: alloc::vec::Vec<nika_compile_behavior::behavior::Run>) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Candidate
+pub fn nika_compile_behavior::behavior::Candidate::clone(&self) -> nika_compile_behavior::behavior::Candidate
+impl core::cmp::Eq for nika_compile_behavior::behavior::Candidate
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Candidate
+pub fn nika_compile_behavior::behavior::Candidate::eq(&self, other: &nika_compile_behavior::behavior::Candidate) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Candidate
+pub fn nika_compile_behavior::behavior::Candidate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Candidate
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Candidate where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Candidate::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Candidate where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Candidate::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Candidate::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Candidate where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Candidate::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Candidate::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Candidate where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Candidate::Owned = T
+pub fn nika_compile_behavior::behavior::Candidate::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Candidate::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Candidate where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Candidate::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Candidate where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Candidate::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Candidate where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Candidate::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Candidate where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Candidate::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Candidate
+pub fn nika_compile_behavior::behavior::Candidate::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Candidate
+pub type nika_compile_behavior::behavior::Candidate::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Condition
+pub nika_compile_behavior::behavior::Condition::filter: nika_compile_behavior::behavior::Filter
+pub nika_compile_behavior::behavior::Condition::format: nika_compile_behavior::behavior::Format
+pub nika_compile_behavior::behavior::Condition::policies: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_compile_reader::rules::numbers::NumberPolicy>
+pub nika_compile_behavior::behavior::Condition::source: alloc::string::String
+pub nika_compile_behavior::behavior::Condition::when_any: bool
+impl nika_compile_behavior::behavior::Condition
+pub fn nika_compile_behavior::behavior::Condition::new(source: impl core::convert::Into<alloc::string::String>, format: nika_compile_behavior::behavior::Format, filter: nika_compile_behavior::behavior::Filter, when_any: bool) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Condition
+pub fn nika_compile_behavior::behavior::Condition::clone(&self) -> nika_compile_behavior::behavior::Condition
+impl core::cmp::Eq for nika_compile_behavior::behavior::Condition
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Condition
+pub fn nika_compile_behavior::behavior::Condition::eq(&self, other: &nika_compile_behavior::behavior::Condition) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Condition
+pub fn nika_compile_behavior::behavior::Condition::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Condition
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Condition where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Condition::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Condition where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Condition::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Condition::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Condition where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Condition::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Condition::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Condition where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Condition::Owned = T
+pub fn nika_compile_behavior::behavior::Condition::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Condition::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Condition where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Condition::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Condition where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Condition::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Condition where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Condition::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Condition where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Condition::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Condition
+pub fn nika_compile_behavior::behavior::Condition::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Condition
+pub type nika_compile_behavior::behavior::Condition::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Consumed
+pub nika_compile_behavior::behavior::Consumed::coverage: nika_compile_behavior::behavior::Coverage
+pub nika_compile_behavior::behavior::Consumed::path: alloc::string::String
+pub nika_compile_behavior::behavior::Consumed::text: alloc::string::String
+impl nika_compile_behavior::behavior::Consumed
+pub fn nika_compile_behavior::behavior::Consumed::new(path: impl core::convert::Into<alloc::string::String>, text: impl core::convert::Into<alloc::string::String>, coverage: nika_compile_behavior::behavior::Coverage) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Consumed
+pub fn nika_compile_behavior::behavior::Consumed::clone(&self) -> nika_compile_behavior::behavior::Consumed
+impl core::cmp::Eq for nika_compile_behavior::behavior::Consumed
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Consumed
+pub fn nika_compile_behavior::behavior::Consumed::eq(&self, other: &nika_compile_behavior::behavior::Consumed) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Consumed
+pub fn nika_compile_behavior::behavior::Consumed::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Consumed
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Consumed where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Consumed::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Consumed where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Consumed::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Consumed::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Consumed where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Consumed::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Consumed::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Consumed where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Consumed::Owned = T
+pub fn nika_compile_behavior::behavior::Consumed::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Consumed::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Consumed where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Consumed::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Consumed where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Consumed::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Consumed where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Consumed::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Consumed where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Consumed::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Consumed
+pub fn nika_compile_behavior::behavior::Consumed::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Consumed
+pub type nika_compile_behavior::behavior::Consumed::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Contract
+pub nika_compile_behavior::behavior::Contract::obligations: alloc::vec::Vec<nika_compile_behavior::behavior::Obligation>
+pub nika_compile_behavior::behavior::Contract::sources: alloc::vec::Vec<alloc::string::String>
+impl nika_compile_behavior::behavior::Contract
+pub fn nika_compile_behavior::behavior::Contract::new(obligations: alloc::vec::Vec<nika_compile_behavior::behavior::Obligation>) -> Self
+pub fn nika_compile_behavior::behavior::Contract::with_sources(self, sources: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Contract
+pub fn nika_compile_behavior::behavior::Contract::clone(&self) -> nika_compile_behavior::behavior::Contract
+impl core::cmp::Eq for nika_compile_behavior::behavior::Contract
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Contract
+pub fn nika_compile_behavior::behavior::Contract::eq(&self, other: &nika_compile_behavior::behavior::Contract) -> bool
+impl core::default::Default for nika_compile_behavior::behavior::Contract
+pub fn nika_compile_behavior::behavior::Contract::default() -> nika_compile_behavior::behavior::Contract
+impl core::fmt::Debug for nika_compile_behavior::behavior::Contract
+pub fn nika_compile_behavior::behavior::Contract::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Contract
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Contract where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Contract::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Contract where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Contract::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Contract::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Contract where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Contract::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Contract::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Contract where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Contract::Owned = T
+pub fn nika_compile_behavior::behavior::Contract::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Contract::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Contract where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Contract::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Contract where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Contract::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Contract where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Contract::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Contract where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Contract::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Contract
+pub fn nika_compile_behavior::behavior::Contract::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Contract
+pub type nika_compile_behavior::behavior::Contract::Output = T
+pub struct nika_compile_behavior::behavior::Decimal
+impl nika_compile_behavior::behavior::Decimal
+pub fn nika_compile_behavior::behavior::Decimal::divided(&self, divisor: u64, places: core::option::Option<u32>) -> core::option::Option<Self>
+pub fn nika_compile_behavior::behavior::Decimal::from_count(count: u64) -> Self
+pub fn nika_compile_behavior::behavior::Decimal::from_law(text: &str) -> core::option::Option<Self>
+pub fn nika_compile_behavior::behavior::Decimal::is_zero(&self) -> bool
+pub fn nika_compile_behavior::behavior::Decimal::negated(&self) -> Self
+pub fn nika_compile_behavior::behavior::Decimal::plus(&self, other: &Self) -> Self
+pub fn nika_compile_behavior::behavior::Decimal::rounded(&self, places: u32) -> Self
+pub fn nika_compile_behavior::behavior::Decimal::zero() -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Decimal
+pub fn nika_compile_behavior::behavior::Decimal::clone(&self) -> nika_compile_behavior::behavior::Decimal
+impl core::cmp::Eq for nika_compile_behavior::behavior::Decimal
+impl core::cmp::Ord for nika_compile_behavior::behavior::Decimal
+pub fn nika_compile_behavior::behavior::Decimal::cmp(&self, other: &Self) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Decimal
+pub fn nika_compile_behavior::behavior::Decimal::eq(&self, other: &nika_compile_behavior::behavior::Decimal) -> bool
+impl core::cmp::PartialOrd for nika_compile_behavior::behavior::Decimal
+pub fn nika_compile_behavior::behavior::Decimal::partial_cmp(&self, other: &Self) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_compile_behavior::behavior::Decimal
+pub fn nika_compile_behavior::behavior::Decimal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_compile_behavior::behavior::Decimal
+pub fn nika_compile_behavior::behavior::Decimal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Decimal
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Decimal where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Decimal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Decimal where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Decimal::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Decimal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Decimal where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Decimal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Decimal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Decimal where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Decimal::Owned = T
+pub fn nika_compile_behavior::behavior::Decimal::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Decimal::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_compile_behavior::behavior::Decimal where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Decimal::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_compile_behavior::behavior::Decimal where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Decimal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Decimal where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Decimal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Decimal where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Decimal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Decimal where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Decimal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Decimal
+pub fn nika_compile_behavior::behavior::Decimal::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Decimal
+pub type nika_compile_behavior::behavior::Decimal::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Derived
+pub nika_compile_behavior::behavior::Derived::arith: nika_compile_behavior::behavior::Arith
+pub nika_compile_behavior::behavior::Derived::left: nika_compile_behavior::behavior::Term
+pub nika_compile_behavior::behavior::Derived::name: alloc::string::String
+pub nika_compile_behavior::behavior::Derived::right: nika_compile_behavior::behavior::Term
+impl nika_compile_behavior::behavior::Derived
+pub fn nika_compile_behavior::behavior::Derived::new(name: impl core::convert::Into<alloc::string::String>, left: nika_compile_behavior::behavior::Term, arith: nika_compile_behavior::behavior::Arith, right: nika_compile_behavior::behavior::Term) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Derived
+pub fn nika_compile_behavior::behavior::Derived::clone(&self) -> nika_compile_behavior::behavior::Derived
+impl core::cmp::Eq for nika_compile_behavior::behavior::Derived
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Derived
+pub fn nika_compile_behavior::behavior::Derived::eq(&self, other: &nika_compile_behavior::behavior::Derived) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Derived
+pub fn nika_compile_behavior::behavior::Derived::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Derived
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Derived where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Derived::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Derived where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Derived::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Derived::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Derived where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Derived::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Derived::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Derived where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Derived::Owned = T
+pub fn nika_compile_behavior::behavior::Derived::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Derived::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Derived where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Derived::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Derived where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Derived::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Derived where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Derived::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Derived where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Derived::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Derived
+pub fn nika_compile_behavior::behavior::Derived::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Derived
+pub type nika_compile_behavior::behavior::Derived::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Failure
+pub nika_compile_behavior::behavior::Failure::cause: nika_compile_behavior::behavior::Cause
+pub nika_compile_behavior::behavior::Failure::code: alloc::string::String
+pub nika_compile_behavior::behavior::Failure::task: alloc::string::String
+impl nika_compile_behavior::behavior::Failure
+pub fn nika_compile_behavior::behavior::Failure::new(task: impl core::convert::Into<alloc::string::String>, code: impl core::convert::Into<alloc::string::String>, cause: nika_compile_behavior::behavior::Cause) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Failure
+pub fn nika_compile_behavior::behavior::Failure::clone(&self) -> nika_compile_behavior::behavior::Failure
+impl core::cmp::Eq for nika_compile_behavior::behavior::Failure
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Failure
+pub fn nika_compile_behavior::behavior::Failure::eq(&self, other: &nika_compile_behavior::behavior::Failure) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Failure
+pub fn nika_compile_behavior::behavior::Failure::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Failure
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Failure where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Failure::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Failure where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Failure::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Failure::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Failure where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Failure::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Failure::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Failure where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Failure::Owned = T
+pub fn nika_compile_behavior::behavior::Failure::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Failure::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Failure where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Failure::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Failure where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Failure::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Failure where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Failure::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Failure where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Failure::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Failure
+pub fn nika_compile_behavior::behavior::Failure::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Failure
+pub type nika_compile_behavior::behavior::Failure::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Filter
+pub nika_compile_behavior::behavior::Filter::junction: nika_compile_reader::rules::Junction
+pub nika_compile_behavior::behavior::Filter::tests: alloc::vec::Vec<nika_compile_behavior::behavior::Test>
+impl nika_compile_behavior::behavior::Filter
+pub fn nika_compile_behavior::behavior::Filter::all() -> Self
+pub fn nika_compile_behavior::behavior::Filter::new(tests: alloc::vec::Vec<nika_compile_behavior::behavior::Test>, junction: nika_compile_reader::rules::Junction) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Filter
+pub fn nika_compile_behavior::behavior::Filter::clone(&self) -> nika_compile_behavior::behavior::Filter
+impl core::cmp::Eq for nika_compile_behavior::behavior::Filter
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Filter
+pub fn nika_compile_behavior::behavior::Filter::eq(&self, other: &nika_compile_behavior::behavior::Filter) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Filter
+pub fn nika_compile_behavior::behavior::Filter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Filter
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Filter where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Filter::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Filter where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Filter::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Filter::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Filter where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Filter::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Filter::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Filter where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Filter::Owned = T
+pub fn nika_compile_behavior::behavior::Filter::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Filter::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Filter where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Filter::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Filter where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Filter::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Filter where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Filter::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Filter where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Filter::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Filter
+pub fn nika_compile_behavior::behavior::Filter::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Filter
+pub type nika_compile_behavior::behavior::Filter::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Finding
+pub nika_compile_behavior::behavior::Finding::evidence: alloc::vec::Vec<nika_compile_behavior::behavior::Identity>
+pub nika_compile_behavior::behavior::Finding::fixture: alloc::string::String
+pub nika_compile_behavior::behavior::Finding::observed: alloc::string::String
+pub nika_compile_behavior::behavior::Finding::outcome: nika_compile_behavior::behavior::Outcome
+impl nika_compile_behavior::behavior::Finding
+pub fn nika_compile_behavior::behavior::Finding::new(fixture: impl core::convert::Into<alloc::string::String>, outcome: nika_compile_behavior::behavior::Outcome, observed: impl core::convert::Into<alloc::string::String>, evidence: alloc::vec::Vec<nika_compile_behavior::behavior::Identity>) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Finding
+pub fn nika_compile_behavior::behavior::Finding::clone(&self) -> nika_compile_behavior::behavior::Finding
+impl core::cmp::Eq for nika_compile_behavior::behavior::Finding
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Finding
+pub fn nika_compile_behavior::behavior::Finding::eq(&self, other: &nika_compile_behavior::behavior::Finding) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Finding
+pub fn nika_compile_behavior::behavior::Finding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Finding
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Finding where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Finding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Finding where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Finding::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Finding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Finding where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Finding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Finding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Finding where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Finding::Owned = T
+pub fn nika_compile_behavior::behavior::Finding::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Finding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Finding where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Finding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Finding where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Finding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Finding where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Finding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Finding where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Finding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Finding
+pub fn nika_compile_behavior::behavior::Finding::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Finding
+pub type nika_compile_behavior::behavior::Finding::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Identity
+pub nika_compile_behavior::behavior::Identity::coverage: nika_compile_behavior::behavior::Coverage
+pub nika_compile_behavior::behavior::Identity::path: alloc::string::String
+pub nika_compile_behavior::behavior::Identity::records: core::option::Option<usize>
+pub nika_compile_behavior::behavior::Identity::sha256: alloc::string::String
+impl nika_compile_behavior::behavior::Identity
+pub fn nika_compile_behavior::behavior::Identity::new(path: impl core::convert::Into<alloc::string::String>, bytes: &[u8], coverage: nika_compile_behavior::behavior::Coverage) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Identity
+pub fn nika_compile_behavior::behavior::Identity::clone(&self) -> nika_compile_behavior::behavior::Identity
+impl core::cmp::Eq for nika_compile_behavior::behavior::Identity
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Identity
+pub fn nika_compile_behavior::behavior::Identity::eq(&self, other: &nika_compile_behavior::behavior::Identity) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Identity
+pub fn nika_compile_behavior::behavior::Identity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Identity
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Identity where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Identity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Identity where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Identity::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Identity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Identity where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Identity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Identity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Identity where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Identity::Owned = T
+pub fn nika_compile_behavior::behavior::Identity::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Identity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Identity where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Identity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Identity where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Identity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Identity where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Identity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Identity where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Identity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Identity
+pub fn nika_compile_behavior::behavior::Identity::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Identity
+pub type nika_compile_behavior::behavior::Identity::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Judged
+pub nika_compile_behavior::behavior::Judged::assumptions: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_behavior::behavior::Judged::findings: alloc::vec::Vec<nika_compile_behavior::behavior::Finding>
+pub nika_compile_behavior::behavior::Judged::obligation: alloc::string::String
+pub nika_compile_behavior::behavior::Judged::requested: alloc::string::String
+pub nika_compile_behavior::behavior::Judged::tally: nika_compile_behavior::behavior::Tally
+impl nika_compile_behavior::behavior::Judged
+pub fn nika_compile_behavior::behavior::Judged::new(obligation: impl core::convert::Into<alloc::string::String>, requested: impl core::convert::Into<alloc::string::String>, assumptions: alloc::vec::Vec<alloc::string::String>, findings: alloc::vec::Vec<nika_compile_behavior::behavior::Finding>) -> Self
+pub fn nika_compile_behavior::behavior::Judged::verdict(&self) -> nika_compile_behavior::behavior::Verdict
+impl core::clone::Clone for nika_compile_behavior::behavior::Judged
+pub fn nika_compile_behavior::behavior::Judged::clone(&self) -> nika_compile_behavior::behavior::Judged
+impl core::cmp::Eq for nika_compile_behavior::behavior::Judged
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Judged
+pub fn nika_compile_behavior::behavior::Judged::eq(&self, other: &nika_compile_behavior::behavior::Judged) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Judged
+pub fn nika_compile_behavior::behavior::Judged::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Judged
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Judged where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Judged::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Judged where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Judged::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Judged::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Judged where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Judged::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Judged::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Judged where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Judged::Owned = T
+pub fn nika_compile_behavior::behavior::Judged::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Judged::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Judged where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Judged::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Judged where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Judged::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Judged where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Judged::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Judged where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Judged::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Judged
+pub fn nika_compile_behavior::behavior::Judged::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Judged
+pub type nika_compile_behavior::behavior::Judged::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Limits
+pub nika_compile_behavior::behavior::Limits::attempts: u32
+pub nika_compile_behavior::behavior::Limits::bytes: u64
+pub nika_compile_behavior::behavior::Limits::elapsed_ms: u64
+pub nika_compile_behavior::behavior::Limits::fixtures: u32
+impl nika_compile_behavior::behavior::Limits
+pub const fn nika_compile_behavior::behavior::Limits::new(fixtures: u32, attempts: u32, bytes: u64, elapsed_ms: u64) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Limits
+pub fn nika_compile_behavior::behavior::Limits::clone(&self) -> nika_compile_behavior::behavior::Limits
+impl core::cmp::Eq for nika_compile_behavior::behavior::Limits
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Limits
+pub fn nika_compile_behavior::behavior::Limits::eq(&self, other: &nika_compile_behavior::behavior::Limits) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Limits
+pub fn nika_compile_behavior::behavior::Limits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_behavior::behavior::Limits
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Limits
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Limits where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Limits::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Limits where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Limits::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Limits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Limits where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Limits::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Limits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Limits where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Limits::Owned = T
+pub fn nika_compile_behavior::behavior::Limits::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Limits::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Limits where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Limits::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Limits where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Limits::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Limits where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Limits::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Limits where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Limits::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Limits
+pub fn nika_compile_behavior::behavior::Limits::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Limits
+pub type nika_compile_behavior::behavior::Limits::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Obligation
+pub nika_compile_behavior::behavior::Obligation::evidence: alloc::string::String
+pub nika_compile_behavior::behavior::Obligation::id: alloc::string::String
+pub nika_compile_behavior::behavior::Obligation::presence: nika_compile_behavior::behavior::Presence
+pub nika_compile_behavior::behavior::Obligation::requirement: nika_compile_behavior::behavior::Requirement
+pub nika_compile_behavior::behavior::Obligation::target: core::option::Option<nika_compile_behavior::behavior::Target>
+impl nika_compile_behavior::behavior::Obligation
+pub fn nika_compile_behavior::behavior::Obligation::new(id: impl core::convert::Into<alloc::string::String>, target: core::option::Option<nika_compile_behavior::behavior::Target>, presence: nika_compile_behavior::behavior::Presence, requirement: nika_compile_behavior::behavior::Requirement, evidence: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Obligation
+pub fn nika_compile_behavior::behavior::Obligation::clone(&self) -> nika_compile_behavior::behavior::Obligation
+impl core::cmp::Eq for nika_compile_behavior::behavior::Obligation
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Obligation
+pub fn nika_compile_behavior::behavior::Obligation::eq(&self, other: &nika_compile_behavior::behavior::Obligation) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Obligation
+pub fn nika_compile_behavior::behavior::Obligation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Obligation
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Obligation where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Obligation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Obligation where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Obligation::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Obligation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Obligation where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Obligation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Obligation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Obligation where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Obligation::Owned = T
+pub fn nika_compile_behavior::behavior::Obligation::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Obligation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Obligation where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Obligation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Obligation where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Obligation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Obligation where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Obligation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Obligation where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Obligation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Obligation
+pub fn nika_compile_behavior::behavior::Obligation::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Obligation
+pub type nika_compile_behavior::behavior::Obligation::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Pipeline
+pub nika_compile_behavior::behavior::Pipeline::keep_order: bool
+pub nika_compile_behavior::behavior::Pipeline::policies: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_compile_reader::rules::numbers::NumberPolicy>
+pub nika_compile_behavior::behavior::Pipeline::steps: alloc::vec::Vec<nika_compile_behavior::behavior::Step>
+impl nika_compile_behavior::behavior::Pipeline
+pub fn nika_compile_behavior::behavior::Pipeline::describe(&self) -> alloc::string::String
+pub fn nika_compile_behavior::behavior::Pipeline::new(steps: alloc::vec::Vec<nika_compile_behavior::behavior::Step>) -> Self
+pub fn nika_compile_behavior::behavior::Pipeline::totals(&self) -> bool
+impl core::clone::Clone for nika_compile_behavior::behavior::Pipeline
+pub fn nika_compile_behavior::behavior::Pipeline::clone(&self) -> nika_compile_behavior::behavior::Pipeline
+impl core::cmp::Eq for nika_compile_behavior::behavior::Pipeline
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Pipeline
+pub fn nika_compile_behavior::behavior::Pipeline::eq(&self, other: &nika_compile_behavior::behavior::Pipeline) -> bool
+impl core::default::Default for nika_compile_behavior::behavior::Pipeline
+pub fn nika_compile_behavior::behavior::Pipeline::default() -> nika_compile_behavior::behavior::Pipeline
+impl core::fmt::Debug for nika_compile_behavior::behavior::Pipeline
+pub fn nika_compile_behavior::behavior::Pipeline::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Pipeline
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Pipeline where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Pipeline::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Pipeline where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Pipeline::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Pipeline::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Pipeline where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Pipeline::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Pipeline::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Pipeline where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Pipeline::Owned = T
+pub fn nika_compile_behavior::behavior::Pipeline::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Pipeline::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Pipeline where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Pipeline::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Pipeline where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Pipeline::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Pipeline where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Pipeline::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Pipeline where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Pipeline::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Pipeline
+pub fn nika_compile_behavior::behavior::Pipeline::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Pipeline
+pub type nika_compile_behavior::behavior::Pipeline::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Production
+pub nika_compile_behavior::behavior::Production::rule: alloc::string::String
+pub nika_compile_behavior::behavior::Production::source: alloc::string::String
+pub nika_compile_behavior::behavior::Production::target: alloc::string::String
+pub nika_compile_behavior::behavior::Production::written: nika_compile_behavior::behavior::Written
+impl core::clone::Clone for nika_compile_behavior::behavior::Production
+pub fn nika_compile_behavior::behavior::Production::clone(&self) -> nika_compile_behavior::behavior::Production
+impl core::cmp::Eq for nika_compile_behavior::behavior::Production
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Production
+pub fn nika_compile_behavior::behavior::Production::eq(&self, other: &nika_compile_behavior::behavior::Production) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Production
+pub fn nika_compile_behavior::behavior::Production::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Production
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Production where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Production::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Production where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Production::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Production::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Production where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Production::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Production::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Production where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Production::Owned = T
+pub fn nika_compile_behavior::behavior::Production::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Production::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Production where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Production::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Production where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Production::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Production where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Production::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Production where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Production::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Production
+pub fn nika_compile_behavior::behavior::Production::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Production
+pub type nika_compile_behavior::behavior::Production::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Provenance
+pub nika_compile_behavior::behavior::Provenance::production: core::option::Option<nika_compile_behavior::behavior::Production>
+pub nika_compile_behavior::behavior::Provenance::rejections: alloc::vec::Vec<alloc::string::String>
+impl nika_compile_behavior::behavior::Provenance
+pub fn nika_compile_behavior::behavior::Provenance::admitted(&self) -> bool
+impl core::clone::Clone for nika_compile_behavior::behavior::Provenance
+pub fn nika_compile_behavior::behavior::Provenance::clone(&self) -> nika_compile_behavior::behavior::Provenance
+impl core::cmp::Eq for nika_compile_behavior::behavior::Provenance
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Provenance
+pub fn nika_compile_behavior::behavior::Provenance::eq(&self, other: &nika_compile_behavior::behavior::Provenance) -> bool
+impl core::default::Default for nika_compile_behavior::behavior::Provenance
+pub fn nika_compile_behavior::behavior::Provenance::default() -> nika_compile_behavior::behavior::Provenance
+impl core::fmt::Debug for nika_compile_behavior::behavior::Provenance
+pub fn nika_compile_behavior::behavior::Provenance::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Provenance
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Provenance where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Provenance::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Provenance where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Provenance::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Provenance::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Provenance where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Provenance::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Provenance::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Provenance where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Provenance::Owned = T
+pub fn nika_compile_behavior::behavior::Provenance::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Provenance::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Provenance where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Provenance::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Provenance where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Provenance::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Provenance where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Provenance::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Provenance where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Provenance::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Provenance
+pub fn nika_compile_behavior::behavior::Provenance::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Provenance
+pub type nika_compile_behavior::behavior::Provenance::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::ReadBack
+pub nika_compile_behavior::behavior::ReadBack::path: alloc::string::String
+pub nika_compile_behavior::behavior::ReadBack::text: alloc::string::String
+pub nika_compile_behavior::behavior::ReadBack::truncated: bool
+pub nika_compile_behavior::behavior::ReadBack::written: bool
+impl nika_compile_behavior::behavior::ReadBack
+pub fn nika_compile_behavior::behavior::ReadBack::new(path: impl core::convert::Into<alloc::string::String>, text: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_compile_behavior::behavior::ReadBack::unwritten(path: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_compile_behavior::behavior::ReadBack::with_truncated(self, truncated: bool) -> Self
+pub fn nika_compile_behavior::behavior::ReadBack::with_written(self, written: bool) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::ReadBack
+pub fn nika_compile_behavior::behavior::ReadBack::clone(&self) -> nika_compile_behavior::behavior::ReadBack
+impl core::cmp::Eq for nika_compile_behavior::behavior::ReadBack
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::ReadBack
+pub fn nika_compile_behavior::behavior::ReadBack::eq(&self, other: &nika_compile_behavior::behavior::ReadBack) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::ReadBack
+pub fn nika_compile_behavior::behavior::ReadBack::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::ReadBack
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::ReadBack where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::ReadBack::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::ReadBack where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::ReadBack::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::ReadBack::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::ReadBack where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::ReadBack::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::ReadBack::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::ReadBack where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::ReadBack::Owned = T
+pub fn nika_compile_behavior::behavior::ReadBack::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::ReadBack::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::ReadBack where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::ReadBack::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::ReadBack where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::ReadBack::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::ReadBack where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::ReadBack::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::ReadBack where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::ReadBack::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::ReadBack
+pub fn nika_compile_behavior::behavior::ReadBack::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::ReadBack
+pub type nika_compile_behavior::behavior::ReadBack::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Report
+pub nika_compile_behavior::behavior::Report::admission: nika_compile_behavior::behavior::Admission
+pub nika_compile_behavior::behavior::Report::judged: alloc::vec::Vec<nika_compile_behavior::behavior::Judged>
+pub nika_compile_behavior::behavior::Report::round: nika_compile_behavior::behavior::Usage
+pub nika_compile_behavior::behavior::Report::turn: nika_compile_behavior::behavior::Usage
+impl nika_compile_behavior::behavior::Report
+pub fn nika_compile_behavior::behavior::Report::certified(&self) -> bool
+pub fn nika_compile_behavior::behavior::Report::failed(&self) -> bool
+pub fn nika_compile_behavior::behavior::Report::harness_invalid(&self) -> bool
+pub fn nika_compile_behavior::behavior::Report::new(judged: alloc::vec::Vec<nika_compile_behavior::behavior::Judged>, round: nika_compile_behavior::behavior::Usage, turn: nika_compile_behavior::behavior::Usage, admission: nika_compile_behavior::behavior::Admission) -> Self
+pub fn nika_compile_behavior::behavior::Report::scorable(&self) -> bool
+pub fn nika_compile_behavior::behavior::Report::tally(&self) -> nika_compile_behavior::behavior::Tally
+pub fn nika_compile_behavior::behavior::Report::verdict(&self) -> nika_compile_behavior::behavior::Verdict
+impl core::clone::Clone for nika_compile_behavior::behavior::Report
+pub fn nika_compile_behavior::behavior::Report::clone(&self) -> nika_compile_behavior::behavior::Report
+impl core::cmp::Eq for nika_compile_behavior::behavior::Report
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Report
+pub fn nika_compile_behavior::behavior::Report::eq(&self, other: &nika_compile_behavior::behavior::Report) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Report
+pub fn nika_compile_behavior::behavior::Report::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Report
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Report where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Report::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Report where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Report::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Report::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Report where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Report::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Report::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Report where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Report::Owned = T
+pub fn nika_compile_behavior::behavior::Report::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Report::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Report where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Report::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Report where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Report::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Report where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Report::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Report where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Report::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Report
+pub fn nika_compile_behavior::behavior::Report::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Report
+pub type nika_compile_behavior::behavior::Report::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Ruling
+pub nika_compile_behavior::behavior::Ruling::choice: nika_compile_behavior::behavior::Choice
+pub nika_compile_behavior::behavior::Ruling::reports: alloc::vec::Vec<nika_compile_behavior::behavior::Report>
+pub nika_compile_behavior::behavior::Ruling::turn: nika_compile_behavior::behavior::Usage
+impl core::clone::Clone for nika_compile_behavior::behavior::Ruling
+pub fn nika_compile_behavior::behavior::Ruling::clone(&self) -> nika_compile_behavior::behavior::Ruling
+impl core::cmp::Eq for nika_compile_behavior::behavior::Ruling
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Ruling
+pub fn nika_compile_behavior::behavior::Ruling::eq(&self, other: &nika_compile_behavior::behavior::Ruling) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Ruling
+pub fn nika_compile_behavior::behavior::Ruling::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Ruling
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Ruling where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Ruling::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Ruling where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Ruling::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Ruling::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Ruling where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Ruling::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Ruling::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Ruling where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Ruling::Owned = T
+pub fn nika_compile_behavior::behavior::Ruling::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Ruling::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Ruling where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Ruling::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Ruling where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Ruling::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Ruling where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Ruling::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Ruling where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Ruling::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Ruling
+pub fn nika_compile_behavior::behavior::Ruling::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Ruling
+pub type nika_compile_behavior::behavior::Ruling::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Run
+pub nika_compile_behavior::behavior::Run::consumed: alloc::vec::Vec<nika_compile_behavior::behavior::Consumed>
+pub nika_compile_behavior::behavior::Run::end: nika_compile_behavior::behavior::RunEnd
+pub nika_compile_behavior::behavior::Run::fixture: alloc::string::String
+pub nika_compile_behavior::behavior::Run::read_back: alloc::vec::Vec<nika_compile_behavior::behavior::ReadBack>
+pub nika_compile_behavior::behavior::Run::usage: nika_compile_behavior::behavior::Usage
+impl nika_compile_behavior::behavior::Run
+pub fn nika_compile_behavior::behavior::Run::new(fixture: impl core::convert::Into<alloc::string::String>, end: nika_compile_behavior::behavior::RunEnd, usage: nika_compile_behavior::behavior::Usage) -> Self
+pub fn nika_compile_behavior::behavior::Run::with_consumed(self, consumed: nika_compile_behavior::behavior::Consumed) -> Self
+pub fn nika_compile_behavior::behavior::Run::with_read_back(self, read_back: nika_compile_behavior::behavior::ReadBack) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Run
+pub fn nika_compile_behavior::behavior::Run::clone(&self) -> nika_compile_behavior::behavior::Run
+impl core::cmp::Eq for nika_compile_behavior::behavior::Run
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Run
+pub fn nika_compile_behavior::behavior::Run::eq(&self, other: &nika_compile_behavior::behavior::Run) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Run
+pub fn nika_compile_behavior::behavior::Run::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Run
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Run where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Run::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Run where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Run::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Run::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Run where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Run::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Run::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Run where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Run::Owned = T
+pub fn nika_compile_behavior::behavior::Run::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Run::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Run where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Run::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Run where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Run::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Run where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Run::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Run where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Run::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Run
+pub fn nika_compile_behavior::behavior::Run::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Run
+pub type nika_compile_behavior::behavior::Run::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Sort
+pub nika_compile_behavior::behavior::Sort::descending: bool
+pub nika_compile_behavior::behavior::Sort::field: alloc::string::String
+pub nika_compile_behavior::behavior::Sort::stable_ties: bool
+impl nika_compile_behavior::behavior::Sort
+pub fn nika_compile_behavior::behavior::Sort::new(field: impl core::convert::Into<alloc::string::String>, descending: bool, stable_ties: bool) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Sort
+pub fn nika_compile_behavior::behavior::Sort::clone(&self) -> nika_compile_behavior::behavior::Sort
+impl core::cmp::Eq for nika_compile_behavior::behavior::Sort
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Sort
+pub fn nika_compile_behavior::behavior::Sort::eq(&self, other: &nika_compile_behavior::behavior::Sort) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Sort
+pub fn nika_compile_behavior::behavior::Sort::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Sort
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Sort where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Sort::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Sort where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Sort::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Sort::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Sort where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Sort::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Sort::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Sort where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Sort::Owned = T
+pub fn nika_compile_behavior::behavior::Sort::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Sort::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Sort where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Sort::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Sort where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Sort::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Sort where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Sort::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Sort where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Sort::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Sort
+pub fn nika_compile_behavior::behavior::Sort::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Sort
+pub type nika_compile_behavior::behavior::Sort::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Stages
+pub nika_compile_behavior::behavior::Stages::aggregates: alloc::vec::Vec<nika_compile_behavior::behavior::Aggregate>
+pub nika_compile_behavior::behavior::Stages::columns: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_behavior::behavior::Stages::derived: alloc::vec::Vec<nika_compile_behavior::behavior::Derived>
+pub nika_compile_behavior::behavior::Stages::distinct: bool
+pub nika_compile_behavior::behavior::Stages::distinct_by: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_behavior::behavior::Stages::group_by: core::option::Option<alloc::string::String>
+pub nika_compile_behavior::behavior::Stages::limit: core::option::Option<u32>
+pub nika_compile_behavior::behavior::Stages::number_columns: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_behavior::behavior::Stages::renames: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub nika_compile_behavior::behavior::Stages::sort: core::option::Option<nika_compile_behavior::behavior::Sort>
+impl nika_compile_behavior::behavior::Stages
+pub fn nika_compile_behavior::behavior::Stages::produces(&self, name: &str) -> bool
+pub fn nika_compile_behavior::behavior::Stages::totals(&self) -> bool
+impl core::clone::Clone for nika_compile_behavior::behavior::Stages
+pub fn nika_compile_behavior::behavior::Stages::clone(&self) -> nika_compile_behavior::behavior::Stages
+impl core::cmp::Eq for nika_compile_behavior::behavior::Stages
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Stages
+pub fn nika_compile_behavior::behavior::Stages::eq(&self, other: &nika_compile_behavior::behavior::Stages) -> bool
+impl core::default::Default for nika_compile_behavior::behavior::Stages
+pub fn nika_compile_behavior::behavior::Stages::default() -> nika_compile_behavior::behavior::Stages
+impl core::fmt::Debug for nika_compile_behavior::behavior::Stages
+pub fn nika_compile_behavior::behavior::Stages::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Stages
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Stages where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Stages::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Stages where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Stages::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Stages::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Stages where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Stages::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Stages::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Stages where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Stages::Owned = T
+pub fn nika_compile_behavior::behavior::Stages::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Stages::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Stages where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Stages::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Stages where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Stages::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Stages where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Stages::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Stages where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Stages::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Stages
+pub fn nika_compile_behavior::behavior::Stages::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Stages
+pub type nika_compile_behavior::behavior::Stages::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Step
+pub nika_compile_behavior::behavior::Step::filter: nika_compile_behavior::behavior::Filter
+pub nika_compile_behavior::behavior::Step::stages: nika_compile_behavior::behavior::Stages
+impl nika_compile_behavior::behavior::Step
+pub fn nika_compile_behavior::behavior::Step::new(filter: nika_compile_behavior::behavior::Filter, stages: nika_compile_behavior::behavior::Stages) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Step
+pub fn nika_compile_behavior::behavior::Step::clone(&self) -> nika_compile_behavior::behavior::Step
+impl core::cmp::Eq for nika_compile_behavior::behavior::Step
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Step
+pub fn nika_compile_behavior::behavior::Step::eq(&self, other: &nika_compile_behavior::behavior::Step) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Step
+pub fn nika_compile_behavior::behavior::Step::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Step
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Step where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Step::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Step where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Step::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Step::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Step where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Step::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Step::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Step where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Step::Owned = T
+pub fn nika_compile_behavior::behavior::Step::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Step::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Step where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Step::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Step where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Step::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Step where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Step::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Step where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Step::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Step
+pub fn nika_compile_behavior::behavior::Step::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Step
+pub type nika_compile_behavior::behavior::Step::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::StopFact
+pub nika_compile_behavior::behavior::StopFact::field: alloc::string::String
+pub nika_compile_behavior::behavior::StopFact::operation: nika_compile_behavior::behavior::Operation
+pub nika_compile_behavior::behavior::StopFact::reason: nika_compile_behavior::behavior::StopReason
+pub nika_compile_behavior::behavior::StopFact::source: alloc::string::String
+impl nika_compile_behavior::behavior::StopFact
+pub fn nika_compile_behavior::behavior::StopFact::new(source: impl core::convert::Into<alloc::string::String>, operation: nika_compile_behavior::behavior::Operation, field: impl core::convert::Into<alloc::string::String>, reason: nika_compile_behavior::behavior::StopReason) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::StopFact
+pub fn nika_compile_behavior::behavior::StopFact::clone(&self) -> nika_compile_behavior::behavior::StopFact
+impl core::cmp::Eq for nika_compile_behavior::behavior::StopFact
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::StopFact
+pub fn nika_compile_behavior::behavior::StopFact::eq(&self, other: &nika_compile_behavior::behavior::StopFact) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::StopFact
+pub fn nika_compile_behavior::behavior::StopFact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::StopFact
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::StopFact where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::StopFact::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::StopFact where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::StopFact::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::StopFact::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::StopFact where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::StopFact::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::StopFact::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::StopFact where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::StopFact::Owned = T
+pub fn nika_compile_behavior::behavior::StopFact::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::StopFact::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::StopFact where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::StopFact::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::StopFact where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::StopFact::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::StopFact where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::StopFact::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::StopFact where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::StopFact::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::StopFact
+pub fn nika_compile_behavior::behavior::StopFact::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::StopFact
+pub type nika_compile_behavior::behavior::StopFact::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Tally
+pub nika_compile_behavior::behavior::Tally::failed: usize
+pub nika_compile_behavior::behavior::Tally::incomplete: usize
+pub nika_compile_behavior::behavior::Tally::invalid_harness: usize
+pub nika_compile_behavior::behavior::Tally::not_run: usize
+pub nika_compile_behavior::behavior::Tally::passed: usize
+impl nika_compile_behavior::behavior::Tally
+pub fn nika_compile_behavior::behavior::Tally::of(outcomes: impl core::iter::traits::collect::IntoIterator<Item = nika_compile_behavior::behavior::Outcome>) -> Self
+pub fn nika_compile_behavior::behavior::Tally::plus(&self, other: &Self) -> Self
+pub fn nika_compile_behavior::behavior::Tally::total(&self) -> usize
+pub fn nika_compile_behavior::behavior::Tally::verdict(&self) -> nika_compile_behavior::behavior::Verdict
+impl core::clone::Clone for nika_compile_behavior::behavior::Tally
+pub fn nika_compile_behavior::behavior::Tally::clone(&self) -> nika_compile_behavior::behavior::Tally
+impl core::cmp::Eq for nika_compile_behavior::behavior::Tally
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Tally
+pub fn nika_compile_behavior::behavior::Tally::eq(&self, other: &nika_compile_behavior::behavior::Tally) -> bool
+impl core::default::Default for nika_compile_behavior::behavior::Tally
+pub fn nika_compile_behavior::behavior::Tally::default() -> nika_compile_behavior::behavior::Tally
+impl core::fmt::Debug for nika_compile_behavior::behavior::Tally
+pub fn nika_compile_behavior::behavior::Tally::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_behavior::behavior::Tally
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Tally
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Tally where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Tally::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Tally where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Tally::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Tally::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Tally where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Tally::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Tally::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Tally where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Tally::Owned = T
+pub fn nika_compile_behavior::behavior::Tally::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Tally::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Tally where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Tally::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Tally where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Tally::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Tally where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Tally::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Tally where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Tally::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Tally
+pub fn nika_compile_behavior::behavior::Tally::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Tally
+pub type nika_compile_behavior::behavior::Tally::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Target
+pub nika_compile_behavior::behavior::Target::format: nika_compile_behavior::behavior::Format
+pub nika_compile_behavior::behavior::Target::path: alloc::string::String
+impl nika_compile_behavior::behavior::Target
+pub fn nika_compile_behavior::behavior::Target::new(path: impl core::convert::Into<alloc::string::String>, format: nika_compile_behavior::behavior::Format) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Target
+pub fn nika_compile_behavior::behavior::Target::clone(&self) -> nika_compile_behavior::behavior::Target
+impl core::cmp::Eq for nika_compile_behavior::behavior::Target
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Target
+pub fn nika_compile_behavior::behavior::Target::eq(&self, other: &nika_compile_behavior::behavior::Target) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Target
+pub fn nika_compile_behavior::behavior::Target::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Target
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Target where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Target::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Target where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Target::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Target::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Target where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Target::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Target::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Target where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Target::Owned = T
+pub fn nika_compile_behavior::behavior::Target::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Target::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Target where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Target::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Target where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Target::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Target where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Target::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Target where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Target::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Target
+pub fn nika_compile_behavior::behavior::Target::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Target
+pub type nika_compile_behavior::behavior::Target::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Test
+pub nika_compile_behavior::behavior::Test::comparator: nika_compile_reader::rules::Comparator
+pub nika_compile_behavior::behavior::Test::field: alloc::string::String
+pub nika_compile_behavior::behavior::Test::operand: nika_compile_behavior::behavior::Operand
+pub nika_compile_behavior::behavior::Test::spellings: alloc::vec::Vec<alloc::string::String>
+impl nika_compile_behavior::behavior::Test
+pub fn nika_compile_behavior::behavior::Test::new(field: impl core::convert::Into<alloc::string::String>, comparator: nika_compile_reader::rules::Comparator, operand: nika_compile_behavior::behavior::Operand) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Test
+pub fn nika_compile_behavior::behavior::Test::clone(&self) -> nika_compile_behavior::behavior::Test
+impl core::cmp::Eq for nika_compile_behavior::behavior::Test
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Test
+pub fn nika_compile_behavior::behavior::Test::eq(&self, other: &nika_compile_behavior::behavior::Test) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::Test
+pub fn nika_compile_behavior::behavior::Test::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Test
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Test where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Test::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Test where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Test::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Test::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Test where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Test::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Test::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Test where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Test::Owned = T
+pub fn nika_compile_behavior::behavior::Test::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Test::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Test where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Test::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Test where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Test::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Test where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Test::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Test where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Test::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Test
+pub fn nika_compile_behavior::behavior::Test::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Test
+pub type nika_compile_behavior::behavior::Test::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::Usage
+pub nika_compile_behavior::behavior::Usage::attempts: u32
+pub nika_compile_behavior::behavior::Usage::copied_bytes: u64
+pub nika_compile_behavior::behavior::Usage::elapsed_ms: u64
+pub nika_compile_behavior::behavior::Usage::fixtures: u32
+pub nika_compile_behavior::behavior::Usage::read_back_bytes: u64
+impl nika_compile_behavior::behavior::Usage
+pub fn nika_compile_behavior::behavior::Usage::bytes(&self) -> u64
+pub const fn nika_compile_behavior::behavior::Usage::new(fixtures: u32, attempts: u32, copied_bytes: u64, read_back_bytes: u64, elapsed_ms: u64) -> Self
+pub fn nika_compile_behavior::behavior::Usage::plus(&self, other: &Self) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::Usage
+pub fn nika_compile_behavior::behavior::Usage::clone(&self) -> nika_compile_behavior::behavior::Usage
+impl core::cmp::Eq for nika_compile_behavior::behavior::Usage
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::Usage
+pub fn nika_compile_behavior::behavior::Usage::eq(&self, other: &nika_compile_behavior::behavior::Usage) -> bool
+impl core::default::Default for nika_compile_behavior::behavior::Usage
+pub fn nika_compile_behavior::behavior::Usage::default() -> nika_compile_behavior::behavior::Usage
+impl core::fmt::Debug for nika_compile_behavior::behavior::Usage
+pub fn nika_compile_behavior::behavior::Usage::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_behavior::behavior::Usage
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::Usage
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::Usage where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::Usage::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::Usage where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::Usage::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::Usage::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::Usage where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::Usage::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::Usage::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::Usage where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::Usage::Owned = T
+pub fn nika_compile_behavior::behavior::Usage::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::Usage::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::Usage where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Usage::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::Usage where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Usage::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::Usage where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::Usage::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::Usage where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::Usage::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Usage
+pub fn nika_compile_behavior::behavior::Usage::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Usage
+pub type nika_compile_behavior::behavior::Usage::Output = T
+pub fn nika_compile_behavior::behavior::contract_of(plan: &nika_compile_reader::plan::Plan, intent: &str, answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> nika_compile_behavior::behavior::Contract
+pub fn nika_compile_behavior::behavior::contract_of_request(intent: &str, answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> nika_compile_behavior::behavior::Contract
+pub fn nika_compile_behavior::behavior::judge(contract: &nika_compile_behavior::behavior::Contract, runs: &[nika_compile_behavior::behavior::Run], budget: &mut nika_compile_behavior::behavior::Budget) -> nika_compile_behavior::behavior::Report
+pub fn nika_compile_behavior::behavior::pipeline_of(rule: &nika_compile_reader::rules::Rule, answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::result::Result<nika_compile_behavior::behavior::Pipeline, alloc::string::String>
+pub fn nika_compile_behavior::behavior::read_request(intent: &str) -> (nika_compile_reader::plan::Plan, nika_compile_behavior::behavior::Provenance)
+pub fn nika_compile_behavior::behavior::select(contract: &nika_compile_behavior::behavior::Contract, candidates: &[nika_compile_behavior::behavior::Candidate], round: nika_compile_behavior::behavior::Limits, turn: nika_compile_behavior::behavior::Limits, before: nika_compile_behavior::behavior::Usage) -> nika_compile_behavior::behavior::Ruling
+pub fn nika_compile_behavior::behavior::targets(contract: &nika_compile_behavior::behavior::Contract) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String>
+pub fn nika_compile_behavior::instant_shape(text: &str) -> core::option::Option<(alloc::string::String, alloc::string::String)>

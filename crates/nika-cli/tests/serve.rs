@@ -631,6 +631,27 @@ fn native_candidate() -> String {
     "nika: clever-rewrite\nmodel: mock/echo\npermits:\n  tools: [\"nika:read\", \"nika:write\"]\n  fs:\n    read: [\"./a.md\"]\n    write: [\"./b.md\"]\ntasks:\n  read_source:\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"./a.md\" }\n  transform:\n    with: { text: \"${{ tasks.read_source.output }}\" }\n    infer:\n      max_tokens: 600\n      prompt: \"Rewrite this text in a clever way, inventing nothing: ${{ with.text }}\"\n  write_result:\n    with: { content: \"${{ tasks.transform.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./b.md\", content: \"${{ with.content }}\" }\n".to_owned()
 }
 
+/// `--sessions` serves the project's native Session (health `sessionHost`); a listener started
+/// without it advertises none.
+#[cfg(unix)]
+#[test]
+fn serve_sessions_advertises_the_session_host_only_when_named() {
+    for (flags, advertised) in [(&["--sessions"][..], true), (&[][..], false)] {
+        let dir = project("sessions-flag", DAILY_3AM, &[("doctor.nika", TRUE)]);
+        secure_token(&dir);
+        let address = free_address();
+        let mut child = native_serve(&dir, &address, flags, &[]);
+        let health = healthy(&address, &mut child);
+        assert_eq!(
+            health.contains("sessionHost"),
+            advertised,
+            "{flags:?}: {health}"
+        );
+        assert_eq!(terminate(&mut child), Some(0));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
 #[test]
 fn serve_help_names_the_native_authoring_seat_and_it_needs_the_listener() {
     let help = bin().args(["serve", "--help"]).output().expect("help");
@@ -711,10 +732,10 @@ fn an_invalid_native_seat_refuses_before_binding() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// The native route of a creation, as the seat sees it: the private plan gets the whole-source
-/// answer the plan door refuses (not a closed plan), then the sketch door's sketch (read, a
-/// rewrite by inference, write), its one fill (the rewrite's prompt) and an approving judge. The
-/// rewrite's purpose carries `echo` when given (a value the server must withhold).
+/// The native route of a creation, as the seat sees it: the document door gets the whole
+/// candidate (its run model the placeholder the compiler asks for), whose rewrite prompt carries
+/// `echo` when given (a value the server must withhold). A sketch door's sketch and fill, and an
+/// approving judge, answer the routes that ask them.
 #[cfg(unix)]
 fn native_answer(echo: Option<&'static str>) -> impl Fn(&serde_json::Value) -> String + Send {
     move |request| {
@@ -752,8 +773,12 @@ fn native_answer(echo: Option<&'static str>) -> impl Fn(&serde_json::Value) -> S
             ], "questions": [], "gaps": [], "notes": "read, rewrite, write"})
             .to_string()
         } else {
+            let mut candidate = native_candidate();
+            if let Some(echo) = echo {
+                candidate = candidate.replace("inventing nothing", &format!("signed {echo}"));
+            }
             serde_json::json!({
-                "candidate": native_candidate(), "questions": [], "gaps": [], "notes": "s06",
+                "candidate": candidate, "questions": [], "gaps": [], "notes": "s06",
             })
             .to_string()
         }
@@ -781,9 +806,9 @@ fn assert_held(replayed: &serde_json::Value, answer: &str) {
 }
 
 /// The real binary, a real Bearer, a controlled seat: the operator's flag seats it, a caller
-/// opts in, the native route authors (the plan refused, then the sketch and its fill), the kept
-/// round replays with zero calls (held for a judge it did not permit), and nothing is run or
-/// written.
+/// opts in, the native route authors (the document door's one document, its run model asked),
+/// the kept round replays with zero calls (held for a judge it did not permit), and nothing is
+/// run or written.
 #[cfg(unix)]
 #[test]
 fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
@@ -800,8 +825,7 @@ fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
         &[
             "--authoring-model",
             "vllm/s06-seat",
-            // The sketch door follows a refused plan only with a repair to spend, under
-            // escalate's worst case for it (see the SIGTERM test).
+            // An explicit repair preference and request ceiling, as an operator states them.
             "--authoring-repairs",
             "1",
             "--authoring-max-calls",
@@ -827,7 +851,8 @@ fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
     assert_eq!(status, 200, "{body}");
     assert_eq!(bodies.lock().expect("bodies").len(), 0);
 
-    // An explicit caller: the plan, the sketch and its fill, under the operator's model and bound.
+    // An explicit caller: the document, under the operator's model and bound; its run model is
+    // the question that keeps the round.
     let fresh = serde_json::json!({
         "compile_version": 2, "mode": "create", "cognition": "explicitProvider",
         "intent": NATIVE_INTENT,
@@ -841,7 +866,7 @@ fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
         document["provenance"]["authoring"]["model"],
         "vllm/s06-seat"
     );
-    assert_eq!(document["provenance"]["authoring"]["calls"], 3);
+    assert_eq!(document["provenance"]["authoring"]["calls"], 1);
     let token_line = head
         .lines()
         .find_map(|l| l.strip_prefix("nika-compile-replay:"))
@@ -850,13 +875,13 @@ fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
         .to_owned();
     {
         let received = bodies.lock().expect("bodies");
-        assert_eq!(received.len(), 3);
+        assert_eq!(received.len(), 1);
         for body in received.iter() {
             assert_eq!(body["model"], "s06-seat");
             assert_eq!(body["max_tokens"].as_u64(), Some(2048));
         }
     }
-    // The answer round: the kept plan, zero calls. A deterministicOnly caller permits no judge,
+    // The answer round: the kept document, zero calls. A deterministicOnly caller permits no judge,
     // so the finish is held for one (native step 2): INCOMPLETE, the candidate its preview.
     let replay = serde_json::json!({
         "compile_version": 2, "mode": "create", "cognition": "deterministicOnly",
@@ -868,7 +893,7 @@ fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
     assert_eq!(status, 200, "{body}");
     let replayed: serde_json::Value = serde_json::from_str(&body).expect("replayed");
     assert_held(&replayed, "mistral/mistral-small-latest");
-    assert_eq!(bodies.lock().expect("bodies").len(), 3, "zero calls");
+    assert_eq!(bodies.lock().expect("bodies").len(), 1, "zero calls");
     assert!(!dir.join("b.md").exists() && !dir.join(".nika/traces").exists());
     assert!(
         !dir.join("clever-rewrite.nika").exists(),
@@ -922,8 +947,8 @@ fn the_key_the_environment_resolves_for_the_seat_is_withheld() {
     assert!(!head.contains("nika-compile-replay"), "nothing kept");
     assert_eq!(
         *seat.authorizations.lock().expect("headers"),
-        vec![format!("Bearer {PREFERRED}"); 3],
-        "the environment's own precedence chose the key sent, on each of the route's calls"
+        vec![format!("Bearer {PREFERRED}")],
+        "the environment's own precedence chose the key sent, on the route's one call"
     );
     assert_eq!(terminate(&mut child), Some(0));
     let _ = std::fs::remove_dir_all(dir);
@@ -951,9 +976,7 @@ fn serve_stops_a_pending_native_round_on_sigterm_without_a_repair() {
             "vllm/s06-seat",
             "--authoring-repairs",
             "1",
-            // Escalate's worst case for one repair, or serve refuses the seat before binding:
-            // 2 plan requests + 2 attempts of 12 questions (8 clause, 2 whole, 2 transform)
-            // + 2 repair calls, then the sketch door's 2 + 2 judged.
+            // An explicit ceiling with room for the document, its repair and their judgments.
             "--authoring-max-calls",
             "32",
         ],

@@ -1,0 +1,68 @@
+# header comment kept byte for byte
+nika: rich-revision
+model: mock/echo
+
+inputs:
+  region:
+    type: string
+    default: "eu-west"   # trailing comment
+  verbose:
+    type: bool
+    required: false
+
+const:
+  window_hours: 48
+  label: 'it''s late'
+  limits: { type: integer, value: 3 }
+
+permits:
+  tools: ["nika:log", "nika:write"]
+  exec: ["echo"]
+  fs:
+    write:
+      - out/report.md
+
+run:
+  entropy: none
+
+tasks:
+  fetch:
+    exec:
+      command: ["echo", "[1, 2, 3]"]
+    retry:
+      max_attempts: 3
+      backoff_ms: 250
+      jitter: false
+    timeout: "30s"
+    extract:
+      count: "length"
+  report:
+    after: { fetch: failure }
+    when: ${{ inputs.verbose == true }}
+    for_each:
+      items: ["a", "b"]
+      max_parallel: 2
+      fail_fast: false
+    group: reports
+    invoke:
+      tool: "nika:log"
+      args:
+        message: |
+          window ${{ const.window_hours }}h, at most ${{ const.limits }}
+          region ${{ inputs.region }} item ${{ item }}
+        level: info
+    on_error:
+      recover: "none"
+  persist:
+    after: { report: terminal }
+    with:
+      label: ${{ const.label }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: out/report.md
+        content: "${{ with.label }}"
+        overwrite: true
+
+outputs:
+  total: ${{ tasks.fetch.count }}

@@ -21,7 +21,11 @@ mod carried;
 #[cfg(feature = "access-harness")]
 mod connection;
 mod continuous_preparation;
+mod cost_choice_host;
 mod decision_seat;
+/// A workflow the person already has, named in a change, revised over its complete document.
+mod document_create;
+mod document_revision;
 mod interrupted;
 mod judge_trials;
 mod legacy;
@@ -30,6 +34,8 @@ mod observed_project;
 mod question_budget;
 mod question_identity;
 mod read_only;
+/// A recorded workflow takes a change its graph refuses over its whole document.
+mod recorded_fallback;
 mod recovery;
 mod restart;
 mod revision_question;
@@ -44,6 +50,11 @@ const MODEL: &str = "deepseek/deepseek-v4-pro";
 const WORK: &str =
     "Je veux que sortie.txt contienne exactement les octets présents dans entree.txt.";
 fn native() -> String {
+    copy_document("sortie.txt")
+}
+/// The document door's answer for the exact-byte copy of `entree.txt` into `destination`: the
+/// copy fixture's whole workflow over those two paths, with no question and no gap.
+fn copy_document(destination: &str) -> String {
     let fixture: Value =
         serde_json::from_str(include_str!("../../tests/fixtures/compile/copy-fr.json"))
             .expect("fixture");
@@ -51,23 +62,30 @@ fn native() -> String {
         .as_str()
         .expect("candidate")
         .replace("./notes/brief.md", "./entree.txt")
-        .replace("./out/copie.md", "./sortie.txt");
+        .replace("./out/copie.md", &format!("./{destination}"));
     json!({"candidate":candidate,"questions":[],"gaps":[],"notes":"copy the exact bytes"})
         .to_string()
 }
-/// A fresh CREATE of `WORK` as the semantic doors answer it (`semantic_copy` to `sortie.txt`).
-pub(crate) fn semantic_create() -> [String; 3] {
-    semantic_copy("sortie.txt")
+/// The document door's answer for DIALOG-11 (« Copie entree.txt vers une destination à
+/// préciser. »): the copy of `entree.txt` to the destination the request leaves open, declared
+/// as an empty placeholder, asked (`const.output_path`), and granted by the empty write permit
+/// the answered path completes.
+pub(super) fn asks_destination() -> String {
+    let [copy] = semantic_copy("sortie.txt");
+    let mut answer: Value = serde_json::from_str(&copy).expect("document");
+    let candidate = (answer["candidate"].as_str().expect("candidate"))
+        .replace("output_path: ./sortie.txt", "output_path: \"\"")
+        .replace("    write:\n    - ./sortie.txt\n", "    write: [\"\"]\n");
+    answer["candidate"] = json!(candidate);
+    answer["questions"] = json!([{"key": "const.output_path",
+        "label": "Où écrire la copie ?", "answer_type": "text",
+        "why": "La requête laisse la destination à préciser."}]);
+    answer.to_string()
 }
-/// A fresh CREATE of the exact-byte copy of `entree.txt` into `destination`, as the semantic
-/// doors answer it, in call order: the private plan names the copy as the part it cannot carry
-/// (so the request escalates to the sketch door), the sketch reads the stated source and writes
-/// the stated destination under the name the copy fixture carries, and the fills add nothing
-/// (the edge carries the bytes). The compiler writes the source; no reply is whole source.
-pub(super) fn semantic_copy(destination: &str) -> [String; 3] {
-    let plan = json!({"steps":[],"effects":[],"obligations":[],"constraints":[],
-        "unknowns":[format!("{destination} contienne exactement les octets présents dans entree.txt")],
-        "regions":[],"approval_bypass":{"present":false}});
+/// The sketch door's answer for the exact-byte copy of `entree.txt` into `destination`, in call
+/// order (an explicit `sketch` strategy: the graph, then its fills): the door whose semantic
+/// record a saved workflow keeps.
+pub(super) fn sketched_copy(destination: &str) -> [String; 2] {
     let task = |id: &str, tool: &str, extra: Value| {
         let mut task = json!({"id":id,"verb":"invoke","tool":tool,"purpose":id});
         task.as_object_mut()
@@ -81,10 +99,20 @@ pub(super) fn semantic_copy(destination: &str) -> [String; 3] {
             json!({"writes":[destination],"with":[{"name":"content","from":"read_source"}]})),
     ],"outputs":[],"questions":[],"gaps":[],"notes":"copy the exact bytes"});
     let fills = json!({"fills":[],"notes":"the edge carries the bytes"});
-    [plan.to_string(), sketch.to_string(), fills.to_string()]
+    [sketch.to_string(), fills.to_string()]
 }
-/// The calls one approved semantic CREATE of `WORK` sends: plan, sketch, fills, judge.
-pub(crate) const CREATE_CALLS: usize = 4;
+/// A fresh CREATE of `WORK` as the document door answers it (`semantic_copy` to `sortie.txt`).
+pub(crate) fn semantic_create() -> [String; 1] {
+    semantic_copy("sortie.txt")
+}
+/// A fresh CREATE of the exact-byte copy of `entree.txt` into `destination`, as the document
+/// door answers it, in call order: one whole document that reads the stated source and writes
+/// the stated destination. The compiler judges it as any candidate.
+pub(super) fn semantic_copy(destination: &str) -> [String; 1] {
+    [copy_document(destination)]
+}
+/// The calls one approved CREATE of `WORK` sends: the document, then its judgment.
+pub(crate) const CREATE_CALLS: usize = 2;
 /// `semantic_create` then the approving judge, each reply wrapped by `reply`.
 pub(crate) fn authored(reply: fn(&str) -> Value) -> Vec<(u16, Value)> {
     let mut script: Vec<_> = semantic_create().iter().map(|t| (200, reply(t))).collect();

@@ -48,9 +48,11 @@ async fn cold_cannot_claim_two_computations_realized_by_the_first_rule() {
 }
 
 #[tokio::test]
-async fn default_route_escalates_distinct_computations_without_asking_for_jq() {
-    // The plan states the two computations; the merge cannot realize both with one rule and asks
-    // for a machine's rule: the default route escalates to the sketch door instead of asking.
+async fn default_route_composes_distinct_computations_without_asking_for_jq() {
+    // The plan's merge cannot realize both computations with one rule (above, under `off`); the
+    // default route composes the complete document at its first call instead of asking for a
+    // machine's rule. The scripted document is the one the explicit sketch door emits from the
+    // graph and fills below; the independent oracle reads what the document door kept.
     let task = |id: &str, tool: &str, extra: Value| {
         let mut t = json!({"id": id, "verb": "invoke", "tool": tool, "purpose": id});
         for (k, v) in extra.as_object().unwrap() {
@@ -74,11 +76,10 @@ async fn default_route_escalates_distinct_computations_without_asking_for_jq() {
         {"task": "total", "field": "expression", "value": "map(.amount | tonumber) | add // 0"},
         {"task": "csv", "field": "args", "value": {"from": "json", "to": "csv", "columns": ["customer", "status", "amount"]}}
     ], "notes": "four holes"});
-    let provider = Rotating::new(vec![
-        proposal().to_string(),
-        sketch.to_string(),
-        fills.to_string(),
-    ]);
+    let sketched = CompileRequest::create(INTENT)
+        .with_authoring_policy(policy().with_native(NativeMode::Sketch));
+    let written = common::sketched(&sketched, vec![sketch.to_string(), fills.to_string()]).await;
+    let provider = Rotating::new(vec![common::document_answer(&written)]);
     let req = CompileRequest::create(INTENT)
         .with_authoring_policy(policy().with_native(NativeMode::Escalate));
     // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
@@ -87,17 +88,13 @@ async fn default_route_escalates_distinct_computations_without_asking_for_jq() {
         .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(keys(&out).is_empty(), "no machine-rule question: {out:#?}");
-    // The COLD plan, the sketch, its fills and the whole-request judgment, every one journaled.
+    // The complete document and the whole-request judgment, every one journaled.
     let receipt = out.provenance.authoring.as_ref().unwrap();
     let roles: Vec<&str> = (receipt.context.iter())
         .map(|c| c["call"].as_str().unwrap())
         .collect();
-    assert_eq!(
-        roles,
-        ["plan", "sketch", "fill", "judge_request"],
-        "{out:#?}"
-    );
-    assert_eq!(receipt.calls, 4, "{out:#?}");
+    assert_eq!(roles, ["document", "judge_request"], "{out:#?}");
+    assert_eq!(receipt.calls, 2, "{out:#?}");
     // The independent oracle: the filtered rows go to paid.csv; the numeric total of the SAME
     // paid subset goes to total.txt; the two computations stay distinct.
     let doc: Value = serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap();

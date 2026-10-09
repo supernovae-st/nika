@@ -43,11 +43,21 @@ fn a_trusted_identity_is_exactly_the_profiles_shape() {
         "snapshot_sha256": SHA,
         "policy": {"id": "policy-r", "sha256": SHA},
     });
-    assert_eq!(TrustedIdentity::from_json(&record), Some(identity));
+    assert_eq!(TrustedIdentity::from_json(&record), Some(identity.clone()));
+    // The same record under profile r2 is an r2 identity: the door applies r2's rules to it.
+    let r2 = json!({"profile": "nika-knowledge-release-profile/r2", "snapshot_sha256": SHA,
+                    "policy": {"id": "policy-r", "sha256": SHA}});
+    let under_r2 = TrustedIdentity::from_json(&r2).expect("an r2 record");
+    assert_eq!(under_r2.profile(), "nika-knowledge-release-profile/r2");
+    assert_eq!(
+        TrustedIdentity::r2(SHA, "policy-r", SHA),
+        Some(under_r2.clone())
+    );
+    assert_ne!(under_r2, identity, "the same digests under another profile");
     let upper = SHA.to_uppercase();
     for malformed in [
         json!(null),
-        json!({"profile": "nika-knowledge-release-profile/r2", "snapshot_sha256": SHA,
+        json!({"profile": "nika-knowledge-release-profile/r3", "snapshot_sha256": SHA,
                "policy": {"id": "policy-r", "sha256": SHA}}),
         json!({"profile": ADMISSION_PROFILE, "snapshot_sha256": upper,
                "policy": {"id": "policy-r", "sha256": SHA}}),

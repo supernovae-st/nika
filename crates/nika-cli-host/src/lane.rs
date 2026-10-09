@@ -10,7 +10,10 @@
 //! size-cap member of the nika-cli unit hosts it (D-2026-07-09-N1 · ADR-110).
 
 mod request;
-pub use request::{RunHostOptions, resume_args, run_args, run_args_with_access};
+pub use nika_onboard::run_line::{
+    EXPECT_SOURCE, EXPECT_WORLD, resume_args, run_args, run_args_with_access,
+};
+pub use request::{RunHostOptions, SessionBinding};
 mod review;
 pub use review::{PendingRun, RunProgress, drive_reviewed_child, drive_reviewed_child_observed};
 

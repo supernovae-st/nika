@@ -48,11 +48,11 @@ pub struct CapabilityEscape {
     /// contains the entry. One idiom = the agent repair loop
     /// pattern-matches once and converges (e2e-tested).
     pub fix: Option<String>,
-    /// True when the escape is the always-on SSRF floor (`NIKA-SEC-005` ·
-    /// spec 05-errors: independent of `permits:`), not the declared
-    /// boundary (`NIKA-SEC-004`). A floor escape never carries a grant
-    /// `fix` — no permits entry can admit the target; the repair is
-    /// pointing the task at a public host. Additive (`#[non_exhaustive]`).
+    /// True when the escape is the SSRF floor (`NIKA-SEC-005`), not the
+    /// declared boundary (`NIKA-SEC-004`). Exact loopback literals may
+    /// carry a grant `fix`, matching the runtime's explicit loopback
+    /// exception. Other floor targets cannot be admitted by a grant.
+    /// Additive (`#[non_exhaustive]`).
     pub floor: bool,
     /// True when the escape is judged against the ZERO boundary because
     /// no `permits:` block is declared at all (F-O8 « absent = zero
@@ -121,8 +121,8 @@ pub fn scan_escapes(wf: &RawWorkflow) -> Vec<CapabilityEscape> {
                     category: "net",
                     detail: format!(
                         "permits.net.http entry `{entry}` can never take effect — the \
-                         always-on SSRF floor (NIKA-SEC-005) refuses loopback/private/\
-                         link-local/metadata targets regardless of `permits:`; remove \
+                         always-on SSRF floor (NIKA-SEC-005) refuses this target \
+                         regardless of `permits:`; remove \
                          the entry"
                     ),
                     fix: None,
@@ -266,9 +266,8 @@ fn check_agent_fs(id: &str, tool: &str, permits: &Permits, out: &mut Vec<Capabil
 /// `localhost` family · metadata names · literal-IP ranges, via the ONE
 /// `nika_types::net::host_is_blocked` oracle `nika-http` enforces with);
 /// a public DNS name that resolves privately stays the runtime
-/// `GuardedResolver`'s half. No grant `fix` — permits cannot override the
-/// floor, so the repair is the URL itself. The ONE carve-out (#395 ·
-/// same-PR as the runtime's): an EXACT loopback literal in the declared
+/// `GuardedResolver`'s half. A grant `fix` is offered only for the ONE
+/// carve-out (#395 · same-PR as the runtime's): an EXACT loopback literal in the declared
 /// `permits.net.http` declassifies the floor for that host — the shared
 /// `loopback_declassified` predicate `nika-http` enforces with, so the
 /// escape stops firing exactly where the run stops refusing.
@@ -292,16 +291,25 @@ fn check_net_floor(
         && !nika_types::net::loopback_declassified(net_http(permits), &host)
     {
         let tool = tool_ref.value.as_str();
+        let loopback = nika_types::net::is_exact_loopback_literal(&host);
+        let detail = if loopback {
+            format!(
+                "`{tool}` loopback host `{host}` is refused by the SSRF floor \
+                 (NIKA-SEC-005) until that exact host is declared in `permits.net.http`; \
+                 a wildcard or a different loopback host does not grant it"
+            )
+        } else {
+            format!(
+                "`{tool}` host `{host}` is refused by the always-on SSRF floor \
+                 (NIKA-SEC-005): this target cannot be admitted by `permits:` — \
+                 point the task at a public host"
+            )
+        };
         out.push(CapabilityEscape {
             task: id.to_owned(),
             category: "net",
-            detail: format!(
-                "`{tool}` host `{host}` is refused by the always-on SSRF floor \
-                 (NIKA-SEC-005): loopback/private/link-local/metadata targets are \
-                 unreachable regardless of `permits:` — point the task at a \
-                 public host"
-            ),
-            fix: None,
+            detail,
+            fix: loopback.then(|| format!("add \"{host}\" to permits.net.http")),
             floor: true,
             undeclared: false,
         });

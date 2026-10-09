@@ -703,7 +703,7 @@ tasks:
         // bare `::1` in the escape detail (the bug this test pins).
         let ungranted = "nika: w\npermits: { tools: [\"nika:fetch\"], net: { http: [\"api.x.com\"] }, exec: false }\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://[::1]:8080/x\" } }\n";
         let e = escapes_of(ungranted);
-        assert_eq!(e.len(), 1, "floor escape only — never the grant fix");
+        assert_eq!(e.len(), 1, "the floor owns the exact loopback grant fix");
         assert!(e[0].floor);
         assert!(e[0].detail.contains("`::1`"), "detail: {}", e[0].detail);
     }
@@ -1070,7 +1070,7 @@ tasks:
         let e = escapes(y);
         assert_eq!(e.len(), 1, "the task floors, the entry is live: {e:?}");
         assert_eq!(e[0].task, "probe");
-        assert!(e[0].floor && e[0].fix.is_none());
+        assert!(e[0].floor);
     }
 
     #[test]

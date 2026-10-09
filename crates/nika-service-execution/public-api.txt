@@ -4,6 +4,7 @@ pub mod nika_service_execution::access
 pub use nika_service_execution::access::first_modelless_task
 pub fn nika_service_execution::access::access_probes_env() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_service_execution::access::boot_access_fields(plan: &nika_providers::plan::ExecutionAccessPlan) -> alloc::vec::Vec<(&'static str, nika_types::resource::Value)>
+pub fn nika_service_execution::access::declared_requirement(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::access::selection::AccessRequirement>
 pub fn nika_service_execution::access::lane_rows(plan: &nika_providers::plan::ExecutionAccessPlan) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn nika_service_execution::access::model_needs(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> alloc::vec::Vec<nika_providers::plan::ModelNeed>
 pub fn nika_service_execution::access::provider_probes_env() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>

@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! Fresh CREATE is semantic at the shared entry: the model proposes a private plan or a sketch
-//! and its fills, the compiler writes the source. A recording transport answers each call by the
-//! schema it was asked under and refuses every whole-source schema (`candidate`,
-//! `candidate_lines`), counting the attempt. The expected duties, paths, gates and results are
-//! built here, never read from a proposal. Scripted providers and an approving judge: no network,
-//! no key, and no claim that a scripted judgment qualifies a model.
+//! Fresh CREATE at the shared entry: under `escalate` and `only` the first authoring call asks
+//! for the complete document (the document door, R5 · C13); the private plan (`off`) and the
+//! sketch with its fills (`sketch`) stay explicit doors whose source the compiler writes. A
+//! recording transport answers each call by the schema it was asked under (`document` for the
+//! document door's answer, which carries `operations`) and refuses the retired whole-source
+//! schema (`candidate` or `candidate_lines` without `operations`), counting the attempt. The
+//! expected duties, paths, gates and results are built here, never read from a proposal; a
+//! scripted complete document is one an explicit door emitted. Scripted providers and an
+//! approving judge: no network, no key, and no claim that a scripted judgment qualifies a model.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use nika_compile::{
     AuthoringKnowledge, AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus,
@@ -35,9 +38,11 @@ const BRANCHES: [(&str, &str, &str, &str); 2] = [
     ("./beta.txt", "write_beta", "./out/beta.txt", "beta"),
 ];
 
-/// What the transport received, by the schema of each call: `plan`, `sketch`, `fills`, `judge`,
-/// or `source` for a whole-source schema it refused.
+/// What the transport received, by the schema of each call: `document`, `plan`, `sketch`,
+/// `fills`, `judge`, or `source` for the retired whole-source schema it refused. A document call
+/// with no scripted document fails as a provider would.
 struct Semantic {
+    documents: Vec<String>,
     plans: Vec<String>,
     sketches: Vec<String>,
     fills: Vec<String>,
@@ -47,11 +52,16 @@ struct Semantic {
 impl Semantic {
     fn new(plans: &[String], sketches: &[String], fills: &[String]) -> Self {
         Self {
+            documents: Vec::new(),
             plans: plans.to_vec(),
             sketches: sketches.to_vec(),
             fills: fills.to_vec(),
             seen: Mutex::new(Vec::new()),
         }
+    }
+    fn with_documents(mut self, documents: &[String]) -> Self {
+        self.documents = documents.to_vec();
+        self
     }
     fn seen(&self) -> Vec<&'static str> {
         self.seen.lock().unwrap().clone()
@@ -82,7 +92,9 @@ impl ProviderInferDyn for Semantic {
             _ => Value::Null,
         };
         let has = |key: &str| schema["properties"].get(key).is_some();
-        let kind = if has("candidate") || has("candidate_lines") {
+        let kind = if has("operations") {
+            "document"
+        } else if has("candidate") || has("candidate_lines") {
             "source"
         } else if has("choice") {
             "judge"
@@ -101,6 +113,10 @@ impl ProviderInferDyn for Semantic {
             seen.iter().filter(|k| **k == kind).count() - 1
         };
         match kind {
+            "document" if self.documents.is_empty() => Err(ProviderError::Other {
+                reason: "no document is scripted for this call".to_owned(),
+            }),
+            "document" => Ok(reply(nth(&self.documents, index))),
             "source" => Err(ProviderError::Other {
                 reason: "the test transport refuses a whole-source schema".to_owned(),
             }),
@@ -236,7 +252,8 @@ fn assert_branches(candidate: &str) {
     );
 }
 
-/// The migration a retired source-only CREATE names: no request, no candidate, both semantic doors.
+/// The refusal a retired source-only CREATE once named (no request, no candidate, both semantic
+/// doors): `only` now opens the document door, and no route may name this again.
 fn only_refused(out: &CompileOutcome) -> bool {
     out.candidate.is_none()
         && out.status == CompileStatus::Refused
@@ -249,12 +266,13 @@ fn only_refused(out: &CompileOutcome) -> bool {
         })
 }
 
-// ── Escalate: the Plan reads the admitted Foundry; knowledge never selects source ─────────────
+// ── The admitted Foundry reaches the first call; knowledge never selects the route ────────────
 
 #[tokio::test]
-async fn escalate_plans_with_the_admitted_foundry_and_never_asks_for_source() {
+async fn the_admitted_foundry_reaches_the_first_call_and_never_selects_the_route() {
+    // Off: the private plan reads the admitted Foundry; the compiler writes the source.
     let provider = Semantic::new(&[plan().to_string()], &[], &[]);
-    let request = answered(NativeMode::Escalate)
+    let request = answered(NativeMode::Off)
         .with_authoring_knowledge(pack())
         .with_knowledge(world());
     let out = compile_with_provider(&request, &provider).await.unwrap();
@@ -277,89 +295,126 @@ async fn escalate_plans_with_the_admitted_foundry_and_never_asks_for_source() {
         opening["semantic_context"]["pack_sha256"], PACK_DIGEST,
         "{opening:#}"
     );
-    let candidate = out.candidate.as_deref().unwrap();
+    let written = out.candidate.clone().unwrap();
+    assert!(
+        !written.contains(PACK_SENTINEL),
+        "a reference is never authority"
+    );
+    // Escalate: the document door's first call carries the same pack (the scripted author
+    // answers the document the plan's assembler wrote); no call asks for the retired schema.
+    let documents = [common::document_answer(&written)];
+    let author = Semantic::new(&[], &[], &[]).with_documents(&documents);
+    let request = answered(NativeMode::Escalate)
+        .with_authoring_knowledge(pack())
+        .with_knowledge(world());
+    let created = compile_with_provider(&request, &author).await.unwrap();
+    assert_eq!(author.count("source"), 0, "{:?}", author.seen());
+    assert_eq!(
+        author.seen().first().copied(),
+        Some("document"),
+        "{:?}",
+        author.seen()
+    );
+    assert_eq!(created.status, CompileStatus::Ready, "{created:#?}");
+    assert_eq!(door(&created)["source_owner"], "model");
+    let first = &created.provenance.authoring.as_ref().unwrap().context[0];
+    assert!(
+        (first["references"].as_array().unwrap().iter())
+            .any(|r| r["id"] == "pattern:customer-reply"),
+        "{first:#}"
+    );
+    let candidate = created.candidate.as_deref().unwrap();
     assert!(
         !candidate.contains(PACK_SENTINEL),
         "a reference is never authority"
     );
-    // The same request, policy and judge with knowledge off: the same route and the same source.
-    let bare = Semantic::new(&[plan().to_string()], &[], &[]);
-    let off = compile_with_provider(
-        &answered(NativeMode::Escalate).with_knowledge(world()),
-        &bare,
-    )
-    .await
-    .unwrap();
-    assert_eq!(
-        off.candidate, out.candidate,
-        "knowledge never selects the route"
-    );
-    assert_eq!(bare.seen(), provider.seen());
-    assert_eq!(roles(&off), roles(&out));
+    // The same requests, policies and judge with knowledge off: the same routes and sources.
+    for (native, kept, seen) in [
+        (NativeMode::Off, &out, provider.seen()),
+        (NativeMode::Escalate, &created, author.seen()),
+    ] {
+        let bare = Semantic::new(&[plan().to_string()], &[], &[]).with_documents(&documents);
+        let off = compile_with_provider(&answered(native).with_knowledge(world()), &bare)
+            .await
+            .unwrap();
+        assert_eq!(
+            off.candidate, kept.candidate,
+            "{native:?}: knowledge never selects the route"
+        );
+        assert_eq!(bare.seen(), seen, "{native:?}");
+        assert_eq!(roles(&off), roles(kept), "{native:?}");
+    }
 }
 
-/// A plan that ends without a candidate escalates to the sketch door with the same request, its
-/// spend kept first: the composed graph keeps both branches, the gate and the named results.
+/// A composed request (two copies behind one approval, two named results) reaches the complete
+/// document at the first call under `escalate`: both branches, the gate and the named results
+/// kept, every call journaled, the document door named. The scripted document is the one the
+/// explicit sketch door emits from the same graph and fills.
 #[tokio::test]
-async fn a_plan_without_a_candidate_escalates_to_the_sketch_door_and_keeps_both_branches() {
-    let provider = Semantic::new(
-        &["no plan here".to_owned()],
-        &[copies_sketch()],
-        &[copies_fills()],
+async fn a_composed_request_reaches_the_complete_document_with_both_branches() {
+    let author = Semantic::new(&[], &[copies_sketch()], &[copies_fills()]);
+    let request =
+        CompileRequest::create(COPIES).with_authoring_policy(policy(NativeMode::Sketch, 3));
+    let drawn = compile_with_provider(&request, &author).await.unwrap();
+    assert_eq!(drawn.status, CompileStatus::Ready, "{drawn:#?}");
+    assert_eq!(
+        door(&drawn)["source_owner"],
+        "compiler_from_model_sketch_and_fills"
     );
+    let written = drawn.candidate.unwrap();
+    assert_branches(&written);
+    let provider =
+        Semantic::new(&[], &[], &[]).with_documents(&[common::document_answer(&written)]);
     let request =
         CompileRequest::create(COPIES).with_authoring_policy(policy(NativeMode::Escalate, 3));
     let out = compile_with_provider(&request, &provider).await.unwrap();
     assert_eq!(provider.count("source"), 0, "{:?}", provider.seen());
     assert_eq!(
-        &provider.seen()[..3],
-        ["plan", "sketch", "fills"],
+        provider.seen().first().copied(),
+        Some("document"),
+        "{:?}",
+        provider.seen()
+    );
+    assert!(
+        !(provider.seen().iter()).any(|k| ["plan", "sketch", "fills"].contains(k)),
         "{:?}",
         provider.seen()
     );
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_branches(out.candidate.as_deref().unwrap());
-    assert_eq!(
-        &roles(&out)[..3],
-        ["plan", "sketch", "fill"],
-        "the paid plan stays first"
-    );
+    assert_eq!(roles(&out)[0], "document", "{:?}", roles(&out));
     assert_eq!(
         out.provenance.authoring.as_ref().unwrap().calls as usize,
         provider.seen().len(),
         "every call is journaled"
     );
-    assert_eq!(door(&out)["name"], "sketch", "{:#}", door(&out));
-    assert_eq!(
-        door(&out)["source_owner"],
-        "compiler_from_model_sketch_and_fills"
-    );
-    assert!(route(&out).contains("sketch"), "{}", route(&out));
+    assert_eq!(door(&out)["name"], "native_source", "{:#}", door(&out));
+    assert_eq!(door(&out)["reason"], "complete_document_door");
+    assert_eq!(door(&out)["source_owner"], "model");
+    assert!(route(&out).contains("native: document"), "{}", route(&out));
 }
 
-/// The sketch door after a plan takes one request more than the native door did, within the
-/// same bound: with no repair left, the escalation is named and no request is sent.
+/// Under `escalate` with no repair allowance, a document the laws refuse ends the door: the
+/// refusal is named and nothing more is sent.
 #[tokio::test]
-async fn an_escalation_without_a_repair_allowance_is_named_and_sends_nothing_more() {
-    let provider = Semantic::new(
-        &["no plan here".to_owned()],
-        &[copies_sketch()],
-        &[copies_fills()],
-    );
+async fn a_refused_document_without_a_repair_allowance_is_named_and_sends_nothing_more() {
+    let provider = Semantic::new(&[], &[], &[])
+        .with_documents(&[common::document_answer("nika: x\ntasks: {}\n")]);
     let request =
         CompileRequest::create(COPIES).with_authoring_policy(policy(NativeMode::Escalate, 0));
     let out = compile_with_provider(&request, &provider).await.unwrap();
-    assert_eq!(provider.seen(), ["plan"], "only the plan was sent");
+    assert_eq!(provider.seen(), ["document"], "only the document was sent");
     assert!(out.candidate.is_none());
+    assert_ne!(out.status, CompileStatus::Ready);
     let told: Vec<&str> = out.diagnostics.iter().map(|d| d.message.as_str()).collect();
     assert!(
-        told.iter()
-            .any(|m| m.contains("sketch door") && m.contains("repair allowance (0)")),
-        "{told:?}"
+        (told.iter()).any(|m| m.contains("recorded 1 round(s)") && m.contains("UNREALIZED PATH")),
+        "the one refused round is named: {told:?}"
     );
 }
 
-/// A source-shaped answer is never a plan, a sketch or a candidate.
+/// A source-shaped answer is never a plan, a sketch or fills; at the document door it is the
+/// document it says, and the laws refuse that empty workflow.
 #[tokio::test]
 async fn a_source_shaped_answer_is_refused_at_every_semantic_phase() {
     let source =
@@ -367,39 +422,63 @@ async fn a_source_shaped_answer_is_refused_at_every_semantic_phase() {
                         "gaps": [], "notes": "source"})
         .to_string();
     let replies = std::slice::from_ref(&source);
-    let provider = Semantic::new(replies, replies, replies);
-    let request =
-        CompileRequest::create(COPIES).with_authoring_policy(policy(NativeMode::Escalate, 3));
-    let out = compile_with_provider(&request, &provider).await.unwrap();
-    assert_eq!(provider.count("source"), 0, "{:?}", provider.seen());
-    assert!(out.candidate.is_none(), "{out:#?}");
-    assert_ne!(out.status, CompileStatus::Ready);
-    assert!(
-        provider.count("sketch") >= 1,
-        "the sketch door was tried: {:?}",
-        provider.seen()
-    );
-    assert_eq!(
-        out.provenance.authoring.as_ref().unwrap().calls as usize,
-        provider.seen().len(),
-        "every refused attempt is journaled"
-    );
+    for (native, phase) in [
+        (NativeMode::Off, "plan"),
+        (NativeMode::Sketch, "sketch"),
+        (NativeMode::Escalate, "document"),
+    ] {
+        let provider = Semantic::new(replies, replies, replies).with_documents(replies);
+        let request = CompileRequest::create(COPIES).with_authoring_policy(policy(native, 3));
+        let out = compile_with_provider(&request, &provider).await.unwrap();
+        assert_eq!(
+            provider.count("source"),
+            0,
+            "{native:?}: {:?}",
+            provider.seen()
+        );
+        assert!(out.candidate.is_none(), "{native:?}: {out:#?}");
+        assert_ne!(out.status, CompileStatus::Ready, "{native:?}");
+        assert!(
+            provider.count(phase) >= 1,
+            "{native:?}: the {phase} phase was tried: {:?}",
+            provider.seen()
+        );
+        assert_eq!(
+            out.provenance.authoring.as_ref().unwrap().calls as usize,
+            provider.seen().len(),
+            "{native:?}: every refused attempt is journaled"
+        );
+    }
 }
 
-// ── Only: retired for fresh CREATE, with or without a provider ─────────────────────────────────
+// ── Only: the document door straight, with or without a provider ──────────────────────────────
 
+/// `only` names the document door before the reader: a fresh CREATE's first authoring call is
+/// the complete document, never a plan, a sketch or the retired whole-source schema; with no
+/// provider nothing is sent.
 #[tokio::test]
-async fn a_fresh_create_under_only_is_refused_with_its_migration_and_sends_nothing() {
-    let provider = Semantic::new(&[plan().to_string()], &[copies_sketch()], &[copies_fills()]);
+async fn a_fresh_create_under_only_goes_straight_to_the_document_door() {
     for intent in [INTENT, COPIES] {
+        let provider = Semantic::new(&[plan().to_string()], &[copies_sketch()], &[copies_fills()]);
         let request =
             CompileRequest::create(intent).with_authoring_policy(policy(NativeMode::Only, 3));
         let out = compile_with_provider(&request, &provider).await.unwrap();
-        assert!(only_refused(&out), "{intent}: {out:#?}");
+        assert_eq!(provider.seen(), ["document"], "{intent}");
+        assert!(!only_refused(&out), "{intent}: {out:#?}");
+        assert!(
+            route(&out).contains("native: document"),
+            "{intent}: {}",
+            route(&out)
+        );
+        assert!(
+            !route(&out).contains("hot"),
+            "{intent}: no reading first: {}",
+            route(&out)
+        );
         let none = compile_with_cognition(&request, Cognition::<NoProvider>::default())
             .await
             .unwrap();
-        assert!(only_refused(&none), "{intent}, no provider: {none:#?}");
+        assert!(!only_refused(&none), "{intent}, no provider: {none:#?}");
         assert!(
             none.provenance
                 .authoring
@@ -407,13 +486,12 @@ async fn a_fresh_create_under_only_is_refused_with_its_migration_and_sends_nothi
                 .is_none_or(|r| r.calls == 0)
         );
     }
-    assert!(provider.seen().is_empty(), "{:?}", provider.seen());
 }
 
 #[tokio::test]
 async fn under_only_a_floor_or_a_contradiction_keeps_its_own_cause() {
     // The same intents the reader's own suites refuse (`compile_native` floor, `compile_negation_scope`
-    // contradiction): each keeps its cause under the retired mode, never the migration's words.
+    // contradiction): each keeps its cause under `only`, before any door, never the retired words.
     let provider = Semantic::new(&[plan().to_string()], &[], &[]);
     let cases = [
         (
@@ -457,8 +535,8 @@ async fn exact_names_keep_their_zero_call_doors_under_only() {
     assert!(provider.seen().is_empty());
 }
 
-/// A valid semantic record replays under Only: the retired mode refuses fresh authoring, never the
-/// answer round of a record another door wrote.
+/// A valid semantic record replays under Only: `only` opens the document door for fresh
+/// authoring, never for the answer round of a record another door wrote.
 #[tokio::test]
 async fn a_valid_semantic_record_replays_under_only() {
     let author = Semantic::new(&[], &[copies_sketch()], &[copies_fills()]);

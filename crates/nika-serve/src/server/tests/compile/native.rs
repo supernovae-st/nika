@@ -224,8 +224,8 @@ pub(super) fn candidate(model: &str, copy: bool) -> String {
     )
 }
 
-/// A legacy whole-source reply retained for refused or interrupted rounds. Successful
-/// creation and source revision use typed answers, never this form.
+/// The document door's answer for a fresh creation: the whole candidate, no operation over it,
+/// no business question and no gap. Source revision still answers typed links, never this.
 pub(super) fn native_answer(candidate: &str) -> String {
     json!({"candidate": candidate, "questions": [], "gaps": [], "notes": "read, transform, write"})
         .to_string()
@@ -260,54 +260,45 @@ fn assert_revision_opening(
 
 /// The words of [`INTENT`] its draft step cites.
 pub(super) const DRAFT: &str = "do something clever with it";
-/// A part of [`INTENT`] the plan leaves open: the private plan hands the request to the sketch
-/// door.
-pub(super) const OPEN: &str = "which model runs the rewrite";
+/// What [`INTENT`] leaves open, which the document door asks as a declared placeholder: how the
+/// rewrite is clever.
+pub(super) const OPEN_KEY: &str = "const.style";
+/// The answer that closes [`OPEN_KEY`].
+pub(super) const STYLE: &str = "in plain words";
 
-/// The private plan's answer for [`INTENT`] (its closed schema): the stated read, a draft whose
-/// detail is `draft`, the stated write, and the parts the plan leaves open. The compiler, never
-/// the seat, assembles the candidate from it.
-pub(super) fn plan_answer(draft: &str, unknowns: &[&str]) -> String {
-    json!({"steps": [
-        {"op": "read", "detail": "./a.md", "evidence": "Read ./a.md"},
-        {"op": "draft", "detail": draft, "evidence": DRAFT},
-    ], "effects": [
-        {"verb": "write", "target": "./b.md", "policy": "automatic", "evidence": "then write ./b.md"},
-    ], "obligations": [], "constraints": [], "unknowns": unknowns, "regions": [],
-       "approval_bypass": {"present": false}})
+/// The answers that close a question round.
+pub(super) fn closing() -> Value {
+    json!({"answers": {"const.style": STYLE}})
+}
+
+/// The prompt [`candidate`] writes.
+const PROMPT: &str = "Rewrite this text in a clever way, inventing nothing";
+
+/// [`INTENT`]'s whole document, the model named, with what the request leaves open declared as
+/// a placeholder and asked; `text` rides the prompt beside it (a value a seat may echo).
+pub(super) fn open_document(text: &str) -> String {
+    let source = candidate(RUN_MODEL, false)
+        .replacen("model: ", "const:\n  style: \"\"\nmodel: ", 1)
+        .replace(
+            PROMPT,
+            &format!("Rewrite this text ${{{{ const.style }}}}{text}"),
+        );
+    json!({"candidate": source, "questions": [{"key": OPEN_KEY,
+        "label": "How should the rewrite be clever?", "answer_type": "text",
+        "why": "the request leaves it open"}], "gaps": [], "notes": "one value left open"})
     .to_string()
 }
 
-/// The sketch door's graph for [`INTENT`]: read the stated source, one infer, write the stated
-/// destination. Structure only; the compiler emits the document and derives its permits.
-pub(super) fn sketch_answer() -> String {
-    json!({"name": "clever-rewrite", "tasks": [
-        {"id": "read_source", "verb": "invoke", "tool": "nika:read", "purpose": "read",
-         "reads": ["./a.md"]},
-        {"id": "transform", "verb": "infer", "purpose": "rewrite cleverly",
-         "with": [{"name": "text", "from": "read_source"}]},
-        {"id": "write_result", "verb": "invoke", "tool": "nika:write", "purpose": "write",
-         "writes": ["./b.md"], "with": [{"name": "text", "from": "transform"}]},
-    ], "questions": [], "gaps": [], "notes": "read, transform, write"})
-    .to_string()
+/// The document door's answer for [`INTENT`]: read the stated source, one infer whose prompt
+/// states `draft`, write the stated destination, the model named and nothing asked.
+pub(super) fn document_answer(draft: &str) -> String {
+    native_answer(&candidate(RUN_MODEL, false).replace(PROMPT, draft))
 }
 
-/// The sketch's one typed hole, filled.
-pub(super) fn fills_answer() -> String {
-    json!({"fills": [{"task": "transform", "field": "prompt",
-        "value": "Rewrite this text in a clever way, inventing nothing: ${{ with.text }}"}],
-        "notes": "one hole"})
-    .to_string()
-}
-
-/// A kept native question round: the plan leaves a part open, the sketch and its fill follow,
-/// and the compiler asks for the run model — three requests, the round and its token kept.
+/// A kept native question round: the document door writes the whole candidate and asks what the
+/// request leaves open — one request, the round and its token kept.
 pub(super) fn question_round() -> Vec<Reply> {
-    vec![
-        Reply::Text(plan_answer(DRAFT, &[OPEN])),
-        Reply::Text(sketch_answer()),
-        Reply::Text(fills_answer()),
-    ]
+    vec![Reply::Text(open_document(""))]
 }
 
 /// A Foundry knowledge release on disk: its root, which is the directory the operator names
@@ -624,8 +615,9 @@ fn assert_first_round(
     for reference in &pack.references {
         assert!(system.contains(&reference.text), "{} is sent", reference.id);
     }
-    // The private plan's opening: the request itself, byte for byte.
-    assert_eq!(message(sent, "user"), INTENT);
+    // The document door's opening carries the request itself, byte for byte.
+    let opening: Value = serde_json::from_str(&message(sent, "user")).expect("the opening");
+    assert_eq!(opening["request"], INTENT);
     let provenance = &document["provenance"];
     assert_eq!(provenance["cognition"], "explicitProvider");
     assert_eq!(provenance["strategy"], "native");
@@ -692,8 +684,8 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
     let authoring = NativeAuthoring::new(SEAT, seat.providers())
         .with_knowledge_release(&foundry.snapshot, foundry.identity())
         .with_max_tokens(4096)
-        // The plan, the sketch, its fill and the judgment; repairs stay the default preference.
-        .with_max_calls(4);
+        // The document and its judgment; repairs stay the default preference.
+        .with_max_calls(2);
     let (server, backend) = start_native(&world, compile_limits(), authoring).await;
     let health = server
         .request("GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
@@ -719,17 +711,17 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
             .as_array()
             .expect("questions")
             .iter()
-            .any(|q| q["key"] == "model"),
-        "the candidate asks for its run model: {document:#}"
+            .any(|q| q["key"] == OPEN_KEY),
+        "the document asks what the request leaves open: {document:#}"
     );
-    // The plan, the sketch and its fill: a question round, its judgment not yet due.
-    assert_eq!(seat.calls(), 3);
-    assert_first_round(&foundry, &world, (&seat.bodies()[0], 3), &document);
+    // The document: a question round, its judgment not yet due.
+    assert_eq!(seat.calls(), 1);
+    assert_first_round(&foundry, &world, (&seat.bodies()[0], 1), &document);
 
     // The answer round: the kept plan, this round's answers, zero calls — the same plan the
     // paid round produced, now baked and held: a deterministicOnly round permits no judge
     // (native step 2), so the finish stays INCOMPLETE, its candidate kept as the preview.
-    let answers = json!({"answers": {"model": RUN_MODEL}});
+    let answers = closing();
     let second = server
         .request(&compile_request(&replay(&token, &answers)))
         .await;
@@ -747,7 +739,7 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
         replayed["candidate"]
             .as_str()
             .expect("candidate")
-            .contains(&format!("model: {RUN_MODEL}"))
+            .contains(STYLE)
     );
     assert_eq!(replayed["provenance"]["strategy"], "native");
     assert_eq!(
@@ -759,7 +751,7 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
         .request(&compile_request(&replay(&token, &answers)))
         .await;
     assert_eq!(again.body, second.body);
-    assert_eq!(seat.calls(), 3, "the answer rounds called no one");
+    assert_eq!(seat.calls(), 1, "the answer rounds called no one");
 
     // Review material only: no job, run, trace, file or registry entry.
     let after = tree(world.root.path());

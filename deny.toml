@@ -128,6 +128,7 @@ wrappers = [
   # the CDP WebSocket rides async-tungstenite/tokio · tower-http via its reqwest
   "chromiumoxide", "async-tungstenite", "tower-http",
   "nika-session",         # L4 native session (ADR-125): blocks on ONE inference at a time (a current-thread runtime per turn) — the seat adapter and the provider registry are async
+  "nika-session-host",    # L4 Session over a wire (ADR-148): tokio sync/time for the HTTP routes' wait and the machine door's stdio lines (dev: rt-multi-thread, net, macros, io-util for its route tests)
   "nika-tui",             # L4 terminal renderer (ADR-139): a current-thread runtime for ONE event broker (crossterm EventStream · signals · mpsc) and the UI loop; no work of the engine runs here
 ]
 

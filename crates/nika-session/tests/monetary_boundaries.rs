@@ -235,37 +235,38 @@ fn typed_text_and_choice_gate_values_remain_data() {
     }
 }
 
+/// A symlinked alias of a saved workflow is a world the run cannot capture (`nika run` holds its
+/// project by descriptor and never follows a symlinked unit): the check says so before any money
+/// question, so no run is requested, at any budget, and nobody is called; the saved workflow
+/// itself still runs under its saved zero.
 #[test]
 #[cfg(unix)]
-fn same_file_symlink_keeps_zero_and_qualified_runs_call_nobody() {
+fn a_symlinked_alias_is_refused_before_money_and_calls_nobody() {
     let dir = tempfile::tempdir().expect("fixture");
     let (mut session, calls) = saved(dir.path(), "budget 0 dollars");
-    let proposal = session.monetary_decision().expect("saved").proposal.clone();
     std::os::unix::fs::symlink(WORKFLOW, dir.path().join("alias.nika")).expect("alias");
-    let out = session.turn("run alias.nika");
-    assert!(
-        matches!(out, TurnOutcome::RunRequested { ref run, .. } if run.max_cost_usd.to_bits() == 0.0_f64.to_bits()),
-        "{out:?}"
-    );
-    assert_eq!(
-        session.monetary_decision().expect("saved").proposal,
-        proposal
-    );
     let before = calls.counts();
-    assert!(!matches!(
-        session.turn("run alias.nika but only on Fridays"),
-        TurnOutcome::RunRequested { .. }
-    ));
-    assert_eq!(calls.counts(), before);
-    let out = session.turn("run alias.nika budget 2 USD");
+    for line in [
+        "run alias.nika",
+        "run alias.nika but only on Fridays",
+        "run alias.nika budget 2 USD",
+    ] {
+        let out = session.turn(line);
+        assert!(
+            !matches!(out, TurnOutcome::RunRequested { .. }),
+            "{line}: {out:?}"
+        );
+    }
     assert!(
-        matches!(out, TurnOutcome::RunRequested { ref run, .. } if run.max_cost_usd.to_bits() == 2.0_f64.to_bits()),
-        "{out:?}"
+        matches!(session.turn("run alias.nika"), TurnOutcome::Facts(ref text)
+            if text.contains("the run cannot capture this workflow")),
+        "the refusal names why"
     );
-    let out = session.turn("run alias.nika");
+    assert_eq!(calls.counts(), before);
+    let out = session.turn(&format!("run {WORKFLOW}"));
     assert!(
         matches!(out, TurnOutcome::RunRequested { ref run, .. } if run.max_cost_usd.to_bits() == 0.0_f64.to_bits()),
-        "override is per Run: {out:?}"
+        "{out:?}"
     );
 }
 
@@ -296,15 +297,9 @@ fn changed_saved_bytes_refuse_through_an_alias() {
     bytes.push_str("\n# changed after review\n");
     std::fs::write(path, bytes).expect("drift");
     let before = calls.counts();
-    assert!(matches!(
-        session.turn("run alias.nika"),
-        TurnOutcome::Refusal(_)
-    ));
+    let out = session.turn("run alias.nika");
+    assert!(!matches!(out, TurnOutcome::RunRequested { .. }), "{out:?}");
     assert_eq!(calls.counts(), before);
-    assert_eq!(
-        session.monetary_decision().expect("refused").effective_usd,
-        None
-    );
 }
 
 #[test]
@@ -350,7 +345,7 @@ fn reopened_alias_cannot_escape_reconfirmation() {
     std::os::unix::fs::symlink(WORKFLOW, dir.path().join("alias.nika")).expect("alias");
     let (mut session, calls) = open(dir.path());
     let out = session.turn("run alias.nika");
-    assert!(matches!(out, TurnOutcome::Refusal(_)), "{out:?}");
+    assert!(!matches!(out, TurnOutcome::RunRequested { .. }), "{out:?}");
     assert_eq!(calls.counts(), (0, 0));
 }
 

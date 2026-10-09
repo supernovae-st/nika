@@ -1,5 +1,11 @@
 # Nika TUI: reception criteria
 
+> Historical record (note added 9 October 2026). The criteria, statuses and
+> measurements below were written on 29 September 2026 against base `513ca8465`,
+> before the workspace presentation and its typed answers; one later row states
+> its own date. They are not updated here. The current gestures and their limits
+> are in the [terminal workspace guide](../../terminal-workspace.md).
+
 Reception judges one exact candidate commit of the terminal renderer (`crates/nika-tui`) and of its door in
 `nika`, without modifying it. This page maps the seven journeys of the TUI mandate, plus a first-contact journey
 on the real binary, to checks that decide: PTY proofs, tmux cases and manual steps, each with a pass criterion and

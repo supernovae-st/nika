@@ -29,14 +29,16 @@ use serde_json::{Value, json};
 
 #[cfg(test)]
 mod decision_tests;
-mod evidence;
+pub(super) mod evidence;
 /// The whole-source recovery an explicit policy allows after the structured rounds.
 mod recover;
 #[cfg(test)]
 mod recover_tests;
 /// The semantic revision of a base its record binds, beside the door it reuses.
 pub(super) mod revise;
-use super::rehearsal::Rehearsals;
+use super::rehearsal::{Refused, Rehearsals};
+use super::verify::Verdict;
+use crate::rehearse::Refusal;
 use evidence::Evidence;
 
 /// The seat's first answer: the sketch, its business questions, the clauses no task realizes.
@@ -83,13 +85,13 @@ const SKETCH: &str = include_str!("../../assets/native_authoring_sketch.md");
 const SKETCH_SCHEMA: &str = include_str!("../../assets/sketch_schema.json");
 const FILLS_SCHEMA: &str = include_str!("../../assets/fills_schema.json");
 
-fn schema(text: &str) -> Value {
+pub(super) fn schema(text: &str) -> Value {
     serde_json::from_str(text).unwrap_or_else(|_| json!({"type": "object"}))
 }
 
 /// One call under the schema: the seat's text decoded as `T`, or the end of the talk (a
 /// failed call is journaled here; the decoder journals the rest).
-async fn call<T: Shaped, P: ProviderInferDyn>(
+pub(super) async fn call<T: Shaped, P: ProviderInferDyn>(
     talk: &mut Talk,
     round: u32,
     role: &'static str,
@@ -272,7 +274,7 @@ fn refused_round(
 /// The tail of a fill repair: the sketch stays as accepted, only the named holes are filled again.
 const FILL_AGAIN: &str = "\nFill the named holes again (the sketch stays as accepted); answer the same {\"fills\", \"notes\"} object.";
 
-fn diagnostics_record(diagnostics: &[Diagnostic]) -> Vec<Value> {
+pub(super) fn diagnostics_record(diagnostics: &[Diagnostic]) -> Vec<Value> {
     diagnostics
         .iter()
         .map(|d| json!({"kind": d.kind, "message": d.message}))
@@ -281,7 +283,12 @@ fn diagnostics_record(diagnostics: &[Diagnostic]) -> Vec<Value> {
 
 /// Whether a repair round opens: the assistant's text and the repair message join the talk
 /// and the diagnostics are remembered; a repeated refusal is no progress and ends the talk.
-fn repair(talk: &mut Talk, text: String, diagnostics: Vec<Diagnostic>, tail: &str) -> bool {
+pub(super) fn repair(
+    talk: &mut Talk,
+    text: String,
+    diagnostics: Vec<Diagnostic>,
+    tail: &str,
+) -> bool {
     let last = talk.last.clone();
     if !progressed(talk, last.as_deref(), &diagnostics) {
         return false;
@@ -609,7 +616,7 @@ pub(super) async fn compose<P: ProviderInferDyn>(
 }
 
 /// Whether `round` is within the rounds a limit allows (`None`: no count).
-fn within(last: Option<u32>, round: u32) -> bool {
+pub(super) fn within(last: Option<u32>, round: u32) -> bool {
     last.is_none_or(|last| round <= last)
 }
 
@@ -806,21 +813,21 @@ pub(super) async fn author<P: ProviderInferDyn>(
         // Every exhaustion (no accepted pair, spent evidence, a withdrawal) meets one recovery.
         let door = (intent, reading, policy, request);
         let (next, seats) = (next_round(&talk), (provider, decision, &mut *rehearsals));
+        let room = (attempts, Exit::Withdraw);
         let ended = match accepted {
             None => (done, Vec::new()),
-            Some(_) => match examine(door, seats, &mut talk, done, (next, last), attempts).await {
+            Some(_) => match examine(door, seats, &mut talk, done, (next, last), room).await {
                 Step::Done(answer) => return Ok(answer),
                 Step::Withdrawn(done, defects) => (done, defects),
-                Step::Reopen(mut done, defects) => {
-                    if within(last, next) && reopen(&mut talk, defects.clone(), SKETCH_AGAIN) {
-                        // The judge's calls, when it was asked, belong to the door's one journal.
-                        (out.provenance.authoring).clone_from(&done.provenance.authoring);
-                        (out.provenance.decision).clone_from(&done.provenance.decision);
-                        first = next;
-                        continue;
+                Step::Reopen(done, defects, verdict) => {
+                    match reopened(&mut talk, &mut out, (done, defects, verdict), (last, next)) {
+                        Reopened::Again => {
+                            first = next;
+                            continue;
+                        }
+                        Reopened::Held(held) => return Ok(held),
+                        Reopened::Ended(done, defects) => (done, defects),
                     }
-                    evidence::refuse(&mut done, refused_reason(within(last, next), &defects));
-                    (done, defects)
                 }
             },
         };
@@ -828,6 +835,46 @@ pub(super) async fn author<P: ProviderInferDyn>(
         let recovered = recover::after(door, seats, &mut talk, (&opened, &sent), ended);
         return Ok(Box::pin(recovered).await);
     }
+}
+
+/// What the sketch door does with a reopening its judge asked for ([`Step::Reopen`]).
+enum Reopened {
+    /// Reopened in the same talk, the judge's calls kept in the door's one journal: the next
+    /// round starts.
+    Again,
+    /// Held as it is: a restatement the room's refusal asked for, refused again or with no
+    /// round left, as with no host.
+    Held(CompileOutcome),
+    /// Ended with its defects, for the door's recovery.
+    Ended(CompileOutcome, Vec<Diagnostic>),
+}
+
+/// The reopening the judge asked for, taken while a round is left (`last`, `next`) and the talk
+/// accepts it; a restatement the room's refusal asked for (a verdict with no defect, A2) routes
+/// [`RESTATED`](super::verify::RESTATED). Else a restatement is held, as with no host, and
+/// defects end the rounds, refused with why.
+fn reopened(
+    talk: &mut Talk,
+    out: &mut CompileOutcome,
+    (mut done, defects, verdict): (CompileOutcome, Vec<Diagnostic>, Option<Box<Verdict>>),
+    (last, next): (Option<u32>, u32),
+) -> Reopened {
+    let restating = verdict.filter(|v| v.defects.is_empty());
+    if within(last, next) && reopen(talk, defects.clone(), SKETCH_AGAIN) {
+        if restating.is_some() {
+            super::verify::route(&mut done, super::verify::RESTATED);
+        }
+        // The judge's calls, when it was asked, belong to the door's one journal.
+        (out.provenance.authoring).clone_from(&done.provenance.authoring);
+        (out.provenance.decision).clone_from(&done.provenance.decision);
+        return Reopened::Again;
+    }
+    // The room's refusal again, or no round left: held, as with no host.
+    if let Some(verdict) = restating {
+        return Reopened::Held(super::verify::preserve_unjudged(done, &verdict));
+    }
+    evidence::refuse(&mut done, refused_reason(within(last, next), &defects));
+    Reopened::Ended(done, defects)
 }
 
 const EVIDENCE_SPENT: &str =
@@ -844,7 +891,11 @@ fn refused_reason(more: bool, defects: &[Diagnostic]) -> String {
 }
 
 /// [`refused_reason`] under the caller's own wording (the sketch door's, a recovery's).
-fn stop_reason(more: bool, defects: &[Diagnostic], (spent, repeated): (&str, &str)) -> String {
+pub(super) fn stop_reason(
+    more: bool,
+    defects: &[Diagnostic],
+    (spent, repeated): (&str, &str),
+) -> String {
     if !more {
         return spent.to_owned();
     }
@@ -852,26 +903,37 @@ fn stop_reason(more: bool, defects: &[Diagnostic], (spent, repeated): (&str, &st
     format!("{repeated} Same findings: {}.", named.join("; "))
 }
 
-/// Where one settled candidate leads: the door's answer, a reopening from these defects, or a
-/// withdrawal past the last round from the defects the whole-request judgment demonstrated.
-enum Step {
+/// Where one settled candidate leads: the door's answer, a reopening from these defects (with the
+/// verdict when the whole-request judgment located them), or the door's [`Exit`] past the last
+/// round from the defects that judgment demonstrated.
+pub(super) enum Step {
     Done(CompileOutcome),
-    Reopen(CompileOutcome, Vec<Diagnostic>),
+    Reopen(CompileOutcome, Vec<Diagnostic>, Option<Box<Verdict>>),
     Withdrawn(CompileOutcome, Vec<Diagnostic>),
 }
 
+/// How a door ends a candidate whose judged defects end its repairs: the sketch door withdraws
+/// it (its recovery may follow), the document door keeps it as COLD keeps the default draft.
+pub(super) enum Exit {
+    Withdraw,
+    Keep,
+}
+
 /// One settled candidate faces its evidence (journalled in the attempt's record and the talk),
-/// then, when nothing there refuses it, the whole-request judgment. Round `next` is the one a
-/// reopening would spend; past `last` (`None`: no count) a refusal withdraws the candidate. The
-/// room admits `attempts` rehearsals in all (`None`: one per candidate produced).
-async fn examine<P: ProviderInferDyn>(
+/// then, when nothing there refuses it, the whole-request judgment, whose record names the
+/// verdicts this compile made before it. Round `next` is the one a reopening would spend; past
+/// `last` (`None`: no count) a refusal ends the candidate by `exit`. The room admits `attempts`
+/// rehearsals in all (`None`: one per candidate produced).
+pub(super) async fn examine<P: ProviderInferDyn>(
     (intent, reading, policy, request): (&str, &Reading, &AuthoringPolicy, &CompileRequest),
     (provider, decision, rehearsals): (&P, Option<&dyn DecisionSeat>, &mut Rehearsals<'_>),
     talk: &mut Talk,
     mut done: CompileOutcome,
     (next, last): (u32, Option<u32>),
-    attempts: Option<u32>,
+    (attempts, exit): (Option<u32>, Exit),
 ) -> Step {
+    // A child workflow the host checked composed with these bytes no longer holds them (R5).
+    rehearsals.composed(&mut done);
     let (found, record) = evidence::examined(rehearsals, request, intent, &done, attempts).await;
     if !record.is_null() {
         // The evidence of the candidate the last round produced, in the journal this attempt
@@ -889,11 +951,12 @@ async fn examine<P: ProviderInferDyn>(
             evidence::refuse(&mut done, reason);
             Step::Done(done)
         }
-        Evidence::Defect(defect) => Step::Reopen(done, vec![defect]),
+        Evidence::Defect(defect) => Step::Reopen(done, vec![defect], None),
         Evidence::Unoffered | Evidence::Open | Evidence::Holds | Evidence::Unknown => {
             // The run the evidence just made of these exact bytes, when it completed: the
             // observation a disagreement of the judge asks for.
             let observed = (done.candidate.as_deref()).and_then(|c| rehearsals.observed(c));
+            let attempt = judged_attempts(&done);
             let verdict = super::verify::native_verdict(
                 intent,
                 reading,
@@ -901,27 +964,41 @@ async fn examine<P: ProviderInferDyn>(
                 (provider, decision),
                 request,
                 done,
-                0,
+                attempt,
                 observed.as_ref(),
             );
             match verdict.await {
                 Ok(judged) => Step::Done(judged),
                 Err(judged) => {
-                    let (judged, verdict) = *judged;
+                    let (mut judged, mut verdict) = *judged;
+                    // Why no run of these bytes exists, when the room refused them (A4).
+                    let refused = (judged.candidate.as_deref()).and_then(|c| rehearsals.refused(c));
+                    if let Some(refused) = refused {
+                        super::verify::unobserved(&mut judged, &mut verdict, refused);
+                    }
                     let defects = judge_defects(&verdict);
                     // The repairs the judge's earlier verdicts already opened in this talk.
                     let repairs = judged_attempts(&judged).saturating_sub(1);
                     if verdict.defects.is_empty() {
-                        Step::Done(super::verify::preserve_unjudged(judged, &verdict))
+                        match restated(&verdict, refused) {
+                            // Bytes the room runs, restated from its words (A2).
+                            Some(obstacle) => {
+                                Step::Reopen(judged, vec![obstacle], Some(Box::new(verdict)))
+                            }
+                            None => Step::Done(super::verify::preserve_unjudged(judged, &verdict)),
+                        }
                     } else if verdict.same_bytes_as.is_some() || !within(last, next) {
                         // The same bytes again are no progress, whatever count is left (R6).
-                        let mut withdrawn = super::verify::withdrawn(judged, &verdict, repairs);
+                        let mut ended = match exit {
+                            Exit::Withdraw => super::verify::withdrawn(judged, &verdict, repairs),
+                            Exit::Keep => super::verify::kept(judged, &verdict, repairs),
+                        };
                         if verdict.same_bytes_as.is_some() {
-                            super::verify::route(&mut withdrawn, "native: no progress");
+                            super::verify::route(&mut ended, "native: no progress");
                         }
-                        Step::Withdrawn(withdrawn, defects)
+                        Step::Withdrawn(ended, defects)
                     } else {
-                        Step::Reopen(judged, defects)
+                        Step::Reopen(judged, defects, Some(Box::new(verdict)))
                     }
                 }
             }
@@ -929,15 +1006,31 @@ async fn examine<P: ProviderInferDyn>(
     }
 }
 
+/// The restatement a refused trial asks for (A2): the judge rejected the whole request without
+/// locating a part, only a run of these exact bytes could decide it, and the room refused to run
+/// them before any attempt for a construct the workflow chose (a data bound, a tool outside the
+/// rehearsal's surface), never an effect, a path or a world the request itself names.
+fn restated(verdict: &Verdict, refused: Option<&Refused>) -> Option<Diagnostic> {
+    let avoidable = |r: &&Refused| matches!(r.refusal, Refusal::DataBounds | Refusal::Surface);
+    let refused = refused.filter(avoidable)?;
+    (verdict.rejected() && verdict.waits_for_a_run()).then(|| Diagnostic {
+        kind: "rehearsal_refused",
+        message: format!("{RESTATE} {}.", refused.reason),
+    })
+}
+
+/// What a restatement the room's refusal asks for tells the author, before the room's words.
+const RESTATE: &str = "The verifier rejected the whole request without locating a part of it; only a run of these exact bytes can decide it, and the rehearsal room refused to run them before any attempt. Restate an equivalent workflow the room runs: keep every requested operation, path, threshold, order, output and permit, and change only the construct the room refused:";
+
 /// How many whole-request verdicts this compile recorded, the last one included.
-fn judged_attempts(out: &CompileOutcome) -> usize {
+pub(super) fn judged_attempts(out: &CompileOutcome) -> usize {
     (out.provenance.decision.as_ref())
         .and_then(|decision| decision["semantic_verification"].as_array())
         .map_or(0, Vec::len)
 }
 
 /// The round after the journal's last: where a reopened graph continues the door's count.
-fn next_round(talk: &Talk) -> u32 {
+pub(super) fn next_round(talk: &Talk) -> u32 {
     (talk.rounds.iter())
         .filter_map(|round| round["round"].as_u64())
         .max()
@@ -948,7 +1041,7 @@ fn next_round(talk: &Talk) -> u32 {
 /// The judge's defects as the repair reads them: the parts of the request the bytes miss, each
 /// with the reason the judge gave (the task it points to, or no task performing it) after
 /// [`REASON`].
-fn judge_defects(verdict: &super::verify::Verdict) -> Vec<Diagnostic> {
+fn judge_defects(verdict: &Verdict) -> Vec<Diagnostic> {
     (verdict.defects.iter())
         .map(|defect| {
             let reason = (verdict.notes.iter())
@@ -982,7 +1075,7 @@ fn identity(diagnostics: &[Diagnostic]) -> std::collections::BTreeSet<(&str, &st
 
 /// Reopen from evidence: the diagnostics go back with the `tail` instruction (the whole sketch
 /// again, its holes filled after it; or a recovery's whole source); a repeat is no progress.
-fn reopen(talk: &mut Talk, diagnostics: Vec<Diagnostic>, tail: &str) -> bool {
+pub(super) fn reopen(talk: &mut Talk, diagnostics: Vec<Diagnostic>, tail: &str) -> bool {
     let last = talk.reopened.clone();
     if !progressed(talk, last.as_deref(), &diagnostics) {
         return false;

@@ -37,15 +37,19 @@ fn sha(text: &str) -> String {
     format!("{:x}", Sha256::digest(text.as_bytes()))
 }
 
-/// Whether this plan names these exact emitted bytes (not its pre-answer assembly).
+/// Whether this plan names these exact emitted bytes (not its pre-answer assembly): a semantic
+/// record's final bytes, a source revision's revised bytes, or the bytes a created document
+/// settled (`document`, written once no mandatory question is left; before, it binds none).
 /// This identity check is not the compiler's reconstruction or a fidelity judgment.
 #[must_use]
 pub fn binds(plan: &Value, source: &str) -> bool {
     let hash = sha(source);
     let final_hash = if plan.get("semantic_record").is_some() {
         plan["final"]["candidate_sha256"].as_str()
-    } else {
+    } else if plan.get("source_revision").is_some() {
         plan["source_revision"]["candidate_sha256"].as_str()
+    } else {
+        plan["document"]["candidate_sha256"].as_str()
     };
     final_hash == Some(hash.as_str())
 }
@@ -53,9 +57,9 @@ pub fn binds(plan: &Value, source: &str) -> bool {
 /// The effective request bound by a program's record, not a later conversation goal.
 #[must_use]
 pub fn original(plan: &Value) -> Option<&str> {
-    plan["basis"]["read"]["effective"]
-        .as_str()
+    (plan["basis"]["read"]["effective"].as_str())
         .or_else(|| plan["source_revision"]["resolved"].as_str())
+        .or_else(|| plan["document"]["request"].as_str())
 }
 
 fn entries(raw: &Value) -> Option<&Vec<Value>> {
@@ -181,6 +185,22 @@ mod tests {
     fn record(source: &str, meaning: &str) -> Value {
         json!({"semantic_record": 1, "basis": {"read": {"effective": meaning}},
             "final": {"candidate_sha256": sha(source)}})
+    }
+
+    /// A created document binds the bytes it settled and states the request they answer; before
+    /// it settles its record binds nothing, and it never binds other bytes.
+    #[test]
+    fn a_settled_created_document_binds_its_bytes_and_states_its_request() {
+        let source = "nika: created\ntasks: {}\n";
+        let mut native = json!({"strategy": "native", "intent_sha256": "i", "source": source,
+            "document_create": {"mode": "written", "request": "Count the pages"}});
+        assert!(!binds(&native, source), "nothing settled yet");
+        native["document"] = json!({"version": 1, "candidate_sha256": sha(source),
+            "request": "Count the pages", "base_sha256": null, "mode": "written",
+            "components": []});
+        assert!(binds(&native, source));
+        assert!(!binds(&native, "nika: other\n"));
+        assert_eq!(original(&native), Some("Count the pages"));
     }
 
     #[test]

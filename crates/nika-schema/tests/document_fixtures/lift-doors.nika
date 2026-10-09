@@ -1,0 +1,28 @@
+# A data-as-code door on a fetch whose bytes are archived for review and
+# never run; a revision elsewhere must keep the door and its reason.
+nika: lift-doors
+
+permits:
+  tools: ["nika:fetch", "nika:write"]
+  net:
+    http: ["example.invalid"]
+  fs:
+    write: ["out/archive.sh"]
+
+tasks:
+  grab:
+    lift:
+      - law: data-as-code
+        because: "the script is archived for review, never executed"
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "https://example.invalid/install.sh"
+  keep:
+    with:
+      body: ${{ tasks.grab.output }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "out/archive.sh"
+        content: "${{ with.body }}"

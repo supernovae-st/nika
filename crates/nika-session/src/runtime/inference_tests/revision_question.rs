@@ -305,19 +305,17 @@ fn a_waiting_revision_keeps_the_proposal_it_revises_as_the_draft() {
 /// then which new path. Even a line the classifier would label MODIFY answers that question.
 #[test]
 fn every_destination_question_and_a_change_at_the_question_stay_in_the_revision() {
-    let [_, raw_graph, fills] = semantic_copy("sortie.txt");
-    let mut graph: Value = serde_json::from_str(&raw_graph).expect("graph");
-    let mut second = graph["tasks"][1].clone();
-    second["id"] = json!("write_second");
-    second["writes"] = json!(["secondaire.txt"]);
-    graph["tasks"].as_array_mut().expect("tasks").push(second);
-    let plan = json!({"steps": [], "effects": [], "obligations": [], "constraints": [],
-        "unknowns": [TWO_OUTPUTS.trim_end_matches('.')], "regions": [],
-        "approval_bypass": {"present": false}});
+    // The base: the copy document with a second write of the same bytes to secondaire.txt.
+    let [copy] = semantic_copy("sortie.txt");
+    let mut answer: Value = serde_json::from_str(&copy).expect("document");
+    let second = "  write_second:\n    after:\n      read_source: success\n    invoke:\n      args:\n        content: ${{ with.content }}\n        create_dirs: true\n        overwrite: true\n        path: ./secondaire.txt\n      tool: nika:write\n    with:\n      content: ${{ tasks.read_source.output }}\n";
+    let both = (answer["candidate"].as_str().expect("candidate")).replace(
+        "    - ./sortie.txt\n",
+        "    - ./sortie.txt\n    - ./secondaire.txt\n",
+    );
+    answer["candidate"] = json!(format!("{both}{second}"));
     let replies = [
-        plan.to_string(),
-        graph.to_string(),
-        fills,
+        answer.to_string(),
         JUDGE_APPROVES.to_owned(),
         links(TWO_OUTPUTS, TWO_CHOICES),
         JUDGE_APPROVES.to_owned(),
@@ -334,7 +332,8 @@ fn every_destination_question_and_a_change_at_the_question_stay_in_the_revision(
         matches!(&out, TurnOutcome::Question { key, .. } if key == "revision.destination"),
         "{out:?}"
     );
-    let out = s.turn("sortie.txt");
+    // The answer names one offered path as the workflow states it.
+    let out = s.turn("./sortie.txt");
     assert!(
         matches!(&out, TurnOutcome::Question { key, .. } if key == "revision.path"),
         "{out:?}"

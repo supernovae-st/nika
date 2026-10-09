@@ -40,8 +40,8 @@ pub mod compile {
         retrieve_by_ops, revise_intent, stated_destinations, stated_sources, text,
     };
     pub use nika_compile_cognition::{
-        Cognition, NoProvider, authority, compile_with_cognition, compile_with_cognition_rehearsed,
-        compile_with_provider, decide, observe, rehearse,
+        Cognition, NoProvider, authority, compile_with_cognition, compile_with_cognition_composed,
+        compile_with_cognition_rehearsed, compile_with_provider, decide, observe, rehearse,
     };
     pub use nika_compile_fidelity::sketch::kept as program_records;
     /// What a door that holds no project admits from its caller's engine (`observed_world` ·
@@ -79,6 +79,7 @@ pub mod recipes;
 pub mod rehearsal;
 pub mod remote_door;
 pub mod routing;
+pub mod run_line;
 pub mod wizard;
 
 /// A finished verb's text + exit code — the shape the composition root

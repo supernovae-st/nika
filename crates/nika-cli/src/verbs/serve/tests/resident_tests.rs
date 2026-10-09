@@ -28,6 +28,25 @@ fn http_attach_failure_closes_authority_without_activating_arm() {
     nika_serve::JobStore::open(&state_root).expect("authority lock released after attach failure");
 }
 
+/// `--sessions` is an explicit listener option: it needs `--bind`, and only it seats the
+/// Session routes.
+#[test]
+fn sessions_is_an_explicit_listener_option() {
+    let command = || <ServeArgs as clap::Args>::augment_args(clap::Command::new("serve"));
+    assert!(
+        command()
+            .try_get_matches_from(["serve", "--sessions"])
+            .is_err(),
+        "--sessions needs --bind"
+    );
+    let parse = |argv: &[&str]| {
+        let matches = command().try_get_matches_from(argv).expect("flags");
+        <ServeArgs as clap::FromArgMatches>::from_arg_matches(&matches).expect("args")
+    };
+    assert!(parse(&["serve", "--bind", "127.0.0.1:0", "--sessions"]).sessions);
+    assert!(!parse(&["serve", "--bind", "127.0.0.1:0"]).sessions);
+}
+
 /// C6 · the door and the ceiling are explicit operator options on the
 /// listener: `--cost-review` seats the door and never changes a ceiling;
 /// `--run-cost-ceiling` takes a non-negative amount (0 is a binding veto,

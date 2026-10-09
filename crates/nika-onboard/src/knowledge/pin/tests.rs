@@ -20,6 +20,8 @@ fn only_the_authoring_doors_calls_read_knowledge() {
     for call in [
         "native",
         "native-repair",
+        "document",
+        "document-repair",
         "sketch",
         "sketch-repair",
         "fill",
@@ -29,7 +31,14 @@ fn only_the_authoring_doors_calls_read_knowledge() {
     ] {
         assert!(reads_knowledge(call), "{call}");
     }
-    for call in ["plan", "repair", "transform", "natives", "revisions"] {
+    for call in [
+        "plan",
+        "repair",
+        "transform",
+        "natives",
+        "documents",
+        "revisions",
+    ] {
         assert!(!reads_knowledge(call), "{call}");
     }
 }
@@ -261,11 +270,11 @@ fn an_embedded_pin_reopens_from_memory_with_the_same_identity_and_record() {
     assert_eq!(pin.origin, KnowledgeOrigin::Embedded);
     assert_eq!(
         pin.manifest_sha256,
-        "b7f3861c55c785ba78fbf3fcfbb495ab79154b30f1bcb8483ce66018cc4659a9"
+        "1be7d6101dab9eff54f35be07463f4e320607c4a837d04ef90519abaadf48166"
     );
     assert_eq!(
         pin.version.as_deref(),
-        Some("knowledge-0.123.0-candidate-a8-r2")
+        Some("knowledge-0.123.0-r2-json-filter-records-20261009")
     );
     let reopened = pin.reopen().expect("admitted again in memory");
     assert_eq!(pin.moved(&reopened), None, "the same release has not moved");
@@ -276,8 +285,8 @@ fn an_embedded_pin_reopens_from_memory_with_the_same_identity_and_record() {
     assert_eq!(record["source"], "embedded");
     assert!(record.get("dir").is_none(), "no path: {record}");
     assert_eq!(record["snapshot_sha256"], pin.manifest_sha256.as_str());
-    assert_eq!(record["policy"]["id"], "policy-r");
-    assert_eq!(record["admission"], ADMISSION_PROFILE);
+    assert_eq!(record["policy"]["id"], "policy-r2");
+    assert_eq!(record["admission"], "nika-knowledge-release-profile/r2");
     assert_eq!(record["exclude_corpus"], "heldout");
     assert!(
         pin.status_words().ends_with(" · admitted · embedded"),

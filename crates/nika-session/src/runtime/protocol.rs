@@ -129,7 +129,9 @@ impl SessionRuntime {
                 None if owned => self.beside(input, QUESTION_WAITS)?,
                 None => TurnOutcome::Facts(crate::facts::last_run(&self.snapshot.root)),
             },
-            _ if owned || TURN_SERVED.contains(&input) => return None,
+            _ if owned || TURN_SERVED.contains(&input) || input.starts_with("/intelligence ") => {
+                return None;
+            }
             _ => TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::WrongState,
                 unserved_command(input)?,
@@ -146,7 +148,9 @@ impl SessionRuntime {
         let disposes = line.trim().eq_ignore_ascii_case("drop")
             && round.current().is_some_and(|q| q.key.starts_with("gap."));
         if is_cancel(line) && !disposes {
+            let key = round.current().map_or_else(String::new, |q| q.key.clone());
             let asked = self.question_id_of(round);
+            self.answer_act(asked.clone(), crate::work::AnswerAct::Dropped { key });
             self.questions.close(asked);
             self.authoring = None;
             self.intent.unresolved.clear();
@@ -157,10 +161,11 @@ impl SessionRuntime {
             ));
         }
         let text = unserved_command(line)?;
-        Some(TurnOutcome::Refusal(Refusal::new(
+        let refusal = Refusal::new(
             RefusalClass::WrongState,
             format!("{text}\n  {QUESTION_WAITS}"),
-        )))
+        );
+        Some(self.answer_refused(self.pending_question_id(), TurnOutcome::Refusal(refusal)))
     }
 
     /// `/why` — the aside for whatever waits: an authoring question, a

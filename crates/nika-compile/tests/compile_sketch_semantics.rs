@@ -4,7 +4,11 @@
 //! Synthetic sentinels only (two sources, two destinations, one approval before both writes);
 //! the expected source→write→result mapping is built here, never read from the proposal.
 //! Scripted providers and approving or refusing judge doubles: no network, no key, no model
-//! capability, and no claim that a scripted judgment qualifies model semantics.
+//! capability, and no claim that a scripted judgment qualifies model semantics. A fresh CREATE
+//! under `escalate` opens the document door at its first call (R5 · C13); the sketch door is
+//! reached by its explicit policy (`sketch`) and the private plan by `off`, each where that
+//! representation is the one under test. A scripted complete document is the one the explicit
+//! sketch door emits from the same structure and fills.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use nika_compile::{
     AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, NativeMode, Strategy,
@@ -306,7 +310,23 @@ async fn removing_one_guard_or_replacing_it_by_a_control_edge_is_refused() {
     }
 }
 
-// ── Occurrences: a COLD plan that would merge two reads hands the request to the sketch door ───
+// ── Occurrences: two copies stay two branches; a COLD plan that would merge them names it ─────
+
+/// The Ready candidate the document door kept, as a document.
+fn written_document(out: &CompileOutcome) -> Value {
+    serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap()
+}
+
+/// The diagnostics' messages, as one text.
+fn messages(out: &CompileOutcome) -> String {
+    serde_json::to_string(
+        &out.diagnostics
+            .iter()
+            .map(|d| &d.message)
+            .collect::<Vec<_>>(),
+    )
+    .unwrap()
+}
 
 fn cold_plan() -> String {
     json!({"steps": [
@@ -319,73 +339,69 @@ fn cold_plan() -> String {
     .to_string()
 }
 
+/// Two occurrences of one shape (two copies behind one approval) stay two branches on the default
+/// route: its first call asks for the complete document, no plan, sketch or fill call is paid
+/// before it, every call it made is on the receipt, and the oracle reads both branches in what
+/// the document door kept.
 #[tokio::test]
-async fn two_occurrences_the_plan_cannot_keep_go_to_the_sketch_door_with_every_call_kept() {
+async fn two_occurrences_stay_two_branches_at_the_document_door_with_every_call_kept() {
+    let sketch =
+        CompileRequest::create(INTENT).with_authoring_policy(policy(NativeMode::Sketch, 1));
+    let structure = vec![sketch_answer(&tasks(), Some(outputs())), fills()];
+    let written = common::sketched(&sketch, structure).await;
     let (out, calls) = compile(
         NativeMode::Escalate,
         1,
+        vec![common::document_answer(&written)],
+    )
+    .await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(route(&out).contains("native: document"), "{}", route(&out));
+    let called = roles(&out);
+    assert_eq!(
+        called,
+        ["document", "judge_request"],
+        "the document, then its judgment"
+    );
+    assert_eq!(calls, 1, "one authoring call: {called:?}");
+    assert_eq!(
+        out.provenance.authoring.as_ref().unwrap().calls as usize,
+        called.len(),
+        "every call is on the receipt"
+    );
+    assert_branches(&written_document(&out));
+}
+
+#[tokio::test]
+async fn without_a_sketch_door_the_composition_is_named_and_no_call_is_hidden() {
+    let replies = || {
         vec![
             cold_plan(),
             sketch_answer(&tasks(), Some(outputs())),
             fills(),
-        ],
-    )
-    .await;
-    let route = out.provenance.decision.as_ref().unwrap()["route"].to_string();
-    assert!(route.contains("native: sketch"), "{route}");
-    // The plan never collapsed the two reads into one step.
-    let merged = out.provenance.decision.as_ref().unwrap()["cold_samples"].to_string();
-    assert!(!merged.contains("./alpha.txt ; ./beta.txt"), "{merged}");
-    let receipt = out.provenance.authoring.as_ref().unwrap();
-    let roles: Vec<&str> = receipt
-        .context
-        .iter()
-        .map(|c| c["call"].as_str().unwrap())
-        .collect();
-    assert_eq!(
-        &roles[..3],
-        ["plan", "sketch", "fill"],
-        "the paid plan call stays first: {roles:?}"
-    );
-    assert_eq!(calls, 3);
-    assert_branches(&emitted(&out));
+        ]
+    };
+    // Off: the private plan alone names the composition it cannot keep apart.
+    let (out, calls) = compile(NativeMode::Off, 1, replies()).await;
+    assert_eq!(calls, 1, "off: only the plan call was made");
+    assert_eq!(roles(&out), ["plan"]);
+    assert!(out.candidate.is_none(), "off");
+    let text = messages(&out);
     assert!(
-        !outcome_document(&out)
-            .to_string()
-            .contains("candidate_lines")
+        text.contains("`read`") && text.contains("sketch"),
+        "off: the inability is named: {text}"
     );
-}
-
-#[tokio::test]
-async fn without_a_sketch_door_or_its_budget_the_composition_is_named_and_no_call_is_hidden() {
-    for (case, native, repairs) in [
-        ("no door", NativeMode::Off, 1),
-        ("no budget", NativeMode::Escalate, 0),
-    ] {
-        let (out, calls) = compile(
-            native,
-            repairs,
-            vec![
-                cold_plan(),
-                sketch_answer(&tasks(), Some(outputs())),
-                fills(),
-            ],
-        )
-        .await;
-        assert_eq!(calls, 1, "{case}: only the plan call was made");
-        assert!(out.candidate.is_none(), "{case}");
-        let text = serde_json::to_string(
-            &out.diagnostics
-                .iter()
-                .map(|d| &d.message)
-                .collect::<Vec<_>>(),
-        )
-        .unwrap();
-        assert!(
-            text.contains("`read`") && text.contains("sketch"),
-            "{case}: the inability is named: {text}"
-        );
-    }
+    // Escalate with no repair allowance asks for the complete document once: an answer off its
+    // wire (the same plan) is named as such, nothing is assembled, and no other call is made.
+    let (out, calls) = compile(NativeMode::Escalate, 0, replies()).await;
+    assert_eq!(calls, 1, "escalate: only the document call was made");
+    assert_eq!(roles(&out), ["document"]);
+    assert!(out.candidate.is_none(), "escalate");
+    let text = messages(&out);
+    assert!(
+        text.contains("not a document answer"),
+        "escalate: the answer is named: {text}"
+    );
 }
 
 // ── Omission, null and empty outputs keep distinct meanings ────────────────────────────────────
@@ -659,11 +675,13 @@ async fn two_reads_feeding_one_destination_keep_their_plan() {
 #[tokio::test]
 async fn a_composition_the_merge_refuses_stays_refused() {
     // The second read cites evidence the request never wrote: the merge's own anchoring refuses
-    // it (after its one evidence repair); a composition never bypasses that refusal.
+    // it (after its one evidence repair); a composition never bypasses that refusal. The merge is
+    // the private plan's, the door under test (`off`); `escalate` never runs it for a fresh
+    // CREATE (the document door composes the request).
     let mut plan: Value = serde_json::from_str(&cold_plan()).unwrap();
     plan["steps"][1]["evidence"] = json!("./beta.txt vers un dossier inventé");
     let (out, calls) = compile(
-        NativeMode::Escalate,
+        NativeMode::Off,
         1,
         vec![
             plan.to_string(),
@@ -678,40 +696,36 @@ async fn a_composition_the_merge_refuses_stays_refused() {
         "{}",
         route(&out)
     );
-    // The refused plan round escalates like any plan without a candidate (no longer to source):
-    // the sketch door opens as the escalation, never as the composition the merge refused.
-    assert!(
-        route(&out).contains("native: sketch after the plan"),
-        "{}",
-        route(&out)
-    );
-    assert_eq!(&roles(&out)[..2], ["plan", "repair"], "{:?}", roles(&out));
-    assert!(calls >= 2);
+    assert_eq!(roles(&out), ["plan", "repair"], "{}", route(&out));
+    assert_eq!(calls, 2, "{:?}", roles(&out));
+    assert!(out.candidate.is_none(), "{}", route(&out));
 }
 
 #[tokio::test]
-async fn a_larger_allowance_lets_the_sketch_door_repair_within_the_same_bound() {
-    // repairs 2: the sketch door gets 1, so one refused sketch is repaired; every call stays.
+async fn a_repair_allowance_lets_the_sketch_door_repair_within_its_bound() {
+    // The sketch door's own policy (`sketch`), one repair: one refused sketch is repaired, every
+    // call stays; with none left, the refused sketch ends the door.
     let mut duplicate = outputs();
     duplicate[1]["name"] = json!("alpha");
-    let (out, calls) = compile(
-        NativeMode::Escalate,
-        2,
+    let replies = || {
         vec![
-            cold_plan(),
-            sketch_answer(&tasks(), Some(duplicate)),
+            sketch_answer(&tasks(), Some(duplicate.clone())),
             sketch_answer(&tasks(), Some(outputs())),
             fills(),
-        ],
-    )
-    .await;
-    assert_eq!(calls, 4, "{:?}", roles(&out));
+        ]
+    };
+    let (out, calls) = compile(NativeMode::Sketch, 1, replies()).await;
+    assert_eq!(calls, 3, "{:?}", roles(&out));
     assert_eq!(
         roles(&out),
-        ["plan", "sketch", "sketch-repair", "fill", "judge_request"],
-        "the paid plan, the refused sketch, its repair, the fill, the request judgment"
+        ["sketch", "sketch-repair", "fill", "judge_request"],
+        "the refused sketch, its repair, the fill, the request judgment"
     );
     assert_branches(&emitted(&out));
+    let (out, calls) = compile(NativeMode::Sketch, 0, replies()).await;
+    assert_eq!(calls, 1, "{:?}", roles(&out));
+    assert_eq!(roles(&out), ["sketch"]);
+    assert!(out.candidate.is_none());
 }
 
 /// Answers its script in order, failing (as a provider error) where the script says so.
@@ -737,27 +751,32 @@ impl ProviderInferDyn for Failing {
 }
 
 #[tokio::test]
-async fn a_failed_sketch_call_is_kept_and_nothing_is_retried_or_hidden() {
-    let provider = Failing {
-        replies: vec![Some(cold_plan()), None],
-        calls: AtomicU32::new(0),
-    };
-    let judged = Judged::approving(&provider);
-    let request =
-        CompileRequest::create(INTENT).with_authoring_policy(policy(NativeMode::Escalate, 1));
-    let out = compile_with_provider(&request, &judged).await.unwrap();
-    assert_eq!(
-        provider.calls.load(Ordering::SeqCst),
-        2,
-        "the plan and one failed sketch call"
-    );
-    assert_eq!(roles(&out), ["plan", "sketch"]);
-    let receipt = out.provenance.authoring.as_ref().unwrap();
-    assert_eq!(
-        receipt.context[1]["result"]["failure_kind"],
-        "provider_error"
-    );
-    assert!(out.candidate.is_none());
+async fn a_failed_authoring_call_is_kept_and_nothing_is_retried_or_hidden() {
+    // At the explicit sketch door and at the document door the default route opens.
+    for (native, role) in [
+        (NativeMode::Sketch, "sketch"),
+        (NativeMode::Escalate, "document"),
+    ] {
+        let provider = Failing {
+            replies: vec![None],
+            calls: AtomicU32::new(0),
+        };
+        let judged = Judged::approving(&provider);
+        let request = CompileRequest::create(INTENT).with_authoring_policy(policy(native, 1));
+        let out = compile_with_provider(&request, &judged).await.unwrap();
+        assert_eq!(
+            provider.calls.load(Ordering::SeqCst),
+            1,
+            "{native:?}: one failed call, never retried"
+        );
+        assert_eq!(roles(&out), [role], "{native:?}");
+        let receipt = out.provenance.authoring.as_ref().unwrap();
+        assert_eq!(
+            receipt.context[0]["result"]["failure_kind"], "provider_error",
+            "{native:?}"
+        );
+        assert!(out.candidate.is_none(), "{native:?}");
+    }
 }
 
 // ── Path counts are not branches: a merged result written twice keeps its plan ────────────────
@@ -777,49 +796,58 @@ fn merged_plan() -> String {
 }
 
 #[tokio::test]
-async fn two_sources_merged_and_written_twice_keep_their_plan_under_every_policy() {
+async fn two_sources_merged_and_written_twice_are_never_named_branches() {
     // Before the occurrence split (4f0c880b) this plan composed as one COLD plan asking for its
     // model; with two sources and two destinations but no source-to-destination pairing it is
-    // not independent branches: neither named as a composition nor paid a sketch call.
-    for native in [NativeMode::Off, NativeMode::Escalate] {
-        let provider = Rotating::new(vec![merged_plan()]);
-        let judged = Judged::approving(&provider);
-        let request = CompileRequest::create(MERGED).with_authoring_policy(policy(native, 1));
-        let out = compile_with_provider(&request, &judged).await.unwrap();
-        assert_eq!(
-            provider.calls.load(Ordering::SeqCst),
-            1,
-            "{native:?}: the plan alone"
-        );
-        assert_eq!(roles(&out), ["plan"], "{native:?}");
-        assert_eq!(
-            out.provenance.strategy,
-            Some(Strategy::Cold),
-            "{native:?}: {}",
-            route(&out)
-        );
-        assert!(
-            route(&out).contains("compose: single"),
-            "{native:?}: {}",
-            route(&out)
-        );
-        assert!(!route(&out).contains("composition") && !route(&out).contains("sketch"));
-        assert_eq!(
-            out.questions
-                .iter()
-                .map(|q| q.key.as_str())
-                .collect::<Vec<_>>(),
-            ["model"],
-            "{native:?}: the plan's own question survives"
-        );
-        assert!(
-            !out.diagnostics
-                .iter()
-                .any(|d| d.message.contains("independent branches")),
-            "{native:?}: {:?}",
-            out.diagnostics
-        );
-    }
+    // not independent branches: the private plan (`off`) keeps it, neither named as a
+    // composition nor paid a sketch call.
+    let provider = Rotating::new(vec![merged_plan()]);
+    let judged = Judged::approving(&provider);
+    let request = CompileRequest::create(MERGED).with_authoring_policy(policy(NativeMode::Off, 1));
+    let out = compile_with_provider(&request, &judged).await.unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 1, "the plan alone");
+    assert_eq!(roles(&out), ["plan"]);
+    assert_eq!(
+        out.provenance.strategy,
+        Some(Strategy::Cold),
+        "{}",
+        route(&out)
+    );
+    assert!(route(&out).contains("compose: single"), "{}", route(&out));
+    assert!(!route(&out).contains("composition") && !route(&out).contains("sketch"));
+    assert_eq!(
+        out.questions
+            .iter()
+            .map(|q| q.key.as_str())
+            .collect::<Vec<_>>(),
+        ["model"],
+        "the plan's own question survives"
+    );
+    assert!(
+        !messages(&out).contains("independent branches"),
+        "{:?}",
+        out.diagnostics
+    );
+    // Escalate: the document door composes the request at its first call (an answer off its
+    // wire here); no plan runs, so no composition is named and no sketch call is paid.
+    let provider = Rotating::new(vec![merged_plan()]);
+    let judged = Judged::approving(&provider);
+    let request =
+        CompileRequest::create(MERGED).with_authoring_policy(policy(NativeMode::Escalate, 1));
+    let out = compile_with_provider(&request, &judged).await.unwrap();
+    assert_eq!(
+        provider.calls.load(Ordering::SeqCst),
+        1,
+        "the document call alone"
+    );
+    assert_eq!(roles(&out), ["document"]);
+    assert!(route(&out).contains("native: document"), "{}", route(&out));
+    assert!(!route(&out).contains("composition") && !route(&out).contains("sketch"));
+    assert!(
+        !messages(&out).contains("independent branches"),
+        "{:?}",
+        out.diagnostics
+    );
 }
 
 // ── A write citing its own source still pairs: written paths are the writes' targets ──────────
@@ -861,40 +889,25 @@ fn ungated_copies() -> Vec<Value> {
 
 #[tokio::test]
 async fn copies_whose_writes_cite_their_sources_are_independent_branches_under_every_policy() {
-    // Escalate: the sketch door, both mappings kept (source → write → destination).
-    let provider = Rotating::new(vec![
-        cited_copies_plan(),
+    // Sketch: the sketch door keeps both mappings (source → write → destination).
+    let sketch =
+        CompileRequest::create(COPIES).with_authoring_policy(policy(NativeMode::Sketch, 1));
+    let structure = vec![
         sketch_answer(&ungated_copies(), None),
         json!({"fills": [], "notes": "nothing to fill"}).to_string(),
-    ]);
+    ];
+    let written = common::sketched(&sketch, structure).await;
+    let doc: Value = serde_yaml_bw::from_str(&written).unwrap();
+    assert_mapped(&doc);
+    // Escalate: the document door, at its first call, keeps the same mappings.
+    let provider = Rotating::new(vec![common::document_answer(&written)]);
     let judged = Judged::approving(&provider);
     let request =
         CompileRequest::create(COPIES).with_authoring_policy(policy(NativeMode::Escalate, 1));
     let out = compile_with_provider(&request, &judged).await.unwrap();
-    assert!(
-        route(&out).contains("native: sketch for branches the plan cannot keep apart"),
-        "Escalate: {} {:?}",
-        route(&out),
-        out.diagnostics
-    );
-    assert_eq!(&roles(&out)[..2], ["plan", "sketch"], "{:?}", roles(&out));
-    let doc = emitted(&out);
-    for (source, write, destination, _) in BRANCHES {
-        assert_eq!(
-            doc["tasks"][write]["invoke"]["args"]["path"], destination,
-            "{doc:#}"
-        );
-        let reader = doc["tasks"][write]["with"]["text"]
-            .as_str()
-            .unwrap()
-            .trim_start_matches("${{ tasks.")
-            .trim_end_matches(".output }}")
-            .to_owned();
-        assert_eq!(
-            doc["tasks"][&reader]["invoke"]["args"]["path"], source,
-            "{doc:#}"
-        );
-    }
+    assert_eq!(out.status, CompileStatus::Ready, "Escalate: {out:#?}");
+    assert_eq!(roles(&out)[0], "document", "{:?}", roles(&out));
+    assert_mapped(&written_document(&out));
     // Off: the composition is named, nothing more is sent, no plan folds the two reads.
     let provider = Rotating::new(vec![cited_copies_plan()]);
     let judged = Judged::approving(&provider);
@@ -916,6 +929,26 @@ async fn copies_whose_writes_cite_their_sources_are_independent_branches_under_e
         route(&out),
         out.diagnostics
     );
+}
+
+/// Each branch's write lands at its destination and carries the read of its own source.
+fn assert_mapped(doc: &Value) {
+    for (source, write, destination, _) in BRANCHES {
+        assert_eq!(
+            doc["tasks"][write]["invoke"]["args"]["path"], destination,
+            "{doc:#}"
+        );
+        let reader = doc["tasks"][write]["with"]["text"]
+            .as_str()
+            .unwrap()
+            .trim_start_matches("${{ tasks.")
+            .trim_end_matches(".output }}")
+            .to_owned();
+        assert_eq!(
+            doc["tasks"][&reader]["invoke"]["args"]["path"], source,
+            "{doc:#}"
+        );
+    }
 }
 
 // ── Oracle sensitivity: each mapping mutant is lawful structure the oracle must reject ────────
@@ -1172,9 +1205,10 @@ fn pairs_plan() -> String {
 }
 
 #[tokio::test]
-async fn a_computation_the_plan_cannot_state_goes_to_the_sketch_door_without_a_program_round() {
-    // Under escalate the plan's own limit is observed before any program round is paid for: the
-    // sketch door composes the request next, its program one typed fill.
+async fn a_computation_the_plan_cannot_state_reaches_the_document_door_without_a_program_round() {
+    // Under escalate no plan and no program round is paid first: the document door, whose
+    // language states the computation, is the first call (an answer off its wire here: this
+    // proves the order of the doors, never a document).
     let escalate = Rotating::new(vec![pairs_plan(), "{}".to_owned()]);
     let request =
         CompileRequest::create(PAIRS).with_authoring_policy(policy(NativeMode::Escalate, 2));
@@ -1182,22 +1216,17 @@ async fn a_computation_the_plan_cannot_state_goes_to_the_sketch_door_without_a_p
     let called = roles(&out);
     assert_eq!(
         called.first().map(String::as_str),
-        Some("plan"),
+        Some("document"),
         "{called:?}"
     );
-    assert!(!called.iter().any(|r| r == "transform"), "{called:?}");
-    assert!(called.iter().any(|r| r == "sketch"), "{called:?}");
     assert!(
-        route(&out).contains("compose: the plan's computation goes to the sketch door"),
-        "{}",
-        route(&out)
+        !called.iter().any(|r| r == "transform" || r == "plan"),
+        "{called:?}"
     );
+    assert!(route(&out).contains("native: document"), "{}", route(&out));
     let door = &outcome_document(&out)["provenance"]["decision"]["forensic"]["door"];
-    assert_eq!(
-        door["reason"], "plan_computation_needs_the_sketch_door",
-        "{door}"
-    );
-    // The plan alone (no sketch door) keeps its program round.
+    assert_eq!(door["reason"], "complete_document_door", "{door}");
+    // The plan alone (no native door) keeps its program round.
     let off = Rotating::new(vec![pairs_plan(), "{}".to_owned()]);
     let request = CompileRequest::create(PAIRS).with_authoring_policy(policy(NativeMode::Off, 2));
     let out = compile_with_provider(&request, &off).await.unwrap();

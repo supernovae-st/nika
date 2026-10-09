@@ -93,7 +93,7 @@ impl NikaErrorCode for HarnessError {
         match self {
             Self::Unavailable { .. } => codes::NIKA_1803,
             Self::Session { .. } => codes::NIKA_1804,
-            Self::Refused { .. } => codes::NIKA_1805,
+            Self::Refused { .. } | Self::Selection { .. } => codes::NIKA_1805,
         }
     }
 

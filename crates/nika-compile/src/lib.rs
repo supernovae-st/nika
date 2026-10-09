@@ -221,9 +221,12 @@ fn compile_admitted(request: &CompileRequest) -> Result<CompileOutcome, CompileE
         return Ok(outcome);
     }
     // An answer round of a revision replays the record its seat round produced (zero calls),
-    // as a creation's does: the revised source with the answers baked in.
+    // as a creation's does: the revised source with the answers baked in. A created document's
+    // settled record (`document`) is the history of its bytes: a change to them is new work over
+    // that base, never an answer round of its creation.
     if let (Input::Edit { .. }, Some(record)) = (&request.input, &request.plan)
         && record.get("strategy").and_then(Value::as_str) == Some(types::Strategy::Native.word())
+        && record.get("document").is_none()
         && let Some(intent) = revise_intent(request)
     {
         doors::replay(&intent, record, request, &mut outcome)?;
@@ -712,12 +715,8 @@ pub fn finish(source: String, out: &mut CompileOutcome) {
             _ => false,
         };
         if unjudged {
-            finding(
-                out,
-                DiagnosticKind::Unknown,
-                &task.value.id.value,
-                "Source-only preview cannot resolve this child workflow, MCP registry entry or skill. No environment/admission claim is made.",
-            );
+            let target = &task.value.id.value;
+            finding(out, DiagnosticKind::Unknown, target, UNJUDGED_DEPENDENCY);
         }
     }
     let unresolved = out
@@ -726,7 +725,7 @@ pub fn finish(source: String, out: &mut CompileOutcome) {
         .any(|d| d.kind != DiagnosticKind::Applied);
     // A question that does not block Ready (a schedule's binding values) may stay open.
     let asked = out.questions.iter().any(|q| q.mandatory);
-    if out.status != CompileStatus::Refused && !asked && !unresolved && report.is_clean() {
+    if ready_by_law(out, report.is_clean()) {
         out.status = CompileStatus::Ready;
     } else if out.status != CompileStatus::Refused && !asked && !unresolved && !report.is_clean() {
         // Nothing to ask and nothing else to report: the preview's own refusals are the
@@ -752,4 +751,17 @@ pub fn finish(source: String, out: &mut CompileOutcome) {
         report,
         scope: PreviewScope::SourceOnly,
     });
+}
+
+/// The finding [`finish`] states on a dependency a source-only preview cannot resolve: a child
+/// workflow, an MCP registry entry or a skill. Only a host that checked it may lift it.
+pub const UNJUDGED_DEPENDENCY: &str = "Source-only preview cannot resolve this child workflow, MCP registry entry or skill. No environment/admission claim is made.";
+
+/// READY by the law [`finish`] states, for a host that lifted a hold later: nothing refused,
+/// asked (mandatorily) or unresolved, and Check clean.
+#[must_use]
+pub fn ready_by_law(out: &CompileOutcome, clean: bool) -> bool {
+    let unresolved = (out.diagnostics.iter()).any(|d| d.kind != DiagnosticKind::Applied);
+    let asked = out.questions.iter().any(|q| q.mandatory);
+    out.status != CompileStatus::Refused && !asked && !unresolved && clean
 }

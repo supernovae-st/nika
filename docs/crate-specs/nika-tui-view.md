@@ -43,10 +43,12 @@ default) and says what it cut.
   (`nika_session::review`), the graph drawn as shared `graph_cards` from the canonical
   projection and checked waves, and the check (the four layers, VALID alone for a proposal judged on its
   source, every finding by its code and place, the hints as advisory). It never audits, judges
-  or reads a permit. Graph cards colour the task type as identity; their separate status
-  row is populated only by a caller observation. Static cards say `definition`. The existing
-  `nika_display::wires` validator gates simple connectors; exact typed dependency rows remain
-  visible when a drawing would cross, skip or crowd wires. No new DAG or run state is derived.
+  or reads a permit. Compact graph cards show the task name and its verb/tool or model;
+  observed state belongs on the name row. A static graph says that no task state was
+  observed. Connectors stand in for value-edge prose only where every edge can be drawn
+  exactly between adjacent waves. Typed control, observation and recovery conditions
+  keep their words; crossing, skipped or crowded dependencies retain exact edge rows.
+  Cleanup tasks remain separate from ordinary task waves. No new DAG or run state is derived.
 - `artifact` classifies by declared type, then extension, then signature (`classify`; a
   disagreement is a note; a plain JSON declaration from `json_diff` reads as a JSON Patch) and
   shows JSON (a long document summarised by `nika_display::shape`), JSON Patch and merge patch
@@ -70,12 +72,24 @@ default) and says what it cut.
 
 ## 3. Boundary
 
+The member also owns the unit's pure visual vocabulary and workspace views
+(`visual`, `workspace`): geometry, header, listing, pinned row, object and
+conversation chrome, text fitting, and the windows over arbitrarily long wrapped text
+(`workspace::wrapped`: the content height, the visible rows and the bounded scrollback pages,
+measured in content rows, moved from the native renderer on 2026-10-08 for the 15k wall). The
+native renderer keeps compatibility source paths while Desk/input/event/Session/host
+ownership stays native. These
+views use passed facts, bounds and elapsed time; they never acquire a project,
+read the clock or change consent. Native-project integration tests stay at the
+native boundary rather than adding an edge back. The brand provenance test uses
+the existing workspace `sha2` dev dependency.
+
 - Nothing here reads a file, a clock or the environment, spawns, blocks or stores. The faces
   tests are the only callers of `nika_cli_host::oracle::audit_source`, as the owner's stand-in,
   once per fixture.
-- A viewer takes its colour from a semantic role, through the crate's private `role::style`:
-  a copy of the renderer's product RGB mapping, with both members pinned to the same palette
-  values. The CLI retains its terminal-theme colours. Cards add a dark surface
+- A viewer takes its colour from a semantic role through the shared `visual::role`
+  implementation. The renderer uses that same owner through its compatibility
+  path; the CLI retains its terminal-theme colours. Cards add a dark surface
   background only with colour enabled; NO_COLOR retains borders and words. This crate never
   depends on `nika-tui`.
 - The renderer paints a `Rendered` in the workspace object region, preparing it when

@@ -152,7 +152,11 @@ enum RequestCommand {
         workflow: String,
         world: String,
         access_pin: Option<String>,
-        inputs: std::collections::BTreeMap<String, serde_json::Value>,
+        /// The literal inputs and the per-job ceiling its requester bound.
+        bindings: (
+            std::collections::BTreeMap<String, serde_json::Value>,
+            Option<f64>,
+        ),
         reply: Reply<Admission>,
     },
     Replay {
@@ -259,7 +263,10 @@ impl StoreHandle {
         workflow: String,
         world: String,
         access_pin: Option<String>,
-        inputs: std::collections::BTreeMap<String, serde_json::Value>,
+        bindings: (
+            std::collections::BTreeMap<String, serde_json::Value>,
+            Option<f64>,
+        ),
     ) -> Result<Admission, ServerError> {
         let (reply, answer) = oneshot::channel();
         self.send_request(RequestCommand::Create {
@@ -269,7 +276,7 @@ impl StoreHandle {
             workflow,
             world,
             access_pin,
-            inputs,
+            bindings,
             reply,
         })?;
         receive(answer).await
@@ -661,11 +668,11 @@ fn dispatch_request(command: RequestCommand, store: &JobStore) {
             workflow,
             world,
             access_pin,
-            inputs,
+            bindings,
             reply,
         } => {
             let result = store.create_or_replay_captured_inputs(
-                key, digest, max_jobs, workflow, &world, access_pin, inputs,
+                key, digest, max_jobs, workflow, &world, access_pin, bindings,
             );
             let _result = reply.send(result);
         }

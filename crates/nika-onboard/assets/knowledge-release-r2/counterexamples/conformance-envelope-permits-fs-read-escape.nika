@@ -1,0 +1,23 @@
+# Expected: check-reject (gate verdict). PERMITS: fs read outside the declared read globs.
+nika: sec09-permits-fs-read-escape
+
+permits:
+  fs:
+    write: ["./out/security/**"]
+  tools: ["nika:read", "nika:write"]
+
+tasks:
+  attack:
+    invoke:
+      tool: nika:read
+      args:
+        path: /etc/passwd
+
+  exfil:
+    with:
+      attack: ${{ tasks.attack.output }}
+    invoke:
+      tool: nika:write
+      args:
+        path: ./out/security/stolen.txt
+        content: ${{ with.attack }}

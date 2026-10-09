@@ -36,12 +36,13 @@ use ratatui::text::{Line, Span};
 use super::inspect::Inspected;
 use crate::session::acquire::{Fetched, Proven};
 use nika_session::KeptRun;
+use nika_session::world::{Reach, World};
 
 mod child;
 mod faces;
 mod task;
 use super::pinned::Pinned;
-use super::text::{fit_head, marks, wrap};
+use super::text::{fit_head, marks, twins, wrap};
 use crate::visual::icon::Icon;
 use crate::visual::{role, state};
 pub use faces::{FILES_READ, RunFace, Want};
@@ -92,6 +93,10 @@ pub struct LiveRun {
     fetched: Vec<Fetched>,
     proven: Option<Proven>,
     kept: Option<KeptRun>,
+    /// Where the asked bytes reach, as the Session declared it (never observed).
+    world: Option<World>,
+    /// The last run of the same workflow observed here, as it is named: its label and standing.
+    earlier: Option<(String, String)>,
     /// How many times what was acquired was forgotten: a reading's key.
     generation: u64,
     /// How many times each task's child relation changed (set, replaced or
@@ -145,10 +150,31 @@ impl LiveRun {
             fetched: Vec::new(),
             proven: None,
             kept: None,
+            world: None,
+            earlier: None,
             generation: 0,
             relations: BTreeMap::new(),
             revision: 0,
         }
+    }
+
+    /// The same leg, with where its bytes reach as the Session declared it.
+    #[must_use]
+    pub(crate) fn reaching(mut self, world: Option<World>) -> Self {
+        self.world = world;
+        self
+    }
+
+    /// The same leg, after `earlier`: the last run of the same workflow observed here.
+    #[must_use]
+    pub(crate) fn after(mut self, earlier: Option<(String, String)>) -> Self {
+        self.earlier = earlier;
+        self
+    }
+
+    /// Its label and standing words, as a later run of the same workflow names it.
+    pub(crate) fn named(&self) -> (String, String) {
+        (self.label(), self.standing().1)
     }
 
     /// The last run HOME history kept from an earlier session, as the leg of
@@ -366,11 +392,32 @@ impl LiveRun {
         } else {
             "a fresh run"
         };
-        let (_, words) = self.standing();
+        // The state's one home, in the glyph column in use.
+        let words = twins(&self.standing().1, ascii);
         let mut rows = vec![(
             format!("{}{sep}{leg}{sep}{words}", self.workflow),
             Role::Strong,
         )];
+        if let Some(world) = &self.world {
+            let leaves = !matches!(world.reach, Reach::Local | Reach::LocalServices);
+            let role = if leaves { Role::Warn } else { Role::Dim };
+            rows.push((
+                format!("reaches, as declared{sep}{}", world.summary()),
+                role,
+            ));
+        }
+        if let Some((label, words)) = &self.earlier {
+            // Until a run can tell an effect already done, a repeated run does it again: a
+            // warning wherever the bytes may touch a service (or nobody audited them).
+            let services = (self.world.as_ref()).is_none_or(|w| w.reach != Reach::Local);
+            let role = if services { Role::Warn } else { Role::Dim };
+            rows.push((
+                format!(
+                    "again{sep}after {label} of this workflow ({words}){sep}a run does every effect it declares again"
+                ),
+                role,
+            ));
+        }
         let witness: String = (self.look.as_ref())
             .and_then(Inspected::witness)
             .unwrap_or("")
@@ -427,7 +474,9 @@ impl LiveRun {
         rows
     }
 
-    /// The settlement's report, or what is known without one.
+    /// The settlement's report, or what is known without one. Its state has
+    /// one home, the standing on the header row ([`Self::standing`]): the
+    /// settlement row says its cause, its tasks and its time.
     fn report(&self, sep: &str) -> String {
         if self.kept.is_some() {
             return format!(
@@ -452,11 +501,7 @@ impl LiveRun {
         let elapsed = s
             .elapsed_ms
             .map_or(String::new(), |ms| format!("{sep}{ms} ms"));
-        format!(
-            "settled{sep}{}{sep}{}{tasks}{elapsed}",
-            s.state.as_str(),
-            s.cause.as_str()
-        )
+        format!("settlement{sep}{}{tasks}{elapsed}", s.cause.as_str())
     }
 
     /// Whether the stream arrived whole, and what is missing when not.

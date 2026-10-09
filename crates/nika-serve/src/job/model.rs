@@ -500,6 +500,10 @@ pub struct JobRecord {
     /// Literal API input overrides, separate from the immutable workflow world.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub(crate) inputs: BTreeMap<String, Value>,
+    /// The per-job ceiling its requester bound (a Session's run, USD): it restricts the
+    /// resident's per-run ceiling, never widens it. Absent on other jobs and older records.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) max_cost_usd: Option<serde_json::Number>,
     /// Engine execution identity minted when the captured world is readmitted.
     /// Empty until the worker readmits the POST-time snapshot.
     #[serde(default)]
@@ -539,6 +543,13 @@ pub struct JobRecord {
 }
 
 impl JobRecord {
+    /// The per-job ceiling its requester bound, when one did (USD).
+    pub(crate) fn max_cost_usd(&self) -> Option<f64> {
+        self.max_cost_usd
+            .as_ref()
+            .and_then(serde_json::Number::as_f64)
+    }
+
     /// Return the opaque job identifier.
     #[must_use]
     pub fn id(&self) -> &JobId {

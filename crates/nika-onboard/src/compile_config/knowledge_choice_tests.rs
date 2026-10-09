@@ -8,12 +8,12 @@
 
 #![cfg_attr(not(unix), allow(unused_imports, dead_code))]
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::*;
 use crate::compile::CompileRequest;
 use crate::knowledge::fixture::{self, Payload};
-use crate::knowledge::{KnowledgeError, RefusalCode, Snapshot, bundled};
+use crate::knowledge::{ComponentCatalog, KnowledgeError, RefusalCode, Snapshot, bundled};
 
 use super::KnowledgeLayer::{Environment, Explicit};
 
@@ -306,8 +306,8 @@ fn request_with_embedded_knowledge() -> CompileRequest {
         .expect("embedded release admitted");
     let pack = request.authoring_knowledge.as_ref().expect("attached");
     let ids: Vec<_> = pack.references.iter().map(|r| r.id.as_str()).collect();
-    assert!(ids.contains(&"pattern:typed-output"));
-    assert!(ids.contains(&"block:typed-inputs-outputs"));
+    assert!(ids.contains(&"construct:outputs"), "{ids:?}");
+    assert!(ids.contains(&"block:typed-inputs-outputs"), "{ids:?}");
     request.answers.insert("column".into(), "total".into());
     request.workflow_id = Some("typed-report".into());
     request
@@ -409,8 +409,8 @@ fn enabled_knowledge_replaces_the_previous_intents_pack() {
         .expect("embedded release admitted");
     let pack = after.authoring_knowledge.expect("new pack attached");
     let ids: Vec<_> = pack.references.iter().map(|r| r.id.as_str()).collect();
-    assert!(ids.contains(&"pattern:declared-zero"));
-    assert!(ids.contains(&"block:run-deterministic"));
+    assert!(ids.contains(&"construct:permits"), "{ids:?}");
+    assert!(ids.contains(&"block:run-deterministic"), "{ids:?}");
 }
 
 /// Nothing named attaches the release this build embeds, composed by the door for the intent as
@@ -425,18 +425,26 @@ fn nothing_named_attaches_the_embedded_release_composed_for_the_intent() {
     let pack = request.authoring_knowledge.expect("attached");
     assert_eq!(
         pack.identity["snapshot_sha256"],
-        "b7f3861c55c785ba78fbf3fcfbb495ab79154b30f1bcb8483ce66018cc4659a9"
+        "1be7d6101dab9eff54f35be07463f4e320607c4a837d04ef90519abaadf48166"
     );
-    assert_eq!(pack.identity["verification"]["policy"]["id"], "policy-r");
+    assert_eq!(pack.identity["verification"]["policy"]["id"], "policy-r2");
     let direct = bundled::admit(Some(&bundled::identity().unwrap()))
         .unwrap()
         .pack(intent, Some("heldout"))
         .unwrap();
     assert_eq!(pack, direct, "the door's pack is the memory door's");
     let ids: Vec<_> = pack.references.iter().map(|r| r.id.as_str()).collect();
-    assert!(ids.contains(&"pattern:typed-output"));
-    assert!(ids.contains(&"block:typed-inputs-outputs"));
-    assert!(pack.repairs.is_empty());
+    assert!(ids.contains(&"construct:outputs"), "{ids:?}");
+    assert!(ids.contains(&"block:typed-inputs-outputs"), "{ids:?}");
+    // The release's repair principles ride along by diagnostic code, never an empty entry.
+    let odd: Vec<_> = (pack.repairs.iter())
+        .filter(|(code, principles)| {
+            code.trim().is_empty()
+                || principles.is_empty()
+                || principles.iter().any(|p| p.trim().is_empty())
+        })
+        .collect();
+    assert!(odd.is_empty(), "{odd:?}");
     // An intent with no words composes nothing, as for any release.
     let request = config
         .with_knowledge(CompileRequest::create("  "), "  ")
@@ -529,6 +537,90 @@ fn a_named_release_enters_only_through_the_strict_door_with_its_trusted_identity
     let config =
         resolve(&none().with_knowledge_release(&legacy, identity), &none()).expect("resolves");
     assert_eq!(refusal(attached(&config)), RefusalCode::ManifestMissing);
+}
+
+// ── the release a door lends beside its pack ───────────────────────────────────────────────────
+
+/// The evaluation corpus of the shared r2 base vector, and the two rows it marks.
+const HOLDOUT: &str = "refeng-cases-v0";
+const HELD_OUT: [&str; 2] = ["counterexample:total:R0:19c2e1a5", "example:total"];
+
+/// The base payload of the shared r2 vectors written under `root`, and the identity it is
+/// admitted against.
+fn r2_base(root: &Path) -> TrustedIdentity {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/knowledge-r2/p01-base.json");
+    let vector: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    let bytes = |entry: &serde_json::Value| {
+        if let Some(text) = entry["text"].as_str() {
+            return text.as_bytes().to_vec();
+        }
+        let hex = entry["hex"].as_str().unwrap();
+        (0..hex.len())
+            .step_by(2)
+            .map(|at| u8::from_str_radix(&hex[at..at + 2], 16).unwrap())
+            .collect()
+    };
+    let files = (vector["files"].as_object().unwrap().iter())
+        .map(|(path, entry)| (path.clone(), bytes(entry)))
+        .collect();
+    fixture::write_files(root, &files).unwrap();
+    TrustedIdentity::from_json(&vector["expected"]).unwrap()
+}
+
+/// A door lends the release its pack was composed from with the corpus that pack held out: the
+/// catalogue of the request withholds exactly the held-out rows, as the pack does, and lends
+/// every other entry; `with_knowledge` attaches the same pack; an intent without words opens no
+/// release and lends none.
+#[test]
+#[cfg(unix)] // the disk form is defined for Unix descriptors only
+fn the_release_a_pack_came_from_is_lent_with_the_corpus_it_held_out() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("release");
+    let identity = r2_base(&root);
+    let intent = "total the paid rows of a csv file";
+    let named = none().with_knowledge_release(&root, identity);
+    let config = resolve(&named.clone().with_knowledge_exclude(HOLDOUT), &none()).unwrap();
+    let (request, lent) = config
+        .with_knowledge_lent(CompileRequest::create(intent), intent)
+        .expect("admitted");
+    let (snapshot, exclude) = lent.expect("the release the pack came from");
+    assert_eq!(exclude.as_deref(), Some(HOLDOUT));
+    let pack = request.authoring_knowledge.expect("attached");
+    let again = config.with_knowledge(CompileRequest::create(intent), intent);
+    assert_eq!(again.unwrap().authoring_knowledge.as_ref(), Some(&pack));
+    assert_eq!(snapshot.pack(intent, Some(HOLDOUT)).unwrap(), pack);
+    let whole = snapshot.entries();
+    let marked: Vec<&str> = (whole.iter())
+        .filter(|row| row["corpus"] == HOLDOUT)
+        .filter_map(|row| row["id"].as_str())
+        .collect();
+    assert_eq!(marked, HELD_OUT);
+    let catalogue = snapshot.catalogue(exclude.as_deref());
+    let listed = catalogue.entries();
+    assert_eq!(listed.len() + HELD_OUT.len(), whole.len());
+    for id in HELD_OUT {
+        assert!(pack.references.iter().all(|r| r.id != id), "{id} packed");
+        assert!(catalogue.reference(id).is_none(), "{id} referenced");
+        assert!(listed.iter().all(|row| row["id"] != id), "{id} listed");
+    }
+    // Without the exclusion the same release lends those rows: the holdout is the request's.
+    let config = resolve(&named, &none()).unwrap();
+    let (_, lent) = config
+        .with_knowledge_lent(CompileRequest::create(intent), intent)
+        .expect("admitted");
+    let (snapshot, exclude) = lent.expect("the release the pack came from");
+    assert_eq!(exclude, None);
+    for id in HELD_OUT {
+        assert!(
+            snapshot.catalogue(None).reference(id).is_some(),
+            "{id} lent"
+        );
+    }
+    let (request, lent) = config
+        .with_knowledge_lent(CompileRequest::create("  "), "  ")
+        .expect("nothing to refuse");
+    assert!(request.authoring_knowledge.is_none());
+    assert!(lent.is_none());
 }
 
 /// Source recovery is an explicit count the door's word or the environment names (`0..=3`), only

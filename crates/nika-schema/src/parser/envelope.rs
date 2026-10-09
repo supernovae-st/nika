@@ -29,7 +29,7 @@ pub(crate) use nika_vocab::keys::{
 // The three value authorities parse in `envelope_values.rs` (the C2 file
 // split — ONE coherent unit); the parser's `envelope::parse_*` call paths
 // ride this re-export unchanged.
-pub(super) use super::envelope_values::{parse_const, parse_inputs, parse_secrets};
+pub(super) use super::envelope_values::{parse_const, parse_inputs, parse_store_refs};
 
 /// Parse `outputs:` — untyped (`name: ${{ … }}`) OR typed
 /// (`name: { value, type, description }`).
@@ -856,11 +856,13 @@ fn string_list_values(
         .collect())
 }
 
-/// Parse `run:` — the run's entropy + clock declaration (F-P3).
+/// Parse `run:` — the run's entropy + clock declaration (F-P3), and its
+/// access selection (`access:` · `reasoning:` — `run_access.rs`).
 ///
-/// Shape-only, with the CLOSED key set `{entropy, clock}` refused in BOTH
-/// parse modes (the `permits:`/`policy:` precedent: a typo'd declaration
-/// silently not binding would mis-declare the run's determinism contract).
+/// Shape-only, with the CLOSED key set `{entropy, clock, access,
+/// reasoning}` refused in BOTH parse modes (the `permits:`/`policy:`
+/// precedent: a typo'd declaration silently not binding would mis-declare
+/// the run's determinism or access contract).
 /// The value forms are the `assert:` vocabulary idiom — bare scalars for
 /// the parameterless values (`none` · `ambient` · `system` · `virtual`),
 /// a single-key map for the one parameterized value (`{ seeded: <u64> }`).
@@ -913,7 +915,9 @@ pub(super) fn parse_run(
         None => None,
     };
 
-    let decl = RunDecl::new(entropy, clock);
+    let decl = RunDecl::new(entropy, clock)
+        .with_access(super::run_access::parse_access(cx, mapping)?)
+        .with_reasoning(super::run_access::parse_reasoning(cx, mapping)?);
     if let Some(class) = decl.contradiction_class() {
         return Err(SchemaError::RunContradiction {
             class,

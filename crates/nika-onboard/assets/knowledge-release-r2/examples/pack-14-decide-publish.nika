@@ -1,0 +1,120 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 14 · Decide, then publish or abstain — the kernel, never the model.
+#
+# 13 taught jq-as-law on integer facts. This file is the same law with a
+# named Decision Bundle (spec 11). `nika:decide` is PURE compute: an
+# inline bundle needs no filesystem. The model is not in this file.
+#
+# Demonstrates ·
+#   - `invoke: { tool: nika:decide }` · bundle inline + EvidenceSnapshot
+#   - outcome ∈ {recommend · defer · human_required · …} · never an infer
+#   - `nika:assert` on a hand-known fixture (hint `unproven-law` stays silent)
+#   - governance.never_automatic: a hot score still abstains to a human
+#
+# Run · nika try 14-decide-publish
+#   (offline · zero keys · zero infer)
+
+nika: decide-publish
+
+permits:
+  tools: ["nika:decide", "nika:assert"]
+
+const:
+  # Compact teaching copy of the hermetic pr-triage bundle (spec 11
+  # goldens). Five fixture classes stay: positive · negative ·
+  # ambiguous · contradictory · adversarial.
+  bundle:
+    decision_bundle_format: 1
+    manifest:
+      id: pr-triage
+      version: "1.0.0"
+      owner: acme-org
+      license: Apache-2.0
+      valid_until: "2027-01-01T00:00:00Z"
+    evidence_schema:
+      failed_required_checks:
+        type: integer
+        required: true
+        sources: [ci, audit-bot]
+        integrity: verified
+      relevant_coverage_bp:
+        type: integer
+        required: false
+        sources: [coverage-bot]
+        integrity: observed
+      touches_release_workflow:
+        type: bool
+        required: true
+        sources: [ci]
+        integrity: verified
+      author_tenure_days:
+        type: integer
+        required: false
+        identity: true
+        sources: [hr]
+        integrity: observed
+    transforms:
+      checks_0_10: { kind: clamp, min: 0, max: 10 }
+      coverage_inverse:
+        kind: linear
+        min: 0
+        max: 10000
+        scale_bp: -10000
+        offset: 10000
+      release_step:
+        kind: bucket
+        min: 0
+        max: 1
+        edges: [1]
+        values: [0, 10000]
+    rules:
+      dimensions:
+        change_risk:
+          terms:
+            - { evidence: failed_required_checks, transform: checks_0_10, weight_bp: 10000, monotonicity: increases }
+            - { evidence: touches_release_workflow, transform: release_step, weight_bp: 5000, monotonicity: increases }
+        evidence_quality:
+          terms:
+            - { evidence: relevant_coverage_bp, transform: coverage_inverse, weight_bp: 3000, monotonicity: decreases }
+      thresholds:
+        - { dimension: change_risk, recommend_gte_bp: 5000 }
+    governance:
+      never_automatic: [recommend]
+      override: { append_only: true, reason_required: true }
+      appeal: "file an issue on the bundle repo"
+      human_required_triggers: [conflict_on_required]
+    fixtures:
+      - { name: hot, class: positive, evidence: { failed_required_checks: 8, touches_release_workflow: true, relevant_coverage_bp: 2000 } }
+      - { name: cold, class: negative, evidence: { failed_required_checks: 0, touches_release_workflow: false, relevant_coverage_bp: 9000 } }
+      - { name: mid, class: ambiguous, evidence: { failed_required_checks: 3, touches_release_workflow: false, relevant_coverage_bp: 5000 } }
+      - { name: two-authorities, class: contradictory, evidence: { failed_required_checks: 2, touches_release_workflow: false } }
+      - { name: identity-probe, class: adversarial, evidence: { failed_required_checks: 8, touches_release_workflow: true, relevant_coverage_bp: 2000, author_tenure_days: 9000 } }
+  # The s1-dominant-risk snapshot — receipt.outcome is human_required
+  # because never_automatic lists recommend (spec 11 · abstain).
+  hot:
+    t: "2026-07-14T20:00:00Z"
+    evidence:
+      - { key: failed_required_checks, value: 8, source: ci, observed_at: "2026-07-14T20:00:00Z", digest: d1, confidentiality: internal, integrity: verified, quality: { freshness: fresh, completeness: complete, independence_group: ci } }
+      - { key: touches_release_workflow, value: true, source: ci, observed_at: "2026-07-14T20:00:00Z", digest: d2, confidentiality: internal, integrity: verified, quality: { freshness: fresh, completeness: complete, independence_group: ci } }
+      - { key: relevant_coverage_bp, value: 2000, source: coverage-bot, observed_at: "2026-07-14T20:00:00Z", digest: d3, confidentiality: internal, integrity: observed, quality: { freshness: fresh, completeness: complete, independence_group: coverage-bot } }
+
+tasks:
+  decide:
+    invoke:
+      tool: nika:decide
+      args:
+        bundle: ${{ const.bundle }}
+        evidence: ${{ const.hot }}
+  compiled:
+    with:
+      receipt: ${{ tasks.decide.output }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ with.receipt.outcome == "human_required" }}
+        message: "hot fixture must abstain to a human (never_automatic · recommend)"
+
+outputs:
+  outcome: ${{ tasks.decide.output.outcome }}

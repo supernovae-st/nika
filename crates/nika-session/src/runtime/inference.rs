@@ -82,7 +82,7 @@ impl SessionRuntime {
         if self.money.preparation.is_some() {
             return PreparationCosts::summary(&self.cost_observations());
         }
-        let account = nika_providers::admission::account_status(
+        let admission_summary = nika_providers::admission::account_status(
             self.inference_receipt().map_err(|error| error.to_string()),
             self.money.reconfirm,
             self.unknown_cost.observations.len(),
@@ -103,7 +103,7 @@ impl SessionRuntime {
             crate::authoring::DECISION_SCHEMA,
         );
         nika_providers::admission::inference_summary(
-            &account,
+            &admission_summary,
             self.observed_line().as_deref(),
             &details,
             self.subscription(),
@@ -217,7 +217,9 @@ impl SessionRuntime {
         let declined = self.declined.carried(self.intent.goal.as_ref());
         let out = if seat.has_model() {
             let intent = round.effective_intent();
-            self.rehearse_dispatch(&intent, |this, host| {
+            // A revision's answer round is saved over its file: its children are checked there.
+            let target = round.target.clone().map(|(path, _)| path);
+            self.rehearse_dispatch_at(&intent, target, |this, host| {
                 this.seated(seat, |account| {
                     round.compile_rehearsed(seat, &context, (account, Some(host)), declined)
                 })

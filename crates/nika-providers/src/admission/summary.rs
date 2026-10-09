@@ -271,7 +271,7 @@ pub fn account_status(
 /// Human-facing scope over supplied facts; subscription selection does not restore API admission.
 #[must_use]
 pub fn inference_summary(
-    account: &str,
+    admission_summary: &str,
     observed: Option<&str>,
     details: &str,
     subscription: bool,
@@ -283,13 +283,13 @@ pub fn inference_summary(
         "Session inference (separate from proposal/Run)"
     };
     let observed = observed.map_or_else(String::new, |line| format!(" · {line}"));
-    let account = format!("{scope}: {account}{observed}{details}");
+    let admission_summary = format!("{scope}: {admission_summary}{observed}{details}");
     if gate {
         format!(
-            "confirm-gate monetary amendment held; no paid inference admitted; paused Run unchanged; answer yes or no separately\n{account}"
+            "confirm-gate monetary amendment held; no paid inference admitted; paused Run unchanged; answer yes or no separately\n{admission_summary}"
         )
     } else {
-        account
+        admission_summary
     }
 }
 /// The host's unsettled-dispatch count remains unknown, never a synthetic zero price.

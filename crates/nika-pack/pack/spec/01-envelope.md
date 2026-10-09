@@ -214,6 +214,12 @@ backend and decides local-vs-cloud (`ollama/` · `lmstudio/` = local · the rest
 A task may override this. If absent · each `infer:`/`agent:` task must specify
 its own `model:`.
 
+The string names WHICH model answers. HOW the run reaches it (an agent
+application or an API, over which protocol) and the native reasoning effort it
+is asked for are separate declarations under [`run`](#run--optional--the-runs-entropy-clock-access-and-reasoning-declaration)
+· `run.access` and `run.reasoning`. Absent, the engine resolves the route as it
+always has.
+
 ### `inputs` · *optional · typed workflow inputs*
 
 ```yaml
@@ -680,19 +686,30 @@ maps, nothing else). That property is checkable BEFORE the run.
 whitelist scopes ONE task's tools; `permits.tools` scopes the WHOLE workflow
 (the union ceiling). An agent may never be granted a tool outside `permits`.
 
-### `run` · *optional · the run's entropy + clock declaration*
+### `run` · *optional · the run's entropy, clock, access and reasoning declaration*
 
 ```yaml
 run:
   entropy: ambient          # none | ambient | { seeded: <u64> }
   clock: system             # system | virtual
+  access:                   # how the run reaches its model · optional
+    via: codex              # the route · an agent application or an API provider id
+    protocol: acp           # api | acp
+    fallback: none          # none · also what an omitted fallback means
+  reasoning:                # optional
+    effort: high            # the EXACT native value the route offers
 ```
 
 Every source of randomness and time a run consumes is **declared, never
-ambient** (normative · NEP-0010). The block is optional; absent, the run
-behaves exactly as `entropy: ambient` + `clock: system` (the status quo).
-The key set is closed (`{entropy, clock}` only — a typo'd declaration is
-refused in both parse modes, like `permits:`).
+ambient** (normative · NEP-0010). The same block MAY declare the route that
+reaches the run's model and the native effort it asks for (§`run.access` ·
+`run.reasoning` below). The block is optional; absent, the run behaves
+exactly as `entropy: ambient` + `clock: system` with the engine's own route
+resolution and each route's default effort (the status quo). Each key is
+optional on its own: an absent key leaves its dimension exactly as it was.
+The key set is closed (`{entropy, clock, access, reasoning}` only — a typo'd
+declaration is refused in both parse modes, like `permits:`), and so are the
+nested sets (`access: {via, protocol, fallback}` · `reasoning: {effort}`).
 
 - **`entropy: { seeded: N }`** forces the deterministic seams and pins the
   run's seed: two runs of the same file with the same `N` produce
@@ -716,6 +733,95 @@ refused in both parse modes, like `permits:`).
 - **One run, one clock**: the declaration lives at the envelope, never
   per task — a run has exactly one entropy source and one clock, so the
   composition stays auditable.
+
+#### `run.access` · `run.reasoning` · *the route and the native effort* (normative)
+
+`model:` says WHICH model answers. `run.access` says HOW the run reaches it,
+and `run.reasoning.effort` says which native effort it is asked to spend.
+They are separate dimensions and none is derived from another. The
+credentials, account and billing a route uses stay in that route's own
+configuration, never in the file.
+
+| key | value | meaning |
+|---|---|---|
+| `access.via` | kebab-case id | the route · an agent application (`codex` · `claude-code` · …) or an API provider id (`openai` · …) · an open set judged by the engine's route registry · this specification freezes no catalog of routes or models |
+| `access.protocol` | `api` \| `acp` | `api` · the route's inference API · `acp` · an Agent Client Protocol session with an agent application · there is no third value |
+| `access.fallback` | `none` | the declared selection is exact · an omitted `fallback` means `none` once `access:` is declared |
+| `reasoning.effort` | nonempty string | the EXACT native value the selected route advertises for the selected model |
+
+An empty `access: {}` or `reasoning: {}` selects nothing and is refused;
+`reasoning:` carries `effort:`.
+
+- **Literal, from the file alone.** Every `access:` / `reasoning:` value is
+  a literal (no `${{ }}`): the selection is resolved before the first task
+  and an ordinary run honors it with no extra launch option. A launch
+  option that contradicts a declared selection MUST be refused before
+  inference, never silently preferred.
+- **ACP is the protocol, not the program.** An agent application MAY be
+  reached through an ACP adapter that launches its CLI · that is the
+  adapter's implementation. A direct CLI invocation that is not an ACP
+  session MUST NOT satisfy `protocol: acp`, and its record keeps naming the
+  connection actually used. With `protocol` omitted, the route connects
+  the way it did before this declaration existed.
+- **No substitution · `fallback: none`.** An explicit selection (route ·
+  protocol · model · effort) is honored exactly or refused. A route the
+  engine cannot reach is refused before inference; a route that fails
+  during the run fails its task, and a declared retry stays on that same
+  route. Neither is replaced by another route, protocol, model or effort —
+  not even by an API key or a direct CLI that happens to be configured on
+  the same machine. Declared alternatives are not specified; a later
+  `fallback` value is additive.
+- **Native effort, never translated.** The value is forwarded as the
+  selected route's own option. There is no universal effort scale: a value
+  is not an alias of another route's value, and an engine MUST NOT map,
+  round or substitute it. Selecting a model can change the efforts a route
+  offers, so the value is judged against the options offered AFTER the
+  model is selected. Omitted, each route keeps its default effort, which
+  may remain unknown.
+- **Judged before inference.** The static contract (the schema · `nika
+  check`) is the shape only: the closed key sets, string values, a
+  nonempty ASCII kebab-case `via`, a nonempty `effort` without surrounding
+  whitespace (the Unicode White_Space property · inner characters stay as
+  written), the `protocol` and `fallback` enums, no template · a
+  violation is `NIKA-PARSE` · `validation_error`. Whether a route exists,
+  speaks the protocol, serves the model or offers the effort is a runtime
+  fact. The engine discovers it (an ACP handshake or a capability query is
+  discovery, not inference) and MUST refuse a selection it cannot honor
+  exactly before any inference request is sent — no prompt, no API
+  inference call — with a diagnostic naming the failed field, the requested
+  value and the available choices wherever the route revealed them.
+- **Applied, then confirmed.** Over `acp`, the model and the effort are
+  applied through the session's own selection methods before the first
+  prompt. Where the session exposes configuration options, the resulting
+  configuration is read back, and one that does not hold the applied values
+  is refused, never assumed. A session that can only acknowledge a model
+  request yields accepted-request evidence, never a configured or served
+  claim, and an effort it cannot apply is refused.
+- **One run, one route.** The declaration serves every `infer:` and
+  `agent:` task of the run, including a task carrying its own `model:`
+  override; a task whose effective model the declared route cannot serve is
+  refused before inference, never re-routed. There is no task-level
+  `access:` or `reasoning:` key. For an `infer:` task the
+  [subscription harness meet](./02-verbs.md#subscription-harness-access-normative)
+  still holds: `protocol: acp` does not make an agent seat infer-grade, and
+  an agent-grade success does not qualify `infer:`. A task's
+  `infer.thinking` keeps its own meaning; neither control is translated
+  into the other.
+- **Four facts, kept apart.** A run records the selection the file
+  requested, the selection transmitted to the route, the configuration the
+  route confirmed, and the responding model when — and only when — the
+  route attests it. A requested or acknowledged value is never relabelled
+  as the served one, and an unattested fact stays absent, never guessed.
+  The declared selection is part of each model task's identity: a resume
+  never reuses a result obtained under a different route, protocol, model
+  or effort.
+- **Independent of entropy and clock.** `access:` and `reasoning:` take no
+  part in the coupling above; the legal pairs and `NIKA-PARSE-026` ·
+  `027` · `028` are judged identically with or without them.
+- **Where a route runs is deployment, not syntax.** An ACP application may
+  run as a local process and delegate to remote intelligence; a local model
+  is selected like any other, and nothing in this declaration makes local
+  execution mandatory or forbidden.
 
 ### `tasks` · **required · a non-empty MAP · the key IS the identity**
 
@@ -835,6 +941,7 @@ these files) should quote-by-default for the four ambiguous-scalar cases above.
 ## What the envelope is NOT
 
 - It is NOT a place to inline credentials. Use `secrets:` with a `source` reference.
+- It is NOT a place for a route's account, sign-in or adapter path. `run.access` names the route; how to authenticate to it stays in that route's own configuration.
 - It is NOT a place for engine runtime config (global timeouts · concurrency limits). Those live in engine config files, out of scope of the spec.
 - It is NOT a place for imports / includes. v1 is single-file workflows. (Static composition is a candidate for a later additive minor: see [08-out-of-scope.md](./08-out-of-scope.md).)
 
@@ -960,6 +1067,7 @@ A v0.1-compliant engine MUST ·
 7. Mask resolved `secrets` values in all logs · traces · journal events
 8. Enforce a declared `permits:` block on both surfaces: refuse statically-detectable escapes at check time, and fail any runtime effect outside the boundary with `NIKA-SEC-004` · once `permits:` is present every category is default-deny unless listed
 9. Compose every child process environment (§permits env · NEP-0005): the runner env floor ∪ the declared `env:` passthrough ∪ the task `env:` map, minus the dangerous-name floor · never inherit the engine environment
+10. Accept `run.access` and `run.reasoning` only in their closed literal shapes (§run · `NIKA-PARSE` · `validation_error` otherwise) · honor a declared selection exactly — route, protocol (a direct CLI never satisfies `acp`), model and native effort, applied before the first prompt and read back wherever the route exposes its configuration — and refuse a selection it cannot honor before any inference request is sent, never substituting another route, protocol, model or effort · an absent declaration leaves route resolution and default effort unchanged
 
 ---
 

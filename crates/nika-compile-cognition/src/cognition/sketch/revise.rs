@@ -32,6 +32,7 @@ use super::{
     judge_defects, native, next_round, prelude, reopen, repair, semantic_record, system_message,
     withhold_record, within,
 };
+use crate::cognition::rehearsal::Rehearsals;
 use crate::cognition::verify;
 use crate::cognition::{AuthoringPolicy, CompileOutcome, CompileRequest, DiagnosticKind, Strategy};
 use crate::decide::DecisionSeat;
@@ -39,6 +40,7 @@ use crate::fidelity::Diagnostic;
 use crate::sketch::{Sketch, revision};
 use crate::types::{EditChange, Input};
 use crate::{CompileError, lexicon};
+use nika_compile_seats::foundry::{ComponentCatalog, document};
 use nika_kernel::ai::provider::{Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
@@ -56,6 +58,27 @@ struct Links {
     like: Option<String>,
     #[serde(default, deserialize_with = "crate::cognition::nullable_default")]
     notes: String,
+    /// Operations over the complete base document (`crate::cognition::document`), for any change
+    /// the destination links cannot state.
+    #[serde(default, deserialize_with = "crate::cognition::nullable_default")]
+    operations: Vec<Value>,
+    /// The whole revised source, only when no operation can state the change.
+    #[serde(default)]
+    replace: Option<String>,
+}
+
+impl Links {
+    /// Whether the seat stated the change over the document rather than as destination links.
+    fn over_the_document(&self) -> bool {
+        !self.operations.is_empty() || self.replacement().is_some()
+    }
+
+    /// The whole revised source, when one was given (an empty text is none).
+    fn replacement(&self) -> Option<&str> {
+        self.replace
+            .as_deref()
+            .filter(|source| !source.trim().is_empty())
+    }
 }
 
 impl Links {
@@ -66,7 +89,7 @@ impl Links {
 }
 
 impl native::Shaped for Links {
-    const KEYS: &'static [&'static str] = &["supersedes", "adds"];
+    const KEYS: &'static [&'static str] = &["supersedes", "adds", "operations", "replace"];
 }
 
 /// The route a semantic revision records.
@@ -76,7 +99,11 @@ pub(in crate::cognition) const ROUTE: &str = "edit: semantic revision through th
 pub(in crate::cognition) const SOURCE_ROUTE: &str =
     "edit: source-anchored revision of one destination";
 
-const REVISE_SOURCE: &str = "This is a REVISION of the base workflow below (`base_candidate`), which no semantic record binds. The compiler replaces ONE destination it writes, or adds ONE beside the existing ones, in place, and changes nothing else; you never write the workflow. Your only call: in `supersedes`, name the clause of the original request that states the destination the change replaces (copied exactly from `original_clauses`) and the clause of the change that states its new destination (copied exactly from `change_clauses`) — or no link when the change adds a destination; in `adds`, every other clause of the change (copied exactly from `change_clauses`), each adding or restating a duty without replacing any. Every change clause is in exactly one of the two. When the change adds a destination, `like` names the destination of `base_destinations` whose written content the new one receives. Name only what the request and the change state; when they leave it open, omit it and the human is asked.";
+const REVISE_SOURCE: &str = "This is a REVISION of the base workflow below (`base_candidate`), which no semantic record binds; you never write the workflow from scratch. When the change replaces ONE destination the base writes, or adds ONE beside the existing ones, state it as links and the compiler edits it in place: in `supersedes`, name the clause of the original request that states the destination the change replaces (copied exactly from `original_clauses`) and the clause of the change that states its new destination (copied exactly from `change_clauses`) — or no link when the change adds a destination; in `adds`, every other clause of the change (copied exactly from `change_clauses`), each adding or restating a duty without replacing any. Every change clause is in exactly one of the two. When the change adds a destination, `like` names the destination of `base_destinations` whose written content the new one receives. Name only what the request and the change state; when they leave it open, omit it and the human is asked. With links, leave `operations` empty. Any other change (another value, a new or removed step) is stated as `operations` instead, below, with `supersedes` and `adds` left empty.";
+
+/// The prompt of a revision with no destination link to state (the base writes none, or the
+/// request it answers is unknown): operations over the document only.
+const REVISE_DOCUMENT: &str = "This is a REVISION of the base workflow below, which no semantic record binds and whose own request is unknown; you never write the workflow from scratch. State the change as `operations` over its document, below.";
 
 const REVISE: &str = "This is a REVISION of the base program below (`base_graph`, `base_fills`). Its graph stays exactly as it is: the change only changes what its tasks do through their typed holes. Call 1: in `supersedes`, name each clause of the original request the change replaces (copied exactly from `original_clauses`) and the clause of the change that replaces it (copied exactly from `change_clauses`); in `adds`, name each clause of the change (copied exactly from `change_clauses`) that adds a duty beside the original ones and replaces none. Every change clause is in exactly one of the two; every other original clause stays. Call 2: fill the base graph's holes for the revised request.";
 
@@ -96,6 +123,7 @@ pub(in crate::cognition) async fn edit<P: ProviderInferDyn>(
     reading: &CompileRequest,
     seat: Option<(&AuthoringPolicy, &P)>,
     decision: Option<&dyn DecisionSeat>,
+    rehearsals: &mut Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     let core = nika_compile::compile(raw)?;
     let unresolved = core
@@ -106,7 +134,7 @@ pub(in crate::cognition) async fn edit<P: ProviderInferDyn>(
         unresolved && policy.native != crate::cognition::NativeMode::Off
     };
     match seat.filter(open) {
-        Some((policy, provider)) => revise(reading, policy, (provider, decision)).await,
+        Some((policy, provider)) => revise(reading, policy, (provider, decision), rehearsals).await,
         None => Ok(core),
     }
 }
@@ -140,45 +168,75 @@ enum Judged {
     Holds(String),
     /// Links that break a law the seat repairs by stating them again.
     Links(Vec<String>),
-    /// A change that adds what the program's structure carries: no restatement of its links can
-    /// hold, so it is refused as it is.
+    /// A change the program's structure carries (an added or replaced effect or gate), its
+    /// links holding: no restatement of its links can carry it.
     Change(Vec<String>),
 }
 
-/// The links `stated` judged before any fill. An addition the program's structure carries
-/// (`revision::additions`) is the change's own, refused as it is; a link or accounting law
-/// (`revision::linked`) or a replacement span (`revision::resolved`: a clause not stated once,
-/// two that overlap or nest) is the seat's to repair. When every law holds, the contract the
-/// revision consumes from here on: the original words with each linked clause replaced in place
-/// and every addition beside (`revision::resolved`), never the original beside the whole change.
+/// The links `stated` judged before any fill. A link or accounting law or a replacement span
+/// ([`link_laws`]) is the seat's to repair. Once they hold, a change the program's structure
+/// carries (an addition, `revision::additions`, or a replaced effect or gate, the structural law
+/// of `revision::linked`) is the change's own, never repaired as links. When every law holds,
+/// the contract the revision consumes from here on: the original words with each linked clause
+/// replaced in place and every addition beside (`revision::resolved`), never the original beside
+/// the whole change.
 fn judged(
     (original, change): (&str, &str),
     (base, asked): (&Value, &Value),
     stated: &Value,
 ) -> Judged {
-    if revision::accounted(asked, stated).is_ok()
-        && let Err(structural) = revision::additions(asked, stated)
-    {
+    let laws = link_laws((original, change), (base, asked), stated);
+    if !laws.is_empty() {
+        return Judged::Links(laws);
+    }
+    if let Err(structural) = revision::additions(asked, stated) {
         return Judged::Change(structural);
     }
-    let links = &stated["supersedes"];
-    let mut why =
-        (revision::linked(original, base, change, asked, stated).err()).unwrap_or_default();
-    // A span law reads no addition: an addition is appended, never replaced in place.
-    for reason in (revision::resolved(original, links, &[]).err().into_iter()).flatten() {
-        if !why.contains(&reason) {
-            why.push(reason);
-        }
-    }
-    if !why.is_empty() {
-        return Judged::Links(why);
+    // The link laws hold: what the full law still finds is a replaced effect or gate.
+    if let Err(structural) = revision::linked(original, base, change, asked, stated) {
+        return Judged::Change(structural);
     }
     let read = revision::additions(asked, stated)
-        .and_then(|added| revision::resolved(original, links, &added));
+        .and_then(|added| revision::resolved(original, &stated["supersedes"], &added));
     match read {
         Ok(read) => Judged::Holds(lexicon::fold_apostrophes(&read)),
         Err(why) => Judged::Links(why),
     }
+}
+
+/// The laws the links break, each named, apart from the structural one: a link names a clause
+/// of the original stated once and no prohibition, and a clause the change states, none twice,
+/// every change clause accounted once (`revision::linked`, read over the original duties with
+/// their kinds masked), and no replacement span overlaps or nests (`revision::resolved`). Links
+/// that break one are the seat's to repair and never leave for another route, a destination
+/// edit's included; a replaced effect or gate is a destination edit's to carry, or the change's.
+fn link_laws(
+    (original, change): (&str, &str),
+    (base, asked): (&Value, &Value),
+    stated: &Value,
+) -> Vec<String> {
+    let unkinded: Vec<Value> = (base.as_array().into_iter().flatten())
+        .map(|duty| {
+            let mut duty = duty.clone();
+            if let Some(fields) = duty.as_object_mut() {
+                fields.insert("kind".to_owned(), Value::Null);
+            }
+            duty
+        })
+        .collect();
+    let unkinded = Value::Array(unkinded);
+    let mut why =
+        (revision::linked(original, &unkinded, change, asked, stated).err()).unwrap_or_default();
+    // A span law reads no addition: an addition is appended, never replaced in place.
+    for reason in (revision::resolved(original, &stated["supersedes"], &[]).err())
+        .into_iter()
+        .flatten()
+    {
+        if !why.contains(&reason) {
+            why.push(reason);
+        }
+    }
+    why
 }
 
 /// What the links round settled.
@@ -189,15 +247,26 @@ enum Linked {
     Destination((Links, String), u32),
     /// No answer to read (a failed call, a malformed text): nothing is filled.
     Unanswered,
-    /// Links that still break a law, or a change no fill carries: why. Nothing is filled.
+    /// Links that still break a law, or a change no fill carries with no round left to state it
+    /// over the whole document: why. Nothing is filled, and no other route is taken.
     Refused(Vec<String>),
+    /// A change no fill carries (a structural addition), its links holding: why, and the round
+    /// its restatement over the whole document spends, one the policy still grants. Nothing is
+    /// filled.
+    Change(Vec<String>, u32),
 }
+
+/// Why a change no fill carries is refused when the policy grants no round to restate it.
+const NO_ROUND: &str = "no round is left to state it over the whole document";
 
 /// The seat's typed links, judged before any fill ([`judged`]) and repaired within the door's
 /// one round count from round 0 (the last round leaves the fills their turn): a repair names the
 /// laws the links break in the same talk, the base, the original request and both clause lists
-/// unchanged. A destination edit leaves for the source laws as soon as it is stated; a change no
-/// fill carries, a repeated refusal or a spent allowance is refused with why; a failed call or a
+/// unchanged. Links that break a link law are never delegated: repaired, or refused with why on
+/// a repeated refusal or a spent allowance. A destination edit whose links hold leaves for the
+/// source laws as soon as it is stated, with the same typed answer; a change no fill carries
+/// ends the round with why and the round its restatement over the whole document spends when
+/// the policy still grants one, else is refused with that gap named; a failed call or a
 /// malformed text ends the talk with no fill.
 async fn linked<P: ProviderInferDyn>(
     talk: &mut Talk,
@@ -221,12 +290,19 @@ async fn linked<P: ProviderInferDyn>(
             return Linked::Unanswered;
         };
         let stated = links.stated();
-        if destination_edit(request, original, ledgers, &stated) {
+        // The link laws first: links that break them are repaired or refused, never delegated.
+        let laws = link_laws((original, change), ledgers, &stated);
+        if laws.is_empty() && destination_edit(request, original, ledgers, &stated) {
             return Linked::Destination((links, text), round);
         }
         // The seat's own notes are journaled by digest and shape only, never as text.
         let notes = crate::cognition::receipt::withheld(&links.notes, &[], "revision notes");
-        let why = match judged((original, change), ledgers, &stated) {
+        let judgment = if laws.is_empty() {
+            judged((original, change), ledgers, &stated)
+        } else {
+            Judged::Links(laws)
+        };
+        let why = match judgment {
             Judged::Holds(resolved) => {
                 talk.rounds.push(json!({"round": round, "phase": "revision",
                     "supersedes": links.supersedes, "adds": links.adds, "notes": notes}));
@@ -236,7 +312,13 @@ async fn linked<P: ProviderInferDyn>(
             Judged::Change(why) => {
                 talk.rounds
                     .push(refused_links(round, &stated, &notes, &why));
-                return Linked::Refused(why);
+                // Its restatement spends a counted round, never a free one.
+                if super::within(policy.repairs, round + 1) {
+                    return Linked::Change(why, round + 1);
+                }
+                return Linked::Refused(
+                    why.iter().map(|why| format!("{why}; {NO_ROUND}")).collect(),
+                );
             }
             Judged::Links(why) => why,
         };
@@ -369,6 +451,7 @@ async fn revise<P: ProviderInferDyn>(
     request: &CompileRequest,
     policy: &AuthoringPolicy,
     (provider, decision): (&P, Option<&dyn DecisionSeat>),
+    rehearsals: &mut Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     let mut out = crate::initial();
     let (
@@ -393,9 +476,7 @@ async fn revise<P: ProviderInferDyn>(
         out.provenance.strategy = Some(Strategy::Native);
         return Ok(out);
     };
-    let words_only = CompileRequest::create(change.as_str());
-    let change_ledger =
-        nika_compile::surface::semantic::request_basis(change, &words_only)["ledger"].clone();
+    let change_ledger = ledger_of(change);
     let base_ledger = base["basis"]["read"]["ledger"].clone();
     let ledgers = (&base_ledger, &change_ledger);
     let (mut talk, sent, shown) = opened(base, &intent, &reading, &revising, ledgers);
@@ -421,10 +502,23 @@ async fn revise<P: ProviderInferDyn>(
                 return Ok(out);
             }
             Linked::Refused(why) => {
+                // Links that break their laws are refused as they are: no other route asks again;
+                // so is a change no round is left to restate over the whole document.
                 native::record(&mut out, &revising, &cold, &talk, &sent, None, shown);
                 refuse(&mut out, &why);
                 out.provenance.strategy = Some(Strategy::Native);
                 return Ok(out);
+            }
+            Linked::Change(why, next) => {
+                native::record(&mut out, &revising, &cold, &talk, &sent, None, shown);
+                // The fixed graph cannot carry this change: in the round the links left it (a
+                // counted one, never a free one), the same change is stated over the complete
+                // document of the same base, its record kept as the new bytes' history and the
+                // links rounds kept paid and journaled in this very outcome.
+                let seats = (policy, provider, decision);
+                let refused = (why.as_slice(), next);
+                let over = recorded_over_document(&revising, base, seats, rehearsals, out, refused);
+                return Ok(over.await);
             }
         };
     let contract = Contract {
@@ -568,9 +662,12 @@ pub(in crate::cognition) fn historical() -> CompileOutcome {
 }
 
 /// The words the base answers for a source-anchored revision: the resolved words its source
-/// revision record states (the record binds the base in the core), else the request's own.
+/// revision record states (the record binds the base in the core), or the request its created
+/// document settled, else the request's own.
 fn source_original(request: &CompileRequest) -> Option<String> {
-    let recorded = (request.plan.as_ref()).and_then(|r| r["source_revision"]["resolved"].as_str());
+    let recorded = (request.plan.as_ref()).and_then(|r| {
+        (r["source_revision"]["resolved"].as_str()).or_else(|| r["document"]["request"].as_str())
+    });
     recorded
         .map(str::to_owned)
         .or_else(|| request.original_intent.clone())
@@ -594,7 +691,60 @@ fn revisable(base: &str) -> bool {
 pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
     request: &CompileRequest,
     policy: &AuthoringPolicy,
+    seats: (&P, Option<&dyn DecisionSeat>),
+    rehearsals: &mut Rehearsals<'_>,
+) -> Result<CompileOutcome, CompileError> {
+    source_from(
+        request,
+        policy,
+        seats,
+        (rehearsals, true, 0),
+        crate::initial(),
+    )
+    .await
+}
+
+/// A recorded base's change its fixed graph refused, stated over the complete document of the
+/// same base with the request it answers known: operations only (its links were just refused),
+/// in the outcome that already holds the links rounds, from the round they left (`next`), so the
+/// rounds they spent stay counted against the policy's repairs. The base's record stays the new
+/// bytes' history (`revised_record`) and the refused rounds stay journaled (`recorded_attempt`).
+async fn recorded_over_document<P: ProviderInferDyn>(
+    revising: &CompileRequest,
+    base: &Value,
+    (policy, provider, decision): (&AuthoringPolicy, &P, Option<&dyn DecisionSeat>),
+    rehearsals: &mut Rehearsals<'_>,
+    mut out: CompileOutcome,
+    (why, next): (&[String], u32),
+) -> CompileOutcome {
+    let attempt = out.provenance.decision.take();
+    let seats = (provider, decision);
+    let over = source_from(revising, policy, seats, (rehearsals, false, next), out);
+    let mut done = match Box::pin(over).await {
+        Ok(done) => done,
+        Err(error) => {
+            let mut refused = crate::initial();
+            refuse(&mut refused, &[error.to_string()]);
+            refused
+        }
+    };
+    let journal = done.provenance.decision.get_or_insert_with(|| json!({}));
+    journal["recorded_attempt"] = json!({"refused": why, "journal": attempt});
+    if let Some(plan) = done.provenance.plan.as_mut() {
+        plan["revised_record"] = base.clone();
+    }
+    done
+}
+
+/// [`source`] in an outcome that may already account for earlier calls, asked from `round`
+/// (the rounds before it are spent: repairs are bounded on the same count); `links` says
+/// whether destination links may still be offered.
+async fn source_from<P: ProviderInferDyn>(
+    request: &CompileRequest,
+    policy: &AuthoringPolicy,
     (provider, decision): (&P, Option<&dyn DecisionSeat>),
+    (rehearsals, links, round): (&mut Rehearsals<'_>, bool, u32),
+    mut out: CompileOutcome,
 ) -> Result<CompileOutcome, CompileError> {
     let kept = || {
         let mut out = historical();
@@ -608,10 +758,14 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
     else {
         return Ok(kept());
     };
-    let Some(original) = source_original(request).filter(|_| revisable(base)) else {
+    // A base the strict parser does not read cannot be revised in place: kept, no seat asked.
+    if nika_compile::parse(base).is_err() {
         return Ok(kept());
-    };
-    let mut out = crate::initial();
+    }
+    // Destination links need the request the base answers and a destination it writes; any
+    // other change is stated over the complete document.
+    let original = source_original(request);
+    let destinations = links && original.is_some() && revisable(base);
     let intent = nika_compile::revise_intent(request).unwrap_or_default();
     let reading = lexicon::read(&intent);
     let cold = cold(&mut out);
@@ -619,21 +773,19 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
         out.provenance.strategy = Some(Strategy::Native);
         return Ok(out);
     }
-    let ledger = |words: &str| {
-        nika_compile::surface::semantic::request_basis(words, &CompileRequest::create(words))
-            ["ledger"]
-            .clone()
+    let ledgers = (
+        ledger_of(original.as_deref().unwrap_or_default()),
+        ledger_of(change),
+    );
+    let lent = (destinations, rehearsals.catalog());
+    let (mut talk, sent, shown) = source_opened(base, &intent, &reading, request, &ledgers, lent);
+    let schema = if destinations {
+        revision_schema()
+    } else {
+        document_route::document_schema()
     };
-    let ledgers = (ledger(&original), ledger(change));
-    let (mut talk, sent, shown) = source_opened(base, &intent, &reading, request, &ledgers);
     let linked = super::call::<Links, P>(
-        &mut talk,
-        0,
-        "revision",
-        revision::links_schema(),
-        policy,
-        provider,
-        &mut out,
+        &mut talk, round, "revision", schema, policy, provider, &mut out,
     )
     .await;
     let Some(linked) = linked else {
@@ -643,22 +795,49 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
         return Ok(out);
     };
     let journal = Journal {
-        round: 0,
+        round,
         talk,
         sent,
         shown,
         cold,
     };
     let reading = (intent.as_str(), &reading);
-    Ok(source_settled(
-        request,
-        reading,
-        (policy, provider, decision),
-        journal,
-        linked,
-        out,
-    )
-    .await)
+    let seated = (policy, provider, decision);
+    if linked.0.over_the_document() || !destinations {
+        let answer = (linked, rehearsals);
+        let settled =
+            document_route::document_settled(request, reading, seated, journal, answer, out);
+        return Ok(settled.await);
+    }
+    Ok(source_settled(request, reading, seated, journal, linked, out).await)
+}
+
+/// The clause ledger of `words` read alone, as a revision's links are judged against it.
+fn ledger_of(words: &str) -> Value {
+    let alone = CompileRequest::create(words);
+    nika_compile::surface::semantic::request_basis(words, &alone)["ledger"].clone()
+}
+
+/// The schema of a record-less revision's one answer: the destination links, and the operations
+/// or the whole replacement any other change is stated as. Every operation field is text (a
+/// value travels as its JSON text) so a strict structured-output dialect can carry it.
+fn revision_schema() -> Value {
+    let mut schema = revision::links_schema();
+    let (operations, replace) = document::answer_schema();
+    schema["properties"]["operations"] = operations;
+    schema["properties"]["replace"] = replace;
+    schema
+}
+
+/// The change words of an EDIT, as the revision read them.
+fn revision_change(request: &CompileRequest) -> String {
+    match &request.input {
+        Input::Edit {
+            change: EditChange::Text(words),
+            ..
+        } => format!("Change: {words}"),
+        _ => String::new(),
+    }
 }
 
 /// What a revision's round journals: the round its accepted answer was stated in (the links
@@ -732,6 +911,7 @@ async fn source_settled<P: ProviderInferDyn>(
         (provider, decision),
         request,
         done,
+        None,
     )
     .await
 }
@@ -744,6 +924,7 @@ fn source_opened<'a>(
     reading: &lexicon::Reading,
     request: &'a CompileRequest,
     ledgers: &(Value, Value),
+    (destinations, catalog): (bool, Option<&dyn ComponentCatalog>),
 ) -> (Talk, Vec<Value>, Option<(&'a str, &'a str)>) {
     let native::Prelude {
         references,
@@ -760,9 +941,24 @@ fn source_opened<'a>(
             .and_then(|doc| crate::sketch::import::written(&doc).ok())
             .unwrap_or_default()
     );
+    opening["base_source"] = json!(base);
+    opening["base_document"] = document::nodes(base).unwrap_or_default();
+    opening["components"] = document::components(catalog);
+    opening["composed"] = json!(
+        (document::carried(request.plan.as_ref()).iter())
+            .map(|receipt| json!({"component": receipt["component"]["id"],
+                "bindings": receipt["bindings"]}))
+            .collect::<Vec<_>>()
+    );
     let mut system = system_message(&references, &callables);
     system.push_str("\n\n");
-    system.push_str(REVISE_SOURCE);
+    system.push_str(if destinations {
+        REVISE_SOURCE
+    } else {
+        REVISE_DOCUMENT
+    });
+    system.push_str("\n\n");
+    system.push_str(document::OPERATIONS);
     // The opening is the machine-readable facts alone (hosts read it); what to answer is the
     // system's to say.
     let first = opening.to_string();
@@ -833,3 +1029,9 @@ fn revising_of(request: &CompileRequest, base: &Value, original: &str) -> Compil
         .collect();
     revising
 }
+
+mod document_route;
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod document_tests;

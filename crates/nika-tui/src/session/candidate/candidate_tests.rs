@@ -10,7 +10,7 @@
 use std::path::{Path, PathBuf};
 
 use nika_session::ScriptedReasoner;
-use nika_session::change::Witness;
+use nika_session::change::{ProjectChange, ProjectChangeSet, RunRequest, Witness};
 use nika_session::intelligence::{
     IntelligenceCensus, IntelligenceKind, UserIntelligencePreference,
 };
@@ -130,6 +130,78 @@ fn a_proposal_is_folded_with_the_sessions_identity_and_its_exact_bytes() {
         "{source:?}"
     );
     assert!(!room.0.join(DEST).exists(), "nothing written");
+    // One workflow and no run request: the Session's own typed method admits
+    // a `save & run` of exactly this proposal, and nothing ran or was saved.
+    let review = candidate.review(false).expect("a consent can name it");
+    assert!(review.runs(), "the one workflow it saves");
+    let lines = review.lines(false, false, 76);
+    let rows: Vec<String> = lines.iter().map(ToString::to_string).collect();
+    let head = format!("creates {DEST} (");
+    let created = rows.iter().find(|row| row.starts_with(&head));
+    let counted = created.is_some_and(|row| row.ends_with(" lines)"));
+    assert!(counted, "the count bound to its unit: {rows:?}");
+    assert!(!room.0.join("out/copy.md").exists(), "nothing ran");
+}
+
+/// A set whose changes create `workflows` (and one supporting file), carrying
+/// `run` as its own run request.
+fn set(workflows: &[&str], run: Option<RunRequest>) -> ProjectChangeSet {
+    let mut changes: Vec<ProjectChange> = (workflows.iter())
+        .map(|path| ProjectChange::CreateWorkflow {
+            path: PathBuf::from(path),
+            content: "nika: x\n".to_owned(),
+        })
+        .collect();
+    changes.push(ProjectChange::CreateSupportingFile {
+        path: PathBuf::from("notes/brief.md"),
+        content: "brief\n".to_owned(),
+    });
+    ProjectChangeSet {
+        root: PathBuf::from("/project"),
+        goal: "copy the brief".to_owned(),
+        changes,
+        run,
+        repairs: Vec::new(),
+        audits: Vec::new(),
+    }
+}
+
+/// A run request over `workflow` binding `vars` under the ceiling `max`.
+fn asked(workflow: &str, vars: &[&str], max: f64) -> RunRequest {
+    RunRequest {
+        workflow: PathBuf::from(workflow),
+        vars: vars.iter().map(|var| (*var).to_owned()).collect(),
+        max_cost_usd: max,
+        access_pin: None,
+        bytes: None,
+        closure: None,
+    }
+}
+
+/// What a `save & run` would run is folded from the Session's own typed
+/// method, never from words or the disk: the one workflow saved; the run the
+/// request carried, named by its workflow, its ceiling and the names of its
+/// inputs, never a value; nothing where the method refuses (several
+/// workflows and no request, no workflow, a ceiling that is no amount).
+#[test]
+fn a_save_and_run_is_folded_from_the_sessions_typed_method() {
+    use crate::workspace::candidate::RunAfter;
+    let one = super::run_after(&set(&["one.nika"], None));
+    assert_eq!(one, Some(RunAfter::Saved));
+    assert_eq!(super::run_after(&set(&["a.nika", "b.nika"], None)), None);
+    assert_eq!(super::run_after(&set(&[], None)), None);
+    // The names alone: no value, no `=`, and no entry that names no input.
+    let carried = asked("report.nika", &["region=north", "limit=5", "unnamed"], 0.25);
+    let words = "asked run · report.nika once · ceiling $0.25 · inputs region, limit";
+    let folded = super::run_after(&set(&["a.nika", "b.nika"], Some(carried)));
+    assert_eq!(folded, Some(RunAfter::Asked(words.to_owned())));
+    let bare = asked("report.nika", &[], 0.0);
+    let words = "asked run · report.nika once · ceiling $0.00";
+    let folded = super::run_after(&set(&["report.nika"], Some(bare)));
+    assert_eq!(folded, Some(RunAfter::Asked(words.to_owned())));
+    let nowhere = asked("report.nika", &[], f64::NAN);
+    let refused = super::run_after(&set(&["report.nika"], Some(nowhere)));
+    assert_eq!(refused, None, "a ceiling that is no amount");
 }
 
 #[test]
@@ -234,4 +306,172 @@ fn a_yes_with_no_candidate_on_screen_lands_nothing() {
         "{}",
         words(&turn.beats)
     );
+}
+
+/// The face used to say what the workflow does when it runs but not where its bytes reach, so
+/// a local contract server and a connected service read alike. It now states the Session's
+/// declared reach of the exact pending bytes: a copy between project files reaches nothing
+/// outside this machine.
+#[test]
+fn the_face_states_where_the_pending_bytes_reach_as_declared() {
+    let room = Room::new("reach");
+    let mut live = live(&room.0);
+    let _ = live.submit(COPY);
+    let candidate = live.candidate().expect("the proposal is folded");
+    let (_, body) = candidate.face_lines(Face::Source, 120, false, false);
+    let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
+    let reach = (rows.iter())
+        .find(|row| row.contains("reaches, as declared"))
+        .unwrap_or_else(|| panic!("a reach row: {rows:?}"));
+    assert!(reach.contains("local only"), "{reach}");
+}
+
+/// What the compiler did to the document is said as it is: the changed paths, each component
+/// with its version, witness and bindings; a whole rewrite and a component no longer as bound
+/// are warnings.
+#[test]
+fn a_revision_names_what_changed_and_warns_on_a_rewrite_or_a_moved_component() {
+    use nika_session::work::DocumentRevision;
+    let record = serde_json::json!({"mode": "operations", "candidate_sha256": "c",
+        "changed": ["const.max_age_hours", "component block:stale-filter-report"],
+        "components": [{"component": {"id": "block:stale-filter-report",
+            "release": {"version": "r1"}},
+            "bindings": [{"path": "const.max_age_hours", "bound": 72}]}]});
+    let expanded = DocumentRevision::of(&record, &["expanded".to_owned()]).expect("revision");
+    assert_eq!(
+        super::revised(&expanded),
+        vec![
+            (
+                "revised in place · const.max_age_hours, component block:stale-filter-report"
+                    .to_owned(),
+                false
+            ),
+            (
+                "component · block:stale-filter-report r1 · expanded · const.max_age_hours = 72"
+                    .to_owned(),
+                false
+            ),
+        ]
+    );
+    let moved = DocumentRevision::of(&record, &["revised".to_owned()]).expect("revision");
+    assert!(super::revised(&moved)[1].1, "no longer as bound: a warning");
+    let whole = serde_json::json!({"mode": "replaced", "candidate_sha256": "c"});
+    let whole = DocumentRevision::of(&whole, &[]).expect("revision");
+    assert_eq!(
+        super::revised(&whole),
+        vec![(
+            "rewritten whole · no preservation of the earlier bytes is claimed".to_owned(),
+            true
+        )]
+    );
+}
+
+/// An exact skeleton the compiler drafts whole and then asks one value of before it proposes.
+const ASKS: &str = "aggregate-by-key";
+
+#[test]
+fn the_draft_shows_while_its_question_waits_and_answers_no_consent() {
+    let room = Room::new("draft");
+    let mut live = live(&room.0);
+    let turn = live.submit(ASKS);
+    let draft = {
+        let runtime = live.runtime.as_ref().expect("runtime");
+        assert!(
+            matches!(
+                runtime.waiting(),
+                nika_session::work::Waiting::Question { .. }
+            ),
+            "{}",
+            words(&turn.beats)
+        );
+        assert!(runtime.pending_proposal().is_none(), "nothing is proposed");
+        (runtime.work().authoring)
+            .and_then(|authoring| authoring.draft)
+            .expect("the compiler drafted before it asked")
+    };
+    let shown = live
+        .candidate()
+        .expect("the draft is folded while its question waits");
+    assert!(
+        shown.draft() && shown.aside(),
+        "a draft is never consentable"
+    );
+    assert_eq!(
+        shown.witness(),
+        Some(Witness::of(draft.as_bytes()).0.as_str())
+    );
+    let (title, body) = shown.face_lines(Face::Source, 100, false, false);
+    let title = title.to_string();
+    assert!(
+        title.trim_start().starts_with("draft · ") && !title.contains("proposal"),
+        "{title}"
+    );
+    let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
+    assert!(rows[0].starts_with("draft · "), "{rows:?}");
+    let first = draft.lines().next().expect("a first line");
+    assert!(rows.iter().any(|row| row.contains(first)), "{rows:?}");
+    assert!(
+        !rows.iter().any(|row| row.contains("what a yes answers")),
+        "{rows:?}"
+    );
+    // The draft lives only while its question waits: dropping the question takes it away.
+    let turn = live.submit("cancel");
+    assert!(live.candidate().is_none(), "{}", words(&turn.beats));
+    assert!(!room.0.join(DEST).exists(), "a draft writes nothing");
+}
+
+/// Typed creation records have no earlier bytes; an unknown record cannot
+/// inherit a replacement claim. These are projection fixtures, not a live CREATE.
+#[test]
+fn document_records_do_not_describe_a_creation_or_unknown_mode_as_replacement() {
+    for (mode, base, changed, expected, attention) in [
+        ("written", None, vec![], "created · written", false),
+        ("composed", None, vec![], "created · composed", false),
+        (
+            "operations",
+            Some("base"),
+            vec![],
+            "revised in place · no node changed",
+            false,
+        ),
+        (
+            "operations",
+            Some("base"),
+            vec!["tasks.read"],
+            "revised in place · tasks.read",
+            false,
+        ),
+        (
+            "replaced",
+            Some("base"),
+            vec![],
+            "rewritten whole · no preservation of the earlier bytes is claimed",
+            true,
+        ),
+        (
+            "future-record",
+            None,
+            vec![],
+            "document record · mode not described",
+            true,
+        ),
+        (
+            "written",
+            Some("base"),
+            vec![],
+            "document record · mode not described",
+            true,
+        ),
+    ] {
+        let record = serde_json::json!({"mode": mode, "base_sha256": base,
+            "candidate_sha256": "a".repeat(64), "changed": changed,
+            "preservation": "", "components": []});
+        let revision =
+            nika_session::work::DocumentRevision::of(&record, &[]).expect("the typed record");
+        assert_eq!(
+            super::revised(&revision),
+            vec![(expected.to_owned(), attention)],
+            "mode {mode}, base {base:?}"
+        );
+    }
 }

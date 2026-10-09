@@ -48,6 +48,10 @@ mod held;
 /// to bound its size.
 #[path = "compile_native_judged/observed.rs"]
 mod observed;
+/// A doubt only a run decides, on bytes the room refused before any attempt: the author asked
+/// once for an equivalent document the room runs, end to end through the document door.
+#[path = "compile_native_judged/restated.rs"]
+mod restated;
 /// A repair that writes the bytes the judge already declined, end to end.
 #[path = "compile_native_judged/same_bytes.rs"]
 mod same_bytes;
@@ -204,9 +208,12 @@ fn contested_part(part: &str) -> String {
 const HELD: &str = "The candidate was judged and not accepted, with no defect a repair could start from: it is shown, never offered, and nothing was written. A correction of the request or another verifier can decide it.";
 
 /// A candidate the judge answered and did not accept, no defect located (R6): shown as the
-/// preview its verdict judged, never offered, its questions and boundary cleared, and no record
-/// kept, so no later round asks the same judge again on these bytes; the `verify_held` finding
-/// says what can decide it, and nothing offers to ask the same judge again.
+/// preview its verdict judged, never offered, its questions and boundary cleared, and never a
+/// record without its rejection: kept with the judge's rejection of these bytes inside it, or
+/// none (an abstention, or a sketch door's semantic record, whose closed format holds no
+/// rejection), so no later round asks the same judge again on these bytes; the `verify_held`
+/// finding says what can decide it (and why no trial ran, when a room refused the bytes), and
+/// nothing offers to ask the same judge again.
 fn assert_held(out: &CompileOutcome) {
     assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
     assert!(
@@ -220,15 +227,24 @@ fn assert_held(out: &CompileOutcome) {
     assert!(out.check_preview.is_some(), "{out:#?}");
     assert!(out.requested_boundary.is_none(), "{out:#?}");
     assert!(out.questions.is_empty(), "{out:#?}");
-    assert!(
-        out.provenance.plan.is_none(),
-        "no replayable record: {out:#?}"
-    );
+    let declined = (out.provenance.plan.as_ref()).and_then(|record| record["declined"].as_array());
+    match declined {
+        Some(declined) => assert!(
+            (declined.iter()).any(|a| a["candidate_sha256"] == json!(sha) && a["rejected"] == true),
+            "the record carries its rejection: {out:#?}"
+        ),
+        None => assert!(
+            out.provenance.plan.is_none(),
+            "never a record without its rejection: {out:#?}"
+        ),
+    }
     let held: Vec<(DiagnosticKind, &str)> = (out.diagnostics.iter())
         .filter(|finding| finding.target == "verify_held")
         .map(|finding| (finding.kind, finding.message.as_str()))
         .collect();
-    assert_eq!(held, [(DiagnosticKind::Applied, HELD)], "{out:#?}");
+    assert_eq!(held.len(), 1, "{out:#?}");
+    assert_eq!(held[0].0, DiagnosticKind::Applied, "{out:#?}");
+    assert!(held[0].1.starts_with(HELD), "{out:#?}");
     assert_eq!(findings(out, "verify_resume"), Vec::<String>::new());
     assert!(
         route(out).contains("verify: not ready, candidate held"),
@@ -961,9 +977,15 @@ async fn an_unfaithful_case_a_candidate_stays_incomplete_in_its_answer_round() {
     let named = not_carried(TOTAL, &pointed_to("compute"), 0);
     assert!(told.contains(&named), "{told:?}");
     // The judge doubted the whole request of these bytes: the answer round keeps them as the
-    // preview, and no record could replay them to the same judge again.
+    // preview, and its record keeps that rejection, so no replay asks the same judge again.
     assert!(out.candidate.is_some(), "{out:#?}");
-    assert!(out.provenance.plan.is_none(), "{out:#?}");
+    let record = out.provenance.plan.as_ref().expect("the record is kept");
+    let shown = nika_compile::surface::sha256(out.candidate.as_deref().unwrap_or_default());
+    let declined = record["declined"].as_array().cloned().unwrap_or_default();
+    assert!(
+        (declined.iter()).any(|a| a["candidate_sha256"] == shown.as_str()),
+        "{record:#}"
+    );
     assert!(route(&out).contains("verify: not ready"), "{out:#?}");
     assert!(
         route(&out).contains("verify: doubted, not replayable"),

@@ -18,11 +18,11 @@
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
-use nika_session::intelligence::{IntelligenceKind, UserIntelligencePreference};
-use nika_session::reasoner::{NoReasoner, ProviderReasoner, SessionReasoner};
-use nika_session::{
-    IntelligenceCensus, ResolvedSessionIntelligence, RunRequest, SessionRuntime, TurnOutcome,
-};
+use nika_session::intelligence::UserIntelligencePreference;
+use nika_session::work::Waiting;
+use nika_session::{IntelligenceCensus, RunRequest, SessionRuntime, TurnOutcome};
+// The one reasoner factory every door builds a Session's reasoner with (ADR-148).
+use nika_session_host::open::reasoner_for;
 
 use crate::verbs::run::RenderMode;
 use nika_dap::resume::ResumeRequest;
@@ -32,43 +32,33 @@ use crate::verbs::exit;
 use nika_cli_host::lane::{ChildSlot, RunSink, drive_child_observed};
 use nika_cli_host::lines::{PerCallLines, read_burst};
 
-/// The reasoner for a resolved choice — the seat, the provider, or none.
-fn reasoner_for(resolved: &ResolvedSessionIntelligence) -> Box<dyn SessionReasoner> {
-    match &resolved.kind {
-        #[cfg(feature = "access-harness")]
-        IntelligenceKind::Harness { seat, transport } => Box::new(
-            nika_session::reasoner::HarnessReasoner { seat: seat.clone() }
-                .with_transport(resolved.model.clone(), *transport),
-        ),
-        #[cfg(not(feature = "access-harness"))]
-        IntelligenceKind::Harness { .. } => Box::new(NoReasoner),
-        IntelligenceKind::Api { provider } => Box::new(ProviderReasoner {
-            model: resolved
-                .model
-                .clone()
-                .unwrap_or_else(|| default_model(provider)),
-            label: format!("{provider} API"),
-        }),
-        IntelligenceKind::Local { provider } => Box::new(ProviderReasoner {
-            model: resolved
-                .model
-                .clone()
-                .unwrap_or_else(|| default_model(provider)),
-            label: format!("{provider} · local"),
-        }),
-        _ => Box::new(NoReasoner),
-    }
+/// The native machine door, `nika session --json` (nika-session-host · ADR-148): the same
+/// Session as bare `nika` in this directory, NDJSON on stdio, its runs through this binary's
+/// machine lane. Exit 0 once its log closed; 3 when the Session could not open (one `refused`
+/// frame said why).
+#[must_use]
+pub fn run_machine(jq: Option<nika_onboard::compile::room::JqHelper>) -> u8 {
+    run_machine_with(jq, None)
 }
 
-/// The provider's first cataloged model when the human named none.
-fn default_model(provider: &str) -> String {
-    nika_catalog::all_providers()
-        .iter()
-        .find(|p| p.id.eq_ignore_ascii_case(provider))
-        .map_or_else(
-            || format!("{provider}/default"),
-            |p| format!("{provider}/{}", p.default_model),
-        )
+/// `nika session --json [--intelligence <words>]`: the census's first-screen words select for
+/// this conversation only, never saved. `None` when `argv` is not that invocation (the front
+/// door goes on); otherwise its exit, as [`run_machine`].
+#[must_use]
+pub fn machine_entry(argv: &[std::ffi::OsString]) -> Option<u8> {
+    let selection = nika_session_host::open::machine_selection(argv)?;
+    let jq = (std::env::current_exe().ok()).map(nika_onboard::compile::room::JqHelper::new);
+    Some(run_machine_with(jq, selection.as_deref()))
+}
+
+fn run_machine_with(jq: Option<nika_onboard::compile::room::JqHelper>, words: Option<&str>) -> u8 {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let home = nika_cli_host::probe::home_dir();
+    let exe = std::env::current_exe().ok();
+    match nika_session_host::open::run_stdio(&cwd, home.as_deref(), jq, exe, words) {
+        Ok(()) => exit::OK,
+        Err(_) => exit::ENV,
+    }
 }
 
 /// The session loop over any reader and writer, with no jq helper (the tests drive it with a
@@ -144,24 +134,22 @@ fn drive_with<R: BufRead, W: Write>(
     // The line goes where the MACHINE's state says (ADR-133 · #1464): the
     // runtime owns what waits — the first screen, a proposal, a gate, an
     // authoring question (each its own prompt: a `yes` never crosses from
-    // one to another). The door keeps no bit of its own.
+    // one to another) — and routes the line to the identity shown. The door
+    // keeps no bit of its own.
     loop {
-        let prompt = if session.waiting_cost_choice() {
-            nika_cli_host::lines::fresh_terminal(output)?;
-            "continue once? › "
-        } else if session.pending_choice() {
-            "› "
-        } else if session.pending_proposal().is_some() {
-            "apply? › "
-        } else if session.waiting_gate().is_some() {
-            "answer › "
-        } else if session.pending_question().is_some()
-            || session.pending_input().is_some()
-            || session.pending_activation().is_some()
-        {
-            "reply › "
-        } else {
-            "nika › "
+        let shown = session.waiting();
+        let prompt = match &shown {
+            Waiting::CostChoice => {
+                nika_cli_host::lines::fresh_terminal(output)?;
+                "continue once? › "
+            }
+            Waiting::IntelligenceChoice => "› ",
+            Waiting::Consent { .. } => "apply? › ",
+            Waiting::Gate { .. } => "answer › ",
+            Waiting::Question { .. } | Waiting::Input { .. } | Waiting::Activation { .. } => {
+                "reply › "
+            }
+            _ => "nika › ",
         };
         fresh_question(output, prompt)?;
         write!(output, "\n{prompt}")?;
@@ -170,17 +158,7 @@ fn drive_with<R: BufRead, W: Write>(
         if input.read_line(&mut line)? == 0 {
             return Ok(exit::OK);
         }
-        let outcome = if session.waiting_cost_choice() {
-            session.turn(&line)
-        } else if session.pending_choice() {
-            session.choose(line.trim())
-        } else if session.pending_proposal().is_some() {
-            session.consent(line.trim())
-        } else if session.waiting_gate().is_some() {
-            session.answer_gate(line.trim())
-        } else {
-            session.turn(&line)
-        };
+        let outcome = session.submit(&line, &shown);
         if handle_outcome(output, &mut session, outcome, theme)? {
             return Ok(exit::OK);
         }
@@ -321,6 +299,11 @@ fn run_once(
     theme: Theme,
 ) -> (u8, Option<std::path::PathBuf>) {
     let file = root.join(&run.workflow).display().to_string();
+    // Bound to the bytes and the world (children, skills) the Session checked, as a machine
+    // lane's child is (`--expect-source`, `--expect-world`): this capture runs, or nothing does.
+    let mut host = nika_cli_host::lane::RunHostOptions::from(None)
+        .with_expected_source(Some(run.expected_source()));
+    host.expected_world = Some(run.expected_world());
     let verdict = crate::verbs::run::run_verdict(
         &file,
         false,
@@ -338,14 +321,14 @@ fn run_once(
         Some(run.max_cost_usd),
         false,
         false,
-        None,
+        host,
     );
     (verdict.code, verdict.trace)
 }
 
-/// `NIKA_REDUCED_MOTION` (any non-empty value): the busy row changes only
-/// when the turn says something new, no seconds tick, no bell. A display
-/// choice, not a secret (the same allow `term_name` carries).
+/// `NIKA_REDUCED_MOTION` (any non-empty value): a still busy mark, its
+/// measured seconds and current work facts kept, no bell. A display choice,
+/// not a secret (the same allow `term_name` carries).
 #[allow(clippy::disallowed_methods)]
 fn reduced_motion() -> bool {
     std::env::var("NIKA_REDUCED_MOTION").is_ok_and(|v| !v.trim().is_empty())
@@ -388,13 +371,7 @@ fn run_tapped(
 ) -> (u8, Option<std::path::PathBuf>, Vec<String>) {
     use nika_tui::session::Work;
     let args = match work {
-        Work::Run(run) => nika_cli_host::lane::run_args_with_access(
-            root,
-            &run.workflow,
-            run.max_cost_usd,
-            &run.vars,
-            run.access_pin.as_deref(),
-        ),
+        Work::Run(run) => run.args(root),
         Work::Resume {
             workflow,
             trace,
@@ -479,13 +456,7 @@ pub fn run_tui(theme: Theme, jq: Option<nika_onboard::compile::room::JqHelper>) 
             run_tapped(root, work, busy, &tapped)
         }))
         .with_run_review_observed(Box::new(move |root, run, busy| {
-            let args = nika_cli_host::lane::run_args_with_access(
-                root,
-                &run.workflow,
-                run.max_cost_usd,
-                &run.vars,
-                run.access_pin.as_deref(),
-            );
+            let args = run.args(root);
             match std::env::current_exe() {
                 Ok(exe) => nika_cli_host::lane::drive_reviewed_child_observed(
                     &exe, &args, root, busy, &slot,
@@ -547,6 +518,8 @@ pub fn run(theme: Theme, jq: Option<nika_onboard::compile::room::JqHelper>) -> u
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use std::io::Cursor;
+
+    use nika_session::intelligence::IntelligenceKind;
 
     use super::*;
 
@@ -644,8 +617,8 @@ mod tests {
             "the waiting line resumed under the choice: {text}"
         );
         assert!(
-            UserIntelligencePreference::load(home.path()).is_some(),
-            "the choice holds"
+            UserIntelligencePreference::load(home.path()).is_none(),
+            "the choice holds for this conversation: the operator's is never written"
         );
         let entries: Vec<_> = std::fs::read_dir(project.path())
             .expect("dir")
@@ -711,6 +684,8 @@ mod tests {
         UserIntelligencePreference::new(IntelligenceKind::None, None)
             .save(home.path())
             .expect("saved");
+        let kept = UserIntelligencePreference::path_under(home.path());
+        let before = std::fs::read(&kept).expect("the operator's bytes");
         let mut input = Cursor::new(b"/intelligence\n4\n/quit\n".to_vec());
         let mut output = Vec::new();
         let code = drive(
@@ -729,7 +704,12 @@ mod tests {
             text.contains("Choose a connection for this conversation"),
             "asks again: {text}"
         );
-        assert!(text.contains("kept"), "the new choice is kept: {text}");
+        assert!(
+            text.contains("holds for this conversation"),
+            "the new choice holds here: {text}"
+        );
+        let after = std::fs::read(&kept).expect("the operator's bytes");
+        assert_eq!(after, before, "the operator's choice is untouched");
     }
 }
 

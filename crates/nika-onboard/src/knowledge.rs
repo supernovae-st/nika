@@ -18,12 +18,13 @@
 //! the Foundry graph), not the one the Foundry producer computes, and the record says so.
 //!
 //! Admitted against a trusted identity, never trusted for its own claims. One strict admission
-//! ([`Snapshot::open`] on disk, [`Snapshot::from_files`] in memory, [`ADMISSION_PROFILE`]) serves
-//! every product door (`nika compile`, the session, serve).
+//! ([`Snapshot::open`] on disk, [`Snapshot::from_files`] in memory) serves every product door
+//! (`nika compile`, the session, serve), under the profile the identity names: r1
+//! ([`ADMISSION_PROFILE`], frozen) or r2 (every kind of the ontology in its role).
 //!
 //! The embedder names the [`TrustedIdentity`] it expects (the release's `SNAPSHOT_SHA256` and
 //! its policy), from its own release record. A source without one is refused before anything is
-//! collected. A named directory carries none today. This build embeds the current release and retains R3 for earlier pins. Each is
+//! collected. A named directory carries none today. This build embeds the current release, the r2 run contract, and retains a8 and R3 for earlier pins. Each is
 //! admitted against its issued identity; new authoring uses the current release by default.
 //!
 //! The release is read once:
@@ -38,10 +39,13 @@
 //! A pack presents the admitted bytes and never reads a second time. A pack composed elsewhere for
 //! one intent is not admitted ([`KnowledgeError::PackNotAdmitted`]). The pack's own digest (every
 //! reference and repair principle it can present) rides the identity's `door` record.
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::compile::{AuthoringKnowledge, KnowledgeReference};
+use nika_compile_seats::foundry::entry::entry_text;
+use nika_compile_seats::foundry::recall::{block_metadata, interleave, rank, text_of, tokens};
+use nika_compile_seats::foundry::release::r2;
 use nika_event::source_id::sha256_hex;
 use serde_json::{Value, json};
 
@@ -49,8 +53,14 @@ use serde_json::{Value, json};
 mod admission;
 /// The release this build embeds: its issued bytes compiled in, admitted in memory.
 pub(crate) mod bundled;
-/// The byte contract a release shares with its producer: strict JSON and the canonical digest.
-mod canonical;
+// The byte contract a release shares with its producer: strict JSON and the canonical digest.
+use nika_compile_seats::foundry::release::canonical;
+/// A profile r2 release candidate named at build time, admitted and accounted kind by kind.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod candidate;
+/// The admitted release as a catalogue: executable components and whole-catalog entries.
+mod catalog;
 /// A synthetic release the strict door admits (tests, and doors with `test-support`).
 #[cfg(any(test, feature = "test-support"))]
 pub mod fixture;
@@ -62,6 +72,9 @@ mod legacy;
 pub mod pin;
 
 pub use admission::{ADMISSION_PROFILE, RELEASE_FORMAT, RefusalCode, TrustedIdentity};
+pub use catalog::Catalogue;
+/// What a host lends a compile as its catalogue ([`Snapshot::catalogue`]).
+pub use nika_compile_seats::foundry::ComponentCatalog;
 
 /// The snapshot identity as an answer may carry it: every hash, count and selection, no host
 /// path (the snapshot directory, the files root).
@@ -161,7 +174,7 @@ pub struct Snapshot {
     /// The sha256 of the manifest's bytes as admitted: the release's `SNAPSHOT_SHA256`, which
     /// content-addresses every file through the manifest's pins.
     manifest_sha256: String,
-    /// The admission that verified it ([`ADMISSION_PROFILE`]).
+    /// The admission profile that verified it ([`ADMISSION_PROFILE`], or profile r2).
     admission: &'static str,
 }
 
@@ -170,8 +183,8 @@ impl Snapshot {
     /// identity an embedder trusts. Nothing of `dir` is touched without one. Then:
     /// - every file is collected on held descriptors and read once;
     /// - every byte is bound to its pin;
-    /// - every row and relation is checked against this reader's profile
-    ///   ([`ADMISSION_PROFILE`]).
+    /// - every row and relation is checked against the identity's profile (r1,
+    ///   [`ADMISSION_PROFILE`], or r2).
     ///
     /// # Errors
     /// [`KnowledgeError::Unavailable`] with the first cause found ([`RefusalCode`]): no trusted
@@ -180,6 +193,7 @@ impl Snapshot {
     pub fn open(dir: &Path, identity: Option<&TrustedIdentity>) -> Result<Self, KnowledgeError> {
         Self::admitted(
             dir.to_path_buf(),
+            identity,
             admission::admit(dir, identity, &mut |_, _| {}),
         )
     }
@@ -198,13 +212,16 @@ impl Snapshot {
     ) -> Result<Self, KnowledgeError> {
         Self::admitted(
             PathBuf::from(label),
+            identity,
             admission::admit_memory(files, identity),
         )
     }
 
-    /// The snapshot an admission kept, or its refusal bound to the source it named.
+    /// The snapshot an admission under `identity` kept, or its refusal bound to the source it
+    /// named.
     fn admitted(
         dir: PathBuf,
+        identity: Option<&TrustedIdentity>,
         admitted: Result<admission::Admitted, admission::Refusal>,
     ) -> Result<Self, KnowledgeError> {
         let admitted = admitted.map_err(|admission::Refusal(_step, code, detail)| {
@@ -223,7 +240,7 @@ impl Snapshot {
             files: admitted.files,
             row_files: admitted.row_files,
             manifest_sha256: admitted.manifest_sha256,
-            admission: ADMISSION_PROFILE,
+            admission: identity.map_or(ADMISSION_PROFILE, TrustedIdentity::profile),
         })
     }
 
@@ -292,22 +309,55 @@ impl Snapshot {
         self.rows.get(kind).map_or(&[], Vec::as_slice)
     }
 
+    /// The row `id` names, found by its prefix's kind (the ontology's prefixes, shared by r1 and
+    /// r2: `block`, `src`, `facet`…).
     fn row(&self, id: &str) -> Option<&Value> {
-        let kind = id.split(':').next()?;
-        let file = match kind {
-            "family" => "families",
-            "pack" => "pattern_packs",
-            "pattern" => "patterns",
-            "block" => "blocks",
-            "example" => "examples",
-            "skill" => "skills",
-            "repair" => "repair_principles",
-            "diagnostic" => "diagnostics",
-            other => other,
-        };
-        self.rows(file)
+        let kinds = nika_compile_seats::foundry::release::r2::profile().ok()?;
+        let stem = kinds.kind_of_id(id)?.stem();
+        self.rows(stem)
             .iter()
             .find(|r| r.get("id").and_then(Value::as_str) == Some(id))
+    }
+
+    /// The admission profile that verified this release.
+    #[must_use]
+    pub const fn profile(&self) -> &'static str {
+        self.admission
+    }
+
+    /// Whether profile r2 admitted this release: every kind of the ontology, each in its role,
+    /// presented whole with its provenance and contract.
+    fn whole_ontology(&self) -> bool {
+        self.admission == r2::PROFILE
+    }
+
+    /// The kinds of the ontology, in profile order.
+    fn kinds() -> &'static [r2::Kind] {
+        r2::profile().map_or(&[], r2::Profile::kinds)
+    }
+
+    /// An admitted row in full as a profile r2 release presents it: its role, its provenance with
+    /// each source it cites, its whole contract and, when it has one, its body file's whole text.
+    fn entry(&self, id: &str, composition: &mut Composition) -> Result<String, String> {
+        let row = self
+            .row(id)
+            .ok_or_else(|| "no row in the snapshot".to_owned())?;
+        let sources: Vec<(&str, Option<&Value>)> = (row["provenance"]["sources"]
+            .as_array()
+            .into_iter()
+            .flatten())
+        .filter_map(Value::as_str)
+        .map(|source| (source, self.row(source)))
+        .collect();
+        let body = match row.get("file").and_then(Value::as_str) {
+            Some(file) => match self.file_text(file, composition) {
+                Some(text) => Some((file, text)),
+                None => return Err(format!("`{file}` is absent from the release or not UTF-8")),
+            },
+            None => None,
+        };
+        let body = body.as_ref().map(|(file, text)| (*file, text.as_str()));
+        Ok(entry_text(row, &sources, body))
     }
 
     /// The targets of `from --rel--> to` edges leaving `from`.
@@ -360,8 +410,13 @@ impl Snapshot {
         let mut composition = Composition::new(intent);
         let families = self.recall_families(intent, &mut composition);
         self.recall_shapes(intent, &families, &mut composition);
-        self.recall_examples(intent, exclude_corpus, &mut composition);
-        self.recall_skill(&families, &mut composition);
+        let examples = self.recall_examples(intent, exclude_corpus, &mut composition);
+        self.recall_skill(intent, &families, &mut composition);
+        if self.whole_ontology() {
+            composition.widen_lists();
+            self.recall_boundaries(&examples, exclude_corpus, &mut composition);
+            self.recall_contracts(&mut composition);
+        }
         composition.close();
         let mut pack = AuthoringKnowledge {
             identity: self.identity(),
@@ -423,23 +478,23 @@ impl Snapshot {
         let available = self.rows("patterns").len();
         composition.count("patterns", available, patterns.len());
         for (pattern, why) in &patterns {
-            let text = self
-                .row(pattern)
-                .map(|row| {
-                    format!(
-                        "- {} — {} {}",
-                        pattern,
-                        text_of(row, &["purpose"]),
-                        text_of(row, &["notes"])
-                    )
-                })
-                .ok_or_else(|| "no row in the snapshot".to_owned());
+            let text = self.pattern_text(pattern);
             composition.offer("patterns", "pattern", pattern, why, text);
         }
-        let covering: Vec<Vec<(String, String)>> = sources
+        let mut covering: Vec<Vec<(String, String)>> = sources
             .iter()
             .map(|(source, list)| self.covering_blocks(source, list))
             .collect();
+        if self.whole_ontology() {
+            // A component is found by what it is for too, not only through a pattern it realizes.
+            let direct = rank(intent, self.rows("blocks"), |r| {
+                text_of(r, &["title", "purpose"])
+            });
+            let direct = direct
+                .into_iter()
+                .map(|(id, score)| (id, format!("bm25 {score:.2}")));
+            covering.push(direct.collect());
+        }
         let blocks = interleave(&covering);
         composition.count("blocks", self.rows("blocks").len(), blocks.len());
         for (block, why) in &blocks {
@@ -489,9 +544,24 @@ impl Snapshot {
             .collect()
     }
 
+    /// A pattern as the seat reads it: its id, purpose and notes on one line (in full under r2).
+    fn pattern_text(&self, id: &str) -> Result<String, String> {
+        if self.whole_ontology() {
+            return self.entry(id, &mut Composition::new(""));
+        }
+        let row = self
+            .row(id)
+            .ok_or_else(|| "no row in the snapshot".to_owned())?;
+        let (purpose, notes) = (text_of(row, &["purpose"]), text_of(row, &["notes"]));
+        Ok(format!("- {id} — {purpose} {notes}"))
+    }
+
     /// A block as the seat reads it — title and purpose, the metadata that keeps it from being
     /// misused, its code — or why it cannot be presented.
     fn block_text(&self, id: &str, composition: &mut Composition) -> Result<String, String> {
+        if self.whole_ontology() {
+            return self.entry(id, composition);
+        }
         self.presentable(id, composition, |row, code| {
             format!(
                 "{} — {}\n{}```yaml\n{}\n```",
@@ -503,13 +573,13 @@ impl Snapshot {
         })
     }
 
-    /// 5 · the examples that read alike, never one of the case's own corpus.
+    /// 5 · the examples that read alike, never one of the case's own corpus; their ids.
     fn recall_examples(
         &self,
         intent: &str,
         exclude_corpus: Option<&str>,
         composition: &mut Composition,
-    ) {
+    ) -> Vec<String> {
         let examples: Vec<&Value> = self
             .rows("examples")
             .iter()
@@ -521,6 +591,7 @@ impl Snapshot {
             text_of(r, &["intent", "title"])
         });
         composition.count("examples", examples.len(), ranked.len());
+        let recalled = ranked.iter().map(|(id, _)| id.clone()).collect();
         for (id, score) in ranked {
             let text = self.presentable(&id, composition, |row, text| {
                 format!(
@@ -537,11 +608,18 @@ impl Snapshot {
                 text,
             );
         }
+        recalled
     }
 
-    /// 6 · each recalled family's skill, in the families' order.
-    fn recall_skill(&self, families: &[(String, f64)], composition: &mut Composition) {
-        let skills: Vec<(String, String)> = families
+    /// 6 · each recalled family's skill, in the families' order; under r2 then every skill whose
+    /// title, scope or occasions read alike (a skill may name a family the release does not hold).
+    fn recall_skill(
+        &self,
+        intent: &str,
+        families: &[(String, f64)],
+        composition: &mut Composition,
+    ) {
+        let mut skills: Vec<(String, String)> = families
             .iter()
             .filter_map(|(family, _)| {
                 let skill = self
@@ -552,6 +630,16 @@ impl Snapshot {
                 Some((id, format!("family {family}")))
             })
             .collect();
+        if self.whole_ontology() {
+            let ranked = rank(intent, self.rows("skills"), |r| {
+                text_of(r, &["title", "scope", "when"])
+            });
+            for (id, score) in ranked {
+                if !skills.iter().any(|(seen, _)| *seen == id) {
+                    skills.push((id, format!("bm25 {score:.2}")));
+                }
+            }
+        }
         composition.count("skills", self.rows("skills").len(), skills.len());
         for (id, why) in skills {
             let text = self.presentable(&id, composition, |_, text| text);
@@ -559,15 +647,77 @@ impl Snapshot {
         }
     }
 
+    /// 7 · under r2, the boundaries of the recalled examples: every counterexample that
+    /// contrasts with one, never one of the case's own corpus, presented as a boundary.
+    fn recall_boundaries(
+        &self,
+        examples: &[String],
+        exclude_corpus: Option<&str>,
+        composition: &mut Composition,
+    ) {
+        let rows = self.rows("counterexamples");
+        let mut boundaries: Vec<(String, String)> = Vec::new();
+        for example in examples {
+            for row in rows.iter().filter(|row| {
+                exclude_corpus.is_none_or(|c| row["corpus"].as_str() != Some(c))
+                    && (row["contrasts_with"].as_array().into_iter().flatten())
+                        .any(|to| to == example.as_str())
+            }) {
+                let id = row["id"].as_str().unwrap_or_default().to_owned();
+                if !boundaries.iter().any(|(seen, _)| *seen == id) {
+                    boundaries.push((id, format!("contrasts with {example}")));
+                }
+            }
+        }
+        composition.count("counterexamples", rows.len(), boundaries.len());
+        for (id, why) in boundaries {
+            let text = self.entry(&id, composition);
+            composition.offer("counterexamples", "counterexample", &id, &why, text);
+        }
+    }
+
+    /// 8 · under r2, the contracts the presented blocks and examples use: each callable and
+    /// construct they reach (`USES_CALLABLE` · `USES_CONSTRUCT`), once, in the order first used.
+    fn recall_contracts(&self, composition: &mut Composition) {
+        let users: Vec<String> = (composition.references.iter())
+            .filter(|r| matches!(r.kind.as_str(), "block" | "example"))
+            .map(|r| r.id.clone())
+            .collect();
+        let mut contracts: Vec<(String, String)> = Vec::new();
+        for user in &users {
+            for rel in ["USES_CALLABLE", "USES_CONSTRUCT"] {
+                for target in self.targets(user, rel) {
+                    if !contracts.iter().any(|(seen, _)| seen == target) {
+                        contracts.push((target.to_owned(), format!("used by {user}")));
+                    }
+                }
+            }
+        }
+        let available = self.rows("callables").len() + self.rows("constructs").len();
+        composition.count("contracts", available, contracts.len());
+        for (id, why) in contracts {
+            let kind = if id.starts_with("callable:") {
+                "callable"
+            } else {
+                "construct"
+            };
+            let text = self.entry(&id, composition);
+            composition.offer("contracts", kind, &id, &why, text);
+        }
+    }
+
     /// A selected row's text as the seat reads it (`render` over the row and its file's admitted
-    /// text), or why it cannot be presented: no row, no file named, a file the release lacks or
-    /// whose bytes are not UTF-8.
+    /// text; in full under r2), or why it cannot be presented: no row, no file named, a file the
+    /// release lacks or whose bytes are not UTF-8.
     fn presentable(
         &self,
         id: &str,
         composition: &mut Composition,
         render: impl FnOnce(&Value, String) -> String,
     ) -> Result<String, String> {
+        if self.whole_ontology() {
+            return self.entry(id, composition);
+        }
         let Some(row) = self.row(id) else {
             return Err("no row in the snapshot".to_owned());
         };
@@ -584,6 +734,25 @@ impl Snapshot {
     /// repair:<ID>`), each as one line: the title and the strategy.
     fn repair_index(&self) -> BTreeMap<String, Vec<String>> {
         let mut index: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        if self.whole_ontology() {
+            // Under r2 a diagnostic states what fails and how to learn more, by its code.
+            for row in self.rows("diagnostics") {
+                let Some(code) = row["id"]
+                    .as_str()
+                    .and_then(|id| id.strip_prefix("diagnostic:"))
+                else {
+                    continue;
+                };
+                let line = format!(
+                    "diagnostic « {} » ({}): {} — {}",
+                    text_of(row, &["title"]),
+                    text_of(row, &["category"]),
+                    text_of(row, &["failure"]),
+                    text_of(row, &["teach"])
+                );
+                index.entry(code.to_owned()).or_default().push(line);
+            }
+        }
         for edge in &self.relations {
             if edge.get("rel").and_then(Value::as_str) != Some("SUGGESTS_REPAIR") {
                 continue;
@@ -642,6 +811,18 @@ struct Composition {
 /// The kinds a pack presents as references, by selection list.
 const PRESENTED_LISTS: [&str; 4] = ["patterns", "blocks", "examples", "skills"];
 
+/// The lists a profile r2 pack adds: the boundaries and the contracts.
+const R2_LISTS: [(&str, &str); 2] = [
+    (
+        "counterexamples",
+        "the counterexamples that contrast with a recalled example: boundaries, never components",
+    ),
+    (
+        "contracts",
+        "the callables and constructs the presented blocks and examples use (USES_CALLABLE · USES_CONSTRUCT)",
+    ),
+];
+
 impl Composition {
     fn new(intent: &str) -> Self {
         Self {
@@ -669,6 +850,19 @@ impl Composition {
             verified: 0,
             absent: Vec::new(),
         }
+    }
+
+    /// Open the lists a profile r2 pack adds, and say how its blocks and skills are also found.
+    fn widen_lists(&mut self) {
+        for (list, selector) in R2_LISTS {
+            self.selection[list] = json!([]);
+            self.selection["selector"][list] = json!(selector);
+        }
+        self.selection["selector"]["blocks"] = json!(
+            "for each of those sources, the blocks that REALIZE its patterns, the most covering first, then BM25 over title and purpose, taken in turn"
+        );
+        self.selection["selector"]["skills"] =
+            json!("each recalled family's, then BM25 over title, scope and occasions");
     }
 
     /// A family the recall selected: it steers the patterns, it is never a reference itself.
@@ -727,7 +921,12 @@ impl Composition {
             "verified": self.verified,
             "absent": self.absent,
         });
-        for list in PRESENTED_LISTS {
+        let r2 = R2_LISTS
+            .iter()
+            .map(|(list, _)| *list)
+            .filter(|list| self.selection.get(*list).is_some());
+        let lists: Vec<&str> = PRESENTED_LISTS.into_iter().chain(r2).collect();
+        for list in lists {
             let entries = self.selection[list]
                 .as_array()
                 .map_or(&[][..], Vec::as_slice);
@@ -750,167 +949,6 @@ impl Composition {
             );
         }
     }
-}
-
-/// Take ranked sources in turn — the first of each, then the second of each… — keeping each id
-/// once with the reason it first arrived with: the sources' relevance order, never the ids'.
-fn interleave(sources: &[Vec<(String, String)>]) -> Vec<(String, String)> {
-    let mut taken: Vec<(String, String)> = Vec::new();
-    let depth = sources.iter().map(Vec::len).max().unwrap_or(0);
-    for at in 0..depth {
-        for source in sources {
-            if let Some((id, why)) = source.get(at)
-                && !taken.iter().any(|(seen, _)| seen == id)
-            {
-                taken.push((id.clone(), why.clone()));
-            }
-        }
-    }
-    taken
-}
-
-/// The metadata of a block row that keeps a seat from misusing the block — the version it was
-/// checked at first (its status and proof), then the holes to fill (owner, note), effects,
-/// authority, capabilities, callables and known failure modes — each a whole line.
-fn block_metadata(row: &Value) -> String {
-    let list = |key: &str, sep: &str| -> Option<String> {
-        let items: Vec<&str> = row
-            .get(key)?
-            .as_array()?
-            .iter()
-            .filter_map(Value::as_str)
-            .collect();
-        (!items.is_empty()).then(|| items.join(sep))
-    };
-    let holes = row.get("holes").and_then(Value::as_array).map(|holes| {
-        let holes: Vec<String> = holes
-            .iter()
-            .filter_map(|hole| {
-                let name = hole.get("name")?.as_str()?;
-                let owner = hole
-                    .get("owner")
-                    .and_then(Value::as_str)
-                    .unwrap_or("unowned");
-                Some(match hole.get("note").and_then(Value::as_str) {
-                    Some(note) => format!("{name} ({owner}: {note})"),
-                    None => format!("{name} ({owner})"),
-                })
-            })
-            .collect();
-        holes.join("; ")
-    });
-    let version: Vec<String> = [
-        ("", "/pin/binary"),
-        ("spec ", "/pin/spec_sha"),
-        ("check ", "/check_receipt/verdict"),
-        ("", "/status"),
-        ("proof ", "/proof_level"),
-    ]
-    .iter()
-    .filter_map(|(label, pointer)| {
-        let value = row.pointer(pointer)?.as_str()?;
-        let value = if *pointer == "/pin/spec_sha" {
-            value.get(..12).unwrap_or(value)
-        } else {
-            value
-        };
-        Some(format!("{label}{value}"))
-    })
-    .collect();
-    let fields = [
-        (
-            "version",
-            (!version.is_empty()).then(|| version.join(" · ")),
-        ),
-        ("holes", holes.filter(|h| !h.is_empty())),
-        ("effects", list("effects", ", ")),
-        ("authority", list("authority", ", ")),
-        ("capabilities", list("interfaces", ", ")),
-        ("callables", list("callables", ", ")),
-        ("known failures", list("known_failure_modes", "; ")),
-    ];
-    let mut text = String::new();
-    for (label, value) in fields {
-        if let Some(value) = value {
-            use std::fmt::Write as _;
-            let _ = writeln!(text, "{label}: {value}");
-        }
-    }
-    text
-}
-
-/// The words of a text, folded and lowercased, three letters or more.
-fn tokens(text: &str) -> Vec<String> {
-    crate::compile::fold(text)
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|w| w.len() >= 3)
-        .map(str::to_owned)
-        .collect()
-}
-
-fn text_of(row: &Value, fields: &[&str]) -> String {
-    fields
-        .iter()
-        .filter_map(|f| row.get(*f))
-        .map(|v| match v {
-            Value::String(s) => s.clone(),
-            other => other.to_string(),
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-/// BM25 over the rows' text for one query: every id with a positive score, best first.
-// The counts are rows and words of a snapshot (hundreds, thousands): far below the 2^53
-// where a usize stops converting exactly.
-#[allow(clippy::cast_precision_loss)]
-fn rank<'a>(
-    query: &str,
-    rows: impl IntoIterator<Item = &'a Value>,
-    text: impl Fn(&Value) -> String,
-) -> Vec<(String, f64)> {
-    let docs: Vec<(String, Vec<String>)> = rows
-        .into_iter()
-        .filter_map(|r| {
-            let id = r.get("id")?.as_str()?.to_owned();
-            Some((id, tokens(&text(r))))
-        })
-        .collect();
-    if docs.is_empty() {
-        return Vec::new();
-    }
-    let n = docs.len() as f64;
-    let avg = docs.iter().map(|(_, t)| t.len()).sum::<usize>() as f64 / n;
-    let mut df: BTreeMap<&str, f64> = BTreeMap::new();
-    for (_, terms) in &docs {
-        for term in terms.iter().collect::<BTreeSet<_>>() {
-            *df.entry(term.as_str()).or_insert(0.0) += 1.0;
-        }
-    }
-    let query: Vec<String> = tokens(query);
-    let (k1, b) = (1.5_f64, 0.75_f64);
-    let mut scored: Vec<(String, f64)> = docs
-        .iter()
-        .map(|(id, terms)| {
-            let len = terms.len() as f64;
-            let score: f64 = query
-                .iter()
-                .map(|q| {
-                    let tf = terms.iter().filter(|t| *t == q).count() as f64;
-                    if tf == 0.0 {
-                        return 0.0;
-                    }
-                    let d = df.get(q.as_str()).copied().unwrap_or(0.0);
-                    let idf = ((n - d + 0.5) / (d + 0.5) + 1.0).ln();
-                    idf * (tf * (k1 + 1.0)) / (tf + k1 * (1.0 - b + b * len / avg))
-                })
-                .sum();
-            (id.clone(), score)
-        })
-        .filter(|(_, s)| *s > 0.0)
-        .collect();
-    scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-    scored
 }
 
 /// A pack another builder composed for one intent, read strictly from a JSON file: strict JSON

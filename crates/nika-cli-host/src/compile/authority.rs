@@ -172,8 +172,8 @@ mod tests {
         assert_eq!(record["configured"]["worst_case"], serde_json::Value::Null);
         // Typed repairs under no bound run as typed.
         assert!(resolve(&["--authoring-repairs", "3"], NativeMode::Escalate).is_ok());
-        // COLD creation follows every unstated computation: its count is unknown, so a typed
-        // bound is never refused up front, and the counters refuse each request past it.
+        // A creation repairs as its findings require: its count is unknown, so a typed bound is
+        // never refused up front, and the counters refuse each request past it.
         let one = ["--authoring-repairs", "3", "--authoring-max-calls", "1"];
         assert!(resolve(&one, NativeMode::Escalate).is_ok());
         // The sketch door's judgment asks each part of a doubted request alone: its count
@@ -207,8 +207,8 @@ mod tests {
         let short = ["--authoring-samples", "3", "--authoring-max-calls", "1"];
         assert!(resolve(&short, NativeMode::Escalate).is_ok());
         assert!(resolve(&["--authoring-samples", "3"], NativeMode::Escalate).is_ok());
-        // A typed escalation needs the plan and its judgment under a typed bound; the implicit
-        // one runs, and no bound refuses neither.
+        // A typed escalation needs the document and its judgment under a typed bound; the
+        // implicit one runs, and no bound refuses neither.
         let escalate = ["--authoring-strategy", "escalate"];
         assert!(resolve(&escalate, NativeMode::Escalate).is_ok());
         let one = [
@@ -220,7 +220,7 @@ mod tests {
         let refused = resolve(&one, NativeMode::Escalate).expect_err("two requests at least");
         assert_eq!(
             refused,
-            "the escalate strategy needs at least 2 authoring requests (the plan, then its judgment): authorize --authoring-max-calls 2 or more"
+            "the escalate strategy needs at least 2 authoring requests (the document, then its judgment): authorize --authoring-max-calls 2 or more"
         );
         let escalate = [
             "--authoring-strategy",

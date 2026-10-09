@@ -11,7 +11,10 @@
 //! is not a correction: it reads and never redirects the work, so it stops
 //! nothing and waits in the box for the turn's end. A Run is never stopped
 //! here: the stop says so and only the usual warning applies. The Session
-//! answers the stopped turn itself.
+//! answers the stopped turn itself. Until the turn ends, a requested stop
+//! keeps its words on the hint row: an event that empties the row (a reader,
+//! a scroll back to the latest row, a pointer, an edit) gives them back, and
+//! a hint answering a key stands until the next event.
 //!
 //! A queued correction is sent as the next line only when the turn ended on
 //! the free prompt. Any decision on screen (a proposal, a question, a gate, a
@@ -25,6 +28,7 @@
 
 use std::io;
 
+use super::said::Said;
 use super::{ENTER_WAITS, Exit, Shell, Submitted};
 use nika_display::activity_card::{correction_queued, correction_unsent};
 
@@ -53,6 +57,21 @@ fn command_typed<'c>(draft: &str, commands: &'c [String]) -> Option<&'c str> {
 /// The hint when `Enter` keeps a command in the box while Nika works.
 fn command_waits(command: &str) -> String {
     format!("Nika keeps working · {command} waits for your turn")
+}
+
+/// The notice a view change leaves while a turn works: once a stop was
+/// requested (`stopping`) and the next `Ctrl+C` leaves (`armed`), the stop's
+/// own words, never the first press's hint again; otherwise none.
+fn view_notice(stopping: bool, armed: bool) -> Option<&'static str> {
+    (stopping && armed).then_some(STOPPING)
+}
+
+/// The hint row after an event heard while a turn works: the notice the
+/// event `left` stands (a hint answering that key, a completion list); a row
+/// it emptied gets the requested stop's own words back ([`view_notice`]).
+/// Nothing is cleared and nothing else is invented.
+fn kept_notice(left: Option<String>, stopping: bool, armed: bool) -> Option<String> {
+    left.or_else(|| view_notice(stopping, armed).map(str::to_owned))
 }
 
 /// One turn's stop and the correction queued during it.
@@ -111,13 +130,10 @@ enum Fate {
 /// Submit `first`, then each correction a turn queued, one after another: a
 /// loop that keeps one line at a time, never a nested call, however long the
 /// chain. `one` submits a line and gives the correction its turn queued.
-fn chain<T>(
-    first: &str,
-    mut one: impl FnMut(&str) -> io::Result<(T, Option<String>)>,
-) -> io::Result<T> {
+fn chain<L, T>(first: L, mut one: impl FnMut(L) -> io::Result<(T, Option<L>)>) -> io::Result<T> {
     let (mut last, mut next) = one(first)?;
     while let Some(line) = next {
-        (last, next) = one(&line)?;
+        (last, next) = one(line)?;
     }
     Ok(last)
 }
@@ -136,13 +152,24 @@ fn fate(waiting: &Waiting, fresh: bool, handoff: bool, quit: bool) -> Fate {
 }
 
 impl<C: Conversation + 'static> Shell<C> {
-    /// The human sent `line`: it, then each correction its turn queued, in
-    /// order ([`chain`]).
-    pub(super) fn submit(&mut self, line: &str, broker: &mut Broker) -> io::Result<Submitted> {
-        chain(line, |line| {
-            let submitted = self.submit_one(line, broker)?;
-            Ok((submitted, self.hold.chained.take()))
+    /// The human sent `said`: it, then each correction its turn queued, in
+    /// order ([`chain`]). A correction is only ever sent at the free prompt
+    /// ([`fate`]), so it is a line, never an answer.
+    pub(super) fn submit(&mut self, said: Said, broker: &mut Broker) -> io::Result<Submitted> {
+        chain(said, |said| {
+            let submitted = self.submit_one(&said, broker)?;
+            Ok((submitted, self.hold.chained.take().map(Said::Line)))
         })
+    }
+
+    /// The hint row once an event heard while a turn works was handled
+    /// ([`kept_notice`]): a pending stop's confirmation survives whatever
+    /// emptied the row (a palette, the diagnostic, a scroll back to the
+    /// latest row, a pointer, an edit of the draft). `armed` is whether the
+    /// next `Ctrl+C` leaves; it is read, never changed.
+    pub(super) fn keep_stop_notice(&mut self, armed: bool) {
+        let left = self.state.completion.take();
+        self.state.completion = kept_notice(left, self.hold.stopping(), armed);
     }
 
     /// `Ctrl+C` while a turn works. The first press stops a preparation that
@@ -229,13 +256,7 @@ impl<C: Conversation + 'static> Shell<C> {
         self.keep_reading(|state, composer| {
             if fate == Fate::Draft {
                 // The correction first, then whatever was typed after it.
-                let rest = composer.text();
-                composer.clear();
-                composer.paste(&queued);
-                if !rest.trim().is_empty() {
-                    composer.paste("\n");
-                    composer.paste(&rest);
-                }
+                composer.put_back(&queued);
             }
             state.transcript.push(Committed::new(Kind::Notice, notice));
         });
@@ -300,6 +321,14 @@ mod tests {
         assert_eq!(fate(&Waiting::Free, false, false, false), Fate::Send);
         assert_eq!(fate(&Waiting::Free, false, true, false), Fate::Draft);
         assert_eq!(fate(&Waiting::Free, false, false, true), Fate::Draft);
+        let typed = crate::model::Asked::new(
+            "Which currency?",
+            "",
+            true,
+            crate::model::Shape::Choice(vec![crate::model::Offer::new("eur", "Euro")]),
+            "witness",
+            1,
+        );
         for waiting in [
             Waiting::Proposal,
             Waiting::Gate,
@@ -307,6 +336,8 @@ mod tests {
             Waiting::Question {
                 key: "const.source_path".to_owned(),
             },
+            // A typed question is a decision too: a correction never answers it.
+            Waiting::asked("const.currency", typed),
         ] {
             assert_eq!(
                 fate(&waiting, false, false, false),
@@ -345,6 +376,48 @@ mod tests {
         assert!(hint.chars().count() <= 80, "{hint}");
     }
 
+    /// After a stop request whose next press leaves, a view change keeps the
+    /// stop's own words, which say so; before any request, or while a press
+    /// would only arm, it leaves no notice of its own.
+    #[test]
+    fn a_view_change_keeps_a_requested_stop_on_the_hint_row() {
+        assert_eq!(view_notice(true, true), Some(STOPPING));
+        assert!(STOPPING.contains("Ctrl+C again leaves"), "{STOPPING}");
+        assert!(!STOPPING.contains("requests Stop"), "{STOPPING}");
+        for (stopping, armed) in [(false, false), (false, true), (true, false)] {
+            assert_eq!(
+                view_notice(stopping, armed),
+                None,
+                "stopping={stopping} armed={armed}"
+            );
+        }
+    }
+
+    /// After any event heard while a turn works, a row the event emptied gets a
+    /// requested stop's words back, a hint the event set stands, and nothing is
+    /// cleared or invented: a correction queued without `Ctrl+C` (stopping, not
+    /// armed) claims no leaving press, and a Run's press restores nothing.
+    #[test]
+    fn an_emptied_hint_row_gets_a_pending_stop_back_and_a_set_hint_stands() {
+        assert_eq!(kept_notice(None, true, true).as_deref(), Some(STOPPING));
+        for set in [ENTER_WAITS, RUN_ENTER_WAITS, "/details  /status"] {
+            for (stopping, armed) in [(true, true), (true, false), (false, true), (false, false)] {
+                assert_eq!(
+                    kept_notice(Some(set.to_owned()), stopping, armed).as_deref(),
+                    Some(set),
+                    "stopping={stopping} armed={armed}"
+                );
+            }
+        }
+        for (stopping, armed) in [(true, false), (false, true), (false, false)] {
+            assert_eq!(
+                kept_notice(None, stopping, armed),
+                None,
+                "stopping={stopping} armed={armed}"
+            );
+        }
+    }
+
     /// The stop's hints fit one 80-column row and never claim a Run stops.
     #[test]
     fn the_stop_hints_fit_a_row_and_never_claim_a_run_stops() {
@@ -361,7 +434,7 @@ mod tests {
     fn a_long_correction_chain_runs_in_a_loop() {
         const LONG: usize = 200_000;
         let mut sent = 0_usize;
-        let last = chain("first", |line| {
+        let last = chain("first".to_owned(), |line| {
             sent += 1;
             let expected = if sent == 1 {
                 "first".to_owned()
@@ -374,7 +447,7 @@ mod tests {
         .expect("every line sent");
         assert_eq!((last, sent), (LONG, LONG));
         let mut tried = 0;
-        let failed = chain("first", |_| {
+        let failed = chain("first".to_owned(), |_| {
             tried += 1;
             if tried == 3 {
                 Err(io::Error::other("the terminal closed"))

@@ -17,7 +17,7 @@ use crate::theme::{Role, Theme};
 
 /// The SECRETS headline names observed flows without re-judging consent.
 /// Findings own that verdict; JOURNEY owns the complete visible projection.
-pub(crate) fn secret_flow_summary(report: &CheckReport) -> String {
+pub(crate) fn declared_egress_summary(report: &CheckReport) -> String {
     let declared_flows = report
         .data_journey
         .secrets_used
@@ -103,7 +103,7 @@ pub(crate) fn secrets_rung(out: &mut String, report: &CheckReport, t: Theme) {
             report,
             t,
             "SECRETS",
-            &secret_flow_summary(report),
+            &declared_egress_summary(report),
             leak_rows,
         );
         return;

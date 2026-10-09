@@ -162,3 +162,73 @@ pub fn rendered(references: &[Reference], callables: &[Reference]) -> String {
     }
     text
 }
+
+/// The embedded pack's canonical templates as a catalogue for whole-catalog reach
+/// ([`crate::foundry::reach`]): every template an entry (`skeleton:<name>`, its header's summary
+/// and description as its purpose), resolved in full as its lean source. The recall above shows
+/// a few in full; through this catalogue no template is out of reach. Knowledge to read, never a
+/// component to expand: a template holds `<SLOT>` markers, not producer holes.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Templates;
+
+impl Templates {
+    /// A template's header summary: the `# TEMPLATE · <name> · <summary>` line's summary, then
+    /// the description paragraph that follows it.
+    fn summary(source: &str) -> String {
+        let mut lines = source.lines().map(str::trim);
+        let heading = lines.find(|line| line.starts_with("# TEMPLATE ·"));
+        let summary = heading
+            .and_then(|line| line.rsplit(" · ").next())
+            .unwrap_or_default();
+        let description = lines
+            .map(|line| line.trim_start_matches('#').trim())
+            .find(|line| !line.is_empty())
+            .unwrap_or_default();
+        format!("{summary}. {description}")
+    }
+}
+
+impl crate::foundry::ComponentCatalog for Templates {
+    fn release(&self) -> crate::foundry::Release {
+        let names = nika_pack::template_names();
+        let mut all = String::new();
+        for name in &names {
+            all.push_str(name);
+            all.push('\n');
+            all.push_str(nika_pack::template(name).unwrap_or_default());
+        }
+        let version = format!("embedded-pack {}", nika_pack::pack_version());
+        crate::foundry::Release::new(version, sha256(&all), "embedded-templates")
+    }
+
+    fn resolve(
+        &self,
+        reference: &crate::foundry::ComponentRef,
+    ) -> Result<crate::foundry::Component, crate::foundry::Unresolved> {
+        reference.block_name()?;
+        Err(crate::foundry::Unresolved::Unknown(reference.id.clone()))
+    }
+
+    fn entries(&self) -> Vec<Value> {
+        (nika_pack::template_names().iter())
+            .filter_map(|name| {
+                let source = nika_pack::template(name)?;
+                Some(json!({
+                    "id": format!("skeleton:{name}"),
+                    "kind": "skeleton",
+                    "title": name,
+                    "purpose": Self::summary(source),
+                }))
+            })
+            .collect()
+    }
+
+    fn reference(&self, id: &str) -> Option<nika_compile::KnowledgeReference> {
+        let source = nika_pack::template(id.strip_prefix("skeleton:")?)?;
+        Some(nika_compile::KnowledgeReference {
+            kind: "skeleton".to_owned(),
+            id: id.to_owned(),
+            text: nika_pack::lean(source).to_owned(),
+        })
+    }
+}

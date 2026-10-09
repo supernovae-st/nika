@@ -64,9 +64,10 @@ back on the surface.
 `doors` owns deterministic HOT admission, plan/native replay and record application.
 Record application completes a native candidate's boundary only from its answers: an
 answered endpoint's host (`permits.net.http`), and an answered bare `${{ const.<slug> }}`
-path, which replaces the seat's empty `permits.fs` placeholder (`[""]`, flow or block
-`- ""`) in the direction the capability inference derives — never a path that escapes the
-workspace, never a glob, never a direction the seat declared with any other entry.
+path, which completes the seat's one empty `permits.fs` entry (`""`, flow or block `- ""`) in
+place, beside the entries the seat stated, in the direction the capability inference derives,
+each path the answer of one of the record's questions — never a path that escapes the
+workspace, never a glob, never a side with no empty entry or two.
 A replayed HOT record receives the reader's unnamed-destination floor again (idempotent), so a
 record written before that law asks the path of the write it lacked (« … dans un fichier »).
 The assembler's `const.output_path` question stays open when the answer names no file:
@@ -544,7 +545,10 @@ model's COLD or WARM plan, a record with no strategy word or an unknown one)
 replays with its whole request pending on the bytes it emits, as a native record
 always does (below). With no judge in the round, such a replay is therefore
 INCOMPLETE with the pending-clause finding below, never READY: no judgment of the
-replayed bytes was made in the round. `replay_judged` adds the duty when its
+replayed bytes was made in the round. Every record either entry rebuilds of the
+plan it replays keeps the rejections the replayed record carries (`declined`), so
+a round with no judge never loses one and a later round under the judge that
+rejected those bytes repeats it with no call. `replay_judged` adds the duty when its
 caller asks for it (`whole`). Cognition asks for it in the answer round of every
 record but a HOT plan's, so the whole request is judged again on the bytes that
 round replays, and for a regenerated candidate after a field answer, judged as the
@@ -574,6 +578,16 @@ Otherwise the round is INCOMPLETE, the candidate stays the preview, and a
 the laws keep from READY (a question open, a check refusal) is returned as it
 is, and no judge is asked of it. A record never carries a judgment, so the
 round that finishes the bytes judges them.
+
+A source-only `finish` cannot resolve a dependency it does not read: a child
+workflow, an MCP registry entry or a skill. It states `UNJUDGED_DEPENDENCY` on
+the task, which keeps the round from READY. Only a host that checked the
+dependency may lift that finding. Cognition does so for a child workflow
+covered by a clean closure of the exact bytes, then settles READY by
+`ready_by_law`, the same law `finish` applies: nothing refused, asked or
+unresolved, and Check clean. `native_answered_paths` proves which paths the
+answers supplied. It still requires the same bytes and a clean Check, and it
+ignores that hold, which concerns resolution, not the bytes.
 
 The core does not judge unrestricted meaning. A clause split across two named
 elements can require judgment, and the model's approval remains bounded

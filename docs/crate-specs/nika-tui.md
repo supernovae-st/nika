@@ -4,15 +4,15 @@
 |---|---|
 | Status | **WIP · in the workspace since 2026-09-21** (the `nika-tui-core` precedent) · Gate 1 (this document) authored 2026-08-12, amended by ADR-139 (2026-09-21 inline milestone; 2026-10-03 workspace default, one owner of the terminal) · D-2026-08-11-N6 (T27 after T28 · the renderer is to be the first native consumer of `nika-tui-core`) |
 | Layer | L4 — interfaces (the native terminal surface) |
-| Design | The session's Ratatui renderer (ADR-139) · ONE owner of the terminal (raw mode · bracketed paste · focus · probed keyboard protocol · alternate screen, enabled in a fixed order and restored in reverse from one place; the panic hook restores BEFORE the message) · WORKSPACE presentation first on interactive terminals (project, workflow inspection, conversation); explicit INLINE (`NIKA_TUI=inline`) keeps finished blocks in terminal scrollback · FOCUS presentation on demand (alternate screen, scrollable transcript, draft kept) · ONE event broker, paused around each cursor-position query · one composer (`ratatui-textarea` behind a wrapper: Enter sends, Alt+Enter inserts a line break, a paste is data, history at the edges of the buffer). It decides no product law: it paints and it listens. `nika-session` stays the truth and supplies what it shows as typed turn outcomes; ADR-139 assigns `nika-tui-core` to derive what a screen may claim, which is not wired yet (§1). |
-| LOC budget | ≤6,000 src prod · ≤15,000 hard cap |
+| Design | The session's Ratatui renderer (ADR-139) · ONE owner of the terminal (raw mode · bracketed paste · focus · probed keyboard protocol · alternate screen, enabled in a fixed order and restored in reverse from one place; the panic hook restores BEFORE the message) · WORKSPACE presentation first on interactive terminals (project, workflow inspection, conversation); explicit INLINE (`NIKA_TUI=inline`) keeps finished blocks in terminal scrollback · FOCUS presentation on demand (alternate screen, scrollable transcript, draft kept) · ONE event broker, paused around each cursor-position query · one composer (`ratatui-textarea` behind a wrapper: Enter sends, Alt+Enter (or Shift/Ctrl+Enter and Ctrl+J where the terminal reports them) inserts a line break, a paste is data, history at the edges of the buffer). It decides no product law: it paints and it listens. `nika-session` stays the truth and supplies what it shows as typed turn outcomes; ADR-139 assigns `nika-tui-core` to derive what a screen may claim, which is not wired yet (§1). |
+| LOC budget | ≤19,000 src prod for `crates/nika-tui` only (ADR-143, 9 October 2026 amendment); other members retain their own ceilings |
 | File cap | ≤1,500 LOC each |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 (workspace-inherited) |
 | Publish | `false` |
-| Dependencies | **read from `Cargo.toml`, which is authoritative** · `ratatui` 0.30 (features `scrolling-regions` · `unstable-rendered-line-info`) · `crossterm` 0.29 (`event-stream` · `bracketed-paste`) · `ratatui-textarea` 0.9 · `tokio` · `unicode-width` · `nika-fs` (bounded Live inspection) · lateral L4 `nika-session` (the live conversation), `nika-cli-host` (the one-use Run child, no admission authority), `nika-tui-view` (pure workflow and artifact faces), `nika-trace` (the canonical verifier and captured-journal fold, never back), and `nika-display` (the theme seam: roles, verb and state glyphs, motion frames; already under the other two) · dev: `expectrl` (the PTY proof), `sha2` (the logomark provenance proof). `tachyonfx` and `nika-tui-core` are not dependencies yet; ADR-139 §Consequences leaves tachyonfx and the web-studio port out of the first product. |
+| Dependencies | **read from `Cargo.toml`, which is authoritative** · `ratatui` 0.30 (features `scrolling-regions` · `unstable-rendered-line-info`) · `crossterm` 0.29 (`event-stream` · `bracketed-paste` · `use-dev-tty`) · `ratatui-textarea` 0.9 · `tokio` · `unicode-width` · `serde_json` (host parsing of bytes it already holds) · `nika-fs` (bounded Live inspection) · lateral L4 `nika-session` (the live conversation), `nika-cli-host` (the one-use Run child, no admission authority), `nika-tui-view` (pure workflow and artifact faces), `nika-trace` (the canonical verifier and captured-journal fold, never back), and `nika-display` (the theme seam: roles, verb and state glyphs, motion frames; already under the other two) · dev: `expectrl` (the PTY proof), `sha2` (the logomark provenance proof). `tachyonfx` and `nika-tui-core` are not dependencies yet; ADR-139 §Consequences leaves tachyonfx and the web-studio port out of the first product. |
 | NIKA codes | none owed — the renderer refuses nothing · it displays the refusal the engine rendered |
 | Depends on | **T28 admitted** (`nika-tui-core` out of wip, done 2026-08-14) · ADR-139 records the original renderer milestone and the 2026-10-03 workspace amendment |
 
@@ -43,13 +43,16 @@ become typed beats, and the CLI door injects the runners. The
 The roles remain the engine's closed set, `nika_display::theme::Role`
 (the accent, the three verdicts, dim, strong and the four verb chips).
 `visual::role::style` resolves them to the workspace's RGB product palette:
-blue activity, green success, amber attention, red failure, and readable
-secondary text. The viewer member pins the same RGB values. The CLI retains
+a violet accent and selection fill on dark navy surfaces, blue for infer, cyan
+for invoke, lavender for agent, amber for exec and attention, green success,
+red failure, and readable secondary text. The renderer and viewer share the
+viewer's pure visual owner through compatibility paths (ADR-143). The CLI retains
 its terminal-theme palette. Under `NO_COLOR` no role carries a hue; dim and
 strong remain weights. Roles and words still carry meaning without colour.
-The existing 100ms busy tick drives the native orbit and its blue/cyan/purple
-accent only while work is active. Reduced motion keeps a still marker; idle
-views do not animate. A working phase may occupy up to three wrapped rows so
+The existing 100ms busy tick turns the native orbit only while work is active;
+every frame wears the one accent hue. Reduced motion keeps a still marker with
+measured seconds, phase and armed-exit facts retained; idle views stay silent.
+A working phase may occupy up to three wrapped rows so
 its model and completed phase remain visible without an invented percentage.
 
 The rest of the visual vocabulary (`visual`, task T-nika-tui-assets) is the
@@ -96,6 +99,21 @@ runs before drawing and opens no consent, Save or Run authority. For a workflow 
 in a harness build, run the installed agent CLIs' authentication status probes; it never
 calls a model.
 
+The selected object's local Expand/Restore control and `F4` arrange the same
+Desk, preserving input, focus, selection and reading. The header offers concrete
+Project/Conversation/Object access only while the project region is folded.
+Bounded separators have pointer and keyboard routes;
+resize clamps the rendered geometry without changing the chosen proportions.
+The Live host keeps only settled display choices in a versioned HOME preference
+file through `OwnedDir`. Painting performs no I/O; restoring an arrangement
+restores no Session authority. The command chooser names the conversation's
+supported commands and their effect/scope; selecting a slash command inserts
+it without submitting. `Ctrl+O` (or `Tab` in an empty composer) opens the
+palette, and `F2` opens a read-only reader of the Session's complete words for
+the typed question at the answer line, the current proposal under review or the
+latest summarized refusal. The [workspace guide](../terminal-workspace.md) owns
+every gesture and describes the distinction between inspection, Save and Run.
+
 The check is explicitly `ParentOnly`: imports, skills and registry closure are
 unobserved, and RUN READY stays UNKNOWN. Rendering is cached by observation,
 face and width; every new observation, including an unread result, invalidates
@@ -105,7 +123,14 @@ changes neither the conversation nor its attached context.
 The real CLI PTY suite `workspace_pty` covers startup, the four faces and witness,
 re-read after edits, resize, ASCII/no-color/reduced motion, focus and typeahead,
 terminal restoration, inline/plain/pipe, inspection without effects, and Save
-without Run. These proofs cover workflow inspection; the run faces below add a
+without Run. Its typed-question cases cover the question's words across sizes,
+with the rule of how a reply is taken beside the input and no `F2` row in its
+place, the complete question and proposal readers, a reply that was not taken
+with newer words kept, `Answer taken` with the exact value and how it was read,
+and the question's colour, `NO_COLOR` and ASCII appearance. Its compact
+decision case looks for the proposal's standing, change and `when it runs`
+facts beside the unsent input at 80×24, 80×30, 99×30, 80×40 and 120×40.
+These proofs cover workflow inspection; the run faces below add a
 separate result and evidence slice, not complete workspace qualification.
 
 The run object offers Run, Outputs, Files and Proof. Outputs come from the
@@ -175,14 +200,45 @@ a stamped integrated build or a paid model route.
   second row. Below 60×16 there is no workspace and the caller keeps the focus
   presentation. The regions cover the screen exactly without overlap at 80×24,
   100×32, 120×40 and 160×48, with and without a pinned row.
-- `workspace::header` paints where the human stands from a `Place` the Session
-  projects: the active project (icon, name, chevron), its location, the host,
-  then the observed facts (git or no git, `nika.yaml` or no `nika.yaml`); an
-  unobserved fact is not written, a missing project reads `no project`. A narrow
-  row cuts the location from its start, never the project name; the ASCII column
-  replaces glyphs, separators and the ellipsis.
+  Contextual expansion keeps the conversation beside the object from 100 columns,
+  at its minimum usable width; narrower views give the object more height.
+  Only a strict increase in object space offers Expand. Restore stays reachable.
+  Moving the wide expanded separator toward a larger conversation restores the
+  regular arrangement at that requested width, preserving the same draft and object.
+  On the restored stacked workspace, while the current typed decision needs
+  more rows than the restored conversation offers at rest, `screen::folded`
+  keeps the object to three rows (title and faces, one row, the continuation
+  cue) and gives the rest to the conversation. The decision is the proposal
+  the conversation reviews, or the typed question tied to the latest question
+  block (`question::asked_block`); a homed question also asks three rows of the
+  exchange that led to it (`QUESTION_CONTEXT`). `Desk::prepare_for` decides the
+  fold once per frame from the same row plan at rest (`screen::rest_transcript`,
+  `cards::rows_from`), independent of typing, the chooser and busy rows, and it
+  holds only for the size, arrangement and pin it was decided for. It never
+  applies outside the workspace, side by side, expanded, below the minimum, for
+  a gate, a choice, a legacy question, a draft or set-aside candidate or another
+  identity, or while the folded aside holds the keys. The arrangement and its
+  shares are untouched and nothing about the fold is kept; another candidate
+  drops it. Drawing, the extent, `F4` and the palette, the object action, the
+  pointer and scrolling read the same folded geometry. `screen::object_action`
+  places the action at the right end of the title row; with no room there, at
+  the end of the continuation cue's row or, with no cue, of a last row the body
+  leaves strictly free (fewer body lines than rows under the title), so it never
+  covers a face, a line or the cue.
+- `workspace::screen::masthead` composes the Session's `Place` and selected
+  preparation intelligence in one header. The brand and project stand on the
+  left, the intelligence on the right. A second row is a quiet rule, or holds
+  the intelligence when it cannot fit beside the project. The selected name
+  shortens at whole words beside `/status` when necessary; `/status` alone is
+  the fallback when its labeled name cannot fit. It is a displayed fact, not a
+  selector, and keeps a blank cell before the right edge or folded region names.
+  Routine location, Git and governing file facts are available there. A refused `nika.yaml` remains visible.
+  A missing project reads `no project`; unknown facts stay unknown. The ASCII
+  column replaces renderer-owned glyphs, separators and the ellipsis.
 - `workspace::aside` lists what the project holds in two projections, Nika and
-  Files (the chosen one underlined), with the object in view marked; an overflow
+  Files (the chosen one underlined), under headings derived from the entries'
+  typed kinds. The selected row and object in view have distinct marks. Pointer
+  routing reads the same row plan as painting; headings and notes are inert. An overflow
   ends on a `+N more` row and a listing the Session marks partial says so on its
   last row instead of pretending to show the whole disk.
 - `workspace::pinned` paints the pinned run: its owning project, workflow and
@@ -194,32 +250,49 @@ a stamped integrated build or a paid model route.
   `nika_display::theme::Theme::glyph` paints.
 - `workspace::object` paints the preview on the right. An open object is named by its kind's
   icon and its name, and its given lines are cut at the edge, never wrapped
-  (workflow faces use `nika-tui-view`; observed run faces use `workspace::live`). With nothing open it welcomes: the largest
+  (workflow faces use `nika-tui-view`; observed run faces use `workspace::live`).
+  A short inspected or proposed graph uses bounded complete dependency rows for
+  plain value flow; predicates, material notes or unsafe/shortened identities
+  retain the detailed renderer. The same content budget drives scroll extent,
+  painting and the More above/below cue; every retained line remains reachable.
+  With nothing open it welcomes: the largest
   butterfly that fits whole above the onboarding words, up to 48×20 when both
   the mark and the instructions fit. The instructions explain describing an
   outcome, answering questions, reviewing, saving and then running; they give
   a concrete example and navigation keys. The mark reveals once from the
   caller's clock and appears final at once under reduced motion.
 - `workspace::conversation` names who the next message goes to: the title row
-  gives the thread and its project, the composer's placeholder the full
-  recipient (`Message to studio / release checklist`), and the context row
-  keeps apart what is only on screen and what is attached. What the next
+  gives the thread alone, the empty composer invites the work while nothing
+  waits (`Ask, change, or run… / commands`, ASCII `...`) and stays blank while
+  a decision waits, and the context row
+  names actual attachments separately from the viewed object. An empty attachment
+  context is silent. What the next
   message carries keeps priority on a narrow panel; the on-screen part is cut
-  first, then dropped. The heading identifies the Session's selection as
+  first, then dropped. The workspace header identifies the Session's selection as
   `Prepare with:`; it does not attribute a local action or a reply to that model.
   It names the explicitly configured model, or the authoring seat's resolved
   provider model when no model was named; an unresolved default stays explicit.
   During intelligence selection the fixed composer hint names all four numbered
   routes (account, API, local, no AI), even when the menu is above the viewport.
-  A selected model also receives wrapped heading space in short panels while
-  the existing activity/composer area stays fixed. The header and scroll bounds
-  use the same measurement; one transcript row remains. An unknown selection
-  stays explicit; the renderer makes no provider call.
-  The idle hint keeps intelligence selection and panel navigation visible after
-  the welcome closes. While scrolled back, it asks the user to click the
+  The selection has no second copy in the conversation and does not change its
+  scroll bounds. An unknown selection stays explicit; the renderer makes no
+  provider call. Beside the object, a sufficiently tall panel gives the composer
+  a quiet frame and a `Your message` or `Your answer` caption (none while the
+  typed question's card stands right above the line, or while a proposal or a
+  gate waits: its `Save? ›` or `answer ›` prompt names the line); stacked
+  and short panels retain the compact composer. Input wrapping, cursor placement and
+  painting use the same inner cells. Its software cursor disappears while
+  another panel has the keys and returns at the retained insertion position;
+  buffer replacement preserves that focus style.
+  The idle hint names sending, a new line and the command palette; panel
+  navigation stays on the status row at a free prompt and is left out while a
+  decision waits in the fitting workspace (below the minimum the row keeps its
+  recovery note). While scrolled back, it asks the user to click the
   conversation, then press End for the latest messages: the wheel does not move
   keyboard focus. The hint fits one row at the available width; Stop, Save,
   cost questions and completion keep their own instructions.
+  A lifecycle whose fields are all still pending takes no workspace row; reached
+  states and earlier results remain visible. Inline and Focus keep their rail.
 - `workspace::screen::draw` composes one frame from a `Screen` (place, aside,
   object, thread, pinned run): the transcript, status, composer and hint are
   painted by the same functions as the focus presentation. Beside the object
@@ -228,16 +301,20 @@ a stamped integrated build or a paid model route.
   the caller keeps the focus presentation.
 - `workspace::focus` says which region holds the keyboard. The composer has
   it by default, so typing never needs a first move; `F6` moves to the next
-  region and `Shift+F6` back (a folded aside is skipped), `Esc` returns to the
-  composer, and `Tab` stays the composer's completion key. In the aside the
-  arrows move a reversed selection (a weight, readable without colour) that
-  the listing always shows, and `Enter` opens the entry: the object in view
+  region and `Shift+F6` back (a folded aside stands over the object while it
+  holds the keys), `Esc` in the aside or the object returns to the composer,
+  `Esc` in the composer leaves the workspace for inline with the draft intact
+  (while a turn works, it waits for the turn's end), and `Tab` stays the
+  composer's completion key. In the aside the
+  arrows move an underlined selection with its own marker, readable without
+  colour, that the listing always shows, and `Enter` opens the entry: the object in view
   changes, the conversation does not, and nothing is attached to the next
   message. In the object the arrows and page keys scroll its lines under a
   title row that stays. On the Run face, Up/Down select a task and Enter opens
   its detail; Enter there opens a recorded child relation, and Backspace
   returns one level. `screen::extent` gives the key handler what the regions
-  hold at the current size.
+  hold at the current size. The [workspace guide](../terminal-workspace.md)
+  lists every gesture.
 - Full-screen mouse capture belongs to the same terminal Owner as raw mode,
   paste and the alternate screen, and is restored on inline, exit and panic.
   The broker forwards pointer events. The wheel scrolls the actual pane under
@@ -254,11 +331,115 @@ a stamped integrated build or a paid model route.
   their twin in all three presentations: the block faces (`>`, `||`, `x`), the
   loader (`| / - \`, `*` when still), the live prompt marker, the focus rule,
   the separators of its own status and hints, and the door's title
-  (`nika - <project>`). Two renderer texts keep their `·` and `›` so far: the
-  « action required » title suffix, and the echo of a sent line, which repeats
-  the waiting prompt as written. The Session's words (the banner, replies, the
+  (`nika - <project>`). One renderer text keeps its `·` so far: the
+  « action required » title suffix. The echo of a sent line repeats the waiting
+  prompt in its ASCII twin (`nika > `). The CLI proof checks a listed set of
+  renderer glyphs; it does not claim an all-ASCII frame. The Session's words
+  (the banner, replies, the
   status line, the lifecycle rail) are shown as written, never rewritten, so
   an ASCII frame still carries their `·` and `○`.
+
+### Typed clarification and conversation groups
+
+The native host captures the compiler's question document from one `Work`
+snapshot. Its label, reason, required flag, ordered offers and exact offer keys
+remain compiler facts. A painted question routes both a selected offer and the
+human's own words through `answer_question_for` with the captured strong
+`QuestionId`, never the general submission door. The native painted token has a
+runtime-local presentation scope; matching serialized words from another live
+Session cannot substitute for the strong identity, whose equality also includes
+its incarnation. Untyped Run/cost questions keep their existing owners and doors.
+
+In the fitting workspace, while the latest question block carries the witness of
+the typed question waiting, the live card above the answer line is the
+question's home: `Question` in the accent, its shape, `required` and the offer
+window, then the Session's exact words under one frame-aware cap
+(`question::word_cap`: six rows, or a quarter of the frame's rows when that is
+more), then the offers. `Share` gives the words every row while they pass the
+cap by at most one row and the card has the room; otherwise it shows the rows
+that fit, at most the cap, then a `… the whole question: F2` row, so that row
+always stands for at least two unread rows; a card with room for one word row
+ends it with `… F2`. Painting, measuring, the offers' hits and a decision's
+rest demand read that one cap and share. The transcript reads one quiet row
+(`↓ the question waits below`) where that block stands, the block untouched.
+While a turn works or the chooser lists, in inline and focus, with too few rows,
+for an untagged, stale or other-identity block, or when a summarized block
+follows it, the transcript keeps every word. Offers take keys only from an
+empty composer that holds them (`Up`, `Down`, `Home`, `End`, then `Enter`
+once); a press selects without sending, and offers are inert while an answer is
+in flight. Every line sent while a typed question is painted, a command or an
+empty line included, takes the identity door; the Session refuses an empty
+line unless the question offers a default.
+
+While that card is painted, it takes over only the live rows that repeat it
+(`render::Lent`): the lifecycle rail when it is exactly a first question's
+`Draft ● · Saved ○ · Checked ○ · Active ○ · Run ○`, and the status row when it
+is exactly the Session's `Needs one answer · <label>` for that question and no
+exit is armed. Any other rail or status, including a reached state, an earlier
+run, a cost, a gate or words unknown here, keeps its row, and nothing is parsed
+out of either; demand, painting and the rest rows read the one rule. A current
+proposal keeps its rail.
+
+The public `Waiting::Question { key }` constructor retains its legacy shape.
+Typed documents use the additive, non-exhaustive `QuestionDocument` variant,
+constructed with `Waiting::asked(key, asked)`. A legacy question never acquires
+identity-bound offer routing. The default `Conversation::answer_bound` sends
+nothing and returns the exact input as `Beat::NotTaken`; a host must implement
+its own identity-bound door to take it.
+
+The reply returned as `Beat::NotTaken` preserves its exact bytes ahead of any
+newer unsent draft, or leaves its offered choice selected. It is not replayed.
+The host's retention rule compares the full pending strong identity;
+question closure and a final refusal do not prove binding, since a compilation
+refusal can follow an accepted answer. The shell displays no Applied claim from
+that inference. The shared Session remains the owner of definitive answer facts.
+When the work snapshot carries an answer act bound to the same strong identity
+and key, the shell shows `Answer taken`, the question's label, the exact value
+and its source, when known, before the turn's other blocks; it claims no Save or
+Run, and retention still follows the strong identity alone.
+
+While the Session waits for consent on the proposal whose identity is the
+candidate's own, that proposal's card reads as the candidate's typed review
+(`workspace::cards::review`): what a `yes` answers first, then every change,
+the count of changes whose bytes no face shows, the revision rows, one
+`when it runs` group, the declared reach and the rehearsal, each once with its
+role, then a quiet footnote with the exact proposal identity and the pending
+bytes' witness prefix, and where `F2` reads the Session's whole words. The
+object's face then leaves those facts to the review. Recognition is identity
+alone: an untagged, older or other proposal, a draft or a set-aside candidate
+keeps the Session's words. While a proposal waits, the status row reads
+`Not saved yet · yes means Save only`; it adds no control and changes no request or effect
+authority.
+
+Contiguous blocks from one speaker share a bubble, using the existing semantic
+roles. You stands to the right on a raised surface; Nika stands to the left.
+Roomy transcript regions use quiet outlines and short regions use slabs. Every
+piece is measured and painted from the same row plan and rectangle, so wrapping,
+scrolling, cell widths and speaker grouping agree. Questions, proposals, gates
+and refusals retain a distinct boundary. The transcript keeps all original words;
+visual grouping changes no identity, dispatch or effect authority. A decision
+or refusal card entered part-way names itself on its first visible row with
+the count of its rows above (`↑ N rows`, ASCII `^ N rows`), when that row has
+room for both; heights and scroll bounds are unchanged. At its live position a plan shorter than the transcript
+stands on the transcript's last row, its empty rows above it (`cards::lift`),
+so the latest piece touches the decision under it; scrolled back, or longer
+than the area, nothing moves, and manual reading, the scroll bounds and every
+offset stay as measured.
+
+### Stop and corrections
+
+The conversation arms one preparation stop per turn from the Session. While a
+preparation works, the first `Ctrl+C` asks it to stop and arms the second
+press, which leaves with the terminal restored; `Enter` with words in the box
+asks the same stop and queues those words as a correction. A command the
+conversation knows is never a correction: it waits in the box. A queued
+correction is sent as the next line only at the free prompt; when a decision is
+on screen it returns to the box unsent, and under a spending question it is kept
+whole in the conversation instead. Once a turn hands a Run to its runner, this
+key stops nothing: the hint says so and a second press leaves. At rest,
+`Ctrl+C` declines a pending Run review or unknown-cost choice, and otherwise
+arms the press that leaves. The [workspace guide](../terminal-workspace.md)
+states the user-facing contract.
 
 ## 3. What is ported as is (the map, §5 · planned)
 

@@ -119,10 +119,16 @@ fn a_whole_leg_binds_its_bytes_and_settles_apart_from_its_proof() {
     assert!(run.whole());
     assert_eq!(run.reported(), Some(RunState::Succeeded));
     let shown = text(&run);
+    // The state has one home, the header row; the settlement row says the rest.
     assert!(
-        shown.contains("settled · succeeded · normal · 2/2 tasks ok"),
+        shown.contains("two.nika · a fresh run · settled · succeeded"),
         "{shown}"
     );
+    assert!(
+        shown.contains("settlement · normal · 2/2 tasks ok · 2 ms"),
+        "{shown}"
+    );
+    assert_eq!(shown.matches("settled · ").count(), 1, "{shown}");
     assert!(
         shown.contains("evidence · unsealed, as the run declared it"),
         "{shown}"
@@ -133,6 +139,22 @@ fn a_whole_leg_binds_its_bytes_and_settles_apart_from_its_proof() {
     );
     let hex: String = EXEC.replace('-', "").chars().take(12).collect();
     assert_eq!(run.label(), format!("run {hex}"));
+}
+
+#[test]
+fn the_ascii_run_face_says_its_state_in_the_glyph_column_in_use() {
+    let mut run = LiveRun::asked("two.nika".to_owned(), false, true, Some(look()));
+    run.apply(start(EXEC, SOURCE));
+    run.apply(settled(EXEC, "failed"));
+    let (_, body) = run.lines(RunFace::Run, 100, true, false);
+    let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
+    // The header row is the state's one home: under --ascii it keeps it.
+    let header = "two.nika - a fresh run - settled - failed";
+    assert!(rows.iter().any(|row| row == header), "{rows:#?}");
+    assert!(
+        !rows.iter().any(|row| row.contains("settled ·")),
+        "{rows:#?}"
+    );
 }
 
 #[test]

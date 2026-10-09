@@ -31,7 +31,7 @@ use hyper::{Response, StatusCode};
 use nika_kernel::ai::provider::{InferRequest, InferResponse, ProviderError, ProviderInferDyn};
 use nika_onboard::compile::authority::{Seat as CountedSeat, Wire};
 use nika_onboard::compile::{
-    Cognition, CompileOutcome, Strategy, compile_with_cognition_rehearsed, outcome_document,
+    Cognition, CompileOutcome, Strategy, compile_with_cognition_composed, outcome_document,
     revise_intent,
 };
 use nika_onboard::remote_door::trial::TrialProject;
@@ -291,14 +291,18 @@ async fn author(
         None => policy.with_unbounded_repairs(),
     };
     let mut request = input.request(answers).with_authoring_policy(policy);
+    // The pinned snapshot, revalidated, kept for the compile: lent as the catalogue of this
+    // request, its excluded corpus held out of the reach as it is out of the pack.
+    let context = seat.context()?;
     if let Some(plan) = plan {
-        seat.context()?;
         request = request.with_plan(plan.clone());
-    } else if let Some((snapshot, exclude)) = seat.context()? {
+    } else if let Some((snapshot, exclude)) = &context {
+        let exclude = *exclude;
         let intent = match input {
             Input::Create { intent, .. } => Some(intent.clone()),
             Input::Revise { .. } => revise_intent(&request),
-            Input::Constant { .. } => None,
+            // A structured constant states no intent to retrieve knowledge for.
+            _ => None,
         };
         if let Some(intent) = intent.filter(|intent| !intent.trim().is_empty()) {
             let mut pack = snapshot
@@ -308,7 +312,7 @@ async fn author(
             request = request.with_authoring_knowledge(pack);
         }
     }
-    let authority = bounds.authority().map_err(|_| Refusal::Machinery)?;
+    let authority = v2::authority(bounds).map_err(|_| Refusal::Machinery)?;
     let invocations = authority.envelope();
     let requests = authority.envelope();
     let http = nika_cli_host::compile::authoring_http_with_deadline(bounds.call_timeout)
@@ -345,9 +349,14 @@ async fn author(
     let room = room.transpose().map_err(|_| Refusal::Machinery)?;
     let host =
         (room.as_ref()).map(|(_, room)| room as &dyn nika_onboard::compile::rehearse::Rehearse);
-    let mut outcome = Box::pin(compile_with_cognition_rehearsed(&request, cognition, host))
-        .await
-        .map_err(|_| Refusal::Machinery)?;
+    let catalogue = (context.as_ref()).map(|(snapshot, exclude)| snapshot.catalogue(*exclude));
+    let lent = (catalogue.as_ref())
+        .map(|catalogue| catalogue as &dyn nika_onboard::knowledge::ComponentCatalog);
+    let mut outcome = Box::pin(compile_with_cognition_composed(
+        &request, cognition, host, lent,
+    ))
+    .await
+    .map_err(|_| Refusal::Machinery)?;
     if let Some(receipt) = outcome.provenance.authoring.as_mut() {
         backend["usage_complete"] = serde_json::json!(
             nika_onboard::compile::authority::usage_complete(&receipt.context)

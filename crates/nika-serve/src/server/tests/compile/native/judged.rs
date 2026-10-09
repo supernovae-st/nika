@@ -13,7 +13,7 @@
 use std::collections::BTreeSet;
 
 use super::authority::{
-    GATED, answered, findings, gated_round_judged, held_findings, judged_then, roles, verify_steps,
+    GATED, findings, gated_round_judged, held_findings, judged_then, roles, verify_steps,
 };
 use super::openapi::{ANSWER, REQUEST, exchange, schema_at, served};
 use super::*;
@@ -54,14 +54,14 @@ fn assert_published(published: &Value, document: &Value) {
     }
 }
 
-/// A repair whose plan the compiler assembles into the very bytes the judge declined: the judge
-/// is not asked of them again. The earlier verdict stands as a new attempt with no call, the
-/// repairs end there although no count bounds them, and the bytes are held.
+/// A repair whose document is the very bytes the judge declined: the judge is not asked of them
+/// again. The earlier verdict stands as a new attempt with no call, the repairs end there
+/// although no count bounds them, and the bytes are held.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_repair_that_returns_the_declined_bytes_asks_the_judge_nothing_and_holds_them() {
     let world = TestWorld::new();
-    // The repair answers the plan the judge declined; the approval scripted after it is never
-    // asked.
+    // The repair answers the document the judge declined; the approval scripted after it is
+    // never asked.
     let seat = Seat::start(judged_then(DRAFT));
     let operator = NativeAuthoring::new(SEAT, seat.providers());
     let (server, _backend) = start_native(&world, compile_limits(), operator).await;
@@ -70,7 +70,7 @@ async fn a_repair_that_returns_the_declined_bytes_asks_the_judge_nothing_and_hol
         schema_at(&published, REQUEST),
         schema_at(&published, ANSWER),
     );
-    let response = exchange(&server, &request, &answer, &fresh(&answered())).await;
+    let response = exchange(&server, &request, &answer, &fresh(&json!({}))).await;
     let document = response.json();
     assert_eq!(document["status"], "incomplete", "{document:#}");
     assert_eq!(seat.calls(), 6, "no call after the repair");
@@ -82,12 +82,12 @@ async fn a_repair_that_returns_the_declined_bytes_asks_the_judge_nothing_and_hol
     assert_eq!(
         journaled,
         [
-            "plan",
+            "document",
             "judge_request",
             "judge_part",
             "judge_part",
             "judge_point",
-            "repair"
+            "document-repair"
         ]
     );
     assert_eq!(
@@ -95,7 +95,6 @@ async fn a_repair_that_returns_the_declined_bytes_asks_the_judge_nothing_and_hol
         [
             "verify: repair 1",
             "verify: same bytes, earlier verdict stands",
-            "verify: no progress",
             "verify: not ready",
             "verify: doubted, not replayable"
         ]
@@ -152,24 +151,23 @@ async fn a_repair_that_returns_the_declined_bytes_asks_the_judge_nothing_and_hol
         (&first["carried"], &again["carried"]),
         (&json!(false), &json!(false))
     );
-    // The core's pending whole request, the judge's defect after its one repair, the marker.
-    assert_eq!(
-        findings(&document),
-        held_findings(candidate, 1),
-        "{document:#}"
-    );
+    // The door's journal, the judge's defect after its one repair, then the marker.
+    assert_eq!(findings(&document), held_findings(1), "{document:#}");
     assert_eq!(document["questions"], json!([]));
     assert_eq!(document["check_preview"]["scope"], "sourceOnly");
-    assert_eq!(document["provenance"]["plan"], Value::Null);
-    assert!(
-        response.header("nika-compile-replay").is_none(),
-        "nothing kept"
-    );
+    // The record is kept with the judge's rejection (A3) and a token offered: replayed, that
+    // judge is asked nothing and the bytes are held again, the verdict carried.
+    let declined = document["provenance"]["plan"]["declined"].as_array();
+    assert!(declined.is_some_and(|d| !d.is_empty()), "{document:#}");
+    let token = (response.header("nika-compile-replay"))
+        .expect("the kept record's token")
+        .to_owned();
     assert_published(&published, &document);
+    replay_asks_nothing(&server, &seat, &token).await;
     server.stop().await.expect("clean stop");
 }
 
-/// The sketch door's round whose judge answers a choice it was not offered: no admitted
+/// The document door's round whose judge answers a choice it was not offered: no admitted
 /// judgment of the candidate exists, nothing was declined. The candidate is withdrawn and its
 /// round kept; that round's replay calls no one, so it judges nothing either: the same bytes
 /// come back held for a judge, the whole request pending.
@@ -184,17 +182,16 @@ async fn a_candidate_no_admitted_judgment_was_made_of_is_withdrawn_and_its_round
         schema_at(&published, REQUEST),
         schema_at(&published, ANSWER),
     );
-    let mut fields = answered();
-    fields["intent"] = json!(GATED);
+    let fields = json!({"intent": GATED});
     let response = exchange(&server, &request, &answer, &fresh(&fields)).await;
     let document = response.json();
     assert_eq!(document["status"], "incomplete", "{document:#}");
     assert_eq!(document["candidate"], Value::Null, "{document:#}");
     assert_eq!(document["check_preview"], Value::Null);
     assert_eq!(document["questions"], json!([]));
-    assert_eq!(seat.calls(), 4);
+    assert_eq!(seat.calls(), 2);
     let journaled: Vec<String> = roles(&document).into_iter().map(|(role, _)| role).collect();
-    assert_eq!(journaled, ["plan", "sketch", "fill", "judge_request"]);
+    assert_eq!(journaled, ["document", "judge_request"]);
     // The judge's answer is recorded and admitted nothing: an unknown, never a doubt.
     let attempts = document["provenance"]["decision"]["semantic_verification"]
         .as_array()
@@ -233,15 +230,15 @@ async fn a_candidate_no_admitted_judgment_was_made_of_is_withdrawn_and_its_round
     let finding = |kind: &str, target: &str, message: &str| {
         (kind.to_owned(), target.to_owned(), message.to_owned())
     };
-    // The sketch door's own journal (its graph and its fills, each accepted by the evidence
-    // laws), the request no admitted judgment settled, then the marker.
+    // The document door's own journal (its document, accepted by the evidence laws), the
+    // request no admitted judgment settled, then the marker.
     assert_eq!(
         findings(&document),
         [
             finding(
                 "applied",
                 "authoring_native",
-                "The authoring conversation recorded 2 round(s), including 2 candidate or sketch judgment(s): round 0: accepted; round 1: accepted."
+                "The authoring conversation recorded 1 round(s), including 1 candidate or sketch judgment(s): round 0: accepted."
             ),
             finding(
                 "unknown",
@@ -278,6 +275,26 @@ async fn a_candidate_no_admitted_judgment_was_made_of_is_withdrawn_and_its_round
         .map(|clause| &clause["clause"])
         .collect();
     assert_eq!(open, [&json!(GATED)], "{replayed:#}");
-    assert_eq!(seat.calls(), 4, "the replay called no one");
+    assert_eq!(seat.calls(), 2, "the replay called no one");
     server.stop().await.expect("clean stop");
+}
+
+/// Replay the record `token` keeps (A3): the same judge is asked nothing, and the bytes are held
+/// again with the verdict carried.
+pub(super) async fn replay_asks_nothing(server: &TestServer, seat: &Seat, token: &str) {
+    let calls = seat.calls();
+    let mut body: Value = serde_json::from_str(&replay(token, &json!({}))).expect("a replay");
+    body["cognition"] = json!("explicitProvider");
+    let again = server.request(&compile_request(&body.to_string())).await;
+    assert_eq!(again.status, 200, "{}", again.body);
+    let replayed = again.json();
+    assert_eq!(replayed["status"], "incomplete", "{replayed:#}");
+    assert_eq!(seat.calls(), calls, "the judge is asked nothing");
+    let attempts = replayed["provenance"]["decision"]["semantic_verification"].as_array();
+    let last = attempts.and_then(|attempts| attempts.last());
+    assert_eq!(
+        last.map(|a| &a["carried"]),
+        Some(&json!(true)),
+        "{replayed:#}"
+    );
 }

@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+# Expected: NIKA-DAG-002 at CHECK.
+# C10 · a with: binding referencing tasks.X where X does not EXIST → the
+# binding IS an edge, and an edge to nowhere is NIKA-DAG-002 at CHECK
+# (pre-W2 this surfaced as VAR-001 through when:; the boundary makes the
+# missing task an EDGE error — same refusal, sharper name).
+# We assert it is REJECTED, not silently null.
+nika: c10-missing-task-ref-no-edge
+
+tasks:
+  gate:
+    with:
+      st: ${{ tasks.nonexistent.status }}
+    when: "${{ with.st == 'success' }}"
+    invoke:
+      tool: "nika:write"
+      args: { path: "./out/cel/c10-ran.json", content: { ran: true }, create_dirs: true }

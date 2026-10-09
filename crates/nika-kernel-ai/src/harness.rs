@@ -46,6 +46,10 @@ pub struct HarnessRequest {
     /// The session mode the caller wants, in the caller's word (`read-only`): the client maps it
     /// to a mode the agent advertises (`plan` · `read-only` · …) when one exists, best effort.
     pub requested_mode: Option<String>,
+    /// The reasoning effort the caller asks, as the route's NATIVE value, verbatim. The client
+    /// applies it through the session's own reasoning option after the model is selected and
+    /// reads it back before the prompt, or refuses; it is never dropped or translated.
+    pub requested_effort: Option<String>,
 }
 
 impl HarnessRequest {
@@ -58,7 +62,15 @@ impl HarnessRequest {
             cwd: cwd.into(),
             requested_model: None,
             requested_mode: None,
+            requested_effort: None,
         }
+    }
+
+    /// Ask for an exact native reasoning effort (`None` keeps the session's own).
+    #[must_use]
+    pub fn with_requested_effort(mut self, effort: Option<String>) -> Self {
+        self.requested_effort = effort;
+        self
     }
 
     /// Attach a system prompt.
@@ -192,6 +204,9 @@ pub struct HarnessOutcome {
     pub observed_model_source: Option<ModelProvenance>,
     /// Images received during this turn; paths are peer claims, never opened here.
     pub images: Vec<HarnessImage>,
+    /// What the client SENT to configure the session and what the session read back for the
+    /// effort — kept apart from the request (what was asked) and from `observed_model`.
+    pub selection: HarnessSelection,
 }
 
 impl HarnessOutcome {
@@ -204,6 +219,7 @@ impl HarnessOutcome {
             observed_model: None,
             observed_model_source: None,
             images: Vec::new(),
+            selection: HarnessSelection::default(),
         }
     }
 
@@ -219,6 +235,59 @@ impl HarnessOutcome {
     pub fn with_observed_model(mut self, model: impl Into<String>) -> Self {
         self.observed_model = Some(model.into());
         self
+    }
+}
+
+/// How one session was configured: the exact values the client sent and what the session
+/// reported back for the reasoning effort. `None` everywhere means nothing was set (the
+/// session kept its own defaults) — never « the requested value applied ».
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct HarnessSelection {
+    /// The session's own model option id the model was sent through, or the legacy method
+    /// name (`session/set_model`) when the agent offers only its model list.
+    pub model_option: Option<String>,
+    /// The model value sent (`session/set_config_option` value · legacy `modelId`).
+    pub transmitted_model: Option<String>,
+    /// The session's own reasoning option id the effort was sent through (`reasoning_effort` ·
+    /// `effort` …), as advertised for the selected model.
+    pub effort_option: Option<String>,
+    /// The native effort value sent, verbatim.
+    pub transmitted_effort: Option<String>,
+    /// The effort the session reported current after the last selection: `confirmed_selection`
+    /// when read back from the answer to the selection, `session_config` when nothing was sent.
+    pub configured_effort: Option<String>,
+    /// How `configured_effort` was learned.
+    pub configured_effort_source: Option<ModelProvenance>,
+    /// The agent itself moved the model or the effort away from what was configured during the
+    /// turn (a `config_option_update` · e.g. a rate-limit fallback): the values it announced,
+    /// `dimension=value`, in arrival order. Recorded, never hidden.
+    pub changed_mid_turn: Vec<String>,
+}
+
+impl HarnessSelection {
+    /// The refusal an EXACT selection owes an answer during which the agent moved a model or
+    /// an effort the client had applied (`fallback: none` — the answer was not produced under
+    /// it). `None` when nothing applied moved: a move of a dimension nobody set stays a fact
+    /// of the receipt, never a refusal.
+    #[must_use]
+    pub fn moved_refusal(&self) -> Option<HarnessError> {
+        let moved: Vec<&str> = self
+            .changed_mid_turn
+            .iter()
+            .filter(|change| {
+                (change.starts_with("model=") && self.transmitted_model.is_some())
+                    || (change.starts_with("effort=") && self.transmitted_effort.is_some())
+            })
+            .map(String::as_str)
+            .collect();
+        (!moved.is_empty()).then(|| HarnessError::Selection {
+            reason: format!(
+                "the route moved {} during the turn; an explicit selection is exact, so no \
+                 answer is accepted",
+                moved.join(" · ")
+            ),
+        })
     }
 }
 
@@ -340,6 +409,15 @@ pub enum HarnessError {
         /// The harness's own refusal.
         reason: String,
     },
+    /// Nika's own judgment of the route's offer against an explicit
+    /// selection — a model or effort the session does not offer, or a
+    /// read-back that does not confirm it — before any prompt. The words
+    /// are Nika's, never the adapter's text, so any surface may show them.
+    #[error("harness refused: {reason}")]
+    Selection {
+        /// The refusal, naming the option, the value and the offer.
+        reason: String,
+    },
 }
 
 impl HarnessError {
@@ -409,6 +487,29 @@ mod tests {
         _assert_send::<HarnessOutcome>();
         _assert_send::<HarnessError>();
         _assert_send::<PermissionReply>();
+    }
+
+    /// Under an exact selection only a move of an APPLIED dimension refuses;
+    /// a dimension nobody set stays a receipt fact.
+    #[test]
+    fn only_a_move_of_an_applied_dimension_refuses() {
+        let mut selection = HarnessSelection {
+            changed_mid_turn: vec!["model=sonnet".into(), "effort=low".into()],
+            ..HarnessSelection::default()
+        };
+        assert!(selection.moved_refusal().is_none(), "nothing was applied");
+        let reason = |selection: &HarnessSelection| match selection.moved_refusal() {
+            Some(HarnessError::Selection { reason }) => reason,
+            _ => String::new(),
+        };
+        selection.transmitted_effort = Some("max".into());
+        let effort_only = reason(&selection);
+        assert!(effort_only.contains("effort=low"), "{effort_only}");
+        assert!(!effort_only.contains("model=sonnet"), "{effort_only}");
+        selection.transmitted_model = Some("opus".into());
+        let both = reason(&selection);
+        assert!(both.contains("model=sonnet · effort=low"), "{both}");
+        assert!(both.contains("an explicit selection is exact"), "{both}");
     }
 
     #[test]

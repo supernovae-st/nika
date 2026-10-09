@@ -1,0 +1,101 @@
+# Every verb option a sketch cannot carry, in every scalar style: a document
+# revision must keep each one, its comments and its presentation.
+nika: verbs-full
+model: mock/echo
+
+permits:
+  tools: ["nika:log"]
+  exec: true
+  env: ["CI_COMMIT_SHA"]
+  fs:
+    read: ["./diagram.png", "skills/probe/SKILL.md"]
+
+tasks:
+  research:
+    infer:
+      prompt: |
+        Research the topic
+        in two paragraphs.
+      system: >-
+        You are a careful
+        architect.
+      model: mock/echo
+      temperature: 0.3
+      max_tokens: 2000
+      schema:
+        type: object
+        required: [summary]
+        properties:
+          summary: { type: string }
+      thinking:
+        enabled: true
+        budget_tokens: 1000
+      vision:
+        - source: file
+          path: "./diagram.png"
+        - source: url
+          url: "https://example.invalid/chart.png"
+  assistant:
+    with:
+      findings: ${{ tasks.research.output }}
+    agent:
+      system: 'You are a research assistant.'
+      prompt: "Summarize ${{ with.findings }}"
+      model: mock/echo
+      tools:
+        - "nika:log"
+      skills:
+        - "skills/probe/SKILL.md"
+      max_turns: 20
+      max_tokens_total: 100000
+      temperature: 0.2
+      schema:
+        type: object
+  build:
+    with:
+      summary: ${{ tasks.assistant.output }}
+    exec:
+      shell: "echo $CI_COMMIT_SHA | tr a-z A-Z"
+      cwd: "./"
+      env:
+        MODE: "release"
+      stdin: "${{ with.summary }}"
+      capture: combined
+      decode: text
+    retry:
+      max_attempts: 3
+      backoff_ms: 100
+      backoff_max_ms: 1000
+      backoff_strategy: linear
+      jitter: false
+      on_codes: ["NIKA-EXEC-001"]
+    on_error:
+      skip: true
+      on_codes: ["NIKA-EXEC-002"]
+  probe_stderr:
+    exec:
+      command: ["ls", "./missing-on-purpose"]
+      capture: stderr
+      decode: json
+  probe_stdout:
+    exec:
+      command: ["echo", "{}"]
+      capture: stdout
+      decode: jsonl
+    retry:
+      max_attempts: 2
+      backoff_strategy: fixed
+  probe_bytes:
+    exec:
+      command: ["echo", "x"]
+      decode: bytes
+  fanout:
+    for_each:
+      items: ["a", "b", "c"]
+      max_parallel: 2
+      max_items: 10
+      fail_fast: true
+    invoke:
+      tool: "nika:log"
+      args:
+        message: "item ${{ item }}"

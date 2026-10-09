@@ -51,8 +51,16 @@ pub(super) fn bind(
     admitted: &AdmittedExecution,
     definition: &ScheduleDefinition,
 ) -> Result<BTreeMap<String, Value>, ScheduleInputsRefusal> {
+    bind_literals(admitted, definition.inputs())
+}
+
+/// [`bind`]'s law over any `key`, `text` pairs: a schedule's inputs, a Session run's.
+pub(super) fn bind_literals<'a>(
+    admitted: &AdmittedExecution,
+    pairs: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> Result<BTreeMap<String, Value>, ScheduleInputsRefusal> {
     let mut bound = BTreeMap::new();
-    for (key, text) in definition.inputs() {
+    for (key, text) in pairs {
         let declared = declaration(admitted.workflow(), key).map_err(|undeclared| {
             let message = format!("inputs.{key}: unknown input — {}", undeclared.teaching());
             ScheduleInputsRefusal::new("unknown_input", message)

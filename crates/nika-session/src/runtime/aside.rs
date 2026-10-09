@@ -97,7 +97,7 @@ pub(super) fn explain_gate(gate: &PendingGate, root: &Path) -> String {
     let _ = write!(
         text,
         "\n  nothing after the gate has happened yet · the trace `{}` holds what ran before it\n  the gate still waits · answer {how} · nothing answers for you",
-        gate.trace.display()
+        super::shown_trace(root, &gate.trace)
     );
     text
 }

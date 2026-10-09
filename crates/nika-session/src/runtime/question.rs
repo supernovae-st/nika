@@ -18,6 +18,7 @@ use super::{SessionRuntime, TurnOutcome};
 use crate::authoring::AuthoringRound;
 use crate::change::Witness;
 use crate::outcome::{Incarnation, QuestionId, Refusal, RefusalClass};
+use crate::work::{AnswerAct, Answered};
 
 /// How many answered or dropped questions a session remembers, to say so
 /// (`already_consumed`); an older one reads as no longer waiting.
@@ -89,7 +90,8 @@ impl SessionRuntime {
     /// question grants no consent and no run.
     pub fn answer_question_for(&mut self, id: &QuestionId, line: &str) -> TurnOutcome {
         if self.waiting_cost_choice() {
-            return refused(
+            return self.refused_for(
+                id,
                 RefusalClass::StaleRevision,
                 format!("a cost review waits — the answer to the question {id} cannot answer it"),
             );
@@ -97,45 +99,82 @@ impl SessionRuntime {
         let elsewhere = !id.asked_by(&self.questions.asker);
         match self.pending_question_id() {
             Some(waiting) if waiting == *id => {
-                if self.pending_choice || self.pending.is_some() || self.pending_gate.is_some() {
-                    return refused(
+                if self.waiting_review().is_some()
+                    || self.pending_choice
+                    || self.pending.is_some()
+                    || self.pending_gate.is_some()
+                {
+                    return self.refused_for(
+                id,
                         RefusalClass::WrongState,
                         format!(
-                            "another prompt owns the next line (the intelligence choice, a proposal or a paused run) — answer it first; the question {id} keeps waiting"
+                            "another prompt owns the next line (a run's cost review, the intelligence choice, a proposal or a paused run) — answer it first; the question {id} keeps waiting"
                         ),
                     );
                 }
                 self.turn(line)
             }
-            Some(waiting) if elsewhere => refused(
+            Some(waiting) if elsewhere => self.refused_for(
+                id,
                 RefusalClass::StaleRevision,
                 format!(
                     "the question {id} was asked by another session — a restarted session never takes an earlier answer · the question waiting now is {waiting}"
                 ),
             ),
-            Some(waiting) => refused(
+            Some(waiting) => self.refused_for(
+                id,
                 RefusalClass::StaleRevision,
                 format!(
                     "the question {id} is not the one waiting ({waiting}) — the request, its revision or the intelligence changed · read the question again before answering"
                 ),
             ),
-            None if self.questions.is_closed(id) => refused(
+            None if self.questions.is_closed(id) => self.refused_for(
+                id,
                 RefusalClass::AlreadyConsumed,
                 format!("the question {id} was already answered or dropped — it is answered once"),
             ),
-            None if elsewhere => refused(
+            None if elsewhere => self.refused_for(
+                id,
                 RefusalClass::WrongState,
                 format!(
                     "the question {id} was asked by another session and no question waits here — describe the work again"
                 ),
             ),
-            None => refused(
+            None => self.refused_for(
+                id,
                 RefusalClass::WrongState,
                 format!(
                     "no authoring question waits — the question {id} is neither waiting nor answered in this session"
                 ),
             ),
         }
+    }
+
+    /// An identity-door refusal of a line typed for the question `id`, recorded as its act.
+    fn refused_for(&mut self, id: &QuestionId, class: RefusalClass, text: String) -> TurnOutcome {
+        self.answer_refused(Some(id.clone()), refused(class, text))
+    }
+
+    /// Record what a line did to the question it was typed for, where it did it.
+    pub(super) fn answer_act(&mut self, question: Option<QuestionId>, act: AnswerAct) {
+        self.last_answer = question.map(|question| Answered::new(question, act));
+    }
+
+    /// A refusal a line meets before anything it says commits, recorded as its act.
+    pub(super) fn answer_refused(
+        &mut self,
+        question: Option<QuestionId>,
+        outcome: TurnOutcome,
+    ) -> TurnOutcome {
+        if let TurnOutcome::Refusal(refusal) = &outcome {
+            self.answer_act(
+                question,
+                AnswerAct::Refused {
+                    class: refusal.class,
+                },
+            );
+        }
+        outcome
     }
 }
 

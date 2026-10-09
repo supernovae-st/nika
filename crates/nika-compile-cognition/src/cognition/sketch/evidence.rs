@@ -133,7 +133,7 @@ fn summary(contract: &nika_compile_fidelity::behavior::Contract, report: &Report
 
 /// A candidate the evidence or the budget leaves not READY: withdrawn with its preview, its
 /// questions, its requested boundary and its replayable record, the reason stated.
-pub(super) fn refuse(out: &mut CompileOutcome, reason: String) {
+pub(in crate::cognition) fn refuse(out: &mut CompileOutcome, reason: String) {
     out.status = CompileStatus::Incomplete;
     out.candidate = None;
     out.check_preview = None;

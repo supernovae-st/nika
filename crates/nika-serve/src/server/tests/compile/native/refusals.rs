@@ -10,6 +10,7 @@
 use clap::Parser as _;
 use nika_kernel::secret::Secret;
 
+use super::judged::replay_asks_nothing;
 use super::*;
 use crate::{NativeAuthoringArgs, NativeAuthoringError, seat_native_authoring};
 
@@ -163,7 +164,7 @@ fn typed_refusals() -> Vec<Case> {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_large_intent_reaches_the_native_seat_without_a_field_quota_or_truncation() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
+    let seat = Seat::start(question_round());
     // Only one request is needed to observe admission and its exact bytes. The outcome may
     // remain incomplete; this fixture does not claim the seat understood the extra context.
     let authoring = NativeAuthoring::new(SEAT, seat.providers()).with_max_calls(1);
@@ -176,7 +177,8 @@ async fn a_large_intent_reaches_the_native_seat_without_a_field_quota_or_truncat
     assert_eq!(response.status, 200, "{}", response.body);
     let bodies = seat.bodies();
     assert_eq!(bodies.len(), 1, "{}", response.body);
-    assert_eq!(message(&bodies[0], "user"), intent);
+    let opening: Value = serde_json::from_str(&message(&bodies[0], "user")).expect("opening");
+    assert_eq!(opening["request"], intent.as_str());
     assert_eq!(backend.calls(), 0, "authoring never creates a Run");
     server.stop().await.expect("clean stop");
 }
@@ -331,7 +333,7 @@ async fn a_replay_repeats_its_round_or_refuses_and_never_buys_a_call() {
     .await;
     let kept = short.request(&compile_request(&fresh(&json!({})))).await;
     let brief_token = token_of(&kept);
-    let answers = json!({"answers": {"model": RUN_MODEL}});
+    let answers = closing();
     let used = short
         .request(&compile_request(&replay(&brief_token, &answers)))
         .await;
@@ -345,13 +347,13 @@ async fn a_replay_repeats_its_round_or_refuses_and_never_buys_a_call() {
         expired.json()["error"]["code"],
         "compile_replay_unavailable"
     );
-    // The kept round's three requests (plan, sketch, fill), nothing after it.
+    // The kept round's one request, nothing after it.
     assert_eq!(
         brief_seat.calls(),
-        3,
+        1,
         "an expired round is refused, never regenerated"
     );
-    assert_eq!(seat.calls(), 3);
+    assert_eq!(seat.calls(), 1);
     short.stop().await.expect("clean stop");
     server.stop().await.expect("clean stop");
 }
@@ -408,8 +410,8 @@ async fn provider_failures_reach_the_document_as_fixed_reasons_and_a_withheld_va
 
     // A seat that echoes the operator's credential: the whole answer is refused.
     let world = TestWorld::new();
-    // The plan's draft detail is what the compiler reads and the document carries.
-    let echoed = plan_answer(&format!("{DRAFT}, signed {WITHHELD}"), &[]);
+    // The document's prompt carries what the seat echoed.
+    let echoed = open_document(&format!(", signed {WITHHELD}"));
     let seat = Seat::start(vec![Reply::Text(echoed)]);
     let authoring = operator(&seat)
         .with_repairs(0)
@@ -432,10 +434,10 @@ async fn provider_failures_reach_the_document_as_fixed_reasons_and_a_withheld_va
 #[tokio::test(flavor = "multi_thread")]
 async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narrow_them() {
     use super::authority::{findings, held_findings, judged_repair, one_repair, verify_steps};
-    let answered = json!({"answers": {"model": RUN_MODEL}});
-    // The operator's one repair under its stated grant of 32: the plan, its judgment, the
+    let answered = json!({});
+    // The operator's one repair under its stated grant of 32: the document, its judgment, the
     // request's two parts asked alone, the task the missing one points to, the repair, the
-    // repaired plan's judgment — seven calls.
+    // repaired document's judgment — seven calls.
     let world = TestWorld::new();
     let seat = Seat::start(judged_repair());
     let (server, _backend) = start_native(&world, compile_limits(), one_repair(&seat)).await;
@@ -452,10 +454,10 @@ async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narro
     assert_eq!(account["max_calls"], 32);
     assert_eq!(account["configured"]["worst_case"], Value::Null);
     server.stop().await.expect("clean stop");
-    // The caller narrows to zero repairs: the plan and the judge's four questions. The defect
+    // The caller narrows to zero repairs: the document and the judge's four questions. The defect
     // the judge locates stays unrepaired, named with its reason, and the declined bytes are
-    // held: still the document's candidate, never proposed, with no record a later round would
-    // replay to the same judge.
+    // held: still the document's candidate, never proposed, their record kept with the judge's
+    // rejection, so a later round that replays it asks that judge nothing.
     let world = TestWorld::new();
     let seat = Seat::start(judged_repair());
     let (server, _backend) = start_native(&world, compile_limits(), one_repair(&seat)).await;
@@ -470,23 +472,23 @@ async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narro
     assert_eq!(seat.bodies()[0]["max_tokens"].as_u64(), Some(1024));
     let account = &document["provenance"]["authoring"]["backend"]["authority"];
     assert_eq!(account["configured"]["worst_case"], Value::Null);
-    // The core's own word on the whole request it still holds pending, the judge's defect, then
-    // the marker of the held candidate.
-    let candidate = document["candidate"].as_str().expect("the held candidate");
-    assert_eq!(
-        findings(&document),
-        held_findings(candidate, 0),
-        "{document:#}"
+    // The door's journal, the judge's defect no repair was granted for, then the marker of the
+    // held candidate.
+    assert!(
+        document["candidate"].is_string(),
+        "the held candidate: {document:#}"
     );
+    assert_eq!(findings(&document), held_findings(0), "{document:#}");
     assert_eq!(
         verify_steps(&document),
         ["verify: not ready", "verify: doubted, not replayable"]
     );
-    assert_eq!(document["provenance"]["plan"], Value::Null, "{document:#}");
-    assert!(
-        response.header("nika-compile-replay").is_none(),
-        "nothing kept"
-    );
+    let declined = document["provenance"]["plan"]["declined"].as_array();
+    assert!(declined.is_some_and(|d| !d.is_empty()), "{document:#}");
+    let token = (response.header("nika-compile-replay"))
+        .expect("the kept record's token")
+        .to_owned();
+    replay_asks_nothing(&server, &seat, &token).await;
     server.stop().await.expect("clean stop");
 }
 
@@ -526,7 +528,7 @@ pub(super) fn wait_entered(seat: &Seat) {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_disconnected_or_expired_native_round_holds_its_slot_until_its_work_stops() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Parked(plan_answer(DRAFT, &[]))]);
+    let seat = Seat::start(vec![Reply::Parked(open_document(""))]);
     let (server, _backend) = start_native(&world, one_slot(), operator(&seat)).await;
     let mut caller = tokio::net::TcpStream::connect(server.address)
         .await
@@ -559,10 +561,10 @@ async fn a_disconnected_or_expired_native_round_holds_its_slot_until_its_work_st
     server.stop().await.expect("clean stop");
 
     // The operator's deadline stops the work the seat holds: 408, and the slot returns with it.
-    // The deadline leaves the plan request room to reach the seat on a loaded host, and the
-    // answer is awaited once the seat holds that request, so the 408 stops work that began.
+    // The deadline leaves the document request room to reach the seat on a loaded host, and
+    // the answer is awaited once the seat holds that request, so the 408 stops work that began.
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Parked(plan_answer(DRAFT, &[]))]);
+    let seat = Seat::start(vec![Reply::Parked(open_document(""))]);
     let deadline = Duration::from_secs(3);
     let authoring = operator(&seat).with_deadline(deadline);
     let (server, _backend) = start_native(&world, one_slot(), authoring).await;
@@ -611,7 +613,7 @@ async fn a_native_round_outlives_the_request_deadline_that_still_bounds_generati
         let _resumed = parked_until.recv();
     });
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Parked(plan_answer(DRAFT, &[]))]);
+    let seat = Seat::start(vec![Reply::Parked(open_document(""))]);
     let (server, _backend) = start_native_parked(&world, limits, operator(&seat), Some(park)).await;
     // Generation 1 on a native server: the request deadline as before, the slot kept.
     let hello = r#"{"compile_version":1,"mode":"create","intent":"hello"}"#;
@@ -656,7 +658,7 @@ async fn a_snapshot_changed_after_start_is_refused_before_the_seat() {
     // whole, so no round proceeds under the pinned identity — a fresh one, nor a replay.
     let block = foundry.root.join(super::BLOCK_FILE);
     std::fs::write(&block, "# edited after the export\n").expect("edit");
-    let answers = json!({"answers": {"model": RUN_MODEL}});
+    let answers = closing();
     for request in [fresh(&json!({})), replay(&token, &answers)] {
         let changed = server.request(&compile_request(&request)).await;
         assert_eq!(changed.status, 409, "{}", changed.body);
@@ -680,8 +682,8 @@ async fn a_snapshot_changed_after_start_is_refused_before_the_seat() {
         .await;
     assert_eq!(moved.status, 409, "{}", moved.body);
     assert_eq!(moved.json()["error"]["code"], "compile_context_changed");
-    // The kept round's three requests; a changed context never reaches the seat.
-    assert_eq!(seat.calls(), 3, "a changed context never reaches the seat");
+    // The kept round's one request; a changed context never reaches the seat.
+    assert_eq!(seat.calls(), 1, "a changed context never reaches the seat");
     server.stop().await.expect("clean stop");
 }
 
@@ -799,8 +801,8 @@ async fn a_full_store_refuses_a_fresh_round_before_it_spends() {
     let full = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(full.status, 503, "{}", full.body);
     assert_eq!(full.json()["error"]["code"], "compile_replay_capacity");
-    // The kept round's three requests; the second round is refused before any call.
-    assert_eq!(seat.calls(), 3, "refused before any call");
+    // The kept round's one request; the second round is refused before any call.
+    assert_eq!(seat.calls(), 1, "refused before any call");
     server.stop().await.expect("clean stop");
 }
 

@@ -6,7 +6,7 @@
 //! them; it repeats the verdict with no call (`carried`), and the bytes stay held. A correction
 //! is another request: the verdict binds to the request it judged, so the corrected request is
 //! asked again. New work carries none. No provider qualification, no paid call.
-use super::unjudged::{DOUBTED, HELD, asked, held_findings};
+use super::unjudged::{DOUBTED, HELD, UNTRIED, asked, held_findings};
 use super::*;
 use crate::authoring::decision::tests::{KEY, Peer as SystemOne, Reply, SEAT};
 use crate::authoring::{AuthoringContext, AuthoringSeat, DecisionSetup};
@@ -70,10 +70,11 @@ fn judged_by_seat(root: &Path, home: &Path, base: &str) -> SessionRuntime {
     let mut s = SessionRuntime::open(root, selected, Box::new(reasoner()));
     s.factory = Some(Box::new(move |_| Box::new(reasoner())));
     let none = AuthoringSettings::none();
+    // The verifier's carry is under test, not the knowledge release: none is opened, so no
+    // catalogue is lent and the seat is asked the verifier's questions only.
+    let off = AuthoringSettings::none().with_knowledge_off();
     let seat = DecisionSetup::with_key(SEAT, Some(KEY.to_owned()), Some(base));
-    s.set_authoring_context(
-        AuthoringContext::from_settings(&none, &none).with_decision(Some(seat)),
-    );
+    s.set_authoring_context(AuthoringContext::from_settings(&off, &none).with_decision(Some(seat)));
     s.enable_continuous_preparation();
     s.with_classifier(Box::new(Correcting));
     s.enable_history(home).unwrap();
@@ -164,12 +165,11 @@ fn the_stronger_retry_that_authors_the_held_bytes_again_never_asks_their_verifie
         .collect();
     let ids = DOUBT.map(|(id, _)| vec![id.to_owned()]);
     assert_eq!(questions, ids);
-    // The author: the default's plan, sketch and fills, then the stronger model's, never a
-    // closed choice.
+    // The author: the default's document, then the stronger model's, never a closed choice.
     let bodies = peer.bodies();
     let models: Vec<&Value> = bodies.iter().map(|body| &body["model"]).collect();
     let (flash, pro) = (json!("deepseek-flash"), json!("deepseek-v4-pro"));
-    assert_eq!(models, [&flash, &flash, &flash, &pro, &pro, &pro]);
+    assert_eq!(models, [&flash, &pro]);
     assert!(bodies.iter().all(|body| asked(body).is_none()));
     // The retry's one attempt repeats the verdict with no call, on the same bytes.
     let held = s.last_outcome.as_ref().expect("the held outcome");
@@ -188,7 +188,8 @@ fn the_stronger_retry_that_authors_the_held_bytes_again_never_asks_their_verifie
         .collect();
     assert_eq!(asked_roles, ["judge_request", "judge_part", "judge_extra"]);
     let held = s.last_outcome.as_ref().expect("the held outcome");
-    assert_eq!(held_findings(held), [HELD]);
+    let untried = format!("{HELD}{UNTRIED}");
+    assert_eq!(held_findings(held), [untried.as_str()]);
     assert_eq!(
         verify_steps(&s),
         [CARRIED, "verify: not ready, candidate held"]
@@ -246,13 +247,13 @@ fn a_correction_of_a_held_request_asks_its_verifier_again_on_the_same_bytes() {
         "Original request:\n{WORK}\nCorrection (it takes precedence over the original where they differ; every other requirement stands):\n{correction}"
     );
     assert_eq!(s.intent.goal.as_deref(), Some(restated.as_str()));
-    // The correction's plan, sketch and fills, then the corrected request judged on the same
-    // bytes.
+    // The correction's document, then the corrected request judged on the same bytes.
     let bodies = peer.bodies();
     assert_eq!(bodies.len(), CREATE_CALLS + 2 + CREATE_CALLS);
     let fresh = &bodies[CREATE_CALLS + 2..];
-    assert!(fresh[..3].iter().all(|body| asked(body).is_none()));
-    let (state, options) = asked(&fresh[3]).expect("the corrected request judged");
+    let authored = CREATE_CALLS - 1;
+    assert!(fresh[..authored].iter().all(|body| asked(body).is_none()));
+    let (state, options) = asked(&fresh[authored]).expect("the corrected request judged");
     assert_eq!(state["request"], restated.as_str());
     let judged = state["candidate_nika"].as_str().expect("the judged bytes");
     assert_eq!(sha256_hex(judged.as_bytes()), sha, "the held bytes again");

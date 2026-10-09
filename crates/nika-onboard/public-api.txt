@@ -47,6 +47,7 @@ pub use nika_onboard::compile::basis
 pub use nika_onboard::compile::basis_for
 pub use nika_onboard::compile::compile
 pub use nika_onboard::compile::compile_with_cognition
+pub use nika_onboard::compile::compile_with_cognition_composed
 pub use nika_onboard::compile::compile_with_cognition_rehearsed
 pub use nika_onboard::compile::compile_with_provider
 pub use nika_onboard::compile::decide
@@ -110,6 +111,7 @@ pub fn nika_onboard::compile::copy::native::Scoped::finish(self) -> nika_onboard
 pub fn nika_onboard::compile::copy::native::Scoped::new(root: std::path::PathBuf, host: alloc::boxed::Box<dyn nika_compile_seats::rehearse::Rehearse>, allowance: nika_onboard::compile::copy::Allowance) -> Self
 impl nika_compile_seats::rehearse::Rehearse for nika_onboard::compile::copy::native::Scoped
 pub fn nika_onboard::compile::copy::native::Scoped::bound(&self) -> core::time::Duration
+pub fn nika_onboard::compile::copy::native::Scoped::compose(&self, candidate: &str) -> nika_compile_seats::rehearse::Composed
 pub fn nika_onboard::compile::copy::native::Scoped::rehearse<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
 pub fn nika_onboard::compile::copy::native::Scoped::rehearse_reading<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String], targets: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
 impl<D> owo_colors::OwoColorize for nika_onboard::compile::copy::native::Scoped
@@ -140,7 +142,7 @@ impl<T> typenum::type_operators::Same for nika_onboard::compile::copy::native::S
 pub type nika_onboard::compile::copy::native::Scoped::Output = T
 #[non_exhaustive] pub struct nika_onboard::compile::copy::native::Settled
 impl nika_onboard::compile::copy::native::Settled
-pub fn nika_onboard::compile::copy::native::Settled::into_parts(self) -> (nika_compile_fidelity::behavior::accounting::Usage, core::result::Result<core::option::Option<nika_onboard::compile::copy::native::Preview>, alloc::string::String>)
+pub fn nika_onboard::compile::copy::native::Settled::into_parts(self) -> (nika_compile_behavior::behavior::accounting::Usage, core::result::Result<core::option::Option<nika_onboard::compile::copy::native::Preview>, alloc::string::String>)
 impl<D> owo_colors::OwoColorize for nika_onboard::compile::copy::native::Settled
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::copy::native::Settled where U: core::convert::From<T>
 pub fn nika_onboard::compile::copy::native::Settled::into(self) -> U
@@ -174,7 +176,7 @@ pub fn nika_onboard::compile::copy::words::rehearsed_lines(q: &nika_onboard::com
 pub nika_onboard::compile::copy::Qualification::NotCopy
 pub nika_onboard::compile::copy::Qualification::Qualified(alloc::boxed::Box<nika_onboard::compile::copy::Qualified>)
 pub nika_onboard::compile::copy::Qualification::Refused
-pub nika_onboard::compile::copy::Qualification::Refused::turn: nika_compile_fidelity::behavior::accounting::Usage
+pub nika_onboard::compile::copy::Qualification::Refused::turn: nika_compile_behavior::behavior::accounting::Usage
 pub nika_onboard::compile::copy::Qualification::Refused::why: alloc::string::String
 impl core::clone::Clone for nika_onboard::compile::copy::Qualification
 pub fn nika_onboard::compile::copy::Qualification::clone(&self) -> nika_onboard::compile::copy::Qualification
@@ -264,11 +266,11 @@ impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::copy::See
 impl<T> typenum::type_operators::Same for nika_onboard::compile::copy::Seen
 pub type nika_onboard::compile::copy::Seen::Output = T
 #[non_exhaustive] pub struct nika_onboard::compile::copy::Allowance
-pub nika_onboard::compile::copy::Allowance::before: nika_compile_fidelity::behavior::accounting::Usage
-pub nika_onboard::compile::copy::Allowance::round: nika_compile_fidelity::behavior::accounting::Limits
-pub nika_onboard::compile::copy::Allowance::turn: nika_compile_fidelity::behavior::accounting::Limits
+pub nika_onboard::compile::copy::Allowance::before: nika_compile_behavior::behavior::accounting::Usage
+pub nika_onboard::compile::copy::Allowance::round: nika_compile_behavior::behavior::accounting::Limits
+pub nika_onboard::compile::copy::Allowance::turn: nika_compile_behavior::behavior::accounting::Limits
 impl nika_onboard::compile::copy::Allowance
-pub const fn nika_onboard::compile::copy::Allowance::new(round: nika_compile_fidelity::behavior::accounting::Limits, turn: nika_compile_fidelity::behavior::accounting::Limits, before: nika_compile_fidelity::behavior::accounting::Usage) -> Self
+pub const fn nika_onboard::compile::copy::Allowance::new(round: nika_compile_behavior::behavior::accounting::Limits, turn: nika_compile_behavior::behavior::accounting::Limits, before: nika_compile_behavior::behavior::accounting::Usage) -> Self
 impl core::clone::Clone for nika_onboard::compile::copy::Allowance
 pub fn nika_onboard::compile::copy::Allowance::clone(&self) -> nika_onboard::compile::copy::Allowance
 impl core::cmp::Eq for nika_onboard::compile::copy::Allowance
@@ -379,7 +381,7 @@ pub type nika_onboard::compile::copy::Preview::Output = T
 pub nika_onboard::compile::copy::Qualified::lowering: nika_compile::assemble::read::CopyLowering
 pub nika_onboard::compile::copy::Qualified::outcome: nika_compile::types::CompileOutcome
 pub nika_onboard::compile::copy::Qualified::preview: nika_onboard::compile::copy::Preview
-pub nika_onboard::compile::copy::Qualified::turn: nika_compile_fidelity::behavior::accounting::Usage
+pub nika_onboard::compile::copy::Qualified::turn: nika_compile_behavior::behavior::accounting::Usage
 pub nika_onboard::compile::copy::Qualified::verdicts: alloc::vec::Vec<alloc::string::String>
 pub nika_onboard::compile::copy::Qualified::witness: nika_onboard::compile::copy::Witness
 impl core::clone::Clone for nika_onboard::compile::copy::Qualified
@@ -578,7 +580,9 @@ pub const nika_onboard::compile::room::ObservedRoom::COPY_BOUND: u64
 pub const nika_onboard::compile::room::ObservedRoom::LOGICAL_ROOT: &'static str
 pub const nika_onboard::compile::room::ObservedRoom::PREVIEW_BOUND: u64
 pub fn nika_onboard::compile::room::ObservedRoom::jq_helper(&self) -> core::option::Option<&nika_service_execution::rehearsal::isolated_jq::JqHelper>
+pub fn nika_onboard::compile::room::ObservedRoom::located(self, locate: impl core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String> + core::marker::Send + core::marker::Sync + 'static) -> Self
 pub fn nika_onboard::compile::room::ObservedRoom::new(root: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_onboard::compile::room::ObservedRoom::recompose(&self, out: &nika_compile::types::CompileOutcome, at: &str) -> core::result::Result<(), alloc::string::String>
 pub fn nika_onboard::compile::room::ObservedRoom::root(&self) -> &std::path::Path
 pub fn nika_onboard::compile::room::ObservedRoom::scratch_parent(&self) -> core::option::Option<&std::path::Path>
 pub fn nika_onboard::compile::room::ObservedRoom::with_bound(self, bound: core::time::Duration) -> Self
@@ -590,6 +594,7 @@ impl core::fmt::Debug for nika_onboard::compile::room::ObservedRoom
 pub fn nika_onboard::compile::room::ObservedRoom::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl nika_compile_seats::rehearse::Rehearse for nika_onboard::compile::room::ObservedRoom
 pub fn nika_onboard::compile::room::ObservedRoom::bound(&self) -> core::time::Duration
+pub fn nika_onboard::compile::room::ObservedRoom::compose(&self, candidate: &str) -> nika_compile_seats::rehearse::Composed
 pub fn nika_onboard::compile::room::ObservedRoom::rehearse<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
 pub fn nika_onboard::compile::room::ObservedRoom::rehearse_reading<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String], targets: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
 impl<D> owo_colors::OwoColorize for nika_onboard::compile::room::ObservedRoom
@@ -1465,6 +1470,7 @@ pub nika_onboard::compile_config::AuthoringConfig::strategy: nika_compile::types
 impl nika_onboard::compile_config::AuthoringConfig
 pub fn nika_onboard::compile_config::AuthoringConfig::policy(&self, model: &str, max_tokens: u32, timeout: core::time::Duration) -> core::result::Result<nika_compile::types::AuthoringPolicy, &'static str>
 pub fn nika_onboard::compile_config::AuthoringConfig::with_knowledge(&self, request: nika_compile::types::CompileRequest, fallback_intent: &str) -> core::result::Result<nika_compile::types::CompileRequest, nika_onboard::knowledge::KnowledgeError>
+pub fn nika_onboard::compile_config::AuthoringConfig::with_knowledge_lent(&self, request: nika_compile::types::CompileRequest, fallback_intent: &str) -> core::result::Result<(nika_compile::types::CompileRequest, nika_onboard::compile_config::Lent), nika_onboard::knowledge::KnowledgeError>
 impl core::clone::Clone for nika_onboard::compile_config::AuthoringConfig
 pub fn nika_onboard::compile_config::AuthoringConfig::clone(&self) -> nika_onboard::compile_config::AuthoringConfig
 impl core::cmp::Eq for nika_onboard::compile_config::AuthoringConfig
@@ -1600,6 +1606,7 @@ pub fn nika_onboard::compile_config::native_mode(word: &str) -> core::option::Op
 pub fn nika_onboard::compile_config::reasoning(explicit: &nika_onboard::compile_config::AuthoringSettings, env: &nika_onboard::compile_config::AuthoringSettings) -> core::result::Result<core::option::Option<nika_compile::types::AuthoringReasoning>, nika_onboard::compile_config::ConfigError>
 pub fn nika_onboard::compile_config::reasoning_word(flag: core::option::Option<&str>) -> core::option::Option<alloc::string::String>
 pub fn nika_onboard::compile_config::resolve(explicit: &nika_onboard::compile_config::AuthoringSettings, env: &nika_onboard::compile_config::AuthoringSettings) -> core::result::Result<nika_onboard::compile_config::AuthoringConfig, nika_onboard::compile_config::ConfigError>
+pub type nika_onboard::compile_config::Lent = core::option::Option<(nika_onboard::knowledge::Snapshot, core::option::Option<alloc::string::String>)>
 pub mod nika_onboard::fixtures
 pub fn nika_onboard::fixtures::fixture_prefixes(body: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_onboard::fixtures::materialize(body: &str, dest: &std::path::Path) -> core::io::error::Result<(usize, usize)>
@@ -1786,6 +1793,7 @@ pub mod nika_onboard::identity
 pub const nika_onboard::identity::IDENTITY_CORE: &str
 pub fn nika_onboard::identity::language_digest() -> alloc::string::String
 pub mod nika_onboard::knowledge
+pub use nika_onboard::knowledge::ComponentCatalog
 pub mod nika_onboard::knowledge::pin
 #[non_exhaustive] pub enum nika_onboard::knowledge::pin::KnowledgeOrigin
 pub nika_onboard::knowledge::pin::KnowledgeOrigin::Disk(std::path::PathBuf)
@@ -2006,6 +2014,7 @@ pub nika_onboard::knowledge::RefusalCode::RowFile
 pub nika_onboard::knowledge::RefusalCode::RowKind
 pub nika_onboard::knowledge::RefusalCode::RowMalformed
 pub nika_onboard::knowledge::RefusalCode::RowOrder
+pub nika_onboard::knowledge::RefusalCode::Split
 pub nika_onboard::knowledge::RefusalCode::Symlink
 pub nika_onboard::knowledge::RefusalCode::TargetPin
 pub nika_onboard::knowledge::RefusalCode::TooLarge
@@ -2017,7 +2026,9 @@ pub nika_onboard::knowledge::RefusalCode::Untrusted
 pub nika_onboard::knowledge::RefusalCode::Vocabulary
 impl nika_onboard::knowledge::RefusalCode
 pub const nika_onboard::knowledge::RefusalCode::ALL: [Self; 38]
+pub const nika_onboard::knowledge::RefusalCode::ALL_R2: [Self; 38]
 pub const fn nika_onboard::knowledge::RefusalCode::as_str(self) -> &'static str
+pub fn nika_onboard::knowledge::RefusalCode::of_word(word: &str) -> core::option::Option<Self>
 impl core::clone::Clone for nika_onboard::knowledge::RefusalCode
 pub fn nika_onboard::knowledge::RefusalCode::clone(&self) -> nika_onboard::knowledge::RefusalCode
 impl core::cmp::Eq for nika_onboard::knowledge::RefusalCode
@@ -2081,7 +2092,56 @@ impl<T> tracing::instrument::Instrument for nika_onboard::knowledge::RefusalCode
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::knowledge::RefusalCode
 impl<T> typenum::type_operators::Same for nika_onboard::knowledge::RefusalCode
 pub type nika_onboard::knowledge::RefusalCode::Output = T
+pub struct nika_onboard::knowledge::Catalogue<'a>
+impl nika_compile_seats::foundry::component::ComponentCatalog for nika_onboard::knowledge::Catalogue<'_>
+pub fn nika_onboard::knowledge::Catalogue<'_>::entries(&self) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_onboard::knowledge::Catalogue<'_>::reference(&self, id: &str) -> core::option::Option<nika_compile::types::KnowledgeReference>
+pub fn nika_onboard::knowledge::Catalogue<'_>::release(&self) -> nika_compile_seats::foundry::component::Release
+pub fn nika_onboard::knowledge::Catalogue<'_>::resolve(&self, reference: &nika_compile_seats::foundry::component::ComponentRef) -> core::result::Result<nika_compile_seats::foundry::component::Component, nika_compile_seats::foundry::component::Unresolved>
+impl<'a> core::clone::Clone for nika_onboard::knowledge::Catalogue<'a>
+pub fn nika_onboard::knowledge::Catalogue<'a>::clone(&self) -> nika_onboard::knowledge::Catalogue<'a>
+impl<'a> core::fmt::Debug for nika_onboard::knowledge::Catalogue<'a>
+pub fn nika_onboard::knowledge::Catalogue<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Copy for nika_onboard::knowledge::Catalogue<'a>
+impl<D> owo_colors::OwoColorize for nika_onboard::knowledge::Catalogue<'a>
+impl<T, U> core::convert::Into<U> for nika_onboard::knowledge::Catalogue<'a> where U: core::convert::From<T>
+pub fn nika_onboard::knowledge::Catalogue<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::knowledge::Catalogue<'a> where U: core::convert::Into<T>
+pub type nika_onboard::knowledge::Catalogue<'a>::Error = core::convert::Infallible
+pub fn nika_onboard::knowledge::Catalogue<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::knowledge::Catalogue<'a> where U: core::convert::TryFrom<T>
+pub type nika_onboard::knowledge::Catalogue<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::knowledge::Catalogue<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::knowledge::Catalogue<'a> where T: core::clone::Clone
+pub type nika_onboard::knowledge::Catalogue<'a>::Owned = T
+pub fn nika_onboard::knowledge::Catalogue<'a>::clone_into(&self, target: &mut T)
+pub fn nika_onboard::knowledge::Catalogue<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::knowledge::Catalogue<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::knowledge::Catalogue<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::knowledge::Catalogue<'a> where T: ?core::marker::Sized
+pub fn nika_onboard::knowledge::Catalogue<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::knowledge::Catalogue<'a> where T: ?core::marker::Sized
+pub fn nika_onboard::knowledge::Catalogue<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::knowledge::Catalogue<'a> where T: core::clone::Clone
+pub unsafe fn nika_onboard::knowledge::Catalogue<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::knowledge::Catalogue<'a>
+pub fn nika_onboard::knowledge::Catalogue<'a>::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::knowledge::Catalogue<'a> where T: core::clone::Clone
+pub fn nika_onboard::knowledge::Catalogue<'a>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::knowledge::Catalogue<'a> where T: 'static
+pub fn nika_onboard::knowledge::Catalogue<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_onboard::knowledge::Catalogue<'a> where T: core::marker::Copy
+pub fn nika_onboard::knowledge::Catalogue<'a>::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::knowledge::Catalogue<'a> where T: ?core::marker::Sized
+pub fn nika_onboard::knowledge::Catalogue<'a>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::knowledge::Catalogue<'a>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::knowledge::Catalogue<'a>
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::knowledge::Catalogue<'a>
+impl<T> typenum::type_operators::Same for nika_onboard::knowledge::Catalogue<'a>
+pub type nika_onboard::knowledge::Catalogue<'a>::Output = T
 pub struct nika_onboard::knowledge::Snapshot
+impl nika_onboard::knowledge::Snapshot
+pub const fn nika_onboard::knowledge::Snapshot::catalogue<'a>(&'a self, exclude_corpus: core::option::Option<&'a str>) -> nika_onboard::knowledge::Catalogue<'a>
 impl nika_onboard::knowledge::Snapshot
 pub fn nika_onboard::knowledge::Snapshot::digest(&self) -> core::option::Option<&str>
 pub fn nika_onboard::knowledge::Snapshot::from_files(label: &str, files: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<u8>>, identity: core::option::Option<&nika_onboard::knowledge::TrustedIdentity>) -> core::result::Result<Self, nika_onboard::knowledge::KnowledgeError>
@@ -2089,10 +2149,16 @@ pub fn nika_onboard::knowledge::Snapshot::identity(&self) -> serde_json::value::
 pub fn nika_onboard::knowledge::Snapshot::manifest_sha256(&self) -> &str
 pub fn nika_onboard::knowledge::Snapshot::open(dir: &std::path::Path, identity: core::option::Option<&nika_onboard::knowledge::TrustedIdentity>) -> core::result::Result<Self, nika_onboard::knowledge::KnowledgeError>
 pub fn nika_onboard::knowledge::Snapshot::pack(&self, intent: &str, exclude_corpus: core::option::Option<&str>) -> core::result::Result<nika_compile::types::AuthoringKnowledge, nika_onboard::knowledge::KnowledgeError>
+pub const fn nika_onboard::knowledge::Snapshot::profile(&self) -> &'static str
 pub fn nika_onboard::knowledge::Snapshot::rows_sha256(&self) -> alloc::string::String
 pub fn nika_onboard::knowledge::Snapshot::version(&self) -> core::option::Option<&str>
 impl core::fmt::Debug for nika_onboard::knowledge::Snapshot
 pub fn nika_onboard::knowledge::Snapshot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_compile_seats::foundry::component::ComponentCatalog for nika_onboard::knowledge::Snapshot
+pub fn nika_onboard::knowledge::Snapshot::entries(&self) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_onboard::knowledge::Snapshot::reference(&self, id: &str) -> core::option::Option<nika_compile::types::KnowledgeReference>
+pub fn nika_onboard::knowledge::Snapshot::release(&self) -> nika_compile_seats::foundry::component::Release
+pub fn nika_onboard::knowledge::Snapshot::resolve(&self, reference: &nika_compile_seats::foundry::component::ComponentRef) -> core::result::Result<nika_compile_seats::foundry::component::Component, nika_compile_seats::foundry::component::Unresolved>
 impl<D> owo_colors::OwoColorize for nika_onboard::knowledge::Snapshot
 impl<T, U> core::convert::Into<U> for nika_onboard::knowledge::Snapshot where U: core::convert::From<T>
 pub fn nika_onboard::knowledge::Snapshot::into(self) -> U
@@ -2126,6 +2192,7 @@ pub fn nika_onboard::knowledge::TrustedIdentity::new(snapshot_sha256: &str, poli
 pub fn nika_onboard::knowledge::TrustedIdentity::policy_id(&self) -> &str
 pub fn nika_onboard::knowledge::TrustedIdentity::policy_sha256(&self) -> &str
 pub const fn nika_onboard::knowledge::TrustedIdentity::profile(&self) -> &'static str
+pub fn nika_onboard::knowledge::TrustedIdentity::r2(snapshot_sha256: &str, policy_id: &str, policy_sha256: &str) -> core::option::Option<Self>
 pub fn nika_onboard::knowledge::TrustedIdentity::snapshot_sha256(&self) -> &str
 impl core::clone::Clone for nika_onboard::knowledge::TrustedIdentity
 pub fn nika_onboard::knowledge::TrustedIdentity::clone(&self) -> nika_onboard::knowledge::TrustedIdentity
@@ -2615,6 +2682,12 @@ impl<T> typenum::type_operators::Same for nika_onboard::routing::RoutedEntry
 pub type nika_onboard::routing::RoutedEntry::Output = T
 pub fn nika_onboard::routing::route_query(query: &str) -> nika_onboard::routing::RoutedEntry
 pub fn nika_onboard::routing::route_skeleton_query(query: &str) -> nika_onboard::routing::RoutedEntry
+pub mod nika_onboard::run_line
+pub const nika_onboard::run_line::EXPECT_SOURCE: &str
+pub const nika_onboard::run_line::EXPECT_WORLD: &str
+pub fn nika_onboard::run_line::resume_args(root: &std::path::Path, workflow: &std::path::Path, trace: &std::path::Path, answer: &str) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_onboard::run_line::run_args(root: &std::path::Path, workflow: &std::path::Path, ceiling: f64, vars: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_onboard::run_line::run_args_with_access(root: &std::path::Path, workflow: &std::path::Path, ceiling: f64, vars: &[alloc::string::String], pin: core::option::Option<&str>) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_onboard::wizard
 pub fn nika_onboard::wizard::wizard_io(dir: &str, force: bool, theme: nika_display::theme::Theme, input: &mut dyn alloc::io::buf_read::BufRead, out: &mut dyn core::io::write::Write, audit: &nika_onboard::Audit<'_>, wire: &nika_onboard::Wire<'_>) -> nika_onboard::Outcome
 pub struct nika_onboard::Outcome

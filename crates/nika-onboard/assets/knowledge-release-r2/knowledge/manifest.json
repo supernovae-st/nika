@@ -1,0 +1,236 @@
+{
+ "downgrades": {
+  "CHECK_UNPROVEN": 195
+ },
+ "exclusions": {
+  "kinds": [],
+  "rows": {
+   "BODY_NOT_TEXT": 1,
+   "LINEAGE_MISSING": 14,
+   "SOURCE_EXCLUDED": 3,
+   "SOURCE_EXCLUDED_CASCADE": 581,
+   "SOURCE_UNCITED": 1
+  }
+ },
+ "files": {
+  "LICENSES/AGPL-3.0-or-later.txt": "92ac0dc98d118e8b63b43d0de9de2273158260e7f49a42ad1f8e3d475979840c",
+  "LICENSES/Apache-2.0.txt": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+  "NOTICE.md": "c611eefb5e2c5f37721a09cd1a28bb4489cadabf69bab69773d53fc0733c0c95",
+  "blocks/after-failure-branch.nika": "b5bee636141ea31e77a1132e674cb4bd0d3890ae7a5d1cf8dfd32df074357a85",
+  "blocks/after-terminal-report.nika": "a49dc2314ddfbd3ad71d2203b32452b3d7880dcecf754ed9ebb0d6f60f337e2e",
+  "blocks/agent-compose-self-check.nika": "3093b6b87e00297806f2b0b9b482edeab5e5c7bed136c9ce6b8670b616ea42ae",
+  "blocks/agent-tools-skills.nika": "b17a0da3c5a3c932605af839357b1e42c66e3377eb5e66565a1d47f1ac240284",
+  "blocks/bounded-review-cycles.nika": "b2c94e89d39004048fa8b9bdd9e92431e64d9adc7f871da5e656dea8b6558fe2",
+  "blocks/chart-from-rows.nika": "e590c748933e1f25002c16286e1cda7b95ad17e7cfc06e39c70bae9e3db80e8b",
+  "blocks/child-workflow-typed.nika": "7d973fe027e843d5e18d4a6be164aeaea507b1f73f05951487209036bb731101",
+  "blocks/csv-filter-total-report.nika": "e55afe42302e673612dc9faef5c553b6b7f3d425f1c9be7c3417c0ba2975d026",
+  "blocks/draft-from-facts.nika": "e11ec3386804ad6093afa2d7018bda2056603019208364f38fe0c5a4b5fd2b5d",
+  "blocks/exec-structured-branch.nika": "1e7b1c7314a1f55be4901850e72a2557520723831ce79e9c729073226e9300c6",
+  "blocks/extract-named-bindings.nika": "b273b61c3f33aec337541f0f4e2d76e1a9223be4fcfb5272229d518a9e5ef8e2",
+  "blocks/fetch-modes-source.nika": "2735dd9fb3b6c9eb82873b7f5e5eb04ffe8f59a780d07043b9a03a4782d843ca",
+  "blocks/for-each-extract-count.nika": "5dd998d895679eae6b46fb67c40ceed82192f28c2c4976f3d11b932332a0d3ee",
+  "blocks/glob-read-many.nika": "dfa752b9f4f91a7edd7f0f545c2accf6b62a152570646f7f4effac3a8212da9c",
+  "blocks/group-fan-in-ledger.nika": "6fb8dac5642b285684eadf035e7727820b3ca42610306e5c0cbe825eb2994ca6",
+  "blocks/idempotent-post-retry.nika": "c9fd37db89aa767e83f9f60968dc970a86c1bf84922480d9c03e7a6953c9deef",
+  "blocks/infer-returns-enum.nika": "71b4ce5023d0c8c3c549ff48b710b8c041e3c9688aa8d2255831e1dec54f1dc1",
+  "blocks/infer-structured-schema.nika": "a858df728008f5e2a1a0eb71a221b3497c391dbe392bf80cbac0feb7b5eafa37",
+  "blocks/json-filter-gate-post.nika": "415b84591339306c6828dd026a7e00dcc3cda8952586ae5a00072c4514d8cf8b",
+  "blocks/json-filter-records.nika": "c8d1b85aba51f2c54b3b5b65d059b9006c1d7e6df0f0d5c7c6d37693ed08174d",
+  "blocks/lift-taint-caller-path.nika": "fe4724427259e2f3654e0416a13d01c0452a676ed6650178b4906d0986b2ada0",
+  "blocks/lookup-enrich-by-key.nika": "72cf1d910081db589750ea30460fd657cbcbf8371f135993c8e3d32c11540ca6",
+  "blocks/multi-csv-group-totals.nika": "84d1577db3622abaf22d686a123355cbb08ea171bac588038c218ea90337a99d",
+  "blocks/on-error-recover-cached.nika": "a617e7aace5451e94ec805ecc564bdffb15faf411d4e624cba043dcb1314ec40",
+  "blocks/on-error-skip-on-timeout.nika": "7b0937b00f1a2b642b69b0dec6e3218c4b95ad7ff6451e3887b9d395663438c0",
+  "blocks/permits-full-boundary.nika": "a57e4ead4de0f02d1fd4e10179e3a5a44ad8fdc49f8d0758fe0d588e0864cf20",
+  "blocks/prompt-gate-then-post.nika": "3e0b88ee1d9b6f92d78b9e86fc0f20efb698e7677b13a0be03532801731f64b9",
+  "blocks/retry-get-with-timeout.nika": "7a577dcde220f873cfda51ec68ef1346a2b2d893c7d337a944de7e032bd9e12f",
+  "blocks/run-deterministic.nika": "d3b5c5a80ba0cbace0cc82437fb621a57838f75500233b5c82c117f05ed50a75",
+  "blocks/secret-egress-fetch.nika": "ea44f7b1c139d27c89e37f1d28e880c7b84b7403e5b8585d0a9a783c12e7c591",
+  "blocks/secret-fetch-parse-write.nika": "7fb25b9324c4ca1ec2eac470b87f780e64988dacc01172d68fe2b05e9e9f649e",
+  "blocks/trifecta-blocking-gate.nika": "0707463fd1134a1d34667ce6b2d6001147b482836b0e448d233f831802b1f66c",
+  "blocks/typed-inputs-outputs.nika": "43624907bfe8fc891c03d6f2b7b8ca0f026887c34c0e6c02b705b69809598683",
+  "blocks/unwind-cleanup.nika": "579788690d5fb57c66940cab323e9315852629791401d5fd1d1b28ba2507dbd0",
+  "blocks/validate-diff-convert.nika": "71621f41721e917184eb28846a26d6cc6e757b90c6a2e90a8c6aeec4ecd138c1",
+  "blocks/validate-quarantine-total.nika": "197b59e821e6b8c185c81153e18e2919d60c4ce45e63fd33f8ed5f85ab0eca9c",
+  "blocks/when-skipped-fallback.nika": "eba05ccff93bb9f9edc0d40393a399e015eac1058ce3e85b5bb808c4b74a018a",
+  "counterexamples/conformance-dag-body-ref-outside-boundary-reject.nika": "e1add16d7d73bec2e8e3e6107b5b51fa8d864c42a24b49cb3dfc35b85fa3c09e",
+  "counterexamples/conformance-dag-cycle-reject.nika": "bee012539f0f8f04d5054176b76ed5b4b1c2901c5aec672018bfe2106d50d3ac",
+  "counterexamples/conformance-dag-recover-ref-downstream-reject.nika": "b62db613a538948190af7d732a3293f81872fd3ec4c098f82e514ccb1a9463e2",
+  "counterexamples/conformance-dag-undeclared-dep-reject.nika": "547d8c16067926911345884ae6e3b52887d34350aa349f526a12adef7ad2ba3d",
+  "counterexamples/conformance-envelope-parse-bad-nika-id.nika": "775a21a25925c9841ef615abfe772bd0b726de8f2630eb7577b831c5dc4c768a",
+  "counterexamples/conformance-envelope-parse-bad-task-id.nika": "945955ef7ce134e777f3eb7223444bd5368fa508d9ef60b2f93b0f3e7c505ab4",
+  "counterexamples/conformance-envelope-parse-duplicate-task-id.nika": "0663a9d93d9d62027504a34372cd4392f26ab4179a306628e510cdff40b0b3d0",
+  "counterexamples/conformance-envelope-parse-inline-secret-forbidden.nika": "4c8659a51697aba892022e9583658b50d424924618bac890fa401a835814cc09",
+  "counterexamples/conformance-envelope-parse-missing-nika-key.nika": "909fd3f6fa2d9924ce84b2989561662066aa093f1c5a5e74e1bc46b61f0c611f",
+  "counterexamples/conformance-envelope-parse-reserved-binding-name.nika": "7a12b6ea5210b75ecd7b078bb63039203ab842f36d5fbd5a2d544451904d0ed0",
+  "counterexamples/conformance-envelope-parse-task-no-verb.nika": "ce08098b23230b818849b14afd191ce9ef2ed7bab56e81a284e1840a033f1dcf",
+  "counterexamples/conformance-envelope-parse-unknown-field.nika": "eb8eb9d12d47fd26d7b1d098678cf0869886042c3e252b5bbb95808a8f2c2916",
+  "counterexamples/conformance-envelope-parse-yaml-syntax-reject.nika": "db0a049c547cfad4154f0aa7f407136e81ac8123b56e95227b1ba971e6b73e25",
+  "counterexamples/conformance-envelope-permits-agent-tool-outside-whitelist.nika": "50b51503ec7ba6a2e7a04ac6d877f3c89e43a0b734949e16df9416cdbc966964",
+  "counterexamples/conformance-envelope-permits-exec-absent.nika": "178263dae557e9c1fc78599b1944c91173cfc0eccf8d531da8e3245bcb59d4de",
+  "counterexamples/conformance-envelope-permits-fs-read-escape.nika": "fb7dc06b441ecda40bb98aff41c8be93d987c86430a6da9a2a6c1688d226a415",
+  "counterexamples/conformance-envelope-permits-fs-write-escape-absolute.nika": "6d9662b83828363c3d3bf247ef896262b2d3c82777e616dd015e80ffea7c0db2",
+  "counterexamples/conformance-envelope-permits-net-absent.nika": "813acf46bd4b00ff91a08fc0480f2e5f9e1043980151abe65ac1b634dcc305c9",
+  "counterexamples/conformance-envelope-permits-tool-not-listed.nika": "e8d461fcd8806c23b30b2f0f58a7fc7454f95f0fb387ceb086a7e3fb568e4fbe",
+  "counterexamples/conformance-envelope-sec-ssrf-localhost-blocked.nika": "288fcc3e24be7eca384603feb5cdaa7ed153ba92029c00ed6ee6e9423bb1ce6f",
+  "counterexamples/conformance-envelope-sec-ssrf-metadata-blocked.nika": "3dd5f057d4df14019ee4ba4ae539f38f6e805c39d2d58f325399cf482bac00fa",
+  "counterexamples/conformance-envelope-sec-ssrf-private-range-blocked.nika": "c91e96ebe7a583c167771e88452e3d679063923e1eea48c42a5dde35155c6356",
+  "counterexamples/conformance-envelope-secrets-direct-output-egress-refused.nika": "db3c67db6d160e2f22582fcd7df3ee9d42c2e187b017188f8fc6ba13c85939c6",
+  "counterexamples/conformance-envelope-secrets-launder-concat.nika": "507657a7919e269542d4e8b82793dff75d9752d16e24cf642ace3cf00ce830ba",
+  "counterexamples/conformance-envelope-secrets-leak-exec-sink.nika": "24101b0ca491a233b462e33ceb6b137c1e3a1665a228a630da1036acd9486b32",
+  "counterexamples/conformance-envelope-secrets-leak-infer-prompt.nika": "8a8d2cfc57e74db6915bcfc2a702563d06f16517d3b1412542724bea79901aa2",
+  "counterexamples/conformance-envelope-secrets-leak-outputs-boundary.nika": "47cd259a77fc749f06fab43cf4af0f4be2bc3c4ccad8fe68653f999d3f25990f",
+  "counterexamples/conformance-envelope-secrets-two-sinks-one-sanctioned.nika": "4c924a39d5b015b4a842142fc092bfa9bc2d45dd2d4a2d4bf86392bbda7672f9",
+  "counterexamples/conformance-envelope-trifecta-realized-flow-ungated.nika": "682b8d10f04b2a3c164ffc5be80ab44650b7f25a0dc7065a05b416212edb9584",
+  "counterexamples/conformance-variables-arithmetic-rejected.nika": "fbc9114f5c132bf65bab5a066803db0858f24cc7a2385b34b70c2610396b5efe",
+  "counterexamples/conformance-variables-jq-expression-static-reject.nika": "6d7f73783e6466ffb7235a4bea8373b791a0f5f2af3f7b84c751ceb306d19f66",
+  "counterexamples/conformance-variables-missing-task-ref-reject.nika": "a0a214611b150f3bc97515ad63073cbe7bce5f03ef0c937df14e209fd5e475ac",
+  "counterexamples/conformance-variables-static-type-error-reject.nika": "91dd480c42646cbbb0c770e5d92b2446560670de7e3d492d3721fefd03df7533",
+  "counterexamples/conformance-variables-unclosed-island-reject.nika": "beabbe60150fbb7c1becaccb7567e1b61e8f945ef01278f9a97493311cd0eefa",
+  "counterexamples/conformance-variables-unresolved-ref-reject.nika": "b89579d4133b8548fc78761d57e4e0e4a6e789b3d92a5204f2b3ed06e2016abd",
+  "counterexamples/conformance-variables-when-bare-ref-reject.nika": "6c2e4f94d72007d85c46f7ef640309e31420839c5e13d8ad365cccbc1d5b0824",
+  "counterexamples/conformance-variables-when-string-literal-reject.nika": "a084121d0a686a88a892bdc9af5149dd3586f9259c182eb376cb7e203e4ceba0",
+  "counterexamples/conformance-verbs-invoke-unknown-tool-reject.nika": "e86e5e3612ea46f43f75c74c4748e3f6d03cf4a3ba58dd454e5827b751a07f4a",
+  "examples/pack-01-hello.nika": "2a89860fd15fc9724d12564b6a64ad6ba0ce337c21a1a41954574d01644e8b2e",
+  "examples/pack-02-parallel-fanout.nika": "4869d0543186cc0b21d7aa6ee8f7806011d5577a863647164d09b58bca01f65b",
+  "examples/pack-03-exec-pipeline.nika": "fe1ee7728256a9c40e31da2f6f46af375afd9cf0b5f9afc84509afb972098e06",
+  "examples/pack-04-schema-retry.nika": "20acddaf5959b207d5a9405432fbb7efd4917349bf5e24b7a7d8459142f33203",
+  "examples/pack-05-fetch-chain.nika": "c45baa3b52bc182d0e64b2e83be0210743bd57bd3c1bc999e8c4ddf71080c373",
+  "examples/pack-06-code-review.nika": "12fb85b75fa1544f4d689e868b7586825d47c2a21a40547737908cc383c8bb11",
+  "examples/pack-07-for-each-locales.nika": "a2133caf694bdc206565603840bb7674ab957986b52230a633d7e35db1f2e31d",
+  "examples/pack-08-config-values.nika": "032128e6e8b31f03d0edb19905aaae7e5abfc7090730ddb6aae649a2727321cc",
+  "examples/pack-09-returns-typed-door.nika": "b0fbd01d6377dadc6bdc7b63d3bcaec922c8f32ecd75761d3c3e9b97574ce519",
+  "examples/pack-10-compose-child.nika": "9a30adda1e515195f1a6ba5a6e6204e7edb2416d452a161f4ccd7ffdb45ab466",
+  "examples/pack-10-compose-pipeline.nika": "697f2dc80c321eb7c90329f6be6ce76acbcad47d69bcba5da7b6108d131ccca7",
+  "examples/pack-11-lift-the-door.nika": "3fae0c973a8bf84abce8746f8cc140bc012c4f8d48df8b932da6395c6eaa6430",
+  "examples/pack-12-failure-routing.nika": "27ca41d5522cea4feda2ef728b50caf05f3c9f3cd9ab9c5db7685ca9bf861783",
+  "examples/pack-13-extract-then-law.nika": "ca2d4af232788616b62338b43ec79ded72db0bfb2628da338583f6e135fdb43b",
+  "examples/pack-14-decide-publish.nika": "19853dafb17ebee1841f23658cfa3448423713255083ab61f7a7611d5185f59e",
+  "examples/pack-15-compose-self-check.nika": "e0ffb364460f839a08efb108af0898a2e8fe13083e69da88727e5009fd08ab93",
+  "examples/pack-16-inspect-self.nika": "d2b418242eb4bd302380ff8707d156c671993668b276975bc8b1b3b1b7582e1b",
+  "examples/pack-17-tts-self.nika": "f85a87e3ac57e03d622068efa116b05fd21f6d6a9c1d1121b74c029f68b78bd0",
+  "examples/pack-18-bounded-batch.nika": "51b68529d330aaa588ff9f77d0b8dd94438c9749cb212fb4a03354200270d035",
+  "examples/pack-19-validate-records.nika": "db1645436d26253904e4b7037d4e2ccdd81bc648cb71bfb04190a7120bfb0b03",
+  "examples/pack-20-snapshot-diff.nika": "527fa322578164d2b3047921fd5e6bfd9522ae401bbe17e8a94e02a1e6ecb461",
+  "examples/pack-21-deduplicate-records.nika": "ee8f14ddf171156917810953ab18cc2440b06dbef26527bf4ebd91d8de9d0f89",
+  "examples/pack-22-project-public-fields.nika": "4460054ad93f8475afdf60cc1b88d81945442043c01d6607ff165e988c8afacb",
+  "examples/pack-23-parallel-review.nika": "5f27673340b02736852915786d25963f82300f521e08a7974674c59b2ccd7af2",
+  "examples/pack-24-recover-optional-file.nika": "0cf9cb7dfe868402472b9b54321cb914844fcd7a055adade5c450fbd32d2ce29",
+  "examples/pack-25-aggregate-by-key.nika": "ba8a7e9d17f91b815e69c9544f7530615e1b1ba7295408ecd60c27ac29191d22",
+  "knowledge/blocks.jsonl": "867daa96a8f4dc65b6d29b56f16608e28cf6cd145e3cc7c6fa049a6c410fdbf3",
+  "knowledge/callables.jsonl": "2f0d76c8d03870866d75c0286718d0765ff111411c39f12701ba1cfb98752a38",
+  "knowledge/capability_interfaces.jsonl": "8a625531056066b0b463c9c84fadac021de51564ba99e1c18036cc598e783807",
+  "knowledge/constructs.jsonl": "d346dbfcdf75f9f82f33f902dcfdc11a75efac71bd8524fb2d68392b278778cb",
+  "knowledge/counterexamples.jsonl": "3495034fc3ba279615d5d4d13301a66762ea8343c6a84e0fe0c53146137df511",
+  "knowledge/diagnostics.jsonl": "3d02bad2e8729f9c5430863245cd2980cecaa88a544caf431ea7bef02d901c66",
+  "knowledge/examples.jsonl": "3065a49b23f6d6f7b605d05fc1ecf51bbff55b941f97bf7ff09cb34a62e8fa1e",
+  "knowledge/families.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "knowledge/intent_facets.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "knowledge/pattern_packs.jsonl": "756ec47188808e9d924adbcffede536a517d9a54c8cb4dffa17d52a08e9ddb42",
+  "knowledge/patterns.jsonl": "5d38c6975ba35bc6308220ac0dd083abf192de537c906ed0ea047bc688dd8cdc",
+  "knowledge/relations.jsonl": "08aad8f80d926b7c1be5fbf3a39b3c94c0c8dee49e11eb4a53a80b81b89b79e0",
+  "knowledge/repair_principles.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "knowledge/skeletons.jsonl": "f2788d9d1976fb2e181394786b91004a068851bd29179fc747b120ec259c3c4a",
+  "knowledge/skills.jsonl": "21f00a13f78118b5bb3af99242469febd377e1ef44057e8103f3596fb4695d28",
+  "knowledge/source_artifacts.jsonl": "c5b7d068fbddeb31955f56258830fa37d9637d8af6351e7e34f9472d276fa907",
+  "skills/agentic-delegation.md": "35261d978dbe9b24a56ac7028af8caee8e29df6d5fe9ef03c96b426e1925b875",
+  "skills/api-sync-with-idempotency.md": "2e51081ecf0c3d1cabc8349f5abdfd82498f41c92c342d5eb84d1c3ed3ce571f",
+  "skills/batch-process-and-report.md": "3b3fbdb9ded4906ce321bc92bc1b9deef68ea95788c29ff86ef42c73b084e8c2",
+  "skills/classify-and-route.md": "d37bc0f1be3154ce0888e7d80ff1ae477b06e84c40ccb9a90778c85103cff082",
+  "skills/collection-filter-aggregate.md": "9c4247c124348a9b452db873240bcead1df00d8a8515f27e07775a2c414a18fb",
+  "skills/deduplicate-and-reconcile.md": "a2a42ff7517c94f56ca21dff6dd04160f24bb9587d8ba603bccb9482a7cf91cb",
+  "skills/event-driven-enrichment.md": "8a35313216968bbdf05752fb230be3dd788b5d0806213ce3ae1203a40e7946a3",
+  "skills/human-approved-external-effect.md": "9e072445a4589f98548875529e091729403fdee0fa247af441b0909d0d493ec7",
+  "skills/monitor-and-notify.md": "f2491d42344927ffa105ef1498cdb9a3695b5717ab0ca2243dbe2fbd2e6fd009",
+  "skills/multi-source-comparison.md": "12410170b83753e9f466a3ec102d3d18a60c1d6fa000f841e29ccac0251d5a65",
+  "skills/parallel-analysis-and-synthesis.md": "1d72ab8019c6aeb5b9f262e1605a3b96dd908617fdcf9b8997da9981f70321dd",
+  "skills/research-and-brief.md": "156c4bc325da3525fa2a93dc6cf90c213927950cfed184c5988cad3abd54eb23",
+  "skills/scheduled-digest.md": "8850d2a881071750817ee4719838113b5864cbcb33b7b537b90eacbcf95a48cd",
+  "skills/structured-extraction-from-documents.md": "6e64a221b980e9243909e806fe32ebe6de4a55d0d5a1496f4d643a100e6c0d9e",
+  "skills/transform-and-publish.md": "ad80c8babc8af518be3c3b8d096bc4a3ccbee0463167a0cae658d1816bf0a5bc",
+  "skills/validate-and-quarantine.md": "a013e3e0364490b94e533a904c349e42c101807904a1a938b868f7596ec19e28"
+ },
+ "format": "nika-knowledge-release/3",
+ "input_digest": "5e9505763606cc8403638e436edcddbe8de6a6e1b1ab220ba959d226339db864",
+ "knowledge_version": "knowledge-0.123.0-r2-json-filter-records-20261009",
+ "policy": {
+  "id": "policy-r2",
+  "sha256": "53ef65a30e54220dfe76472f9fd766af2ef4817d4daea6bab38dab1337381cdf"
+ },
+ "profile": "nika-knowledge-release-profile/r2",
+ "relations": {
+  "count": 1121,
+  "file": "knowledge/relations.jsonl"
+ },
+ "rows": {
+  "block": {
+   "count": 37,
+   "file": "knowledge/blocks.jsonl"
+  },
+  "callable": {
+   "count": 29,
+   "file": "knowledge/callables.jsonl"
+  },
+  "capability_interface": {
+   "count": 32,
+   "file": "knowledge/capability_interfaces.jsonl"
+  },
+  "construct": {
+   "count": 30,
+   "file": "knowledge/constructs.jsonl"
+  },
+  "counterexample": {
+   "count": 38,
+   "file": "knowledge/counterexamples.jsonl"
+  },
+  "diagnostic": {
+   "count": 106,
+   "file": "knowledge/diagnostics.jsonl"
+  },
+  "example": {
+   "count": 26,
+   "file": "knowledge/examples.jsonl"
+  },
+  "family": {
+   "count": 0,
+   "file": "knowledge/families.jsonl"
+  },
+  "intent_facet": {
+   "count": 0,
+   "file": "knowledge/intent_facets.jsonl"
+  },
+  "pattern": {
+   "count": 20,
+   "file": "knowledge/patterns.jsonl"
+  },
+  "pattern_pack": {
+   "count": 1,
+   "file": "knowledge/pattern_packs.jsonl"
+  },
+  "repair_principle": {
+   "count": 0,
+   "file": "knowledge/repair_principles.jsonl"
+  },
+  "skeleton": {
+   "count": 23,
+   "file": "knowledge/skeletons.jsonl"
+  },
+  "skill": {
+   "count": 16,
+   "file": "knowledge/skills.jsonl"
+  },
+  "source_artifact": {
+   "count": 9,
+   "file": "knowledge/source_artifacts.jsonl"
+  }
+ },
+ "target": {
+  "binary": "nika 0.122.0 (b9fd7a681)",
+  "spec_sha": "a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0",
+  "verifier_sha256": "2fe376d41033f9c93de2e4434fa8a35199a89f44bd6380648a9cfea9a237b5f6"
+ },
+ "tool": {
+  "id": "nika_bench.foundry.release_r2",
+  "sha256": "45c69cdf4b139c7f72ea9ce2b0863d580334aee26450d83b1f1319a70189ae0a"
+ }
+}

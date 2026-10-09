@@ -5,7 +5,7 @@
 | Status | **ADMITTED member** of the `nika-runtime` unit (ADR-127 · the size-cap member split · D-2026-07-09-N1: one architectural unit in two workspace members). Never a new unit. |
 | Layer | **L3 — runtime** (the same row as `nika-runtime`) · `publish = false` · one public surface re-exported by the operator crate at every historical path. |
 | Sub-tier | L3-laws — what a run obeys before and after it executes; nothing here dispatches a task or folds a definition. |
-| Design | Existing law modules: `errors` (the one-voice `RuntimeError`) · `contract` (the typed `outputs:` contract) · `compat_record` (the public record mirror) · `origins` (input origins) · `identity` (the engine identity + the build-support pins) · `integrity` (the record integrity law · `ValueTaint`) · `secret` (the secret resolver seam · the redacting sink · the payload field list) · `sandbox_select` (the sandbox verdict for a command) · `witness` · `stamp` (the event stamp seams) · `resume_fields` (the resume projection's payload field names) · `retry` (pure backoff arithmetic) · `image_room` (received-image custody: the admitted project held by descriptor, one finite rooted room per store operation, dropped operations joined on demand). |
+| Design | Existing law modules: `errors` (the one-voice `RuntimeError`) · `contract` (the typed `outputs:` contract) · `compat_record` (the public record mirror) · `origins` (input origins) · `identity` (the engine identity + the build-support pins) · `integrity` (the record integrity law · `ValueTaint`) · `secret` (the secret resolver seam · the redacting sink · the payload field list) · `sandbox_select` (the sandbox verdict for a command) · `witness` · `stamp` (the event stamp seams) · `resume_fields` (the resume projection's payload field names) · `retry` (pure backoff arithmetic) · `image_room` (received-image custody: the admitted project held by descriptor, one finite rooted room per store operation, dropped operations joined on demand) · `stack` (a nested run's same-thread stack mechanics, imported privately by the child call). |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) — the descent leaves `nika-runtime` at 13 234 lines (1 766 below the wall) and this member ≈ 1.8k. |
 | IMPL | live · `scripts/crate-metrics.sh nika-runtime-laws` |
 | Crate version | tracks workspace · License `AGPL-3.0-or-later` · Edition 2024 · Publish `false` |
@@ -75,3 +75,16 @@ JSON. Absence, an empty object, truncation and withholding stay distinct.
 `retry::{delay_ms, rand_unit}` owns the existing pure ramp, clamp and seeded
 jitter arithmetic. Runtime keeps retry admission, attempts and injected-clock
 sleep; moving the arithmetic grants no new execution authority.
+
+### Nested-run stack mechanics
+
+`stack::grown` is same-thread stack mechanics for the runtime's child call
+(spec 14 · `NIKA-SEC-003` stays the only nesting limit). It creates, polls and
+destroys the one borrowed, non-`Send` child future with at least a 4 MiB red
+zone of native stack: in place when the thread has it, otherwise on an 8 MiB
+`stacker` segment of the same thread, unmapped when the call returns. It
+dispatches nothing, folds no definition, spawns nothing and offers no product
+option; `nika-runtime` imports it privately (no re-export, no historical path).
+The constants come from a measured unoptimized level (934 KiB on aarch64) and
+the 8 MiB a CLI root run already has. The edge is L3 → `stacker` (MIT OR
+Apache-2.0 · a safe API over `psm`).

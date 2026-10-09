@@ -417,6 +417,8 @@ struct RunArgs {
     /// Negotiate a fresh one-use local cost review over stdio; never approves a charge.
     #[arg(long, requires = "json", conflicts_with_all = ["inputs_json", "resume", "dry_run"])]
     cost_review_stdio: bool,
+    #[command(flatten)]
+    binding: nika_cli_host::lane::SessionBinding,
     /// Print the typed `outputs:` as ONE JSON object on stdout
     /// (progress → stderr) · the export contract · powers
     /// `exec: nika run sub.yaml --output json` + `capture: stdout`.
@@ -664,6 +666,10 @@ fn plain_session_requested() -> bool {
 /// Bare `nika` (the session on a terminal · the concierge on a pipe), `nika --json`, `nika version` — decided
 /// before clap so a missing subcommand never clap-fails the front door.
 fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
+    // ADR-148 · the native machine door: the same Session as bare `nika`, NDJSON on stdio.
+    if let Some(code) = verbs::session::machine_entry(argv) {
+        return Some(std::process::ExitCode::from(code));
+    }
     let mut json = false;
     let mut ascii = false;
     let mut plain = false;
@@ -1021,7 +1027,8 @@ fn run_verb(
         args.no_gc,
         args.require_signature,
         nika_cli_host::lane::RunHostOptions::from(repair_target)
-            .with_cost_review_stdio(args.cost_review_stdio),
+            .with_cost_review_stdio(args.cost_review_stdio)
+            .with_session_binding(args.binding.clone()),
     )
 }
 
@@ -1218,6 +1225,27 @@ mod tests {
                 "--max-cost-usd help must name `{limit}`"
             );
         }
+    }
+
+    /// The line a Session's run request hands its child parses, with the witness it binds.
+    #[test]
+    fn a_session_run_line_parses_and_binds_its_checked_witness() {
+        let run = nika_session::RunRequest {
+            workflow: "flow.nika".into(),
+            vars: Vec::new(),
+            max_cost_usd: 0.5,
+            access_pin: Some("api".into()),
+            bytes: Some(Box::new(nika_session::Witness::of(b"checked"))),
+            closure: Some(Box::new(nika_session::change::Closure("world".into()))),
+        };
+        let line = std::iter::once("nika".to_owned()).chain(run.args(std::path::Path::new("/p")));
+        let parsed = Cli::try_parse_from(line).expect("parses").command;
+        let witness = Some(run.expected_source());
+        assert!(
+            matches!(&parsed, Some(Command::Run(r)) if r.binding.expect_source == witness
+                && r.binding.expect_world.as_deref() == Some("world")),
+            "the child line is a run bound to its witness"
+        );
     }
 
     /// The LSP-host convention flags parse as no-ops. Refusing them was

@@ -60,6 +60,11 @@ their L4 adapters; later Serve/jobs work must use the same boundary.
 - `ExecutionService::admit` and `admit_root_bytes` mint one `ExecutionId`, derive its root `TraceId`
   directly from the same 128 bits, and returns `AdmittedExecution` only after
   parser, composed checker, and skill resolution are clean.
+- `check_world(snapshot)` is that admission's own judgment of a captured world, models aside:
+  the root and every child checked composed against the captured units only, and the skills each
+  names resolved among them, with the same validators. A host that checks a world before handing
+  it to a run (the Session) judges it with this; model readiness stays the admission's, which
+  knows the route.
 - `ExecutionService::begin` consumes that admission and returns an owned
   `ExecutionSession`; `context` borrows the admitted definition world and
   `complete` returns a generic `ExecutionVerdict<T>` carrying execution ID,

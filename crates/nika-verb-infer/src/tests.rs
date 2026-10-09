@@ -1154,3 +1154,8 @@ async fn local_vision_file_becomes_a_data_url_part() {
     );
     let _ = std::fs::remove_file(&path);
 }
+
+mod selection_e2e;
+
+#[cfg(feature = "access-harness")]
+mod acp;

@@ -145,11 +145,20 @@ fn native_answer() -> String {
     json!({"candidate": "nika: x\ntasks: {}\n", "candidate_lines": [], "questions": [], "gaps": [], "notes": "n"}).to_string()
 }
 
-/// The answer schema of a door that asks the model for complete source.
+/// The answer schema of the retired door that asked the model for complete source.
 fn source_schema() -> Vec<String> {
     ["candidate", "candidate_lines", "gaps", "notes", "questions"]
         .map(str::to_owned)
         .to_vec()
+}
+
+/// The answer schema of the document door: the retired schema's keys and `operations` over the
+/// last document.
+fn document_schema() -> Vec<String> {
+    let mut keys = source_schema();
+    keys.push("operations".to_owned());
+    keys.sort();
+    keys
 }
 
 /// The answer schema of the private plan door.
@@ -203,36 +212,43 @@ const HOT_INTENT: &str = "Read ./notes/brief.md, summarize it in three bullets, 
 
 // ── Witnesses of current routing at the pinned base ───────────────────────────
 
-/// Formerly `witness_foundry_escalation_requests_candidate_source_and_the_plan_never_reads_it`
-/// (an attached Foundry under `escalate` asked the model for complete source, and the plan
-/// never read the reference). Semantic CREATE asks for the private plan instead, and the plan
-/// call carries the attached reference.
+/// Formerly `witness_foundry_escalation_requests_a_plan_that_reads_the_attached_foundry` (the
+/// private plan carried the attached reference; earlier still, source was requested and the plan
+/// never read it). A fresh CREATE under `escalate` now opens the document door: its first call
+/// asks for the complete document and carries the attached reference, digested and never copied
+/// into the record, and no call asks for the retired whole-source schema or a plan.
 #[tokio::test]
-async fn witness_foundry_escalation_requests_a_plan_that_reads_the_attached_foundry() {
-    let provider = Script::texts(&[common::plan().to_string()]);
+async fn witness_foundry_escalation_requests_the_complete_document_with_the_attached_foundry() {
+    let provider = Script::texts(&[native_answer()]);
     let request = CompileRequest::create(INTENT)
         .with_authoring_policy(policy(NativeMode::Escalate, 0))
         .with_authoring_knowledge(foundry());
     let out = compile_with_provider(&request, &provider).await.unwrap();
-    // The first generative call asks for the private plan, and no call asks for source.
     assert!(provider.calls() >= 1, "{out:#?}");
-    assert_eq!(provider.schemas()[0], plan_schema());
-    assert!(provider.schemas().iter().all(|s| *s != source_schema()));
+    assert_eq!(provider.schemas()[0], document_schema());
     assert!(
-        route(&out).contains(&"cold: 1 sample(s)".to_owned()),
+        (provider.schemas().iter()).all(|s| *s != source_schema() && *s != plan_schema()),
+        "{:?}",
+        provider.schemas()
+    );
+    assert!(
+        route(&out).contains(&"native: document".to_owned()),
         "{:?}",
         route(&out)
     );
     assert!(!route(&out).contains(&"native: informed generation".to_owned()));
-    assert_eq!(out.provenance.strategy, Some(Strategy::Cold));
+    assert_eq!(out.provenance.strategy, Some(Strategy::Native));
+    let system = provider.seen.lock().unwrap()[0].system.clone();
     assert!(
-        provider.seen.lock().unwrap()[0]
-            .system
-            .contains("pattern:customer-reply"),
-        "the plan call carries the attached reference"
+        system.contains("pattern:customer-reply") && system.contains(SECRET),
+        "the document call carries the attached reference"
     );
-    // The same open request without attached knowledge opens with the plan, whose messages
-    // carry only the instructions and the request: no attached reference reaches it.
+    assert!(
+        !outcome_document(&out).to_string().contains(SECRET),
+        "the record digests the reference, never copies it"
+    );
+    // The same open request without attached knowledge under `off` opens with the plan, whose
+    // messages carry only the instructions and the request: no attached reference reaches it.
     let plain = Script::texts(&[common::plan().to_string()]);
     let request = CompileRequest::create(INTENT).with_authoring_policy(policy(NativeMode::Off, 0));
     let _ = compile_with_provider(&request, &plain).await.unwrap();
@@ -640,13 +656,15 @@ async fn failed_and_unmetered_calls_stay_in_the_journal_with_unknown_usage() {
 }
 
 /// Formerly `source_direct_generation_records_what_it_was_shown_and_invents_no_plan` (the
-/// source-direct door under `escalate` with an attached Foundry). Semantic CREATE asks the plan:
-/// the record names what each plan call was shown, keeps the exact plan, and asks for no source.
+/// source-direct door under `escalate` with an attached Foundry), then this record under
+/// `escalate`. The private plan (`off`, the plan's own door) names what each plan call was
+/// shown, keeps the exact plan, and asks for no source; the document door's record is witnessed
+/// above.
 #[tokio::test]
-async fn escalate_with_foundry_records_what_the_plan_was_shown_and_writes_no_source() {
+async fn the_plan_with_foundry_records_what_it_was_shown_and_writes_no_source() {
     let provider = Script::texts(&[common::plan().to_string()]);
     let request = CompileRequest::create(INTENT)
-        .with_authoring_policy(policy(NativeMode::Escalate, 1))
+        .with_authoring_policy(policy(NativeMode::Off, 1))
         .with_authoring_knowledge(foundry());
     let out = compile_with_provider(&request, &provider).await.unwrap();
     let calls = context(&out);
@@ -836,7 +854,7 @@ async fn references_are_presented_only_by_an_answered_call() {
         let out = compile_with_provider(&request, &provider).await.unwrap();
         let calls = context(&out);
         assert_eq!(calls.len(), 1, "{delivery}: {calls:#?}");
-        assert_eq!(calls[0]["call"], "plan");
+        assert_eq!(calls[0]["call"], "document");
         assert_eq!(calls[0]["response"], Value::Null);
         let summary = forensic(&out);
         let foundry = &summary["foundry"];
@@ -863,7 +881,7 @@ async fn references_are_presented_only_by_an_answered_call() {
         assert_eq!(summary["calls"]["generative"]["failed"], 1);
     }
     // An answered call is the only confirmation the references reached a model.
-    let answered = Script::texts(&[common::plan().to_string()]);
+    let answered = Script::texts(&[native_answer()]);
     let out = compile_with_provider(&request, &answered).await.unwrap();
     let summary = forensic(&out);
     assert!(
@@ -1122,7 +1140,7 @@ async fn a_typed_question_and_a_fixed_law_diagnostic_stay_public() {
     );
 }
 
-// ── A plan composition handed to the sketch door is named as such; its early stops stay none ──
+// ── A composition: the document door under escalate, the plan's own stop under off ────────────
 
 const COPIES: &str = "Copie ./alpha.txt dans ./out/alpha.txt et ./beta.txt dans ./out/beta.txt.";
 
@@ -1172,59 +1190,64 @@ async fn copies(native: NativeMode, repairs: u32) -> (CompileOutcome, Script) {
 }
 
 #[tokio::test]
-async fn a_plan_composition_sent_to_the_sketch_door_is_named_with_its_reason() {
-    let (out, provider) = copies(NativeMode::Escalate, 1).await;
+async fn a_composition_under_escalate_is_named_by_the_document_door_with_its_reason() {
+    // The two paired copies as the explicit sketch door emits them: the complete document the
+    // scripted author answers at the document door's first call, its judgment approved.
+    let request =
+        CompileRequest::create(COPIES).with_authoring_policy(policy(NativeMode::Sketch, 1));
+    let fills = json!({"fills": [], "notes": "nothing to fill"}).to_string();
+    let written = common::sketched(&request, vec![copies_sketch(), fills]).await;
+    let provider = Script::texts(&[common::document_answer(&written)]);
+    let request =
+        CompileRequest::create(COPIES).with_authoring_policy(policy(NativeMode::Escalate, 1));
+    let out = compile_with_provider(&request, &common::Judged::approving(&provider))
+        .await
+        .unwrap();
     let summary = forensic(&out);
-    assert_eq!(summary["door"]["name"], "sketch", "{summary:#}");
+    assert_eq!(summary["door"]["name"], "native_source", "{summary:#}");
     assert_eq!(
-        summary["door"]["reason"], "plan_composition_requires_sketch",
+        summary["door"]["reason"], "complete_document_door",
         "{summary:#}"
     );
     assert_eq!(
-        summary["doors_tried"]["cold_plan"],
-        json!({"called": "cold: 1 sample(s)"})
-    );
-    assert_eq!(
-        summary["proposal"]["kind"], "sketch_and_fills",
+        summary["doors_tried"]["cold_plan"], "not_tried",
         "{summary:#}"
     );
-    // Every paid call stays in order: the plan first, then the sketch door's own calls.
-    assert_eq!(calls(&out).len(), provider.calls());
+    assert_eq!(summary["proposal"]["author"], "model", "{summary:#}");
+    // The one paid document call, then its judgment: no plan or sketch call before it.
+    assert_eq!(provider.calls(), 1);
+    assert_eq!(calls(&out), ["document", "judge_request"]);
+    assert!(out.candidate.is_some(), "{out:#?}");
+    assert_eq!(summary["door"]["source_owner"], "model", "{summary:#}");
+    // With no repair allowance and an answer off its wire, the one document call is the only
+    // call, and nothing kept names no owner.
+    let (out, provider) = copies(NativeMode::Escalate, 0).await;
+    let summary = forensic(&out);
+    assert_eq!(provider.calls(), 1);
+    assert_eq!(calls(&out), ["document"]);
     assert_eq!(
-        &calls(&out)[..3],
-        ["plan", "sketch", "fill"],
-        "{:?}",
-        calls(&out)
+        summary["door"]["reason"], "complete_document_door",
+        "{summary:#}"
     );
-    let kept = out.candidate.is_some() || out.provenance.plan.is_some();
-    let owner = if kept {
-        "compiler_from_model_sketch_and_fills"
-    } else {
-        "none"
-    };
-    assert_eq!(summary["door"]["source_owner"], owner, "{summary:#}");
+    assert_eq!(summary["door"]["source_owner"], "none", "{summary:#}");
+    assert!(out.candidate.is_none());
 }
 
 #[tokio::test]
 async fn a_composition_stopped_before_any_sketch_call_keeps_its_no_call_record() {
-    // native: off, and an Escalate policy with no repair allowance: the composition is named,
-    // no sketch request is sent, and the summary says no door produced a candidate.
-    for (native, repairs) in [(NativeMode::Off, 1), (NativeMode::Escalate, 0)] {
-        let (out, provider) = copies(native, repairs).await;
-        let summary = forensic(&out);
-        assert_eq!(provider.calls(), 1, "{native:?}/{repairs}: the plan alone");
-        assert_eq!(calls(&out), ["plan"], "{native:?}/{repairs}");
-        assert_eq!(
-            summary["door"]["name"], "none",
-            "{native:?}/{repairs}: {summary:#}"
-        );
-        assert_eq!(
-            summary["door"]["reason"], "cold_plan_without_candidate",
-            "{summary:#}"
-        );
-        assert_eq!(summary["door"]["source_owner"], "none");
-        assert!(out.candidate.is_none());
-    }
+    // native: off: the composition is named, no sketch request is sent, and the summary says no
+    // door produced a candidate.
+    let (out, provider) = copies(NativeMode::Off, 1).await;
+    let summary = forensic(&out);
+    assert_eq!(provider.calls(), 1, "the plan alone");
+    assert_eq!(calls(&out), ["plan"]);
+    assert_eq!(summary["door"]["name"], "none", "{summary:#}");
+    assert_eq!(
+        summary["door"]["reason"], "cold_plan_without_candidate",
+        "{summary:#}"
+    );
+    assert_eq!(summary["door"]["source_owner"], "none");
+    assert!(out.candidate.is_none());
 }
 
 #[tokio::test]
@@ -1232,7 +1255,8 @@ async fn the_policy_sketch_door_and_a_plan_without_composition_keep_their_reason
     // The policy door before HOT keeps its own reason (control for the matcher's order).
     let (out, _) = sketch_with_fills(valid_fills()).await;
     assert_eq!(forensic(&out)["door"]["reason"], "policy_sketch_before_hot");
-    // Two reads merged into one result written twice: no pairing, so the plan stays the door.
+    // Two reads merged into one result written twice: no pairing, so the plan stays the door
+    // (under `off`: a fresh CREATE under `escalate` opens the document door instead).
     let merged = "Lis ./a.txt et ./b.txt, fusionne-les, écris le résultat fusionné dans ./out/x.txt et une copie dans ./out/y.txt.";
     let plan = json!({"steps": [
         {"op": "read", "detail": "./a.txt", "evidence": "Lis ./a.txt"},
@@ -1244,8 +1268,7 @@ async fn the_policy_sketch_door_and_a_plan_without_composition_keep_their_reason
     ], "obligations": [], "constraints": [], "unknowns": []})
     .to_string();
     let provider = Script::texts(&[plan]);
-    let request =
-        CompileRequest::create(merged).with_authoring_policy(policy(NativeMode::Escalate, 1));
+    let request = CompileRequest::create(merged).with_authoring_policy(policy(NativeMode::Off, 1));
     let out = compile_with_provider(&request, &provider).await.unwrap();
     let summary = forensic(&out);
     assert_eq!(summary["door"]["name"], "cold_plan", "{summary:#}");

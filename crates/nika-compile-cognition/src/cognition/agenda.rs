@@ -6,11 +6,13 @@
 //! what the request still lacks and which intelligences the caller selected. A whole reading the
 //! reader composed is checked by a judge before it can be READY (a lexical reading never proves
 //! the request resolved); finite readings of known clauses are settled by the decision seat, and
-//! the settled plan is checked; the author composes through the private plan, and a limit the
-//! plan itself shows (a computation its typed stages cannot state) sends it to the sketch door
-//! next, with no separate program round to exhaust first. Exact commands (skeletons, `hello`, the support
-//! grammar, structured edits) and recorded replays keep their direct paths before this. The
-//! historical words stay in the route and the strategy, so old receipts read as before.
+//! the settled plan is checked; the author composes the complete document wherever a native door
+//! is permitted (the document door: the whole language, admitted components composed into it),
+//! with no restricted round to fail first. The sketch door stays the policy's explicit choice;
+//! under a policy that permits no native door (`off`) the author composes through the private
+//! plan. Exact commands (skeletons, `hello`, the support grammar, structured edits) and recorded
+//! replays keep their direct paths before this. The historical words stay in the route and the
+//! strategy, so old receipts read as before.
 
 use serde_json::{Value, json};
 
@@ -37,6 +39,9 @@ pub(super) enum Action {
     Plan,
     /// The author composes structure and typed fills (the sketch door).
     Sketch,
+    /// The author composes the complete document in the whole language, admitted components
+    /// composed into it (the document door).
+    Document,
     /// No selected intelligence can take the next step: what is missing is named.
     Ask,
 }
@@ -49,6 +54,7 @@ impl Action {
             Self::Settle => "settle",
             Self::Plan => "compose: plan",
             Self::Sketch => "compose: sketch",
+            Self::Document => "compose: document",
             Self::Ask => "ask",
         }
     }
@@ -89,13 +95,16 @@ impl Selected {
     }
 }
 
-/// The next useful action. The sketch policy is the caller's explicit choice of composer; a
-/// whole reading is checked whenever a judge is selected; open readings go to the seat once;
-/// then the author composes through the plan, whose own observed limits (a computation its typed
-/// stages cannot state, branches it cannot keep apart, a dead end) hand it to the sketch door.
+/// The next useful action. The sketch and only policies are the caller's explicit choice of
+/// composer; a whole reading is checked whenever a judge is selected; open readings go to the
+/// seat once; then the author composes the complete document wherever a native door is permitted,
+/// and through the private plan only where none is (`off`).
 pub(super) fn next(missing: Missing, selected: Selected) -> Action {
     if selected.author && selected.native == NativeMode::Sketch {
         return Action::Sketch;
+    }
+    if selected.author && selected.native == NativeMode::Only {
+        return Action::Document;
     }
     if missing.composed {
         return if selected.author || selected.seat {
@@ -107,10 +116,10 @@ pub(super) fn next(missing: Missing, selected: Selected) -> Action {
     if missing.choices && selected.seat && !missing.settled {
         return Action::Settle;
     }
-    if selected.author {
-        Action::Plan
-    } else {
-        Action::Ask
+    match (selected.author, selected.native) {
+        (true, NativeMode::Off) => Action::Plan,
+        (true, _) => Action::Document,
+        (false, _) => Action::Ask,
     }
 }
 

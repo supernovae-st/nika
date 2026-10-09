@@ -36,8 +36,17 @@ those paths as an external consumer.
   uses; every witness is checked before the first write; each file lands atomically below the
   root's own descriptor. The preview carries the engine's own audit of the exact bytes (the
   facade `nika check` uses); after apply, the real check judges the workflow as it sits on disk,
-  under the human's pinned execution access when they pinned one. A paused run's gate is read
-  from the trace's own pause event (`nika_trace::run_view`).
+  under the human's pinned execution access when they pinned one. That check reads its world
+  once, with the run's own reader (`nika_execution::ExecutionSnapshot::capture`): the workflow and
+  every child it reaches are judged from the captured bytes, the world is captured again after the
+  check, and only a world that held still and that the run's own admission admits, models aside
+  (`nika_execution::check_world`: every child and every skill, from the captured units), names a
+  `Closure` (the snapshot digest over the workflow, its children and its skills). A
+  project-relative read such as the MCP registry is served from the captured world too. A world
+  the run cannot capture or admit, a symlinked workflow among them, is not clean. A run request carries the witness of the checked bytes and that
+  closure; a door runs only that world (`RunRequest::admits_world`, and the child's
+  `--expect-world`). A paused run's gate is read from the trace's own pause event
+  (`nika_trace::run_view`).
 - `review` — the factual review of a Ready candidate before any consent: what it does (its tasks
   in run order, parsed by the engine's parser), when it runs, what it can touch, what changes on
   disk and what it still needs, read from the candidate's bytes, the compiler's requested boundary
@@ -48,9 +57,52 @@ those paths as an external consumer.
   answer names, the class of a refusal. A question's identity is held with the session
   incarnation that asked it; an answer naming it answers that question in that session, or
   nothing.
+- `reply` — the grammar of a human's reply to one compile question, pure over the question and
+  the line: an offered key named alone or carried as whole tokens, a value as typed, the one
+  bounded reading prompt for a value or a choice, and the verbatim whole-token copy a reading
+  may bind. The Session decides when a reading runs and what it binds.
 - `consent` — the append-only `.nika/consents.ndjson` under the project: what was previewed (the
   proposal's identity, every path with the witness of the bytes it was previewed over and of the
   bytes it lands), what landed, when. One JSON object per line.
+
+Two typed readings joined these modules on 2026-10-08, so every host reads the same facts:
+
+- `world` — where a workflow's exact bytes reach, from the check's data journey over those bytes:
+  files, an exact loopback host (a service on this machine, such as a contract server or a test
+  sink), a public host (a connected service), a documentation or floor-refused host (no service),
+  an MCP tool or a program (destination undetermined). Hosts are judged by the floor's own
+  predicates (`nika_types::net`). The reach is `local`, `local_services`, `connected` or
+  `undetermined`; every `WorkflowAudit` carries it, and unaudited bytes claim none. It is a
+  declared reading: the trace witnesses file and tool permits per operation, not network
+  destinations, so a run does not turn it into an observation.
+- `work` — the work a session holds, typed once for every host (contract
+  `nika/session-work@0`, serializable): `Waiting` names what the next line answers with the
+  identity an answer names (a proposal, a gate, a run's cost review by its `ReviewId`, never its
+  screen or evidence); `Work` is one snapshot of the request, the
+  candidate's files with their witnesses, audits and reach, the saved workflow, the last observed
+  run (`current` only for the run of the workflow saved last in this session) and the rail.
+  Since the same day it also names the run requested last (`RequestedRun`: the workflow, the
+  names of the inputs it binds, never their values, and the reach of the bytes the check cleared
+  for it) and, on `Saved`, the reach of the bytes the last consent saved; a workflow only run
+  carries no saved reach. `Authoring` is the compiler's last word on the request: its status,
+  the keys of the questions it asks, each diagnostic as written (kind, target, message) and the
+  witness of the candidate bytes it built, proposed or not, so a host can say why nothing is
+  ready. Ready there is a compiler status, never a consent or a run. Its `calls` carry the
+  receipt's totals and, in call order, each call through an allowlist (`AuthoringCall`): the
+  role, the instruction and schema digests, message bytes, the count of references, the output
+  and time bounds, the wall time, the stop reason or the engine's failure kind, and the
+  reasoning and usage the provider reported. A fact the receipt does not hold is null, never
+  guessed or summed; prompts, answers, proposed objects, served model names and error text never
+  pass.
+  `Answered` says what the last line typed for an authoring question did, as the session recorded
+  it at the act: the question's witness and one act, `bound` (the key, the value and how the
+  line gave it: `as_typed`, `offered_key`, `model_read` or `seat_default`), `dropped`, `restated`, `waits` (with
+  the reason) or `refused` (the refusal's class). It is absent when the last line was no answer.
+  The candidate's `revision` is the compiler's record of how it made the workflow, only while
+  that record binds the candidate's exact bytes: a creation (`written` or `composed`, no base) or
+  a revision over a base (`operations` or `replaced`), each component witnessed on those bytes.
+  `RunEnd` is the one reading of the run door's exit codes. It grants nothing: consents,
+  answers and runs still go through the session's own doors.
 
 ## 3. Boundary
 

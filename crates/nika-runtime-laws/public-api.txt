@@ -418,6 +418,8 @@ impl<T> typenum::type_operators::Same for nika_runtime_laws::secret::RedactingSi
 pub type nika_runtime_laws::secret::RedactingSink<'a>::Output = T
 pub fn nika_runtime_laws::secret::output_fields(outputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> alloc::vec::Vec<(&'static str, nika_types::resource::Value)>
 pub fn nika_runtime_laws::secret::scrub_outputs(outputs: &mut alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, resolved: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>)
+pub mod nika_runtime_laws::stack
+pub fn nika_runtime_laws::stack::grown<'a, T: 'a>(create: impl core::ops::function::FnOnce() -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = T> + 'a)>>) -> impl core::future::future::Future<Output = T> + 'a
 pub mod nika_runtime_laws::stamp
 pub use nika_runtime_laws::stamp::<<nika_event::stamp::*>>
 pub mod nika_runtime_laws::witness

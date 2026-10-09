@@ -59,7 +59,7 @@ fn install_fixture(dir: &Path, scenario: &str) {
     if scenario.starts_with("unjudged") {
         return subscription_unjudged::install(dir);
     }
-    let answer = common::plan_answer();
+    let answer = common::document_answer();
     let answer = if scenario == "suffix" {
         format!("{answer} trailing {{\"second\":true}}")
     } else {
@@ -68,9 +68,9 @@ fn install_fixture(dir: &Path, scenario: &str) {
     let second = json!({"supersedes": [], "adds": [common::CHANGE], "like": "./b.md",
         "notes": "keep the first output and add a copy at the requested destination"})
     .to_string();
-    // The first call is the private plan (semantic CREATE; the compiler assembles every clause
-    // and asks the runtime model); the second is its answer round's judge of the whole request
-    // over the replayed bytes (C3: a replayed model plan is judged whole in its round); the third
+    // The first call is the document (semantic CREATE; the compiler asks the runtime model); the
+    // second is its answer round's judge of the whole request over the replayed bytes (C3: a
+    // replayed document is judged whole in its round); the third
     // names the typed addition and source destination (EDIT), never workflow YAML; the fourth
     // judges the READY revision.
     for (name, text) in [
@@ -436,7 +436,7 @@ fn subscription_authors_then_answers_and_revises_through_the_same_native_compile
     let out = run("route");
     assert_eq!(
         out["calls"], 4,
-        "the plan's question round, its answer round's judge, revision, judgment: {out:#}"
+        "the document's question round, its answer round's judge, revision, judgment: {out:#}"
     );
     let judged = |n: usize| out["prompts"][n].as_str().unwrap().contains("unfaithful");
     let questions: Vec<bool> = (0..4).map(judged).collect();
@@ -519,10 +519,10 @@ fn a_replayed_round_states_its_own_judge_call_under_the_subscription_without_kno
     );
     assert_eq!(
         out["calls"], 4,
-        "the plan's question round, its answer round's judge, revision, judgment: {out:#}"
+        "the document's question round, its answer round's judge, revision, judgment: {out:#}"
     );
-    // The answer round replays the plan (the compiler assembled every clause) and judges the
-    // whole request over the replayed bytes in its own call (C3): its receipt is its own, the
+    // The answer round replays the document and judges the whole request over the replayed
+    // bytes in its own call (C3): its receipt is its own, the
     // same subscription seat and that one call, never a carried receipt claiming zero calls.
     for text in [
         out["details_answer"].as_str().unwrap(),

@@ -1309,7 +1309,19 @@ mod acp_choice_tests {
                 .options_screen()
                 .contains("1 acp:claude-code/<model>")
         );
-        assert!(census.choose("1 acp:codex/gpt-6-sol").is_err());
+        // Codex rides its own audited ACP completion profile; an app without one refuses.
+        let codex = census
+            .choose("1 acp:codex/gpt-6-sol")
+            .expect("the Codex ACP completion profile");
+        assert!(matches!(
+            &codex.kind,
+            IntelligenceKind::Harness {
+                seat,
+                transport: HarnessTransport::Acp,
+                ..
+            } if seat == "codex"
+        ));
+        assert!(census.choose("1 acp:gemini-cli/gemini-2.5-pro").is_err());
         assert!(census.choose("1 acp:claude-code/openai/gpt-6-sol").is_err());
     }
     #[cfg(feature = "access-harness")]

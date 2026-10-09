@@ -13,6 +13,7 @@
 //! an operation, an effect or a policy; every element keeps its verbatim clause.
 
 mod admission;
+mod authoring;
 mod cadence;
 mod convert;
 mod copy;
@@ -21,6 +22,7 @@ mod effects;
 mod es;
 mod gating;
 mod heads;
+mod indecision;
 mod it;
 mod lines;
 mod literals;
@@ -40,7 +42,7 @@ pub(crate) use cues::{ARTICLES, OBJECT_CONNECTORS};
 use cues::{
     CONSTRAINT_OPENERS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER, NAMED_GATE_MARKERS,
     NEGATION_OPENERS, REVISION_MARKERS, SECOND_WORD_FILLERS, STOP_MARKERS, STRONG_CONNECTORS,
-    UNDECIDED_MARKERS, WEAK_CONNECTORS,
+    WEAK_CONNECTORS,
 };
 pub use effects::effect_words;
 pub(crate) use effects::kindred;
@@ -607,6 +609,23 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
     if text.is_empty() {
         return;
     }
+    // An opening request to author the workflow names no program effect by itself. Keep
+    // it for cognition, and read its relative body through this same reader without the
+    // framing head. A later clause or a scheduled action still creates its stated object.
+    if reading.seen.len() == 1
+        && reading.plan.trigger.is_none()
+        && state.tails.is_empty()
+        && lower.len() == clause.len()
+        && let Some(body) = authoring::body(text)
+    {
+        reading.unresolved.push(clause.to_owned());
+        if !body.is_empty()
+            && let Some(body) = clause.get(lower.len() - body.len()..)
+        {
+            reading.pending.push(body.to_owned());
+        }
+        return;
+    }
     // The phrases read by substring read only what the clause states outside quotes.
     let open = unquoted(text);
     if (open.contains("pose-moi la question") || open.contains("ask me the question"))
@@ -621,24 +640,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         reading.plan.constraints.push(clause.to_owned());
         return;
     }
-    // Explicit indecision about an effect.
-    if let Some((pos, marker)) = earliest(text, UNDECIDED_MARKERS) {
-        read_prefix(prefix_before(text, pos), clause, reading, state);
-        let target = text
-            .get(pos + marker.len()..)
-            .unwrap_or_default()
-            .split([';', '.'])
-            .next()
-            .unwrap_or_default()
-            .trim();
-        let verb = effect_words(target, &reading.columns)
-            .first()
-            .copied()
-            .unwrap_or(EffectVerb::Other);
-        push_effect(
-            &mut reading.plan,
-            Effect::new(verb, target, clause, EffectPolicy::Undecided),
-        );
+    if indecision::declared(text, clause, reading, state) {
         return;
     }
     if (open.contains("pas encore décidé")

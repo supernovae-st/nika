@@ -171,6 +171,33 @@ The run's own guards (`compute_admit`, the number policy)
 stay the check at use: the observation is bounded, and nothing is atomic
 between the yes and the run.
 
+## One waiting state, one routing, one work snapshot
+
+`SessionRuntime::waiting` is the one precedence every host reads for the next line: the one-time
+cost decision, the choice of intelligence, a proposal's consent, a run's gate, then the value an
+authoring question, a run input or an activation asks, else a new turn. `submit(line, shown)`
+routes that line to what waits, by the identity the host displayed: a consent answers the
+proposal shown (`consent_to`), a gate answer names the gate shown (`answer_gate_for`). With no
+proposal shown, a declining or leaving line still declines and any other line is refused with
+`NOTHING_SHOWN`: nothing is consented that was not seen. With nothing waiting, only a line typed
+at a free prompt is a new turn: one typed for a question, gate, proposal or cost review shown
+goes to that state's identity door and is refused there as answered, decided or stale, and a
+value or choice no longer asked takes nothing, so an answer is never read as a new request;
+leaving and the read-only commands still pass. An authoring question's own identity
+(`answer_question_for`) is refused as the wrong state while a run's cost review owns the next
+line, and the question keeps waiting. `work()` builds the typed snapshot
+(`nika_session_change::work`) from the session's own state; it audits nothing, reads no file and
+decides nothing. The reach it shows for the requested run and the saved workflow comes from the
+check that cleared the run request or landed the consent, kept beside them when they happen. Its
+`authoring` is the last compile outcome the session keeps, read as the compiler wrote it, so a
+failed or unfinished creation stays explainable after its card. The CLI plain loop and the
+terminal renderer route through these since 2026-10-08. A requested run's cost review is part
+of them: the host announces the child's challenge (`run_review_asked`), `waiting` names it first
+(`Waiting::RunReview`, its identity only), and `submit` reads the line with the one spending
+grammar: one shown yes returns `RunReviewed { approve: true }` and the host answers its child
+once; a decline, leaving or `decline_run_review` (an interruption) sends nothing; the evidence,
+`/help` and `/status` answer beside it. The host keeps only the live child and its pipe.
+
 ## Exact schedule activation
 
 Saving a scheduled candidate activates nothing. Activation consumes Compile's
@@ -217,10 +244,17 @@ in again in that app, then retry; no fallback », in Nika's words, never the
 adapter's; any other error answer stays « transport ended before a complete
 answer ». This is adapter-specific
 capability admission, not a generic claim about ACP read-only modes. Codex
-over ACP still refuses: through `codex-acp` the user's MCP servers and the
-code-mode tools stay reachable whatever session configuration is passed, so no
-empty-tools profile is attested. The whole answer reaches Compiler validation;
-no JSON prefix is extracted.
+over ACP runs under its own completion profile (`@agentclientprotocol/codex-acp`
+1.13.1 with its bundled codex 0.156.1), which is not an empty-tools profile.
+Before the adapter starts, every tool-bearing feature, the plugins and every
+MCP server the user configuration defines are disabled through `CODEX_CONFIG`
+and read back on the exact bundled binary (`CODEX_PATH`). The session mode
+codex-acp names `read-only` is applied and read back before the prompt; its
+actual per-turn sandbox is `workspaceWrite` limited to the scratch directory,
+with the network off and every approval denied. `apply_patch` stays callable
+inside that scratch, which is removed after the call, and any tool beat
+refuses the answer; the receipt names that residue. The whole answer reaches
+Compiler validation; no JSON prefix is extracted.
 
 ACP uses the same selected Compiler policy as API authoring. Interactive preparation
 has no implicit total call, repair or monetary bound; callers using the historical
@@ -578,6 +612,27 @@ restored and grants no consent and no Run. Its text names the question and its
 revision, not the session — the session is told apart by the value itself, with
 no clock, randomness or shared counter — so a host keeps the value the session
 handed out; a wire host needs ADR-133's session identity follow-up.
+
+What the last line did to the question it was typed for travels in the work snapshot
+(`Work.answered`), recorded where the session did it, never read from the turn's outcome: the
+value bound and how (`as_typed`, `offered_key`, `model_read`, or `seat_default` when an empty
+line took the chosen seat as the model question's default), kept when the compile that
+follows does not finish; the round dropped by a cancel, the word or a route's; the request or a
+clause restated in words, once the money gate admitted them; the question still waiting, with
+the reason; or a refusal before anything committed (an identity door, an empty line, an
+unserved command, the money gate). An identity-door refusal names the identity the host named,
+even a stale one or another session's; a line refused because the host never showed the waiting
+question names none. Asides, read-only commands and lines for another prompt leave it unset:
+each line door (`turn`, `submit`, `answer_question_for`, `consent`, `consent_to`, `choose`,
+`answer_gate`, `answer_gate_for`) clears it first, rereading the snapshot does not, and a
+restored session carries none.
+
+A proposal's `candidate.revision` is the record of its own round's kind: an EDIT round's
+`document_revision`, whether or not it replaces a saved file, else the creation's
+`document_create`, projected with no base (a composed creation's base was the author's own
+draft, never earlier bytes). Either binds only the candidate's exact bytes, and each component
+it names is witnessed on those bytes. The consent prompt says `created · written` or
+`created · composed` for a creation.
 
 `runtime/inference_tests/question_identity.rs` drives real Session → Compiler
 clarifications: the deterministic compiler's `model` question, and a native
@@ -1117,3 +1172,20 @@ The intelligence census retains the same host probe's effective provider endpoin
 for the reply guard. Conversation and proposal discussion both pass these facts to
 `KnownWorld::audit_over`; missing context keeps the profile-default check. These
 facts grant no authority, contain no API key values, and are not model context.
+
+### Child workflows checked where the proposal lands
+
+An authoring round's room checks a candidate's child workflows where the bytes will be saved:
+
+- a revision checks them at the file it rewrites;
+- a fresh candidate checks them where `review::destination` lands its proposal (the destination
+  rule itself, never a copy of it);
+- the scope forwards that read-only check (`Scoped::compose`).
+
+Before a proposal is bound, every candidate whose hold was lifted is checked again where the
+change set lands it (`ObservedRoom::recompose`). The closure must be clean there and its child
+units (path and digest) must be the ones the compile recorded, so a child rewritten or removed
+since, even at the same path, refuses the proposal with both places and the changed child
+named; nothing is proposed or written. The check runs no child. Run keeps its own
+current-world admission: the composed check before a run judges the children again
+(`check_on_disk`).

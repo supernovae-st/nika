@@ -92,7 +92,7 @@ fn a_scripted_native_author_and_copy_share_one_real_room_account() {
             .with_repairs(0),
     );
     let out = s
-        .rehearse_dispatch(INTENT, |_, host| {
+        .rehearse_dispatch_at(INTENT, None, |_, host| {
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()

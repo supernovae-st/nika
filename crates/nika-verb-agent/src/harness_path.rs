@@ -79,14 +79,9 @@ impl HarnessSeat {
     }
 }
 
-/// Run the task on the harness seat — the external half of
-/// `run_observed`.
-pub(crate) async fn run_on_harness(
-    seat: &HarnessSeat,
-    input: AgentInput,
-    observer: &dyn AgentObserver,
-    images: Option<&Arc<dyn crate::spill::SpillStoreDyn>>,
-) -> Result<AgentOutput, VerbAgentError> {
+/// What a harness access cannot honour, refused before its session starts: a structured-output
+/// schema it does not attest, and a tool whitelist it cannot enforce.
+fn refuse_unenforceable(input: &AgentInput) -> Result<(), VerbAgentError> {
     if input.schema.is_some() {
         return Err(VerbAgentError::InvalidParam {
             param: "schema",
@@ -105,14 +100,21 @@ pub(crate) async fn run_on_harness(
                 .to_owned(),
         });
     }
+    Ok(())
+}
 
-    let mut request = HarnessRequest::new(input.prompt.clone(), seat.cwd.clone());
-    if let Some(system) = &input.system {
-        request = request.with_system(system.clone());
-    }
-    if let Some(model) = &input.model {
-        request = request.with_requested_model(model.clone());
-    }
+/// Run the task on the harness seat — the external half of
+/// `run_observed`.
+pub(crate) async fn run_on_harness(
+    seat: &HarnessSeat,
+    input: AgentInput,
+    observer: &dyn AgentObserver,
+    images: Option<&Arc<dyn crate::spill::SpillStoreDyn>>,
+) -> Result<AgentOutput, VerbAgentError> {
+    refuse_unenforceable(&input)?;
+
+    let typed = input.requirement.is_some();
+    let request = session_request(seat, &input);
     // B5 · the operator's bound verdict is CONSUMED by the first
     // out-of-grants ask it decides: the human answered ONE question, so
     // a second ask (or a different one on a nondeterministic replay)
@@ -123,7 +125,7 @@ pub(crate) async fn run_on_harness(
         .backend
         .run_agent_boxed(request)
         .await
-        .map_err(|e| harness_err(&e))?;
+        .map_err(|e| harness_err(e, typed))?;
 
     loop {
         let next = std::future::poll_fn(|cx| stream.as_mut().poll_next(cx)).await;
@@ -163,21 +165,44 @@ pub(crate) async fn run_on_harness(
                 store_image(*image, images, observer).await?;
             }
             Some(Ok(HarnessEvent::Completed { outcome })) => {
-                return Ok(completed_output(*outcome));
+                // Under a declaration the selection is exact: a model or an
+                // effort the agent moved after it was applied refuses.
+                if typed && let Some(refusal) = outcome.selection.moved_refusal() {
+                    return Err(harness_err(refusal, typed));
+                }
+                return Ok(completed_output(*outcome, &input));
             }
             Some(Ok(_)) => {
                 // Chunks (the outcome carries the accumulated text ·
                 // per-chunk observer taps arrive with B5) and any
                 // future event kind: observed, never fatal.
             }
-            Some(Err(e)) => return Err(harness_err(&e)),
+            Some(Err(e)) => return Err(harness_err(e, typed)),
             None => {
-                return Err(harness_err(&HarnessError::Session {
-                    reason: "the harness stream ended without a Completed beat".to_owned(),
-                }));
+                return Err(harness_err(
+                    HarnessError::Session {
+                        reason: "the harness stream ended without a Completed beat".to_owned(),
+                    },
+                    typed,
+                ));
             }
         }
     }
+}
+
+/// The delegated session's request: the prompt, the system, the model the lane resolved,
+/// and the authored effort — which the session applies through its own option and reads
+/// back before the prompt, or refuses (typed, under the declaration).
+fn session_request(seat: &HarnessSeat, input: &AgentInput) -> HarnessRequest {
+    let mut request = HarnessRequest::new(input.prompt.clone(), seat.cwd.clone())
+        .with_requested_effort(input.requirement.as_ref().and_then(|r| r.effort.clone()));
+    if let Some(system) = &input.system {
+        request = request.with_system(system.clone());
+    }
+    if let Some(model) = &input.model {
+        request = request.with_requested_model(model.clone());
+    }
+    request
 }
 
 /// Persist only bytes received on the wire. The receipt is published BEFORE the
@@ -211,7 +236,7 @@ async fn store_image(
     });
     stored
         .map(drop)
-        .map_err(|reason| harness_err(&HarnessError::Refused { reason }))
+        .map_err(|reason| harness_err(HarnessError::Refused { reason }, false))
 }
 
 /// The witness `gate` label for one ask — what the bridge judged, in
@@ -240,7 +265,21 @@ fn gate_label(facts: &HarnessAskFacts) -> String {
 /// `model_resolved` stays None (it is the requested name and a pricing key) ·
 /// the session model the harness REPORTED rides as `model_reported` with its
 /// provenance: ACP attests no response model, so nothing here is "served" (A-2/A-7).
-fn completed_output(outcome: nika_kernel::ai::harness::HarnessOutcome) -> AgentOutput {
+fn completed_output(
+    outcome: nika_kernel::ai::harness::HarnessOutcome,
+    input: &AgentInput,
+) -> AgentOutput {
+    let selection = input.requirement.as_ref().map(|requirement| {
+        crate::selection::harness_evidence(
+            requirement,
+            input.model.clone(),
+            outcome.observed_model.clone(),
+            outcome
+                .observed_model_source
+                .map(nika_kernel::ai::harness::ModelProvenance::as_str),
+            &outcome.selection,
+        )
+    });
     let mut out = AgentOutput::new(
         AgentValue::Text(outcome.output.clone()),
         AgentStopReason::Completed,
@@ -255,6 +294,7 @@ fn completed_output(outcome: nika_kernel::ai::harness::HarnessOutcome) -> AgentO
     }
     out.model_reported = outcome.observed_model;
     out.model_reported_source = outcome.observed_model_source;
+    out.selection = selection;
     out
 }
 
@@ -338,7 +378,17 @@ fn bridge_ask(
 /// working. A transient harness failure now rides the ONE provider
 /// variant that carries the same verdict (a 5xx-class `Api`), so
 /// `is_transient()` reads the same on both sides of the seam.
-fn harness_err(e: &HarnessError) -> VerbAgentError {
+///
+/// Under an AUTHORED access requirement (`typed`) the harness keeps its own
+/// typed class instead (NIKA-1803/1804/1805 · [`VerbAgentError::Harness`]):
+/// the declared contract names which access failed; transience is the same.
+fn harness_err(e: HarnessError, typed: bool) -> VerbAgentError {
+    if typed {
+        return VerbAgentError::Harness {
+            source: e,
+            spend: Box::default(),
+        };
+    }
     let source = if e.is_transient() {
         nika_kernel::ProviderError::Api {
             status: 503,
@@ -1079,32 +1129,57 @@ mod transience_tests {
     /// layer silently stops retrying a recoverable disconnect.
     #[test]
     fn a_transient_harness_failure_stays_transient_through_the_wrap() {
-        let session = HarnessError::Session {
-            reason: "pipe closed".to_owned(),
-        };
-        assert!(session.is_transient(), "the harness calls this transient");
-        let wrapped = harness_err(&session);
-        assert!(
-            wrapped.is_transient(),
-            "and so must the verb error the retry layer reads"
-        );
+        for typed in [false, true] {
+            let session = HarnessError::Session {
+                reason: "pipe closed".to_owned(),
+            };
+            assert!(session.is_transient(), "the harness calls this transient");
+            let wrapped = harness_err(session, typed);
+            assert!(
+                wrapped.is_transient(),
+                "and so must the verb error the retry layer reads (typed={typed})"
+            );
+        }
     }
 
     #[test]
     fn a_permanent_harness_failure_stays_permanent() {
-        for e in [
-            HarnessError::Unavailable {
-                reason: "binary absent".to_owned(),
-            },
-            HarnessError::Refused {
-                reason: "auth absent".to_owned(),
-            },
-        ] {
-            assert!(!e.is_transient());
-            assert!(
-                !harness_err(&e).is_transient(),
-                "a structural failure must never earn a retry"
-            );
+        for typed in [false, true] {
+            for e in [
+                HarnessError::Unavailable {
+                    reason: "binary absent".to_owned(),
+                },
+                HarnessError::Refused {
+                    reason: "auth absent".to_owned(),
+                },
+            ] {
+                assert!(!e.is_transient());
+                assert!(
+                    !harness_err(e, typed).is_transient(),
+                    "a structural failure must never earn a retry (typed={typed})"
+                );
+            }
         }
+    }
+
+    /// Under an authored requirement the harness keeps its own access
+    /// code; without one the historical inference class is unchanged.
+    #[test]
+    fn a_declared_selection_keeps_the_harness_access_code() {
+        let refused = || HarnessError::Refused {
+            reason: "the harness offers no reasoning effort `xhigh`".to_owned(),
+        };
+        let typed = harness_err(refused(), true);
+        assert_eq!(typed.spec_code(), "NIKA-1805");
+        assert!(typed.to_string().contains("`xhigh`"), "{typed}");
+        let session = harness_err(
+            HarnessError::Session {
+                reason: "pipe closed".to_owned(),
+            },
+            true,
+        );
+        assert_eq!(session.spec_code(), "NIKA-1804");
+        let legacy = harness_err(refused(), false);
+        assert_eq!(legacy.spec_code(), "NIKA-INFER-001");
     }
 }

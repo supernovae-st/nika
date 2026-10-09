@@ -38,7 +38,7 @@ use nika_builtin::{
 };
 use nika_clock::DeclaredClock;
 use nika_exec_runner::TokioShell;
-use nika_fs::TokioFs;
+use nika_fs::AnchoredFs;
 use nika_http::{HttpConfig, NetBoundary, ReqwestHttp, SsrfMode};
 use nika_kernel::ai::provider::ProviderInferDyn;
 use nika_kernel::provider::{InferRequest, InferResponse, ProviderError};
@@ -166,7 +166,7 @@ fn format_emit(kind: &str, payload: &serde_json::Value) -> String {
 /// prompter · stderr emitter for log/emit · no nested-workflow surface
 /// at v0).
 type ProdDispatcher = BuiltinDispatcher<
-    TokioFs,
+    AnchoredFs,
     ReqwestHttp,
     DeclaredClock,
     StderrEmitter,
@@ -769,8 +769,9 @@ pub fn production_runtime_with_emitter(
     // Builtin plane over real effects · InvokeVerb + agent tools.
     // File builtins enforce permits.fs (NIKA-SEC-004). Same Arc as runtime.
     let inspect = Arc::new(LiveInspect::new());
+    let root = sandbox_root.clone();
     let dispatcher: Arc<ProdDispatcher> = Arc::new(
-        builtin_plane(Arc::clone(&http), &seams, emitter, &inspect, caps.fs)
+        builtin_plane(root, Arc::clone(&http), &seams, emitter, &inspect, caps.fs)
             // Images use fixed provider endpoints and their 600s transport ceiling;
             // the fetch idle guard is unsuitable. Resolve keys only at this boundary.
             .with_image_plane(Arc::clone(&provider_http), image_keys_from_env())
@@ -829,7 +830,10 @@ pub fn production_runtime_with_emitter(
 
 /// The builtin plane production and simulated compositions share: the real
 /// fs under the declared `permits.fs`, the fetch client, the run's clock.
+/// Relative paths, judged and effected alike, resolve at the run's selected
+/// `root` (never the process cwd); it moves coordinates, it grants nothing.
 fn builtin_plane(
+    root: std::path::PathBuf,
     http: Arc<ReqwestHttp>,
     seams: &RunSeams,
     emitter: StderrEmitter,
@@ -837,7 +841,7 @@ fn builtin_plane(
     fs: FsBoundary,
 ) -> ProdDispatcher {
     BuiltinDispatcher::new(
-        Arc::new(TokioFs),
+        Arc::new(AnchoredFs::new(root)),
         http,
         Arc::new(seams.clock.clone()),
         // log/emit → stderr (observable · NOT a silent no-op).
@@ -916,7 +920,8 @@ pub fn simulated_runtime(
     // Real builtin plane (permits.fs as production) then the simulated gate.
     let inspect = Arc::new(LiveInspect::new());
     let emitter = StderrEmitter::default();
-    let plane = builtin_plane(http, &seams, emitter, &inspect, caps.fs);
+    let root = std::env::current_dir().unwrap_or_default();
+    let plane = builtin_plane(root.clone(), http, &seams, emitter, &inspect, caps.fs);
     let dispatcher = Arc::new(SimulatedDispatcher::new(Arc::new(plane)));
     let invoke = Arc::new(InvokeVerb::new(Arc::clone(&dispatcher)));
 
@@ -942,7 +947,7 @@ pub fn simulated_runtime(
         ),
         seams.clock,
         RuntimeConfig::new(None, seams.jitter_seed)
-            .with_sandbox_root(std::env::current_dir().unwrap_or_default())
+            .with_sandbox_root(root)
             .with_sandbox_backend("simulated"),
     )
     .with_inspect(inspect)

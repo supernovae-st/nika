@@ -1,0 +1,30 @@
+nika: p41-validate-convert-diff
+permits:
+  fs: { read: ["./data/**"] }
+  tools: ["nika:read"]
+tasks:
+  before:
+    invoke: { tool: "nika:read", args: { path: "./data/a.json" } }
+  after:
+    invoke: { tool: "nika:read", args: { path: "./data/b.json" } }
+  parse_before:
+    with: { raw: "${{ tasks.before.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.raw }}", expression: "fromjson" } }
+  parse_after:
+    with: { raw: "${{ tasks.after.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.raw }}", expression: "fromjson" } }
+  check_shape:
+    with: { doc: "${{ tasks.parse_before.output }}" }
+    invoke: { tool: "nika:validate", args: { data: "${{ with.doc }}", schema: { type: object, required: [items] } } }
+  diff:
+    with: { a: "${{ tasks.parse_before.output }}", b: "${{ tasks.parse_after.output }}" }
+    invoke: { tool: "nika:json_diff", args: { before: "${{ with.a }}", after: "${{ with.b }}" } }
+  patched:
+    with: { a: "${{ tasks.parse_before.output }}" }
+    invoke: { tool: "nika:json_merge_patch", args: { target: "${{ with.a }}", patch: { extra: true } } }
+  as_yaml:
+    with: { a: "${{ tasks.parse_before.output }}" }
+    invoke: { tool: "nika:convert", args: { input: "${{ with.a }}", from: json, to: yaml } }
+outputs:
+  diff: ${{ tasks.diff.output }}
+  yaml: ${{ tasks.as_yaml.output }}

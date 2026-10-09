@@ -101,6 +101,33 @@ pub fn single_file(text: &str) -> Option<String> {
     }
 }
 
+/// The open names of a phrase: each unquoted spaced name holding a path whose first word the
+/// reader cannot settle (`un payload out/notification.json`), in order. A dynamic template
+/// (`<slug>`, `{name}`, `$x`) is not one; it stays for the typed answer door.
+#[must_use]
+pub fn open_names(text: &str) -> Vec<String> {
+    (literals(text).into_iter())
+        .filter_map(|shape| match shape {
+            PathShape::Placeholder(name)
+                if name.contains('/') && !name.contains(['<', '>', '{', '}', '$']) =>
+            {
+                Some(name)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The files an open name may name, longest first: the name from each of its words on, down to
+/// its path alone. Each is a start the reader left open, never another word or a shortened path.
+#[must_use]
+pub fn readings(name: &str) -> Vec<String> {
+    let words: Vec<&str> = name.split(' ').collect();
+    (0..words.len())
+        .map(|from| words[from..].join(" "))
+        .collect()
+}
+
 /// One literal read as a path, or nothing when it is prose. A word is the common case;
 /// a whole string with spaces (an answer, a quoted span) is one literal only when quoted,
 /// or when it can only be a file's name.
@@ -243,21 +270,27 @@ fn name_start(items: &[(&str, Option<PathShape>)], at: usize) -> Option<usize> {
         }
         run = Some(index);
         // A capital opening the phrase or a sentence is the sentence's, not the name's.
-        let opens = index == 0 || items[index - 1].0.ends_with(['.', '!', '?', ':']);
-        if !opens && core.starts_with(char::is_uppercase) {
+        if !opens(items, index) && core.starts_with(char::is_uppercase) {
             capital = Some(index);
         }
     }
     // A relative compound file can have a lowercase directory prefix containing spaces.
     // Keep the ambiguous extent after a connector; never silently retain only its suffix.
-    // A sentence's first word still belongs to prose, just as for a capitalized opener.
+    // A sentence's first word still belongs to prose, just as for a capitalized opener
+    // (« … jamais zéro. Écris out/report.json » names `out/report.json`).
     capital.or_else(|| {
         let word = trim(items[at].0);
         (word.contains('/') && !rooted(word))
             .then_some(run)
             .flatten()
-            .filter(|from| *from > 0)
+            .filter(|from| !opens(items, *from))
     })
+}
+
+/// Whether the word at `index` opens the phrase or a sentence (it follows `.`, `!`, `?` or
+/// `:`): such a word is the sentence's, never the first word of a name.
+fn opens(items: &[(&str, Option<PathShape>)], index: usize) -> bool {
+    index == 0 || items[index - 1].0.ends_with(['.', '!', '?', ':'])
 }
 
 /// The material a read consumes when a request names a path: a file or a glob as
@@ -400,9 +433,170 @@ impl Structured {
     }
 }
 
+/// A path composed from the request's own words (`./catalog/<slug>.md` with the slug listed
+/// in the request) is not invented: every directory and the file's stem appear in the request;
+/// a pure glob segment composes nothing.
+#[must_use]
+pub fn composed_from(lower: &str, token: &str) -> bool {
+    let body = token
+        .trim_start_matches("./")
+        .trim_start_matches("../")
+        .trim_start_matches("~/");
+    let segments: Vec<&str> = body
+        .split('/')
+        .filter(|s| !s.is_empty() && *s != "." && *s != "..")
+        .collect();
+    !segments.is_empty()
+        && segments.iter().all(|segment| {
+            let stem = segment.rsplit_once('.').map_or(*segment, |(stem, _)| stem);
+            let stem = stem.trim_matches('*');
+            stem.is_empty() || lower.contains(&stem.to_lowercase())
+        })
+}
+
+/// An address composed from the request's own words (`stated`, as written): its origin
+/// (`scheme://host[:port]`, read case-insensitively) and its path (in its own spelling) each
+/// stated as a whole token, as a request names a sink's origin in one sentence and the path it
+/// posts to in another. Only an origin goes on, into its own path, query or fragment; anything
+/// else continuing or preceding a stated origin or path inside its token, quoted or not, makes
+/// another one (`http://h.example.evil`, `http://h:8080`, `/api/private`, `"/api+v2"`,
+/// `/api:cancel`, `"/v2+/api"`), and a path spelt otherwise (`/Admin`) is another path. An
+/// origin with no path composes nothing.
+#[must_use]
+pub fn origin_and_path(stated: &str, token: &str) -> bool {
+    let Some((scheme, rest)) = token.split_once("://") else {
+        return false;
+    };
+    let (authority, path) = rest.split_at(rest.find(['/', '?', '#']).unwrap_or(rest.len()));
+    let origin = format!("{scheme}://{authority}").to_lowercase();
+    !authority.is_empty()
+        && path.len() > 1
+        && whole(&stated.to_lowercase(), &origin, &['/', '?', '#'])
+        && whole(stated, path, &[])
+}
+
+/// Quotes and brackets: what wraps a literal in prose, on either side of it.
+const WRAPS: &str = "\"'`‘’“”«»()[]<>";
+
+/// Whether `text` states `part` as a whole token, as the lexer reads a literal: between it and
+/// the whitespace (or edge of `text`) before it stand only quotes and brackets, and between it
+/// and the whitespace after it only quotes, brackets and sentence punctuation ([`TAIL`]),
+/// unless a character of `goes_on` opens the next component there. Any other character beside
+/// it inside its token (`+`, `:`, `@`, `'`, `,` … continuing it) makes another token.
+fn whole(text: &str, part: &str, goes_on: &[char]) -> bool {
+    text.match_indices(part).any(|(at, _)| {
+        let before = text[..at]
+            .rsplit(char::is_whitespace)
+            .next()
+            .unwrap_or_default();
+        let after = text[at + part.len()..]
+            .split(char::is_whitespace)
+            .next()
+            .unwrap_or_default();
+        before.chars().all(|c| WRAPS.contains(c))
+            && (after.starts_with(goes_on)
+                || after
+                    .chars()
+                    .all(|c| WRAPS.contains(c) || TAIL.contains(&c)))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A path composed from the request's own words is not invented; a directory or stem the
+    /// request never states is.
+    #[test]
+    fn a_path_composed_from_the_requests_words_is_not_invented() {
+        let lower = "for each slug solar-lamp, wind-chime read ./catalog/<slug>.md";
+        assert!(composed_from(lower, "./catalog/solar-lamp.md"));
+        assert!(composed_from(lower, "./catalog/*.md"));
+        assert!(!composed_from(lower, "./catalog/moon-rock.md"));
+        assert!(!composed_from(lower, "./archive/solar-lamp.md"));
+    }
+
+    /// An address whose origin and path the request each states is composed from it; another
+    /// path, another origin, an origin alone, or a path found only inside another path or
+    /// file name is not.
+    #[test]
+    fn an_address_is_composed_from_a_stated_origin_and_a_stated_path() {
+        let stated = "Lis ./stock.json, puis effectue un POST /notifications/stock vers le sink local http://127.0.0.1:65409 ;";
+        let composed = |token: &str| origin_and_path(stated, token);
+        assert!(composed("http://127.0.0.1:65409/notifications/stock"));
+        assert!(composed("HTTP://127.0.0.1:65409/notifications/stock"));
+        assert!(!composed("http://127.0.0.1:65409/Notifications/Stock"));
+        assert!(!composed("http://127.0.0.1:65409/other"));
+        assert!(!composed("http://evil.example/notifications/stock"));
+        assert!(!composed("http://127.0.0.1:65409"));
+        assert!(!composed("http://127.0.0.1:65409/stock"));
+        assert!(!composed("./notifications/stock"));
+    }
+
+    /// A stated origin or path is never taken from a longer one: a host label, a port digit, a
+    /// child segment or a suffix continuing it makes another address; a path spelt otherwise is
+    /// another path. The whole stated components compose (independent K2 review).
+    #[test]
+    fn an_address_is_never_composed_from_a_longer_origin_or_path() {
+        let api = "http://trusted.example/api";
+        for (stated, token) in [
+            ("POST /api to http://trusted.example.evil", api),
+            ("POST /api-v2 to http://trusted.example", api),
+            ("POST /api/private to http://trusted.example", api),
+            (
+                "POST /api to http://trusted.example:8080",
+                "http://trusted.example:80/api",
+            ),
+            (
+                "POST /Admin to http://trusted.example",
+                "http://trusted.example/admin",
+            ),
+            ("POST /api to http://trusted.example:8080", api),
+        ] {
+            assert!(!origin_and_path(stated, token), "{stated} | {token}");
+        }
+        assert!(origin_and_path("POST /api to http://trusted.example", api));
+        assert!(origin_and_path("POST /api to HTTP://Trusted.Example.", api));
+        assert!(origin_and_path(
+            "POST /api, to http://trusted.example:8080",
+            "http://trusted.example:8080/api"
+        ));
+    }
+
+    /// A stated origin or path composes only as the whole token the request states, quoted or
+    /// not: a character of the path's own class continuing or preceding it inside its token
+    /// (`+ : @ ! $ ' ( ) , ;`) makes another token, while quotes, brackets and the sentence
+    /// punctuation outside them stay prose, and only an origin goes on, into its own path
+    /// (independent K2b review).
+    #[test]
+    fn an_address_composes_only_from_whole_stated_tokens() {
+        let api = "http://trusted.example/api";
+        for (stated, composed) in [
+            (r#"POST "/api+v2" to http://trusted.example"#, false),
+            (r#"POST "/api:cancel" to http://trusted.example"#, false),
+            ("POST /api@v2 to http://trusted.example", false),
+            ("POST '/api!x' to http://trusted.example", false),
+            ("POST «/api$1» to http://trusted.example", false),
+            ("POST `/api'v2` to http://trusted.example", false),
+            (r#"POST "/api(v2)" to http://trusted.example"#, false),
+            ("POST /api,v2 to http://trusted.example", false),
+            ("POST /api;v=2 to http://trusted.example", false),
+            (r#"POST "/v2+/api" to http://trusted.example"#, false),
+            ("POST /api to http://trusted.example@evil.example", false),
+            (
+                r#"POST "/api", then stop. Use http://trusted.example."#,
+                true,
+            ),
+            ("POST (/api) to <http://trusted.example>!", true),
+            (
+                "Read http://trusted.example/status, then POST `/api`;",
+                true,
+            ),
+            ("POST /api: it lives on http://trusted.example", true),
+        ] {
+            assert_eq!(origin_and_path(stated, api), composed, "{stated}");
+        }
+    }
 
     #[test]
     fn a_path_token_sheds_nested_brackets_and_punctuation_until_nothing_changes() {
@@ -547,6 +741,40 @@ mod tests {
                 "{text}"
             );
         }
+    }
+
+    /// A sentence's first word is prose before a relative path, wherever the sentence starts:
+    /// the path is named alone, never glued to the verb that opens its sentence.
+    #[test]
+    fn a_sentence_opener_never_joins_the_relative_path_after_it() {
+        for (text, expected) in [
+            (
+                "Signale les articles sous leur seuil, jamais zéro. Écris out/report.json avec les alertes.",
+                vec![file("out/report.json")],
+            ),
+            (
+                "Keep the rows under the threshold. Save out/x.json with the totals.",
+                vec![file("out/x.json")],
+            ),
+            (
+                "Lis data/stock.json! Enregistre out/alerts.json ensuite",
+                vec![file("data/stock.json"), file("out/alerts.json")],
+            ),
+            (
+                "Deux étapes : Copie data/a.json vers out/b.json",
+                vec![file("data/a.json"), file("out/b.json")],
+            ),
+        ] {
+            assert_eq!(literals(text), expected, "{text}");
+        }
+        // After a connector the ambiguous extent is still kept whole.
+        assert_eq!(
+            literals("Copy the file project notes/input.json to project notes/output.json"),
+            vec![
+                open("project notes/input.json"),
+                open("project notes/output.json")
+            ]
+        );
     }
 
     #[test]
@@ -722,5 +950,42 @@ mod tests {
                 literals(text)
             );
         }
+    }
+
+    /// An open name is the reader's own unquoted spaced placeholder holding a path; its readings
+    /// are the starts the reader left open, longest first, ending on the path alone. A quoted
+    /// name, an exact path, a spaced name without a path and a dynamic template are not open.
+    #[test]
+    fn an_open_name_reads_from_each_start_the_reader_left_open() {
+        let stock = "Une fois la source complète, prépare exactement un payload \
+                     out/notification.json contenant channel, puis effectue un POST. Écris \
+                     out/report.json.";
+        assert_eq!(open_names(stock), ["payload out/notification.json"]);
+        assert_eq!(
+            readings("payload out/notification.json"),
+            ["payload out/notification.json", "out/notification.json"]
+        );
+        let two = "Copy the file project notes/input.json to team draft notes/output.json";
+        assert_eq!(
+            open_names(two),
+            ["project notes/input.json", "team draft notes/output.json"]
+        );
+        assert_eq!(
+            readings("team draft notes/output.json"),
+            [
+                "team draft notes/output.json",
+                "draft notes/output.json",
+                "notes/output.json"
+            ]
+        );
+        for closed in [
+            "Prépare exactement un « payload out/notification.json ».",
+            "Écris out/report.json puis lis ./in/a.json.",
+            "Read the file budget 2026.csv",
+            "Read the file draft ./catalog/<slug>.md",
+        ] {
+            assert!(open_names(closed).is_empty(), "{closed}");
+        }
+        assert_eq!(readings("out/report.json"), ["out/report.json"]);
     }
 }

@@ -80,10 +80,18 @@ const COST_REVIEW: [&str; 2] = [
 ];
 
 /// The document this server serves: [`live`], and on a server started with
-/// `--cost-review` the door's paths and schemas merged in (health `costReviewV1`/`V2`).
-pub(crate) fn served(native: bool, cost_review: bool) -> Value {
+/// `--cost-review` the door's paths and schemas merged in (health `costReviewV1`/`V2`), then the
+/// Session door's on a server that serves it (health `sessionHost`).
+pub(crate) fn served(native: bool, cost_review: bool, sessions: bool) -> Value {
     let mut document = live(native);
-    let patches = COST_REVIEW.iter().filter(|_| cost_review);
+    let session = [nika_session_host::http::OPENAPI]
+        .into_iter()
+        .filter(|_| sessions);
+    let patches = COST_REVIEW
+        .iter()
+        .filter(|_| cost_review)
+        .copied()
+        .chain(session);
     for patch in patches.filter_map(|patch| serde_json::from_str::<Value>(patch).ok()) {
         super::compile::schema::merge(&mut document, patch);
     }

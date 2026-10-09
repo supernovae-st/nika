@@ -415,12 +415,27 @@ impl AuthoringConfig {
     /// pack composed elsewhere ([`crate::knowledge::KnowledgeError::PackNotAdmitted`]).
     pub fn with_knowledge(
         &self,
-        mut request: crate::compile::CompileRequest,
+        request: crate::compile::CompileRequest,
         fallback_intent: &str,
     ) -> Result<crate::compile::CompileRequest, crate::knowledge::KnowledgeError> {
+        self.with_knowledge_lent(request, fallback_intent)
+            .map(|(request, _)| request)
+    }
+
+    /// [`Self::with_knowledge`], and the release the pack was composed from with the corpus its
+    /// pack held out: what a host lends the compile as the catalogue of this request
+    /// ([`crate::knowledge::Snapshot::catalogue`]). `None` when no release was opened.
+    ///
+    /// # Errors
+    /// As [`Self::with_knowledge`].
+    pub fn with_knowledge_lent(
+        &self,
+        mut request: crate::compile::CompileRequest,
+        fallback_intent: &str,
+    ) -> Result<(crate::compile::CompileRequest, Lent), crate::knowledge::KnowledgeError> {
         request.authoring_knowledge = None;
         match &self.knowledge {
-            None => Ok(request),
+            None => Ok((request, None)),
             Some(KnowledgeSource::Pack { file }) => {
                 Err(crate::knowledge::KnowledgeError::PackNotAdmitted { file: file.clone() })
             }
@@ -440,6 +455,9 @@ impl AuthoringConfig {
     }
 }
 
+/// The release a pack was composed from, and the corpus the pack held out.
+pub type Lent = Option<(crate::knowledge::Snapshot, Option<String>)>;
+
 /// The request with the pack composed for the intent the compiler reads, from the release `open`
 /// admits — opened only for an intent with words: none attaches nothing.
 fn composed(
@@ -447,14 +465,16 @@ fn composed(
     fallback_intent: &str,
     exclude_corpus: Option<&str>,
     open: impl FnOnce() -> Result<crate::knowledge::Snapshot, crate::knowledge::KnowledgeError>,
-) -> Result<crate::compile::CompileRequest, crate::knowledge::KnowledgeError> {
+) -> Result<(crate::compile::CompileRequest, Lent), crate::knowledge::KnowledgeError> {
     let intent =
         crate::compile::revise_intent(&request).unwrap_or_else(|| fallback_intent.to_owned());
     if intent.trim().is_empty() {
-        return Ok(request);
+        return Ok((request, None));
     }
-    let pack = open()?.pack(&intent, exclude_corpus)?;
-    Ok(request.with_authoring_knowledge(pack))
+    let snapshot = open()?;
+    let pack = snapshot.pack(&intent, exclude_corpus)?;
+    let lent = Some((snapshot, exclude_corpus.map(str::to_owned)));
+    Ok((request.with_authoring_knowledge(pack), lent))
 }
 
 /// Why a configuration cannot be honored.

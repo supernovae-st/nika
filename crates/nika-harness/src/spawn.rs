@@ -23,7 +23,7 @@ use std::process::Stdio;
 use nika_kernel::ai::harness::{AgentBackendDyn, HarnessError, HarnessEventStream, HarnessRequest};
 use tokio::io::AsyncReadExt;
 
-use crate::client::drive;
+use crate::authoring::acp::{Deadline, Door, OneShot, Opened};
 
 /// The env floor a spawned adapter always receives — the variables a
 /// CLI needs to run at all, none of them a secret channel.
@@ -389,7 +389,9 @@ impl HarnessAdapter {
 #[derive(Debug, Clone)]
 pub struct SpawnedHarness {
     adapter: HarnessAdapter,
-    authoring: bool,
+    /// The audited one-shot completion profile this seat serves, if any:
+    /// isolated scratch cwd, admitted identity, strict options, judged beats.
+    completion: Option<crate::authoring::acp::OneShot>,
 }
 
 impl SpawnedHarness {
@@ -398,10 +400,22 @@ impl SpawnedHarness {
         args: &[String],
         purpose: &str,
     ) -> Result<ProbeOutput, HarnessError> {
+        let command = self.adapter.command.clone();
+        self.run_bounded(&command, args, purpose).await
+    }
+
+    /// [`Self::run_bounded_probe`] for another program of the same adapter (the codex its
+    /// ACP package bundles), under the same composed environment and bounds.
+    async fn run_bounded(
+        &self,
+        command: &str,
+        args: &[String],
+        purpose: &str,
+    ) -> Result<ProbeOutput, HarnessError> {
         let parent: BTreeMap<String, String> = std::env::vars().collect();
         let env = compose_env(&parent, &self.adapter.passthrough_env);
-        let command_line = format!("{} {}", self.adapter.command, args.join(" "));
-        let mut child = tokio::process::Command::new(&self.adapter.command)
+        let command_line = format!("{command} {}", args.join(" "));
+        let mut child = tokio::process::Command::new(command)
             .args(args)
             .env_clear()
             .envs(&env)
@@ -491,13 +505,30 @@ impl SpawnedHarness {
     pub fn new(adapter: HarnessAdapter) -> Self {
         Self {
             adapter,
-            authoring: false,
+            completion: None,
         }
     }
 
-    pub(crate) fn for_authoring(mut self) -> Self {
-        self.authoring = true;
-        self
+    /// Serve one audited one-shot `role` under this adapter's completion profile.
+    ///
+    /// # Errors
+    /// The adapter has no audited completion profile.
+    pub(crate) fn for_completion(
+        mut self,
+        role: crate::authoring::acp::Completion,
+    ) -> Result<Self, HarnessError> {
+        let profile =
+            crate::authoring::acp::Profile::for_seat(&self.adapter.id).ok_or_else(|| {
+                HarnessError::Refused {
+                    reason: format!(
+                        "{} has no audited completion profile for adapter `{}`; no fallback",
+                        role.label(),
+                        self.adapter.id
+                    ),
+                }
+            })?;
+        self.completion = Some(OneShot { role, profile });
+        Ok(self)
     }
 
     /// Spawn the adapter child — piped stdio · composed env ·
@@ -505,6 +536,7 @@ impl SpawnedHarness {
     fn spawn_child(
         &self,
         cwd: Option<&std::path::Path>,
+        profile_env: &[(String, String)],
     ) -> Result<tokio::process::Child, HarnessError> {
         let parent: BTreeMap<String, String> = std::env::vars().collect();
         let env = compose_env(&parent, &self.adapter.passthrough_env);
@@ -518,6 +550,7 @@ impl SpawnedHarness {
         cmd.args(&self.adapter.args)
             .env_clear()
             .envs(&env)
+            .envs(profile_env.iter().map(|(name, value)| (name, value)))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -569,6 +602,70 @@ impl SpawnedHarness {
         let seen = crate::probe::judge_version(&self.adapter.id, &text, pin)?;
         self.probe_command_shape().await?;
         Ok(Some(seen))
+    }
+
+    /// The Codex completion profile, proven on the exact codex the adapter will run before
+    /// any session opens: the MCP servers the configuration defines (plugins off), then the
+    /// whole profile read back — every tool feature off, no MCP server enabled. Returns the
+    /// child environment carrying it (`CODEX_CONFIG`) and pinning that binary (`CODEX_PATH`).
+    async fn codex_profile_env(&self) -> Result<Vec<(String, String)>, HarnessError> {
+        use crate::authoring::acp::codex;
+        let parent: BTreeMap<String, String> = std::env::vars().collect();
+        let env = compose_env(&parent, &self.adapter.passthrough_env);
+        let binary = codex::bundled_codex(&self.adapter.command, &env)
+            .map_err(|reason| HarnessError::Unavailable { reason })?;
+        let binary = binary.to_string_lossy().into_owned();
+        let not_effective = |reason: String| HarnessError::Refused {
+            reason: format!(
+                "the Codex ACP completion profile is not effective: {reason}; no session was \
+                 opened; no fallback"
+            ),
+        };
+        let listing = |overrides: &[String], tail: &[&str]| -> Vec<String> {
+            overrides
+                .iter()
+                .flat_map(|o| ["-c".to_owned(), o.clone()])
+                .chain(tail.iter().map(|word| (*word).to_owned()))
+                .collect()
+        };
+        let plugins_off = ["features.plugins=false".to_owned()];
+        let defined = self
+            .run_bounded(
+                &binary,
+                &listing(&plugins_off, &["mcp", "list", "--json"]),
+                "codex mcp list",
+            )
+            .await?;
+        if !defined.status.success() {
+            return Err(not_effective(format!(
+                "codex mcp list exited {}",
+                defined.status
+            )));
+        }
+        let config =
+            codex::config(&codex::defined_servers(&defined.stdout).map_err(not_effective)?);
+        let overrides = codex::overrides(&config);
+        let features = self
+            .run_bounded(
+                &binary,
+                &listing(&overrides, &["features", "list"]),
+                "codex features list",
+            )
+            .await?;
+        crate::infer::tool_free::judge_features(&String::from_utf8_lossy(&features.stdout))
+            .map_err(|refused| not_effective(refused.to_string()))?;
+        let servers = self
+            .run_bounded(
+                &binary,
+                &listing(&overrides, &["mcp", "list", "--json"]),
+                "codex mcp list",
+            )
+            .await?;
+        codex::judge_servers(&servers.stdout).map_err(not_effective)?;
+        Ok(vec![
+            ("CODEX_CONFIG".to_owned(), config.to_string()),
+            ("CODEX_PATH".to_owned(), binary),
+        ])
     }
 
     /// Prove a registry-declared command shape after identity/version.
@@ -748,16 +845,42 @@ async fn handshake_over(
     })
 }
 
-// The Send variant is what the house consumes (the `ProviderInferDyn`
-// precedent: every impl site writes the `*Dyn` form, and the kernel's
-// blanket erasure builds `Arc<dyn DynAgentBackend>` from it).
-impl AgentBackendDyn for SpawnedHarness {
-    async fn run_agent(&self, request: HarnessRequest) -> Result<HarnessEventStream, HarnessError> {
+impl SpawnedHarness {
+    /// Open one session stream and return it with the transport bound it was given. Each frame
+    /// read and each write is bounded by [`crate::IDLE_TIMEOUT_SECS`], or, for a `call` (its
+    /// deadline and its progress), by the call's own allowance, which its deadline re-arms. That
+    /// deadline is read before the probes and again before the spawn, so a deadline spent by the
+    /// identity probes and the profile proof spawns nothing, probe included.
+    async fn open_stream(
+        &self,
+        request: HarnessRequest,
+        call: Option<(Deadline, crate::authoring::acp::Progress)>,
+    ) -> Result<(HarnessEventStream, std::time::Duration), HarnessError> {
+        let passed = || HarnessError::Session {
+            reason: "the call deadline passed before the adapter started; nothing was spawned"
+                .to_owned(),
+        };
+        let spent = || (call.as_ref()).is_some_and(|(deadline, marks)| deadline.expired(marks));
+        if spent() {
+            return Err(passed());
+        }
         // Identity before dialect (spec §4): a version outside the pin
         // refuses HERE, with the version named — never as a protocol
         // confusion three frames into a session.
         self.probe_version().await?;
-        let mut child = self.spawn_child(self.authoring.then_some(request.cwd.as_path()))?;
+        let profile_env = match self.completion {
+            Some(one_shot) if one_shot.profile == crate::authoring::acp::Profile::Codex => {
+                self.codex_profile_env().await?
+            }
+            _ => Vec::new(),
+        };
+        if spent() {
+            return Err(passed());
+        }
+        let generic = std::time::Duration::from_secs(crate::IDLE_TIMEOUT_SECS);
+        let idle = (call.as_ref()).map_or(generic, |(deadline, _)| deadline.allowance());
+        let mut child =
+            self.spawn_child(self.completion.map(|_| request.cwd.as_path()), &profile_env)?;
         let stdout = child.stdout.take().ok_or_else(|| HarnessError::Session {
             reason: "the child's stdout was not piped".to_owned(),
         })?;
@@ -767,39 +890,57 @@ impl AgentBackendDyn for SpawnedHarness {
         // The child rides INSIDE the stream's driver task: dropping the
         // stream drops the driver, the driver drops the child, and
         // kill_on_drop reaps it — the cancel-safety contract.
-        Ok(drive_with_child(
-            stdout,
-            stdin,
-            request,
-            child,
-            self.authoring,
-        ))
+        let (completion, marks) = (self.completion, call.map(|(_, marks)| marks));
+        let stream = drive_with_child(stdout, stdin, request, child, completion, idle, marks);
+        Ok((stream, idle))
     }
 }
 
-/// [`drive`] with the child's lifetime tied to the stream — the child
+// The Send variant is what the house consumes (the `ProviderInferDyn`
+// precedent: every impl site writes the `*Dyn` form, and the kernel's
+// blanket erasure builds `Arc<dyn DynAgentBackend>` from it).
+impl AgentBackendDyn for SpawnedHarness {
+    async fn run_agent(&self, request: HarnessRequest) -> Result<HarnessEventStream, HarnessError> {
+        Ok(self.open_stream(request, None).await?.0)
+    }
+}
+
+/// An authoring completion opens its stream inside the call's own deadline.
+impl Door for SpawnedHarness {
+    fn one_shot(&self) -> Option<OneShot> {
+        self.completion
+    }
+
+    fn open(
+        &self,
+        request: HarnessRequest,
+        deadline: Deadline,
+        progress: crate::authoring::acp::Progress,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Opened, HarnessError>> + Send + '_>> {
+        Box::pin(async move {
+            let opened = self.open_stream(request, Some((deadline, progress)));
+            let (stream, allowance) = opened.await?;
+            Ok(Opened { stream, allowance })
+        })
+    }
+}
+
+/// The driver with the child's lifetime tied to the stream — the child
 /// handle parks inside a wrapper stream so its `Drop` (and the OS kill
-/// underneath) fires exactly when the consumer lets go.
+/// underneath) fires exactly when the consumer lets go. `idle` bounds each
+/// frame read and each write ([`crate::client::drive_profile`]).
 fn drive_with_child(
     stdout: tokio::process::ChildStdout,
     stdin: tokio::process::ChildStdin,
     request: HarnessRequest,
     child: tokio::process::Child,
-    authoring: bool,
+    completion: Option<OneShot>,
+    idle: std::time::Duration,
+    progress: Option<crate::authoring::acp::Progress>,
 ) -> HarnessEventStream {
-    let inner = if authoring {
-        crate::client::drive_profile(
-            stdout,
-            stdin,
-            request,
-            std::time::Duration::from_secs(crate::IDLE_TIMEOUT_SECS),
-            true,
-        )
-    } else {
-        drive(stdout, stdin, request)
-    };
+    let inner = crate::client::drive_profile(stdout, stdin, request, idle, completion, progress);
     #[cfg(unix)]
-    let group = authoring.then(|| child.id()).flatten();
+    let group = completion.and_then(|_| child.id());
     Box::pin(ChildStream {
         inner,
         _child: child,
@@ -1111,7 +1252,7 @@ else:
         let adapter =
             HarnessAdapter::new("ghost", "/nonexistent/ghost-bin-2026").expect("id is fine");
         let spawned = SpawnedHarness::new(adapter);
-        let err = spawned.spawn_child(None).expect_err("no such binary");
+        let err = spawned.spawn_child(None, &[]).expect_err("no such binary");
         let HarnessError::Unavailable { reason } = &err else {
             panic!("an absent binary is Unavailable, got {err:?}");
         };
@@ -1292,3 +1433,6 @@ kid.wait()
         );
     }
 }
+
+#[cfg(test)]
+mod completion_tests;

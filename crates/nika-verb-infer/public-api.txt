@@ -42,6 +42,8 @@ pub nika_verb_infer::VerbInferError::EmptyAnswer
 pub nika_verb_infer::VerbInferError::EmptyAnswer::detail: alloc::string::String
 pub nika_verb_infer::VerbInferError::EmptyAnswer::model: alloc::string::String
 pub nika_verb_infer::VerbInferError::EmptyAnswer::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_infer::VerbInferError::Harness
+pub nika_verb_infer::VerbInferError::Harness::source: nika_kernel_ai::harness::HarnessError
 pub nika_verb_infer::VerbInferError::HarnessAccess
 pub nika_verb_infer::VerbInferError::HarnessAccess::detail: alloc::string::String
 pub nika_verb_infer::VerbInferError::InvalidParam
@@ -158,6 +160,7 @@ pub nika_verb_infer::InferInput::max_tokens: core::option::Option<u32>
 pub nika_verb_infer::InferInput::model: core::option::Option<alloc::string::String>
 pub nika_verb_infer::InferInput::prompt: alloc::string::String
 pub nika_verb_infer::InferInput::reasoning_effort: core::option::Option<nika_kernel_ai::provider::ReasoningEffort>
+pub nika_verb_infer::InferInput::requirement: core::option::Option<nika_types::access::selection::AccessRequirement>
 pub nika_verb_infer::InferInput::schema: core::option::Option<serde_json::value::Value>
 pub nika_verb_infer::InferInput::system: core::option::Option<alloc::string::String>
 pub nika_verb_infer::InferInput::temperature: core::option::Option<f32>
@@ -166,6 +169,7 @@ pub nika_verb_infer::InferInput::timeout: core::option::Option<core::time::Durat
 pub nika_verb_infer::InferInput::vision: alloc::vec::Vec<nika_verb_infer::VisionPart>
 impl nika_verb_infer::InferInput
 pub fn nika_verb_infer::InferInput::new(prompt: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_verb_infer::InferInput::with_requirement(self, requirement: core::option::Option<&nika_types::access::selection::AccessRequirement>) -> Self
 impl core::clone::Clone for nika_verb_infer::InferInput
 pub fn nika_verb_infer::InferInput::clone(&self) -> nika_verb_infer::InferInput
 impl core::fmt::Debug for nika_verb_infer::InferInput
@@ -201,10 +205,12 @@ pub type nika_verb_infer::InferInput::Output = T
 pub nika_verb_infer::InferOutput::model_resolved: alloc::string::String
 pub nika_verb_infer::InferOutput::output: nika_verb_infer::InferValue
 pub nika_verb_infer::InferOutput::response: nika_kernel_ai::provider::InferResponse
+pub nika_verb_infer::InferOutput::selection: core::option::Option<nika_types::access::selection::SelectionEvidence>
 pub nika_verb_infer::InferOutput::transport: nika_providers::retry::TransportReport
 pub nika_verb_infer::InferOutput::usage: nika_types::token_usage::TokenUsage
 impl nika_verb_infer::InferOutput
 pub fn nika_verb_infer::InferOutput::new(output: nika_verb_infer::InferValue, model_resolved: alloc::string::String, response: nika_kernel_ai::provider::InferResponse, usage: nika_types::token_usage::TokenUsage) -> Self
+pub fn nika_verb_infer::InferOutput::with_selection(self, selection: core::option::Option<nika_types::access::selection::SelectionEvidence>) -> Self
 pub fn nika_verb_infer::InferOutput::with_transport(self, transport: nika_providers::retry::TransportReport) -> Self
 impl core::fmt::Debug for nika_verb_infer::InferOutput
 pub fn nika_verb_infer::InferOutput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result

@@ -595,13 +595,9 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
         }
     }
 
-    /// The admitted lane's plan for `model` — the access stamp a task
-    /// terminal carries (what actually served, never a prefix guess).
-    pub(crate) fn lane_plan(&self, model: &str) -> Option<nika_types::access::AccessPlan> {
-        self.access_plan
-            .as_ref()
-            .and_then(|plan| plan.lane(model))
-            .map(|lane| lane.plan.clone())
+    /// The workflow's authored access selection the frozen plan carries.
+    pub(crate) fn requirement(&self) -> Option<&nika_types::access::AccessRequirement> {
+        self.access_plan.as_ref()?.requirement()
     }
 
     /// Inject the workflow `secrets:` resolver (MINOR-B · the composer's
@@ -908,14 +904,7 @@ where
     /// id`) — the resume identity's chosen-access half (wave 1b). Empty
     /// for a planless embedder.
     fn lane_access(&self) -> BTreeMap<String, String> {
-        self.access_plan
-            .as_ref()
-            .map(|plan| {
-                plan.admitted()
-                    .map(|(model, lane)| (model.to_owned(), lane.plan.access.clone()))
-                    .collect()
-            })
-            .unwrap_or_default()
+        nika_providers::ExecutionAccessPlan::lane_identity(self.access_plan.as_ref())
     }
 
     /// This run's resume identity context (ADR-099 · spec 14 law 10 at the
@@ -927,13 +916,23 @@ where
         wf: &RawWorkflow,
         secrets: &BTreeMap<String, Value>,
     ) -> resume::ResumeContext {
+        // The pin half folds the authored selection: a changed route,
+        // protocol or effort re-runs intelligence tasks, never reuses them.
+        let declared = self
+            .access_plan
+            .as_ref()
+            .filter(|p| p.requirement.is_some());
+        let pin = declared.map_or(
+            self.access_pin.clone(),
+            nika_providers::ExecutionAccessPlan::resume_pin,
+        );
         resume::ResumeContext::of(
             wf,
             secrets,
             self.model_override.as_deref(),
             &self.skills,
             &self.child_closures,
-            self.access_pin.as_deref(),
+            pin.as_deref(),
             &self.lane_access(),
         )
     }

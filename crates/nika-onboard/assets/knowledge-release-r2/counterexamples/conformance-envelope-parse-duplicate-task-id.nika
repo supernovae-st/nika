@@ -1,0 +1,17 @@
+# Expected: NIKA-PARSE-017 at CHECK.
+nika: e05-parse-duplicate-id
+# INTENT: two tasks under one `tasks:` mapping may not share an id — the file
+# must be REFUSED, never resolved by silent last-wins.
+# The refusal lands at the mapping layer: repeating `step:` IS a duplicate
+# mapping key, so NIKA-PARSE-017 fires before the task-id rule
+# (NIKA-PARSE-007) is ever consulted. Both are spec rows (05 §parse); this
+# shape cannot reach PARSE-007, because two same-id tasks in one mapping are
+# always the same bytes as a duplicate key. The law under test is the
+# no-last-wins refusal; the code that carries it is PARSE-017.
+tasks:
+  step:
+    exec:
+      command: ["echo", "first"]
+  step:
+    exec:
+      command: ["echo", "second"]

@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! B · the collection (the r1 contract §3). It runs only once a trusted identity is named.
+//! B · the collection (the r1 contract §3, unchanged in r2 but for its layout and byte bound).
+//! It runs only once a trusted identity is named.
 //!
 //! **The closed collection layout.** A payload holds root-level files, and files directly inside
-//! `knowledge/`, `blocks/` and `LICENSES/`. Any other directory, even an empty one, is refused.
+//! the directories its profile names ([`Layout`]): `knowledge/`, `blocks/` and `LICENSES/` in
+//! r1; `examples/`, `counterexamples/` and `skills/` too in r2. Any other directory, even an
+//! empty one, is refused.
 //!
 //! **The memory form** judges, in this order:
 //! 1. each path in byte order: safe, then in the layout;
@@ -24,6 +27,8 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use nika_compile_seats::foundry::release::r2;
+
 use super::profile::safe_relative;
 use super::{
     Checked, MANIFEST_PATH, MAX_BYTES, MAX_FILES, MAX_MANIFEST_BYTES, RefusalCode, refuse,
@@ -32,8 +37,25 @@ use super::{
 /// The collected files by their `/`-separated relative paths.
 pub(super) type Files = BTreeMap<String, Vec<u8>>;
 
-/// The directories the collection layout admits, directly under the root.
-pub(super) const LAYOUT_DIRS: [&str; 3] = ["knowledge", "blocks", "LICENSES"];
+/// What one profile's collection admits: the directories directly under the root, and the bytes
+/// of the whole payload. The other bounds are the same in r1 and r2.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Layout {
+    pub(super) dirs: &'static [&'static str],
+    pub(super) max_bytes: u64,
+}
+
+/// Profile r1's collection.
+pub(super) const R1: Layout = Layout {
+    dirs: &["knowledge", "blocks", "LICENSES"],
+    max_bytes: MAX_BYTES,
+};
+
+/// Profile r2's collection.
+pub(super) const R2: Layout = Layout {
+    dirs: &r2::DIRECTORIES,
+    max_bytes: r2::MAX_BYTES,
+};
 
 /// A step of the disk walk a test barrier may stand between; a door's probe does nothing.
 /// No step can occur on platforms without the descriptor walk.
@@ -54,22 +76,22 @@ pub(crate) enum Stage {
 }
 
 /// A path in the closed collection layout: a root-level file, or a file directly inside one of
-/// [`LAYOUT_DIRS`].
-pub(super) fn in_layout(path: &str) -> bool {
+/// the layout's directories.
+pub(super) fn in_layout(path: &str, layout: Layout) -> bool {
     match path.split_once('/') {
         None => true,
-        Some((dir, rest)) => LAYOUT_DIRS.contains(&dir) && !rest.contains('/'),
+        Some((dir, rest)) => layout.dirs.contains(&dir) && !rest.contains('/'),
     }
 }
 
 /// The memory form (§3.1): each path in byte order, safe and in the layout; then the bounds,
 /// the manifest included, before anything is hashed or parsed.
-pub(super) fn check_memory(files: &Files) -> Checked<()> {
+pub(super) fn check_memory(files: &Files, layout: Layout) -> Checked<()> {
     for path in files.keys() {
         if !safe_relative(path) {
             return refuse("B4", RefusalCode::UnsafePath, path.clone());
         }
-        if !in_layout(path) {
+        if !in_layout(path, layout) {
             return refuse(
                 "B4",
                 RefusalCode::UnexpectedFile,
@@ -96,11 +118,11 @@ pub(super) fn check_memory(files: &Files) -> Checked<()> {
         );
     }
     let total = files.values().map(size).fold(0_u64, u64::saturating_add);
-    if total > MAX_BYTES {
+    if total > layout.max_bytes {
         return refuse(
             "B5",
             RefusalCode::TooLarge,
-            format!("more than {MAX_BYTES} bytes"),
+            format!("more than {} bytes", layout.max_bytes),
         );
     }
     Ok(())
@@ -109,7 +131,11 @@ pub(super) fn check_memory(files: &Files) -> Checked<()> {
 /// The disk form on a platform without the descriptor calls the walk needs: refused, never a
 /// weaker walk (the memory form is the same everywhere).
 #[cfg(not(unix))]
-pub(super) fn read_root(root: &Path, _probe: &mut dyn FnMut(Stage, &str)) -> Checked<Files> {
+pub(super) fn read_root(
+    root: &Path,
+    _layout: Layout,
+    _probe: &mut dyn FnMut(Stage, &str),
+) -> Checked<Files> {
     if !root.is_absolute() {
         return refuse(
             "B1",
@@ -126,8 +152,12 @@ pub(super) fn read_root(root: &Path, _probe: &mut dyn FnMut(Stage, &str)) -> Che
 
 /// The disk form (§3.2): B1 to B6 on held descriptors.
 #[cfg(unix)]
-pub(super) fn read_root(root: &Path, probe: &mut dyn FnMut(Stage, &str)) -> Checked<Files> {
-    unix::read_root(root, probe)
+pub(super) fn read_root(
+    root: &Path,
+    layout: Layout,
+    probe: &mut dyn FnMut(Stage, &str),
+) -> Checked<Files> {
+    unix::read_root(root, layout, probe)
 }
 
 #[cfg(unix)]
@@ -142,10 +172,10 @@ mod unix {
 
     use super::super::profile::safe_relative;
     use super::super::{
-        Checked, MANIFEST_PATH, MAX_BYTES, MAX_ENTRIES, MAX_FILES, MAX_MANIFEST_BYTES, Refusal,
-        RefusalCode, Step, refuse,
+        Checked, MANIFEST_PATH, MAX_ENTRIES, MAX_FILES, MAX_MANIFEST_BYTES, Refusal, RefusalCode,
+        Step, refuse,
     };
-    use super::{Files, LAYOUT_DIRS, Stage};
+    use super::{Files, Layout, Stage};
 
     /// A directory opened to be held: read-only, never through a link.
     const DIRECTORY: OFlags = OFlags::RDONLY
@@ -178,7 +208,11 @@ mod unix {
     }
 
     /// The root held once, then the layout directories it holds, each listing bounded first.
-    pub(super) fn read_root(root: &Path, probe: &mut dyn FnMut(Stage, &str)) -> Checked<Files> {
+    pub(super) fn read_root(
+        root: &Path,
+        layout: Layout,
+        probe: &mut dyn FnMut(Stage, &str),
+    ) -> Checked<Files> {
         if !root.is_absolute() {
             return refuse(
                 "B1",
@@ -211,20 +245,24 @@ mod unix {
         }
         let held = openat(CWD, root, DIRECTORY, Mode::empty()).map_err(io("B2", "the root"))?;
         same_entry("B2", &held, &inspected, false, "the root")?;
-        let mut walk = Walk::default();
-        let mut layout = Vec::new();
-        walk.directory("", &held, &mut layout, probe)?;
-        for (path, dir) in &layout {
+        let mut walk = Walk {
+            files: Files::new(),
+            total: 0,
+            layout,
+        };
+        let mut held_dirs = Vec::new();
+        walk.directory("", &held, &mut held_dirs, probe)?;
+        for (path, dir) in &held_dirs {
             walk.directory(path, dir, &mut Vec::new(), probe)?;
         }
         Ok(walk.files)
     }
 
-    /// What the walk has kept so far.
-    #[derive(Default)]
+    /// What the walk has kept so far, under the layout it admits.
     struct Walk {
         files: Files,
         total: u64,
+        layout: Layout,
     }
 
     impl Walk {
@@ -290,7 +328,7 @@ mod unix {
             let stat = statat(dir, name, AtFlags::SYMLINK_NOFOLLOW).map_err(io("B6", &path))?;
             match FileType::from_raw_mode(stat.st_mode) {
                 FileType::Symlink => refuse("B4", RefusalCode::Symlink, path),
-                FileType::Directory if rel.is_empty() && LAYOUT_DIRS.contains(&name) => {
+                FileType::Directory if rel.is_empty() && self.layout.dirs.contains(&name) => {
                     probe(Stage::DirInspected, &path);
                     let child =
                         openat(dir, name, DIRECTORY, Mode::empty()).map_err(io("B6", &path))?;
@@ -335,11 +373,12 @@ mod unix {
                     format!("a manifest of more than {MAX_MANIFEST_BYTES} bytes"),
                 );
             }
-            if size > MAX_BYTES.saturating_sub(self.total) {
+            let max_bytes = self.layout.max_bytes;
+            if size > max_bytes.saturating_sub(self.total) {
                 return refuse(
                     "B5",
                     RefusalCode::TooLarge,
-                    format!("more than {MAX_BYTES} bytes"),
+                    format!("more than {max_bytes} bytes"),
                 );
             }
             Ok(())

@@ -19,20 +19,24 @@ pub struct NativeAuthoringArgs {
         requires = "bind"
     )]
     pub model: Option<String>,
-    /// Output tokens per call (1..=32768, default 8192); a caller may only narrow it.
+    /// Output tokens per call (positive); absent, the route's own completion bound. A caller
+    /// may only narrow it.
     #[arg(long = "authoring-max-tokens", value_name = "N", requires = "model")]
     pub max_tokens: Option<u32>,
-    /// Seconds per model invocation (1..=600, default 120); resends consume the request grant.
+    /// Seconds per model invocation (positive); absent, the route's own wait. Resends consume
+    /// the request grant.
     #[arg(long = "authoring-timeout", value_name = "SECONDS", requires = "model")]
     pub timeout: Option<u64>,
-    /// Seconds per request (1..=3600, default 300): the work stops and the request answers 408.
+    /// Seconds per round (positive): the work stops and the request answers 408. Absent, no
+    /// round deadline.
     #[arg(
         long = "authoring-deadline",
         value_name = "SECONDS",
         requires = "model"
     )]
     pub deadline: Option<u64>,
-    /// Desired repair rounds (0..=5, default 3), within the operator's explicit request grant.
+    /// Desired repair rounds, within the operator's explicit request grant. Absent, no count:
+    /// repairs continue while they make progress.
     #[arg(long = "authoring-repairs", value_name = "N", requires = "model")]
     pub repairs: Option<u32>,
     /// A Foundry knowledge release root, admitted and pinned at start against a trusted identity;
@@ -111,7 +115,8 @@ pub struct ServeArgs {
     pub state_root: Option<PathBuf>,
     #[command(flatten)]
     pub authoring: NativeAuthoringArgs,
-    /// Explicit model invocation and physical-request ceiling per authoring round (default 1).
+    /// Explicit model invocation and physical-request ceiling per authoring round; absent, no
+    /// count bounds the round's requests (its repair preference and deadline still apply).
     #[arg(long, value_name = "N", requires = "model")]
     pub authoring_max_calls: Option<u32>,
     /// Seat the cost-review door (POST /v1 and /v2/cost-reviews · health `costReviewV1`/`V2`).
@@ -120,4 +125,9 @@ pub struct ServeArgs {
     /// Per-run spend ceiling of manual jobs in USD (default 1); `none` disarms it explicitly.
     #[arg(long, value_name = "USD|none", requires = "bind")]
     pub run_cost_ceiling: Option<String>,
+    /// Serve the project's native Session under /v1/sessions (health `sessionHost`): the same
+    /// Session bare `nika` opens, whose runs are this resident's jobs. A Session writes the
+    /// project's workflows only on a human's consent.
+    #[arg(long, requires = "bind")]
+    pub sessions: bool,
 }

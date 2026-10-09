@@ -54,6 +54,65 @@ fn busy(mode: &str, release: &Release) -> Term {
     term
 }
 
+/// Reduced motion keeps the actual turn's facts while its marker stays still.
+/// A Stop request and its settlement remain distinct, and idle remains silent.
+#[test]
+fn reduced_motion_keeps_elapsed_stop_and_draft_facts_without_an_idle_tick() {
+    let release = Release::new("reduced-facts");
+    let mut term = child::spawn(
+        "slow-stop:0:workspace:reduced",
+        Some(release.path()),
+        120,
+        40,
+    );
+    term.wait_text("release.nika");
+    term.send("work\r");
+    term.wait_text(BUSY);
+    let mark = term.mark();
+    term.send("draft retained");
+    for seconds in [2, 3] {
+        let measured = format!("{BUSY} · {seconds}s");
+        term.wait_text(&measured);
+        let row = term
+            .screen
+            .lines()
+            .into_iter()
+            .find(|line| line.contains(&measured))
+            .expect("the current busy row");
+        assert!(row.contains(&format!("● {measured}")), "{row}");
+        assert!(term.screen.contains("draft retained"), "{}", term.dump());
+    }
+    term.send("\x03");
+    term.wait_until("Stop requested with the measured elapsed time", |screen| {
+        screen.contains("stopping the preparation")
+            && screen.contains("Ctrl+C again leaves now")
+            && screen.contains(BUSY)
+            && (3..=5).any(|seconds| screen.contains(&format!(" · {seconds}s")))
+    });
+    assert!(!term.screen.contains(child::STOPPED), "{}", term.dump());
+    assert!(term.screen.contains("draft retained"), "{}", term.dump());
+    release.open();
+    term.wait_workspace_frame("Stop settled once with the draft retained", |screen| {
+        screen.seen(child::STOPPED)
+            && screen.contains("Stopped by you")
+            && screen
+                .lines()
+                .iter()
+                .any(|line| line.contains("draft retained"))
+            && !screen.contains("Ctrl+C again leaves now")
+            && !screen.contains("stopping the preparation")
+    });
+    assert!(!term.screen.seen(SECOND), "{}", term.dump());
+    assert!(
+        !term.bytes_since(mark).contains(&7),
+        "a reduced-motion bell rang"
+    );
+    let idle = term.mark();
+    term.settle(Duration::from_millis(1200));
+    assert!(term.bytes_since(idle).is_empty(), "idle drew a timer frame");
+    leave(&mut term);
+}
+
 #[test]
 fn keys_typed_during_a_busy_turn_are_kept_for_after_it() {
     let release = Release::new("kept");
@@ -137,7 +196,23 @@ fn resize_during_a_busy_turn(
 ) {
     let release = Release::new(tag);
     let mut term = busy(mode, &release);
+    let redraw_from = term.mark();
     term.resize(80, 24);
+    if mode == "slow-free" {
+        // Shrinking the emulator can leave the old busy row and prompt
+        // visible. Wait for the shell's inline resize clear before releasing
+        // the turn, so its completion is painted in the new viewport.
+        let deadline = Instant::now() + qa_support::WAIT;
+        while !term
+            .bytes_since(redraw_from)
+            .windows(4)
+            .any(|bytes| bytes == b"\x1b[2J")
+        {
+            term.pump();
+            assert!(Instant::now() < deadline, "{}", term.dump());
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
     term.wait_until("the busy screen at 80x24", |screen| {
         screen.contains(BUSY) && laid_out(screen)
     });
@@ -176,19 +251,22 @@ fn a_resize_during_a_busy_turn_reaches_the_workspace_regions_at_once() {
     term.wait_text(BUSY);
     term.send("\x1b[17~");
     term.settle(SETTLE);
+    let mark = term.mark();
     term.resize(50, 14);
-    // The shell's own focus view (its frames drawn from the left edge), never the emulator's
-    // shrunk grid alone: dropping rows hides `release.nika` before the shell sees the new size,
-    // and keys typed then still reach the workspace's aside.
-    term.wait_until("the focus view below the minimum", |screen| {
-        screen.contains(BUSY)
+    // A fresh complete redraw proves the shell saw the new size; resized old
+    // cells alone could still route keys to the now-hidden workspace aside.
+    term.spin_until_bytes(mark, b"\x1b[2J");
+    term.wait_workspace_frame("the focus view below the minimum", |screen| {
+        screen.size() == (50, 14)
+            && screen.contains(BUSY)
             && !screen.contains("release.nika")
-            && screen.lines().iter().any(|line| line.starts_with('╭'))
+            && screen.lines().iter().any(|line| line.starts_with(FREE))
+            && screen.contains("Run: typing waits.")
     });
     term.send("xyz");
     term.settle(SETTLE);
     term.resize(160, 48);
-    term.wait_until("the workspace back at 160x48", |screen| {
+    term.wait_workspace_frame("the workspace back at 160x48", |screen| {
         screen.contains(BUSY) && screen.contains("release.nika")
     });
     release.open();
@@ -319,5 +397,45 @@ fn a_gate_that_asks_for_fresh_input_drops_the_typeahead() {
     );
     term.send("yes\r");
     term.wait_until(AFTER_GATE, |screen| screen.seen(AFTER_GATE));
+    leave(&mut term);
+}
+
+/// A fresh spending answer cannot recover pre-question words with Escape.
+/// The controlled conversation exercises the production shell's fresh-input
+/// law, without a provider or any billing effect.
+#[test]
+fn a_fresh_question_keeps_palette_aside_words_only_in_the_transcript() {
+    let release = Release::new("palette-fresh");
+    let mut term = busy("slow-gate-fresh", &release);
+    term.send("yes");
+    term.wait_text("nika › yes");
+    term.send("\x0f");
+    term.wait_text("commands ›");
+    term.send("status\r");
+    term.wait_text("nika › /status");
+    release.open();
+    term.wait_prompt(ANSWER);
+    term.send("\x1b");
+    term.settle(SETTLE);
+    term.wait_until("the fresh answer remains empty after Escape", |screen| {
+        screen.lines().iter().any(|row| row == ANSWER)
+    });
+    assert!(!term.screen.contains("set aside:"), "{}", term.dump());
+    assert!(
+        term.screen.seen("you typed « yes /status »")
+            && term.screen.seen("kept in this conversation, whole:"),
+        "{}",
+        term.dump()
+    );
+    term.send("\r");
+    term.settle(SETTLE);
+    assert!(
+        !term.screen.seen(AFTER_GATE),
+        "old words answered a fresh question: {}",
+        term.dump()
+    );
+    term.send("no\r");
+    term.wait_text(AFTER_GATE);
+    assert!(term.screen.seen("qa fresh answer: no"), "{}", term.dump());
     leave(&mut term);
 }

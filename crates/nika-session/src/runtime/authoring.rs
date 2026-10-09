@@ -8,7 +8,6 @@
 //! gives the next line exactly one typed meaning — a `yes` never crosses
 //! from an authoring answer to a consent to a gate.
 
-use nika_onboard::routing::run_options::{self, inline_vars, input_question, run_line_is_plain};
 pub(super) use nika_onboard::routing::run_options::{is_run_verb, run_prefix};
 
 use std::fmt::Write as _;
@@ -24,15 +23,13 @@ pub(super) use nika_onboard::compile::reading::{asks_for_syntax, clause_of};
 use nika_onboard::compile::reading::{clauses_understood, incomplete_words, syntax_prompt};
 use nika_onboard::compile::seat::{priced_words, unpriced_cloud, unpriced_warning};
 
-use super::{SessionRuntime, TurnOutcome, ceiling_in, named_files};
+use super::{SessionRuntime, TurnOutcome};
 use crate::activity::{Activity, Phase};
 use crate::authoring::{
     AuthoringContext, AuthoringError, AuthoringRound, AuthoringSeat, Reading, compile_in,
-    is_cancel, is_greeting, reasons,
+    is_greeting, reasons,
 };
-use crate::change::{
-    ChangeError, ProjectChange, ProjectChangeSet, RunRequest, Witness, check_with_access,
-};
+use crate::change::{ChangeError, ProjectChange, ProjectChangeSet, Witness};
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
 use crate::review;
 use crate::turn::{RouteRecord, RoutingMethod, SessionPhase, TurnAct, TurnDecision};
@@ -81,11 +78,13 @@ impl SessionRuntime {
     /// its change) through the seat under the session's context, its pack
     /// composed for `intent`, bracketed like every other dispatch. Like a
     /// round's, it is handed the verdicts that rejected candidate bytes in the
-    /// goal's earlier compiles and keeps the ones it records (R6).
-    pub(super) fn compile_request(
+    /// goal's earlier compiles and keeps the ones it records (R6). `target` is the file the
+    /// result rewrites, when it rewrites one: its child workflows are checked there.
+    pub(super) fn compile_request_at(
         &mut self,
         request: &CompileRequest,
         intent: &str,
+        target: Option<PathBuf>,
     ) -> Result<CompileOutcome, AuthoringError> {
         self.rehearsals.clear_native();
         let context = self.project_context();
@@ -96,7 +95,7 @@ impl SessionRuntime {
         let request = &request.clone().with_declined(declined);
         let seat = self.seat.clone();
         let out = if seat.has_model() {
-            self.rehearse_dispatch(intent, |this, host| {
+            self.rehearse_dispatch_at(intent, target, |this, host| {
                 this.seated(&seat, |account| {
                     crate::authoring::compile_in_rehearsed(
                         &seat,
@@ -235,10 +234,14 @@ impl SessionRuntime {
         TurnOutcome::Refusal(Refusal::new(RefusalClass::NotAllowed, text))
     }
 
-    /// A saved file or unfinished goal gives a change its context. The classifier sees that
-    /// earlier request, never this line substituted for it; `NEW_WORK` inherits none of it.
+    /// A saved file, a workflow of the project the line names, or an unfinished goal gives a
+    /// change its context. The classifier sees that earlier request, never this line substituted
+    /// for it; `NEW_WORK` inherits none of it.
     fn beside_goal(&mut self, intent: &str, earlier: Option<String>) -> Option<TurnOutcome> {
-        if self.last_workflow.is_none() && earlier.is_none() {
+        if self.last_workflow.is_none()
+            && earlier.is_none()
+            && self.named_workflow(intent).is_none()
+        {
             return None;
         }
         let current = std::mem::replace(&mut self.intent.goal, earlier);
@@ -267,12 +270,39 @@ impl SessionRuntime {
     /// restriction (no keep or exclusion lead): the correction's first phrase, which the frame
     /// labels, is judged for what it asks.
     fn revise_current(&mut self, change: &str) -> Option<TurnOutcome> {
+        // A workflow of the project the change names is the document it revises, whether this
+        // session saved it or not: it is read whole and revised in place (never rebuilt from a
+        // request it may not answer).
+        if let Some(named) = self.named_workflow(change) {
+            // Another file than this session's own carries none of its request: the record that
+            // binds it, when one does, says what it answers.
+            if self.last_workflow.as_ref() != Some(&named) {
+                self.intent.goal = None;
+            }
+            return Some(self.revise_saved(&named, change));
+        }
         if let Some(saved) = self.last_workflow.clone() {
             return Some(self.revise_saved(&saved, change));
         }
         let original = self.intent.goal.as_ref()?;
         let intent = format!("Original request:\n{original}\n{CORRECTION_FRAME}\n{change}");
-        Some(self.restate_request(intent, change))
+        Some(self.restate_request(intent, change, None))
+    }
+
+    /// The one workflow file of the project a line names (`stock.nika`), when it names exactly
+    /// one that exists under the root; a line naming several, or none, names no base.
+    fn named_workflow(&self, line: &str) -> Option<PathBuf> {
+        let root = &self.snapshot.root;
+        let mut named = (super::named_files(line).into_iter())
+            .filter(|name| {
+                std::path::Path::new(name)
+                    .extension()
+                    .is_some_and(|e| e == "nika")
+            })
+            .map(PathBuf::from)
+            .filter(|path| root.join(path).is_file());
+        let first = named.next()?;
+        named.next().is_none().then_some(first)
     }
 
     /// The same Compile, under the seat the human permitted, for work the
@@ -284,7 +314,11 @@ impl SessionRuntime {
             return self.cognition_money_refusal();
         }
         self.authoring_context = self.project_context();
-        self.activity(&Activity::now(Phase::Authoring, self.authoring_note()));
+        // A configuration already refused at open cannot start generation.
+        // Keep the ordinary compile/refusal path, including its state cleanup.
+        if self.authoring_context.refusal().is_none() {
+            self.activity(&Activity::now(Phase::Authoring, self.authoring_note()));
+        }
         let mut round = round;
         let out = loop {
             let out = self.compile_round(&round, &self.seat.clone());
@@ -306,14 +340,14 @@ impl SessionRuntime {
             }
             break out;
         };
-        // A replayed candidate its verifier did not accept (held, no defect to write again from)
-        // is never replayed to it again (R6): every compile of this round after this one, the
-        // stronger seat's among them, authors afresh under the answers already given.
+        // A replayed candidate its verifier did not accept is never asked of it again (R6): the
+        // round keeps the record held with that rejection, so a stronger seat's own judge decides
+        // those bytes with no authoring call; under a decision seat, the round writes afresh.
         if let Ok(held) = &out
             && round.replays()
             && nika_onboard::compile::round::verify_held(held)
         {
-            round.forget_plan();
+            round.retain_held(held, self.authoring_context.decision().is_none());
         }
         match out {
             Ok(out) if nika_onboard::compile::round::awaiting_judge(&out) => {
@@ -385,16 +419,26 @@ impl SessionRuntime {
     /// is read again with the human's own words (the round is dropped, the
     /// plan read a different request). Never a paraphrase.
     pub(super) fn restate_round(&mut self, round: &AuthoringRound, line: &str) -> TurnOutcome {
-        self.restate_request(format!("{}. {}", round.intent, line.trim()), line)
+        let restated = (self.question_id_of(round)).zip(round.current().map(|q| q.key.clone()));
+        self.restate_request(format!("{}. {}", round.intent, line.trim()), line, restated)
     }
 
     /// Compile the host's exact reconstructed request; all money spans bind to these bytes.
-    fn restate_request(&mut self, intent: String, line: &str) -> TurnOutcome {
+    fn restate_request(
+        &mut self,
+        intent: String,
+        line: &str,
+        restated: Option<(crate::outcome::QuestionId, String)>,
+    ) -> TurnOutcome {
         // Its directives, the request's own and the added ones, are spans of this very string (C11).
+        let asked = restated.as_ref().map(|(question, _)| question.clone());
         let money = match self.built_money(&intent, line) {
             Ok(money) => money,
-            Err(refusal) => return refusal,
+            Err(refusal) => return self.answer_refused(asked, refusal),
         };
+        if let Some((question, key)) = restated {
+            self.answer_act(Some(question), crate::work::AnswerAct::Restated { key });
+        }
         self.remember(line, "(the request read again with these words)");
         let mut again = AuthoringRound::new(intent);
         again.money = money;
@@ -502,7 +546,8 @@ impl SessionRuntime {
         round.money = change_money(change.trim(), !self.money.admitted.is_empty());
         let request = round.request();
         let revised = revise_intent(&request).unwrap_or_else(|| goal.clone());
-        let out = match self.compile_request(&request, &revised) {
+        let target = round.target.clone().map(|(path, _)| path);
+        let out = match self.compile_request_at(&request, &revised, target) {
             Ok(out) => out,
             Err(e) => return self.machinery(&e),
         };
@@ -540,8 +585,9 @@ impl SessionRuntime {
         set: crate::change::ProjectChangeSet,
         change: &str,
     ) -> TurnOutcome {
-        self.revise_pending_with(set, change, |this, request, intent| {
-            this.compile_request(request, intent)
+        let target = updated_target(&set).map(|(path, _)| path);
+        self.revise_pending_with(set, change, move |this, request, intent| {
+            this.compile_request_at(request, intent, target)
         })
     }
 
@@ -696,8 +742,11 @@ impl SessionRuntime {
     /// The compiler's machinery failed under a seat, or the compiler
     /// itself: a seat failure is a recovery (the goal is kept, the ways on
     /// are named); a compiler failure is a refusal that names it; an
-    /// authoring configuration that cannot be honored is refused before
-    /// anything is sent — never authored without the knowledge it names.
+    /// authoring configuration that cannot be honored blocks the refused
+    /// workflow-authoring call before dispatch — never authored without the
+    /// knowledge it names. Only that call is said unsent: earlier routing or
+    /// authoring calls for the same line may already have used the selected
+    /// intelligence.
     pub(super) fn machinery(&mut self, error: &AuthoringError) -> TurnOutcome {
         match error {
             AuthoringError::Cancelled => TurnOutcome::Cancelled(error.to_string()),
@@ -709,7 +758,7 @@ impl SessionRuntime {
             AuthoringError::Context(_) => TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::AuthoringRefused,
                 format!(
-                    "{error} · nothing was sent to the authoring model, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again"
+                    "{error} · this workflow-authoring request was not sent, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again"
                 ),
             )),
             AuthoringError::Compiler(_) | AuthoringError::Runtime(_) => {
@@ -856,7 +905,7 @@ impl SessionRuntime {
                 self.bind_basis(&id, &set, compiled(round.request(), out), out);
                 let mut preview = self.draft_review(&set, out, &bytes);
                 if let Err(refused) =
-                    self.bind_rehearsal(&id, qualified.as_ref(), round, out, &mut preview)
+                    self.bind_rehearsal((&id, &set), qualified.as_ref(), round, out, &mut preview)
                 {
                     return refused;
                 }
@@ -870,7 +919,11 @@ impl SessionRuntime {
                 // « activate » declares it once the program is saved.
                 self.pending_trigger.clone_from(&out.requested_trigger);
                 self.bind_proposal_money(&id);
+                // What the compiler did to the document, read back by the work snapshot only
+                // while it binds the pending bytes.
+                self.proposed_revision = document_record(round, out.provenance.decision.as_ref());
                 self.pending = Some(set);
+                self.revision_words(&mut preview);
                 TurnOutcome::Proposal { id, preview }
             }
             // The saved file moved since the revision read it: nothing proposed, nothing written.
@@ -906,13 +959,15 @@ impl SessionRuntime {
             (Some("model"), AuthoringSeat::Provider { model }) => Some(model.clone()),
             _ => None,
         };
-        let line = if line.trim().is_empty() {
+        let defaulted = line.trim().is_empty();
+        let line = if defaulted {
             let Some(default) = seat_default else {
+                let asked = self.question_id_of(&round);
                 self.authoring = Some(round);
-                return TurnOutcome::Refusal(Refusal::new(
+                return self.answer_refused(asked, TurnOutcome::Refusal(Refusal::new(
                     RefusalClass::EmptyAnswer,
                     "the question needs an answer — nothing answers for you (`cancel` drops it)",
-                ));
+                )));
             };
             default
         } else {
@@ -937,11 +992,13 @@ impl SessionRuntime {
                 .and_then(|q| clause_of(&q.label))
                 .unwrap_or_default();
             let mut restated = round.restate_clause(&clause, line.trim());
+            let asked = self.question_id_of(&round);
             restated.money = match self.built_money(&restated.intent, line) {
                 Ok(money) => money,
-                Err(refusal) => return refusal,
+                Err(refusal) => return self.answer_refused(asked, refusal),
             };
-            let asked = self.question_id_of(&round);
+            let key = round.current().map_or_else(String::new, |q| q.key.clone());
+            self.answer_act(asked.clone(), crate::work::AnswerAct::Restated { key });
             self.questions.close(asked);
             self.remember(line, &format!("(restated « {clause} » in words)"));
             return self.compile_again(restated);
@@ -956,6 +1013,11 @@ impl SessionRuntime {
             && !is_own_seat(&self.seat, line)
             && let Some(text) = unpriced_model_text(line)
         {
+            let waits = crate::work::AnswerAct::Waits {
+                key: "model".to_owned(),
+                why: text.clone(),
+            };
+            self.answer_act(self.question_id_of(&round), waits);
             self.authoring = Some(round);
             return TurnOutcome::Question {
                 key: "model".to_owned(),
@@ -963,7 +1025,7 @@ impl SessionRuntime {
             };
         }
         // A value said in words binds through its typed reading (`answer.rs`).
-        self.bind_answer(round, line)
+        self.bind_answer(round, line, defaulted)
     }
 
     /// The round compiled again after an answer or a restatement: a
@@ -1036,7 +1098,9 @@ impl SessionRuntime {
         };
         match act {
             TurnAct::Cancel => {
+                let key = round.current().map_or_else(String::new, |q| q.key.clone());
                 let asked = self.question_id_of(&round);
+                self.answer_act(asked.clone(), crate::work::AnswerAct::Dropped { key });
                 self.questions.close(asked);
                 self.intent.unresolved.clear();
                 self.remember(line, "(authoring discarded)");
@@ -1083,258 +1147,6 @@ impl SessionRuntime {
         }
         Ok(round)
     }
-
-    /// Whether this turn reaches only Run validation, without Session cognition.
-    pub(super) fn local_run_line(&self, input: &str) -> bool {
-        !self.waiting_cost_choice()
-            && self.authoring.is_none()
-            && self.run_inputs.is_none()
-            && self.activation.is_none()
-            && run_prefix(input).is_some_and(|_| {
-                ceiling_in(input).is_err()
-                    || run_options::parse(input)
-                        .is_none_or(|(line, _)| run_line_is_plain(&line.to_lowercase()))
-            })
-    }
-
-    /// An explicit run line — `run it` · `run brief.nika with a ceiling of
-    /// 0.05` · `test it now` — runs a workflow the human named or the one
-    /// last accepted, only when its check on disk is clean. `None` when
-    /// the line is not a run line.
-    pub(super) fn run_turn(&mut self, input: &str) -> Option<TurnOutcome> {
-        run_prefix(input)?;
-        let Some((line, access_pin)) = run_options::parse(input) else {
-            return Some(self.refuse_run_money(input, "invalid or duplicate Run option — use --access <pin> and --max-cost-usd <amount> once each"));
-        };
-        let lower = line.to_lowercase();
-        // A label from the conversational router cannot turn an invalid
-        // amount (or an unqualified time/count) into permission to run.
-        let ceiling = match ceiling_in(input) {
-            Ok(ceiling) => ceiling,
-            Err(reason) => return Some(self.refuse_run_money(input, reason)),
-        };
-        if self.pending_gate.is_some() || self.money.gate.is_some() {
-            return Some(self.refuse_run_money(
-                input,
-                "a paused gate waits; answer it before requesting another Run",
-            ));
-        }
-        if self.money.reconfirm && ceiling.is_none() {
-            return Some(self.refuse_run_money(input, &self.restored_refusal()));
-        }
-        // The run grammar is closed: the verb, the workflow named or « it »,
-        // a ceiling. A line that carries more (« run it, but only on
-        // Fridays ») is not a run: its act is a bounded decision, and a
-        // change comes before any run.
-        if !run_line_is_plain(&lower) {
-            return match self.classify(SessionPhase::Idle, input).act {
-                TurnAct::RequestRun => Some(self.run_plain(&line, ceiling, access_pin)),
-                TurnAct::Modify | TurnAct::Mixed => Some(TurnOutcome::Refusal(Refusal::new(
-                    RefusalClass::WrongState,
-                    "a run with a change in it — say the change first (in a sentence), review the new workflow, then « run it »",
-                ))),
-                _ => None,
-            };
-        }
-        Some(self.run_plain(&line, ceiling, access_pin))
-    }
-
-    /// The closed run line: the verb, the file or the last accepted
-    /// workflow, the ceiling.
-    fn run_plain(
-        &mut self,
-        input: &str,
-        ceiling: Option<f64>,
-        access_pin: Option<String>,
-    ) -> TurnOutcome {
-        let root = self.snapshot.root.clone();
-        let named = named_files(input)
-            .into_iter()
-            .map(PathBuf::from)
-            .find(|p| root.join(p).is_file());
-        let Some(workflow) = named.or_else(|| self.last_workflow.clone()) else {
-            return TurnOutcome::Refusal(Refusal::new(
-                RefusalClass::WrongState,
-                "nothing to run — name a workflow file (« run brief.nika »), or describe the work and Nika builds one first",
-            ));
-        };
-        // A rehearsed copy runs only over the bytes and the world it was rehearsed on.
-        if let Some(withdrawn) = self.rehearsed_at_run(&workflow) {
-            return withdrawn;
-        }
-        let audit = check_with_access(&root, &workflow, access_pin.as_deref());
-        if !audit.clean {
-            let mut text = format!(
-                "check · `{}` · findings ✖ — the run was not started",
-                workflow.display()
-            );
-            for f in &audit.findings {
-                text.push_str("\n  · ");
-                text.push_str(f);
-            }
-            return TurnOutcome::Facts(text);
-        }
-        let max_cost_usd = match self.run_money(input, &workflow, ceiling) {
-            Ok(amount) => amount,
-            Err(refusal) => return refusal,
-        };
-        self.last_workflow = Some(workflow.clone());
-        // The workflow's own declared inputs: a required one with no
-        // default is asked, in the product, before the run is requested —
-        // the engine would refuse the launch (NIKA-1708) otherwise.
-        let given = inline_vars(input);
-        let needed: Vec<String> = required_inputs_of(&root, &workflow)
-            .into_iter()
-            .filter(|name| !given.iter().any(|v| v.starts_with(&format!("{name}="))))
-            .collect();
-        let inputs = RunInputs {
-            workflow: workflow.clone(),
-            max_cost_usd,
-            access_pin,
-            needed,
-            given,
-        };
-        self.remember(input, "(run requested)");
-        self.request_or_ask(inputs)
-    }
-
-    /// The run request when every declared input is bound; the next
-    /// input's question otherwise (the next line answers it).
-    fn request_or_ask(&mut self, mut inputs: RunInputs) -> TurnOutcome {
-        if let Some(name) = inputs.needed.first().cloned() {
-            let question = input_question(&inputs.workflow, &name, inputs.needed.len());
-            self.intent.unresolved =
-                vec![format!("input `{name}` of `{}`", inputs.workflow.display())];
-            self.run_inputs = Some(inputs);
-            return TurnOutcome::Question {
-                key: format!("input.{name}"),
-                question,
-            };
-        }
-        inputs.needed.clear();
-        let mut report = if inputs.given.is_empty() {
-            format!("check · `{}` · clean ✔", inputs.workflow.display())
-        } else {
-            format!(
-                "check · `{}` · clean ✔ · inputs {}",
-                inputs.workflow.display(),
-                inputs.given.join(" · ")
-            )
-        };
-        if let Some(pin) = &inputs.access_pin {
-            let _ = write!(report, " · access {pin} (explicit)");
-        }
-        TurnOutcome::RunRequested {
-            report,
-            run: RunRequest {
-                workflow: inputs.workflow,
-                vars: inputs.given,
-                max_cost_usd: inputs.max_cost_usd,
-                access_pin: inputs.access_pin,
-            },
-        }
-    }
-
-    /// The declared input the next line binds, when a run waits on one.
-    #[must_use]
-    pub fn pending_input(&self) -> Option<&str> {
-        self.run_inputs
-            .as_ref()
-            .and_then(|r| r.needed.first())
-            .map(String::as_str)
-    }
-
-    /// The human's line as the value of the input the run waits on; a
-    /// cancel word drops the run request; an empty line is not a value.
-    pub(super) fn answer_input_unrecorded(&mut self, line: &str) -> TurnOutcome {
-        let Some(mut inputs) = self.run_inputs.take() else {
-            return TurnOutcome::Refusal(Refusal::new(
-                RefusalClass::WrongState,
-                "no run waits on an input",
-            ));
-        };
-        // Its « why? » is the turn's (`read_only_turn`): it never reaches here.
-        if is_cancel(line) {
-            self.intent.unresolved.clear();
-            self.remember(line, "(run request discarded)");
-            return TurnOutcome::Facts(
-                "run discarded · nothing ran · say « run it » again when the inputs are ready"
-                    .to_owned(),
-            );
-        }
-        // A command-shaped line is never an input's value.
-        if let Some(text) = super::protocol::unserved_command(line) {
-            self.run_inputs = Some(inputs);
-            return TurnOutcome::Refusal(Refusal::new(
-                RefusalClass::WrongState,
-                format!(
-                    "{text}\n  the input still waits · reply on the next line · `cancel` drops the run"
-                ),
-            ));
-        }
-        let value = line.trim();
-        if value.is_empty() {
-            self.run_inputs = Some(inputs);
-            return TurnOutcome::Refusal(Refusal::new(
-                RefusalClass::EmptyAnswer,
-                "the input needs a value — nothing answers for you (`cancel` drops the run)",
-            ));
-        }
-        // A value in quotes is its content: the escape for a word the protocol would take.
-        let value = serde_json::from_str::<String>(value).unwrap_or_else(|_| value.to_owned());
-        let name = inputs.needed.remove(0);
-        inputs.given.push(format!("{name}={value}"));
-        self.intent.unresolved.clear();
-        self.remember(line, &format!("(input {name} bound)"));
-        self.request_or_ask(inputs)
-    }
-}
-
-/// A run request waiting for the values of the workflow's own declared
-/// inputs (required, no default): the next lines bind them, in order.
-#[derive(Clone, Debug, PartialEq)]
-pub(super) struct RunInputs {
-    workflow: PathBuf,
-    max_cost_usd: f64,
-    access_pin: Option<String>,
-    needed: Vec<String>,
-    given: Vec<String>,
-}
-
-impl RunInputs {
-    /// The input the next line binds, when one is still needed.
-    pub(super) fn first_needed(&self) -> Option<&str> {
-        self.needed.first().map(String::as_str)
-    }
-
-    /// The workflow the run waits to start.
-    pub(super) fn workflow(&self) -> &std::path::Path {
-        &self.workflow
-    }
-
-    /// How many inputs still wait, this one included.
-    pub(super) fn remaining(&self) -> usize {
-        self.needed.len()
-    }
-}
-
-/// The declared inputs the run must bind — from the engine's parser over
-/// the bytes on disk, the same list `nika check` warns about.
-fn required_inputs_of(root: &std::path::Path, workflow: &std::path::Path) -> Vec<String> {
-    let Ok(source) = std::fs::read_to_string(root.join(workflow)) else {
-        return Vec::new();
-    };
-    let Ok(wf) = nika_schema::parse(
-        &source,
-        nika_schema::FileId::new(0),
-        nika_schema::ParseMode::Strict,
-    ) else {
-        return Vec::new();
-    };
-    nika_cli_host::display::check_render::required_inputs(&wf)
-        .into_iter()
-        .map(str::to_owned)
-        .collect()
 }
 
 pub(super) use nika_onboard::compile::reading::{question_text, revision_way, syntax_incomplete};
@@ -1349,6 +1161,25 @@ fn judged_a_defect(out: &nika_onboard::compile::CompileOutcome) -> bool {
         .and_then(|attempts| attempts.last())
         .and_then(|attempt| attempt["defects"].as_array())
         .is_some_and(|defects| !defects.is_empty())
+}
+
+/// The compile record of how `round` made its document: an EDIT round's revision, saved file or
+/// not, else its creation, which revised no earlier bytes (its base was the author's own draft).
+pub(super) fn document_record(
+    round: &AuthoringRound,
+    decision: Option<&serde_json::Value>,
+) -> Option<serde_json::Value> {
+    let created = round.edit.is_none();
+    let key = if created {
+        "document_create"
+    } else {
+        "document_revision"
+    };
+    let mut record = decision?.get(key)?.clone();
+    if created {
+        record["base_sha256"] = serde_json::Value::Null;
+    }
+    Some(record)
 }
 
 pub(super) fn cannot_express_text(out: &CompileOutcome) -> String {
@@ -1430,3 +1261,8 @@ pub(super) fn updated_target(set: &ProjectChangeSet) -> Option<(PathBuf, Witness
         _ => None,
     })
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+#[path = "authoring/activity_tests.rs"]
+mod activity_tests;

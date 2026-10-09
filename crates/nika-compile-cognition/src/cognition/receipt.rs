@@ -6,14 +6,19 @@
 //! digests of what it was shown, its bounds, its result, its usage).
 
 use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, InferResponse, Message, ProviderError, ProviderInferDyn,
-    ResponseFormat, Role, StopReason,
+    InferRequest, InferResponse, Message, ProviderError, ProviderInferDyn, StopReason,
 };
 use serde_json::{Value, json};
 
-use super::{effort, reasoning_record};
+use super::reasoning_record;
+use nika_compile_seats::reasoning::{authoring_request, context_entry, response_identity};
+
 use crate::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileOutcome, DiagnosticKind,
+};
+/// A refused or ignored model payload as a record keeps it ([`withheld`](nika_compile_seats::reasoning::withheld)).
+pub(super) use nika_compile_seats::reasoning::{
+    journaled, record_proposed, stamp_references, withheld,
 };
 
 /// The observer of authoring calls, owned by the provider layer; this module produces its
@@ -110,18 +115,18 @@ async fn send<P: ProviderInferDyn>(
         receipt.elapsed_ms = receipt.elapsed_ms.saturating_add(elapsed_ms);
         if let Some(context) = receipt.context.last_mut() {
             context["elapsed_ms"] = json!(elapsed_ms);
-            context["result"] = match &result {
-                Ok(Ok(response)) => json!({
+            context["result"] = match observe::answered(&result) {
+                Ok(response) => json!({
                     "stop_reason": format!("{:?}", response.stop_reason),
                     "usage_reported": response.usage_reported,
                     "input_tokens": response.usage_reported.then_some(response.usage.input_tokens),
                     "output_tokens": response.usage_reported.then_some(response.usage.output_tokens),
                 }),
-                Ok(Err(ProviderError::AdmissionDenied { .. })) => {
+                Err(observe::Failure::AdmissionRefused) => {
                     json!({"failure_kind": "admission_refused"})
                 }
-                Ok(Err(_)) => json!({"failure_kind": "provider_error"}),
-                Err(_) => json!({"failure_kind": "timeout"}),
+                Err(observe::Failure::Timeout) => json!({"failure_kind": "timeout"}),
+                Err(_) => json!({"failure_kind": "provider_error"}),
             };
             let answered = result.as_ref().ok().and_then(|r| r.as_ref().ok());
             context["reasoning"] = reasoning_record(policy.reasoning, answered);
@@ -162,7 +167,8 @@ async fn send<P: ProviderInferDyn>(
     Some(response)
 }
 
-/// The provider's answer within the policy's deadline, the call's activity told to a scope.
+/// The provider's answer within the policy's deadline, the call's activity told to a scope. A
+/// harness bounds its own call by the silence it allows (the request's timeout), never by a total.
 async fn timed<P: ProviderInferDyn>(
     policy: &AuthoringPolicy,
     provider: &P,
@@ -170,7 +176,11 @@ async fn timed<P: ProviderInferDyn>(
     request: InferRequest,
 ) -> Result<Result<InferResponse, ProviderError>, tokio::time::error::Elapsed> {
     let activity = observe::Activity::started(role, &policy.model);
-    let result = tokio::time::timeout(policy.timeout, provider.infer(request)).await;
+    let result = if nika_providers::authoring::policy::harness_route(&policy.model) {
+        Ok(provider.infer(request).await)
+    } else {
+        tokio::time::timeout(policy.timeout, provider.infer(request)).await
+    };
     if let Some(call) = activity {
         call.finish();
     }
@@ -189,55 +199,6 @@ fn timeout_message(policy: &AuthoringPolicy) -> String {
     )
 }
 
-/// The identity of what one answered call returned (its text blocks, by digest and length, and
-/// how many blocks of any kind it held), so a later decode, refusal or repair names the bytes it
-/// read. A call that returned nothing records `null`, never an empty answer.
-fn response_identity(response: &InferResponse) -> Value {
-    let text: String = response
-        .content
-        .iter()
-        .filter_map(|block| match block {
-            ContentBlock::Text { text } => Some(text.as_str()),
-            _ => None,
-        })
-        .collect();
-    json!({
-        "sha256": super::knowledge::sha256(&text),
-        "bytes": text.len(),
-        "blocks": response.content.len(),
-    })
-}
-
-/// The semantic object a call's answer proposed, on that call's journal entry. An object that
-/// decoded as the door's closed shape (`known` are its keys) is kept exactly; a refused one is
-/// [`withheld`]: a model's arbitrary text never reaches the shared record. Data for forensics,
-/// never read back as a plan.
-pub(super) fn record_proposed(
-    out: &mut CompileOutcome,
-    object: &str,
-    decoded: bool,
-    known: &[&str],
-) {
-    if let Some(call) = out
-        .provenance
-        .authoring
-        .as_mut()
-        .and_then(|receipt| receipt.context.last_mut())
-    {
-        call["proposed"] = if decoded {
-            json!({
-                "decoded": true,
-                "sha256": super::knowledge::sha256(object),
-                "object": serde_json::from_str::<Value>(object).ok(),
-            })
-        } else {
-            let mut kept = withheld(object, known, "not the door's closed shape; never read");
-            kept["decoded"] = json!(false);
-            kept
-        };
-    }
-}
-
 /// The keys of the closed plan shape (`assets/plan_schema.json`): a refused proposal keeps only
 /// these names, by shape.
 pub(super) const PLAN_KEYS: &[&str] = &[
@@ -250,103 +211,51 @@ pub(super) const PLAN_KEYS: &[&str] = &[
     "approval_bypass",
 ];
 
-/// A refused or ignored model payload as a record keeps it: its digest and length, its shape (the
-/// JSON type, the door's own `known` keys it carries and how many other keys) and the reason it
-/// was not used — never its text, which may echo anything the model was shown.
-pub(super) fn withheld(text: &str, known: &[&str], reason: &str) -> Value {
-    let shape = match serde_json::from_str::<Value>(text) {
-        Ok(Value::Object(map)) => {
-            let mut keys: Vec<&str> = known
-                .iter()
-                .copied()
-                .filter(|key| map.contains_key(*key))
-                .collect();
-            keys.sort_unstable();
-            json!({"type": "object", "known_keys": keys, "other_keys": map.len() - keys.len()})
-        }
-        Ok(Value::Array(items)) => json!({"type": "array", "items": items.len()}),
-        Ok(_) => json!({"type": "scalar"}),
-        Err(_) => json!({"type": "not_json"}),
-    };
-    json!({
-        "withheld": true,
-        "sha256": super::knowledge::sha256(text),
-        "bytes": text.len(),
-        "shape": shape,
-        "reason": reason,
-    })
-}
-
-/// The references a call's messages actually carried, on the journal entry of the call made
-/// after `before` entries (R4 A11, E36): a call that was never journaled is left alone.
-pub(super) fn stamp_references(out: &mut CompileOutcome, before: usize, receipts: &Value) {
-    if let Some(receipt) = out.provenance.authoring.as_mut()
-        && receipt.context.len() > before
-        && let Some(entry) = receipt.context.last_mut()
-    {
-        entry["references"] = receipts.clone();
-    }
-}
-
-/// The number of journaled calls so far.
-pub(super) fn journaled(out: &CompileOutcome) -> usize {
-    out.provenance
-        .authoring
-        .as_ref()
-        .map_or(0, |receipt| receipt.context.len())
-}
-
-/// What one call received: its role, the sha256 of its instruction (the system message)
-/// and of its answer schema, the bytes of its messages, and the references sent with it.
-fn context_entry(role: &str, messages: &[Message], schema: &Value) -> Value {
-    let sha = super::knowledge::sha256;
-    let text_of = |m: &Message| -> String {
-        m.content
-            .iter()
-            .filter_map(|block| match block {
-                ContentBlock::Text { text } => Some(text.as_str()),
-                _ => None,
-            })
-            .collect()
-    };
-    let instruction = messages
-        .iter()
-        .find(|m| matches!(m.role, Role::System))
-        .map(text_of)
-        .unwrap_or_default();
-    let bytes: usize = messages.iter().map(|m| text_of(m).len()).sum();
-    json!({
-        "call": role,
-        "instruction_sha256": sha(&instruction),
-        "schema_sha256": sha(&schema.to_string()),
-        "message_bytes": bytes,
-        "references": [],
-    })
-}
-
-/// The bounded JSON-schema request every authoring call makes, whatever its messages, at the
-/// output limit `cap` (never above the policy's ceiling), with the policy's explicit reasoning
-/// effort; `None` when that effort has no provider level.
-fn authoring_request(
-    policy: &AuthoringPolicy,
-    messages: Vec<Message>,
-    schema: Value,
-    cap: u32,
-) -> Option<InferRequest> {
-    let mut infer = InferRequest::new(&policy.model, messages);
-    infer.max_tokens = Some(cap.min(policy.max_tokens));
-    infer.timeout = Some(policy.timeout);
-    infer.response_format = ResponseFormat::JsonSchema(schema);
-    if let Some(reasoning) = policy.reasoning {
-        infer.reasoning_effort = Some(effort(reasoning)?);
-    }
-    Some(infer)
-}
-
 #[cfg(test)]
 mod tests {
     use super::{PLAN_KEYS, withheld};
+    use nika_kernel::ai::provider::{
+        ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
+        TokenUsage,
+    };
     use serde_json::{Value, json};
+    use std::time::Duration;
+
+    /// A seat that answers after a second, twenty times the policy's total below.
+    struct Late;
+    impl ProviderInferDyn for Late {
+        async fn infer(&self, _: InferRequest) -> Result<InferResponse, ProviderError> {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            let text = vec![ContentBlock::Text { text: "{}".into() }];
+            let usage = TokenUsage::new(0, 0);
+            Ok(InferResponse::new(text, usage, StopReason::EndTurn))
+        }
+    }
+
+    /// A seat that never answers.
+    struct Silent;
+    impl ProviderInferDyn for Silent {
+        async fn infer(&self, _: InferRequest) -> Result<InferResponse, ProviderError> {
+            std::future::pending().await
+        }
+    }
+
+    /// A harness route is left to its own deadline, which bounds its silence, never its total:
+    /// an answer later than the policy's total is accepted. An API route keeps that total.
+    #[tokio::test]
+    async fn only_an_api_route_is_cut_at_the_policy_total() {
+        let total = Duration::from_millis(50);
+        let call = |model: &str| {
+            let policy = super::AuthoringPolicy::new(model, 256, total);
+            (policy, InferRequest::new(model, Vec::new()))
+        };
+        let (policy, request) = call("codex/gpt-6");
+        let answered = super::timed(&policy, &Late, "document", request).await;
+        assert!(matches!(&answered, Ok(Ok(_))), "{answered:?}");
+        let (policy, request) = call("openai/gpt-oss-120b");
+        let cut = super::timed(&policy, &Silent, "document", request).await;
+        assert!(cut.is_err(), "{cut:?}");
+    }
 
     #[test]
     fn the_plan_keys_are_the_closed_schema_keys() {

@@ -22,7 +22,7 @@ use crate::guard::KnownWorld;
 use crate::intelligence::{
     IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence, UserIntelligencePreference,
 };
-use crate::outcome::{GateId, ProposalId, Refusal, RefusalClass};
+use crate::outcome::{GateId, ProposalId, Refusal, RefusalClass, ReviewId};
 use crate::reasoner::{ReasonError, SessionReasoner};
 use crate::snapshot::ProjectSnapshot;
 
@@ -52,14 +52,18 @@ mod question;
 mod recovery;
 mod rehearsed;
 mod restore;
+mod review;
 mod round;
 mod route;
+mod run_admission;
 mod run_budget;
 mod unjudged;
 mod unknown_cost;
+mod work;
+pub use work::{GATE_NOT_SHOWN, NOTHING_SHOWN, REVIEW_NOT_SHOWN, VALUE_NOT_SHOWN};
 
 pub use decision::{DecisionAnswer, decision_answer};
-use decision::{is_gate_token, is_no, is_yes, local_command_of};
+use decision::{is_gate_token, is_no, is_save_and_run, is_yes, local_command_of};
 use run_budget::ceiling_in;
 mod schedule;
 
@@ -150,6 +154,15 @@ pub enum TurnOutcome {
     /// An answer BESIDE what waits (« why? » under a question or a gate): said from the machine's
     /// own state; the question or the gate keeps waiting, nothing is consumed, decided or applied.
     Aside(String),
+    /// The human answered a requested run's cost review: the host answers the child it holds
+    /// under this review exactly once. `approve` runs it once; otherwise nothing is sent and the
+    /// child is dropped ([`SessionRuntime::run_review_asked`]).
+    RunReviewed {
+        /// The review the answer names.
+        review: ReviewId,
+        /// One yes runs it once; a decline, leaving or an interruption sends nothing.
+        approve: bool,
+    },
     /// The intelligence was chosen in the middle of a request: the
     /// choice's own fact, then the outcome of the line that waited for it,
     /// resumed exactly as the human typed it — never re-asked.
@@ -187,6 +200,25 @@ pub const SLASH_COMMANDS: &[&str] = &[
     "/quit",
 ];
 
+/// This conversation's own explicit intelligence choice, as its history keeps it.
+#[derive(Clone, Debug)]
+pub(super) enum ConversationChoice {
+    /// The choice, held here only.
+    Held(UserIntelligencePreference),
+    /// A kept choice the history could not read, kept unchanged until chosen again.
+    Unreadable(serde_json::Value),
+}
+
+impl ConversationChoice {
+    /// The value its history keeps: the choice, or the unread one unchanged.
+    pub(super) fn value(&self) -> Option<serde_json::Value> {
+        match self {
+            Self::Held(pref) => serde_json::to_value(pref).ok(),
+            Self::Unreadable(raw) => Some(raw.clone()),
+        }
+    }
+}
+
 /// How many recent turns ride the next prompt.
 const RECENT_TURNS: usize = 8;
 
@@ -197,6 +229,26 @@ fn under(root: &Path, trace: &Path) -> PathBuf {
     } else {
         root.join(trace)
     }
+}
+
+/// A trace as every host shows it: relative to the project root when the project holds it (as a
+/// native run names it), else `<journal>` (the trace verify door's own word), never a host's
+/// absolute layout. Display only: a trace is read through [`under`], on its real path.
+fn shown_trace(root: &Path, trace: &Path) -> String {
+    let within = |base: &Path, path: &Path| path.strip_prefix(base).ok().map(Path::to_path_buf);
+    let held = if trace.is_absolute() {
+        within(root, trace)
+            .or_else(|| within(&root.canonicalize().ok()?, &trace.canonicalize().ok()?))
+    } else {
+        Some(trace.to_path_buf())
+    };
+    let contained = |path: &PathBuf| {
+        use std::path::Component::{CurDir, Normal};
+        path.components()
+            .all(|part| matches!(part, Normal(_) | CurDir))
+    };
+    held.filter(contained)
+        .map_or_else(|| "<journal>".to_owned(), |path| path.display().to_string())
 }
 
 /// How a door builds the reasoner for a resolved choice (`Send`: a host may
@@ -243,6 +295,22 @@ pub struct SessionRuntime {
     /// The check at the consent that saved the last workflow: clean, or
     /// findings (the rail's Checked field says which).
     last_check_clean: Option<bool>,
+    /// The workflow the last consent saved and where its bytes reach, from its check at landing.
+    saved_reach: Option<(PathBuf, crate::world::World)>,
+    /// The workflow the last consent saved, or the one reopened from its program record: the
+    /// rail's « Saved » is this fact, never a workflow only named for a run.
+    consented: Option<PathBuf>,
+    /// The run this session requested last, with the reach of the bytes it asked to run.
+    requested_run: Option<crate::work::RequestedRun>,
+    /// The cost review a requested run's child waits at, while the host holds that child.
+    run_review: Option<review::RunReview>,
+    /// What the last line did to the authoring question it was typed for, at the act itself.
+    last_answer: Option<crate::work::Answered>,
+    /// How many cost reviews this session asked: a review's turn in its identity.
+    reviews_asked: u64,
+    /// How the compile that proposed the pending candidate revised its document, as its record
+    /// states it (`document_revision`): bound to the candidate's bytes by digest when read.
+    proposed_revision: Option<serde_json::Value>,
     /// The trace the last observed run left (`/proof` reads it).
     last_trace: Option<PathBuf>,
     /// The last observed run HOME history keeps (`KeptRun`): evidence, never authority.
@@ -263,7 +331,7 @@ pub struct SessionRuntime {
     /// (presentation only: it never carries workflow meaning).
     progress: crate::activity::Progress,
     /// A run request waiting on the values of the workflow's declared inputs.
-    run_inputs: Option<authoring::RunInputs>,
+    run_inputs: Option<run_admission::RunInputs>,
     /// Whether the human chose (or kept) an intelligence. Opened without one,
     /// the session works from the engine's facts and the deterministic
     /// compiler, and asks the first screen only when a turn needs more.
@@ -273,6 +341,9 @@ pub struct SessionRuntime {
     interrupted: Option<String>,
     /// The first screen is on the table: the NEXT line is a choice.
     pending_choice: bool,
+    /// This conversation's own explicit choice (named by its opener, chosen in it or kept by
+    /// its history): it holds here only, never written as the operator's default.
+    conversation: Option<ConversationChoice>,
     /// The last recovery card (a turn that could not be finished), kept so
     /// « what happened? » repeats it without a call.
     last_recovery: Option<String>,
@@ -323,6 +394,18 @@ impl SessionRuntime {
         intelligence: ResolvedSessionIntelligence,
         reasoner: Box<dyn SessionReasoner>,
     ) -> Self {
+        let context = crate::authoring::AuthoringContext::default();
+        Self::open_under(cwd, intelligence, reasoner, context)
+    }
+
+    /// The session under the authoring context its opener resolved: the release is pinned once,
+    /// never for a context replaced at once.
+    fn open_under(
+        cwd: &Path,
+        intelligence: ResolvedSessionIntelligence,
+        reasoner: Box<dyn SessionReasoner>,
+        authoring_context: crate::authoring::AuthoringContext,
+    ) -> Self {
         let snapshot = ProjectSnapshot::observe(cwd);
         let broker = ContextBroker::new(snapshot.root.clone());
         let known = KnownWorld::installed(&snapshot.root);
@@ -353,18 +436,26 @@ impl SessionRuntime {
             last_run: None,
             last_workflow: None,
             last_check_clean: None,
+            saved_reach: None,
+            consented: None,
+            requested_run: None,
+            run_review: None,
+            last_answer: None,
+            reviews_asked: 0,
+            proposed_revision: None,
             last_trace: None,
             kept_run: None,
             authoring: None,
             revising: None,
             questions: question::Identities::default(),
             seat: AuthoringSeat::Deterministic { why: None },
-            authoring_context: crate::authoring::AuthoringContext::default(),
+            authoring_context,
             progress: crate::activity::Progress::default(),
             run_inputs: None,
             chosen: true,
             interrupted: None,
             pending_choice: false,
+            conversation: None,
             last_recovery: None,
             classifier: None,
             routes: Vec::new(),
@@ -439,8 +530,13 @@ impl SessionRuntime {
         facts.composing = self.pending_question().is_some()
             || self.pending_input().is_some()
             || self.pending_activation().is_some();
-        facts.saved = self.last_workflow.is_some();
-        facts.check_clean = self.last_check_clean;
+        // Saved at consent, and still the workflow worked on: one only named for a run (or a
+        // paused run reopened) was never saved here, and the check is that consent's.
+        let root = &self.snapshot.root;
+        facts.saved = (self.last_workflow.as_ref())
+            .zip(self.consented.as_ref())
+            .is_some_and(|(worked, saved)| root.join(worked) == root.join(saved));
+        facts.check_clean = self.last_check_clean.filter(|_| facts.saved);
         facts.declared_active = declared_active;
         facts.run = if self.pending_gate.is_some() {
             crate::lifecycle::RunFact::GateWaits
@@ -608,22 +704,43 @@ impl SessionRuntime {
     ) -> Self {
         let intelligence = ResolvedSessionIntelligence::resolve(pref, &census);
         let reasoner = factory(&intelligence);
-        let mut session = Self::open(cwd, intelligence, reasoner);
+        // The host door's authoring configuration, read once, here: the
+        // names `nika compile` reads, through the same parser.
+        let context = crate::authoring::AuthoringContext::from_env();
+        let mut session = Self::open_under(cwd, intelligence, reasoner, context);
         session.census = Some(census);
         session.home = home.map(Path::to_path_buf);
         session.factory = Some(factory);
-        // The host door's authoring configuration, read once, here: the
-        // names `nika compile` reads, through the same parser.
-        session.authoring_context = crate::authoring::AuthoringContext::from_env();
         session
     }
 
-    /// The answer to the first screen asked in-session (`/intelligence`):
-    /// the choice is judged, kept under the home when one exists, and the
-    /// reasoner rebuilt — refused with its fix when this machine cannot
-    /// serve it, and the previous choice stands.
-    fn choose_unrecorded(&mut self, answer: &str) -> TurnOutcome {
+    /// The opener named this conversation's intelligence (`pref`, the one it opened with): it
+    /// holds here only, is recorded in the conversation's history and replaces a choice that
+    /// history kept. Nothing is written as the operator's default.
+    pub fn hold_for_conversation(&mut self, pref: UserIntelligencePreference) {
+        self.conversation = Some(ConversationChoice::Held(pref));
+    }
+
+    /// Hold `pref` as this conversation's intelligence: resolved against the census, servable or
+    /// not (its fix said, never replaced), the reasoner rebuilt. Nothing is written.
+    fn adopt(&mut self, pref: UserIntelligencePreference) {
         let (Some(census), Some(factory)) = (&self.census, &self.factory) else {
+            return;
+        };
+        let resolved = ResolvedSessionIntelligence::resolve(&pref, census);
+        self.reasoner = factory(&resolved);
+        self.intelligence = resolved;
+        self.refresh_seat();
+        self.chosen = true;
+        self.conversation = Some(ConversationChoice::Held(pref));
+    }
+
+    /// The answer to the first screen asked in-session (`/intelligence`, or `/intelligence
+    /// <words>` at once): the choice is judged, held for this conversation only and the reasoner
+    /// rebuilt; refused with its fix when this census cannot read it, the previous choice standing.
+    fn choose_unrecorded(&mut self, answer: &str) -> TurnOutcome {
+        let answer = (answer.trim().strip_prefix("/intelligence ")).map_or(answer, str::trim);
+        let (Some(census), Some(_)) = (&self.census, &self.factory) else {
             self.pending_choice = false;
             self.interrupted = None;
             return TurnOutcome::Refusal(Refusal::new(
@@ -673,21 +790,10 @@ impl SessionRuntime {
                 ));
             }
         };
-        let resolved = ResolvedSessionIntelligence::resolve(&pref, census);
-        let kept = match &self.home {
-            Some(home) => pref
-                .save(home)
-                .map(|()| "kept")
-                .unwrap_or("holds for this session only"),
-            None => "holds for this session only",
-        };
-        self.reasoner = factory(&resolved);
-        self.intelligence = resolved;
-        self.refresh_seat();
-        self.chosen = true;
+        self.adopt(pref);
         self.pending_choice = false;
         let notice = format!(
-            "{} · {kept}\n  {}{}",
+            "{} · holds for this conversation\n  {}{}",
             self.intelligence_line(),
             self.seat.line(),
             self.connection_money()
@@ -786,17 +892,8 @@ impl SessionRuntime {
             .new_turn(self.authoring.is_some() || self.revising.is_some());
         match input {
             "/quit" | "/exit" => return TurnOutcome::Quit,
-            "/intelligence" => {
-                return match &self.census {
-                    Some(census) => {
-                        let screen =
-                            format!("{}\n{}", self.intelligence_card(), census.first_screen());
-                        self.pending_choice = true;
-                        TurnOutcome::Ask(screen)
-                    }
-                    None => TurnOutcome::Facts(self.intelligence_card()),
-                };
-            }
+            _ if input.starts_with("/intelligence ") => return self.choose_unrecorded(input),
+            "/intelligence" => return self.intelligence_screen(),
             _ => {}
         }
         // An open authoring question owns the next line — before any
@@ -809,8 +906,9 @@ impl SessionRuntime {
             if let Some(outcome) = self.question_protocol(input) {
                 return self.keep_revising(outcome);
             }
+            let asked = self.pending_question_id();
             if let Err(refusal) = self.admit_money(original, true, false) {
-                return refusal;
+                return self.answer_refused(asked, refusal);
             }
             let outcome = self.answer_question_unrecorded(input);
             return self.keep_revising(outcome);
@@ -828,7 +926,7 @@ impl SessionRuntime {
         }
         // A consent word with nothing pending answers nothing: it is neither
         // work to build nor a question, and it never reaches a model.
-        if is_yes(input) || is_no(input) {
+        if is_yes(input) || is_no(input) || is_save_and_run(input) {
             return TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::WrongState,
                 "nothing waits for a yes or a no here — a proposal asks `apply? ›` first · describe the outcome you want, or `/help`",
@@ -868,6 +966,19 @@ impl SessionRuntime {
             return self.ask_for_intelligence(input, Need::Conversation);
         }
         self.converse_unrecorded(input)
+    }
+
+    /// `/intelligence`: the first screen again when the census is known, the next line
+    /// picking; without a census, the card of the intelligence in use.
+    fn intelligence_screen(&mut self) -> TurnOutcome {
+        match &self.census {
+            Some(census) => {
+                let screen = format!("{}\n{}", self.intelligence_card(), census.first_screen());
+                self.pending_choice = true;
+                TurnOutcome::Ask(screen)
+            }
+            None => TurnOutcome::Facts(self.intelligence_card()),
+        }
     }
 
     /// A free-text line the chosen intelligence answers, in words only,
@@ -984,13 +1095,20 @@ impl SessionRuntime {
                 "discarded · nothing was written · ask again for the change when ready".to_owned(),
             );
         }
-        if !is_yes(answer) {
+        // `save & run` saves as `yes` does, then asks its one run (`landed.rs`); `yes` saves only.
+        let (mut set, and_run) = (set, is_save_and_run(answer));
+        if !and_run && !is_yes(answer) {
             // Not a protocol token: open language. Its act is a bounded
             // decision over the typed state and the RAW line (the door's
             // classifier, the session's intelligence, else UNKNOWN) —
             // never a word list, never a consent.
             return self.consent_money_route(set, &id, answer);
         }
+        let run = match and_run.then(|| set.save_run()) {
+            Some(Err(why)) => return self.hold_pending(set, id, why),
+            line => line.and_then(Result::ok),
+        };
+        set.run = set.run.filter(|_| and_run);
         // The sources the proposal was built on are judged again before anything lands (F4).
         let basis = match self.basis_at_yes(&set, &id) {
             Ok(note) => note,
@@ -1015,7 +1133,7 @@ impl SessionRuntime {
                 return TurnOutcome::Refusal(Refusal::new(class, text));
             }
         };
-        self.report_landed(set, &applied, &id, basis.as_deref())
+        self.report_landed(&set, &applied, &id, basis.as_deref(), run)
     }
 
     /// The proposal waiting for a consent, when one is (its identity: the
@@ -1026,10 +1144,11 @@ impl SessionRuntime {
     }
 
     /// A consent that names the proposal it answers — a remote host, a
-    /// reconnect (ADR-133): refused as stale when another proposal waits,
+    /// reconnect (ADR-133): refused as stale when another proposal or a run's cost review waits,
     /// as already consumed when that proposal was decided, as the wrong
     /// state when none is pending. Never applied twice.
     pub fn consent_to(&mut self, id: &ProposalId, answer: &str) -> TurnOutcome {
+        self.last_answer = None;
         if self.waiting_cost_choice() {
             return TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::StaleRevision,
@@ -1083,10 +1202,11 @@ impl SessionRuntime {
     }
 
     /// An answer that names the gate it decides (ADR-133): refused as
-    /// stale when another gate waits, as already consumed when that gate
+    /// stale when another gate or a run's cost review waits, as already consumed when that gate
     /// was answered, as the wrong state when none waits. The same gate
     /// answers once.
     pub fn answer_gate_for(&mut self, id: &GateId, line: &str) -> TurnOutcome {
+        self.last_answer = None;
         match self.waiting_gate() {
             Some(waiting) if waiting != *id => TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::StaleRevision,
@@ -1173,9 +1293,8 @@ impl SessionRuntime {
         match crate::run_view::RunFacts::read(&under(&self.snapshot.root, trace)) {
             Some(facts) => TurnOutcome::Facts(facts.proof(&self.snapshot.root)),
             None => TurnOutcome::Facts(format!(
-                "the trace `{}` cannot be read now · `nika trace verify {}` judges it from the shell",
-                trace.display(),
-                trace.display()
+                "the trace `{shown}` cannot be read now · `nika trace verify {shown}` judges it from the shell",
+                shown = shown_trace(&self.snapshot.root, trace)
             )),
         }
     }
@@ -1258,21 +1377,12 @@ impl SessionRuntime {
     }
 
     fn observation_line(&mut self, exit: u8, trace: Option<&Path>, with_produced: bool) -> String {
-        let meaning = match exit {
-            0 => "succeeded",
-            1 => "the workflow failed",
-            2 => "refused before running (findings)",
-            3 => "refused by the environment",
-            4 => {
-                "paused for a human answer — `nika run <file> --resume <trace> --answer <task>=<value>` continues it"
-            }
-            130 => "interrupted before it finished (Ctrl+C) — the trace shows what ran",
-            _ => "ended with an unknown code",
-        };
+        // The run door's exit codes have one reading, shared with the work snapshot.
+        let meaning = crate::work::RunEnd::of(exit).meaning();
         let line = match trace {
             Some(t) => format!(
                 "run observed · exit {exit} · {meaning} · trace `{}`",
-                t.display()
+                shown_trace(&self.snapshot.root, t)
             ),
             None => format!("run observed · exit {exit} · {meaning}"),
         };
@@ -1352,6 +1462,9 @@ mod choice_tests;
 mod money_answer_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
+mod question_tests;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod reasoning_effort_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
@@ -1361,10 +1474,16 @@ mod restore_tests;
 mod route_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
+mod save_run_tests;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod semantic_basis_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod trace_display_tests;
 
 #[cfg(test)]
 pub(crate) mod inference_tests;

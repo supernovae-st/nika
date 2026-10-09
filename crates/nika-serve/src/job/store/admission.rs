@@ -259,6 +259,7 @@ impl JobStore {
             workflow,
             access_pin: None,
             inputs,
+            max_cost_usd: None,
             execution_id,
             trace_id,
             snapshot_digest,

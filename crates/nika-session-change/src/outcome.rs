@@ -12,8 +12,9 @@ use crate::change::{ChangeError, Witness};
 
 /// The identity of one proposal: the witness of the exact preview the
 /// human saw. A consent names it; a consent naming another proposal is
-/// stale and applies nothing.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// stale and applies nothing. It serializes as its full hex digest.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize)]
+#[serde(transparent)]
 pub struct ProposalId(String);
 
 impl ProposalId {
@@ -36,9 +37,38 @@ impl fmt::Display for ProposalId {
     }
 }
 
+/// The identity of one Run cost review as this session showed it: the witness of the review's
+/// turn in the session, its first screen and its evidence (which names the child's one-use
+/// challenge). An answer names it; an answer typed for another review, even one whose screen
+/// reads the same, answers nothing. It serializes as its hex witness, never as the screen or the
+/// evidence, which can name a route or an address.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize)]
+#[serde(transparent)]
+pub struct ReviewId(String);
+
+impl ReviewId {
+    /// The identity of the `turn`-th review a session asked, over its exact screen and evidence.
+    #[must_use]
+    pub fn new(turn: u64, question: &str, details: &str) -> Self {
+        Self(Witness::of(format!("{turn}\n{question}\n{details}").as_bytes()).0)
+    }
+
+    /// The witness, hex.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for ReviewId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.0.get(..12).unwrap_or(&self.0))
+    }
+}
+
 /// The identity of one paused gate: the trace that paused and the task
 /// that asked. An answer names it; the same gate answers once.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize)]
 pub struct GateId {
     /// The paused trace (the resume handle).
     pub trace: PathBuf,

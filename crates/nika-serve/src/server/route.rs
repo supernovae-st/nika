@@ -113,15 +113,7 @@ pub(crate) async fn handle(
 ) -> Result<Response<ResponseBody>, Infallible> {
     let path = request.uri().path();
     let response = if path == "/health" && request.method() == Method::GET {
-        json_response(
-            StatusCode::OK,
-            &HealthResponse::current(
-                true,
-                (state.native.as_ref())
-                    .map(|seat| (seat.decision.is_some(), seat.trials.is_some())),
-                state.cost_review.is_some(),
-            ),
-        )
+        json_response(StatusCode::OK, &HealthResponse::current(&state))
     } else if path.starts_with("/v1/") || review_path(path).is_some() {
         protected(request, state).await
     } else {
@@ -142,6 +134,10 @@ async fn protected(request: Request<Incoming>, state: Arc<AppState>) -> Response
     }
     if request.method() == Method::GET && sse::is_events_path(request.uri().path()) {
         return sse::handle(request, state).await;
+    }
+    // A Session's command outlives any request deadline: its worker owns it (nika-session-host).
+    if state.sessions.is_some() && request.uri().path().starts_with("/v1/sessions") {
+        return super::session::route(request, &state).await;
     }
     // A native authoring round outlives the request deadline: on a server that seats one,
     // the compile door applies that deadline itself (intake · generation 1 · replay).
@@ -213,7 +209,11 @@ async fn route_authenticated(
         (&Method::POST, path) if path.ends_with("/cancel") => cancel_job(path, &state).await,
         (&Method::GET, "/v1/openapi.json") => json_response(
             StatusCode::OK,
-            &super::openapi::served(state.native.is_some(), state.cost_review.is_some()),
+            &super::openapi::served(
+                state.native.is_some(),
+                state.cost_review.is_some(),
+                state.sessions.is_some(),
+            ),
         ),
         (&Method::GET, "/v1/workflows") => list_registry(&state).await,
         (&Method::GET, path) if path.starts_with("/v1/workflows/") => {
@@ -581,7 +581,7 @@ async fn admit_job(
 ) -> Response<ResponseBody> {
     match state
         .coordinator
-        .admit_manual_inputs(key, digest, workflow, world, access_pin, inputs, None)
+        .admit_manual_inputs(key, digest, workflow, world, access_pin, inputs, None, None)
         .await
     {
         Ok(admission) => admission_response(admission),

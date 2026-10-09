@@ -79,6 +79,31 @@ class SourceInventory(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn("lib.rs", result.stderr)
 
+    def test_native_ceiling_is_bounded_and_the_probe_cannot_raise_it(self):
+        self.write("crates/small/src/lib.rs", "// retained production documentation\n" * 15000)
+        self.write("crates/nika-tui/Cargo.toml", '[package]\nname = "nika-tui"\nversion = "0.1.0"\n')
+        self.write("crates/nika-tui/src/lib.rs", "// retained native composition documentation\n" * 19000)
+        self.git("add", "crates")
+        self.env.pop("CRATE_SIZE_MAX")
+        at_boundary = self.gate()
+        self.assertEqual(at_boundary.returncode, 0, at_boundary.stdout + at_boundary.stderr)
+        self.write("crates/nika-tui/src/lib.rs", "// native composition\n" * 19001)
+        self.env["CRATE_SIZE_MAX"] = "99999"
+        above = self.gate()
+        self.assertEqual(above.returncode, 1, above.stdout + above.stderr)
+        self.assertIn("crates/nika-tui  19001 LOC (max 19000)", above.stdout)
+        self.write("crates/small/src/lib.rs", "// other crate\n" * 15001)
+        self.write("crates/nika-tui/src/lib.rs", "// native composition\n")
+        other = self.gate()
+        self.assertEqual(other.returncode, 1, other.stdout + other.stderr)
+        self.assertIn("crates/small  15001 LOC (max 15000)", other.stdout)
+        self.env["CRATE_SIZE_MAX"] = "4"
+        self.write("crates/small/src/lib.rs", "// other crate\n")
+        self.write("crates/nika-tui/src/lib.rs", "// native composition\n" * 5)
+        lowered = self.gate()
+        self.assertEqual(lowered.returncode, 1, lowered.stdout + lowered.stderr)
+        self.assertIn("crates/nika-tui  5 LOC (max 4)", lowered.stdout)
+
     def test_fuzz_targets_stay_outside_production_scope_but_need_inventory(self):
         self.write("crates/small/src/lib.rs", "pub fn a() {}\n")
         self.write("fuzz/Cargo.toml", '[package]\nname = "fuzz"\nversion = "0.1.0"\n[package.metadata]\ncargo-fuzz = true\n')

@@ -11,7 +11,7 @@
 //! decides which vendor seats it: a `TypeSafe` System One request, a generative
 //! provider constrained to a closed enum, or a hermetic double in tests.
 
-use std::{collections::BTreeMap, future::Future, pin::Pin};
+use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Mutex};
 
 use nika_compile::AuthoringReasoning;
 use nika_kernel::ai::provider::{
@@ -134,7 +134,11 @@ pub type ChoiceFuture<'a> =
     Pin<Box<dyn Future<Output = Result<ChoiceAnswer, DecisionError>> + Send + 'a>>;
 
 mod batch;
-pub use batch::{BatchFuture, BatchItem, ChoiceBatch, closed_choices, decoded_each, each_alone};
+pub mod system_one;
+pub use batch::{
+    BatchFuture, BatchItem, Bound, Carried, ChoiceBatch, WrittenKeys, bind, closed_choices,
+    decoded_each, each_alone,
+};
 
 /// A bounded decision capability. Vendor-neutral by construction.
 pub trait DecisionSeat: Send + Sync {
@@ -157,6 +161,8 @@ pub struct ProviderChoice<'p, P: ProviderInferDyn> {
     timeout: std::time::Duration,
     reasoning: Option<AuthoringReasoning>,
     max_tokens: u32,
+    /// One receipt per physical request, written before it can leave ([`Self::requests`]).
+    sent: Mutex<Vec<Value>>,
 }
 
 impl<'p, P: ProviderInferDyn> ProviderChoice<'p, P> {
@@ -175,6 +181,7 @@ impl<'p, P: ProviderInferDyn> ProviderChoice<'p, P> {
             timeout,
             reasoning: None,
             max_tokens,
+            sent: Mutex::new(Vec::new()),
         }
     }
 
@@ -186,6 +193,18 @@ impl<'p, P: ProviderInferDyn> ProviderChoice<'p, P> {
         self.reasoning = Some(reasoning);
         self.max_tokens = max_tokens;
         self
+    }
+
+    /// The physical requests this seat sent, one receipt each, apart from the questions they
+    /// answered: the question ids a request carried, how it ended (`in_flight` when it never
+    /// settled · `answered` · `error` · `timed_out`) and the usage its response reported, once per
+    /// request whatever its questions came to (`null` when unreported or no response came).
+    #[must_use]
+    pub fn requests(&self) -> Vec<Value> {
+        match self.sent.lock() {
+            Ok(sent) => sent.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        }
     }
 }
 
@@ -209,16 +228,46 @@ impl<P: ProviderInferDyn> ProviderChoice<'_, P> {
         Ok(infer)
     }
 
-    /// The one call of a request under the seat's own deadline; no retry.
-    async fn call(&self, infer: InferRequest) -> Result<InferResponse, DecisionError> {
-        tokio::time::timeout(self.timeout, self.provider.infer(infer))
-            .await
+    /// The one call of a request carrying `questions`, under the seat's own deadline; no retry.
+    /// Its receipt is written before it can leave and settled with the usage its response
+    /// reported, so a reply that decides nothing still accounts for what it used.
+    async fn call(
+        &self,
+        infer: InferRequest,
+        questions: Vec<String>,
+    ) -> Result<InferResponse, DecisionError> {
+        let slot = self.sent.lock().ok().map(|mut sent| {
+            sent.push(json!({"questions": questions, "outcome": "in_flight", "usage": null}));
+            sent.len() - 1
+        });
+        let result = tokio::time::timeout(self.timeout, self.provider.infer(infer)).await;
+        let (outcome, usage, error) = match &result {
+            Ok(Ok(response)) => {
+                let usage = response.usage_reported.then(|| {
+                    json!({"input_tokens": response.usage.input_tokens,
+                        "output_tokens": response.usage.output_tokens})
+                });
+                ("answered", usage, None)
+            }
+            Ok(Err(error)) => ("error", None, Some(error.to_string())),
+            Err(_) => ("timed_out", None, None),
+        };
+        if let (Some(slot), Ok(mut sent)) = (slot, self.sent.lock())
+            && let Some(receipt) = sent.get_mut(slot)
+        {
+            receipt["outcome"] = json!(outcome);
+            receipt["usage"] = json!(usage);
+            if let Some(error) = error {
+                receipt["error"] = json!(error);
+            }
+        }
+        result
             .map_err(|_| DecisionError("the single decision call timed out; no retry".to_owned()))?
             .map_err(|e| DecisionError(e.to_string()))
     }
 
     /// The answer a response makes of one choice: the response's usage and reasoning ride the
-    /// answer only when `usage` (the first item of a batch carries the request's).
+    /// answer only when `usage` (the first answered item of a batch carries the request's).
     fn answer(&self, choice: String, response: &InferResponse, usage: bool) -> ChoiceAnswer {
         let mut probabilities = BTreeMap::new();
         probabilities.insert(choice.clone(), 1.0);
@@ -242,33 +291,51 @@ impl<P: ProviderInferDyn> DecisionSeat for ProviderChoice<'_, P> {
     }
 
     /// A batch settled in ONE request: the shared instructions and state once, each item's own
-    /// words and options, an answer mapping each item id to one of its keys. An item the answer
-    /// leaves undecided fails alone; a request that fails fails every item.
+    /// words, state and options, an answer mapping each item id to one of its keys. An item the
+    /// answer leaves undecided fails alone; a request that fails fails every item it carried.
+    /// Nothing is sent for an empty batch, nor for an id the batch asks twice (an answer keyed
+    /// by id could not tell them apart); the request's usage rides its first answered item.
     fn choose_each<'a>(&'a self, batch: &'a ChoiceBatch) -> BatchFuture<'a> {
         Box::pin(async move {
-            let count = batch.items.len();
-            let response = match self.request(closed_choices(batch)) {
-                Ok(infer) => self.call(infer).await,
+            let repeated = batch.repeated();
+            let mut answers: Vec<Result<ChoiceAnswer, DecisionError>> = (batch.items.iter())
+                .map(|item| Err(batch::unsent(&item.question.id)))
+                .collect();
+            let sent: Vec<usize> = (0..batch.items.len())
+                .filter(|at| !repeated.contains(batch.items[*at].question.id.as_str()))
+                .collect();
+            if sent.is_empty() {
+                return answers;
+            }
+            let asked = batch::only(batch, &sent);
+            let ids = (asked.items.iter()).map(|item| item.question.id.clone());
+            let response = match self.request(closed_choices(&asked)) {
+                Ok(infer) => self.call(infer, ids.collect()).await,
                 Err(error) => Err(error),
             };
-            let decoded = response
-                .and_then(|response| decoded_each(batch, &response).map(|keys| (response, keys)));
+            let decoded = response.and_then(|response| {
+                batch::decoded_items(&asked, &response).map(|keys| (response, keys))
+            });
             match decoded {
-                Ok((response, keys)) => (keys.into_iter().enumerate())
-                    .map(|(at, key)| {
-                        let key = key.ok_or_else(|| {
-                            DecisionError("the seat left this item without one of its keys".into())
-                        })?;
-                        Ok(self.answer(key, &response, at == 0))
-                    })
-                    .collect(),
-                Err(error) => vec![Err(error); count],
+                Ok((response, keys)) => {
+                    let mut usage = true;
+                    for (at, key) in sent.into_iter().zip(keys) {
+                        answers[at] = key.map(|key| {
+                            let answer = self.answer(key, &response, usage);
+                            usage = false;
+                            answer
+                        });
+                    }
+                }
+                Err(error) => (sent.into_iter()).for_each(|at| answers[at] = Err(error.clone())),
             }
+            answers
         })
     }
     fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
         Box::pin(async move {
-            let response = self.call(self.request(closed_choice(question))?).await?;
+            let infer = self.request(closed_choice(question))?;
+            let response = self.call(infer, vec![question.id.clone()]).await?;
             let choice = decoded(question, &response)?;
             Ok(self.answer(choice, &response, true))
         })

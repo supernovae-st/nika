@@ -61,7 +61,7 @@ impl<C: Conversation + 'static> Shell<C> {
                 self.desk.view.as_ref(),
                 self.desk.opened.as_ref(),
                 self.desk.candidate.as_ref(),
-                self.desk.live.as_ref(),
+                (self.desk.live.as_ref(), &self.desk.past),
             )
             .is_none();
         let elapsed = self

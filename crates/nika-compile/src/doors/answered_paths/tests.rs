@@ -3,6 +3,7 @@
 
 //! Pure materialization and path projection; no host, files, process, or provider.
 use super::*;
+use crate::CompileStatus;
 use serde_json::json;
 
 const INTENT: &str = "Write the text I choose to the file I choose.";

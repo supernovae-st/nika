@@ -53,8 +53,11 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+#[cfg(feature = "access-harness")]
+mod acp;
 mod coerce;
 mod errors;
+mod selection;
 mod structured;
 mod vision;
 
@@ -107,6 +110,11 @@ pub struct InferInput {
     /// `infer.vision:` — local files are inlined as `data:` URLs; remote
     /// URLs stay URLs. Empty means text-only (the historical path).
     pub vision: Vec<VisionPart>,
+    /// The workflow's authored access selection (`run.access` ·
+    /// `run.reasoning`), when it declares one: its native effort is
+    /// applied exactly or refused before any request, and the output then
+    /// carries the selection receipt.
+    pub requirement: Option<nika_types::access::AccessRequirement>,
 }
 
 impl InferInput {
@@ -124,7 +132,18 @@ impl InferInput {
             reasoning_effort: None,
             timeout: None,
             vision: Vec::new(),
+            requirement: None,
         }
+    }
+
+    /// Carry the workflow's authored access selection.
+    #[must_use]
+    pub fn with_requirement(
+        mut self,
+        requirement: Option<&nika_types::access::AccessRequirement>,
+    ) -> Self {
+        self.requirement = requirement.cloned();
+        self
     }
 }
 
@@ -162,6 +181,9 @@ pub struct InferOutput {
     /// overloaded seat, the statuses waited on — the receipt's account of
     /// a call that answered only after the provider layer's bounded retry.
     pub transport: TransportReport,
+    /// How the authored selection travelled (`access_selection`) — set
+    /// only when the input carried a requirement.
+    pub selection: Option<nika_types::access::SelectionEvidence>,
 }
 
 /// A subscription-seat result. It deliberately has no usage, price, or
@@ -178,6 +200,8 @@ pub struct HarnessInferOutput {
     /// The responder the seat's own CLI named, when it did (`modelUsage` · the assistant
     /// message's model); the receipt carries it as an observation, never as the request.
     pub observed_model: Option<String>,
+    /// How the authored selection travelled — set only under a requirement.
+    pub selection: Option<nika_types::access::SelectionEvidence>,
 }
 
 #[cfg(feature = "access-harness")]
@@ -189,6 +213,7 @@ impl HarnessInferOutput {
             output,
             requested_model: requested_model.into(),
             observed_model: None,
+            selection: None,
         }
     }
 
@@ -196,6 +221,16 @@ impl HarnessInferOutput {
     #[must_use]
     pub fn with_observed_model(mut self, model: Option<String>) -> Self {
         self.observed_model = model;
+        self
+    }
+
+    /// Attach the selection receipt.
+    #[must_use]
+    pub fn with_selection(
+        mut self,
+        selection: Option<nika_types::access::SelectionEvidence>,
+    ) -> Self {
+        self.selection = selection;
         self
     }
 }
@@ -217,6 +252,7 @@ impl InferOutput {
             model_resolved,
             response,
             transport: TransportReport::new(),
+            selection: None,
         }
     }
 
@@ -224,6 +260,16 @@ impl InferOutput {
     #[must_use]
     pub fn with_transport(mut self, transport: TransportReport) -> Self {
         self.transport = transport;
+        self
+    }
+
+    /// Attach the selection receipt.
+    #[must_use]
+    pub fn with_selection(
+        mut self,
+        selection: Option<nika_types::access::SelectionEvidence>,
+    ) -> Self {
+        self.selection = selection;
         self
     }
 }
@@ -234,6 +280,9 @@ pub struct InferVerb<H = nika_providers::NoHttp> {
     registry: Arc<ProviderRegistry<H>>,
     default_model: String,
     schema_retry_budget: u8,
+    /// A lent ACP one-shot transport; `None` spawns the route's adapter.
+    #[cfg(feature = "access-harness")]
+    acp_transport: Option<acp::AcpTransport>,
 }
 
 impl<H> InferVerb<H> {
@@ -244,7 +293,23 @@ impl<H> InferVerb<H> {
             registry,
             default_model: default_model.into(),
             schema_retry_budget: DEFAULT_SCHEMA_RETRY_BUDGET,
+            #[cfg(feature = "access-harness")]
+            acp_transport: None,
         }
+    }
+
+    /// Lend the transport a declared `run.access.protocol: acp` `infer:`
+    /// runs over (a test · an embedder owning the adapter process). It
+    /// MUST drive the route's completion profile ([`nika_harness::AcpOneShot::drive`]);
+    /// without one, each call spawns the route's registry adapter under it.
+    #[cfg(feature = "access-harness")]
+    #[must_use]
+    pub fn with_acp_transport(
+        mut self,
+        transport: Arc<dyn nika_kernel::ai::harness::DynAgentBackend>,
+    ) -> Self {
+        self.acp_transport = Some(acp::AcpTransport(transport));
+        self
     }
 
     /// Override the schema-validation retry budget (0 = single shot).
@@ -277,6 +342,11 @@ impl<H> InferVerb<H> {
         input: InferInput,
     ) -> Result<HarnessInferOutput, VerbInferError> {
         validate_params(&input)?;
+        // A declared `acp` is the protocol, not the program: the route's
+        // ACP one-shot, never the direct one below.
+        if selection::declares_acp(input.requirement.as_ref()) {
+            return self.run_on_acp(seat_id, input).await;
+        }
         let validator = match input.schema.as_ref() {
             Some(schema) => Some(structured::compile_schema(schema).map_err(|detail| {
                 VerbInferError::InvalidParam {
@@ -300,10 +370,12 @@ impl<H> InferVerb<H> {
             .model
             .clone()
             .unwrap_or_else(|| self.default_model.clone());
+        let effort = selection::direct_one_shot(input.requirement.as_ref(), seat_id)?;
         let request = nika_harness::HarnessInferRequest::new(input.prompt, &requested_model)
             .with_system(input.system)
             .with_schema(input.schema.clone())
-            .with_timeout(input.timeout);
+            .with_timeout(input.timeout)
+            .with_effort(effort);
         let outcome = seat
             .run(request)
             .await
@@ -327,8 +399,13 @@ impl<H> InferVerb<H> {
             }
             _ => serde_json::Value::String(outcome.output),
         };
+        let evidence = input
+            .requirement
+            .as_ref()
+            .map(|_| selection::direct_evidence(&requested_model, outcome.observed_model.clone()));
         Ok(HarnessInferOutput::new(output, requested_model)
-            .with_observed_model(outcome.observed_model))
+            .with_observed_model(outcome.observed_model)
+            .with_selection(evidence))
     }
 }
 
@@ -355,8 +432,34 @@ where
     /// [`VerbInferError::SchemaValidation`] when a `schema:` task exhausts
     /// the retry budget without a conforming reply ·
     /// [`VerbInferError::EmptyAnswer`] when the provider spent tokens yet
-    /// the visible answer is blank (NIKA-INFER-004 · #651).
+    /// the visible answer is blank (NIKA-INFER-004 · #651). A declared
+    /// `run.reasoning.effort` that is not one of the request's exact
+    /// levels refuses with [`VerbInferError::InvalidParam`] before any
+    /// request.
     pub async fn run(&self, input: InferInput) -> Result<InferOutput, VerbInferError> {
+        let Some(requirement) = input.requirement.clone() else {
+            return self.run_resolved(input).await;
+        };
+        let input = selection::with_declared_level(input, &requirement)?;
+        let requested = input
+            .model
+            .clone()
+            .unwrap_or_else(|| self.default_model.clone());
+        let wire_model = self
+            .registry
+            .resolve(&requested)
+            .ok()
+            .map(|provider| provider.wire_model().to_owned());
+        let out = self.run_resolved(input).await?;
+        Ok(selection::stamp_api(
+            out,
+            &requirement,
+            requested,
+            wire_model,
+        ))
+    }
+
+    async fn run_resolved(&self, input: InferInput) -> Result<InferOutput, VerbInferError> {
         validate_params(&input)?;
         let validator = compiled_schema(&input)?;
         let model = input.model.as_deref().unwrap_or(&self.default_model);

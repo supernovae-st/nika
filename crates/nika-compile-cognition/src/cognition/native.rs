@@ -395,10 +395,11 @@ pub(super) fn conclude(
             // The door never judged a candidate (a failed call, an answer that was not an
             // answer, an ask the laws refused): the previous round's questions and diagnostics
             // stand, nothing is replaced by a clarification the human could not act on. A
-            // refused ask spent the budget: the exhaustion is stated as a candidate's is.
+            // refused ask ends as a candidate does: on the cause its talk recorded.
             if refused_ask {
-                route.push("native: exhausted".to_owned());
-                super::super::finding(out, DiagnosticKind::Unknown, "authoring_native", EXHAUSTED);
+                let (step, said) = nika_compile_seats::repairs::stopped(&talk.route, &talk.rounds);
+                route.extend(step.map(str::to_owned));
+                super::super::finding(out, DiagnosticKind::Unknown, "authoring_native", said);
             } else {
                 route.push("native: no candidate".to_owned());
             }
@@ -415,9 +416,10 @@ pub(super) fn conclude(
             // not invent a business decision or ask the human to replace their intent.
         }
         None => {
-            route.push("native: exhausted".to_owned());
+            let (step, said) = nika_compile_seats::repairs::stopped(&talk.route, &talk.rounds);
+            route.extend(step.map(str::to_owned));
             super::record_route(out, &route);
-            super::super::finding(out, DiagnosticKind::Unknown, "authoring_native", EXHAUSTED);
+            super::super::finding(out, DiagnosticKind::Unknown, "authoring_native", said);
         }
     }
 }
@@ -443,9 +445,6 @@ fn continued(out: &CompileOutcome, talk: &[String]) -> Vec<String> {
     }
     route
 }
-
-/// An exhausted budget, stated: never a replacement request or a substitute workflow.
-const EXHAUSTED: &str = "No candidate passed the checks within the repair budget; the original request, candidates and diagnostics are retained. No workflow was emitted. Inspect the last diagnostic before another bounded attempt.";
 
 pub(super) fn system_message(references: &[Reference], callables: &[Reference]) -> String {
     let mut text = format!("{}\n\n{}", knowledge::card(), knowledge::CONVENTIONS);
@@ -652,6 +651,7 @@ pub(super) fn admitted_questions(
 ) -> Result<Vec<(Question, Vec<Value>)>, Diagnostic> {
     let world = observed_names(observed);
     let doc = crate::edit::literal_projection(candidate);
+    let asked: Vec<Value> = questions.iter().map(|q| recorded(q, &[])).collect();
     let consts = doc
         .as_ref()
         .and_then(|d| d.get("const"))
@@ -685,8 +685,9 @@ pub(super) fn admitted_questions(
         // observed world, never asked (2026-09-22 22:5xZ, claude-code/sonnet: `const.status_field`,
         // `const.open_value`, `const.region_column` beside the observed header and value set) —
         // unless the request leaves the column open among the observed ones (DIALOG-03,
-        // 2026-09-24: « Additionne une colonne de ventes.csv » over `montant, autre`).
-        let mut options = Vec::new();
+        // 2026-09-24: « Additionne une colonne de ventes.csv » over `montant, autre`). An open
+        // name the question asks takes its readings (`fidelity::asked_readings`).
+        let mut options = fidelity::asked_readings(intent, doc.as_ref(), &asked, &question.key);
         // The premise holds only for what was observed: a key whose arrays or objects no
         // complete nested structure covers states none of the names below it.
         if let Some(world) = world.as_deref()
@@ -734,8 +735,9 @@ pub(super) fn admitted_questions(
 
 /// The judge: the strict parser, the pure Check, then the fidelity laws against the original
 /// request and the reader's floor. Every refusal is one structured diagnostic. A `waived` path
-/// is journaled in a revision gap by the model or the compiler (`revision`): the path
-/// law leaves it to settlement, which proves it or requires a human decision.
+/// is journaled in a revision gap by the model or the compiler (`revision`): the path law leaves
+/// it to settlement, which proves it or requires a human decision; an open name a question asks
+/// is left to that typed answer (`fidelity::asked_names`).
 pub(super) fn judge(
     intent: &str,
     reading: &Reading,
@@ -750,12 +752,14 @@ pub(super) fn judge(
     let Some(doc) = admit(candidate, questions, &mut out) else {
         return out;
     };
+    let asked: Vec<Value> = questions.iter().map(|q| recorded(q, &[])).collect();
+    let waived = [waived, &fidelity::asked_names(intent, &doc, &asked)[..]].concat();
     fidelity::laws_observed(
         intent,
         &reading.plan,
         &doc,
         allowed,
-        waived,
+        &waived,
         clarified,
         observed,
         &mut out,
@@ -1305,5 +1309,35 @@ mod tests {
         );
         assert_eq!(super::super::first_json_object("no object"), None);
         assert_eq!(super::super::first_json_object("{\"open\": true"), None);
+    }
+
+    /// One key asked twice cannot claim two open names: one blank constant read and written
+    /// whole, each question quoting another name. The judge waives neither name, so both stay
+    /// owed and the document is refused before any record or answer exists, and neither question
+    /// is offered a reading.
+    #[test]
+    fn a_key_asked_twice_leaves_both_open_names_owed() {
+        let intent = "Lis un journal in/a.json. Puis prépare un payload out/c.json.";
+        let candidate = "nika: journal-payload\nconst:\n  location_path: \"\"\npermits:\n  tools: [\"nika:read\", \"nika:write\"]\n  fs:\n    read: [\"\"]\n    write: [\"\"]\ntasks:\n  load:\n    invoke:\n      tool: nika:read\n      args: {path: \"${{ const.location_path }}\"}\n  save:\n    with: {text: \"${{ tasks.load.output }}\"}\n    invoke:\n      tool: nika:write\n      args: {path: \"${{ const.location_path }}\", content: \"${{ with.text }}\"}\n";
+        let asked = |label: &str| Question {
+            key: "const.location_path".to_owned(),
+            label: label.to_owned(),
+            answer_type: "text".to_owned(),
+            why: String::new(),
+        };
+        let questions = [
+            asked("Quel fichier est « journal in/a.json » ?"),
+            asked("Quel fichier est « payload out/c.json » ?"),
+        ];
+        let reading = crate::lexicon::read(intent);
+        let found = judge(intent, &reading, candidate, &questions, &[], &[], &[], None);
+        for name in ["journal in/a.json", "payload out/c.json"] {
+            let owed = format!("UNREALIZED PATH: the request names `{name}`");
+            let path = |d: &Diagnostic| d.kind == "path" && d.message.starts_with(&owed);
+            assert!(found.iter().any(path), "{name}: {found:#?}");
+        }
+        let admitted = admitted_questions(intent, candidate, &questions, None).unwrap();
+        assert_eq!(admitted.len(), 2);
+        assert!(admitted.iter().all(|(_, options)| options.is_empty()));
     }
 }

@@ -942,6 +942,7 @@ pub nika_trace::run_view::KeptRun::chain_len: core::option::Option<u64>
 pub nika_trace::run_view::KeptRun::execution: core::option::Option<alloc::string::String>
 pub nika_trace::run_view::KeptRun::exit: core::option::Option<u8>
 pub nika_trace::run_view::KeptRun::trace: core::option::Option<alloc::string::String>
+pub nika_trace::run_view::KeptRun::trace_opaque: bool
 pub nika_trace::run_view::KeptRun::workflow: core::option::Option<alloc::string::String>
 pub nika_trace::run_view::KeptRun::workflow_sha256: core::option::Option<alloc::string::String>
 impl nika_trace::run_view::KeptRun
@@ -1464,6 +1465,7 @@ pub type nika_trace::trace_verify::VerifyOptions::NoneType = T
 pub fn nika_trace::trace_verify::VerifyOptions::null_value() -> T
 pub const nika_trace::trace_verify::JOURNAL_BOUND: usize
 pub const nika_trace::trace_verify::VERIFY_VERSION: u32
+pub fn nika_trace::trace_verify::door_verdict(path: &std::path::Path, trace_id: &str) -> serde_json::value::Value
 pub fn nika_trace::trace_verify::verify(trace: &str) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace_verify::verify_captured(trace: &str, raw: &str, opts: &nika_trace::trace_verify::VerifyOptions) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace_verify::verify_many(traces: &[std::path::PathBuf]) -> nika_cli_host::output::VerbOutput

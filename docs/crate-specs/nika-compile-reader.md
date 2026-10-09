@@ -489,3 +489,31 @@ typed plan and its provenance record) · `rules`, `aggregate`, `rule_tokens`, `r
 `paths`, `columns` (the structural laws: what a clause names, where a human gate sits, what
 a literal token is, which words are columns) · `hot` (the strict HOT admission over the
 reader's own vocabulary) · `text` (the shared text helpers).
+
+`paths` also says what a literal composes from the request's own words, for fidelity's law 2
+(no invented path or host).
+- `composed_from`: every directory and the stem of a path appear in the request. It moved
+  verbatim from fidelity at that crate's size cap on 2026-10-08.
+- `origin_and_path`: an address composes from the request's own words when both of its parts
+  are stated whole.
+  - Origin (`scheme://host[:port]`): read case-insensitively; it goes on only into its own
+    path, query or fragment (`/`, `?`, `#`).
+  - Path: in its own spelling.
+
+  Each part must be a whole token of the request, as the lexer reads a literal:
+  - before it, up to the whitespace, stand only quotes and brackets;
+  - after it, up to the whitespace, stand only quotes, brackets and sentence punctuation.
+
+  Punctuation outside a closing quote is prose, never part of the path. Any other character
+  continuing or preceding a part inside its token, quoted or not, makes another token. A
+  request may name a sink's origin in one sentence and the path it posts to in another. A
+  longer stated origin (`http://h.example.evil`, `http://h:8080`,
+  `http://h.example@evil.example`) composes nothing. Neither does a longer or otherwise-spelt
+  path (`/api/private`, `/api-v2`, `"/api+v2"`, `/api:cancel`, `"/v2+/api"`, `/Admin`).
+
+`paths` also states the names whose start it leaves open, for fidelity's law 1 and its typed
+answer. `open_names` lists each unquoted spaced placeholder holding a path, never a dynamic
+template (`un payload out/notification.json` → `payload out/notification.json`).
+`readings` lists the starts that placeholder leaves open, longest first: the whole name,
+then the name from each later word, down to the path alone (`out/notification.json`). Both
+are structural: no word decides a start, and a quoted name is one exact literal.

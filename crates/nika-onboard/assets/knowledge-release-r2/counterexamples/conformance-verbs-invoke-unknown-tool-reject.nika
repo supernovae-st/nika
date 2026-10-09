@@ -1,0 +1,17 @@
+# Expected: check-reject (gate verdict). TOOLS: unknown builtin caught statically.
+# Spec 05 §errors maps unknown tool to NIKA-INVOKE-001; the reference check
+# refuses with the TOOLS gate verdict without surfacing the wire code — see FINDINGS.md.
+nika: e21-invoke-unknown-tool
+# INTENT: NIKA-INVOKE-001 (unknown tool)
+# The boundary GRANTS the bogus id on purpose: without it the authority gate
+# refuses first (NIKA-AUTH-006) and the TOOLS verdict never gets to speak.
+permits:
+  exec: false
+  tools: ["nika:nonexistent_builtin_xyzzy"]
+
+tasks:
+  step:
+    invoke:
+      tool: "nika:nonexistent_builtin_xyzzy"
+      args:
+        foo: "bar"

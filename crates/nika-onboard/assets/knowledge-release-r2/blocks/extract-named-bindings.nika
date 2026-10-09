@@ -1,0 +1,19 @@
+nika: p31-extract
+permits:
+  tools: ["nika:fetch"]
+  net: { http: ["api.example.com"] }
+tasks:
+  api_call:
+    invoke: { tool: "nika:fetch", args: { url: "https://api.example.com/v1/users", mode: jq, jq: "." } }
+    extract:
+      user_count: ".data.users | length"
+      first_user: ".data.users[0]"
+      emails: "[.data.users[].email]"
+  report:
+    with:
+      user_count: ${{ tasks.api_call.user_count }}
+      emails: ${{ tasks.api_call.emails }}
+      raw: ${{ tasks.api_call.output }}
+    invoke: { tool: "nika:jq", args: { input: { n: "${{ with.user_count }}", emails: "${{ with.emails }}" }, expression: "{n: .n, k: (.emails | length)}" } }
+outputs:
+  report: ${{ tasks.report.output }}

@@ -39,6 +39,9 @@ pub enum Observed {
         typed: bool,
         /// The bytes the run was asked over, as the Session's look read them.
         look: Option<Box<Inspected>>,
+        /// Where those bytes reach, as the Session's check declared it for this request
+        /// (`None`: not audited here). Declared, never observed.
+        world: Option<Box<nika_session::world::World>>,
     },
     /// One typed frame of the run's stream.
     Frame(RunFrame),
@@ -116,24 +119,24 @@ impl Feed {
         self
     }
 
-    /// Tell the shell a run of `workflow` was asked, over the bytes `look`.
+    /// Tell the shell a run of `workflow` was asked, over the bytes `look` reaching `world`.
     pub(crate) fn asked(
         &self,
         workflow: String,
         resume: bool,
         typed: bool,
-        look: Option<Inspected>,
+        (look, world): (Option<Inspected>, Option<nika_session::world::World>),
     ) {
         if let Some(mut legs) = self.legs.as_ref().and_then(|l| l.lock().ok()) {
             legs.asked();
         }
         if let Some(seen) = &self.seen {
-            let look = look.map(Box::new);
             seen.tell(Observed::Asked {
                 workflow,
                 resume,
                 typed,
-                look,
+                look: look.map(Box::new),
+                world: world.map(Box::new),
             });
         }
     }
@@ -216,7 +219,7 @@ mod feed_tests {
             r#"{"kind":"workflow_started","fields":[{"key":"workflow","value":"w"}]}"#,
             &feed,
         );
-        feed.asked("w.nika".to_owned(), false, true, None);
+        feed.asked("w.nika".to_owned(), false, true, (None, None));
         assert_eq!(said.try_iter().collect::<Vec<_>>(), ["running · w"]);
     }
 }

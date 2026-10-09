@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#
+# nika-compile-behavior · L4 · the behavioural contract a request states, independent of any
+# candidate, and its typed judgment over what a round of rehearsals consumed and wrote, with the
+# date-time shape classifier the judge and the candidate laws both read. Size-cap member of the
+# nika-onboard unit (D-2026-07-09-N1 · ADR-149): nika-compile-fidelity → nika-compile-behavior →
+# nika-compile-reader, never back.
+[package]
+name        = "nika-compile-behavior"
+description = "The behavioural contract a request states, independent of any candidate (what each requested result must hold, where it lands and whether it is written), and its typed judgment over what a round of rehearsals consumed and wrote: exact numbers, the nika:convert CSV reading, values bound to the sha256 of the bytes read, outcomes tallied with an explicit dominance and a stop never certified. Layer L4 — a size-cap member of the nika-onboard unit (D-2026-07-09-N1 · ADR-149 · the ADR-146 precedent), below nika-compile-fidelity, which keeps it at its historical behavior path; it depends on the reader, never the reverse."
+
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # member of the nika-onboard unit — never on crates.io alone
+
+[dependencies]
+nika-compile-reader = { path = "../nika-compile-reader", version = "0.122.0" } # the plan, its rules and aggregates, the shape and structure laws, the HOT door, the gates, the paths and the lexicon a contract is stated from (ONE unit, several members · ADR-149)
+serde_json = { workspace = true } # a rule's JSON record, read by its typed fields as the relation it states
+csv        = { workspace = true } # the behavioural contract reads a CSV a rehearsal consumed or wrote exactly as nika:convert reads it
+sha2       = { workspace = true } # the behavioural contract binds every reading to the sha256 of the bytes it read
+
+[dev-dependencies]
+proptest = { workspace = true } # the number law and the date-time shape as properties over their public surface (Gate 6)
+
+[package.metadata.lore]
+daemon        = "forgeron"
+archetype     = "compiler-smith"
+spirit_role   = "juge ce que la demande exige, jamais le candidat qui l'écrit · une sortie se prouve par sa valeur, un arrêt ne se certifie pas"
+
+[lints]
+workspace = true

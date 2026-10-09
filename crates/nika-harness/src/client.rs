@@ -17,13 +17,14 @@
 //! returns, dropping the transport (B3.2's confined spawn adds
 //! kill-on-drop on the child underneath).
 
+use crate::authoring::acp::{Milestone, activity};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use futures_core::Stream;
 use nika_kernel::ai::harness::{
     HarnessError, HarnessEvent, HarnessEventStream, HarnessOutcome, HarnessRequest,
-    ModelProvenance, PermissionDecision, PermissionReply,
+    HarnessSelection, ModelProvenance, PermissionDecision, PermissionReply,
 };
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
@@ -44,13 +45,16 @@ use crate::wire::{
 /// Never alias this bound to a forensic decoder's limit.
 pub const MAX_LINE_BYTES: usize = 18 * 1024 * 1024;
 
-/// How long the driver waits for the NEXT byte before calling the
-/// session dead. A size bound alone leaves the wedge the refuter
+/// How long the driver waits for the NEXT complete frame (one
+/// newline-terminated line), and for one write to drain, before calling
+/// the session dead. A size bound alone leaves the wedge the refuter
 /// found (2026-08-06): a peer that writes half a line and goes silent
 /// without closing its pipe hangs the driver forever — no EOF, no
 /// overflow, no newline. Agent turns are long (a harness may think for
-/// minutes), so the bound is on SILENCE between bytes, never on the
-/// turn: any progress resets it.
+/// minutes), so the bound is per frame, never on the turn: each frame
+/// that arrives resets it, while the bytes of an unfinished frame do not
+/// (the bound wraps the whole read of the line). An authoring completion
+/// is bounded by its own call deadline instead (`authoring::acp`).
 pub const IDLE_TIMEOUT_SECS: u64 = 300;
 
 const ID_INITIALIZE: u64 = 1;
@@ -73,10 +77,10 @@ where
     )
 }
 
-/// [`drive`] with an explicit idle deadline — the seam the wedge tests
-/// drive at millisecond scale (a five-minute constant cannot be proven
-/// by a test that must finish; virtual time does not compose with the
-/// spawned driver task).
+/// [`drive`] with an explicit idle deadline: each frame read and each
+/// write may take at most `idle`. The wedge tests drive it at millisecond
+/// scale; the driver task also runs under paused virtual time, where the
+/// five-minute default is proven without waiting for it.
 pub fn drive_with_idle<R, W>(
     reader: R,
     writer: W,
@@ -87,7 +91,7 @@ where
     R: AsyncRead + Unpin + Send + 'static,
     W: AsyncWrite + Unpin + Send + 'static,
 {
-    drive_profile(reader, writer, request, idle, false)
+    drive_profile(reader, writer, request, idle, None, None)
 }
 
 pub(crate) fn drive_profile<R, W>(
@@ -95,7 +99,8 @@ pub(crate) fn drive_profile<R, W>(
     writer: W,
     request: HarnessRequest,
     idle: std::time::Duration,
-    authoring: bool,
+    completion: Option<crate::authoring::acp::OneShot>,
+    progress: Option<crate::authoring::acp::Progress>,
 ) -> HarnessEventStream
 where
     R: AsyncRead + Unpin + Send + 'static,
@@ -112,10 +117,13 @@ where
             pending: Vec::new(),
             observed_model: None,
             observed_source: None,
+            selection: HarnessSelection::default(),
             media: crate::media::MediaState::default(),
-            authoring,
+            completion,
+            progress,
         };
         if let Err(e) = driver.run(request).await {
+            activity::failed(driver.progress.as_ref());
             let e = driver.media.no_replay(e);
             // The stream may already be dropped — best-effort final word.
             let _ = driver.event_tx.send(Err(e)).await;
@@ -138,7 +146,7 @@ struct Driver<R, W> {
     writer: W,
     event_tx: mpsc::Sender<Result<HarnessEvent, HarnessError>>,
     output: String,
-    /// How long a silence may last before the session is abandoned.
+    /// How long one frame read or one write may take before the session is abandoned.
     idle: std::time::Duration,
     /// The partial-line accumulator (see [`read_bounded_line`]'s
     /// cancel-safety note): it MUST outlive any single read future,
@@ -150,8 +158,14 @@ struct Driver<R, W> {
     /// How `observed_model` was learned: a selection or a configuration, never a
     /// response attestation (ACP prompt results name no model).
     observed_source: Option<ModelProvenance>,
+    /// What was sent to configure the session and what it read back (`effort.rs`).
+    selection: HarnessSelection,
     media: crate::media::MediaState,
-    authoring: bool,
+    /// The audited one-shot completion profile this session runs under, if any.
+    completion: Option<crate::authoring::acp::OneShot>,
+    /// The authoring call this session's closed protocol milestones, and what it receives after
+    /// the prompt (`activity`), are told to, if any.
+    progress: Option<crate::authoring::acp::Progress>,
 }
 
 impl<R, W> Driver<R, W>
@@ -170,8 +184,8 @@ where
         )
         .await?;
         let value: Value = self.await_response(ID_INITIALIZE, "initialize").await?;
-        if self.authoring {
-            crate::authoring::acp::admit(&value)?;
+        if let Some(completion) = self.completion {
+            crate::authoring::acp::admit(&value, completion)?;
         }
         let init: wire::InitializeResult = parse_payload(value, "initialize")?;
         if init.protocol_version != wire::PROTOCOL_V1 {
@@ -183,20 +197,26 @@ where
                 ),
             });
         }
+        Milestone::InitializeAccepted.reached(self.progress.as_ref());
 
         let mut params = serde_json::to_value(NewSessionParams {
             cwd: request.cwd.clone(),
             mcp_servers: Vec::new(),
         })
         .map_err(session_err)?;
-        if self.authoring {
-            params["_meta"] = crate::authoring::acp::profile();
+        if let Some(meta) = self
+            .completion
+            .and_then(crate::authoring::acp::OneShot::session_meta)
+        {
+            params["_meta"] = meta;
         }
         self.send_request(ID_SESSION_NEW, wire::METHOD_SESSION_NEW, &params)
             .await?;
         let session: wire::NewSessionResult =
             self.await_response(ID_SESSION_NEW, "session/new").await?;
+        Milestone::SessionCreated.reached(self.progress.as_ref());
         self.seat_session(&session, &request).await?;
+        Milestone::SelectionChecked.reached(self.progress.as_ref());
 
         // The system prompt has no v1 seat outside session modes — B3.1
         // folds it ahead of the user text (the wrapped-fidelity class:
@@ -214,6 +234,7 @@ where
             },
         )
         .await?;
+        Milestone::PromptWritten.reached(self.progress.as_ref());
 
         self.pump(&session.session_id, &request).await
     }
@@ -230,17 +251,24 @@ where
         loop {
             tokio::select! {
                 line = read_bounded_line(&mut self.reader, &mut self.pending, self.idle) => {
-                    let line = line?;
-                    match wire::parse_line(&line).map_err(|e| HarnessError::Session {
+                    let read = line.map(|line| wire::parse_line(&line));
+                    activity::received(self.progress.as_ref(), &read, session_id, ID_PROMPT);
+                    match read?.map_err(|e| HarnessError::Session {
                         reason: e.to_string(),
                     })? {
                         Incoming::Response { id: ID_PROMPT, result } => {
                             let done: PromptResult = parse_payload(result, "session/prompt")?;
                             self.media.check_stop(&done.stop_reason)?;
-                            if self.authoring && done.stop_reason != "end_turn" {
-                                return Err(crate::authoring::acp::refusal("ACP authoring did not complete a turn"));
+                            if let Some(completion) = self.completion
+                                && done.stop_reason != crate::authoring::acp::ACCEPTED_STOP
+                            {
+                                return Err(crate::authoring::acp::refusal(&format!(
+                                    "{} did not complete a turn",
+                                    completion.label()
+                                )));
                             }
                             let outcome = self.close_turn(&done, request);
+                            activity::completed(self.progress.as_ref());
                             let _ = self
                                 .event_tx
                                 .send(Ok(HarnessEvent::Completed { outcome: Box::new(outcome) }))
@@ -261,15 +289,23 @@ where
                         // flight · reader leniency).
                         Incoming::Response { .. } | Incoming::Notification { .. } => {}
                         Incoming::Request { id, method, params } if method == wire::METHOD_REQUEST_PERMISSION => {
-                            if self.authoring {
+                            if let Some(completion) = self.completion {
                                 let line = wire::response_line(&id, &serde_json::json!({"outcome":{"outcome":"cancelled"}})).map_err(session_err)?;
                                 self.write_line(&line).await?;
-                                return Err(crate::authoring::acp::refusal("ACP authoring requested a tool; no answer accepted"));
+                                return Err(crate::authoring::acp::refusal(&format!(
+                                    "{} requested a tool; no answer accepted",
+                                    completion.label()
+                                )));
                             }
                             self.on_permission_ask(id, params, &ptx).await?;
                         }
                         Incoming::Request { id, .. } => {
-                            if self.authoring { return Err(crate::authoring::acp::refusal("ACP authoring requested an unsupported client action")); }
+                            if let Some(completion) = self.completion {
+                                return Err(crate::authoring::acp::refusal(&format!(
+                                    "{} requested an unsupported client action",
+                                    completion.label()
+                                )));
+                            }
                             // An unknown agent request refuses politely —
                             // JSON-RPC method-not-found keeps the wire honest.
                             let line = wire::response_line(
@@ -295,8 +331,13 @@ where
         if update.session_id != session_id {
             return Ok(()); // another session's beat — observed, never ours
         }
-        if self.authoring {
-            crate::authoring::acp::judge_update(&update.update)?;
+        if let Some(completion) = self.completion {
+            crate::authoring::acp::judge_update(&update.update, completion)?;
+        }
+        if update.update.get("sessionUpdate").and_then(Value::as_str)
+            == Some("config_option_update")
+        {
+            self.observe_config_update(&update.update);
         }
         if let Some(tool_call_id) = self.media.starting(&update.update) {
             let _ = self
@@ -313,12 +354,13 @@ where
                 .await;
         }
         if let Some(text) = wire::agent_chunk_text(&update.update) {
-            if self.authoring
+            if let Some(completion) = self.completion
                 && self.output.len().saturating_add(text.len()) > crate::authoring::acp::MAX_ANSWER
             {
-                return Err(crate::authoring::acp::refusal(
-                    "ACP authoring answer exceeded its byte limit",
-                ));
+                return Err(crate::authoring::acp::refusal(&format!(
+                    "{} answer exceeded its byte limit",
+                    completion.label()
+                )));
             }
             self.output.push_str(&text);
             let _ = self
@@ -383,6 +425,7 @@ where
         outcome.observed_model = self.observed_model.take();
         outcome.observed_model_source = self.observed_source.take();
         outcome.images = self.media.images();
+        outcome.selection = std::mem::take(&mut self.selection);
         outcome
     }
 
@@ -408,8 +451,15 @@ where
         let model_option = seats::model_option(session.config_options.as_ref());
         let current = seats::current_model(model_option, session.models.as_ref());
         self.observe(current, ModelProvenance::SessionConfig);
-        if let Some(wanted) = seats::wanted(request.requested_model.as_deref()) {
-            if let Some((config_id, value)) = seats::offered_option(model_option, &wanted) {
+        // The complete configuration the session last reported: a model change may change
+        // the offered efforts, so the effort is judged on the answer to the selection.
+        let mut config = session.config_options.clone();
+        let requested = request.requested_model.as_deref();
+        if let Some(wanted) = seats::wanted(requested) {
+            let option = |name: &str| seats::offered_option(model_option, name);
+            if let Some((config_id, value)) = seats::exact_first(requested, &wanted, option) {
+                self.selection.model_option = Some(config_id.clone());
+                self.selection.transmitted_model = value.as_str().map(str::to_owned);
                 self.send_request(
                     ID_SESSION_SEAT,
                     wire::METHOD_SET_CONFIG_OPTION,
@@ -431,13 +481,33 @@ where
                 self.observe(confirmed, ModelProvenance::ConfirmedSelection);
                 if self.observed_model.as_deref() != value.as_str() || self.observed_model.is_none()
                 {
-                    return Err(HarnessError::Refused {
+                    return Err(HarnessError::Selection {
                         reason: format!(
-                            "the harness did not confirm requested model `{wanted}` after selection"
+                            "the harness did not confirm requested model `{wanted}` after \
+                             selection (it reports {}; name that exact id to accept it, no \
+                             prompt was sent)",
+                            self.observed_model
+                                .as_deref()
+                                .map_or_else(|| "none".to_owned(), |m| format!("`{m}`"))
                         ),
                     });
                 }
-            } else if let Some(model_id) = seats::offered_model(session.models.as_ref(), &wanted) {
+                config = answered.get("configOptions").cloned();
+            } else if let Some(model_id) = seats::exact_first(requested, &wanted, |name| {
+                seats::offered_model(session.models.as_ref(), name)
+            }) {
+                // A legacy selection answers no configuration: its efforts cannot be re-read.
+                if let Some(effort) = &request.requested_effort {
+                    return Err(HarnessError::Selection {
+                        reason: format!(
+                            "the harness selects `{wanted}` only through the legacy model list, \
+                             which reports no refreshed options — reasoning effort `{effort}` \
+                             cannot be judged for it (no prompt was sent)"
+                        ),
+                    });
+                }
+                self.selection.model_option = Some(wire::METHOD_SET_MODEL.to_owned());
+                self.selection.transmitted_model = Some(model_id.clone());
                 self.send_request(
                     ID_SESSION_SEAT,
                     wire::METHOD_SET_MODEL,
@@ -452,7 +522,7 @@ where
                     .await?;
                 self.observe(Some(model_id), ModelProvenance::AcceptedRequest);
             } else {
-                return Err(HarnessError::Refused {
+                return Err(HarnessError::Selection {
                     reason: format!(
                         "the harness offers no model `{wanted}` — it offers: {} (name one of these on `model:`, or `default` for the harness's own choice)",
                         seats::offered_names(model_option, session.models.as_ref())
@@ -460,6 +530,24 @@ where
                 });
             }
         }
+        self.select_effort(&sid, config.as_ref(), request.requested_effort.as_deref())
+            .await?;
+        match self.completion {
+            Some(one_shot) if one_shot.required_mode().is_some() => {
+                self.require_mode(&sid, config.as_ref(), one_shot).await
+            }
+            _ => self.select_mode(sid, session, request).await,
+        }
+    }
+
+    /// A requested mode (`read-only`) picks an advertised plan / read-only mode, best effort;
+    /// a config-option answer is the complete state, so what was set must still hold.
+    async fn select_mode(
+        &mut self,
+        sid: String,
+        session: &wire::NewSessionResult,
+        request: &HarnessRequest,
+    ) -> Result<(), HarnessError> {
         if let Some(intent) = request.requested_mode.as_deref()
             && let Some(door) = seats::mode_door(session, intent)
         {
@@ -475,9 +563,11 @@ where
                         },
                     )
                     .await?;
-                    let _: Value = self
+                    let answered: Value = self
                         .await_response(ID_SESSION_SEAT, "session/set_config_option")
                         .await?;
+                    // The mode answer is the complete state too: what was set still holds.
+                    self.confirm_holds(answered.get("configOptions"))?;
                 }
                 seats::ModeDoor::Mode { mode_id } => {
                     self.send_request(
@@ -508,11 +598,18 @@ where
         self.write_line(&line).await
     }
 
-    /// Write one line — deadlined like the read half: a peer that
+    /// Write one line; a write that fails after the prompt ends the call's activity on the
+    /// transport, whatever frame it was answering.
+    async fn write_line(&mut self, line: &str) -> Result<(), HarnessError> {
+        let written = self.write_frame(line).await;
+        written.inspect_err(|_| activity::write_failed(self.progress.as_ref()))
+    }
+
+    /// Write one line's bytes — deadlined like the read half: a peer that
     /// stops READING its stdin fills the pipe and blocks us here, and
     /// a driver blocked in `write_all` is not reading either (the
     /// mutual wedge · review 2026-08-06).
-    async fn write_line(&mut self, line: &str) -> Result<(), HarnessError> {
+    async fn write_frame(&mut self, line: &str) -> Result<(), HarnessError> {
         let idle = self.idle;
         let stalled = || HarnessError::Session {
             reason: format!(
@@ -559,14 +656,19 @@ where
                     });
                 }
                 Incoming::Notification { method, params }
-                    if self.authoring && method == wire::METHOD_SESSION_UPDATE =>
+                    if method == wire::METHOD_SESSION_UPDATE =>
                 {
-                    crate::authoring::acp::judge_update(&params["update"])?;
+                    if let Some(completion) = self.completion {
+                        crate::authoring::acp::judge_update(&params["update"], completion)?;
+                    }
                 }
-                Incoming::Request { .. } if self.authoring => {
-                    return Err(crate::authoring::acp::refusal(
-                        "ACP authoring requested a client action before the prompt",
-                    ));
+                Incoming::Request { .. } => {
+                    if let Some(completion) = self.completion {
+                        return Err(crate::authoring::acp::refusal(&format!(
+                            "{} requested a client action before the prompt",
+                            completion.label()
+                        )));
+                    }
                 }
                 _ => {} // interleaved beats before the handshake settles
             }
@@ -580,6 +682,13 @@ where
 /// `models{currentModelId, availableModels[{modelId, name}]}`, `modes{currentModeId,
 /// availableModes[{id, name}]}`).
 mod seats;
+
+/// The native reasoning effort: discovered on the refreshed configuration, applied through
+/// the session's own option id, read back before the prompt.
+mod effort;
+
+/// A completion profile's required session mode, applied and read back before the prompt.
+mod mode;
 
 /// The engine's verdict → the wire outcome. `AllowOnce` selects the
 /// agent's `allow_once` option; `allow_always` is NEVER selected even
@@ -665,9 +774,11 @@ async fn read_bounded_line<R: AsyncRead + Unpin>(
         // The idle deadline (the anti-wedge · refuted 2026-08-06): the
         // size bound alone let a peer write half a line and go silent
         // WITHOUT closing its pipe — no EOF, no overflow, no newline,
-        // a driver hung forever. Each read waits at most `idle` for
-        // progress; any byte resets it, so a long thinking turn is
-        // never killed, only a dead one.
+        // a driver hung forever. Each frame read waits at most `idle`
+        // for its newline: a frame that arrives resets it, the bytes of
+        // an unfinished frame do not (the timeout wraps the whole
+        // `read_until`), so a frame trickling in longer than `idle` ends
+        // the session too.
         let n = tokio::time::timeout(idle, limited.read_until(b'\n', buf))
             .await
             .map_err(|_| HarnessError::Session {
@@ -965,7 +1076,7 @@ mod tests {
         let first = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
         agent.await.expect("scripted agent completes");
         match first {
-            Some(Err(HarnessError::Refused { reason })) => {
+            Some(Err(HarnessError::Selection { reason })) => {
                 assert!(
                     reason.contains("gpt-9") && reason.contains("k3"),
                     "{reason}"
@@ -1367,6 +1478,9 @@ mod wedge_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod frame_tests;
 
 #[cfg(test)]
 mod media_bound_tests;

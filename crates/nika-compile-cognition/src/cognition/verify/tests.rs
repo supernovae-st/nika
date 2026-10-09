@@ -861,3 +861,128 @@ fn an_unparsed_or_absent_candidate_selects_no_contract() {
     assert!(none.text.contains("# Output conventions"));
     assert!(!none.text.contains("does not parse"));
 }
+
+/// Counts the seat's questions asked alone and in a batch, answering `carried` to all.
+#[derive(Default)]
+struct Counting {
+    alone: AtomicUsize,
+    batched: AtomicUsize,
+}
+
+impl crate::decide::DecisionSeat for Counting {
+    fn name(&self) -> &'static str {
+        "double/counting"
+    }
+    fn choose<'a>(
+        &'a self,
+        _question: &'a crate::decide::ChoiceQuestion,
+    ) -> crate::decide::ChoiceFuture<'a> {
+        Box::pin(async move {
+            self.alone.fetch_add(1, Ordering::SeqCst);
+            Ok(crate::decide::ChoiceAnswer::new("carried", "double-1.0"))
+        })
+    }
+    fn choose_each<'a>(
+        &'a self,
+        batch: &'a crate::decide::ChoiceBatch,
+    ) -> crate::decide::BatchFuture<'a> {
+        Box::pin(async move {
+            self.batched.fetch_add(batch.items.len(), Ordering::SeqCst);
+            (batch.items.iter())
+                .map(|_| Ok(crate::decide::ChoiceAnswer::new("carried", "double-1.0")))
+                .collect()
+        })
+    }
+}
+
+/// A prefetched answer used to be taken by any later question with the same id, so a question
+/// revised over other bytes (same id, other state) read an answer given to its earlier form.
+/// It is now bound to the whole question it was asked for: the revised one is asked anew and
+/// the original still takes its own prefetched answer.
+#[tokio::test]
+async fn a_prefetched_answer_serves_only_the_very_question_it_was_asked_for() {
+    use crate::decide::{ChoiceOption, ChoiceQuestion};
+    let seat = Counting::default();
+    let judge = super::Judge::<crate::cognition::NoProvider>::Seat(&seat);
+    let question = |candidate: &str| {
+        ChoiceQuestion::new(
+            "verify-part-0",
+            "Does the candidate carry this part?",
+            json!({"candidate": candidate}),
+            vec![
+                ChoiceOption::new("carried", "the candidate carries it"),
+                ChoiceOption::new("missing", "no task performs it"),
+            ],
+        )
+    };
+    let (first, second) = (question("bytes v1"), question("bytes v1, second part"));
+    let mut verdict = super::Verdict::default();
+    super::prefetch(
+        &judge,
+        "verify-parts",
+        &[first.clone(), second],
+        &mut verdict,
+    )
+    .await;
+    assert_eq!(seat.batched.load(Ordering::SeqCst), 2, "one batch of two");
+    let mut out = crate::initial();
+    let revised = question("bytes v2");
+    let _ = super::ask(&judge, &revised, "judge_part", &mut verdict, &mut out).await;
+    assert_eq!(
+        seat.alone.load(Ordering::SeqCst),
+        1,
+        "the revised question is asked, never served the earlier answer"
+    );
+    let _ = super::ask(&judge, &first, "judge_part", &mut verdict, &mut out).await;
+    assert_eq!(
+        seat.alone.load(Ordering::SeqCst),
+        1,
+        "the question asked in the batch takes its own answer"
+    );
+}
+
+/// A revision of a base whose own request is unknown is judged over that base: the state shows
+/// the base whole and the instructions say the base's behaviour is kept, never extra. With the
+/// earlier request known, that request is the history and the base is not repeated.
+#[test]
+fn a_record_less_revision_is_judged_over_its_base() {
+    let base = "nika: base\ntasks: {}\n";
+    let request = crate::CompileRequest::edit(base, "change it");
+    let state = super::state("the workflow — change it", &request, "nika: x\n");
+    assert_eq!(state["revision"]["base_nika"], base);
+    let told = super::faithful::told(&state, "", "WHOLE");
+    assert!(told.contains("whose own request is unknown"), "{told}");
+    let known = crate::CompileRequest::edit(base, "change it").with_original_intent("a base");
+    let state = super::state("a base — change it", &known, "nika: x\n");
+    assert!(state["revision"].get("base_nika").is_none(), "{state}");
+    assert!(!super::faithful::told(&state, "", "WHOLE").contains("whose own request"));
+}
+
+/// A revision the compiler applied over the complete document is judged as the base with exactly
+/// the change, even when the request the base answers is known: the base is shown whole and the
+/// earlier request is history the change takes precedence over. A revision with no such record
+/// keeps its own instructions.
+#[test]
+fn a_document_revision_with_a_known_request_is_judged_over_its_base() {
+    let base = "nika: base\ntasks: {}\n";
+    let known =
+        crate::CompileRequest::edit(base, "keep three days").with_original_intent("two days");
+    let intent = "two days\nChange: keep three days";
+    let mut out = crate::initial();
+    let mut state = super::state(intent, &known, "nika: x\n");
+    nika_compile_seats::judge::over_document(&mut state, &known, &out);
+    assert!(
+        state["revision"].get("base_nika").is_none(),
+        "no document record: {state}"
+    );
+    out.provenance.decision =
+        Some(serde_json::json!({"document_revision": {"mode": "operations"}}));
+    nika_compile_seats::judge::over_document(&mut state, &known, &out);
+    assert_eq!(state["revision"]["base_nika"], base);
+    let told = super::faithful::told(&state, "", "WHOLE");
+    assert!(
+        told.contains("applied over its complete document"),
+        "{told}"
+    );
+    assert!(told.contains("the change takes precedence"), "{told}");
+}

@@ -8,14 +8,18 @@
 //! own, and a `secrets:` block are refused, each in its own words. Every
 //! path a literal or a constant names must stay in the room, and a read must name an observed
 //! input or one of the candidate's own outputs. A path known only at run time passes: the room
-//! itself confines it. Last, the amplifying value forms described in `arguments` are refused
-//! before evaluation, independently of the room's write budget.
+//! itself confines it. Last, the amplifying value forms the argument law describes
+//! ([`arguments`](nika_compile_cognition::rehearse::arguments)) are refused before evaluation,
+//! independently of the room's write budget, each a data bound in the words of its field.
 
 use nika_compile_cognition::rehearse::Refusal;
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawTask, RawWorkflow};
 use nika_schema::{FileId, ParseMode, VarDecl};
 use nika_service_execution::ADMITTED_TOOLS;
 use serde_json::Value;
+
+#[cfg(test)]
+mod tests;
 
 /// A refusal before any room: its type, and its words.
 #[derive(Debug)]
@@ -58,7 +62,7 @@ pub(super) struct Screened {
 
 /// Screen `candidate` over the observed `inputs`, for a host that evaluates no `nika:jq`.
 #[cfg(test)]
-pub(super) fn screen(candidate: &str, inputs: &[String]) -> Result<Screened, Refused> {
+fn screen(candidate: &str, inputs: &[String]) -> Result<Screened, Refused> {
     screen_with(candidate, inputs, false)
 }
 
@@ -114,7 +118,8 @@ pub(super) fn screen_with(
             ));
         }
     }
-    super::arguments::evaluated(&workflow)?;
+    nika_compile_cognition::rehearse::arguments::evaluated(&workflow)
+        .map_err(|reason| Refused::new(Refusal::DataBounds, reason))?;
     Ok(screened)
 }
 

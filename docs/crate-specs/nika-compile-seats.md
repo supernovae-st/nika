@@ -44,6 +44,11 @@ as an external consumer.
   state once, an answer schema keyed by item id; `decoded_each`: each item's key bound by its
   id, an item left without one of its keys failing alone, a failed request failing every item,
   the request's usage and reasoning riding the first item's answer only).
+- `compose` — the candidate composer (ADR-147): the distinct admissible
+  COLD plans in first-seen order, each judged by the deterministic `feasibility` filter against
+  the reading's floor and the request before any seat sees it, the topology dimensions recalled
+  candidates suggest (`Dimension`), the structural `signature`, the seatless `rank`, `describe`
+  and `classify_disagreement`; nothing calls a provider or grants authority.
 - `rehearse` — the port a host answers (`Rehearse`, `RehearsalFuture`), the report
   (`RehearsalReport`, `Rehearsal`, `Attempt`, `RoomEvidence`, `EffectCounts`, `RehearsedOutput`),
   the host's observation of the copied world (`observed`: copies, final states, the ledger, the
@@ -53,8 +58,112 @@ as an external consumer.
   `trial_shown` (the candidate's sha256, each input read and output read back with its text,
   `read_whole` and `written`), `trial_whole` (at least one output, each written by the run, every
   text read whole) and `trial_receipts` (each text's role, path, size and sha256, never the text).
+  A host may also offer a read-only composition check, `Rehearse::compose`. It answers
+  `Composed`: `Unoffered` (the default), `Unresolved` or `Refused` with the reason, or a clean
+  `Closure`. The closure binds the candidate's sha256, the project-relative path it was checked at,
+  the snapshot identity and format, and every captured unit's digest. `composed` asks the host
+  about a candidate that holds a child workflow source-only (`held_children`, which reads the
+  core's `UNJUDGED_DEPENDENCY` finding on a parsed `invoke.workflow` task) and records the answer
+  on `decision.composition`. `discharge_children` lifts that hold only for a clean closure of
+  these exact bytes and then settles READY by the core's own law (`ready_by_law`). An MCP or
+  skill hold, a mandatory question or a refusal stays as it is. `arguments::evaluated` is the
+  law a host's room screen applies last, held by `nika-onboard` until its size cap (2026-10-08):
+  in every task (its bindings, condition, fan-out collection, arguments and recovery value),
+  the outputs and the model, it refuses a value the run would build before the room's write
+  budget sees it (two template islands or more in one string, a CEL list holding a value
+  reference, an array or an object holding a template that reads a value, or a template the
+  scanner cannot read), in the words of its field; the screen states each as a data bound.
+  `record::report` and `record::usage` state one report (with the decision a preparation took
+  on it) and a preparation's rehearsal spend as data in `decision.rehearsal`, held by
+  `nika-compile-cognition` until its size cap (2026-10-08); no field grants authority.
 - `reasoning` — `effort` (the provider level an authoring level names) and `reasoning_record`
-  (one call's reasoning, each fact apart), shared with every authoring call of the doors.
+  (one call's reasoning, each fact apart), shared with every authoring call of the doors. The
+  receipt of an authoring call is stated here too, held by `nika-compile-cognition` until its
+  size cap (2026-10-08): `authoring_request` (the bounded JSON-schema request at an output
+  limit never above the policy's ceiling, with its explicit reasoning effort, or `None` when
+  that effort has no provider level), `context_entry` (a call's role, the digests of its
+  instruction and answer schema, the bytes of its messages), `response_identity` (the text
+  blocks an answered call returned, by digest and length; `null` for nothing) and `withheld`
+  (a refused or ignored payload by digest, length and shape with its reason, never its text).
+  So is the journal of that call:
+  - `record_proposed`: the object an answer proposed, kept exactly when it decoded as the door's
+    closed shape, else withheld;
+  - `stamp_references`: the references a call's messages carried, on its entry;
+  - `journaled`: the number of calls journaled so far.
+- `judge` — the untrusted state a judging seat reads, apart from the compiler-owned reference
+  every question also carries, held by `nika-compile-cognition` until its size cap
+  (2026-10-08): `state` (the request as compiled and as first stated, its answers, the observed
+  world and the candidate's bytes; a revision in words is shown its change beside the request of
+  the base it revises, as history, never as its first statement) and `over_document` (a revision
+  applied over the complete document, by its decision or by the record a round replays, shows
+  the base whole). The engine facts a request may condition on (A5) also ride that state;
+  `judged_state` is the three together (`state`, `over_document`, `authoring` below), what every
+  question of a verdict starts from.
+  `lent` records them once per settled attempt of a composing door (the document door's
+  `document_create` section, or a document revision's `document_revision` section), in the
+  native record its rounds replay (`facts`):
+  - `catalogue`: the identity of the release the door was lent, or null when none was lent;
+  - `offered`: every admitted component the door offered its author (`document::components`),
+    by identity, title, purpose, holes and effects, with their `total`, and no quota. On bytes
+    made, each also states its `construction` on them: `held`, the strongest witness of a
+    receipt of that component pinned to the lent release by version and digest (null when none
+    names it there), and the `callables` its admitted row declares, or `unresolved` with the
+    reason the catalogue gives no admitted bytes for it;
+  - `composed`: each receipt of the section, witnessed on the bytes that attempt made
+    (`foundry::witness`). A receipt a rewrite left behind is `absent`, never current
+    composition, and the section keeps its receipts as lineage. A receipt held as admitted
+    (`expanded`, `invoked`) also states its `bindings`: each hole's path and bound literal;
+  - `candidate_sha256`: the bytes they were witnessed on. When no bytes were made, nothing binds.
+
+  `authoring` shows the judge, as data, only the facts witnessed on exactly the bytes being
+  judged, without that digest. It reads them from the outcome's record, or else from the record a
+  round replays. A replay of those bytes therefore shows the facts its rejection was bound to,
+  while a revision (other bytes) never shows its base's facts. Another release, offer or
+  composition is another context, judged again. Deciding whether an offered component applies
+  stays the judge's, against the original request, its explicit constraints and each contract;
+  the candidate's own permits or tasks never decide it. `Construction` reads a judged state's
+  facts into the alternatives a localization of a missing clause may answer (a construction
+  obligation, R5): `component-<k>` for each offer that resolves and the bytes do not hold as
+  admitted, and `no_fit`. `Construed::Defect` names the component (release, holes with their
+  owners, declared effects and callables) for the document repair; `Construed::Fallback` lets
+  that clause's own alternative stand when every offer was examinable; `Construed::Undecided`
+  keeps the fit unknown when an offer could not be resolved. `Construction::holding` tells
+  every question that judges the bytes against a clause or the whole request, over the bytes
+  or a trial run of them (the whole-request verdict and each pending clause the core names
+  included, through `Construction::shown`, which also gives the contract a carried rejection
+  binds to), what they hold: each offered
+  component held as admitted whose contract resolves, by its place in the offer, identity,
+  title, witness (`expanded` and `invoked` said apart) and bindings, bound to the candidate's
+  sha256 and the lent catalogue (`construction`), with the construction context and what
+  holding means. A held component can
+  carry a clause that conditionally asks to use an admitted component, never another clause:
+  every runtime operation, effect, target and constraint stays judged on what the program does.
+  `Construction::localization` assembles the localization of a missing clause (each task,
+  `omitted` when the clause may ask an operation of its own, the alternatives above, `held-<k>`
+  for each held component, `no_task`) with the same context; `Construed::Held` reads `held-<k>`
+  as that component held, which the verifier takes as the judge taking its `missing` back: the
+  part stays contested, never a defect and never settled by that answer. `Construction::recall`
+  tells a later question over the same state (the whole request over a trial run) what the
+  bytes hold as `holding` does, and shows it each standing `no_fit` among the verdict's
+  records, its alternative standing over exactly the offers and statuses that state shows, as
+  the judge's own history (`history`, bound to the candidate's sha256 and the lent catalogue)
+  beside the same construction context: never a fact, and a fit left unknown, no choice or a
+  finding over other statuses is never shown. The verifier that asks the questions and weighs
+  the answers stays in `nika-compile-cognition`.
+- `repairs` — the laws that end the verifier's work: `progressed` (a defect set is progress
+  when it names a new part or narrows the last set) and `carry_declined` (the record of bytes a
+  judge rejected keeps each rejection of them once per judge, context and request, so every
+  round that replays it, whatever host resends it, repeats the rejection with no call; with no
+  rejection to carry, or for a semantic record whose closed format holds none, the record is
+  dropped) and `gaps_after_refusal` (each gap a repair round's answer declares for the first
+  time after a refusal, told back as a finding that carries the refusal it followed, whose
+  findings name the remedies the engine supports; the caller tells them once, then accepts);
+  and `stopped`, why a native authoring talk that judged a candidate, or refused an ask, ended
+  with none accepted,
+  read from its route and its last round as the route step it adds and the conclusion stated:
+  no progress (the route already ends on it), a failed call (`native: call failed`), an answer
+  it could not read or represent (`native: answer unread`), else the repair limit the policy
+  states (`native: exhausted`, the only budget: no count bounds the rounds by default).
 - `objects` — the JSON objects of a seat's text (`first_json_object`, `answer_objects` and
   `Objects`, `answer_shaped`, `syntax_target`), descended from the doors on 2026-10-07.
 - `shelf` — the references an authoring seat reads beside its card (`Reference`, `references`:
@@ -66,7 +175,13 @@ as an external consumer.
   unqualified stay as hypotheses), `qualified` (the embedded recall folded into the attached
   pack, then qualified; no seat: shown unqualified and said so), `trace` (which shown code
   lines a candidate kept, a lexical trace, never causal proof) and `traced` (the record on
-  the outcome, `decision.knowledge_qualification`).
+  the outcome, `decision.knowledge_qualification`). `foundry::document` applies the
+  operations a revision states over a complete base no semantic record binds (document edits
+  made by the `nika-schema` document editor, each re-read and byte-proven: `set`, `insert`,
+  `insert_text`, `push`, `remove`, `rename`; `compose` an admitted component, `rebind` one
+  through its receipt; or a whole `replace` that claims no preservation) and states their
+  record, whose preservation claim says what each operation proved; the revision door that
+  asks for them and judges the result stays in `nika-compile-cognition`.
 
 `remote` is what a door that holds no project admits from its caller's
 engine: `admit_observation` (the host observer's document only, rows about

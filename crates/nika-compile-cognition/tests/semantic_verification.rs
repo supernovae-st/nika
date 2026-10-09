@@ -35,6 +35,27 @@ mod unsettled;
 mod common;
 use common::{approval, refusal, verifier};
 
+/// Whether the outcome's record is as its last verdict leaves it: kept with the rejection of the
+/// shown bytes inside it when the judge rejected them (a replay asks that judge nothing), and
+/// dropped when it only abstained, as an abstention is never carried.
+fn record_as_declined(out: &CompileOutcome) -> bool {
+    let decision = out.provenance.decision.clone().unwrap_or_default();
+    let last = decision["semantic_verification"]
+        .as_array()
+        .and_then(|a| a.last().cloned());
+    let rejected = last.is_some_and(|attempt| attempt["rejected"] == true);
+    let shown = nika_compile::surface::sha256(out.candidate.as_deref().unwrap_or_default());
+    match (&out.provenance.plan, rejected) {
+        (Some(record), true) => (record["declined"].as_array()).is_some_and(|declined| {
+            declined
+                .iter()
+                .any(|a| a["candidate_sha256"] == shown.as_str())
+        }),
+        (None, false) => true,
+        _ => false,
+    }
+}
+
 /// An injected seat that answers its calls in order and keeps the last message each call sent
 /// (a double: it scripts a provider, and optionally the admission layer's call ceiling or a
 /// provider failure).

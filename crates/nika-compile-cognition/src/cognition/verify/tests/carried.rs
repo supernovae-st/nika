@@ -107,7 +107,7 @@ async fn a_rejection_carried_from_an_earlier_round_is_never_asked_again() {
     // The native door withdraws it: the defect stands, nothing is READY.
     let reading = crate::lexicon::read(INTENT);
     let seats = (&judge, None);
-    let door = judged_native(INTENT, &reading, &policy(), seats, &request, ready()).await;
+    let door = judged_native(INTENT, &reading, &policy(), seats, &request, ready(), None).await;
     assert!(judge.told.lock().unwrap().is_empty(), "no call");
     assert_eq!(door.status, CompileStatus::Incomplete, "{door:#?}");
     assert!(door.candidate.is_none() && door.provenance.plan.is_none());
@@ -199,4 +199,155 @@ async fn a_carried_rejection_asks_no_question_of_the_remainder() {
     let nothing = json!({"calls": 0, "input_tokens": 0, "output_tokens": 0, "complete": true});
     assert_eq!(verdict.usage, nothing);
     assert_eq!(route(&out), [CARRIED]);
+}
+
+/// A rejection carried from a revision binds to the context its judge was shown: the same words
+/// and bytes over another base, judged before the base was shown whole (another contract) or
+/// recorded under the earlier digest that named neither, ask again; the same base in the same
+/// mode repeats the rejection with no call.
+#[tokio::test]
+async fn a_carried_revision_rejection_binds_to_its_base_and_contract() {
+    let base = "nika: base\ntasks: {}\n";
+    let revising = |base: &str, carried: Vec<Value>| {
+        CompileRequest::edit(base, "Keep three days instead of two")
+            .with_original_intent(INTENT)
+            .with_declined(carried)
+    };
+    let over_document = |mut out: CompileOutcome| {
+        out.provenance.decision = Some(json!({"document_revision": {"mode": "operations"}}));
+        out
+    };
+    let shown = over_document(ready());
+    let (out, _) = declined(judged_under(&doubting(), &revising(base, vec![]), shown).await);
+    let earlier = attempts(&out)[0].clone();
+    assert_eq!(earlier["rejected"], json!(true));
+    let judge = doubting();
+    let again = revising(base, vec![earlier.clone()]);
+    let (_, verdict) = declined(judged_under(&judge, &again, over_document(ready())).await);
+    assert!(
+        judge.told.lock().unwrap().is_empty(),
+        "the same context asks nothing"
+    );
+    assert!(verdict.carried);
+    let mut digest = earlier.clone();
+    let before = json!({"request": INTENT, "original": INTENT, "answers": {}, "observed": null});
+    digest["context_sha256"] = json!(knowledge::sha256(&before.to_string()));
+    let cases = [
+        (
+            "another base",
+            revising("nika: other\ntasks: {}\n", vec![earlier.clone()]),
+            true,
+        ),
+        (
+            "another contract",
+            revising(base, vec![earlier.clone()]),
+            false,
+        ),
+        ("the earlier digest", revising(base, vec![digest]), true),
+    ];
+    for (case, request, whole) in cases {
+        let approving = Approving::default();
+        let out = if whole {
+            over_document(ready())
+        } else {
+            ready()
+        };
+        let Ok(out) = judged_under(&approving, &request, out).await else {
+            panic!("{case}: the judge is asked again and carries the change");
+        };
+        assert_eq!(approving.told.lock().unwrap().len(), 1, "{case}");
+        assert_eq!(attempts(&out)[0]["carried"], json!(false), "{case}");
+    }
+}
+
+/// The answer round of a revision over the whole document replays its record (A3): its judge is
+/// shown the context the door's verdict showed it, the base whole over the document, read from
+/// the record's own revision mode. A rejection the record carries is repeated with no call for
+/// the same base, change and request; another base, or a record of another contract (a revision
+/// not over the document), is another context and is asked: reuse is bound to the exact context.
+#[tokio::test]
+async fn a_replayed_document_revision_is_judged_in_the_context_its_rejection_binds() {
+    let base = "nika: base\ntasks: {}\n";
+    let revising = |base: &str, record: &Value| {
+        let mut request = CompileRequest::edit(base, "Keep three days instead of two")
+            .with_original_intent(INTENT);
+        request.plan = Some(record.clone());
+        request
+    };
+    let mut shown = ready();
+    shown.provenance.decision = Some(json!({"document_revision": {"mode": "operations"}}));
+    let first = revising(base, &json!({}));
+    let (out, _) = declined(judged_under(&doubting(), &first, shown).await);
+    let earlier = attempts(&out)[0].clone();
+    let over = json!({"strategy": "native", "document_revision": {"mode": "operations"},
+        "declined": [earlier.clone()]});
+    let unrevised = json!({"strategy": "native", "declined": [earlier]});
+    let cases = [
+        ("the same base", revising(base, &over), 0),
+        (
+            "another base",
+            revising("nika: other\ntasks: {}\n", &over),
+            1,
+        ),
+        ("another contract", revising(base, &unrevised), 1),
+    ];
+    let plan = crate::lexicon::read(INTENT).plan;
+    for (case, request, calls) in cases {
+        let mut settled = ready();
+        let whole = json!({"clause": INTENT, "witness": null, "spans": [[0, INTENT.len()]]});
+        settled.provenance.decision = Some(json!({"pending": {"open": [whole]}}));
+        let approving = Approving::default();
+        let policy = policy();
+        let judge = Judge::Provider(&policy, &approving);
+        let mut out = crate::initial();
+        let on = (INTENT, &request, &plan);
+        let verdict = verdict_on(on, &settled, &judge, None, &mut out).await;
+        assert_eq!(approving.told.lock().unwrap().len(), calls, "{case}");
+        assert_eq!(verdict.carried, calls == 0, "{case}");
+    }
+}
+
+/// The engine facts a document door recorded bind the context its judge's rejection holds in (A5),
+/// counted in whole-request questions: under release r1 the judge rejects the bytes (one whole
+/// question); a round carrying that rejection under the same facts asks none; under release r2
+/// exactly one, and a round carrying that rejection under r2 none; a changed composition witness
+/// again exactly one, then none. Part questions are the localization's own, never counted here.
+#[tokio::test]
+async fn a_rejection_binds_the_facts_it_was_judged_under_one_whole_question_each() {
+    let recorded = |release: &str, verdict: Option<&str>| {
+        let mut out = ready();
+        let composed: Vec<Value> = (verdict.into_iter())
+            .map(|v| json!({"component": "block:x", "verdict": v}))
+            .collect();
+        let bytes = out.candidate.as_deref().map(knowledge::sha256);
+        let facts = json!({"catalogue": {"version": release},
+            "offered": {"total": 0, "components": []}, "composed": composed,
+            "candidate_sha256": bytes});
+        let section = json!({"components": [], "facts": facts});
+        out.provenance.plan = Some(json!({"strategy": "native", "document_create": section}));
+        out
+    };
+    let whole = |judge: &super::Approving| {
+        let told = judge.told.lock().unwrap();
+        told.iter()
+            .filter(|text| text.contains("Compare the WHOLE user request"))
+            .count()
+    };
+    let mut carried: Vec<Value> = Vec::new();
+    let rounds = [
+        ("r1", None, 1),
+        ("r1", None, 0),
+        ("r2", None, 1),
+        ("r2", None, 0),
+        ("r2", Some("absent"), 1),
+        ("r2", Some("absent"), 0),
+    ];
+    for (release, verdict, asked) in rounds {
+        let judge = doubting();
+        let request = CompileRequest::create(INTENT).with_declined(carried.clone());
+        let judged = judged_under(&judge, &request, recorded(release, verdict)).await;
+        assert_eq!(whole(&judge), asked, "{release} {verdict:?}");
+        let (out, _) = declined(judged);
+        carried.extend(attempts(&out));
+    }
 }

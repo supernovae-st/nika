@@ -177,7 +177,7 @@ fn parse_typed_var(
 /// « A secret is always a **reference to a store** — never an inline
 /// literal. » A scalar value is therefore a parse error, and so is the
 /// wrong field for the source (`file` + `key:` · `vault` + `path:`).
-pub(super) fn parse_secrets(
+pub(super) fn parse_store_refs(
     cx: &Cx<'_>,
     workflow: &MarkedMappingNode,
 ) -> Result<super::SpannedEntries<SecretRef>, SchemaError> {

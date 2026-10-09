@@ -18,7 +18,7 @@
     },
     "model": {
       "type": "string",
-      "description": "Default model · `<provider>/<name>` (e.g. ollama/qwen3.5:9b · anthropic/claude-sonnet-4-6 · mock/echo)."
+      "description": "Default model · `<provider>/<name>` (e.g. ollama/qwen3.5:9b · anthropic/claude-sonnet-4-6 · mock/echo). Names WHICH model answers; how the run reaches it and the native effort it asks for are `run.access` and `run.reasoning` (spec/01-envelope.md §run)."
     },
     "inputs": {
       "type": "object",
@@ -252,7 +252,7 @@
     "run": {
       "type": "object",
       "additionalProperties": false,
-      "description": "The run's entropy and clock declaration · every source of randomness and of time is declared, never ambient. The two dimensions couple: only `ambient × system` (the status quo) and `none | seeded × virtual` (the deterministic states) are legal, and a declared contradiction refuses at parse (NEP-0010).",
+      "description": "The run's declarations · entropy and clock: every source of randomness and of time is declared, never ambient. The two dimensions couple: only `ambient × system` (the status quo) and `none | seeded × virtual` (the deterministic states) are legal, and a declared contradiction refuses at parse (NEP-0010). Plus the access route and the native reasoning effort that serve every `infer:`/`agent:` task of the run (spec/01-envelope.md §run). Each key is optional; an absent key leaves its dimension exactly as it was.",
       "properties": {
         "entropy": {
           "description": "none (strict determinism) · ambient (the honest status quo, default) · { seeded: <u64> } (the deterministic seams + the pinned seed · two runs of the same file with the same seed produce byte-identical journals)",
@@ -285,6 +285,51 @@
             "virtual"
           ],
           "description": "system (wall time, default) · virtual (the injected virtual clock · time becomes a contract input · a timeout: budget reads against it)"
+        },
+        "access": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "description": "How the run reaches its model · a dimension distinct from the model's identity (`model:` stays the `<provider>/<name>` string). Every key is optional; an empty declaration selects nothing and is refused. This shape is the whole static contract: whether the route exists, speaks the protocol or serves the model is judged by the engine before any inference, never by this schema (spec/01-envelope.md §run).",
+          "properties": {
+            "via": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*(?![\\s\\S])",
+              "description": "The access route's id · an agent application (e.g. `codex` · `claude-code`) or an API provider id (e.g. `openai`) · ASCII kebab-case, nothing after it (the end is anchored with a lookahead so no validator admits a trailing newline). An open set: the engine's route registry judges it before inference, and no catalog is frozen here. A literal, never a `${{ }}` template."
+            },
+            "protocol": {
+              "enum": [
+                "api",
+                "acp"
+              ],
+              "description": "The connection protocol the route MUST use · api (the route's inference API) · acp (an Agent Client Protocol session with an agent application). Only an ACP session satisfies acp: a direct CLI invocation of the same application does not. There is no third value."
+            },
+            "fallback": {
+              "enum": [
+                "none"
+              ],
+              "description": "What may replace the declared selection · none, also the meaning of an omitted fallback once access is declared: no other route, protocol, model or effort, before admission or after it — an unavailable route refuses before inference and a route failing mid-run fails its task, never re-routed. Declared alternatives are unspecified; a later value is additive."
+            }
+          }
+        },
+        "reasoning": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "effort"
+          ],
+          "description": "The reasoning effort requested for every `infer:`/`agent:` task of the run (spec/01-envelope.md §run). Absent, each route keeps its own default, which may stay unknown.",
+          "properties": {
+            "effort": {
+              "type": "string",
+              "pattern": "^[^\\t-\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000](?:[\\s\\S]*[^\\t-\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000])?(?![\\s\\S])",
+              "not": {
+                "type": "string",
+                "pattern": "\\$\\{\\{"
+              },
+              "description": "The EXACT native effort value the selected route advertises for the selected model (e.g. `high` where the route offers it) · forwarded verbatim as that route's own option, never translated · there is no universal effort scale. Nonempty, no surrounding whitespace (the Unicode White_Space property, spelled out in the pattern so every validator agrees; inner characters are kept as written), a literal (never a `${{ }}` template). A value the route does not offer refuses before inference; this schema does not judge which values a route offers."
+            }
+          }
         }
       }
     },

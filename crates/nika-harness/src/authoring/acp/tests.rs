@@ -5,6 +5,14 @@ use super::*;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream, ReadHalf, WriteHalf};
 
+/// The authoring role under the Claude Code profile.
+fn claude() -> OneShot {
+    OneShot {
+        role: Completion::Authoring,
+        profile: Profile::ClaudeCode,
+    }
+}
+
 fn identity() -> Value {
     json!({"protocolVersion":1,"agentInfo":{"name":NAME,"version":VERSION}})
 }
@@ -29,29 +37,31 @@ fn the_profile_disables_builtins_disk_settings_and_other_mcp_before_query() {
     assert_eq!(options["maxTurns"], 1);
     assert_eq!(options["allowDangerouslySkipPermissions"], false);
     assert_eq!(options["persistSession"], false);
-    assert!(admit(&identity()).is_ok());
+    assert!(admit(&identity(), claude()).is_ok());
     for value in [
         json!({}),
         json!({"protocolVersion":1,"agentInfo":{"name":NAME,"version":"0.23.1"}}),
         json!({"protocolVersion":1,"agentInfo":{"name":"Codex","version":VERSION}}),
     ] {
-        assert!(admit(&value).is_err());
+        assert!(admit(&value, claude()).is_err());
     }
 }
 
 #[test]
 fn text_only_and_configured_identity_never_become_served_or_free() {
     for tag in ["tool_call", "tool_call_update", "unexpected"] {
-        assert!(judge_update(&json!({"sessionUpdate":tag})).is_err());
+        assert!(judge_update(&json!({"sessionUpdate":tag}), claude()).is_err());
     }
-    assert!(judge_update(&json!({"sessionUpdate":"agent_message_chunk","content":{"type":"image","data":"ignored"}})).is_err());
+    assert!(judge_update(&json!({"sessionUpdate":"agent_message_chunk","content":{"type":"image","data":"ignored"}}), claude()).is_err());
     assert!(
         judge_update(
-            &json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"whole"}})
+            &json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"whole"}}),
+            claude()
         )
         .is_ok()
     );
     let d = descriptor(
+        Profile::ClaudeCode,
         "claude-code",
         Some("claude-code/test"),
         "claude-code/test",
@@ -60,6 +70,21 @@ fn text_only_and_configured_identity_never_become_served_or_free() {
     assert!(d["served_model"].is_null());
     assert!(d["billed_cost_usd"].is_null());
     assert_eq!(d["numeric_usage_reported"], false);
+    assert!(
+        d["tools_exposed"]
+            .as_str()
+            .is_some_and(|t| t.starts_with("none"))
+    );
+    // The Codex receipt names its residue: never « none », never empty tools.
+    let codex = descriptor(Profile::Codex, "codex", None, "session", &[]);
+    let tools = codex["tools_exposed"].as_str().expect("text");
+    assert!(
+        tools.starts_with("apply_patch only, confined to the per-call scratch")
+            && tools.contains("not an empty-tools profile")
+            && tools.contains("any tool beat refuses the answer"),
+        "{tools}"
+    );
+    assert_eq!(codex["adapter_version"], "1.13.1");
 }
 
 #[tokio::test]
@@ -83,7 +108,8 @@ async fn unsupported_identity_stops_before_session_or_prompt() {
         w,
         HarnessRequest::new("private prompt", "/tmp"),
         Duration::from_secs(1),
-        true,
+        Some(claude()),
+        None,
     );
     let first = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
     assert!(matches!(first, Some(Err(HarnessError::Refused { .. }))));
@@ -127,7 +153,8 @@ async fn admitted_wire_carries_strict_options_and_keeps_the_whole_answer() {
         w,
         HarnessRequest::new("private prompt", "/tmp"),
         Duration::from_secs(1),
-        true,
+        Some(claude()),
+        None,
     );
     let mut answer = None;
     while let Some(event) = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await {
@@ -191,7 +218,8 @@ async fn refuses_after_prompt(mode: &str) {
         w,
         HarnessRequest::new("private prompt", "/tmp"),
         Duration::from_secs(1),
-        true,
+        Some(claude()),
+        None,
     );
     let first = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
     assert!(
@@ -241,4 +269,83 @@ fn transport_errors_do_not_publish_peer_secrets() {
     assert!(!why.contains("private-key-test-marker"));
     assert!(!why.contains("private prompt"));
     assert!(why.contains("no answer accepted"));
+}
+
+/// Nika's own selection refusal reaches the author verbatim (the option,
+/// the value and the discovered offer) while adapter text stays withheld.
+#[test]
+fn a_selection_refusal_is_shown_in_nika_own_words() {
+    let reason = "the harness offers reasoning effort low · medium · high — `ultra` is not one \
+                  (no prompt was sent)";
+    let why = safe_error(&HarnessError::Selection {
+        reason: reason.into(),
+    });
+    assert_eq!(
+        why,
+        format!("ACP authoring refused: {reason}; no answer accepted")
+    );
+}
+
+/// The audit's loss hazard, ACP half: an explicit authoring effort rides the
+/// session request verbatim (the client then applies it through the session's
+/// own reasoning option and reads it back, or refuses before the prompt).
+#[test]
+fn an_explicit_authoring_effort_rides_the_session_request() {
+    let native = crate::HarnessInferRequest::new("draft", "claude-code/opus")
+        .with_system(Some("card".into()))
+        .with_effort(Some("high".into()));
+    let request = session_request(
+        native,
+        Some("claude-code/opus"),
+        std::path::Path::new("/tmp"),
+    );
+    assert_eq!(request.requested_effort.as_deref(), Some("high"));
+    assert_eq!(request.requested_model.as_deref(), Some("claude-code/opus"));
+    assert_eq!(request.system.as_deref(), Some("card"));
+    let plain = session_request(
+        crate::HarnessInferRequest::new("draft", "session"),
+        None,
+        std::path::Path::new("/tmp"),
+    );
+    assert_eq!(
+        (plain.requested_effort, plain.requested_model),
+        (None, None)
+    );
+}
+
+/// The authoring consumer holds an exact selection to its word: an answer during which the agent
+/// moved the effort the client applied is refused, never accepted as the chosen one, and the move
+/// is named; a model move nobody asked for is accepted and rides the record.
+#[test]
+fn a_mid_turn_move_of_an_applied_selection_refuses_the_answer_and_an_unasked_one_is_recorded() {
+    let mut moved = nika_kernel::ai::harness::HarnessOutcome::new("answer");
+    moved.selection.transmitted_effort = Some("high".into());
+    moved.selection.changed_mid_turn = vec!["effort=low".into()];
+    let refused = completed(moved, "test");
+    assert!(
+        matches!(&refused, Err(why) if why.message.contains("effort=low") && why.message.contains("no answer is accepted")),
+        "{refused:?}"
+    );
+    let record = refused
+        .as_ref()
+        .err()
+        .map(Failure::record)
+        .expect("refused");
+    assert_eq!(
+        record["failure"],
+        json!({"class":"selection","code":"NIKA-1805","transient":false,"cause":"unknown"})
+    );
+    assert_eq!(record["answer_accepted"], false);
+    let mut drifted = nika_kernel::ai::harness::HarnessOutcome::new("answer");
+    drifted.selection.changed_mid_turn = vec!["model=gpt-5.4".into()];
+    let (answer, record) = completed(drifted, "test").expect("nothing applied moved");
+    assert_eq!(answer, "answer");
+    assert_eq!(record["changed_mid_turn"], json!(["model=gpt-5.4"]));
+    let (_, plain) = completed(
+        nika_kernel::ai::harness::HarnessOutcome::new("answer"),
+        "test",
+    )
+    .expect("a plain answer");
+    assert!(plain.get("changed_mid_turn").is_none(), "{plain}");
+    assert_eq!(plain["stop_reason"], ACCEPTED_STOP, "{plain}");
 }

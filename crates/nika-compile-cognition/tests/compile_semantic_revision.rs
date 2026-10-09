@@ -821,26 +821,96 @@ async fn an_added_clause_is_consumed_with_the_supersession_never_only_recorded()
     );
 }
 
-/// An added effect the base graph's structure would have to carry (a new destination) is
-/// refused before any fill is asked: never an added duty a fill-only revision drops.
+/// An added effect beside a fill change (another kept status and a new destination at once) is a
+/// change the base graph's links and fills cannot carry, though its links hold. Restating it
+/// over the whole document is a counted round, never a free one, on the same count as the links
+/// rounds: with none left, the gap is named before any fill, never READY, and the one call made
+/// is the links'; with one granted, exactly one more call states the same change over the
+/// document (its schema asks operations), and when that statement is refused (a replacement the
+/// parser does not read) no repair is left to it: the links round spent one. The refused links
+/// round stays journaled beside it. With two granted, that one repair is made.
 #[tokio::test]
-async fn an_added_effect_is_refused_before_any_fill_and_never_ready() {
+async fn an_added_effect_beside_a_fill_change_is_restated_only_in_a_counted_round() {
     let (_, bytes, record) = base().await;
     let change = format!("{SHIPPED}. Also write the kept orders to ./out/eur.json.");
     let mut stated = revised(link(PAID, SHIPPED));
     stated["adds"] = json!(["Also write the kept orders to ./out/eur.json"]);
-    let seat = Semantic::new(vec![stated, fills("shipped")]);
-    let request = CompileRequest::edit(bytes.as_str(), change.as_str())
+    let unread = json!({"operations": [], "replace": "this is not a workflow", "notes": ""});
+    for (repairs, calls) in [(0, 1), (1, 2), (2, 3)] {
+        let answers = vec![
+            stated.clone(),
+            unread.clone(),
+            unread.clone(),
+            unread.clone(),
+        ];
+        let seat = Semantic::new(answers);
+        let request = CompileRequest::edit(bytes.as_str(), change.as_str())
+            .with_original_intent(INTENT)
+            .with_plan(record.clone())
+            .with_authoring_policy(policy(repairs));
+        let out = compile_with_provider(&request, &seat).await.unwrap();
+        assert_ne!(out.status, CompileStatus::Ready, "{repairs}: {out:#?}");
+        assert_eq!(seat.calls(), calls, "{repairs}: {out:#?}");
+        assert!(!asked_fills(&seat), "{repairs}: no fill: {out:#?}");
+        if repairs == 0 {
+            let gap = (out.diagnostics.iter()).any(|d| {
+                d.target == "revision"
+                    && d.message.contains("./out/eur.json")
+                    && d.message.contains("no round is left")
+            });
+            assert!(gap, "the addition and the gap are named: {out:#?}");
+        } else {
+            let asked = seat.asked.lock().unwrap().clone();
+            assert!(
+                asked[1]["properties"]["operations"].is_object(),
+                "{asked:#?}"
+            );
+            let decision = out.provenance.decision.clone().unwrap_or_default();
+            let refused = decision["recorded_attempt"]["refused"].to_string();
+            assert!(refused.contains("./out/eur.json"), "{decision:#}");
+            let unparsed = (out.diagnostics.iter())
+                .any(|d| d.message.contains("not a workflow the strict parser reads"));
+            assert!(
+                unparsed,
+                "{repairs}: the statement's refusal is named: {out:#?}"
+            );
+        }
+    }
+}
+
+/// An added destination of a record-bound base is a structural change the source laws carry: its
+/// links hold, so it leaves for them with the same typed answer (exactly one authoring call, no
+/// fill, no second revision call), and every other part of the base is kept: both earlier
+/// writes, the gate, the filter, the count and the outputs.
+#[tokio::test]
+async fn an_added_destination_is_written_through_the_source_path_from_the_same_answer() {
+    const ADD: &str = "Also write the kept orders to ./out/eur.json";
+    let (_, bytes, record) = base().await;
+    let links = json!({"supersedes": [], "adds": [ADD], "like": "./out/paid.json",
+        "notes": "links"});
+    let seat = Semantic::new(vec![links]);
+    let request = CompileRequest::edit(bytes.as_str(), format!("{ADD}."))
         .with_original_intent(INTENT)
         .with_plan(record.clone())
-        .with_authoring_policy(policy(1));
+        .with_authoring_policy(policy(0));
     let out = compile_with_provider(&request, &seat).await.unwrap();
-    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
-    assert_eq!(seat.calls(), 1, "the links only, no fill: {out:#?}");
-    assert!(
-        (out.diagnostics.iter()).any(|d| d.message.contains("./out/eur.json")),
-        "the addition is named: {out:#?}"
-    );
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let asked = seat.asked.lock().unwrap().clone();
+    let authored = (asked.iter()).filter(|schema| schema["properties"]["choice"].is_null());
+    assert_eq!(authored.count(), 1, "the links only: {out:#?}");
+    assert!(!asked_fills(&seat), "no fill: {out:#?}");
+    let revised = out.candidate.clone().unwrap();
+    assert!(revised.contains("./out/eur.json"), "{revised}");
+    let kept = [
+        "./out/paid.json",
+        "./out/count.txt",
+        "nika:prompt",
+        "\"paid\"",
+        "outputs:",
+    ];
+    for part in kept {
+        assert!(revised.contains(part), "{part} is kept: {revised}");
+    }
 }
 
 /// A destination change of a record-bound semantic base is a structural edit no fill carries:

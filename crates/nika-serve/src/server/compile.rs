@@ -23,12 +23,12 @@ mod replay;
 pub(super) mod schema;
 mod v2;
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bytes::Bytes;
 use hyper::body::Incoming;
 use hyper::{Request, Response, StatusCode};
+use nika_onboard::compile::remote::input::{Answers, Object, present};
 use nika_onboard::compile::{AuthoringCognition, COMPILE_WIRE_VERSION, CompileRequest};
 use serde_json::value::RawValue;
 
@@ -92,78 +92,6 @@ struct SetConstant {
 #[derive(serde::Deserialize)]
 struct VersionProbe {
     compile_version: u64,
-}
-
-/// A JSON object and nothing else. A derived struct would also accept a positional
-/// array (`[1, "create", "hello"]`), a spelling this contract never publishes.
-struct Object<T>(T);
-
-impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for Object<T> {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct ObjectVisitor<T>(std::marker::PhantomData<T>);
-
-        impl<'de, T: serde::Deserialize<'de>> serde::de::Visitor<'de> for ObjectVisitor<T> {
-            type Value = T;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("a JSON object")
-            }
-
-            fn visit_map<M: serde::de::MapAccess<'de>>(self, map: M) -> Result<T, M::Error> {
-                // The derived visitor still reads the ORIGINAL map, so unknown
-                // fields, duplicates and raw literals are judged exactly as before.
-                T::deserialize(serde::de::value::MapAccessDeserializer::new(map))
-            }
-        }
-
-        deserializer
-            .deserialize_map(ObjectVisitor(std::marker::PhantomData))
-            .map(Object)
-    }
-}
-
-/// Literal answers keyed by stable question key, with their sent text preserved.
-#[derive(Default)]
-struct Answers(BTreeMap<String, Box<RawValue>>);
-
-impl<'de> serde::Deserialize<'de> for Answers {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct AnswersVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for AnswersVisitor {
-            type Value = Answers;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("an object of literal answers")
-            }
-
-            fn visit_map<M: serde::de::MapAccess<'de>>(
-                self,
-                mut map: M,
-            ) -> Result<Self::Value, M::Error> {
-                let mut answers = BTreeMap::new();
-                while let Some(key) = map.next_key::<String>()? {
-                    let literal = map.next_value::<Box<RawValue>>()?;
-                    // Two values for one question select neither (the core's own law).
-                    if answers.insert(key, literal).is_some() {
-                        return Err(serde::de::Error::custom("duplicate answer key"));
-                    }
-                }
-                Ok(Answers(answers))
-            }
-        }
-
-        deserializer.deserialize_map(AnswersVisitor)
-    }
-}
-
-/// A present value must have its type; JSON `null` never means "absent".
-fn present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-    T: serde::Deserialize<'de>,
-{
-    T::deserialize(deserializer).map(Some)
 }
 
 pub(super) async fn handle(

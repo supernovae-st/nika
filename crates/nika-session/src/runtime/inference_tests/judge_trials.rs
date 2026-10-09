@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Trial observations reach the configured verifier as ordinary preparation context.
 //! The end-to-end compile uses a real sealed room and loopback provider.
-use super::unjudged::{DOUBTED, HELD, HELD_MEANING, asked, held_findings, meaning};
+use super::unjudged::{DOUBTED, HELD, HELD_MEANING, UNTRIED, asked, held_findings, meaning};
 use super::*;
 use crate::authoring::{AuthoringContext, AuthoringRound, Reading};
 use nika_cli_host::compile::config::AuthoringSettings;
@@ -179,8 +179,9 @@ const NO_TRIAL: &str = "no trial run of these exact bytes exists in this compile
 /// A doubted creation no trial run can decide ([`WORK`] states no file the room may copy in, so
 /// the room refuses it before any run): the judge doubts the whole request, carries its one part
 /// and names no extra operation, and the same judge asked again would decide nothing. The
-/// candidate is held as the preview, never proposed, with no record a later line would replay
-/// to the same judge, and nothing waits for a judge; the session says so.
+/// candidate is held as the preview, never proposed; its record is kept with the judge's
+/// rejection, so a later line that replays it asks that judge nothing, and nothing waits for a
+/// judge; the session says so.
 #[test]
 fn a_doubt_no_trial_run_can_decide_is_held_never_proposed_nor_replayed() {
     let mut script: Vec<_> = semantic_create()
@@ -210,9 +211,10 @@ fn a_doubt_no_trial_run_can_decide_is_held_never_proposed_nor_replayed() {
         nika_onboard::compile::CompileStatus::Incomplete
     );
     assert!(held.questions.is_empty());
+    let declined = (held.provenance.plan.as_ref()).and_then(|plan| plan["declined"].as_array());
     assert!(
-        held.provenance.plan.is_none(),
-        "never replayed to the same judge"
+        declined.is_some_and(|declined| !declined.is_empty()),
+        "the record keeps the judge's rejection: replayed, that judge is asked nothing"
     );
     assert!(s.pending_proposal().is_none());
     assert!(!s.judgment_waits());
@@ -236,7 +238,8 @@ fn a_doubt_no_trial_run_can_decide_is_held_never_proposed_nor_replayed() {
         .map(|d| d.message.as_str())
         .collect();
     assert_eq!(findings, [contested.as_str()]);
-    assert_eq!(held_findings(held), [HELD]);
+    let untried = format!("{HELD}{UNTRIED}");
+    assert_eq!(held_findings(held), [untried.as_str()]);
     let route = &held.provenance.decision.as_ref().expect("decision")["route"];
     let last = route.as_array().and_then(|steps| steps.last());
     assert_eq!(last, Some(&json!("verify: not ready, candidate held")));

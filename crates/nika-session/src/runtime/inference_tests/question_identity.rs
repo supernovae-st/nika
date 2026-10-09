@@ -9,6 +9,7 @@
 //! question that waits takes its line. Mechanics only: no live provider, no workflow runs.
 use super::*;
 use crate::turn::RoutingMethod;
+use crate::work::{AnswerAct, Answered, ValueSource};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -22,17 +23,6 @@ const REDRAFT: &str =
 const DIALOG_11: &str = "Copie entree.txt vers une destination à préciser.";
 /// The human changes the destination while its question waits.
 const CHANGE: &str = "Finalement la destination change : je te la redonne tout de suite.";
-
-/// The private plan for DIALOG-11, the same every time: read the stated source, write to the
-/// destination the request leaves open, which the compiler asks (`const.output_path`).
-fn plans_destination() -> String {
-    json!({"steps":[{"op":"read","detail":"entree.txt","evidence":"Copie entree.txt"}],
-        "effects":[{"verb":"write","target":"une destination à préciser","policy":"automatic",
-            "evidence":"vers une destination à préciser"}],
-        "obligations":[],"constraints":[],"unknowns":[],"regions":[],
-        "approval_bypass":{"present":false}})
-    .to_string()
-}
 
 /// A reasoner that answers every prompt with the route ANSWER and counts the prompts.
 struct Counted(Arc<AtomicUsize>);
@@ -193,8 +183,22 @@ fn a_new_request_is_a_new_question_and_an_old_answer_reads_nothing() -> Result<(
     };
     // A `provider/name` alone answers the model question by its shape: no route, no reading.
     assert_eq!(calls.load(Ordering::SeqCst), spent, "no route, no reading");
+    let bound = AnswerAct::Bound {
+        key: "model".to_owned(),
+        value: "mock/echo".to_owned(),
+        reading: ValueSource::AsTyped,
+    };
+    assert_eq!(
+        s.work().answered,
+        Some(Answered::new(current.clone(), bound))
+    );
     let out = s.answer_question_for(&current, "mock/echo");
     assert!(refused(&out, RefusalClass::AlreadyConsumed), "{out:?}");
+    let class = RefusalClass::AlreadyConsumed;
+    assert_eq!(
+        s.work().answered,
+        Some(Answered::new(current.clone(), AnswerAct::Refused { class }))
+    );
     assert_eq!(
         s.pending_proposal().as_ref(),
         Some(id),
@@ -202,6 +206,7 @@ fn a_new_request_is_a_new_question_and_an_old_answer_reads_nothing() -> Result<(
     );
     assert_eq!(calls.load(Ordering::SeqCst), spent);
     assert!(matches!(s.consent("no"), TurnOutcome::Facts(_)));
+    assert_eq!(s.work().answered, None, "a consent is no answer");
     assert!(matches!(s.turn(REDRAFT), TurnOutcome::Question { .. }));
     let again = s.pending_question_id().ok_or("asked again")?;
     assert_eq!(
@@ -241,9 +246,15 @@ fn another_intelligence_asks_another_question() -> Result<(), String> {
     assert!(matches!(s.turn("/intelligence"), TurnOutcome::Ask(_)));
     let out = s.answer_question_for(&first, "mock/echo");
     assert!(refused(&out, RefusalClass::WrongState), "{out:?}");
+    let class = RefusalClass::WrongState;
+    assert_eq!(
+        s.work().answered,
+        Some(Answered::new(first.clone(), AnswerAct::Refused { class }))
+    );
     assert!(s.pending_choice(), "the choice still owns the line");
     assert_eq!(s.pending_question_id().as_ref(), Some(&first));
     assert!(matches!(s.choose("3 ollama/second"), TurnOutcome::Facts(_)));
+    assert_eq!(s.work().answered, None, "a choice is no answer");
     assert_eq!(s.intelligence.model.as_deref(), Some("ollama/second"));
     let current = s.pending_question_id().ok_or("still asked")?;
     assert_ne!(current, first);
@@ -303,9 +314,15 @@ fn a_restarted_session_never_takes_an_earlier_answer() -> Result<(), String> {
             s.pending_question_id().is_none(),
             "no question survives a restart"
         );
+        assert_eq!(s.work().answered, None, "no act survives a restart");
         let untouched = (world(dir.path())?, world(home.path())?);
         let out = s.answer_question_for(&earlier, "mock/echo");
         assert!(refused(&out, RefusalClass::WrongState), "{out:?}");
+        let class = RefusalClass::WrongState;
+        assert_eq!(
+            s.work().answered,
+            Some(Answered::new(earlier.clone(), AnswerAct::Refused { class }))
+        );
         assert_eq!((world(dir.path())?, world(home.path())?), untouched);
         assert!(matches!(s.turn(DRAFT), TurnOutcome::Question { .. }));
         let current = s.pending_question_id().ok_or("asked after the restart")?;
@@ -318,6 +335,11 @@ fn a_restarted_session_never_takes_an_earlier_answer() -> Result<(), String> {
         let untouched = (world(dir.path())?, world(home.path())?);
         let out = s.answer_question_for(&earlier, "mock/echo");
         assert!(refused(&out, RefusalClass::StaleRevision), "{out:?}");
+        let class = RefusalClass::StaleRevision;
+        assert_eq!(
+            s.work().answered,
+            Some(Answered::new(earlier.clone(), AnswerAct::Refused { class }))
+        );
         assert_eq!(
             (world(dir.path())?, world(home.path())?),
             untouched,
@@ -340,6 +362,35 @@ fn a_restarted_session_never_takes_an_earlier_answer() -> Result<(), String> {
     Ok(())
 }
 
+/// A line a route reads as a cancel drops the round as the cancel word does, and the act names
+/// the question it was typed for.
+#[test]
+fn a_routed_cancel_drops_the_question_it_was_typed_for() -> Result<(), String> {
+    const LETGO: &str = "on oublie tout ça pour le moment";
+    let dir = project()?;
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut s = counted(dir.path(), "ollama/first", &calls);
+    s.with_classifier(Box::new(Routes {
+        acts: BTreeMap::from([(LETGO, TurnAct::Cancel)]),
+        seen: Arc::new(AtomicUsize::new(0)),
+    }));
+    assert!(matches!(s.turn(DRAFT), TurnOutcome::Question { .. }));
+    let asked = s.pending_question_id().ok_or("asked")?;
+    let out = s.turn(LETGO);
+    assert!(
+        matches!(&out, TurnOutcome::Facts(text) if text.starts_with("authoring discarded")),
+        "{out:?}"
+    );
+    let key = "model".to_owned();
+    assert_eq!(
+        s.work().answered,
+        Some(Answered::new(asked.clone(), AnswerAct::Dropped { key }))
+    );
+    let out = s.answer_question_for(&asked, "mock/echo");
+    assert!(refused(&out, RefusalClass::AlreadyConsumed), "{out:?}");
+    Ok(())
+}
+
 /// Whether a request the seat received is its round's judge over the bytes that round finished:
 /// the closed clause choice (carried · missing) carrying the bound answer.
 fn judged_over(body: &serde_json::Value, bound: &str) -> bool {
@@ -356,25 +407,21 @@ fn judged_whole_over(body: &serde_json::Value, bound: &str) -> bool {
     })
 }
 
-/// The round's judge settles the change the request now carries: the asked destination does it.
-const JUDGE_CARRIES: &str = r#"{"choice":"carried"}"#;
-
-/// The seat's answers in DIALOG-11, in call order: the private plan of the request, the plan of
-/// the request read again, then the answer round's judge, the clause the change added carried
-/// and the whole request faithful.
+/// The seat's answers in DIALOG-11, in call order: the document of the request, the document of
+/// the request read again, then the answer round's judge of the whole request, faithful (the
+/// last reply, which the seat repeats for every later call).
 fn dialog_11_script() -> Vec<(u16, serde_json::Value)> {
-    let asks = || (200, response(&plans_destination()));
+    let asks = || (200, response(&asks_destination()));
     let says = |text: &str| (200, response(text));
-    vec![asks(), asks(), says(JUDGE_CARRIES), says(JUDGE_APPROVES)]
+    vec![asks(), asks(), says(JUDGE_APPROVES)]
 }
 
-/// DIALOG-11's shape through semantic CREATE: the private plan leaves the destination open and
-/// the compiler asks it; the destination changes before any answer, the request is read again,
+/// DIALOG-11's shape through semantic CREATE: the document leaves the destination open and asks
+/// it; the destination changes before any answer, the request is read again,
 /// and the SAME key is asked in the SAME words for the revised request. The old answer names the
 /// old question: refused with no route, no call and nothing changed; the current answer binds
-/// and the recorded plan replays, its calls the judge the seat is permitted as when the round
-/// finishes, over the bound bytes: the clause the change added, then the whole request (a
-/// replayed model plan is judged whole in the round, C3), whose faithful verdict is weighed
+/// and the recorded document replays, its calls the judge the seat is permitted as when the
+/// round finishes, over the bound bytes: the whole request, whose faithful verdict is weighed
 /// against the round's trial run of those bytes, each part asked over it; only the durable money
 /// record changes before consent, never a workflow or an output file.
 #[test]
@@ -411,6 +458,11 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
         "{out:?}"
     );
     assert_eq!(peer.bodies().len(), 2, "the revised request was read again");
+    let key = || "const.output_path".to_owned();
+    assert_eq!(
+        s.work().answered,
+        Some(act(&old, AnswerAct::Restated { key: key() }))
+    );
     assert_eq!(
         s.pending_question().cloned(),
         words,
@@ -433,40 +485,71 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
         return Err(format!("the current answer binds: {out:?}"));
     };
     assert!(preview.contains("archive/copie.txt"), "{preview}");
-    assert_eq!(calls(), (6, routed + 1));
+    written_whole(&s, preview)?;
+    let bound = AnswerAct::Bound {
+        key: key(),
+        value: "archive/copie.txt".to_owned(),
+        reading: ValueSource::AsTyped,
+    };
+    assert_eq!(s.work().answered, Some(act(&current, bound)));
+    assert_eq!(calls(), (5, routed + 1));
+    assert!(
+        judged_whole_over(&peer.bodies()[2], "archive/copie.txt"),
+        "the round's judge of the whole request"
+    );
     let over_the_run = |body: &serde_json::Value| body.to_string().contains("unexercised");
     assert!(
-        peer.bodies()[4..].iter().all(over_the_run),
+        peer.bodies()[3..].iter().all(over_the_run),
         "its parts over the trial run"
     );
     assert!(
-        judged_over(&peer.bodies()[2], "archive/copie.txt"),
-        "the round's judge"
-    );
-    assert!(
-        judged_whole_over(&peer.bodies()[3], "archive/copie.txt"),
-        "the round's judge of the whole request"
+        (peer.bodies()[3..].iter()).all(|body| judged_over(body, "archive/copie.txt")),
+        "each part judged over the bound bytes"
     );
     let out = s.answer_question_for(&current, "autre.txt");
     assert!(refused(&out, RefusalClass::AlreadyConsumed), "{out:?}");
     let out = s.answer_question_for(&old, "sortie.txt");
     assert!(refused(&out, RefusalClass::WrongState), "{out:?}");
     assert_eq!(s.pending_proposal().as_ref(), Some(id));
-    assert_eq!(calls(), (6, routed + 1));
-    let state_path = dir
-        .path()
-        .join(".nika/session-state.json")
-        .display()
-        .to_string();
-    let mut before = untouched;
-    let mut after = world(dir.path())?;
+    assert_eq!(calls(), (5, routed + 1));
+    only_money_is_durable(dir.path(), untouched, &s)
+}
+
+/// What a line did to the question it was typed for, as the work snapshot carries it.
+fn act(question: &crate::outcome::QuestionId, act: AnswerAct) -> Answered {
+    Answered::new(question.clone(), act)
+}
+
+/// The CREATE round's own record describes the proposed bytes: written whole, no base.
+fn written_whole(s: &SessionRuntime, preview: &str) -> Result<(), String> {
+    assert!(preview.contains("created · written"), "{preview}");
+    let created = (s.work().candidate)
+        .and_then(|c| c.revision)
+        .ok_or("the creation record binds the proposed bytes")?;
+    assert_eq!(
+        (created.mode.as_str(), created.base_sha256.as_deref()),
+        ("written", None)
+    );
+    assert!(created.components.is_empty() && created.changed.is_empty());
+    Ok(())
+}
+
+/// Before consent only the durable money record changes: no workflow or output is written, and
+/// the paid-call observation is kept with no dispatch decision.
+fn only_money_is_durable(
+    root: &Path,
+    mut before: BTreeMap<String, Vec<u8>>,
+    s: &SessionRuntime,
+) -> Result<(), String> {
+    let state_path = root.join(".nika/session-state.json").display().to_string();
+    let mut after = world(root)?;
     before.remove(&state_path);
     after.remove(&state_path);
     assert_eq!(
         after, before,
         "no workflow or output is written before consent"
     );
-    let state = crate::SessionState::load(dir.path())
+    let state = crate::SessionState::load(root)
         .map_err(|e| e.to_string())?
         .ok_or("the paid-call observation is durable")?;
     assert_eq!(state.inference_observations, s.cost_observations());

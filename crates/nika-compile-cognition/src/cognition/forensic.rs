@@ -130,6 +130,9 @@ fn door(
         // A revision names its own door before any record it binds is read as a replay.
         _ if has(EDIT_KEPT) => ("none", "record_less_base_kept"),
         _ if has(super::sketch::revise::ROUTE) => ("sketch", "nonconstant_revision"),
+        _ if has(nika_compile_seats::foundry::document::ROUTE) => {
+            ("document_revision", "record_less_document_revision")
+        }
         _ if has(super::sketch::revise::SOURCE_ROUTE) => {
             ("source_revision", "record_less_source_revision")
         }
@@ -144,6 +147,8 @@ fn door(
         Some(Strategy::Native) => {
             let reason = if has(NATIVE_SKETCH) {
                 "policy_sketch_before_hot"
+            } else if has(super::document_create::ROUTE) {
+                "complete_document_door"
             } else if composition {
                 "plan_composition_requires_sketch"
             } else if has(super::agenda::PLAN_LIMIT) {

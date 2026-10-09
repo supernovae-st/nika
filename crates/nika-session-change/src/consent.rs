@@ -167,6 +167,8 @@ mod tests {
                 vars: Vec::new(),
                 max_cost_usd: 0.05,
                 access_pin: None,
+                bytes: None,
+                closure: None,
             }),
             repairs: Vec::new(),
             audits: Vec::new(),

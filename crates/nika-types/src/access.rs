@@ -531,6 +531,19 @@ pub struct AccessPlan {
     /// by a profile or a pin · discovered on this machine · observed by a
     /// probe that answered. Never above the evidence.
     pub trust: Trust,
+    /// The authored requirement (`run.access` · `run.reasoning`) this lane
+    /// was resolved under; `None` keeps every earlier wire unchanged.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub requirement: Option<alloc::boxed::Box<AccessRequirement>>,
+    /// How ONE call's selection travelled (a task terminal's copy only).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub selection: Option<alloc::boxed::Box<SelectionEvidence>>,
 }
 
 impl AccessPlan {
@@ -555,6 +568,8 @@ impl AccessPlan {
             rejected,
             outranked: alloc::vec::Vec::new(),
             trust: Trust::Declared,
+            requirement: None,
+            selection: None,
         }
     }
 
@@ -571,7 +586,28 @@ impl AccessPlan {
         self.trust = trust;
         self
     }
+
+    /// Record the authored requirement the lane was resolved under.
+    #[must_use]
+    pub fn with_requirement(mut self, requirement: Option<AccessRequirement>) -> Self {
+        self.requirement = requirement.map(alloc::boxed::Box::new);
+        self
+    }
+
+    /// Attach one call's selection evidence (a task terminal's copy).
+    #[must_use]
+    pub fn with_selection(mut self, selection: Option<SelectionEvidence>) -> Self {
+        self.selection = selection.map(alloc::boxed::Box::new);
+        self
+    }
 }
+
+// The authored selection vocabulary (`run.access` · `run.reasoning`) and the
+// receipt of one call live in their own module; the paths stay `access::*`.
+mod selection;
+pub use selection::{
+    AccessFallback, AccessProtocol, AccessRequirement, SelectedValue, SelectionEvidence,
+};
 
 /// How far a HARNESS seat's readiness is PROVEN — a rung, never a
 /// word, beside [`Trust`] (which grades identity). A seat on PATH is

@@ -1,0 +1,10 @@
+# Expected: NIKA-VAR-001 at CHECK.
+nika: e19-var-unresolved
+# INTENT: NIKA-VAR-001 — reference to undeclared inputs key
+# No inputs block declared, so inputs.nonexistent_key is undefined
+tasks:
+  step:
+    invoke:
+      tool: "nika:log"
+      args:
+        message: "${{ inputs.nonexistent_key }}"

@@ -191,6 +191,58 @@ pub use nika_cli_host::compile::knowledge::<<nika_onboard::knowledge::*>>
 pub mod nika_cli_host::compile::observe
 pub fn nika_cli_host::compile::observe::world(root: &std::path::Path, intent: &str) -> core::option::Option<serde_json::value::Value>
 pub mod nika_cli_host::compile::typesafe
+pub use nika_cli_host::compile::typesafe::Usage
+pub mod nika_cli_host::compile::typesafe::batch
+#[non_exhaustive] pub struct nika_cli_host::compile::typesafe::batch::BatchExchange
+pub nika_cli_host::compile::typesafe::batch::BatchExchange::answers: alloc::vec::Vec<core::result::Result<nika_compile_seats::decide::ChoiceAnswer, nika_compile_seats::decide::DecisionError>>
+pub nika_cli_host::compile::typesafe::batch::BatchExchange::delivery: nika_cli_host::compile::typesafe::Delivery
+pub nika_cli_host::compile::typesafe::batch::BatchExchange::error: core::option::Option<nika_compile_seats::decide::DecisionError>
+pub nika_cli_host::compile::typesafe::batch::BatchExchange::model: core::option::Option<alloc::string::String>
+pub nika_cli_host::compile::typesafe::batch::BatchExchange::outcomes: alloc::vec::Vec<&'static str>
+pub nika_cli_host::compile::typesafe::batch::BatchExchange::unasked: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::compile::typesafe::batch::BatchExchange::usage: nika_compile_seats::decide::system_one::Usage
+impl core::clone::Clone for nika_cli_host::compile::typesafe::batch::BatchExchange
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::clone(&self) -> nika_cli_host::compile::typesafe::batch::BatchExchange
+impl core::cmp::PartialEq for nika_cli_host::compile::typesafe::batch::BatchExchange
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::eq(&self, other: &nika_cli_host::compile::typesafe::batch::BatchExchange) -> bool
+impl core::fmt::Debug for nika_cli_host::compile::typesafe::batch::BatchExchange
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cli_host::compile::typesafe::batch::BatchExchange
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::typesafe::batch::BatchExchange
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::typesafe::batch::BatchExchange where U: core::convert::From<T>
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::typesafe::batch::BatchExchange where U: core::convert::Into<T>
+pub type nika_cli_host::compile::typesafe::batch::BatchExchange::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::typesafe::batch::BatchExchange where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::typesafe::batch::BatchExchange::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::compile::typesafe::batch::BatchExchange where T: core::clone::Clone
+pub type nika_cli_host::compile::typesafe::batch::BatchExchange::Owned = T
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::compile::typesafe::batch::BatchExchange where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::typesafe::batch::BatchExchange where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::typesafe::batch::BatchExchange where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::compile::typesafe::batch::BatchExchange where T: core::clone::Clone
+pub unsafe fn nika_cli_host::compile::typesafe::batch::BatchExchange::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::compile::typesafe::batch::BatchExchange
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::compile::typesafe::batch::BatchExchange where T: core::clone::Clone
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::typesafe::batch::BatchExchange where T: 'static
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::typesafe::batch::BatchExchange where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::typesafe::batch::BatchExchange::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::typesafe::batch::BatchExchange
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::typesafe::batch::BatchExchange
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::typesafe::batch::BatchExchange
+pub type nika_cli_host::compile::typesafe::batch::BatchExchange::Output = T
+pub type nika_cli_host::compile::typesafe::batch::BatchExchangeFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_cli_host::compile::typesafe::batch::BatchExchange> + core::marker::Send + 'a)>>
 pub mod nika_cli_host::compile::typesafe::session
 pub struct nika_cli_host::compile::typesafe::session::DecisionSetup
 impl nika_cli_host::compile::typesafe::session::DecisionSetup
@@ -255,6 +307,7 @@ impl core::ops::drop::Drop for nika_cli_host::compile::typesafe::session::Sessio
 pub fn nika_cli_host::compile::typesafe::session::SessionSeat::drop(&mut self)
 impl nika_compile_seats::decide::DecisionSeat for nika_cli_host::compile::typesafe::session::SessionSeat
 pub fn nika_cli_host::compile::typesafe::session::SessionSeat::choose<'a>(&'a self, question: &'a nika_compile_seats::decide::ChoiceQuestion) -> nika_compile_seats::decide::ChoiceFuture<'a>
+pub fn nika_cli_host::compile::typesafe::session::SessionSeat::choose_each<'a>(&'a self, batch: &'a nika_compile_seats::decide::batch::ChoiceBatch) -> nika_compile_seats::decide::batch::BatchFuture<'a>
 pub fn nika_cli_host::compile::typesafe::session::SessionSeat::name(&self) -> &str
 impl<D> owo_colors::OwoColorize for nika_cli_host::compile::typesafe::session::SessionSeat
 impl<T, U> core::convert::Into<U> for nika_cli_host::compile::typesafe::session::SessionSeat where U: core::convert::From<T>
@@ -385,6 +438,7 @@ pub type nika_cli_host::compile::typesafe::Exchange::Output = T
 #[non_exhaustive] pub struct nika_cli_host::compile::typesafe::ExchangeError
 pub nika_cli_host::compile::typesafe::ExchangeError::delivery: nika_cli_host::compile::typesafe::Delivery
 pub nika_cli_host::compile::typesafe::ExchangeError::error: nika_compile_seats::decide::DecisionError
+pub nika_cli_host::compile::typesafe::ExchangeError::usage: nika_compile_seats::decide::system_one::Usage
 impl core::clone::Clone for nika_cli_host::compile::typesafe::ExchangeError
 pub fn nika_cli_host::compile::typesafe::ExchangeError::clone(&self) -> nika_cli_host::compile::typesafe::ExchangeError
 impl core::cmp::Eq for nika_cli_host::compile::typesafe::ExchangeError
@@ -440,8 +494,11 @@ pub fn nika_cli_host::compile::typesafe::TypesafeSeat::model(&self) -> &str
 pub fn nika_cli_host::compile::typesafe::TypesafeSeat::new(key: alloc::string::String, model: &str) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_cli_host::compile::typesafe::TypesafeSeat::timeout(&self) -> core::time::Duration
 pub fn nika_cli_host::compile::typesafe::TypesafeSeat::with_base(key: alloc::string::String, model: &str, base: &str) -> core::result::Result<Self, alloc::string::String>
+impl nika_cli_host::compile::typesafe::TypesafeSeat
+pub fn nika_cli_host::compile::typesafe::TypesafeSeat::exchange_each<'a>(&'a self, batch: &'a nika_compile_seats::decide::batch::ChoiceBatch) -> nika_cli_host::compile::typesafe::batch::BatchExchangeFuture<'a>
 impl nika_compile_seats::decide::DecisionSeat for nika_cli_host::compile::typesafe::TypesafeSeat
 pub fn nika_cli_host::compile::typesafe::TypesafeSeat::choose<'a>(&'a self, question: &'a nika_compile_seats::decide::ChoiceQuestion) -> nika_compile_seats::decide::ChoiceFuture<'a>
+pub fn nika_cli_host::compile::typesafe::TypesafeSeat::choose_each<'a>(&'a self, batch: &'a nika_compile_seats::decide::batch::ChoiceBatch) -> nika_compile_seats::decide::batch::BatchFuture<'a>
 pub fn nika_cli_host::compile::typesafe::TypesafeSeat::name(&self) -> &str
 impl<D> owo_colors::OwoColorize for nika_cli_host::compile::typesafe::TypesafeSeat
 impl<T, U> core::convert::Into<U> for nika_cli_host::compile::typesafe::TypesafeSeat where U: core::convert::From<T>
@@ -1310,9 +1367,14 @@ pub fn nika_cli_host::help_card::isolation_warning_text(home: &str) -> alloc::st
 pub fn nika_cli_host::help_card::misplaced_fix_teaching() -> &'static str
 pub fn nika_cli_host::help_card::permits_teaching() -> &'static str
 pub mod nika_cli_host::lane
+pub use nika_cli_host::lane::EXPECT_SOURCE
+pub use nika_cli_host::lane::EXPECT_WORLD
 pub use nika_cli_host::lane::RunFrame
 pub use nika_cli_host::lane::RunSink
 pub use nika_cli_host::lane::RunStory
+pub use nika_cli_host::lane::resume_args
+pub use nika_cli_host::lane::run_args
+pub use nika_cli_host::lane::run_args_with_access
 #[non_exhaustive] pub enum nika_cli_host::lane::RunProgress
 pub nika_cli_host::lane::RunProgress::Complete((u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>))
 pub nika_cli_host::lane::RunProgress::Review(alloc::boxed::Box<nika_cli_host::lane::PendingRun>)
@@ -1378,13 +1440,19 @@ impl<T> typenum::type_operators::Same for nika_cli_host::lane::PendingRun
 pub type nika_cli_host::lane::PendingRun::Output = T
 #[non_exhaustive] pub struct nika_cli_host::lane::RunHostOptions
 pub nika_cli_host::lane::RunHostOptions::cost_review_stdio: bool
+pub nika_cli_host::lane::RunHostOptions::expected_source: core::option::Option<alloc::string::String>
+pub nika_cli_host::lane::RunHostOptions::expected_world: core::option::Option<alloc::string::String>
 pub nika_cli_host::lane::RunHostOptions::repair_target: core::option::Option<nika_display::check_render::RepairTarget>
 impl nika_cli_host::lane::RunHostOptions
 pub fn nika_cli_host::lane::RunHostOptions::with_cost_review_stdio(self, enabled: bool) -> Self
+pub fn nika_cli_host::lane::RunHostOptions::with_expected_source(self, witness: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_cli_host::lane::RunHostOptions::with_session_binding(self, binding: nika_cli_host::lane::SessionBinding) -> Self
 impl core::convert::From<core::option::Option<nika_display::check_render::RepairTarget>> for nika_cli_host::lane::RunHostOptions
 pub fn nika_cli_host::lane::RunHostOptions::from(repair_target: core::option::Option<nika_display::check_render::RepairTarget>) -> Self
 impl core::convert::From<nika_display::check_render::RepairTarget> for nika_cli_host::lane::RunHostOptions
 pub fn nika_cli_host::lane::RunHostOptions::from(target: nika_display::check_render::RepairTarget) -> Self
+impl core::default::Default for nika_cli_host::lane::RunHostOptions
+pub fn nika_cli_host::lane::RunHostOptions::default() -> nika_cli_host::lane::RunHostOptions
 impl core::fmt::Debug for nika_cli_host::lane::RunHostOptions
 pub fn nika_cli_host::lane::RunHostOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_cli_host::lane::RunHostOptions
@@ -1413,13 +1481,68 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::lane::RunHostOptions
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::lane::RunHostOptions
 impl<T> typenum::type_operators::Same for nika_cli_host::lane::RunHostOptions
 pub type nika_cli_host::lane::RunHostOptions::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::lane::RunHostOptions where T: core::default::Default
+pub type nika_cli_host::lane::RunHostOptions::NoneType = T
+pub fn nika_cli_host::lane::RunHostOptions::null_value() -> T
+#[non_exhaustive] pub struct nika_cli_host::lane::SessionBinding
+pub nika_cli_host::lane::SessionBinding::expect_source: core::option::Option<alloc::string::String>
+pub nika_cli_host::lane::SessionBinding::expect_world: core::option::Option<alloc::string::String>
+impl clap_builder::derive::Args for nika_cli_host::lane::SessionBinding
+pub fn nika_cli_host::lane::SessionBinding::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli_host::lane::SessionBinding::augment_args_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli_host::lane::SessionBinding::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for nika_cli_host::lane::SessionBinding
+pub fn nika_cli_host::lane::SessionBinding::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli_host::lane::SessionBinding::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli_host::lane::SessionBinding::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_cli_host::lane::SessionBinding::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::clone::Clone for nika_cli_host::lane::SessionBinding
+pub fn nika_cli_host::lane::SessionBinding::clone(&self) -> nika_cli_host::lane::SessionBinding
+impl core::default::Default for nika_cli_host::lane::SessionBinding
+pub fn nika_cli_host::lane::SessionBinding::default() -> nika_cli_host::lane::SessionBinding
+impl core::fmt::Debug for nika_cli_host::lane::SessionBinding
+pub fn nika_cli_host::lane::SessionBinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli_host::lane::SessionBinding
+impl<T, U> core::convert::Into<U> for nika_cli_host::lane::SessionBinding where U: core::convert::From<T>
+pub fn nika_cli_host::lane::SessionBinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::lane::SessionBinding where U: core::convert::Into<T>
+pub type nika_cli_host::lane::SessionBinding::Error = core::convert::Infallible
+pub fn nika_cli_host::lane::SessionBinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::lane::SessionBinding where U: core::convert::TryFrom<T>
+pub type nika_cli_host::lane::SessionBinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::lane::SessionBinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::lane::SessionBinding where T: core::clone::Clone
+pub type nika_cli_host::lane::SessionBinding::Owned = T
+pub fn nika_cli_host::lane::SessionBinding::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::lane::SessionBinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::lane::SessionBinding where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::lane::SessionBinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::lane::SessionBinding where T: ?core::marker::Sized
+pub fn nika_cli_host::lane::SessionBinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::lane::SessionBinding where T: ?core::marker::Sized
+pub fn nika_cli_host::lane::SessionBinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::lane::SessionBinding where T: core::clone::Clone
+pub unsafe fn nika_cli_host::lane::SessionBinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::lane::SessionBinding
+pub fn nika_cli_host::lane::SessionBinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::lane::SessionBinding where T: core::clone::Clone
+pub fn nika_cli_host::lane::SessionBinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::lane::SessionBinding where T: 'static
+pub fn nika_cli_host::lane::SessionBinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::lane::SessionBinding where T: ?core::marker::Sized
+pub fn nika_cli_host::lane::SessionBinding::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::lane::SessionBinding::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::lane::SessionBinding
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::lane::SessionBinding
+impl<T> typenum::type_operators::Same for nika_cli_host::lane::SessionBinding
+pub type nika_cli_host::lane::SessionBinding::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::lane::SessionBinding where T: core::default::Default
+pub type nika_cli_host::lane::SessionBinding::NoneType = T
+pub fn nika_cli_host::lane::SessionBinding::null_value() -> T
 pub fn nika_cli_host::lane::drive_child(exe: &std::path::Path, args: &[alloc::string::String], root: &std::path::Path, busy: &std::sync::mpsc::Sender<alloc::string::String>, slot: &nika_cli_host::lane::ChildSlot) -> (u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>)
 pub fn nika_cli_host::lane::drive_child_observed(exe: &std::path::Path, args: &[alloc::string::String], root: &std::path::Path, sink: &dyn nika_display::run_story::RunSink, slot: &nika_cli_host::lane::ChildSlot) -> (u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>)
 pub fn nika_cli_host::lane::drive_reviewed_child(exe: &std::path::Path, args: &[alloc::string::String], root: &std::path::Path, busy: &std::sync::mpsc::Sender<alloc::string::String>, slot: &nika_cli_host::lane::ChildSlot) -> nika_cli_host::lane::RunProgress
 pub fn nika_cli_host::lane::drive_reviewed_child_observed(exe: &std::path::Path, args: &[alloc::string::String], root: &std::path::Path, sink: &dyn nika_display::run_story::RunSink, slot: &nika_cli_host::lane::ChildSlot) -> nika_cli_host::lane::RunProgress
-pub fn nika_cli_host::lane::resume_args(root: &std::path::Path, workflow: &std::path::Path, trace: &std::path::Path, answer: &str) -> alloc::vec::Vec<alloc::string::String>
-pub fn nika_cli_host::lane::run_args(root: &std::path::Path, workflow: &std::path::Path, ceiling: f64, vars: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
-pub fn nika_cli_host::lane::run_args_with_access(root: &std::path::Path, workflow: &std::path::Path, ceiling: f64, vars: &[alloc::string::String], pin: core::option::Option<&str>) -> alloc::vec::Vec<alloc::string::String>
 pub type nika_cli_host::lane::ChildSlot = alloc::sync::Arc<std::sync::poison::mutex::Mutex<core::option::Option<u32>>>
 pub mod nika_cli_host::lines
 pub struct nika_cli_host::lines::PerCallLines<F>
@@ -3338,6 +3461,7 @@ pub nika_cli_host::serve_args::ServeArgs::dry: bool
 pub nika_cli_host::serve_args::ServeArgs::now: core::option::Option<alloc::string::String>
 pub nika_cli_host::serve_args::ServeArgs::once: bool
 pub nika_cli_host::serve_args::ServeArgs::run_cost_ceiling: core::option::Option<alloc::string::String>
+pub nika_cli_host::serve_args::ServeArgs::sessions: bool
 pub nika_cli_host::serve_args::ServeArgs::state_root: core::option::Option<std::path::PathBuf>
 pub nika_cli_host::serve_args::ServeArgs::token_file: core::option::Option<std::path::PathBuf>
 pub nika_cli_host::serve_args::ServeArgs::until: core::option::Option<alloc::string::String>

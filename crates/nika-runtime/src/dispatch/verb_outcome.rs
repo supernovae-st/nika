@@ -75,7 +75,7 @@ pub(super) fn infer_success(out: InferOutput, access: Option<AccessPlan>) -> Dis
         cost_unpriced,
     )
     .with_usage(split)
-    .with_access(access)
+    .with_access(access.map(|lane| lane.with_selection(out.selection)))
 }
 
 /// A chosen seat that failed at the call — the typed refusal the
@@ -147,7 +147,7 @@ pub(super) fn harness_infer_success(
         None,
         Some(UnpricedReason::SubscriptionQuota),
     )
-    .with_access(access)
+    .with_access(access.map(|lane| lane.with_selection(out.selection)))
 }
 
 /// An `agent:` loop that settled — BOTH spend channels ride: the loop's
@@ -206,7 +206,7 @@ pub(super) fn agent_success(out: AgentOutput, access: Option<AccessPlan>) -> Dis
         llm_unpriced,
     )
     .with_usage(split)
-    .with_access(access)
+    .with_access(access.map(|lane| lane.with_selection(out.selection)))
 }
 
 #[cfg(test)]

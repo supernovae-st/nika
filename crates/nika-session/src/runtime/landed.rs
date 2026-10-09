@@ -8,9 +8,10 @@
 use std::fmt::Write as _;
 
 use super::{SessionRuntime, TurnOutcome};
-use crate::change::{Applied, ProjectChangeSet, check_on_disk};
-use crate::outcome::ProposalId;
+use crate::change::{Applied, ProjectChangeSet, WorkflowAudit, check_on_disk};
+use crate::outcome::{ProposalId, Refusal};
 use crate::snapshot::ProjectSnapshot;
+use nika_session_change::save_run::SaveRun;
 
 impl SessionRuntime {
     /// After a yes lands the set: mark decided, check every workflow,
@@ -19,13 +20,14 @@ impl SessionRuntime {
     /// never becomes `already_consumed`.
     pub(super) fn report_landed(
         &mut self,
-        set: ProjectChangeSet,
+        set: &ProjectChangeSet,
         applied: &Applied,
         id: &ProposalId,
         basis: Option<&str>,
+        run: Option<SaveRun>,
     ) -> TurnOutcome {
-        self.save_proposal_money(&set, id);
-        let evidence = self.evidence_applied(&set, id, applied);
+        self.save_proposal_money(set, id);
+        let evidence = self.evidence_applied(set, id, applied);
         // A rehearsed copy's proof moves to the workflow it was saved as (`rehearsed.rs`).
         let landed_workflow = set.workflows().into_iter().next();
         let rehearsed = self.land_rehearsal(id, landed_workflow.as_deref());
@@ -40,7 +42,15 @@ impl SessionRuntime {
         if let Some(basis) = basis {
             let _ = write!(report, "\n  {basis}");
         }
-        let all_clean = checked(&set, &mut report);
+        let audits = checked(set, &mut report);
+        let all_clean = audits.iter().all(|a| a.clean);
+        // Where each landed workflow reaches, from the same on-disk check the report states.
+        let world_of = |workflow: &std::path::Path| {
+            audits
+                .iter()
+                .find(|a| a.path == workflow)
+                .map(|a| a.world.clone())
+        };
         self.snapshot = ProjectSnapshot::observe(&self.snapshot.cwd);
         self.remember("(consent)", &report);
         // The workflow just accepted is the one « run it » names next —
@@ -64,6 +74,8 @@ impl SessionRuntime {
                     &|text| crate::broker::redact(text).0,
                 );
             }
+            self.saved_reach = world_of(&first).map(|world| (first.clone(), world));
+            self.consented = Some(first.clone());
             self.last_workflow = Some(first);
             self.last_check_clean = Some(all_clean);
             self.last_trigger = self.pending_trigger.take();
@@ -73,11 +85,8 @@ impl SessionRuntime {
                 .changes
                 .iter()
                 .any(|c| c.path() == std::path::Path::new("nika.yaml"));
-        match set.run {
-            Some(run) if all_clean => {
-                self.last_workflow = Some(run.workflow.clone());
-                TurnOutcome::RunRequested { report, run }
-            }
+        match run {
+            Some(run) if all_clean => self.run_saved(&report, run),
             Some(_) => {
                 report.push_str(
                     "\n  the run was not started: findings stop it — repair them, then ask to run",
@@ -106,13 +115,43 @@ impl SessionRuntime {
             None => TurnOutcome::Facts(report),
         }
     }
+
+    /// `save & run`'s run, once its save checked clean: its typed target and values through the
+    /// one run admission (`admit_run`); not started, the save stands and says why.
+    fn run_saved(&mut self, report: &str, run: SaveRun) -> TurnOutcome {
+        let SaveRun {
+            workflow,
+            vars,
+            access_pin,
+            max_cost_usd,
+            ..
+        } = run;
+        match self.admit_run("save & run", workflow, max_cost_usd, access_pin, vars) {
+            TurnOutcome::RunRequested {
+                report: run_report,
+                run,
+            } => {
+                let report = format!("{report}\n  run once · {run_report}");
+                TurnOutcome::RunRequested { report, run }
+            }
+            TurnOutcome::Question { key, question } => {
+                let question = format!("{report}\n{question}");
+                TurnOutcome::Question { key, question }
+            }
+            TurnOutcome::Refusal(Refusal { text, .. }) | TurnOutcome::Facts(text) => {
+                TurnOutcome::Facts(format!("{report}\n  the run was not started: {text}"))
+            }
+            _ => TurnOutcome::Facts(format!("{report}\n  the run was not started")),
+        }
+    }
 }
 
-fn checked(set: &ProjectChangeSet, report: &mut String) -> bool {
-    let mut all_clean = true;
+/// Check every landed workflow on disk, append each verdict to the report, and return the
+/// audits so the reach of the saved and requested bytes comes from this same check.
+fn checked(set: &ProjectChangeSet, report: &mut String) -> Vec<WorkflowAudit> {
+    let mut audits = Vec::new();
     for wf in set.workflows() {
         let audit = check_on_disk(&set.root, &wf);
-        all_clean &= audit.clean;
         let _ = write!(
             report,
             "\n  check · `{}` · {}",
@@ -129,6 +168,7 @@ fn checked(set: &ProjectChangeSet, report: &mut String) -> bool {
         if let Some(line) = crate::change::compact_hints(&audit.hints, &wf.display().to_string()) {
             let _ = write!(report, "\n    · {line}");
         }
+        audits.push(audit);
     }
-    all_clean
+    audits
 }

@@ -301,7 +301,7 @@ fn flash_low_rides_the_authoring_and_judgment_calls_with_the_same_caps_and_accou
         assert_eq!(
             bodies.len(),
             CREATE_CALLS,
-            "the plan, sketch and fill calls, then the judgment's"
+            "the document call, then the judgment's"
         );
         let details = s.details();
         if word.is_some() {
@@ -332,11 +332,7 @@ fn flash_low_rides_the_authoring_and_judgment_calls_with_the_same_caps_and_accou
             })
             .unwrap_or_default();
         let roles: Vec<&str> = calls.iter().map(|(call, _)| call.as_str()).collect();
-        assert_eq!(
-            roles,
-            ["plan", "sketch", "fill", "judge_request"],
-            "{calls:?}"
-        );
+        assert_eq!(roles, ["document", "judge_request"], "{calls:?}");
         for (call, reasoning) in &calls {
             if word.is_some() {
                 assert_eq!(reasoning["configured"], "low", "{call}");
@@ -458,7 +454,7 @@ fn details_says_the_named_effort_as_the_receipt_recorded_it_and_nothing_without_
         assert_eq!(
             bodies.len(),
             CREATE_CALLS,
-            "the plan, sketch and fill calls, then the judge's"
+            "the document call, then the judge's"
         );
         let details = s.details();
         if word.is_some() {

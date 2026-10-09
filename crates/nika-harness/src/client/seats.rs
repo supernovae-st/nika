@@ -32,6 +32,20 @@ fn same(a: &str, b: &str) -> bool {
     a.trim().eq_ignore_ascii_case(b.trim())
 }
 
+/// A match by the exact requested id first, since a session may advertise the qualified
+/// `provider/name` verbatim; then by the provider-less name `wanted` keeps, the compatibility
+/// mapping. Either way only an id or a name the peer offered matches: nothing is guessed.
+pub(super) fn exact_first<T>(
+    requested: Option<&str>,
+    wanted: &str,
+    find: impl Fn(&str) -> Option<T>,
+) -> Option<T> {
+    (requested.map(str::trim))
+        .filter(|id| !same(id, wanted))
+        .and_then(&find)
+        .or_else(|| find(wanted))
+}
+
 /// Match only a value or display name the live peer offered. Model identifiers
 /// are opaque: a family substring cannot authorize dropping a requested suffix.
 /// Exact config choices remain preferred by the caller; otherwise an exact
@@ -57,12 +71,35 @@ fn choose<'a>(
         })
 }
 
+/// A select option's choices with its groups flattened (ACP lets `options` be either flat
+/// values or `{group, name, options}` groups, never mixed), in advertised order.
+pub(super) fn choices(option: &Value) -> Vec<&Value> {
+    let Some(items) = option.get("options").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .flat_map(|item| match item.get("options").and_then(Value::as_array) {
+            Some(group) if item.get("group").is_some() => group.iter().collect::<Vec<_>>(),
+            _ => vec![item],
+        })
+        .collect()
+}
+
+/// Every advertised value of a select option, verbatim, groups flattened.
+pub(super) fn choice_values(option: &Value) -> Vec<String> {
+    choices(option)
+        .into_iter()
+        .filter_map(|c| c.get("value").and_then(Value::as_str).map(str::to_owned))
+        .collect()
+}
+
 /// The (config id, value) that names the wanted model among the option's choices, by value
 /// or by display name.
 pub(super) fn offered_option(option: Option<&Value>, wanted: &str) -> Option<(String, Value)> {
     let option = option?;
     let id = option.get("id")?.as_str()?.to_owned();
-    let choice = choose(option.get("options")?.as_array()?.iter(), "value", wanted)?;
+    let choice = choose(choices(option).into_iter(), "value", wanted)?;
     Some((id, choice.get("value")?.clone()))
 }
 
@@ -80,17 +117,7 @@ pub(super) fn offered_model(models: Option<&Value>, wanted: &str) -> Option<Stri
 
 /// Every model the agent offers, for the refusal's teaching line.
 pub(super) fn offered_names(option: Option<&Value>, models: Option<&Value>) -> String {
-    let mut names: Vec<String> = Vec::new();
-    if let Some(choices) = option
-        .and_then(|o| o.get("options"))
-        .and_then(Value::as_array)
-    {
-        names.extend(
-            choices
-                .iter()
-                .filter_map(|c| c.get("value").and_then(Value::as_str).map(str::to_owned)),
-        );
-    }
+    let mut names: Vec<String> = option.map(choice_values).unwrap_or_default();
     if let Some(list) = models
         .and_then(|m| m.get("availableModels"))
         .and_then(Value::as_array)
@@ -177,4 +204,56 @@ pub(super) fn mode_door(session: &super::wire::NewSessionResult, intent: &str) -
                 mode_id: id.to_owned(),
             })
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    /// A session advertising the qualified id verbatim (as value and display name, or as a legacy
+    /// `modelId`) is matched by the exact request before the provider prefix is dropped; a session
+    /// offering only the bare name still matches through the compatibility mapping; and a near
+    /// name is never taken for the requested one.
+    #[test]
+    fn the_exact_advertised_id_is_matched_before_the_provider_prefix_is_dropped() {
+        let qualified = json!({"id": "model", "currentValue": "openai/gpt-5.4",
+            "options": [{"value": "openai/gpt-5.4", "name": "openai/gpt-5.4"},
+                        {"value": "openai/gpt-5.5", "name": "openai/gpt-5.5"}]});
+        let requested = Some("openai/gpt-5.5");
+        let wanted = wanted(requested).expect("a model is asked");
+        assert_eq!(wanted, "gpt-5.5");
+        let option = |name: &str| offered_option(Some(&qualified), name);
+        assert_eq!(
+            exact_first(requested, &wanted, option).map(|(_, value)| value),
+            Some(json!("openai/gpt-5.5"))
+        );
+        assert_eq!(
+            option(&wanted),
+            None,
+            "the stripped name alone finds nothing here"
+        );
+        let legacy = json!({"currentModelId": "openai/gpt-5.4",
+            "availableModels": [{"modelId": "openai/gpt-5.5", "name": "openai/gpt-5.5"}]});
+        let model = |name: &str| offered_model(Some(&legacy), name);
+        assert_eq!(
+            exact_first(requested, &wanted, model).as_deref(),
+            Some("openai/gpt-5.5")
+        );
+        let bare = json!({"id": "model", "options": [{"value": "gpt-5.5", "name": "GPT-5.5"}]});
+        let bare_option = |name: &str| offered_option(Some(&bare), name);
+        assert_eq!(
+            exact_first(requested, &wanted, bare_option).map(|(_, value)| value),
+            Some(json!("gpt-5.5")),
+            "the compatibility mapping still holds"
+        );
+        let near = json!({"id": "model", "options": [{"value": "openai/gpt-5.5-mini"}]});
+        let near_option = |name: &str| offered_option(Some(&near), name);
+        assert_eq!(
+            exact_first(requested, &wanted, near_option),
+            None,
+            "no guess"
+        );
+    }
 }

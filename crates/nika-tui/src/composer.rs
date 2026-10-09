@@ -10,9 +10,18 @@
 //! the human presses `Enter`), and that `Up`/`Down` recall history only when
 //! the cursor stands at the buffer's first or last line.
 //!
+//! The composer also keeps the command chooser (`chooser`): the slash list
+//! of a command being typed and the palette. Choosing inserts words into the
+//! draft and never sends them; `Enter` stays the only way a line leaves.
+//! It keeps the selection among a typed choice's offers too (`answer`):
+//! presentation only, the draft untouched; `Enter` on a selection answers.
+//!
 //! Exit criterion (written down, ADR-139 §5): the day this wrapper needs to
 //! re-implement cursor movement or wrapping, the crate is replaced by an
 //! owned editor.
+
+pub(crate) mod answer;
+pub(crate) mod chooser;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::buffer::Buffer;
@@ -54,6 +63,13 @@ pub struct Composer {
     history: Vec<String>,
     recall: Option<usize>,
     draft: Option<Vec<String>>,
+    /// The slash list and the palette (`chooser`).
+    chooser: chooser::Chooser,
+    /// Words the palette set aside to insert a command: back in the box once
+    /// the line that replaced them is taken, or at once with `Esc`.
+    aside: Option<String>,
+    /// The offer selected for the typed choice on screen (`answer`).
+    answer: answer::Answer,
 }
 
 impl Default for Composer {
@@ -69,12 +85,15 @@ impl Composer {
         let mut area = TextArea::default();
         area.set_wrap_mode(WRAP);
         area.set_cursor_line_style(Style::default());
-        area.set_cursor_style(Style::default().add_modifier(Modifier::REVERSED));
+        area.set_cursor_style(CURSOR);
         Self {
             area,
             history: Vec::new(),
             recall: None,
             draft: None,
+            chooser: chooser::Chooser::default(),
+            aside: None,
+            answer: answer::Answer::default(),
         }
     }
 
@@ -117,8 +136,10 @@ impl Composer {
         rows.max(1)
     }
 
-    /// Insert pasted text as data.
+    /// Insert pasted text as data. An open palette closes first: the draft is
+    /// never edited out of view.
     pub fn paste(&mut self, text: &str) {
+        self.close_palette();
         self.recall = None;
         self.area
             .insert_str(text.replace("\r\n", "\n").replace('\r', "\n"));
@@ -131,8 +152,10 @@ impl Composer {
         self.area.set_placeholder_style(PLACEHOLDER);
     }
 
-    /// Handle one key press.
+    /// Handle one key press. An open palette closes first: the draft is never
+    /// edited out of view.
     pub fn handle(&mut self, key: KeyEvent) -> ComposerAction {
+        self.close_palette();
         let alt = key.modifiers.contains(KeyModifiers::ALT);
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         let shift = key.modifiers.contains(KeyModifiers::SHIFT);
@@ -194,12 +217,14 @@ impl Composer {
             self.history.push(text.clone());
         }
         self.clear();
+        // Words the palette set aside for this line come back, unsent.
+        self.restore_aside();
         ComposerAction::Submit(text)
     }
 
     /// Take the buffer as sent, exactly as `Enter` does: kept whole in
-    /// history (`Up` recalls it) and the box cleared. Sending it is the
-    /// caller's act.
+    /// history (`Up` recalls it) and the box cleared, then refilled with any
+    /// words the palette set aside for it. Sending it is the caller's act.
     pub fn take(&mut self) -> String {
         match self.submit() {
             ComposerAction::Submit(text) => text,
@@ -207,11 +232,42 @@ impl Composer {
         }
     }
 
-    /// Empty the buffer and forget the recall position.
+    /// Empty the buffer and forget the recall position. Words the palette
+    /// set aside stay aside: they return after the next line is taken.
     pub fn clear(&mut self) {
+        self.close_palette();
         self.area = fresh_like(&self.area);
         self.recall = None;
         self.draft = None;
+    }
+
+    /// Put `words` that were not sent (a correction a decision kept, an
+    /// answer that was not taken) back in the box, exactly, first: what the
+    /// box holds now (typed while the turn worked) follows on its own line,
+    /// so neither replaces the other.
+    pub(crate) fn put_back(&mut self, words: &str) {
+        let rest = self.text();
+        self.clear();
+        self.paste(words);
+        if !rest.trim().is_empty() {
+            self.paste("\n");
+            self.paste(&rest);
+        }
+    }
+
+    /// A fresh answer clears every pre-question draft, returning its exact
+    /// words for the conversation's notice rather than restoring them later.
+    pub(crate) fn discard_before_question(&mut self) -> String {
+        let mut kept: Vec<String> = self.aside.take().into_iter().collect();
+        if let Some(draft) = self.draft.take() {
+            kept.push(draft.join("\n"));
+        }
+        let text = self.text();
+        if !text.trim().is_empty() {
+            kept.push(text);
+        }
+        self.clear();
+        kept.join("\n")
     }
 
     fn at_first_line(&self) -> bool {
@@ -443,6 +499,7 @@ fn fresh_like(previous: &TextArea<'static>) -> TextArea<'static> {
     let mut area = TextArea::default();
     area.set_wrap_mode(WRAP);
     area.set_cursor_line_style(Style::default());
+    // Shown or hidden as the keys left it: `set_focused` keeps it current.
     area.set_cursor_style(previous.cursor_style());
     let placeholder = previous.placeholder_text();
     if !placeholder.is_empty() {
@@ -454,6 +511,14 @@ fn fresh_like(previous: &TextArea<'static>) -> TextArea<'static> {
 
 /// The placeholder's look in every glyph column and colour mode.
 const PLACEHOLDER: Style = Style::new().add_modifier(Modifier::DIM);
+
+/// The text area's cursor while the composer holds the keys: one reversed
+/// cell. With the keys elsewhere it takes the cursor line's own style, which
+/// the text area paints as no cursor at all (`set_focused`).
+const CURSOR: Style = Style::new().add_modifier(Modifier::REVERSED);
+
+#[cfg(test)]
+mod chooser_tests;
 
 #[cfg(test)]
 mod tests {
@@ -546,6 +611,22 @@ mod tests {
         assert_eq!(composer.take(), "", "a blank box keeps nothing");
         composer.handle(key(KeyCode::Up, KeyModifiers::NONE));
         assert_eq!(composer.text(), long, "the blank take added no entry");
+    }
+
+    /// Words that were not sent come back exactly and first; what was typed
+    /// meanwhile follows on its own line, never replaced; a box holding only
+    /// blanks takes the words alone.
+    #[test]
+    fn put_back_keeps_the_exact_words_and_what_was_typed_meanwhile() {
+        let words = "  the CSV, not the JSON\nkeep the header row ";
+        let mut composer = Composer::new();
+        composer.paste("typed while it worked");
+        composer.put_back(words);
+        assert_eq!(composer.text(), format!("{words}\ntyped while it worked"));
+        let mut blank = Composer::new();
+        blank.paste("   ");
+        blank.put_back(words);
+        assert_eq!(blank.text(), words);
     }
 
     #[test]

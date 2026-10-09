@@ -13,16 +13,23 @@
 use crate::plan::{Effect, EffectPolicy, EffectVerb, Plan};
 use nika_compile_reader::objects;
 use nika_compile_reader::paths::{self, PathShape};
+use nika_schema::{FileId, ParseMode, raw::RawAction};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
+mod asked;
 mod final_gate;
 mod instants;
 mod record_scope;
 mod records;
+mod role;
 mod scope;
+pub use asked::{asked_names, asked_readings};
 pub use final_gate::unbound_final_gate;
-pub use instants::instant_shape;
+/// The date-time shape classifier Law 25 reads, owned by `nika-compile-behavior` since
+/// 2026-10-09 (ADR-149), whose judge reads it too; this path names the very same function.
+#[doc(inline)]
+pub use nika_compile_behavior::instant_shape;
 pub use records::raw_text_as_records;
 pub use scope::unsettled_performed;
 
@@ -162,7 +169,11 @@ pub fn laws_observed(
 ) {
     let mut literals = Vec::new();
     strings(doc, &mut literals);
-    stated_paths_in(intent, doc, waived, clarified, world, out);
+    let origins: Vec<&str> = (plan.bindings.iter())
+        .filter(|binding| binding.role == "url")
+        .map(|binding| binding.literal.as_str())
+        .collect();
+    stated_paths_in(intent, doc, (waived, clarified), world, &origins, out);
     approvals(plan, doc, out);
     invented_gates(plan, doc, out);
     dropped_effects(plan, doc, out);
@@ -248,10 +259,10 @@ fn granted(doc: &Value, axis: &str, path: &str) -> bool {
 }
 
 /// Law 1: every path the request names is under the boundary (`permits.fs.read` or
-/// `permits.fs.write`): the boundary is what a candidate can open, and a path the request
-/// names that the boundary does not cover is a dropped clause, whatever a prompt says about
-/// it. (The reader's source/destination split is a hint for the seat, never the law: a
-/// destination it reads as a source must still be opened one way or the other.)
+/// `permits.fs.write`) or is invoked as an exact native child dependency. The boundary
+/// states what a candidate can open; without either, the path is a dropped clause,
+/// whatever a prompt says about it. (The reader's source/destination split is a hint for
+/// the seat, never the law: a destination it reads as a source must still be opened.)
 ///
 /// A path the boundary does not cover is judged at each place the request writes it, in the
 /// role the reader gives that place (a destination connector before it makes it a
@@ -261,6 +272,7 @@ fn granted(doc: &Value, axis: &str, path: &str) -> bool {
 /// - as a source, through the whole name the human typed for the source question when the
 ///   candidate reads it (the reader cuts `Notes équipe.txt` opening a sentence to
 ///   `équipe.txt`);
+/// - as a native child dependency, by the exact parsed `invoke.workflow` target;
 /// - as a destination, only by write permission covering the literal the reader read there
 ///   (`dans Copie équipe.txt`), never by a source answer.
 ///
@@ -274,39 +286,32 @@ pub fn stated_paths(
     clarified: &[String],
     out: &mut Vec<Diagnostic>,
 ) {
-    stated_paths_in(intent, doc, waived, clarified, None, out);
+    stated_paths_in(intent, doc, (waived, clarified), None, &[], out);
 }
 
 /// [`stated_paths`] over the host's observation `world` (the compile request's knowledge): a
 /// source occurrence of a bare file name (`orders.csv`) is also realized by the one file the
 /// observation places under that name (`./data/orders.csv`), when `permits.fs.read` covers it
 /// and a task opens it. No observation, two observed files of that name, another name, or no
-/// task opening it leaves the path unrealized; a destination keeps its own law.
+/// task opening it leaves the path unrealized; a destination keeps its own law, where a send to
+/// exactly that route of a URL the request states (`origins`) also realizes a path the reader
+/// states only as a destination, sentence by sentence (`role`).
 fn stated_paths_in(
     intent: &str,
     doc: &Value,
-    waived: &[String],
-    clarified: &[String],
+    (waived, clarified): (&[String], &[String]),
     world: Option<&Value>,
+    origins: &[&str],
     out: &mut Vec<Diagnostic>,
 ) {
     let mut stated = crate::hot::stated_sources(intent);
-    stated.extend(crate::hot::stated_destinations(intent));
+    let destinations = crate::hot::stated_destinations(intent);
+    stated.extend(destinations.iter().cloned());
     // The reader deliberately leaves an unquoted multiword compound name unresolved.
     // Its extent still cannot disappear from native fidelity: shortening it to the last
     // word names a different file. Dynamic placeholders remain for the typed answer door.
-    stated.extend(
-        paths::literals(intent)
-            .into_iter()
-            .filter_map(|shape| match shape {
-                PathShape::Placeholder(path)
-                    if path.contains('/') && !path.contains(['<', '>', '{', '}', '$']) =>
-                {
-                    Some(path)
-                }
-                _ => None,
-            }),
-    );
+    let open = paths::open_names(intent);
+    stated.extend(open.iter().cloned());
     stated.dedup();
     let literals: Vec<String> = paths::literals(intent)
         .into_iter()
@@ -327,6 +332,16 @@ fn stated_paths_in(
         intent,
         literals.iter().filter(|name| granted(doc, "write", name)),
     );
+    // A native child target realizes its dependency, never an fs write or a free literal.
+    let calls = nika_schema::parse(&doc.to_string(), FileId::new(0), ParseMode::Strict)
+        .into_iter()
+        .flat_map(|wf| wf.tasks)
+        .filter_map(|task| match task.value.action {
+            RawAction::Invoke(invoke) => invoke.workflow().map(|target| target.value.clone()),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    let routes = role::routes(doc, origins);
     let lower = intent.to_lowercase();
     for path in &stated {
         if waived.contains(path) || granted(doc, "read", path) || granted(doc, "write", path) {
@@ -350,9 +365,9 @@ fn stated_paths_in(
             let destination = objects::destination_at(&lower, lowered).is_some();
             held(&owners)
                 || if destination {
-                    held(&written)
+                    held(&written) || (destinations.contains(path) && routes.contains(path))
                 } else {
-                    observed || held(&typed)
+                    observed || held(&typed) || calls.contains(path)
                 }
         };
         let found = occurrences(intent, path);
@@ -360,7 +375,7 @@ fn stated_paths_in(
             let boundary = doc
                 .pointer("/permits/fs")
                 .map_or_else(|| "none".to_owned(), Value::to_string);
-            out.push(Diagnostic { kind: "path", message: format!("UNREALIZED PATH: the request names `{path}`; no `permits.fs.read` or `permits.fs.write` entry covers it (permits.fs = {boundary}), so no task opens it. Read it (nika:read / nika:glob + fs.read) or write it (nika:write + fs.write) as the request means, or name it in `gaps` if it cannot be reached.") });
+            out.push(Diagnostic { kind: "path", message: format!("UNREALIZED PATH: the request names `{path}`; that occurrence is not realized by a `permits.fs.read` or `permits.fs.write` entry (permits.fs = {boundary}), an exact native `invoke.workflow` dependency, or a send to exactly that route of a URL the request states. Read it (nika:read / nika:glob + fs.read), write it (nika:write + fs.write), send to it (nika:fetch, not GET, to the stated URL followed by it) when the request names it as an endpoint's route, or invoke the stated child workflow as the request means; name it in `gaps` if it cannot be reached.{}", if open.contains(path) { asked::REMEDY } else { "" }) });
         }
     }
 }
@@ -773,15 +788,17 @@ pub fn prohibitions(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
 }
 
 /// Law 2: no invented path or host — every `./…`, `~/…`, `http(s)://…` literal of the
-/// candidate is in the request (a glob's stem counts), was answered by the human, or rides a
-/// `${{ }}` reference.
+/// candidate is in the request (a glob's stem counts), is composed from its words (a path's
+/// directories and stem, [`paths::composed_from`]; an address's origin and path,
+/// [`paths::origin_and_path`]), was answered by the human, or rides a `${{ }}` reference.
 pub fn invented(intent: &str, literals: &[String], allowed: &[String], out: &mut Vec<Diagnostic>) {
     // The request and the human's answers are the words a path may be composed from.
-    let mut lower = intent.to_lowercase();
+    let mut stated = intent.to_owned();
     for value in allowed {
-        lower.push('\n');
-        lower.push_str(&value.to_lowercase());
+        stated.push('\n');
+        stated.push_str(value);
     }
+    let lower = stated.to_lowercase();
     for literal in literals {
         for token in literal.split_whitespace() {
             let token = token
@@ -798,32 +815,15 @@ pub fn invented(intent: &str, literals: &[String], allowed: &[String], out: &mut
                 continue;
             }
             let stem = token.trim_end_matches("/**").trim_end_matches("/*");
-            if lower.contains(&stem.to_lowercase()) || (path_like && composed_from(&lower, token)) {
+            if lower.contains(&stem.to_lowercase())
+                || (path_like && paths::composed_from(&lower, token))
+                || (host_like && paths::origin_and_path(&stated, token))
+            {
                 continue;
             }
             out.push(Diagnostic { kind: "literal", message: format!("INVENTED LITERAL: `{token}` is not in the request. Use the request's own path or host, or declare a `const:` placeholder and ask for it.") });
         }
     }
-}
-
-/// A path composed from the request's own words (`./catalog/<slug>.md` with the slug listed
-/// in the request) is not invented: every directory and the file's stem appear in the request;
-/// a pure glob segment composes nothing.
-fn composed_from(lower: &str, token: &str) -> bool {
-    let body = token
-        .trim_start_matches("./")
-        .trim_start_matches("../")
-        .trim_start_matches("~/");
-    let segments: Vec<&str> = body
-        .split('/')
-        .filter(|s| !s.is_empty() && *s != "." && *s != "..")
-        .collect();
-    !segments.is_empty()
-        && segments.iter().all(|segment| {
-            let stem = segment.rsplit_once('.').map_or(*segment, |(stem, _)| stem);
-            let stem = stem.trim_matches('*');
-            stem.is_empty() || lower.contains(&stem.to_lowercase())
-        })
 }
 
 #[must_use]
@@ -1126,13 +1126,68 @@ mod tests {
         assert!(clarified_sources(&BTreeMap::new()).is_empty());
     }
 
+    /// An address the stock request composes from its own words (its sink's origin in one
+    /// sentence, the path it posts to in another) is not invented; another path or another
+    /// origin still is, under the same finding (K2, T6).
     #[test]
-    fn a_path_composed_from_the_requests_words_is_not_invented() {
-        let lower = "for each slug solar-lamp, wind-chime read ./catalog/<slug>.md";
-        assert!(composed_from(lower, "./catalog/solar-lamp.md"));
-        assert!(composed_from(lower, "./catalog/*.md"));
-        assert!(!composed_from(lower, "./catalog/moon-rock.md"));
-        assert!(!composed_from(lower, "./archive/solar-lamp.md"));
+    fn an_address_composed_from_a_stated_origin_and_path_is_not_invented() {
+        let intent = "Lis ./in/stock.json, puis effectue exactement un POST /notifications/stock vers le sink local fourni par le futur pilote. Pour cette exécution réelle, le pilote a démarré le sink local http://127.0.0.1:65409 ; effectue le POST prévu, uniquement dans les conditions ci-dessus.";
+        let judged = |url: &str| {
+            let mut out = Vec::new();
+            invented(intent, &[url.to_owned()], &[], &mut out);
+            out
+        };
+        assert!(judged("http://127.0.0.1:65409/notifications/stock").is_empty());
+        for url in [
+            "http://127.0.0.1:65409/other",
+            "http://evil.example/notifications/stock",
+        ] {
+            let found = judged(url);
+            assert_eq!(found.len(), 1, "{url}: {found:#?}");
+            let named = format!("INVENTED LITERAL: `{url}` is not in the request.");
+            assert!(found[0].message.starts_with(&named), "{found:#?}");
+        }
+    }
+
+    /// An address is never composed from a longer stated origin or path (independent K2 and
+    /// K2b reviews): another host label, another port, a child path, a path suffix, a path
+    /// character continuing or preceding the quoted path, or another spelling of the path is
+    /// still invented, each named once; the whole stated components compose, punctuation
+    /// outside a closing quote included.
+    #[test]
+    fn an_address_taken_from_a_longer_origin_or_path_is_invented() {
+        let api = "http://trusted.example/api";
+        for (intent, url) in [
+            ("POST /api to http://trusted.example.evil", api),
+            ("POST /api-v2 to http://trusted.example", api),
+            ("POST /api/private to http://trusted.example", api),
+            (
+                "POST /api to http://trusted.example:8080",
+                "http://trusted.example:80/api",
+            ),
+            (
+                "POST /Admin to http://trusted.example",
+                "http://trusted.example/admin",
+            ),
+            (r#"POST "/api+v2" to http://trusted.example"#, api),
+            (r#"POST "/api:cancel" to http://trusted.example"#, api),
+            (r#"POST "/v2+/api" to http://trusted.example"#, api),
+        ] {
+            let mut found = Vec::new();
+            invented(intent, &[url.to_owned()], &[], &mut found);
+            assert_eq!(found.len(), 1, "{intent} | {url}: {found:#?}");
+            assert_eq!(found[0].kind, "literal");
+            let named = format!("INVENTED LITERAL: `{url}` is not in the request.");
+            assert!(found[0].message.starts_with(&named), "{found:#?}");
+        }
+        for intent in [
+            "POST /api to http://trusted.example",
+            r#"POST "/api", then stop. Use http://trusted.example."#,
+        ] {
+            let mut none = Vec::new();
+            invented(intent, &[api.to_owned()], &[], &mut none);
+            assert!(none.is_empty(), "{intent}: {none:#?}");
+        }
     }
 
     #[test]

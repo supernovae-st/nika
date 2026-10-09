@@ -25,17 +25,17 @@ claim that the current candidate passed tests.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `0695db637` (`0695db637d52e044efccd3761f80935cf9e2c579`)             |
+| HEAD             | `55ad41642` (`55ad416421cfa9ae28787b0ad226588227b07dcf`)             |
 | workspace        | v0.122.0                                  |
-| crates (workspace)| 83                                              |
-| crates (admitted)| 71                                             |
-| crates (WIP)     | 12 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve nika-session nika-session-change nika-tui nika-tui-view                                  |
+| crates (workspace)| 85                                              |
+| crates (admitted)| 72                                             |
+| crates (WIP)     | 13 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve nika-session nika-session-change nika-session-host nika-tui nika-tui-view                                  |
 | L0               | 22                                              |
 | L0.5             | 6                                              |
 | L1               | 17                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 4                                              |
-| L4               | 25                                              |
+| L4               | 27                                              |
 | lib tests        | (skipped — pass --no-quick to compute)                              |
 | clippy           | (skipped)                              |

@@ -211,20 +211,22 @@ fn the_plan_reads_in_run_order_by_wave_with_its_gate() {
 
 #[test]
 fn a_static_plan_keeps_the_verbs_in_the_surrounding_ink() {
+    use nika_display::theme::Role;
     let face = Face::Plan;
     let rendered = shown(face, "diamond.nika", DIAMOND, Canvas::new(80, false, true));
+    let verbs: Vec<Option<Color>> = [
+        Role::VerbInfer,
+        Role::VerbExec,
+        Role::VerbInvoke,
+        Role::VerbAgent,
+    ]
+    .into_iter()
+    .map(|role| crate::role::style(role, true).fg)
+    .collect();
     for line in &rendered.lines {
         for span in &line.spans {
             assert!(
-                !matches!(
-                    span.style.fg,
-                    Some(
-                        Color::Rgb(140, 177, 255)
-                            | Color::Rgb(242, 193, 125)
-                            | Color::Rgb(106, 216, 226)
-                            | Color::Rgb(194, 163, 242)
-                    )
-                ),
+                !verbs.contains(&span.style.fg),
                 "{face:?}: a verb hue on a static face: {span:?}"
             );
         }
@@ -240,10 +242,14 @@ fn the_graph_draws_a_diamond_and_lists_what_it_cannot_draw_truthfully() {
         Canvas::new(80, true, false),
     );
     let art = texts(&diamond).join("\n");
-    for node in ["@ source", "@ left", "@ right", "@ join"] {
+    for node in ["| source", "| left", "| right", "| join"] {
         assert!(art.contains(node), "{node} missing from:\n{art}");
     }
     assert!(art.is_ascii(), "{art}");
+    assert!(
+        !art.contains("->"),
+        "true wires leave no dependency row:\n{art}"
+    );
     assert!(
         diamond
             .facts
@@ -549,23 +555,32 @@ fn graph_cards_share_definition_and_observed_states_without_inventing_activity()
     let canvas = Canvas::new(62, false, true);
     let definition = crate::graph_cards(&owner.doc, &owner.audit.report.waves, canvas, &|_| None);
     let text = texts(&definition).join("\n");
-    assert!(text.contains("definition"));
-    assert!(text.contains("nika:read"));
-    assert!(!text.contains("running") && !text.contains("pending"));
     assert!(
         definition
-            .lines
-            .iter()
-            .flat_map(|line| &line.spans)
-            .any(|span| span.style.fg == Some(Color::Rgb(106, 216, 226)))
+            .facts
+            .contains(&"definition · no task state observed".to_owned()),
+        "{:?}",
+        definition.facts
     );
     assert!(
-        !definition
+        !text.contains("definition"),
+        "the definition fact has one home, not one row per card:\n{text}"
+    );
+    assert!(text.contains("nika:read"));
+    assert!(!text.contains("running") && !text.contains("pending"));
+    let painted = |rendered: &Rendered, role: nika_display::theme::Role| {
+        let hue = crate::role::style(role, true).fg;
+        rendered
             .lines
             .iter()
             .flat_map(|line| &line.spans)
-            .any(|span| span.style.fg == Some(Color::Rgb(123, 210, 167)))
+            .any(|span| span.style.fg == hue)
+    };
+    assert!(
+        !painted(&definition, nika_display::theme::Role::VerbInvoke),
+        "a static card keeps its verb in the muted ink"
     );
+    assert!(!painted(&definition, nika_display::theme::Role::Good));
     let observed = crate::graph_cards(&owner.doc, &owner.audit.report.waves, canvas, &|id| {
         (id == "source").then(|| {
             (
@@ -577,19 +592,21 @@ fn graph_cards_share_definition_and_observed_states_without_inventing_activity()
     let text = texts(&observed).join("\n");
     assert_eq!(text.matches("done (observed)").count(), 1);
     assert_eq!(text.matches("definition").count(), 3);
-    assert!(
-        observed
-            .lines
-            .iter()
-            .flat_map(|line| &line.spans)
-            .any(|span| span.style.fg == Some(Color::Rgb(123, 210, 167)))
-    );
+    assert!(painted(&observed, nika_display::theme::Role::Good));
     assert!(
         observed
             .lines
             .iter()
             .flat_map(|line| &line.spans)
             .any(|span| span.style.bg.is_some())
+    );
+    assert!(
+        !observed
+            .facts
+            .iter()
+            .any(|fact| fact.starts_with("definition")),
+        "{:?}",
+        observed.facts
     );
 }
 
@@ -604,25 +621,21 @@ fn graph_cards_show_the_exact_diamond_edges_and_parallel_cards() {
     );
     let rows = texts(&rendered);
     let text = rows.join("\n");
-    for edge in [
-        "source -> left - value",
-        "source -> right - value",
-        "left -> join - value",
-        "right -> join - value",
-    ] {
-        assert_eq!(text.matches(edge).count(), 1, "{edge}: {text}");
-    }
-    assert!(!text.contains("left -> right"));
+    // True wires carry the four value edges: no dependency row repeats them.
+    assert!(!text.contains("->"), "{text}");
     assert!(
         rows.iter()
-            .any(|row| row.contains("left") && row.contains("right") && row.starts_with('|')),
+            .any(|row| row.starts_with("| left") && row.contains("|  | right")),
         "{text}"
     );
-    assert!(
-        rows.iter()
-            .any(|row| row.starts_with('+') && row.contains("+  +")),
+    // The fan-out and the join are one joint each, through the card centres.
+    let joint = format!("{}+{}+{}+", " ".repeat(15), "-".repeat(15), "-".repeat(15));
+    assert_eq!(
+        rows.iter().filter(|row| **row == joint).count(),
+        2,
         "{text}"
     );
+    assert_eq!(rows.len(), 14, "four rows a card, one a joint:\n{text}");
 }
 
 #[test]
@@ -644,6 +657,10 @@ fn graph_cards_keep_skip_wave_dependencies_in_the_fallback() {
     assert!(text.contains("read_notes -> save - value"), "{text}");
     assert!(text.contains("approve -> save - value"), "{text}");
     assert!(!text.contains("digest -> save"), "{text}");
+    assert!(
+        !text.lines().any(|line| line.starts_with("wave ")),
+        "a wave that fits its row needs no heading:\n{text}"
+    );
 }
 
 #[test]
@@ -666,14 +683,16 @@ fn graph_cards_keep_width_line_byte_and_no_color_bounds() {
             }
         }
     }
+    // Eight rows hold the first card (4) but not the joint with the next
+    // wave (1 + 4): the drawing stops on a whole card and says so.
     let canvas = Canvas::new(62, false, false).with_limits(crate::Limits::new(4096, 8, 6));
     let rendered = crate::graph_cards(&owner.doc, &owner.audit.report.waves, canvas, &|_| None);
-    assert_eq!(rendered.lines.len(), 8);
+    assert_eq!(rendered.lines.len(), 4);
     assert!(
         rendered
             .notes
             .iter()
-            .any(|note| matches!(note, crate::Note::LinesCut { .. }))
+            .any(|note| matches!(note, crate::Note::LinesCut { shown: 4 }))
     );
     assert!(
         rendered
@@ -768,14 +787,24 @@ fn graph_cards_preserve_interleaved_cleanup_indices_and_report_exact_boundary_cu
     assert!(text.contains("first -> tidy - finally"), "{text}");
     let source = "nika: cleanup-bound\npermits: { exec: [\"true\"] }\ntasks:\n  first:\n    exec: { command: [\"true\"] }\n  tidy:\n    after: { first: unwind }\n    exec: { command: [\"true\"] }\n";
     let owner = Owner::new(source);
+    // Six rows hold the task's card (4) but not the whole cleanup section
+    // (its heading, its edge and its card: 6): it is cut whole, and said.
     let canvas = Canvas::new(62, true, false).with_limits(crate::Limits::new(4096, 6, 4096));
     let rendered = crate::graph_cards(&owner.doc, &owner.audit.report.waves, canvas, &|_| None);
-    assert_eq!(rendered.lines.len(), 6);
+    assert_eq!(rendered.lines.len(), 4);
     assert!(
         rendered
             .notes
             .iter()
-            .any(|note| matches!(note, crate::Note::LinesCut { shown: 6 }))
+            .any(|note| matches!(note, crate::Note::LinesCut { shown: 4 }))
+    );
+    assert!(
+        rendered
+            .facts
+            .iter()
+            .any(|fact| fact.contains("1 cleanup unit")),
+        "the summary still counts the cut cleanup unit: {:?}",
+        rendered.facts
     );
 }
 

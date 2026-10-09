@@ -217,8 +217,9 @@ async fn every_authoring_call_asks_the_configured_level_under_the_policy_cap() {
             .with_original_intent(GREETING)
             .with_plan(record.clone())
     };
-    // Each seat a request reaches: the private plan and its repair, the plan escalating to the
-    // sketch door, the sketch door itself, and the semantic revision of a recorded base.
+    // Each seat a request reaches: the private plan and its repair, the document door a fresh
+    // create opens on wherever a native door is permitted, the sketch door itself, and the
+    // semantic revision of a recorded base.
     let cases: [(NativeMode, CompileRequest, String, &[&str]); 4] = [
         (
             NativeMode::Off,
@@ -229,8 +230,8 @@ async fn every_authoring_call_asks_the_configured_level_under_the_policy_cap() {
         (
             NativeMode::Escalate,
             create(),
-            "no plan".to_owned(),
-            &["plan", "sketch"],
+            "no document".to_owned(),
+            &["document"],
         ),
         (
             NativeMode::Sketch,

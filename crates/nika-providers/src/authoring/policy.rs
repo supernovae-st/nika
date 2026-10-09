@@ -25,7 +25,9 @@ pub struct CompletionBounds {
     pub initial_tokens: u32,
     /// Qualified technical ceiling, or the existing default on an unknown route.
     pub max_tokens: u32,
-    /// The existing transport's deadline for one completion, not a total Session timeout.
+    /// The existing transport's deadline for one completion, not a total Session timeout. A
+    /// harness (ACP) completion bounds its silence with it, not its duration: each frame showing
+    /// its agent working re-arms it, so a call that keeps working is never cut by it.
     pub timeout: Duration,
 }
 /// The compatibility policy for callers that have not selected continuous preparation.
@@ -44,6 +46,7 @@ pub fn legacy_completion_bounds(harness: bool) -> CompletionBounds {
 /// Resolve against the effective route, not a provider nickname or an arbitrary gateway.
 /// Exact admission rows own their technical limits independently of currency. Other native
 /// catalog routes use their published output cap; unknown routes retain the existing wire default.
+/// Every route keeps 600 s per completion; an ACP harness spends it as its silence allowance.
 #[must_use]
 pub fn completion_bounds(model: &str, harness: bool, config: ProvidersConfig) -> CompletionBounds {
     let mut bounds = CompletionBounds {
@@ -80,6 +83,16 @@ pub fn completion_bounds(model: &str, harness: bool, config: ProvidersConfig) ->
     }
     bounds.initial_tokens = bounds.initial_tokens.min(bounds.max_tokens);
     bounds
+}
+
+/// Whether `model` names a harness route: `<harness>/<model>`, the harness a shipped `--access`
+/// runtime, as the hosts classify it. Such a seat bounds its own call by the silence it allows,
+/// so a caller adds no total of its own around the call.
+#[must_use]
+pub fn harness_route(model: &str) -> bool {
+    model
+        .split_once('/')
+        .is_some_and(|(id, _)| nika_types::access::HarnessRuntime::lookup(id).is_some())
 }
 
 /// Ordinary labels retain their existing finite ceiling.

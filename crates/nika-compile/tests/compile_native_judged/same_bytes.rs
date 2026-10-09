@@ -90,11 +90,13 @@ impl ProviderInferDyn for Recording {
 }
 
 /// The verdict of the first attempt as a repeated attempt states it again, with no call:
-/// everything but what the call itself spent and asked, and the attempt it repeats.
-fn repeated_verdict(first: &Value) -> Value {
+/// everything but what the call itself spent and asked, the attempt it repeats, and its own
+/// `attempt` (the verdicts this compile recorded before it).
+fn repeated_verdict(first: &Value, attempt: u64) -> Value {
     let mut verdict = first.clone();
     let spent = json!({"calls": 0, "input_tokens": 0, "output_tokens": 0, "complete": true});
     for (key, value) in [
+        ("attempt", json!(attempt)),
         ("questions", json!([])),
         ("attempted", json!(0)),
         ("returned", json!(0)),
@@ -167,7 +169,11 @@ async fn a_repair_writing_the_declined_bytes_again_is_never_judged_again() {
     let attempts = verification(&out);
     assert_eq!(attempts.len(), 2, "{attempts:#?}");
     assert_judged_once(&attempts[0]).await;
-    assert_eq!(attempts[1], repeated_verdict(&attempts[0]), "{attempts:#?}");
+    assert_eq!(
+        attempts[1],
+        repeated_verdict(&attempts[0], 1),
+        "{attempts:#?}"
+    );
     // The same bytes again are no progress, whatever round the count has left.
     let steps = [SAME_BYTES, "verify: not ready", "native: no progress"];
     assert_eq!(stops(&out), steps, "{out:#?}");
@@ -193,7 +199,11 @@ async fn a_counted_door_stops_at_the_first_repeat_of_the_declined_bytes() {
     assert_eq!(judge_calls(&out), ONCE);
     let attempts = verification(&out);
     assert_eq!(attempts.len(), 2, "{attempts:#?}");
-    assert_eq!(attempts[1], repeated_verdict(&attempts[0]), "{attempts:#?}");
+    assert_eq!(
+        attempts[1],
+        repeated_verdict(&attempts[0], 1),
+        "{attempts:#?}"
+    );
     assert!(route(&out).contains("native: no progress"), "{out:#?}");
     assert_eq!(
         findings(&out, "rehearsal"),
@@ -231,9 +241,17 @@ async fn a_recovered_source_of_the_declined_bytes_is_never_judged_again() {
     let attempts = verification(&out);
     assert_eq!(attempts.len(), 3, "{attempts:#?}");
     assert_judged_once(&attempts[0]).await;
-    let repeated = repeated_verdict(&attempts[0]);
-    assert_eq!(attempts[1], repeated, "{attempts:#?}");
-    assert_eq!(attempts[2], repeated, "{attempts:#?}");
+    // Each repeat is its own attempt: one repair, then two, came before it.
+    assert_eq!(
+        attempts[1],
+        repeated_verdict(&attempts[0], 1),
+        "{attempts:#?}"
+    );
+    assert_eq!(
+        attempts[2],
+        repeated_verdict(&attempts[0], 2),
+        "{attempts:#?}"
+    );
     // The structured doors' same-bytes stop, the recovery it opened, then the recovery's own
     // repeat of the declined bytes, in order: withdrawn, never judged again, no progress.
     let steps = [

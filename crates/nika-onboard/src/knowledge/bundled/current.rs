@@ -1,40 +1,39 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The source-reviewed a8 payload: only its changed files overlay the retained R3 table.
-//! Unchanged bytes remain shared; admission checks the complete resulting inventory and pins.
+//! The current release: the r2 payload of the run contract (profile r2, `policy-r2`), embedded
+//! whole from its directory. Its inventory is not listed here: admission checks every file against
+//! the manifest the trusted snapshot names, so a file added to or removed from the directory is
+//! refused, never served (the build script makes cargo rescan the directory).
 
 use std::collections::BTreeMap;
 
-pub(super) const SNAPSHOT_SHA256: &str =
-    "b7f3861c55c785ba78fbf3fcfbb495ab79154b30f1bcb8483ce66018cc4659a9";
-pub(super) const POLICY_SHA256: &str =
-    "41ba74af8c28cffa2abbbbbf5444e510ae9ddd045c4f197f6fdf217cd978987b";
+use include_dir::{Dir, DirEntry, include_dir};
 
+static PAYLOAD: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/assets/knowledge-release-r2");
+
+pub(super) const SNAPSHOT_SHA256: &str =
+    "1be7d6101dab9eff54f35be07463f4e320607c4a837d04ef90519abaadf48166";
+pub(super) const POLICY_ID: &str = "policy-r2";
+pub(super) const POLICY_SHA256: &str =
+    "53ef65a30e54220dfe76472f9fd766af2ef4817d4daea6bab38dab1337381cdf";
+
+/// Every embedded file, by its path relative to the payload root (`/`-separated).
 pub(super) fn files() -> BTreeMap<String, Vec<u8>> {
-    let mut files: BTreeMap<_, _> = super::FILES
-        .into_iter()
-        .map(|(path, bytes)| (path.to_owned(), bytes.to_vec()))
-        .collect();
-    let added = embedded_files!(
-        "../../../assets/knowledge-release-a8/";
-        "NOTICE.md",
-        "blocks/glob-read-many.nika",
-        "blocks/lookup-enrich-by-key.nika",
-        "blocks/multi-csv-group-totals.nika",
-        "blocks/validate-diff-convert.nika",
-        "blocks/validate-quarantine-total.nika",
-        "knowledge/blocks.jsonl",
-        "knowledge/diagnostics.jsonl",
-        "knowledge/manifest.json",
-        "knowledge/patterns.jsonl",
-        "knowledge/relations.jsonl",
-        "knowledge/source_artifacts.jsonl",
-    );
-    files.extend(
-        added
-            .into_iter()
-            .map(|(path, bytes)| (path.to_owned(), bytes.to_vec())),
-    );
+    let mut files = BTreeMap::new();
+    let mut dirs = vec![&PAYLOAD];
+    while let Some(dir) = dirs.pop() {
+        for entry in dir.entries() {
+            match entry {
+                DirEntry::Dir(inner) => dirs.push(inner),
+                DirEntry::File(file) => {
+                    let path: Vec<_> = (file.path().components())
+                        .map(|part| part.as_os_str().to_string_lossy())
+                        .collect();
+                    files.insert(path.join("/"), file.contents().to_vec());
+                }
+            }
+        }
+    }
     files
 }

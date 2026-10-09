@@ -4,6 +4,10 @@
 use super::*;
 const INTENT: &str =
     "Je veux que sortie.txt contienne exactement les octets présents dans entree.txt.";
+/// The author calls of one semantic CREATE of [`INTENT`].
+fn authored() -> usize {
+    common::semantic_copy().len()
+}
 pub(super) fn install(dir: &Path) {
     std::fs::write(dir.join("root/entree.txt"), "A\n").unwrap();
     for (n, answer) in common::semantic_copy().into_iter().enumerate() {
@@ -21,12 +25,13 @@ if [ -f {observed}/count ]; then n=$(/bin/cat {observed}/count); fi
 printf '%s' "$((n+1))" > {observed}/count
 printf '%s\n' "$@" > {observed}/argv-$n
 /bin/cat > {observed}/prompt-$n
-if [ "$n" -lt 3 ]; then /bin/cat {dir}/reply-$n
-elif [ "$n" = 3 ]; then printf '%s\n' 'synthetic judge unavailable' >&2; exit 1
+if [ "$n" -lt {authored} ]; then /bin/cat {dir}/reply-$n
+elif [ "$n" = {authored} ]; then printf '%s\n' 'synthetic judge unavailable' >&2; exit 1
 else /bin/cat {dir}/approved
 fi
 "#,
-        dir = shell(dir)
+        dir = shell(dir),
+        authored = authored(),
     );
     let bin = dir.join("bin/claude");
     std::fs::write(&bin, script).unwrap();
@@ -93,10 +98,11 @@ pub(super) fn child(root: &Path, scenario: &str) {
 fn proof(scenario: &str) {
     let out = run(scenario);
     assert_eq!(
-        out["calls"], 5,
-        "three author calls, failed judge, retry judge"
+        out["calls"],
+        authored() + 2,
+        "the author calls, failed judge, retry judge"
     );
-    for n in [3, 4] {
+    for n in [authored(), authored() + 1] {
         assert!(out["prompts"][n].as_str().unwrap().contains("unfaithful"));
     }
     assert_eq!(out["ready"], true);

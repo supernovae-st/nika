@@ -1,0 +1,11 @@
+# A seeded entropy on a virtual clock: the parameterized run form.
+nika: deterministic-run
+
+run:
+  entropy: { seeded: 42 }
+  clock: virtual
+
+tasks:
+  stamp:
+    invoke:
+      tool: "nika:uuid"

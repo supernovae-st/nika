@@ -151,9 +151,10 @@ async fn a_doubted_cold_candidate_whose_every_part_is_carried_is_contested_never
     assert_eq!(attempt["unsettled"], json!([NO_TRIAL]), "{attempt:#}");
     assert_eq!(attempt["settled_by"], Value::Null, "{attempt:#}");
     assert_eq!(verify_route(&out), ["verify: not ready", UNREPLAYABLE]);
-    // The candidate stays the preview; the record that would ask the same judge again is gone.
+    // The candidate stays the preview; its record keeps the rejection, so no replay asks the
+    // same judge again.
     assert!(out.candidate.is_some(), "{out:#?}");
-    assert!(out.provenance.plan.is_none(), "{out:#?}");
+    assert!(record_as_declined(&out), "{out:#?}");
     // Beside the core's own pending findings, the verifier names the disagreement, never a
     // defect nor an abstention.
     let told = verifier_said(&out);
@@ -201,7 +202,7 @@ async fn answer_round(record: Value) -> (CompileOutcome, Scripted) {
 #[tokio::test]
 async fn a_doubted_cold_whole_is_never_replayed_and_a_failed_judge_keeps_its_record() {
     let sum = format!("{GENERATED} // 0");
-    // The judge doubts and locates nothing: no record, the route says why.
+    // The judge doubts and locates nothing: the record keeps that rejection, the route says why.
     let seat = Scripted::new(vec![plan(SUM).to_string(), program(&sum)]);
     let doubted = compiled_as(&Judging::new(&seat, doubting), SUM, 0).await;
     assert_eq!(doubted.status, CompileStatus::Incomplete, "{doubted:#?}");
@@ -209,7 +210,7 @@ async fn a_doubted_cold_whole_is_never_replayed_and_a_failed_judge_keeps_its_rec
         doubted.candidate.is_some(),
         "the preview stays: {doubted:#?}"
     );
-    assert!(doubted.provenance.plan.is_none(), "{doubted:#?}");
+    assert!(record_as_declined(&doubted), "{doubted:#?}");
     assert_eq!(verify_route(&doubted), ["verify: not ready", UNREPLAYABLE]);
     // The judge's first call fails: it stops the verdict, so the whole request is never asked;
     // the clause and the whole request stay unknown, and the record is kept.
@@ -385,7 +386,7 @@ async fn a_defect_set_already_repaired_from_ends_the_repairs_whenever_it_was_see
             UNREPLAYABLE
         ]
     );
-    assert!(out.provenance.plan.is_none(), "{out:#?}");
+    assert!(record_as_declined(&out), "{out:#?}");
     let told = verifier_said(&out);
     let named = format!(
         "it does not carry « {} (the judge points to the task read_source) ». 2 repair(s) from that defect did not settle it",

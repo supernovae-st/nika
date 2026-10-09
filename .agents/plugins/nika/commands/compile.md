@@ -23,5 +23,5 @@ Arguments: `$ARGUMENTS`.
    language editing remain incomplete. Source revision ownership stays with the caller.
 5. Return the candidate/questions and exact diagnostics. Source-only Check is
    not runtime admission. No provider calls, model selection, grants or runs
-   follow from Compile; `nika check <file>` and an authorized `nika run <file>`
-   remain separate gestures.
+   follow from Compile; checking with `nika check <file>` and running with an
+   authorized `nika run <file>` each require the caller's explicit action.

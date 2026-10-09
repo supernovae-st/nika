@@ -33,9 +33,11 @@ use std::collections::BTreeMap;
 mod money_restatement_tests;
 use std::sync::Arc;
 
+use nika_compile_cognition::compile_with_cognition_composed;
+use nika_compile_seats::foundry::ComponentCatalog;
 use nika_onboard::compile::{
     AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome, CompileQuestion,
-    CompileRequest, NativeMode, compile, compile_with_cognition_rehearsed, revise_intent, round,
+    CompileRequest, NativeMode, compile, revise_intent, round,
 };
 // The records a compile outcome carries live beside the snapshot door (C7 · D1).
 use nika_onboard::compile::rehearse::Rehearse;
@@ -319,6 +321,19 @@ impl AuthoringRound {
     /// the workflow again instead of replaying it.
     pub(crate) fn forget_plan(&mut self) {
         (self.continuation, self.knowledge, self.authoring_receipt) = (None, None, None);
+    }
+
+    /// Replace the plan this round replays with the record `held` kept, with its judge's
+    /// rejections (A3), when the next seat brings its own judge (`own_judge`, no separate decision
+    /// seat): that seat replays those bytes to its judge, never to the one that declined them
+    /// (R6), and authors nothing. A decision seat that declined them would decide nothing, and a
+    /// held outcome that kept no record (a semantic one) has none: the round writes afresh.
+    pub(crate) fn retain_held(&mut self, held: &CompileOutcome, own_judge: bool) {
+        self.forget_plan();
+        if let Some(settled) = round::settled(held).filter(|_| own_judge) {
+            self.continuation = Some(settled.plan);
+            (self.knowledge, self.authoring_receipt) = (settled.knowledge, settled.receipt);
+        }
     }
 
     /// The intent the compiler reads for this round: a revision's original
@@ -627,6 +642,56 @@ enum Attach<'a> {
     Carried(Option<&'a Value>, &'a str),
 }
 
+/// A subscription seat's preflight. It holds no billed-provider admission, and a direct seat
+/// cannot carry an explicit effort: both are said before any byte, never silently dropped (R4
+/// B16). Over ACP the named effort travels with every authoring call: the session applies it
+/// through its advertised reasoning option and reads it back.
+fn harness_preflight(
+    seat: &str,
+    transport: nika_types::access::HarnessTransport,
+    admitted: bool,
+    effort: Option<nika_onboard::compile::AuthoringReasoning>,
+) -> Result<(), AuthoringError> {
+    if admitted {
+        return Err(AuthoringError::Seat(
+            "a subscription is not a billed-provider admission account".into(),
+        ));
+    }
+    match (transport, effort) {
+        (nika_types::access::HarnessTransport::Native, Some(level)) => {
+            Err(AuthoringError::Seat(format!(
+                "the subscription seat `{seat}` cannot carry the explicit reasoning effort `{}` · nothing was sent",
+                level.word()
+            )))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// `request` under the session's authoring policy for `model` on `seat`: its strategy and
+/// source recovery, the observed preparation while preparation costs are observed, and the
+/// named reasoning effort.
+fn under_session_policy(
+    request: CompileRequest,
+    model: &str,
+    seat: &AuthoringSeat,
+    context: &AuthoringContext,
+) -> CompileRequest {
+    let harness = matches!(seat, AuthoringSeat::Harness { .. });
+    let policy =
+        session_policy(model, harness, context.strategy()).with_source_recovery(context.recovery);
+    let request = if PreparationCosts::active() {
+        request.with_observed_preparation()
+    } else {
+        request
+    };
+    // Every authoring and repair call asks the named effort; the caps stay the policy's (R4 B16).
+    request.with_authoring_policy(match context.reasoning() {
+        Some(level) => policy.with_reasoning(level),
+        None => policy,
+    })
+}
+
 fn compile_attached(
     seat: &AuthoringSeat,
     context: &AuthoringContext,
@@ -655,36 +720,19 @@ fn compile_attached(
         }
         AuthoringSeat::Unavailable { why } => return Err(AuthoringError::Seat(why.clone())),
         AuthoringSeat::Provider { model } => model.clone(),
-        AuthoringSeat::Harness { seat, model, .. } => {
-            if admission.is_some() {
-                return Err(AuthoringError::Seat(
-                    "a subscription is not a billed-provider admission account".into(),
-                ));
-            }
-            // Its adapter cannot carry an explicit effort: said, never silently dropped (R4 B16).
-            if let Some(level) = context.reasoning() {
-                return Err(AuthoringError::Seat(format!(
-                    "the subscription seat `{seat}` cannot carry the explicit reasoning effort `{}` · nothing was sent",
-                    level.word()
-                )));
-            }
+        AuthoringSeat::Harness {
+            seat,
+            model,
+            transport,
+        } => {
+            harness_preflight(seat, *transport, admission.is_some(), context.reasoning())?;
             model.clone().unwrap_or_else(|| format!("{seat}/default"))
         }
     };
     if let Some(why) = context.refusal() {
         return Err(AuthoringError::Context(why.clone()));
     }
-    let harness = matches!(seat, AuthoringSeat::Harness { .. });
-    let policy =
-        session_policy(&model, harness, context.strategy()).with_source_recovery(context.recovery);
-    if PreparationCosts::active() {
-        request = request.with_observed_preparation();
-    }
-    // Every authoring and repair call asks the named effort; the caps stay the policy's (R4 B16).
-    request = request.with_authoring_policy(match context.reasoning() {
-        Some(level) => policy.with_reasoning(level),
-        None => policy,
-    });
+    request = under_session_policy(request, &model, seat, context);
     let pack = match attach {
         Attach::Compose(intent) => context.compose(intent)?,
         Attach::Carried(..) => None,
@@ -692,6 +740,18 @@ fn compile_attached(
     if let Some(pack) = &pack {
         request = request.with_authoring_knowledge(pack.clone());
     }
+    // The release the session pinned, lent as executable components: a pack is qualified over
+    // the whole catalogue, and a revision may compose or rebind an admitted component. A pin
+    // that no longer reopens lends nothing (a composition is then refused, and says why).
+    let catalog = context.knowledge().and_then(|pin| pin.reopen().ok());
+    // The catalogue of this request: the corpus the pin's pack holds out stays out of the reach.
+    let holdout = context
+        .knowledge()
+        .and_then(|pin| pin.exclude_corpus.clone());
+    let catalogue = (catalog.as_ref()).map(|snapshot| snapshot.catalogue(holdout.as_deref()));
+    let lent = catalogue
+        .as_ref()
+        .map(|catalogue| catalogue as &dyn ComponentCatalog);
     let mut out = match seat {
         AuthoringSeat::Harness {
             seat,
@@ -705,9 +765,15 @@ fn compile_attached(
             context
                 .decision()
                 .map(|s| s.consult(decision::admit(admission))),
-            host,
+            (host, lent),
         )?,
-        _ => seated(&model, &request, admission, context.decision(), host)?,
+        _ => seated(
+            &model,
+            &request,
+            admission,
+            context.decision(),
+            (host, lent),
+        )?,
     };
     let knowledge = match (attach, &pack, context.knowledge()) {
         (Attach::Compose(_), Some(pack), Some(pin)) => Some(composed_record(pin, pack, &out)),
@@ -731,7 +797,7 @@ fn seated(
     request: &CompileRequest,
     admission: Option<&nika_providers::InferenceAdmission>,
     selected: Option<&DecisionSetup>,
-    host: Option<&dyn Rehearse>,
+    (host, catalog): (Option<&dyn Rehearse>, Option<&dyn ComponentCatalog>),
 ) -> Result<CompileOutcome, AuthoringError> {
     // The operator-selected decision seat for this ONE compile: consulted by the compiler only
     // for a finite ambiguity (WARM), charged only on the no-budget observation; a need met under
@@ -751,7 +817,7 @@ fn seated(
         .map_err(|e| AuthoringError::Seat(e.to_string()))?;
     // The compile future carries a whole `CompileOutcome`: boxed so this
     // frame stays small (clippy::large_futures), as the CLI host does.
-    let mut out = complete(Box::pin(compile_with_cognition_rehearsed(
+    let mut out = complete(Box::pin(compile_with_cognition_composed(
         request,
         Cognition {
             provider: Some(&provider),
@@ -760,6 +826,7 @@ fn seated(
                 .map(|seat| seat as &dyn nika_onboard::compile::decide::DecisionSeat),
         },
         host,
+        catalog,
     )))??;
     decision::finish(&mut out, request, consulted);
     // The receipt names its backend as the CLI's does, with the host the

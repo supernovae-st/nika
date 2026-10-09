@@ -18,13 +18,16 @@
 
 use std::collections::BTreeMap;
 
-use nika_types::access::{AccessClass, AccessPlan, HarnessRuntime};
+use nika_types::access::{AccessClass, AccessPlan, AccessRequirement, HarnessRuntime};
 
 use crate::probe::ProviderProbe;
 use crate::resolve_access::{
     AccessCandidate, AccessRefusal, PinRefusal, VerbNeeds, access_plan_map, candidates_for,
     provider_of, refuse_pin_for_verbs, resolve_access,
 };
+
+mod declared;
+pub use declared::resolve_execution_plan_declared;
 
 /// What ONE static model is asked to do — the verbs that read it. A
 /// harness candidate is judged against these: an ACP-only seat drives
@@ -87,8 +90,20 @@ pub struct ExecutionAccessPlan {
     /// The ONE harness seat this run may spawn (a pinned seat serves
     /// every model; a resolved seat serves its own harness lanes).
     pub seat: Option<String>,
-    /// A refused pin (NIKA-1800..1803) — the plan is not runnable.
+    /// A refused pin (NIKA-1800..1803) — the plan is not runnable. A
+    /// refused authored requirement rides here too: the file's `via` is
+    /// judged exactly as the same `--access` token would be.
     pub pin_refusal: Option<PinRefusal>,
+    /// The workflow's authored access requirement (`run.access` ·
+    /// `run.reasoning`) this plan was resolved under — `None` when the
+    /// file declares none. `pin` stays the operator's flag alone, so a
+    /// child workflow never inherits its parent file's route.
+    pub requirement: Option<AccessRequirement>,
+    /// The probe rows a pinned or declared plan was resolved over, kept so
+    /// a model rendered at dispatch is judged by the same resolver on the
+    /// same rows ([`Self::task_lane`]); empty for an unpinned, undeclared
+    /// plan.
+    rows: Vec<ProviderProbe>,
 }
 
 impl ResolvedLane {
@@ -114,7 +129,65 @@ impl ExecutionAccessPlan {
             pin,
             seat,
             pin_refusal,
+            requirement: None,
+            rows: Vec::new(),
         }
+    }
+
+    /// Record the authored requirement the plan was resolved under.
+    #[must_use]
+    pub fn with_requirement(mut self, requirement: Option<AccessRequirement>) -> Self {
+        self.requirement = requirement;
+        self
+    }
+
+    /// The authored requirement, when the workflow declared one — the
+    /// accessor dispatch reads (`Option::and_then` over an attached plan).
+    #[must_use]
+    pub fn requirement(&self) -> Option<&AccessRequirement> {
+        self.requirement.as_ref()
+    }
+
+    /// The route token the plan was resolved under: the operator's
+    /// `--access`, else the file's `via`, else the class its declared
+    /// protocol names (`acp` → `harness` · `api` → `api`).
+    #[must_use]
+    pub fn route_pin(&self) -> Option<&str> {
+        self.pin
+            .as_deref()
+            .or_else(|| self.requirement.as_ref().and_then(declared::route_of))
+    }
+
+    /// The resume identity's pin half: the operator's flag, joined with
+    /// the authored requirement's behavior-bearing identity when there is
+    /// one (a run resumed under another route, protocol or effort re-runs
+    /// its intelligence tasks instead of reusing their output). A plan
+    /// without a requirement answers the flag alone, exactly as before.
+    #[must_use]
+    pub fn resume_pin(&self) -> Option<String> {
+        let identity = self
+            .requirement
+            .as_ref()
+            .map(AccessRequirement::identity)
+            .filter(|id| !id.is_empty());
+        match (self.pin.as_deref(), identity) {
+            (pin, None) => pin.map(str::to_owned),
+            (None, Some(id)) => Some(format!("run.access[{id}]")),
+            (Some(pin), Some(id)) => Some(format!("{pin} · run.access[{id}]")),
+        }
+    }
+
+    /// The admitted lane per model (`model → access id`, the resume
+    /// identity's chosen-access half · wave 1b) — empty for a planless
+    /// embedder.
+    #[must_use]
+    pub fn lane_identity(plan: Option<&Self>) -> BTreeMap<String, String> {
+        plan.map(|plan| {
+            plan.admitted()
+                .map(|(model, lane)| (model.to_owned(), lane.plan.access.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
     }
 
     /// The per-model decisions as the `check --json` rows read them
@@ -196,7 +269,7 @@ impl ExecutionAccessPlan {
     }
 
     fn pin_is_seat(&self) -> bool {
-        self.pin.as_deref().is_some_and(|pin| {
+        self.route_pin().is_some_and(|pin| {
             HarnessRuntime::lookup(pin).is_some() || pin == AccessClass::Harness.as_str()
         })
     }
@@ -228,7 +301,12 @@ pub fn resolve_execution_plan_for(
 ) -> ExecutionAccessPlan {
     let statics: Vec<&ModelNeed> = needs.iter().filter(|n| !n.model.contains("${{")).collect();
     match pin {
-        Some(pin) => pinned_plan(&statics, probes, pin, verbs),
+        // A pinned plan keeps its rows: a model rendered at dispatch is then
+        // judged under the same pin on the same rows (`task_lane`).
+        Some(pin) => ExecutionAccessPlan {
+            rows: probes.to_vec(),
+            ..pinned_plan(&statics, probes, pin, verbs)
+        },
         None => resolved_plan(&statics, probes),
     }
 }
@@ -282,12 +360,7 @@ fn pinned_plan(
     } else {
         None
     };
-    ExecutionAccessPlan {
-        lanes,
-        pin: Some(pin.to_owned()),
-        seat,
-        pin_refusal,
-    }
+    ExecutionAccessPlan::new(lanes, Some(pin.to_owned()), seat, pin_refusal)
 }
 
 fn pinned_seat(pin: &str, probes: &[ProviderProbe]) -> Option<String> {
@@ -335,12 +408,7 @@ fn resolved_plan(needs: &[&ModelNeed], probes: &[ProviderProbe]) -> ExecutionAcc
         };
         lanes.insert(need.model.clone(), verdict);
     }
-    ExecutionAccessPlan {
-        lanes,
-        pin: None,
-        seat,
-        pin_refusal: None,
-    }
+    ExecutionAccessPlan::new(lanes, None, seat, None)
 }
 
 /// A harness row stays a candidate but loses its admissibility (with a
