@@ -502,3 +502,64 @@ fn a_child_run_is_opened_from_its_task_and_left_for_the_parent() {
     }
     ascii.leave();
 }
+
+/// An explicit combined consent goes through the existing Session door from
+/// the actual workspace. It saves the shown source, runs once, and leaves a
+/// byte-exact useful result; inspecting that result never repeats the Run.
+#[test]
+fn an_explicit_save_and_run_lands_the_shown_bytes_and_one_real_result() {
+    let rig = Rig::new("save-run");
+    let brief = "# Brief\n\nOctober — « fast ».\n";
+    std::fs::create_dir_all(rig.path("notes")).expect("notes");
+    std::fs::write(rig.path("notes/brief.md"), brief).expect("brief");
+    let before = rig.tree();
+    let mut term = rig.spawn("31-save-run", 120, 40);
+    wait_workspace(&mut term);
+    term.send("Read ./notes/brief.md and write it to ./out/copy.md\r");
+    term.wait_workspace_frame("the proposal before explicit Save and Run", |screen| {
+        screen.contains("Save?") && shown_bytes(&preview_text(screen)).is_some()
+    });
+    let witness = shown_bytes(&preview_text(&term.screen)).expect("shown source witness");
+    assert_eq!(rig.tree(), before, "preparation writes no project file");
+    assert!(
+        !rig.path(".nika/traces").exists(),
+        "preparation starts no Run"
+    );
+    term.send("save & run\r");
+    term.wait_workspace_frame("the combined action's observed result", |screen| {
+        screen.contains("settled · succeeded") && screen.contains("nika ›")
+    });
+    let saved = std::fs::read(rig.path("compiled-workflow.nika")).expect("saved source");
+    assert_eq!(
+        short_witness(&saved),
+        witness,
+        "Run starts from the shown source"
+    );
+    assert_eq!(
+        std::fs::read(rig.path("out/copy.md")).expect("the Run's output"),
+        brief.as_bytes(),
+        "the requested useful result is byte-exact"
+    );
+    let traces = journal_bytes(&rig);
+    assert_eq!(traces.len(), 1, "one explicit action causes one Run");
+    let label = run_label(&term.text()).expect("observed execution identity");
+    let files = rig.tree();
+    term.keys(F6);
+    term.keys(RIGHT);
+    term.wait_workspace_frame("the same execution's outputs", |screen| {
+        screen.contains("[outputs]") && screen.contains(&label)
+    });
+    term.keys(RIGHT);
+    term.wait_workspace_frame("the reported result read now", |screen| {
+        screen.contains("[files]") && screen.contains("reported written by")
+    });
+    term.resize(80, 24);
+    term.wait_workspace_frame("the result at 80 columns", |screen| {
+        screen.contains("[files]") && screen.contains(&label)
+    });
+    assert_eq!(journal_bytes(&rig), traces, "inspection repeats no Run");
+    assert_eq!(rig.tree(), files, "inspection writes no file");
+    term.leave();
+    assert_eq!(journal_bytes(&rig), traces, "closing repeats no Run");
+    assert_eq!(rig.tree(), files, "closing writes no file");
+}
