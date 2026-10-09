@@ -1255,8 +1255,8 @@ fn save_is_never_run_in_the_workspace() {
     );
 }
 
-/// The exact candidate identity in the review's quiet footnote
-/// (`proposal <12 hex>`), independent of the separate consent-facts row.
+/// The exact candidate identity on the review card's bottom border
+/// (`proposal <12 hex> · F2…`), independent of the material facts above it.
 fn shown_identity(screen: &str) -> Option<String> {
     let head = "proposal ";
     screen.lines().find_map(|line| {
@@ -1295,13 +1295,18 @@ fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
     wait_workspace(&mut term);
     term.send("Read ./notes/brief.md and write it to ./out/copy.md\r");
     term.wait_workspace_frame("the candidate in view", |s| {
-        s.contains("Save?") && review_text(s).contains("what a yes answers")
+        s.contains("Save?") && review_text(s).contains("F2: whole words")
     });
     let a = shown_identity(&review_text(&term.screen)).expect("an identity is shown");
     let preview = preview_text(&term.screen);
     let review = review_text(&term.screen);
+    assert!(
+        review.contains(&format!("proposal {a} · F2: whole words")),
+        "the identity beside its reader key on the card's border\n{}",
+        term.dump()
+    );
     for said in [
-        "not saved",
+        "Not saved yet",
         "creates compiled-workflow.nika",
         "when it runs",
         "rehearsal",
@@ -1317,6 +1322,12 @@ fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
             term.dump()
         );
     }
+    // The object's header is the one home of the pending bytes.
+    assert!(
+        shown_bytes(&preview).is_some() && !review.contains("these bytes"),
+        "the pending bytes once, in the object\n{}",
+        term.dump()
+    );
     assert!(
         preview.contains("[graph]"),
         "the object retains its face\n{}",
