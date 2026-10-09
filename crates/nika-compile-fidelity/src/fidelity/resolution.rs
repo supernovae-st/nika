@@ -7,10 +7,10 @@
 //! kept. Each carries its provenance and the person's words that authorize it. A selection is
 //! admitted only when those words are the person's (verbatim in what they stated), its value
 //! fits the scope of its role, and the document uses it in that role alone; an admitted
-//! selection covers its literal for Law 2 ([`super::laws_resolved`]): it is neither an invented
-//! literal nor a human answer. The scope never widens an effect: a delegated or named source is
-//! a public address read with GET; a derived output is a new file inside the project. Nothing
-//! here grants a permit, a Save or a Run, and the Check still judges the document whole.
+//! selection covers its literal for Law 2 ([`crate::fidelity::laws_resolved`]): it is neither an
+//! invented literal nor a human answer. The scope never widens an effect: a delegated or named
+//! source is a public address read with GET; a derived output is a new file inside the project.
+//! Nothing here grants a permit, a Save or a Run, and the Check still judges the document whole.
 
 use nika_types::net;
 use serde_json::Value;
