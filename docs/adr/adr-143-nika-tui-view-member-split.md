@@ -24,6 +24,28 @@ follow_ups: ["the admission evidence of the member, pending with its WIP unit", 
 
 # ADR-143: nika-tui size-cap member split — nika-tui-view
 
+## Amendment · 9 October 2026 · completed native interaction composition
+
+The composed native renderer now includes the live question home, retained
+identity-bound replies, a report of the value the Session took, and a shared
+geometry that gives an active decision the rows it needs. With all new source
+included in the counter and normal formatting applied, the native composition
+exceeds the earlier 18,000 production-LOC ceiling. The complete inventory stays
+within the scoped ceiling below and the unchanged 1,500-line file limit.
+
+Under the explicitly authorized native size exception, the ceiling is now
+**19,000 LOC for `crates/nika-tui` only**, superseding the 8 October ceiling.
+The viewer/renderer boundary stays intact. Every other crate retains 15,000 LOC,
+and the 1,500-line file limit, source counter, lowered probe, per-crate dashboard,
+review, tests and normal hooks stay in force. Boundary tests check 19,000,
+19,001 and a probe that cannot raise the limit. No code or documentation was
+removed to satisfy the counter, and no crate was added solely for this budget.
+
+This amendment changes a bounded maintainability budget; it does not certify
+visual quality, workflow effects or completion of the product. Review cohesion
+when further native capabilities are integrated. The original split and earlier
+measurements remain historical evidence.
+
 ## Amendment · 8 October 2026 · native composition ceiling
 
 The native workspace combines continuous conversation, contextual object

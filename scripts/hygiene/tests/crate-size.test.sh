@@ -140,7 +140,7 @@ expect_says 'crates/nika-runtime' 'tightness uses each reviewed crate limit' \
   '' 0 "$TUI" 1
 expect_says '5 LOC of headroom' 'the native TUI exception does not hide another near-limit crate' \
   '' 0 "$TUI" 1
-expect_says '17500/18000' 'the native TUI ceiling is visible in the dashboard' \
+expect_says '17500/19000' 'the native TUI ceiling is visible in the dashboard' \
   '' 0 'FAIL  crates/nika-tui  17500 LOC (max 12000)' 1
 
 # The verdict semantics are untouched by the message change.
