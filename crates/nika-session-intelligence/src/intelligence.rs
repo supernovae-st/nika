@@ -97,7 +97,8 @@ impl UserIntelligencePreference {
 
 /// The clock's stamp (RFC 3339 · UTC · whole seconds) — the one the
 /// session's durable files carry.
-pub(crate) fn now_rfc3339() -> String {
+#[must_use]
+pub fn now_rfc3339() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -125,6 +126,17 @@ pub struct SeatSeen {
 }
 
 impl SeatSeen {
+    /// One seat as a census outside this crate saw it (INV-019).
+    #[must_use]
+    pub fn new(id: String, product_present: bool, configured: bool, answers_here: bool) -> Self {
+        Self {
+            id,
+            product_present,
+            configured,
+            answers_here,
+        }
+    }
+
     /// The seat is on PATH and Nika can get an answer through it.
     #[must_use]
     pub fn usable(&self) -> bool {
@@ -161,7 +173,7 @@ pub struct IntelligenceCensus {
     /// Configured local routes, including catalog defaults; no reachability is established.
     pub locals: Vec<String>,
     /// Effective endpoint facts from the same host probe, never key values or authority.
-    pub(crate) provider_context: Vec<nika_providers::probe::ProviderProbe>,
+    pub provider_context: Vec<nika_providers::probe::ProviderProbe>,
 }
 
 impl std::fmt::Debug for IntelligenceCensus {
@@ -183,6 +195,17 @@ impl IntelligenceCensus {
             seats: Vec::new(),
             api_keys: Vec::new(),
             locals: Vec::new(),
+            provider_context: Vec::new(),
+        }
+    }
+
+    /// A census of these seats, keys and local routes, with no endpoint fact (INV-019).
+    #[must_use]
+    pub fn new(seats: Vec<SeatSeen>, api_keys: Vec<String>, locals: Vec<String>) -> Self {
+        Self {
+            seats,
+            api_keys,
+            locals,
             provider_context: Vec::new(),
         }
     }
@@ -523,6 +546,24 @@ pub struct ResolvedSessionIntelligence {
 }
 
 impl ResolvedSessionIntelligence {
+    /// A resolution as a host outside this crate states it (INV-019): no census is consulted.
+    #[must_use]
+    pub fn new(
+        kind: IntelligenceKind,
+        model: Option<String>,
+        locus: DataLocus,
+        ready: bool,
+        why: Option<String>,
+    ) -> Self {
+        Self {
+            kind,
+            model,
+            locus,
+            ready,
+            why,
+        }
+    }
+
     /// Judge the choice against the census — an explicit choice this
     /// machine cannot serve is refused with its fix, never replaced.
     #[must_use]

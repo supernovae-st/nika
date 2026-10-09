@@ -52,15 +52,15 @@ fn open(root: &Path) -> (SessionRuntime, Seen) {
         inner: ScriptedReasoner::new(vec!["A reply.".to_owned()]),
         seen: Arc::clone(&seen),
     };
-    let intelligence = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Local {
+    let intelligence = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Local {
             provider: "ollama".to_owned(),
         },
-        model: None,
-        locus: DataLocus::Local,
-        ready: true,
-        why: None,
-    };
+        None,
+        DataLocus::Local,
+        true,
+        None,
+    );
     (
         SessionRuntime::open(root, intelligence, Box::new(player)),
         seen,

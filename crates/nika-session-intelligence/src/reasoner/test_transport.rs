@@ -2,7 +2,8 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Test-only effect substitution: tariff identity stays native `DeepSeek`, while
 //! the injected kernel HTTP effect sends canned mechanics to one loopback seat.
-//! This module and its thread-local hook do not exist in production builds.
+//! This module and its thread-local hook do not exist in production builds: tests, and the
+//! session's loopback suites through the non-default `test-support` feature, compile them.
 use nika_kernel::http::{HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse};
 use nika_kernel::secret::Secret;
 use nika_providers::ProvidersConfig;
@@ -10,19 +11,29 @@ use std::cell::RefCell;
 thread_local! { static TARGET: RefCell<Option<String>> = const { RefCell::new(None) };
 static CONFIG: RefCell<Option<ProvidersConfig>> = const { RefCell::new(None) }; }
 
-pub(crate) struct Installed;
+/// The installed substitution: dropping it removes the target and the configuration.
+#[non_exhaustive]
+pub struct Installed;
 impl Drop for Installed {
     fn drop(&mut self) {
         TARGET.with(|v| *v.borrow_mut() = None);
         CONFIG.with(|v| *v.borrow_mut() = None);
     }
 }
-pub(crate) fn install(target: &str) -> Installed {
+/// Send the provider calls of this thread to one loopback `target`, under a test key.
+///
+/// # Panics
+///
+/// `target` is not a loopback HTTP URL (`http://127.0.0.1:<port>`).
+#[must_use]
+pub fn install(target: &str) -> Installed {
     assert!(target.starts_with("http://127.0.0.1:"));
     TARGET.with(|v| *v.borrow_mut() = Some(target.to_owned()));
     Installed
 }
-pub(crate) fn set_config(config: ProvidersConfig) {
+/// Answer the providers configuration of this thread with `config`; an [`Installed`] guard
+/// clears it when it drops.
+pub fn set_config(config: ProvidersConfig) {
     CONFIG.with(|v| *v.borrow_mut() = Some(config));
 }
 pub(crate) fn config() -> Option<ProvidersConfig> {

@@ -59,11 +59,11 @@ fn account() -> InferenceAdmission {
 }
 
 fn question() -> TurnContext {
-    TurnContext {
-        phase: SessionPhase::QuestionPending,
-        automation: Some("the existing work".into()),
-        last_prompt: Some("Which destination?".into()),
-    }
+    TurnContext::new(
+        SessionPhase::QuestionPending,
+        Some("the existing work".into()),
+        Some("Which destination?".into()),
+    )
 }
 
 /// A session on the qualified route, opened naming no level, whose factory counts the fresh
@@ -75,17 +75,17 @@ fn open(root: &Path, built: &Arc<AtomicUsize>) -> SessionRuntime {
 /// A session on `model`, opened naming no level, whose factory counts the fresh reasoners it
 /// builds on that same model.
 fn open_on(root: &Path, built: &Arc<AtomicUsize>, model: &'static str) -> SessionRuntime {
-    let selected = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Api {
+    let selected = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Api {
             provider: "deepseek".into(),
         },
-        model: Some(model.into()),
-        locus: DataLocus::Metered {
+        Some(model.into()),
+        DataLocus::Metered {
             provider: "deepseek".into(),
         },
-        ready: true,
-        why: None,
-    };
+        true,
+        None,
+    );
     let mut s = SessionRuntime::open(root, selected, Box::new(seat(model)));
     let count = Arc::clone(built);
     s.factory = Some(Box::new(move |_| {
@@ -403,15 +403,15 @@ fn a_path_that_cannot_carry_the_level_refuses_it_before_any_byte_or_call() {
     let dir = tempfile::tempdir().expect("root");
     let mut s = SessionRuntime::open(
         dir.path(),
-        ResolvedSessionIntelligence {
-            kind: IntelligenceKind::Local {
+        ResolvedSessionIntelligence::new(
+            IntelligenceKind::Local {
                 provider: "fixture".into(),
             },
-            model: None,
-            locus: DataLocus::Local,
-            ready: true,
-            why: None,
-        },
+            None,
+            DataLocus::Local,
+            true,
+            None,
+        ),
         Box::new(Counting(Arc::clone(&calls))),
     );
     s.set_authoring_context(named("max"));
@@ -702,8 +702,10 @@ fn a_door_classifier_that_cannot_carry_the_level_is_never_called_with_it() {
 /// calls.
 #[test]
 fn the_decision_seat_is_a_separate_backend_the_named_level_never_reaches() {
+    use super::inference_tests::authoring_decision::{
+        KEY, Peer as SystemOne, Reply, SEAT, TICKETS, answer,
+    };
     use crate::authoring::DecisionSetup;
-    use crate::authoring::decision::tests::{KEY, Peer as SystemOne, Reply, SEAT, TICKETS, answer};
     let deepseek = Peer::start(vec![(200, response("unused"))]);
     let _transport = test_transport::install(&deepseek.url);
     let dir = tempfile::tempdir().expect("root");

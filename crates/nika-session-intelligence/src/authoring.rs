@@ -10,7 +10,7 @@
 //! line answers THAT key; the private plan the first round produced is
 //! replayed ([`CompileRequest::with_plan`]) so an answer round costs zero
 //! provider calls; a Ready candidate is exact bytes the human reviews and
-//! consents to elsewhere ([`crate::change`] · [`crate::review`]).
+//! consents to elsewhere ([`nika_session_change::change`] · [`nika_session_change::review`]).
 //!
 //! The seat the compiler may reason with is the ONE the human chose for
 //! this session (`/intelligence`): an API or a local engine becomes an
@@ -196,7 +196,8 @@ impl AuthoringSeat {
     }
 
     /// Whether authoring may use the explicitly selected model backend.
-    pub(crate) fn has_model(&self) -> bool {
+    #[must_use]
+    pub fn has_model(&self) -> bool {
         matches!(self, Self::Provider { .. } | Self::Harness { .. })
     }
 
@@ -250,6 +251,7 @@ pub enum AuthoringError {
 /// round with no authoring call; the round's judge judges the replayed bytes),
 /// and the questions still open in order.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct AuthoringRound {
     /// The intent, verbatim — the compiler's own key (its sha256 is recorded).
     pub intent: String,
@@ -275,13 +277,13 @@ pub struct AuthoringRound {
     pub authoring_receipt: Option<AuthoringReceipt>,
     /// A revision's EDIT — the exact base, the human's change, the request the base answered:
     /// every request of the round is that EDIT, never a fresh CREATE.
-    pub(crate) edit: Option<(String, String, Option<String>)>,
+    pub edit: Option<(String, String, Option<String>)>,
     /// The saved file a revision replaces and the witness of the base the round compiled: its
     /// proposal updates exactly those bytes there, never a fresh destination beside them.
-    pub(crate) target: Option<(std::path::PathBuf, crate::change::Witness)>,
+    pub target: Option<(std::path::PathBuf, nika_session_change::change::Witness)>,
     /// The monetary directives of `intent` the money gate admitted (R4 A6): every request of the
     /// round tells the compiler they are the Session's ceiling, never business clauses.
-    pub(crate) money: Vec<std::ops::Range<usize>>,
+    pub money: Vec<std::ops::Range<usize>>,
 }
 
 impl AuthoringRound {
@@ -312,14 +314,17 @@ impl AuthoringRound {
             })
     }
 
-    pub(crate) fn replays(&self) -> bool {
+    /// Whether a compile of this round replays a recorded plan, never the record of a
+    /// revision's base (that record is the revision's input, not a plan this round settled).
+    #[must_use]
+    pub fn replays(&self) -> bool {
         self.continuation.is_some() && !self.base_record()
     }
 
     /// Forget the plan this round replays, and the knowledge and receipt of the call that
     /// authored it, keeping every answer, the request and its money: the next compile writes
     /// the workflow again instead of replaying it.
-    pub(crate) fn forget_plan(&mut self) {
+    pub fn forget_plan(&mut self) {
         (self.continuation, self.knowledge, self.authoring_receipt) = (None, None, None);
     }
 
@@ -328,7 +333,7 @@ impl AuthoringRound {
     /// seat): that seat replays those bytes to its judge, never to the one that declined them
     /// (R6), and authors nothing. A decision seat that declined them would decide nothing, and a
     /// held outcome that kept no record (a semantic one) has none: the round writes afresh.
-    pub(crate) fn retain_held(&mut self, held: &CompileOutcome, own_judge: bool) {
+    pub fn retain_held(&mut self, held: &CompileOutcome, own_judge: bool) {
         self.forget_plan();
         if let Some(settled) = round::settled(held).filter(|_| own_judge) {
             self.continuation = Some(settled.plan);
@@ -367,7 +372,10 @@ impl AuthoringRound {
     /// The Session-owned path; public callers remain source-only unless their own host opts in.
     /// `declined` are the verdicts that rejected candidate bytes in earlier compiles of the
     /// round's goal ([`CompileRequest::with_declined`]): no judge is asked again on those bytes.
-    pub(crate) fn compile_rehearsed(
+    ///
+    /// # Errors
+    /// As [`compile_in`].
+    pub fn compile_rehearsed(
         &self,
         seat: &AuthoringSeat,
         context: &AuthoringContext,
@@ -450,7 +458,8 @@ impl AuthoringRound {
 
     /// Whether `reading` leaves a question this round asks (a value, a revision's clause
     /// disposition): only a reading that asks or is left unsettled, never a refusal.
-    pub(crate) fn asks(&self, reading: &Reading) -> bool {
+    #[must_use]
+    pub fn asks(&self, reading: &Reading) -> bool {
         let mut probe = self.clone();
         probe.absorb(reading.outcome());
         matches!(reading, Reading::Questions(_) | Reading::Unsettled(_))
@@ -460,7 +469,8 @@ impl AuthoringRound {
     /// Read one clause again while retaining only unchanged, previously admitted monetary
     /// text. Offsets follow the replacement's byte length; new or overlapping text gains no
     /// admission. Answers and the old plan belong to the old request and are not carried.
-    pub(crate) fn restate_clause(&self, clause: &str, answer: &str) -> Self {
+    #[must_use]
+    pub fn restate_clause(&self, clause: &str, answer: &str) -> Self {
         let mut next = Self::new(self.intent.replacen(clause, answer, 1));
         next.restatements = self.restatements.saturating_add(1);
         if let Some(start) = self.intent.find(clause) {
@@ -510,7 +520,8 @@ impl AuthoringRound {
 
     /// The Create text an answer at an explicit Create clarification makes the request, as the
     /// compiler reads that answer; `None` at any other question, in a revision, or when blank.
-    pub(crate) fn replacement(&self, line: &str) -> Option<String> {
+    #[must_use]
+    pub fn replacement(&self, line: &str) -> Option<String> {
         let question = (self.questions.first()).filter(|q| q.key == CLARIFICATION_KEY)?;
         let literal = literal_for(question, line);
         (self.edit.is_none())
@@ -614,7 +625,10 @@ pub fn compile_in_with_admission(
 }
 
 /// The Session-owned request path, preserving the same seat, knowledge and admission.
-pub(crate) fn compile_in_rehearsed(
+///
+/// # Errors
+/// As [`compile_in`], plus local admission refusal.
+pub fn compile_in_rehearsed(
     seat: &AuthoringSeat,
     context: &AuthoringContext,
     request: &CompileRequest,

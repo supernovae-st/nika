@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#
+# nika-session-intelligence · L4 · the intelligence a session reasons, routes and
+# authors with: the census and the human's choice, the reasoners over it, the
+# bounded router of a free line and the authoring door to the ONE compiler.
+# Size-cap member of the nika-session unit (D-2026-07-09-N1 · ADR-150), split
+# from nika-session at the 15k prod-LOC wall: nika-session →
+# nika-session-intelligence, never back. WIP with its unit.
+[package]
+name        = "nika-session-intelligence"
+description = "L4 interface — the intelligence a native session reasons, routes and authors with: the census of this machine's paths and the human's persisted choice (refused with its fix, never replaced), the reasoners over it, the bounded router of a free line, and the authoring door to the ONE compiler (the seat the choice permits, its context and the round); a size-cap member of the nika-session unit (ADR-150)"
+
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Interface crate — a member of the nika-session unit; the `nika` binary is the only consumer.
+
+[lints]
+workspace = true
+
+[dependencies]
+nika-kernel    = { path = "../nika-kernel", version = "0.123.0-preview.1" }  # StopReason — preserve the provider's incomplete-response signal
+nika-cli-host  = { path = "../nika-cli-host", version = "0.123.0-preview.1", default-features = false }  # the ONE probe the census reads · the observed project, the authoring backend, the authoring settings and the TypeSafe decision seat (lateral L4→L4 · never back)
+nika-providers = { path = "../nika-providers", version = "0.123.0-preview.1", default-features = false }  # ProviderRegistry · the authoring policy and preparation costs (the API/local reasoner and the provider seat)
+nika-verb-infer = { path = "../nika-verb-infer", version = "0.123.0-preview.1", default-features = false }  # ONE inference call, no workflow (the API/local reasoner)
+nika-http      = { path = "../nika-http", version = "0.123.0-preview.1" }    # ReqwestHttp — the provider plane's wire
+nika-runtime   = { path = "../nika-runtime", version = "0.123.0-preview.1" } # compose::config_from_env — the ONE env boundary
+nika-types     = { path = "../nika-types", version = "0.123.0-preview.1" }   # AccessClass · HarnessTransport · Timestamp
+nika-onboard   = { path = "../nika-onboard", version = "0.123.0-preview.1" } # the typed Compile surface, the conversation grammar and the pinned knowledge (lateral L4→L4 · never back)
+nika-harness   = { path = "../nika-harness", version = "0.123.0-preview.1", optional = true }  # the infer-grade seat (the harness reasoner and the subscription authoring seat)
+nika-display   = { path = "../nika-display", version = "0.123.0-preview.1" } # front_door::DataLocus — where the context goes (lateral L4→L4 · never back)
+nika-session-change = { path = "../nika-session-change", version = "0.123.0-preview.1" }  # change::Witness — the base a revision round compiled (lateral L4→L4 · never back)
+nika-compile-cognition = { path = "../nika-compile-cognition", version = "0.123.0-preview.1" }  # compile_with_cognition_composed — the same compile, the pinned release lent as components (lateral L4→L4 · never back)
+nika-compile-seats = { path = "../nika-compile-seats", version = "0.123.0-preview.1" }  # foundry::ComponentCatalog — the trait the pinned knowledge snapshot lends (lateral L4→L4 · never back)
+
+blake3     = { workspace = true }   # the routed line's digest a route record keeps, never the line
+serde      = { workspace = true }   # the persisted choice
+serde_json = { workspace = true }
+thiserror  = { workspace = true }
+tokio      = { workspace = true }   # one current-thread runtime per inference
+
+[features]
+default = ["access-harness"]
+# The harness reasoner (an existing AI app's seat reasons with the human).
+access-harness = ["dep:nika-harness", "nika-cli-host/access-harness", "nika-verb-infer/access-harness", "nika-providers/access-harness"]
+# The provider transport's test substitution (`reasoner::test_transport`) for the session's
+# loopback suites, which reach it through their dev-dependency; never default.
+test-support = []
+
+[dev-dependencies]
+nika-catalog = { path = "../nika-catalog", version = "0.123.0-preview.1", features = ["providers", "pricing"] }  # the tariff a label test quotes
+nika-error   = { path = "../nika-error", version = "0.123.0-preview.1" }  # cost::Cost — the label tests' account
+nika-event   = { path = "../nika-event", version = "0.123.0-preview.1" }  # source_id::sha256_hex — the digests the authoring tests compare
+tempfile     = { workspace = true }

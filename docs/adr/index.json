@@ -1761,5 +1761,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-150",
+      "title": "nika-session size-cap member split: the intelligence, its reasoners, the line router and the authoring door descend to nika-session-intelligence",
+      "status": "accepted",
+      "date": "2026-10-09",
+      "filename": "adr-150-nika-session-intelligence-member-split.md",
+      "tags": ["architecture","crates","split","size-cap","session"],
+      "affects_crates": ["nika-session","nika-session-intelligence"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-003","ADR-125","ADR-133","ADR-141","ADR-144","ADR-145","ADR-146","ADR-148"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }

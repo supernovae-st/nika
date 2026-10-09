@@ -18,7 +18,7 @@ use crate::authoring::{
     AuthoringError, AuthoringRound, AuthoringSeat, compile_in, compile_in_with_admission,
 };
 use crate::reasoner::test_transport;
-use crate::runtime::inference_tests::wire::{Peer, response};
+use crate::reasoner::wire::{Peer, response};
 
 /// A route whose catalog lists the three levels (`low` · `high` · `max`).
 const QUALIFIED: &str = "deepseek/deepseek-v4-pro";

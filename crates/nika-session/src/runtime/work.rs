@@ -236,6 +236,8 @@ impl SessionRuntime {
                 Selected::new("local", Some(provider.clone()), None)
             }
             IntelligenceKind::None => Selected::new("none", None, None),
+            // A kind this session does not know (ADR-150), as the contract degrades a type.
+            _ => Selected::new("other", None, None),
         }
         .resolved(
             chosen.model.clone(),
@@ -255,6 +257,8 @@ impl SessionRuntime {
             AuthoringSeat::Unavailable { why } => {
                 Author::new("unavailable", None, Some(why.clone()))
             }
+            // A seat this session does not know (ADR-150) is one it cannot honor.
+            other => Author::new("unavailable", None, Some(other.line())),
         };
         let context = self.authoring_context();
         let decision = (context.decision())

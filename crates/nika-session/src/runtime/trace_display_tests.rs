@@ -14,13 +14,13 @@ use crate::intelligence::{DataLocus, IntelligenceKind};
 use crate::reasoner::NoReasoner;
 
 fn session(root: &Path) -> SessionRuntime {
-    let none = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::None,
-        model: None,
-        locus: DataLocus::None,
-        ready: false,
-        why: None,
-    };
+    let none = ResolvedSessionIntelligence::new(
+        IntelligenceKind::None,
+        None,
+        DataLocus::None,
+        false,
+        None,
+    );
     SessionRuntime::open(root, none, Box::new(NoReasoner))
 }
 

@@ -60,10 +60,7 @@ impl SessionReasoner for Counted {
 
     fn reason(&mut self, _prompt: &str) -> Result<Reply, ReasonError> {
         self.0.fetch_add(1, Ordering::SeqCst);
-        Ok(Reply {
-            text: "words".to_owned(),
-            usage_observed: false,
-        })
+        Ok(Reply::new("words".to_owned(), false))
     }
 }
 

@@ -31,17 +31,17 @@ impl Case {
 }
 
 pub(super) fn session(case: &Case, calls: Arc<Calls>) -> SessionRuntime {
-    let selected = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Api {
+    let selected = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Api {
             provider: "deepseek".into(),
         },
-        model: Some(MODEL.into()),
-        locus: DataLocus::Metered {
+        Some(MODEL.into()),
+        DataLocus::Metered {
             provider: "deepseek".into(),
         },
-        ready: true,
-        why: None,
-    };
+        true,
+        None,
+    );
     let mut s = SessionRuntime::open(
         &case.project,
         selected,

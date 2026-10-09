@@ -474,17 +474,17 @@ const FLASH: &str = "deepseek/deepseek-flash";
 /// seat cannot settle is read once more by the provider's stronger model.
 fn unnamed(root: &Path, home: &Path) -> SessionRuntime {
     std::fs::write(root.join("entree.txt"), "A\n").expect("input");
-    let selected = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Api {
+    let selected = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Api {
             provider: "deepseek".into(),
         },
-        model: None,
-        locus: DataLocus::Metered {
+        None,
+        DataLocus::Metered {
             provider: "deepseek".into(),
         },
-        ready: true,
-        why: None,
-    };
+        true,
+        None,
+    );
     let reasoner = || ProviderReasoner {
         model: FLASH.into(),
         label: "DeepSeek".into(),

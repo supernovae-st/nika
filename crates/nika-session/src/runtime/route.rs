@@ -59,13 +59,10 @@ impl SessionRuntime {
                 .or_else(|| self.pending_input().map(|n| format!("the value of `{n}`"))),
             SessionPhase::GatePending => self.pending_gate.as_ref().map(|g| g.message.clone()),
             SessionPhase::ProposalPending => Some("the proposal, waiting for yes or no".to_owned()),
-            SessionPhase::Idle => None,
+            // Idle, or a phase this session does not know (ADR-150): no last prompt.
+            _ => None,
         };
-        TurnContext {
-            phase,
-            automation,
-            last_prompt,
-        }
+        TurnContext::new(phase, automation, last_prompt)
     }
 
     /// Route one open line in `phase`: the door's classifier, else the
@@ -157,7 +154,8 @@ impl SessionRuntime {
                 "that line is not a gate answer",
                 "`yes` or `no` answers the gate · `why` explains it",
             ),
-            SessionPhase::Idle => (
+            // Idle, or a phase this session does not know (ADR-150).
+            _ => (
                 "that line is not work I can read",
                 "describe the work to build · ask a question · `/help`",
             ),

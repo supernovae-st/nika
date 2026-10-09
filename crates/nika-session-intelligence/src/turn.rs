@@ -136,6 +136,22 @@ pub struct TurnContext {
     pub last_prompt: Option<String>,
 }
 
+impl TurnContext {
+    /// The context of one line, as a session outside this crate states it (INV-019).
+    #[must_use]
+    pub fn new(
+        phase: SessionPhase,
+        automation: Option<String>,
+        last_prompt: Option<String>,
+    ) -> Self {
+        Self {
+            phase,
+            automation,
+            last_prompt,
+        }
+    }
+}
+
 /// How the route was decided — recorded for `/details` and the proof.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]

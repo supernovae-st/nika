@@ -4,8 +4,8 @@
 //! observation, the `Jev` seat's WARM decision through the real shared adapter on loopback, the
 //! line on disk before the `Jev` request could leave, the persisted journal and the status words.
 //! Loopback mechanics only; no provider qualification.
+use super::authoring_decision::{KEY, Peer as SystemOne, Reply, SEAT, TICKETS, answer};
 use super::*;
-use crate::authoring::decision::tests::{KEY, Peer as SystemOne, Reply, SEAT, TICKETS, answer};
 use crate::authoring::{AuthoringContext, DECISION_SCHEMA, DecisionSetup};
 use crate::runtime::inference::OBSERVED_PREFIX;
 use std::sync::{Arc, Mutex};

@@ -8,16 +8,18 @@
     clippy::panic,
     clippy::disallowed_methods
 )]
-use super::*;
 use crate::authoring::{
     AuthoringContext, AuthoringContextError, AuthoringError, AuthoringSeat,
     compile_in_with_admission,
 };
+use crate::authoring::{DECISION_SCHEMA, DecisionSetup};
+use nika_cli_host::compile::typesafe::session::SessionSeat;
 use nika_onboard::compile::decide::{ChoiceOption, ChoiceQuestion, DecisionSeat, NONE_OPTION};
 use nika_onboard::compile::{
     Cognition, CompileRequest, CompileStatus, NoProvider, Strategy, compile_with_cognition,
 };
 use nika_providers::InferenceAdmission;
+use nika_providers::admission::admit_unpriced_companion as admit;
 use nika_types::cost::Cost;
 use serde_json::{Value, json};
 use std::io::{Read, Write};

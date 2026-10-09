@@ -11,26 +11,22 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See ADR-022.
 
 [dependencies]
-nika-kernel  = { path = "../nika-kernel", version = "0.123.0-preview.1" } # StopReason — preserve the provider's incomplete-response signal
-nika-cli-host = { path = "../nika-cli-host", version = "0.123.0-preview.1", default-features = false }  # the ONE probe/census · the oracle facade · the git-root walk (lateral L4→L4 · ADR-124 precedent)
-nika-providers = { path = "../nika-providers", version = "0.123.0-preview.1", default-features = false }  # AccessClass · ProviderRegistry (the API/local reasoner)
-nika-verb-infer = { path = "../nika-verb-infer", version = "0.123.0-preview.1", default-features = false }  # ONE inference call, no workflow (the API/local reasoner)
-nika-http     = { path = "../nika-http", version = "0.123.0-preview.1" }        # ReqwestHttp — the API reasoner's wire
-nika-runtime  = { path = "../nika-runtime", version = "0.123.0-preview.1" }     # compose::config_from_env — the ONE env boundary · engine_identity
+nika-cli-host = { path = "../nika-cli-host", version = "0.123.0-preview.1", default-features = false }  # the compile facade · the oracle facade · the git-root walk (lateral L4→L4 · ADR-124 precedent)
+nika-providers = { path = "../nika-providers", version = "0.123.0-preview.1", default-features = false }  # InferenceAdmission · InferenceReceipt · the preparation costs (the money gate)
+nika-runtime  = { path = "../nika-runtime", version = "0.123.0-preview.1" }     # cost_choice — the unknown-cost route, its review and the host evidence
 nika-dap      = { path = "../nika-dap", version = "0.123.0-preview.1" }         # inventory::collect_workflows — the ONE workspace walker
 nika-vocab    = { path = "../nika-vocab", version = "0.123.0-preview.1" }       # project::discover — the project file
 nika-source   = { path = "../nika-source", version = "0.123.0-preview.1" }      # lexical program-source naming (#1684)
-nika-types    = { path = "../nika-types", version = "0.123.0-preview.1" }       # AccessClass — the census reads the probe rows by class
+nika-types    = { path = "../nika-types", version = "0.123.0-preview.1" }       # AccessClass · CancelCtx · Cost · CorrelationId — the route's probe rows, the turn's cancel, the typed spend
 nika-onboard  = { path = "../nika-onboard", version = "0.123.0-preview.1" }     # routing::route_query — the ONE intent router
-nika-harness  = { path = "../nika-harness", version = "0.123.0-preview.1", optional = true }  # the infer-grade seat (the harness reasoner)
 nika-display  = { path = "../nika-display", version = "0.123.0-preview.1" }     # check_render::review — the preview's effect, spend, finding and hint rows of a report (lateral L4→L4 · never back)
 nika-session-change = { path = "../nika-session-change", version = "0.123.0-preview.1" }  # the change set a proposal writes, its review, its outcome and the consent record (size-cap member of this unit · ADR-144 · nika-session → nika-session-change, never back)
+nika-session-intelligence = { path = "../nika-session-intelligence", version = "0.123.0-preview.1", default-features = false }  # the census and the choice, the reasoners, the line router and the authoring door (size-cap member of this unit · ADR-150 · nika-session → nika-session-intelligence, never back)
 nika-schema   = { path = "../nika-schema", version = "0.123.0-preview.1" }      # the parser — the inputs a saved workflow declares are read from the AST, never from prose
 nika-fs       = { path = "../nika-fs", version = "0.123.0-preview.1" }          # OwnedDir · read_capped — the session state (temp + rename), the history journal and the context reads stay below a descriptor
 nika-cadence  = { path = "../nika-cadence", version = "0.123.0-preview.1" }     # the arm: grammar (L0 · pure) — a cadence the session derives is validated before it is proposed
 nika-trace    = { path = "../nika-trace", version = "0.123.0-preview.1" }       # run_view::RunFacts — what a run's trace proves, read for the result, gate and `/proof` views (its ONE verify door judges the chain · lateral L4→L4 · never back)
 nika-event    = { path = "../nika-event", version = "0.123.0-preview.1" }       # source_id::sha256_hex — the digest of each knowledge-pack reference the authoring record keeps (L0 · pure)
-nika-compile-cognition = { path = "../nika-compile-cognition", version = "0.123.0-preview.1" }  # compile_with_cognition_composed — the same compile, the pinned release lent as components (lateral L4→L4 · never back)
 nika-compile-seats = { path = "../nika-compile-seats", version = "0.123.0-preview.1" }  # foundry::{ComponentCatalog, witness} — the trait the pinned knowledge Snapshot lends, and what a candidate's bytes hold of a composed component (lateral L4→L4 · never back)
 nika-compile  = { path = "../nika-compile", version = "0.123.0-preview.1" }      # surface::sha256 — the digest a document revision record binds its candidate by (lateral L4→L4 · never back)
 
@@ -38,18 +34,19 @@ blake3      = { workspace = true }   # the witness of the bytes a preview was bu
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 nika-catalog = { path = "../nika-catalog", version = "0.123.0-preview.1", features = ["providers", "pricing"] } # the priced-model check at the model question
-thiserror   = { workspace = true }
-tokio       = { workspace = true }
 
 [features]
 default = ["access-harness"]
 # The harness reasoner (an existing AI app's seat reasons with the human).
-access-harness = ["dep:nika-harness", "nika-cli-host/access-harness", "nika-verb-infer/access-harness", "nika-providers/access-harness"]
+access-harness = ["nika-session-intelligence/access-harness", "nika-cli-host/access-harness", "nika-providers/access-harness"]
 
 [lints]
 workspace = true
 
 [dev-dependencies]
+nika-kernel = { path = "../nika-kernel", version = "0.123.0-preview.1" } # secret::Secret and the provider types the loopback suites build
+nika-session-intelligence = { path = "../nika-session-intelligence", version = "0.123.0-preview.1", default-features = false, features = ["test-support"] } # the provider transport's test substitution the loopback suites install
+tokio = { workspace = true } # the suites' own current-thread runtimes
 nika-error = { path = "../nika-error", version = "0.123.0-preview.1" } # cost::Cost — the reasoning-effort tests assert the typed cost
 nika-onboard = { path = "../nika-onboard", version = "0.123.0-preview.1", features = ["test-support"] } # the synthetic release the strict knowledge door admits
 tempfile = { workspace = true }

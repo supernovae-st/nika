@@ -44,13 +44,13 @@ impl SessionRuntime {
         let why = format!(
             "this conversation's kept intelligence choice is unreadable ({error}) · `/intelligence` chooses again"
         );
-        let resolved = ResolvedSessionIntelligence {
-            kind: IntelligenceKind::None,
-            model: None,
-            locus: crate::intelligence::DataLocus::None,
-            ready: false,
-            why: Some(why),
-        };
+        let resolved = ResolvedSessionIntelligence::new(
+            IntelligenceKind::None,
+            None,
+            crate::intelligence::DataLocus::None,
+            false,
+            Some(why),
+        );
         if let Some(factory) = &self.factory {
             self.reasoner = factory(&resolved);
         }

@@ -26,6 +26,3 @@ pub(super) fn finish(
         nika_onboard::knowledge::pin::stamp_seat(out, receipt);
     }
 }
-
-#[cfg(test)]
-pub(crate) mod tests;

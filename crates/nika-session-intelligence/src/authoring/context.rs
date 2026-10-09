@@ -245,6 +245,12 @@ impl AuthoringContext {
         self.strategy
     }
 
+    /// The source recovery rounds the operator named (0: none), as a cost review reserves them.
+    #[must_use]
+    pub fn recovery(&self) -> u32 {
+        self.recovery
+    }
+
     /// The knowledge release pinned for the session: the one named, or the one this build embeds
     /// when nothing is named; none when the knowledge is off or unread.
     #[must_use]
@@ -279,7 +285,10 @@ impl AuthoringContext {
 
     /// The level every call of the conversation asks, or why none may be asked: a word the parser
     /// refused is never read as no level.
-    pub(crate) fn reasoning_asked(&self) -> Result<Option<AuthoringReasoning>, ConfigError> {
+    ///
+    /// # Errors
+    /// The configured word the shared parser refused.
+    pub fn reasoning_asked(&self) -> Result<Option<AuthoringReasoning>, ConfigError> {
         self.reasoning.clone()
     }
 

@@ -76,9 +76,9 @@ impl SessionRuntime {
             {
                 return NOTHING_SENT.to_owned();
             }
-            AuthoringSeat::Deterministic { .. } | AuthoringSeat::Unavailable { .. } => {
-                self.reasoner.name()
-            }
+            // Any other seat, one this session does not know included (ADR-150): the
+            // conversation's reasoner may have received the turn.
+            _ => self.reasoner.name(),
         };
         format!(
             "No workflow output was written or Run requested; the selected model ({who}) may have received this turn's context: a failed call can still have been sent.\n  {}",
@@ -91,11 +91,10 @@ impl SessionRuntime {
     /// · through api.scaleway.ai »: what a 404 or a refusal was about.
     fn seat_line(&self) -> Option<String> {
         let model = match &self.seat {
-            AuthoringSeat::Harness { .. } | AuthoringSeat::Unavailable { .. } => {
-                return Some(self.seat.line());
-            }
             AuthoringSeat::Provider { model } => model.clone(),
             AuthoringSeat::Deterministic { .. } => self.reasoner.authoring_model()?,
+            // A harness, an unavailable seat, or one this session does not know (ADR-150).
+            _ => return Some(self.seat.line()),
         };
         let provider = model.split('/').next().unwrap_or(&model).to_owned();
         let through = crate::authoring::gateway_host(&provider)

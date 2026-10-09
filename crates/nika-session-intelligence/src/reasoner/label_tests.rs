@@ -20,7 +20,7 @@ use serde_json::json;
 use std::time::Duration;
 
 // Both test suites share one mechanics peer module.
-use crate::runtime::inference_tests::wire::{Peer, response};
+use super::wire::{Peer, response};
 
 const MODEL: &str = "deepseek/deepseek-v4-pro";
 fn reasoner(model: &str) -> ProviderReasoner {

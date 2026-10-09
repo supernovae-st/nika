@@ -10,11 +10,14 @@
 
 #[cfg(test)]
 mod label_tests;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_transport;
 #[cfg(test)]
-pub(crate) mod test_transport;
-#[cfg(test)]
+#[allow(clippy::expect_used, clippy::disallowed_methods)]
+pub(crate) mod wire;
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) type ProviderHttp = Wire<test_transport::Client>;
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "test-support")))]
 pub(crate) type ProviderHttp = Wire<nika_http::ReqwestHttp>;
 
 use std::collections::VecDeque;
@@ -56,6 +59,17 @@ pub struct Reply {
     pub text: String,
     /// The path reported its usage (a seat may not).
     pub usage_observed: bool,
+}
+
+impl Reply {
+    /// One reply, as a path outside this crate produces it (INV-019).
+    #[must_use]
+    pub fn new(text: String, usage_observed: bool) -> Self {
+        Self {
+            text,
+            usage_observed,
+        }
+    }
 }
 
 /// A reasoner: a name and one turn. `Send`, so a host may run a turn on a
@@ -511,8 +525,13 @@ pub(crate) fn provider_http() -> Result<ProviderHttp, String> {
     provider_http_for(false)
 }
 
-pub(crate) fn provider_config() -> nika_providers::ProvidersConfig {
-    #[cfg(test)]
+/// The providers configuration every reasoner and the provider authoring seat read: the
+/// engine's ONE environment boundary (`nika_runtime::compose::config_from_env`). Under a test,
+/// or a door built with `test-support`, an installed `test_transport` substitution answers
+/// first.
+#[must_use]
+pub fn provider_config() -> nika_providers::ProvidersConfig {
+    #[cfg(any(test, feature = "test-support"))]
     if let Some(config) = test_transport::config() {
         return config;
     }
@@ -525,7 +544,7 @@ pub(crate) fn provider_http_for(bounded: bool) -> Result<ProviderHttp, String> {
     config.retry_protocol_nacks = !bounded && !PreparationCosts::active();
     config.timeout = PROVIDER_TRANSPORT_CEILING;
     let http = nika_http::ReqwestHttp::with_config(config).map_err(|e| e.to_string())?;
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     let http = test_transport::Client::new(http);
     Ok(Wire::new(http, Arc::new(Envelope::uncapped(""))))
 }
@@ -540,7 +559,12 @@ fn infer_text(value: &nika_verb_infer::InferValue) -> String {
 }
 
 /// Block on one future from the session's synchronous loop.
-pub(crate) fn block_on<F: std::future::Future>(fut: F) -> Result<F::Output, ReasonError> {
+///
+/// # Errors
+///
+/// The current-thread runtime would not start ([`ReasonError::Runtime`]), or the operator
+/// stopped preparation before the future finished ([`ReasonError::Cancelled`]).
+pub fn block_on<F: std::future::Future>(fut: F) -> Result<F::Output, ReasonError> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

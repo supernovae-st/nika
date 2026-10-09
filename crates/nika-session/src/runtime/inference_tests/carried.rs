@@ -6,9 +6,9 @@
 //! them; it repeats the verdict with no call (`carried`), and the bytes stay held. A correction
 //! is another request: the verdict binds to the request it judged, so the corrected request is
 //! asked again. New work carries none. No provider qualification, no paid call.
+use super::authoring_decision::{KEY, Peer as SystemOne, Reply, SEAT};
 use super::unjudged::{DOUBTED, HELD, UNTRIED, asked, held_findings};
 use super::*;
-use crate::authoring::decision::tests::{KEY, Peer as SystemOne, Reply, SEAT};
 use crate::authoring::{AuthoringContext, AuthoringSeat, DecisionSetup};
 use nika_cli_host::compile::config::AuthoringSettings;
 use nika_event::source_id::sha256_hex;
@@ -52,17 +52,17 @@ const DOUBT: [(&str, &str); 3] = [
 /// more by the stronger model), its verifier the operator-selected decision seat at `base`.
 fn judged_by_seat(root: &Path, home: &Path, base: &str) -> SessionRuntime {
     std::fs::write(root.join("entree.txt"), "A\n").expect("input");
-    let selected = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Api {
+    let selected = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Api {
             provider: "deepseek".into(),
         },
-        model: None,
-        locus: DataLocus::Metered {
+        None,
+        DataLocus::Metered {
             provider: "deepseek".into(),
         },
-        ready: true,
-        why: None,
-    };
+        true,
+        None,
+    );
     let reasoner = || ProviderReasoner {
         model: "deepseek/deepseek-flash".into(),
         label: "DeepSeek".into(),
