@@ -420,7 +420,7 @@ nix           = { version = "0.31", default-features = false, features = ["signa
 futures-core  = "0.3"
 parking_lot   = "0.12"
 tokio         = { version = "1", features = ["rt", "macros", "time", "signal"] }   # signal: nika-cli L4 — `nika serve` (W5) stops clean on ctrl-c/SIGTERM (signal-hook-registry already vendored via the tree)
-rustix        = { version = "=1.1.4", default-features = false, features = ["std", "process"] } # safe waitid(WNOWAIT) on Linux/macOS; already locked
+rustix        = { version = "=1.1.5", default-features = false, features = ["std", "process"] } # safe waitid(WNOWAIT) on Linux/macOS; already locked
 cap           = { version = "=0.1.2" }   # nika-cli L4: the isolated jq helper caps its heap allocations (safe API over GlobalAlloc · keeps unsafe forbid · ROOT review control/e02-cap-dependency-review.root.json)
 stacker       = { version = "=0.1.25" }  # nika-runtime-laws L3: a nested run's guaranteed native stack, grown on the same thread (rust-lang/stacker · safe API over psm · keeps unsafe forbid · MIT OR Apache-2.0)
 globset       = "0.4"   # nika-fs L1 — FsList::glob matcher (literal_separator · MIT OR Unlicense)
