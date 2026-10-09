@@ -3002,8 +3002,8 @@ pub mod nika_compile_seats::rehearse
 pub mod nika_compile_seats::rehearse::arguments
 pub fn nika_compile_seats::rehearse::arguments::evaluated(workflow: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<(), alloc::string::String>
 pub mod nika_compile_seats::rehearse::record
-pub fn nika_compile_seats::rehearse::record::report(report: &nika_compile_seats::rehearse::RehearsalReport, bound: core::time::Duration, run: &nika_compile_fidelity::behavior::Run, decision: &serde_json::value::Value) -> serde_json::value::Value
-pub fn nika_compile_seats::rehearse::record::usage(usage: &nika_compile_fidelity::behavior::accounting::Usage) -> serde_json::value::Value
+pub fn nika_compile_seats::rehearse::record::report(report: &nika_compile_seats::rehearse::RehearsalReport, bound: core::time::Duration, run: &nika_compile_behavior::behavior::Run, decision: &serde_json::value::Value) -> serde_json::value::Value
+pub fn nika_compile_seats::rehearse::record::usage(usage: &nika_compile_behavior::behavior::accounting::Usage) -> serde_json::value::Value
 #[non_exhaustive] pub enum nika_compile_seats::rehearse::Attempt
 pub nika_compile_seats::rehearse::Attempt::Completed
 pub nika_compile_seats::rehearse::Attempt::Completed::elapsed_ms: u64
@@ -4024,10 +4024,10 @@ pub fn nika_compile_seats::rehearse::changed_children(record: &serde_json::value
 pub fn nika_compile_seats::rehearse::composed(host: &dyn nika_compile_seats::rehearse::Rehearse, out: &mut nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::rehearse::discharge_children(out: &mut nika_compile::types::CompileOutcome, closure: &nika_compile_seats::rehearse::Closure) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_seats::rehearse::held_children(out: &nika_compile::types::CompileOutcome) -> alloc::vec::Vec<alloc::string::String>
-pub fn nika_compile_seats::rehearse::judged_run(fixture: &str, report: &nika_compile_seats::rehearse::RehearsalReport, inputs: &[alloc::string::String], targets: &[alloc::string::String], declared: &[alloc::string::String]) -> nika_compile_fidelity::behavior::Run
-pub fn nika_compile_seats::rehearse::targets_of(contract: &nika_compile_fidelity::behavior::Contract) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String> + use<>
+pub fn nika_compile_seats::rehearse::judged_run(fixture: &str, report: &nika_compile_seats::rehearse::RehearsalReport, inputs: &[alloc::string::String], targets: &[alloc::string::String], declared: &[alloc::string::String]) -> nika_compile_behavior::behavior::Run
+pub fn nika_compile_seats::rehearse::targets_of(contract: &nika_compile_behavior::behavior::Contract) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String> + use<>
 pub fn nika_compile_seats::rehearse::trial_receipts(observed: &serde_json::value::Value) -> serde_json::value::Value
-pub fn nika_compile_seats::rehearse::trial_shown(candidate_sha256: &str, run: &nika_compile_fidelity::behavior::Run) -> serde_json::value::Value
+pub fn nika_compile_seats::rehearse::trial_shown(candidate_sha256: &str, run: &nika_compile_behavior::behavior::Run) -> serde_json::value::Value
 pub fn nika_compile_seats::rehearse::trial_whole(observed: &serde_json::value::Value) -> bool
 pub type nika_compile_seats::rehearse::RehearsalFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_compile_seats::rehearse::RehearsalReport> + core::marker::Send + 'a)>>
 pub mod nika_compile_seats::remote

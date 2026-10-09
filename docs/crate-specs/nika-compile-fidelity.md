@@ -4,7 +4,7 @@
 |---|---|
 | Status | **MEMBER** (size-cap split of `nika-compile-reader`, itself a member of the admitted `nika-onboard` unit · ADR-141 · D-2026-07-09-N1 · 2026-09-24) |
 | Layer | L4 — a library surface; lateral L4→L4 edges `nika-compile → nika-compile-fidelity → nika-compile-reader`, never back |
-| Design | the laws a candidate `.nika` document is judged by, pure over (request · plan · projected document) (`fidelity`), the constrained sketch a seat proposes and the document it states (`sketch`), the plan a candidate document states by its structure and a revision's delta (`candidate`), the behavioural contract a request states and its typed judgment over rehearsals (`behavior`) |
+| Design | the laws a candidate `.nika` document is judged by, pure over (request · plan · projected document) (`fidelity`), the constrained sketch a seat proposes and the document it states (`sketch`), the plan a candidate document states by its structure and a revision's delta (`candidate`), the behavioural contract a request states and its typed judgment over rehearsals (`behavior`, owned by `nika-compile-behavior` since 2026-10-09 · ADR-149 · and kept here at its historical path) |
 | IMPL | measured by `scripts/crate-metrics.sh nika-compile-fidelity` at each freeze; the crate carries what `nika-compile-reader` held on 2026-09-24 (the gate's own counter: 1,555 prod LOC at the split · 34 unit tests, moved with their files) |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn |
 | Crate version | tracks workspace |
@@ -101,7 +101,7 @@ recorded dependency again before Save through the compiler's existing basis law.
 | direction | edges at the split (production code) |
 |---|---:|
 | the reader → this crate | **0** |
-| this crate → the reader | `plan` (the typed plan and its elements) · `hot::{fold, stated_sources, stated_destinations}` · `lexicon::GATE_WITHOUT_EFFECT` · for `behavior`: `rules::{Rule, Comparator, Junction, NumberPolicy, keeps_order}`, `aggregate::AggOp`, `paths::single_file` |
+| this crate → the reader | `plan` (the typed plan and its elements) · `hot::{fold, stated_sources, stated_destinations}` · `lexicon::GATE_WITHOUT_EFFECT` · for `behavior`, until it descended to `nika-compile-behavior` (2026-10-09 · ADR-149, which measures its edges): `rules::{Rule, Comparator, Junction, NumberPolicy, keeps_order}`, `aggregate::AggOp`, `paths::single_file` |
 | `nika-compile` → this crate | `fidelity` and `sketch`, bound once at the crate root (the assembler's emit, the native and sketch doors) · `candidate` in the native door |
 
 The approval laws read a gate on the AST the parser gives Check (`nika-schema`) and reuse
@@ -189,7 +189,9 @@ needs keeps its default.
     the categorical values of the observed row, or the `instants` a kinds entry carries per
     field (`{"offsets": […], "forms": […]}`), which the observer does not record yet; the
     public `fidelity::instant_shape` classifies a value. A date-only bound, a bound that is no
-    date-time and a converted field stay admitted.
+    date-time and a converted field stay admitted. Since 2026-10-09 (ADR-149) that classifier
+    belongs to `nika-compile-behavior`, whose judge reads it too, and `fidelity::instant_shape`
+    is a `pub use` of it; Law 25 itself, `Diagnostic` and the record-scope walk stay here.
 - The reader's modules are bound at the crate root under the names the moved files always
   used (`crate::plan`, `super::hot::fold`, `crate::lexicon::GATE_WITHOUT_EFFECT`); the member
   re-exports nothing of the reader.
@@ -235,7 +237,8 @@ are kept only when they are the request's own, else its position. A refusal is a
 never a record value or key name. `bound_answers(record, current)` holds the record's answer
 maps to strings and to A0 ⊆ Ak ⊆ Ac; `read_basis(intent, initial)` is the reader's and the
 behavior contract's part of a request basis (`contract_projection` keeps each obligation's
-identity, target, presence kind, unsupported reason and evidence). These are reconstruction and
+identity, target, presence kind, unsupported reason and evidence; a presence kind it does not
+read is recorded `unknown`, never a kind it knows). These are reconstruction and
 consistency checks, never READY, authority or producer authentication.
 
 `binding::unbound(plan, intent, observed)` is the recorded-plan binding law (each recorded
@@ -277,73 +280,14 @@ before emission, the cognition door's `nika_cap` contract), which this crate can
 checks builtin shapes and task-bound filesystem slots before candidate serialization.
 Calling the pure fidelity function alone does not establish those additional contracts or READY.
 
-- Added: the behavioural contract (`behavior`), pure like the laws. `contract_of` reads the
-  reader's plan of the request (its operations, effects with their policies and the value
-  written alone, its unknowns, each rule's typed fields), the paths the request names and the
-  human's answers; it never reads a candidate, and never the jq a rule lowers to. Each
-  obligation names its file, whether the request wants it written and what it must hold: a
-  relation of filters, duplicates by key, groups or totals, a sort with or without the tie
-  rule, the first N rows, projection, renames and duplicates, in the order the request states
-  its steps. A fact the plan does not carry stays open: an automatic write is `Unproven` (no
-  plan field states whether a condition governs it), policy words the plan does not type leave
-  it `Undecided`, and an aggregate's output name is `Naming::Unknown`; `Required`, `When`,
-  `OnlyWhen` and `Naming::{Stated, Free}` are for a lower layer that proves them. `judge` first
-  establishes what each rehearsal can show (a contradictory observation, a source missing,
-  malformed or outside the stated domain, or a result with no read-back is an invalid harness),
-  then classifies its end once: completed, a failure an established cause or the contract
-  explains as a defect, or a failure the evidence does not settle. An established cause (an
-  engine failure observed on a valid fixture, a file the request never names, a named source the
-  host copied whole and the run then lost, a well-formed source the run could not parse) is a
-  defect even where a stated rule predicts a stop; a named source with no recorded copy, or only
-  a partial one, settles nothing (a fixture that lacked it is the host's to attest with its own
-  invalid-harness end). A stop
-  is never certified: a structured `StopFact` (source, operation, field, value) consistent with
-  the stop a stated rule predicts names no data or policy independent of the workflow, so it
-  stays unattested, and one no stated rule predicts is a defect. An error code or message is
-  never a stop, and a host time bound is no run. Values compare
-  exactly (strict JSON with exact decimal numbers, the `nika:convert` CSV reading, each bound to
-  the sha256 of its bytes): `70` and `70.0` agree, rows compare as a multiset or block by block
-  where a sort orders them, a cut through tied rows admits any of them unless ties keep file
-  order (under a stated number policy a tied-cut stop is admitted too, never certified), and an output
-  name the request does not state is matched by its value under a key no other output reserves,
-  certified only when proven free; two outputs under one name (a group key and an aggregate, or
-  two aggregates) are never reduced to one, the relation stays unverified. A stop never hides a
-  wrong value or a forbidden write already observed. Outcomes are not ordered: each obligation and the report carry a `Tally`, and
-  `Verdict` states its dominance (invalid harness, defective, not run, incomplete, certified);
-  `failed()` keeps the defects valid fixtures showed and `scorable()` says no fixture was
-  invalid. The report keeps the requested result, the assumptions and the observed proof apart,
-  with the round and turn budget (fixtures, attempts, bytes copied and read back, elapsed time)
-  the host reports. A join, rows per group with no named aggregate, outputs defined as
-  arithmetic over aggregates, a seat-written program, the lines of a text source and several
-  rules or writes the plan does not pair stay explicit unsupported obligations. No runtime
-  record yields a `StopFact` yet, and none carries the provenance an attested stop needs: a stop
-  stays incomplete. `contract_of_request` (with `read_request`, `Provenance`, `Production`)
-  proves more only for a sentence of a small closed language (`read SOURCE`, then `count the
-  rows where FIELD is VALUE` or `keep the rows where FIELD is VALUE`, then `write the count|it to
-  TARGET`, `write the count as LABEL to TARGET` or `write them to TARGET`, joined by `, `,
-  `, and ` or ` and `), matched over the caller's own bytes (only the reader reads its
-  apostrophe-folded copy), whose identities are kept byte for byte (one terminal period is
-  punctuation, never part of TARGET), whose plan agrees with it byte for byte, that the strict HOT
-  door admits and that is the whole request: its write is `Required` and its count's name free
-  (no name slot) or the stated label. One more closed production, `copy SOURCE as is to TARGET`
-  over a plan of exactly one read of SOURCE and one automatic write of TARGET (two distinct files
-  of a text suffix, no rule, no other binding), proves the write `Required` and its content
-  `Requirement::CopyText`: exactly the text the run consumed from SOURCE, byte for byte. The
-  suffix bounds the production and proves no encoding: only the host's complete receipt proves a
-  text. A cut or non-text source or a cut result is incomplete, a result not published by the
-  run or holding other text fails, a missing source receipt on an attempt is an invalid harness,
-  and only a completed run passes. No word list is consulted; every other request, an identity
-  folding would alter included, keeps `Unproven` and `Unknown`. `select` judges several
-  candidates (`Candidate`: the identity of the bytes rehearsed and one run per world) against one
-  such contract, each as one round of the same turn's budget, and selects the first one certified
-  (`Choice::Selected`); otherwise every candidate defective is `RejectAll`, a spent turn with
-  candidates left is `Spent`, and anything else is `Unproven`: no absence of defect selects.
-  `select` runs nothing and verifies no identity: its turn counts only the candidates judged,
-  so a door rehearses and judges one candidate at a time, carries the turn, and stops at the
-  first one selected or at a spent turn; `Selected(k)` is an index into the slice given, which
-  the door keeps bound to the bytes rehearsed. `targets` names, as an iterator, the paths a host
-  reads back for a contract. The member gains two workspace dependencies already in the lock:
-  `csv` (the reading `nika:convert` uses) and `sha2`.
+- Added, then descended: the behavioural contract (`behavior`: `contract_of`,
+  `contract_of_request`, `judge`, `select`, `targets` and their report types), pure like the
+  laws, belongs to `nika-compile-behavior` since 2026-10-09 (ADR-149), with the date-time shape
+  classifier; its description moved verbatim to `docs/crate-specs/nika-compile-behavior.md`.
+  This crate keeps it at its historical path, `#[doc(inline)] pub use
+  nika_compile_behavior::behavior`, naming the very same items; `sketch::record` reads it for
+  the request basis, and `tests/behavior_contract.rs` and `tests/behavior_reexport.rs` judge it
+  through that path. The `csv` dependency left with it; `sha2` stays for the records' digests.
 
 ## 4. Module map
 
@@ -352,11 +296,8 @@ Calling the pure fidelity function alone does not establish those additional con
 `assets/record_forms.txt` · Law 24 and the jq scope walk in `fidelity/record_scope` · Law 25
 in `fidelity/instants`) · `sketch` (the constrained intermediate, its structural laws, its
 typed holes, its document) · `candidate` (the plan a candidate states, a revision's delta) ·
-`behavior` (the contract and the report types; `behavior/requested` the contract a plan
-states, `behavior/provenance` what a sentence of the closed language proves, `behavior/evaluate`
-the relation, `behavior/verdicts` the judgment, `behavior/selection` the choice among candidates,
-`behavior/{numbers, values, formats}` exact numbers, value comparison and the canonical
-readings, `behavior/accounting` the round and turn budget).
+`behavior` (re-exported whole from `nika-compile-behavior`, ADR-149; its module map is that
+crate's spec).
 
 ## Observed Sketch replay and exact graph inputs
 

@@ -4745,6 +4745,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-compile-behavior"
+version = "0.122.0"
+dependencies = [
+ "csv",
+ "nika-compile-reader",
+ "proptest",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "nika-compile-clauses"
 version = "0.122.0"
 dependencies = [
@@ -4781,10 +4792,10 @@ dependencies = [
 name = "nika-compile-fidelity"
 version = "0.122.0"
 dependencies = [
- "csv",
  "jaq-core",
  "nika-cap",
  "nika-check-analyzer",
+ "nika-compile-behavior",
  "nika-compile-reader",
  "nika-schema",
  "serde_json",

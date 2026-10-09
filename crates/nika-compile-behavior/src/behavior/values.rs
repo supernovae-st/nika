@@ -12,7 +12,7 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::numbers::{Decimal, Law, law, number_like};
-use crate::fidelity::instant_shape;
+use crate::instant_shape;
 
 /// One value a source holds or an output states.
 #[derive(Clone, Debug, PartialEq, Eq)]

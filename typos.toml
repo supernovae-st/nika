@@ -212,6 +212,9 @@ extend-exclude = [
   # The prohibition reading and the proposal merge's words ascended from the reader with their
   # six-language tables on 2026-10-07 (ADR-145); the same exclusion follows them.
   "crates/nika-compile-clauses/",
+  # The behavioural contract and its judge descended from the candidate laws with their
+  # multilingual fixtures on 2026-10-09 (ADR-149); the same exclusion follows them.
+  "crates/nika-compile-behavior/",
   # cargo public-api baselines — generated symbol dumps, not prose. Real
   # source typos are still caught in the .rs files they derive from.
   "**/public-api.txt",
