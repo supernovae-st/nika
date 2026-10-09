@@ -93,11 +93,20 @@ authority of its own (lateral L4→L4 edge to `nika-session-change`, which never
   `isError: true`, a turn-ending reply as plain text.
 - `ToolServer` — the Streamable HTTP transport of §3 under its own law: bound to `127.0.0.1` on
   an ephemeral port, its bearer minted for this conversation alone (256 bits from the OS via
-  `getrandom`, never in a debug rendering) and always required, the same origin gate, body bounds
-  and one request per connection. `serve` is blocking and sequential (a call holds the next
-  request for as long as its tool runs; the caller runs it on a thread of its own) until its
-  `Closer` closes it, explicitly or when dropped. `url`, `bearer` and `tool_names` are what the
-  caller hands the harness (`nika_harness::conversation::ToolOffer`).
+  `getrandom`, never in a debug rendering) and always required, the same origin gate, body bounds,
+  deadlines and connection cap, one request per connection. `serve` is blocking (the caller runs
+  it on a thread of its own) and serves until its `Closer` closes it, explicitly or when dropped,
+  returning once the connections in hand are answered. Connections are served side by side under
+  the HTTP door's bounds (below), and the session receives one call at a time: a call holds the
+  next call, not the next request, for as long as its tool runs. `url`, `bearer` and
+  `tool_names` are what the caller hands the harness (`nika_harness::conversation::ToolOffer`).
+- **The HTTP door's bounds**, shared by `nika mcp --http` (`HttpServer::serve`) and `ToolServer`
+  through one serving loop: each connection runs on a scoped thread of its own, at most eight at
+  once, the next waiting in the listener's backlog; a request has 30 s in all to arrive, one
+  deadline across every read of its head and body (`408` past it), and its response 30 s to
+  leave, so a slow client holds one connection for a bounded time and never the server. A failed
+  accept is skipped; one on the server's side (descriptors exhausted) pauses the loop for 100 ms
+  first, while one the client caused is retried at once.
 - `bridge(url, bearer, input, output)` — a stdio MCP session relayed to that server line by line,
   each message posted with the bearer; loopback endpoints only. It is library-only: no CLI starts
   it yet (`nika mcp --session` belongs to the CLI owner).

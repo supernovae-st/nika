@@ -28,18 +28,25 @@
 //! constant-time bearer auth; bodies require `Content-Length` (`411`
 //! otherwise — every first-party MCP SDK sends sized bodies) and are
 //! capped at the same 8 MiB trust-boundary ceiling the stdio pump
-//! enforces (`413` over it).
+//! enforces (`413` over it). Every connection is bounded: its request has
+//! ONE deadline across all its reads, head and body (`408` past it), its
+//! response another, and at most eight connections are served at once —
+//! a slow client holds one connection for a bounded time, never the
+//! server.
 //!
 //! **Zero new dependencies** — hand-rolled HTTP/1.1 over
-//! `std::net::TcpListener`, thread per connection, `Connection: close`
-//! per response (correct and simple; keep-alive is a measured future
-//! upgrade). The crate stays zero-async, zero-SDK — its stated
-//! discipline. Production TLS is a reverse proxy's job (documented on
-//! the CLI flag), never hand-rolled here.
+//! `std::net::TcpListener`, a scoped thread per connection under a cap,
+//! `Connection: close` per response (correct and simple; keep-alive is a
+//! measured future upgrade). The crate stays zero-async, zero-SDK — its
+//! stated discipline. Production TLS is a reverse proxy's job (documented
+//! on the CLI flag), never hand-rolled here.
 
 use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Condvar, Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
 use crate::{MAX_MSG_BYTES, McpError, protocol};
 
@@ -47,11 +54,34 @@ use crate::{MAX_MSG_BYTES, McpError, protocol};
 /// clients; a bound because the socket is a trust boundary.
 const MAX_HEAD_BYTES: usize = 16 * 1024;
 
-/// Per-connection read deadline — a stalled client releases its thread.
-pub(crate) const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+/// The pause after an accept that failed on the server's side (the
+/// process out of descriptors): such a failure persists, and retrying at
+/// once would spin a core.
+const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
 
-/// One JSON-RPC message in, its reply out (`None` for a notification).
-pub(crate) type Dispatch<'a> = &'a dyn Fn(&serde_json::Value) -> Option<serde_json::Value>;
+/// One JSON-RPC message in, its reply out (`None` for a notification) —
+/// shared by the connection threads.
+pub(crate) type Dispatch<'a> = &'a (dyn Fn(&serde_json::Value) -> Option<serde_json::Value> + Sync);
+
+/// How a server holds its connections.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Limits {
+    /// Connections served at once; the next waits in the listener's
+    /// backlog until one ends.
+    pub(crate) connections: usize,
+    /// The time a request has in all to arrive, across every read of its
+    /// head and body; its response has as long again to leave.
+    pub(crate) deadline: Duration,
+}
+
+impl Limits {
+    /// Both doors' bounds: eight connections, 30 s per request and per
+    /// response.
+    pub(crate) const SERVE: Self = Self {
+        connections: 8,
+        deadline: Duration::from_secs(30),
+    };
+}
 
 /// One parsed request — method · target path · lowercased header map ·
 /// raw body bytes.
@@ -137,49 +167,209 @@ impl HttpServer {
         )))
     }
 
-    /// Accept forever — SEQUENTIAL: one connection, one request, one
-    /// response (`Connection: close`), then the next. An MCP host is one
-    /// client issuing millisecond-scale audit calls; serializing them is
-    /// correct and keeps this crate free of threading (the workspace is
-    /// tokio-first and this transport is deliberately sync — a measured
-    /// upgrade if a real host ever saturates it). A failed accept is
-    /// skipped (transient), never fatal.
+    /// Accept forever: one request and one response per connection
+    /// (`Connection: close`), each connection on a thread of its own, at
+    /// most eight at once (the next waits in the listener's backlog). A
+    /// request has 30 s in all to arrive, head and body, and its response
+    /// 30 s to leave, so a slow client holds one connection for a bounded
+    /// time and never the server; the dispatch is pure, so concurrent
+    /// requests never meet. The crate stays sync (the workspace is
+    /// tokio-first; scoped std threads are this transport's whole
+    /// machinery). A failed accept is skipped (transient), never fatal;
+    /// one on the server's side pauses the loop briefly first.
     pub fn serve(&self, token: Option<&str>) -> ! {
+        // Nothing closes the oracle's door: the bounded loop never returns.
+        let never_closed = AtomicBool::new(false);
         loop {
-            let Ok((stream, _)) = self.listener.accept() else {
-                continue;
-            };
-            let _ = stream.set_read_timeout(Some(READ_TIMEOUT));
-            handle_conn(stream, token, &protocol::dispatch);
+            serve_bounded(
+                || accept(&self.listener),
+                token,
+                &protocol::dispatch,
+                &never_closed,
+                Limits::SERVE,
+            );
         }
+    }
+}
+
+/// One connection from `listener`.
+pub(crate) fn accept(listener: &TcpListener) -> io::Result<TcpStream> {
+    listener.accept().map(|(stream, _)| stream)
+}
+
+/// Serve the connections `accept` yields until `closed` is set: each on a
+/// scoped thread of its own, at most `limits.connections` at once (the
+/// next waits in the listener's backlog), each held to `limits.deadline`
+/// for its request and again for its response. A failed accept is
+/// skipped, after a pause when the failure is the server's own. Returns
+/// once `closed` is seen and every connection in hand is answered.
+pub(crate) fn serve_bounded(
+    mut accept: impl FnMut() -> io::Result<TcpStream>,
+    token: Option<&str>,
+    dispatch: Dispatch<'_>,
+    closed: &AtomicBool,
+    limits: Limits,
+) {
+    let slots = Slots::new(limits.connections);
+    std::thread::scope(|scope| {
+        while !closed.load(Ordering::Acquire) {
+            let slot = slots.take();
+            let stream = match accept() {
+                Ok(stream) => stream,
+                Err(error) => {
+                    back_off(&error);
+                    continue;
+                }
+            };
+            if closed.load(Ordering::Acquire) {
+                break;
+            }
+            let connection = move || {
+                handle_conn(stream, token, dispatch, limits.deadline);
+                drop(slot);
+            };
+            let spawned = std::thread::Builder::new()
+                .name("nika-mcp-http".to_owned())
+                .spawn_scoped(scope, connection);
+            if spawned.is_err() {
+                // No thread to spare: the connection closed unanswered and
+                // gave its slot back; let the process breathe first.
+                std::thread::sleep(ACCEPT_BACKOFF);
+            }
+        }
+    });
+}
+
+/// Pause after a failed accept unless the client caused it (its
+/// connection reset or aborted before it was taken): a failure on the
+/// server's side persists, and an immediate retry would spin a core.
+fn back_off(error: &io::Error) {
+    if !client_failed(error) {
+        std::thread::sleep(ACCEPT_BACKOFF);
+    }
+}
+
+/// Whether a failed accept was the client's doing rather than a state of
+/// the server.
+fn client_failed(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        io::ErrorKind::ConnectionAborted
+            | io::ErrorKind::ConnectionReset
+            | io::ErrorKind::ConnectionRefused
+            | io::ErrorKind::Interrupted
+    )
+}
+
+/// The connections a server serves at once.
+struct Slots {
+    free: Mutex<usize>,
+    freed: Condvar,
+}
+
+/// One connection's place among the [`Slots`], given back when dropped.
+struct Slot<'a>(&'a Slots);
+
+impl Slots {
+    fn new(count: usize) -> Self {
+        Self {
+            free: Mutex::new(count.max(1)),
+            freed: Condvar::new(),
+        }
+    }
+
+    /// Wait until a place is free, and take it. The count is the whole
+    /// state and no section under the lock can panic, so a poisoned lock
+    /// still holds a true count.
+    fn take(&self) -> Slot<'_> {
+        let mut free = self.free.lock().unwrap_or_else(PoisonError::into_inner);
+        while *free == 0 {
+            free = self
+                .freed
+                .wait(free)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
+        *free -= 1;
+        Slot(self)
+    }
+}
+
+impl Drop for Slot<'_> {
+    fn drop(&mut self) {
+        let mut free = self.0.free.lock().unwrap_or_else(PoisonError::into_inner);
+        *free += 1;
+        self.0.freed.notify_one();
+    }
+}
+
+/// A connection whose reads, or whose writes, share one deadline: each
+/// waits at most for the time left, so a peer trickling bytes cannot
+/// stretch the exchange past it.
+struct Deadline {
+    stream: TcpStream,
+    at: Instant,
+}
+
+impl Deadline {
+    fn new(stream: TcpStream, budget: Duration) -> Self {
+        Self {
+            stream,
+            at: Instant::now() + budget,
+        }
+    }
+
+    /// The time left, or a timeout once the deadline has passed.
+    fn left(&self) -> io::Result<Duration> {
+        let left = self.at.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "the deadline has passed",
+            ));
+        }
+        Ok(left)
+    }
+}
+
+impl Read for Deadline {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.stream.set_read_timeout(Some(self.left()?))?;
+        self.stream.read(buf)
+    }
+}
+
+impl Write for Deadline {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.stream.set_write_timeout(Some(self.left()?))?;
+        self.stream.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.stream.flush()
     }
 }
 
 /// One connection = one request = one response, then close, the request
 /// answered by `dispatch` (the oracle's, or a conversation's tool server's).
-/// Transport write errors are swallowed — the client hung up; there is
-/// nobody left to tell.
-pub(crate) fn handle_conn(stream: TcpStream, token: Option<&str>, dispatch: Dispatch<'_>) {
-    let mut reader = BufReader::new(match stream.try_clone() {
-        Ok(clone) => clone,
-        Err(_) => return,
-    });
-    let mut out = stream;
-    match parse_request(&mut reader) {
-        Ok(req) => {
-            let (status, reason, content_type, body) = respond(&req, token, dispatch);
-            let _ = write_response(&mut out, status, reason, content_type, body.as_bytes());
-        }
-        Err(refusal) => {
-            let _ = write_response(
-                &mut out,
-                refusal.status,
-                refusal.reason,
-                "text/plain; charset=utf-8",
-                refusal.detail.as_bytes(),
-            );
-        }
-    }
+/// The request has `deadline` in all to arrive, across every read of its
+/// head and body, and the response as long again to leave. Transport write
+/// errors are swallowed — the client hung up; there is nobody left to tell.
+fn handle_conn(stream: TcpStream, token: Option<&str>, dispatch: Dispatch<'_>, deadline: Duration) {
+    let Ok(clone) = stream.try_clone() else {
+        return;
+    };
+    let mut reader = BufReader::new(Deadline::new(clone, deadline));
+    let (status, reason, content_type, body) = match parse_request(&mut reader) {
+        Ok(req) => respond(&req, token, dispatch),
+        Err(refusal) => (
+            refusal.status,
+            refusal.reason,
+            "text/plain; charset=utf-8",
+            refusal.detail,
+        ),
+    };
+    let mut out = Deadline::new(stream, deadline);
+    let _ = write_response(&mut out, status, reason, content_type, body.as_bytes());
 }
 
 /// Route one parsed request through the gates to `dispatch` — returns
@@ -347,7 +537,7 @@ fn read_head_line<R: BufRead>(reader: &mut R) -> Result<String, Refusal> {
     let n = reader
         .take(MAX_HEAD_BYTES as u64 + 1)
         .read_until(b'\n', &mut buf)
-        .map_err(|e| Refusal::new(400, "Bad Request", format!("read failed: {e}")))?;
+        .map_err(|e| read_refusal(&e, "read failed"))?;
     if n == 0 || buf.last() != Some(&b'\n') {
         return Err(Refusal::new(400, "Bad Request", "truncated request head"));
     }
@@ -387,14 +577,27 @@ fn read_sized_body<R: BufRead>(
         ));
     }
     let mut body = vec![0u8; usize::try_from(len).unwrap_or(usize::MAX)];
-    reader.read_exact(&mut body).map_err(|e| {
-        Refusal::new(
-            400,
-            "Bad Request",
-            format!("body shorter than declared: {e}"),
-        )
-    })?;
+    reader
+        .read_exact(&mut body)
+        .map_err(|e| read_refusal(&e, "body shorter than declared"))?;
     Ok(body)
+}
+
+/// A failed read as its refusal: the request's deadline passing (a read
+/// timing out on the time left, or none left) is `408`, anything else
+/// `400` naming `what` failed.
+fn read_refusal(error: &io::Error, what: &str) -> Refusal {
+    if matches!(
+        error.kind(),
+        io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+    ) {
+        return Refusal::new(
+            408,
+            "Request Timeout",
+            "the request did not arrive within its deadline",
+        );
+    }
+    Refusal::new(400, "Bad Request", format!("{what}: {error}"))
 }
 
 /// One HTTP/1.1 response, `Connection: close`, flushed.
@@ -604,12 +807,173 @@ mod tests {
         assert!(reply.starts_with("HTTP/1.1 200"), "{reply}");
     }
 
+    /// ONE deadline across every read: a client trickling a header line
+    /// byte by byte, each byte well inside any per-read timeout, is still
+    /// cut once the request's deadline has passed.
+    #[test]
+    fn a_trickling_request_is_cut_at_its_total_deadline() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("ephemeral bind");
+        let addr = listener.local_addr().expect("addr");
+        let mut client = TcpStream::connect(addr).expect("connect");
+        let (server_side, _) = listener.accept().expect("accept");
+        let deadline = Duration::from_millis(300);
+        let started = Instant::now();
+        std::thread::scope(|scope| {
+            let handled =
+                scope.spawn(move || handle_conn(server_side, None, &protocol::dispatch, deadline));
+            client
+                .write_all(b"POST /mcp HTTP/1.1\r\nX-Slow: ")
+                .expect("send");
+            while !handled.is_finished() && started.elapsed() < Duration::from_secs(10) {
+                let _ = client.write_all(b"a");
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        });
+        let took = started.elapsed();
+        assert!(took >= deadline, "cut before its deadline: {took:?}");
+        assert!(
+            took < deadline + Duration::from_secs(5),
+            "never cut: {took:?}"
+        );
+    }
+
+    /// Closes a test's serving loop when dropped (the flag, then a
+    /// connection to wake the accept), so a failed assertion never leaves
+    /// the loop serving and its scope waiting.
+    struct CloseOnDrop<'a>(&'a AtomicBool, std::net::SocketAddr);
+
+    impl Drop for CloseOnDrop<'_> {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::Release);
+            let _ = TcpStream::connect(self.1);
+        }
+    }
+
+    /// The cap holds and the deadline frees it: with both places taken by
+    /// silent clients, a third waits in the backlog until a silent one is
+    /// cut (`408`), then is answered.
+    #[test]
+    fn a_full_server_answers_the_next_client_once_a_silent_one_is_cut() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("ephemeral bind");
+        let addr = listener.local_addr().expect("addr");
+        let limits = Limits {
+            connections: 2,
+            deadline: Duration::from_millis(400),
+        };
+        let closed = AtomicBool::new(false);
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                serve_bounded(
+                    || accept(&listener),
+                    None,
+                    &protocol::dispatch,
+                    &closed,
+                    limits,
+                );
+            });
+            // Dropped on a failed assertion too, so the scope can always end.
+            let close = CloseOnDrop(&closed, addr);
+            let started = Instant::now();
+            let silent: Vec<TcpStream> = (0..2)
+                .map(|_| {
+                    let mut stream = TcpStream::connect(addr).expect("connect");
+                    stream
+                        .set_read_timeout(Some(Duration::from_secs(10)))
+                        .expect("a read bound");
+                    stream.write_all(b"POST /mcp HTTP/1.1\r\n").expect("send");
+                    stream
+                })
+                .collect();
+            let reply = post(addr, r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#);
+            let waited = started.elapsed();
+            assert!(reply.starts_with("HTTP/1.1 200"), "{reply}");
+            assert!(
+                waited >= limits.deadline,
+                "answered past the cap: {waited:?}"
+            );
+            assert!(
+                waited < limits.deadline + Duration::from_secs(5),
+                "{waited:?}"
+            );
+            for mut stream in silent {
+                let mut cut = String::new();
+                stream.read_to_string(&mut cut).expect("read");
+                assert!(cut.starts_with("HTTP/1.1 408"), "{cut}");
+            }
+            drop(close);
+        });
+    }
+
+    /// A failed accept on the server's side pauses the loop before the
+    /// next try, so a persistent failure (descriptors exhausted) never
+    /// spins a core; one the client caused is retried at once.
+    #[test]
+    fn a_failed_accept_pauses_the_loop_unless_the_client_caused_it() {
+        let failing = |kind: io::ErrorKind, tries: u32| {
+            let closed = AtomicBool::new(false);
+            let mut seen = 0;
+            let started = Instant::now();
+            serve_bounded(
+                || {
+                    seen += 1;
+                    if seen == tries {
+                        closed.store(true, Ordering::Release);
+                    }
+                    Err(io::Error::from(kind))
+                },
+                None,
+                &protocol::dispatch,
+                &closed,
+                Limits::SERVE,
+            );
+            assert_eq!(seen, tries);
+            started.elapsed()
+        };
+        let paused = failing(io::ErrorKind::Other, 4);
+        assert!(paused >= 4 * ACCEPT_BACKOFF, "{paused:?}");
+        let retried = failing(io::ErrorKind::ConnectionAborted, 200);
+        assert!(retried < 20 * ACCEPT_BACKOFF, "{retried:?}");
+    }
+
+    /// The oracle's door serves past a stalled client: one that opens a
+    /// request and goes silent holds one connection, never the door — the
+    /// next client is answered at once, long before the stalled one's
+    /// deadline.
+    #[test]
+    fn a_stalled_client_does_not_hold_the_oracle_door() {
+        let server = HttpServer::bind("127.0.0.1", 0).expect("ephemeral bind");
+        let addr = server.addr().expect("addr");
+        std::thread::spawn(move || server.serve(Some("s3cret")));
+        let mut stalled = TcpStream::connect(addr).expect("connect");
+        stalled
+            .write_all(b"POST /mcp HTTP/1.1\r\nHost: t\r\n")
+            .expect("send");
+        let started = Instant::now();
+        let reply = post_with(
+            addr,
+            r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#,
+            "Authorization: Bearer s3cret\r\n",
+        );
+        let waited = started.elapsed();
+        assert!(reply.starts_with("HTTP/1.1 200"), "{reply}");
+        // A third of the stalled client's 30 s deadline.
+        assert!(
+            waited < Duration::from_secs(10),
+            "held behind the stalled client: {waited:?}"
+        );
+        drop(stalled);
+    }
+
     fn post(addr: std::net::SocketAddr, body: &str) -> String {
         post_with(addr, body, "")
     }
 
+    /// One POST answered in full; a server that holds the reply past 15 s
+    /// fails the test, never hangs it.
     fn post_with(addr: std::net::SocketAddr, body: &str, extra: &str) -> String {
         let mut s = TcpStream::connect(addr).expect("connect");
+        s.set_read_timeout(Some(Duration::from_secs(15)))
+            .expect("a read bound");
         write!(
             s,
             "POST /mcp HTTP/1.1\r\nHost: t\r\nContent-Type: application/json\r\n{extra}Content-Length: {}\r\n\r\n{body}",
