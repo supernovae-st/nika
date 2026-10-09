@@ -92,6 +92,8 @@ struct Builder {
     pointed: std::sync::Mutex<Vec<Vec<String>>>,
     /// The engine facts each verifier question showed.
     facts: std::sync::Mutex<Vec<Value>>,
+    /// The state and the whole prompt of each question over a trial run of the whole request.
+    observed: std::sync::Mutex<Vec<(Value, String)>>,
 }
 
 impl Builder {
@@ -104,7 +106,13 @@ impl Builder {
             told: std::sync::Mutex::new(Vec::new()),
             pointed: std::sync::Mutex::new(Vec::new()),
             facts: std::sync::Mutex::new(Vec::new()),
+            observed: std::sync::Mutex::new(Vec::new()),
         }
+    }
+
+    /// What each question over a trial run of the whole request showed: its state, its prompt.
+    fn observed(&self) -> Vec<(Value, String)> {
+        self.observed.lock().expect("observed").clone()
     }
 
     /// The facts the first verifier question showed.
@@ -176,6 +184,8 @@ impl Builder {
             return "only_requested".to_owned();
         }
         if offered("consistent") {
+            let shown = (state.clone(), prompt.to_owned());
+            self.observed.lock().expect("observed").push(shown);
             let write = |key: &&String| {
                 (prompt.lines()).any(|line| {
                     line.starts_with(&format!("- {key}: ")) && line.contains("./out/report.json")
@@ -687,6 +697,87 @@ async fn a_no_fit_never_excuses_a_required_write_the_run_misses() {
         json!(["the judge named a part in the trial run, then no offer fitting it"]),
         "{first:#}"
     );
+}
+
+/// The whole-trial question after a contextual `no_fit` (A5) reads that finding as the judge's
+/// own history, beside the construction context its point question read: the clause, `no_fit`
+/// and the offers with what these bytes hold of each, bound to these bytes and this catalogue.
+/// Every part is still offered, and the request, the candidate and the run stay as they were:
+/// the history decides nothing by itself, the judge's answer over the run does.
+#[tokio::test]
+async fn the_whole_trial_judge_reads_its_own_conditional_no_fit_as_history() {
+    let room = Room::default();
+    let author = Builder::new(
+        vec![door(HAND_WRITTEN, &[])],
+        Whole::Doubting,
+        Why::NoFit,
+        &[],
+    );
+    let host = Some(&room as &dyn Rehearse);
+    let out = compiled(&stale_request(), &author, host, &Unrelated).await;
+    assert_eq!(
+        out.status,
+        crate::CompileStatus::Ready,
+        "{:#?}",
+        out.diagnostics
+    );
+    let first = &attempts(&out)[0];
+    let point = question(first, "judge_point").expect("the clause was located");
+    assert_eq!(point["choice"], "no_fit", "{point:#}");
+    let observed = author.observed();
+    assert_eq!(observed.len(), 1, "one question over the run");
+    let (state, prompt) = &observed[0];
+    let finding = json!({"question": point["question"], "clause": point["clause"]["text"],
+        "choice": "no_fit", "basis": point["construction"]["no_fit"]["offered"]});
+    let release = &state["authoring"]["catalogue"];
+    assert_eq!(release["version"], "fixture-unrelated-r1", "{state:#}");
+    let history = json!({"candidate_sha256": sha256(HAND_WRITTEN), "catalogue": release,
+        "construction": [finding]});
+    assert_eq!(state["history"], history, "{state:#}");
+    assert_eq!(state["request"], STALE_INTENT);
+    assert_eq!(state["candidate_nika"], HAND_WRITTEN);
+    assert_eq!(
+        state["observation"]["candidate_sha256"],
+        sha256(HAND_WRITTEN)
+    );
+    // The construction context the point read, then what that history is; no construction
+    // alternative is offered over the run.
+    let context = "A clause may concern how the document is built rather than what a task does.";
+    for said in [context, "`history.construction`"] {
+        assert!(prompt.contains(said), "{said}: {prompt}");
+    }
+    assert!(!prompt.contains("component-<k>:"), "{prompt}");
+    let run = question(first, "judge_observed").expect("the run was judged");
+    let offered = run["options"].as_array().cloned().unwrap_or_default();
+    let every = nika_compile_clauses::parts::parts(STALE_INTENT).len();
+    let parts = (0..every).map(|k| json!(format!("part-{k}")));
+    assert!(
+        parts.into_iter().all(|part| offered.contains(&part)),
+        "{run:#}"
+    );
+}
+
+/// Nothing that settled no part is shown as history: a `no_fit` over an offer the catalogue
+/// cannot resolve (the fit unknown) and a point left without a choice leave the whole-trial
+/// question with no history and no construction context.
+#[tokio::test]
+async fn an_unsettled_fit_is_never_shown_as_history() {
+    let cases: [(&dyn ComponentCatalog, Why); 2] =
+        [(&Unresolvable, Why::NoFit), (&Shelf, Why::Abstain)];
+    for (catalog, why) in cases {
+        let room = Room::default();
+        let author = Builder::new(vec![door(HAND_WRITTEN, &[])], Whole::Doubting, why, STALE);
+        let host = Some(&room as &dyn Rehearse);
+        let out = compiled(&stale_request(), &author, host, catalog).await;
+        let first = &attempts(&out)[0];
+        let point = question(first, "judge_point").expect("the clause was located");
+        assert_ne!(point["construction"]["no_fit"]["alternative_stands"], true);
+        let observed = author.observed();
+        assert_eq!(observed.len(), 1, "{first:#}");
+        let (state, prompt) = &observed[0];
+        assert_eq!(state.get("history"), None, "{state:#}");
+        assert!(!prompt.contains("`history.construction`"), "{prompt}");
+    }
 }
 
 /// An offer the catalogue cannot resolve cannot be examined: the judge's `no_fit` decides

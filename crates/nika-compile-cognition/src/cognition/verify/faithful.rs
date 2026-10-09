@@ -807,7 +807,8 @@ fn reads_stated(candidate: &str, task: &str, intent: &str) -> bool {
 
 /// The whole request over this compile's trial run of the same bytes, once every part is
 /// carried: the discriminating observation a doubt asks for. Every part is offered, the ones
-/// answered superseded or asking no operation included: the run may show them asked.
+/// answered superseded or asking no operation included: the run may show them asked. A clause
+/// the judge settled `no_fit` is shown as its own history ([`Construction::recall`]).
 async fn observe<P: ProviderInferDyn>(
     parts: &[Part],
     asked: &Asked<'_, '_, P>,
@@ -837,10 +838,12 @@ async fn observe<P: ProviderInferDyn>(
     }));
     let mut state = asked.base.clone();
     state["observation"] = run.clone();
+    let (mut shown, said) = (state.clone(), format!("{RUN} {OBSERVED}"));
+    let said = Construction::of(asked.base).recall(&mut shown, &verdict.records, said);
     let question = ChoiceQuestion::new(
         "verify-observed",
-        told(asked.base, asked.reference, &format!("{RUN} {OBSERVED}")),
-        state.clone(),
+        told(asked.base, asked.reference, &said),
+        shown,
         options,
     );
     let (returned, before) = (verdict.answers(), verdict.records.len());

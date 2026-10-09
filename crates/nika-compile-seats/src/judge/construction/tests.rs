@@ -5,9 +5,10 @@
 //! judged state turns them into: the current-byte witness and the resolved contract are facts;
 //! fit stays the judge's, and an offer the catalogue cannot resolve keeps it unknown.
 
-use super::{CONSTRUCTION, Construction, Construed, assess};
+use super::{ALTERNATIVES, CONSTRUCTION, Construction, Construed, HISTORY, assess};
 use crate::foundry::component::pinned;
 use crate::foundry::{Component, ComponentCatalog, ComponentRef, Release, Unresolved};
+use nika_compile::surface::sha256;
 use serde_json::{Value, json};
 
 /// A catalogue of release `r1`: `block:fit` and `block:other` resolve with the callables their
@@ -147,7 +148,7 @@ fn a_named_offer_is_a_defect_and_an_unresolved_offer_keeps_no_fit_unknown() {
         assert_eq!(construction.read(key), None, "{key}");
     }
     let told = construction.told("Say why.".to_owned());
-    assert_eq!(told, format!("Say why. {CONSTRUCTION}"));
+    assert_eq!(told, format!("Say why. {CONSTRUCTION} {ALTERNATIVES}"));
 }
 
 /// A receipt a rewrite left behind (its nodes gone: `absent`) holds nothing: the offer stays a
@@ -219,4 +220,58 @@ fn the_record_keeps_the_basis_of_a_construction_answer() {
         construction.annotate(Some(&mut untouched), answer);
     }
     assert_eq!(untouched, json!({"question": "verify-point-6"}));
+}
+
+/// A later question over the same state is shown each standing `no_fit` of the judge as its own
+/// history, bound to the judged bytes and the lent catalogue, beside the construction context.
+/// A fit left unknown, a named component, no choice, or a finding over other statuses (another
+/// witness of the same offer) is never one; with none, the state and instructions stay as they
+/// are.
+#[test]
+fn a_standing_no_fit_is_recalled_as_history_and_nothing_else_is() {
+    let mut offered = offer(&["block:fit", "block:other"]);
+    assess(&Lent, &mut offered, &[]);
+    let construction = Construction::of(&judged(&offered));
+    let bytes = "nika: w\ntasks: {}\n";
+    let release = json!({"version": "r1", "snapshot_sha256": "11", "profile": "profile/r1"});
+    let shown = || {
+        let mut state = judged(&offered);
+        state["candidate_nika"] = json!(bytes);
+        state["authoring"]["catalogue"] = release.clone();
+        state
+    };
+    let asked = |id: &str, answer: Option<&str>| {
+        let mut record = json!({"question": id, "choice": answer, "clause": {"text": id}});
+        construction.annotate(Some(&mut record), answer);
+        record
+    };
+    let standing = asked("verify-point-6", Some("no_fit"));
+    let mut unknown = asked("verify-point-1", Some("no_fit"));
+    unknown["construction"]["no_fit"]["alternative_stands"] = json!(false);
+    let mut elsewhere = asked("verify-point-2", Some("no_fit"));
+    elsewhere["construction"]["no_fit"]["offered"][0]["construction"]["held"] = json!("expanded");
+    let others = [
+        unknown,
+        elsewhere,
+        asked("verify-point-3", Some("component-0")),
+        asked("verify-point-4", None),
+    ];
+    let mut state = shown();
+    let mut records = others.to_vec();
+    records.push(standing.clone());
+    let told = construction.recall(&mut state, &records, "Judge it.".to_owned());
+    assert_eq!(told, format!("Judge it. {CONSTRUCTION} {HISTORY}"));
+    let finding = json!({"question": "verify-point-6", "clause": "verify-point-6",
+        "choice": "no_fit", "basis": standing["construction"]["no_fit"]["offered"]});
+    let history = json!({"candidate_sha256": sha256(bytes), "catalogue": release,
+        "construction": [finding]});
+    assert_eq!(state["history"], history);
+    let mut untouched = shown();
+    let told = construction.recall(&mut untouched, &others, "Judge it.".to_owned());
+    assert_eq!(told, "Judge it.");
+    assert_eq!(untouched, shown());
+    let mut bare = json!({"request": "r"});
+    let told = Construction::of(&bare).recall(&mut bare, &records, "Judge it.".to_owned());
+    assert_eq!(told, "Judge it.");
+    assert_eq!(bare, json!({"request": "r"}));
 }

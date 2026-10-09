@@ -124,8 +124,13 @@ as an external consumer.
   admitted, and `no_fit`. `Construed::Defect` names the component (release, holes with their
   owners, declared effects and callables) for the document repair; `Construed::Fallback` lets
   that clause's own alternative stand when every offer was examinable; `Construed::Undecided`
-  keeps the fit unknown when an offer could not be resolved. The verifier that asks the
-  questions and weighs the answers stays in `nika-compile-cognition`.
+  keeps the fit unknown when an offer could not be resolved. `Construction::recall` shows a
+  later question over the same state (the whole request over a trial run) each standing
+  `no_fit` among the verdict's records, its alternative standing over exactly the offers and
+  statuses that state shows, as the judge's own history (`history`, bound to the candidate's
+  sha256 and the lent catalogue) beside the same construction context: never a fact, and a fit
+  left unknown, no choice or a finding over other statuses is never shown. The verifier that
+  asks the questions and weighs the answers stays in `nika-compile-cognition`.
 - `repairs` — the laws that end the verifier's work: `progressed` (a defect set is progress
   when it names a new part or narrows the last set) and `carry_declined` (the record of bytes a
   judge rejected keeps each rejection of them once per judge, context and request, so every

@@ -2908,6 +2908,7 @@ pub fn nika_compile_seats::judge::Construction::annotate(&self, record: core::op
 pub fn nika_compile_seats::judge::Construction::of(state: &serde_json::value::Value) -> Self
 pub fn nika_compile_seats::judge::Construction::options(&self) -> alloc::vec::Vec<nika_compile_seats::decide::ChoiceOption>
 pub fn nika_compile_seats::judge::Construction::read(&self, key: &str) -> core::option::Option<nika_compile_seats::judge::Construed>
+pub fn nika_compile_seats::judge::Construction::recall(&self, state: &mut serde_json::value::Value, records: &[serde_json::value::Value], instructions: alloc::string::String) -> alloc::string::String
 pub fn nika_compile_seats::judge::Construction::told(&self, instructions: alloc::string::String) -> alloc::string::String
 impl core::clone::Clone for nika_compile_seats::judge::Construction
 pub fn nika_compile_seats::judge::Construction::clone(&self) -> nika_compile_seats::judge::Construction

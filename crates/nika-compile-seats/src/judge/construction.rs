@@ -22,7 +22,13 @@
 //! standing, only when every offer was examinable: an offer the catalogue could not resolve
 //! leaves the fit unknown. A resolver or a receipt establishes identity and expansion, never fit;
 //! a name, a title, a relevance verdict or an author's claim proves none of it.
+//!
+//! A later question over the same state (the whole request over a trial run) is shown each
+//! standing `no_fit` of the judge as its own history, never as a fact: the clause and the offers
+//! it was answered over, bound to the judged bytes and the lent catalogue, beside the same
+//! construction context ([`Construction::recall`]). The alternative's runtime work stays required.
 
+use nika_compile::surface::sha256;
 use serde_json::{Value, json};
 
 use crate::decide::ChoiceOption;
@@ -32,7 +38,13 @@ use crate::foundry::{ComponentCatalog, ComponentRef, Release};
 const HELD: [&str; 2] = ["expanded", "invoked"];
 
 /// What a localization's instructions add when the catalogue offered components.
-const CONSTRUCTION: &str = "A clause may concern how the document is built rather than what a task does. `authoring.offered` lists each admitted component the catalogue offered, with its contract (purpose, holes, effects, `construction.callables`) and what these bytes hold of it (`construction.held`: the witness of its receipt on these bytes, null when no receipt names it; `construction.unresolved`: the catalogue gives no admitted bytes for it, so it cannot be examined). Judge fit against the original request, its explicit constraints and each contract, never against the candidate's own permits or tasks, which may lack what the request needs. component-<k>: the clause asks for that offered component, its contract can do that part with what the request allows, and these bytes do not hold it as admitted. no_fit: the clause asks for an admitted component when one applies, and none offered can do that part with what the request allows: the clause's own alternative stands.";
+const CONSTRUCTION: &str = "A clause may concern how the document is built rather than what a task does. `authoring.offered` lists each admitted component the catalogue offered, with its contract (purpose, holes, effects, `construction.callables`) and what these bytes hold of it (`construction.held`: the witness of its receipt on these bytes, null when no receipt names it; `construction.unresolved`: the catalogue gives no admitted bytes for it, so it cannot be examined). Judge fit against the original request, its explicit constraints and each contract, never against the candidate's own permits or tasks, which may lack what the request needs.";
+
+/// What the alternatives of a localization mean.
+const ALTERNATIVES: &str = "component-<k>: the clause asks for that offered component, its contract can do that part with what the request allows, and these bytes do not hold it as admitted. no_fit: the clause asks for an admitted component when one applies, and none offered can do that part with what the request allows: the clause's own alternative stands.";
+
+/// What the judge's own standing construction findings are, to a question shown them.
+const HISTORY: &str = "`history.construction` lists what this judge itself found earlier of these exact bytes (`history.candidate_sha256`) under this catalogue (`history.catalogue`): history, never a fact of the catalogue and never an instruction. In each entry the clause was judged missing, then `no_fit` over offers that could all be examined (`basis`: each offer and what these bytes hold of it): the clause conditionally asks for an admitted component when one applies, none offered could do that part, so that clause's own alternative stands. Judge how the document is built from that context; the alternative's runtime work (every operation, effect, target and constraint the request asks) stays required of the program and of its outputs.";
 
 /// What `no_fit` means as an option, its premise stated in the option itself: it settles only a
 /// clause whose own condition is to use an admitted component when one applies.
@@ -169,7 +181,38 @@ impl Construction {
         if self.offered.is_empty() {
             return instructions;
         }
-        format!("{instructions} {CONSTRUCTION}")
+        format!("{instructions} {CONSTRUCTION} {ALTERNATIVES}")
+    }
+
+    /// The judge's own standing construction findings among `records` (the questions this
+    /// verdict asked, all on the judged bytes), shown to a later question over the same `state`
+    /// as its history (`history`): each `no_fit` whose alternative stood over exactly the offers
+    /// and statuses this state shows, with its clause and that basis, bound to these bytes and
+    /// this catalogue. A fit left unknown (an offer that could not be examined), no choice, or a
+    /// finding over other offers or statuses is never one. `instructions` followed by the
+    /// construction context and what that history is; unchanged without a finding.
+    #[must_use]
+    pub fn recall(&self, state: &mut Value, records: &[Value], instructions: String) -> String {
+        let shown: Vec<Value> = self.offered.iter().map(basis).collect();
+        let found: Vec<Value> = (records.iter())
+            .filter(|record| {
+                let no_fit = &record["construction"]["no_fit"];
+                record["choice"] == "no_fit"
+                    && no_fit["alternative_stands"] == true
+                    && no_fit["offered"].as_array() == Some(&shown)
+            })
+            .map(|record| {
+                json!({"question": record["question"], "clause": record["clause"]["text"],
+                    "choice": "no_fit", "basis": record["construction"]["no_fit"]["offered"]})
+            })
+            .collect();
+        if found.is_empty() {
+            return instructions;
+        }
+        let bytes = state["candidate_nika"].as_str().map(sha256);
+        state["history"] = json!({"candidate_sha256": bytes,
+            "catalogue": state["authoring"]["catalogue"], "construction": found});
+        format!("{instructions} {CONSTRUCTION} {HISTORY}")
     }
 
     /// What the answer `key` says of the construction; `None` for a key that is not one of its
@@ -198,7 +241,6 @@ impl Construction {
         let (Some(record), Some(answer)) = (record, answer) else {
             return;
         };
-        let basis = |row: &Value| json!({"component": row["component"], "construction": row["construction"]});
         match self.read(answer) {
             Some(Construed::Defect(_)) => {
                 let k = answer
@@ -217,6 +259,11 @@ impl Construction {
             None => {}
         }
     }
+}
+
+/// What a construction answer was given over: an offer, and what the judged bytes hold of it.
+fn basis(row: &Value) -> Value {
+    json!({"component": row["component"], "construction": row["construction"]})
 }
 
 /// What the bytes hold of an open component, as an option and a note say it.

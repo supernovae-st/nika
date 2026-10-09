@@ -492,7 +492,13 @@ part that asked it.
   `consistent` (these inputs exercise every part, the outputs are what the request asks of
   them, and nothing else is done), `unexercised` (some part of the request is never exercised
   by these inputs), `part-<k>` for every part (one answered `superseded` or `no_operation`
-  included: the run may show it asked) and `task-<id>` for each task.
+  included: the run may show it asked) and `task-<id>` for each task. When the localization
+  settled a conditional clause `no_fit` (its alternative standing over examinable offers), the
+  question's state also carries that finding as the judge's own history, never a fact
+  (`history`: the candidate's sha256, the lent catalogue, and each finding's question, clause and
+  basis; `Construction::recall`), and its instructions add the construction context and what
+  that history is: the alternative's runtime work stays required. A fit left unknown, no choice,
+  or a finding over other offers or statuses is never shown.
   - `consistent` is the `Carried` judgment of the whole request (`settled_by: verify-observed`).
   - `unexercised` decides nothing: « the trial run's inputs never exercise some part of the
     request: it proves no whole output ».
