@@ -36,8 +36,9 @@ const READ_ONLY_OVER_RUN: &str =
 /// The texts [`observed`] holds.
 const READ: &str = r#"[{"id":1,"status":"open"},{"id":2,"status":"cancelled"}]"#;
 const WROTE: &str = r#"[{"id":1,"status":"open"}]"#;
-/// The options of a part asked again over a run.
-const OVER_A_PART: [&str; 4] = ["carried", "missing", "unexercised", "none"];
+/// The options of an open part a later one follows, asked again over a run: a later part may
+/// replace it there as over the bytes alone.
+const OVER_A_PART: [&str; 5] = ["carried", "missing", "unexercised", "superseded", "none"];
 
 /// The options of the question over a run of [`CANDIDATE`]: every part of [`ORDERS`], whatever
 /// the bytes made of it.
@@ -284,6 +285,7 @@ async fn a_consistent_run_decides_the_parts_the_localization_left_open() {
     shown_the_run(&sent[6], &observation, Some(ORDER_PARTS[1]));
     assert!(sent[5].told.contains(OBSERVED_PART) && !sent[5].told.contains(RESTRICTING));
     assert!(sent[6].told.contains(OBSERVED_PART) && sent[6].told.contains(RESTRICTING));
+    assert!(sent[5].told.contains(PART) && sent[6].told.contains(PART));
     drop(sent);
     assert_eq!(judge.left(), 0);
 }

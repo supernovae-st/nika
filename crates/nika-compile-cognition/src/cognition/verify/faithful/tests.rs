@@ -50,6 +50,8 @@ mod declined;
 mod observed;
 /// Which part a task question may call an operation no task performs.
 mod omittable;
+/// A clause a revision's change replaces, over a run of the revised bytes.
+mod superseded;
 
 /// The model the authoring provider is seated as when it judges.
 const MODEL: &str = "mock/judge";

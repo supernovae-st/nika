@@ -418,8 +418,11 @@ each part of the request asked alone.
   role `judge_observed_part`, its state carrying the observation), offering `carried` (these
   inputs exercise it, an input meeting its case, its condition or what it forbids, and the
   outputs show it done as asked), `missing` (the outputs show it missing or done differently)
-  and `unexercised` (these inputs never exercise it: the run shows nothing about it). `carried`
-  settles an open part. It never settles a part already judged a defect: a run of some inputs
+  and `unexercised` (these inputs never exercise it: the run shows nothing about it); an open
+  part a later one follows is also offered `superseded`, as over the bytes alone (a later
+  correction replaces it, so it asks nothing of the candidate), a part already judged a defect
+  never. `carried` or `superseded` settles an open part. `carried` never settles a part already
+  judged a defect: a run of some inputs
   never removes a defect located in the bytes, so the defect stays, for a repair, its note
   followed by « ; the trial run shows it done for its inputs, which never removes a defect
   located in the bytes ». `missing` rejects the bytes: a defect stays a
@@ -434,9 +437,11 @@ each part of the request asked alone.
   reads the program, never what it produced: when the observation below proves whole outputs,
   each part of the request is asked over the run (`verify-observed-part-<k>`, the questions of
   one step put to a decision seat together, as `verify-observed-parts`), with the options and
-  instructions of the trial-run bullet above. `carried` and `unexercised` leave the verdict
-  standing; when every part is one or the other the request is the `Carried` judgment of
-  `verify-request`. `missing` rejects the bytes and asks its pointer over the run: a named task
+  instructions of the trial-run bullet above. `carried`, `superseded` (a clause of the earlier
+  request a revision's change replaces) and `unexercised` leave the verdict standing; when every
+  part is one of them the request is the `Carried` judgment of `verify-request`. The change and
+  every clause it leaves untouched stay judged. `missing` rejects the bytes and asks its pointer
+  over the run: a named task
   or `omitted` is a defect noted « in the trial run, … », what a repair starts from, never READY;
   `no_task` leaves the part contested. NONE abstains on the bytes, and NONE, no choice or a
   pointer left without one keep the part unknown: never READY on it, never a defect. A call that

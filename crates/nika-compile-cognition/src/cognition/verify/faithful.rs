@@ -51,6 +51,8 @@ use nika_kernel::ai::provider::ProviderInferDyn;
 
 /// What a part asked alone adds to the clause instructions: a later part replaces it.
 const PART: &str = "This clause is one part of the request, asked alone. superseded: a later correction or restatement in the request replaces this part, so it asks nothing of this candidate.";
+/// What `superseded` means as an option, offered a part a later one follows.
+const SUPERSEDED: &str = "a later correction in the request replaces this part";
 
 /// What a part that restricts adds to its instructions.
 pub(super) const RESTRICTING: &str = "This clause RESTRICTS (a prohibition, a condition, an exclusion or an only): it is carried when no task does what it forbids and every task honors its condition, even though no task states it.";
@@ -443,10 +445,7 @@ fn part_question<P: ProviderInferDyn>(
         ChoiceOption::new("missing", "the candidate omits it or does it differently"),
     ];
     if k + 1 < count {
-        options.push(ChoiceOption::new(
-            "superseded",
-            "a later correction in the request replaces this part",
-        ));
+        options.push(ChoiceOption::new("superseded", SUPERSEDED));
     }
     if count > 1 && !part.restricting {
         options.push(ChoiceOption::new("no_operation", NO_OPERATION));
@@ -559,9 +558,9 @@ fn named<'t>(key: &str, tasks: &'t [String]) -> Option<&'t str> {
 
 /// Each part the bytes left open, and each restriction judged broken, judged again over the
 /// trial run: carried settles an open part, and only notes a broken restriction (a run of some
-/// inputs never removes a defect located in the bytes: it stays, for a repair); missing
-/// confirms a broken restriction, or asks an open part's task over the run; unexercised, or no
-/// choice, leaves it as it stood.
+/// inputs never removes a defect located in the bytes: it stays, for a repair); superseded, only
+/// offered an open part, settles it; missing confirms a broken restriction, or asks an open
+/// part's task over the run; unexercised, or no choice, leaves it as it stood.
 async fn over_run<P: ProviderInferDyn>(
     parts: &mut [Part],
     (asked, confirming): (&Asked<'_, '_, P>, bool),
@@ -572,7 +571,7 @@ async fn over_run<P: ProviderInferDyn>(
     let mut state = asked.base.clone();
     state["observation"] = run.clone();
     let questions: Vec<Option<ChoiceQuestion>> = (parts.iter().enumerate())
-        .map(|(k, part)| observed_question(k, part, &state, asked))
+        .map(|(k, part)| observed_question((k, parts.len()), part, &state, asked))
         .collect();
     let asked_together: Vec<ChoiceQuestion> = questions.iter().flatten().cloned().collect();
     prefetch(
@@ -595,7 +594,7 @@ async fn over_run<P: ProviderInferDyn>(
             return;
         }
         match answer.as_deref() {
-            Some("carried") => {
+            Some("carried" | "superseded") => {
                 verdict.consumed += 1;
                 part.state = match &part.state {
                     // The bytes and the run disagree: the located defect stays, noted.
@@ -661,11 +660,11 @@ async fn confirmed<P: ProviderInferDyn>(
     !keep(&parts, verdict) && verdict.defects.is_empty()
 }
 
-/// Part `k` asked again over a trial run (`state`: the base state and the run's observation),
-/// when it is doubtful there: left unknown or contested by the bytes, or a restriction they
-/// break.
+/// Part `k` of `count` asked again over a trial run (`state`: the base state and the run's
+/// observation), when it is doubtful there: left unknown or contested by the bytes, or a
+/// restriction they break. An open part a later one follows may be superseded, as over the bytes.
 fn observed_question<P: ProviderInferDyn>(
-    k: usize,
+    (k, count): (usize, usize),
     part: &Part,
     state: &Value,
     asked: &Asked<'_, '_, P>,
@@ -678,7 +677,7 @@ fn observed_question<P: ProviderInferDyn>(
     if !doubtful {
         return None;
     }
-    let options = vec![
+    let mut options = vec![
         ChoiceOption::new(
             "carried",
             "these inputs exercise it and the outputs show it done as asked",
@@ -690,6 +689,10 @@ fn observed_question<P: ProviderInferDyn>(
         ),
     ];
     let mut instructions = format!("{RUN} {OBSERVED_PART}");
+    if k + 1 < count && !matches!(part.state, State::Defect(_)) {
+        options.push(ChoiceOption::new("superseded", SUPERSEDED));
+        instructions = format!("{instructions} {PART}");
+    }
     if part.restricting {
         instructions = format!("{instructions} {RESTRICTING}");
     }
