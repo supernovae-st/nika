@@ -147,8 +147,14 @@ needs keeps its default.
   relative path under the project, never absolute, hidden or above it, and for `derived` absent
   from the observed world) and the document uses it in that role alone (a source only as a
   `nika:fetch` URL read with GET or HEAD; an output only as a `nika:write` path, directly or
-  through a bare `${{ const.<name> }}`). Each refusal is one `resolution` diagnostic (`UNAUTHORIZED SELECTION`,
-  `OUT OF SCOPE`). `laws_resolved` is `laws_observed` with the admitted literals covered by
+  through a bare `${{ const.<name> }}`). Only a read source and a new output can stand for
+  words the person did not spell: a named or delegated selection is a read source, a derived
+  one a new output, and an answered value is one the person typed verbatim, in any role. A
+  derived name is plain ASCII and never matches an observed file, letter case aside (a
+  case-insensitive file system holds both spellings as one file). A host made of numbers that
+  is no canonical address (`127.1`, `0x7f.0.0.1`) is refused. Each refusal is one `resolution`
+  diagnostic (`UNAUTHORIZED SELECTION`, `OUT OF SCOPE`). `laws_resolved` is `laws_observed`
+  with the admitted literals covered by
   Law 2 (`invented_except`); `laws`, `laws_observed` and `invented` keep their behaviour. A
   public-looking name that resolves to a private address is refused at run time by the fetch
   effect's own guard. The document door reads it (`nika-compile-cognition`); the private-plan
