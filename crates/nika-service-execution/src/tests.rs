@@ -557,6 +557,90 @@ fn absent_parent_caps_every_child_at_zero() {
     )));
 }
 
+/// An admitted driver whose anchored file plane is `directory`, so a child
+/// reads the real files written beside its workflows.
+fn project_driver(
+    directory: &tempfile::TempDir,
+    files: &[(&str, &str)],
+) -> TestResult<ServiceExecutionDriver> {
+    for (path, text) in files {
+        let path = directory.path().join(path);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(path, text)?;
+    }
+    let project = OwnedDir::open(directory.path())?;
+    let service = nika_execution::ExecutionService::default();
+    let admitted = service.admit_with_model_override(&project, Path::new("root.nika"), None)?;
+    let session = service.begin(admitted);
+    ServiceExecutionDriver::new(session.context(), directory.path())
+        .ok_or_else(|| std::io::Error::other("admitted context lost its root").into())
+}
+
+/// The runtime twin of the composition meet (spec 14 laws 3/4). The root grants
+/// `./references/**`; a child that declares and reads exactly
+/// `./references/preview-shell.html` runs under child ∩ parent
+/// (`effective_permits`) and reads the file. Handed a parent boundary that
+/// does not cover its literal, a child is refused `NIKA-SEC-004` although
+/// its own block grants the file.
+#[tokio::test]
+async fn a_child_literal_inside_the_parent_glob_is_read_at_run() -> TestResult<()> {
+    let reader = |path: &str| {
+        format!(
+            "nika: reader\npermits:\n  tools: [\"nika:read\"]\n  fs: {{ read: [\"{path}\"] }}\ntasks:\n  read:\n    invoke: {{ tool: \"nika:read\", args: {{ path: \"{path}\" }} }}\noutputs:\n  text: ${{{{ tasks.read.output }}}}\n"
+        )
+    };
+    let root = "nika: root\npermits:\n  tools: [\"nika:read\"]\n  fs: { read: [\"./references/**\", \"./other/**\"] }\ntasks:\n  inside:\n    invoke: { workflow: \"./inside.nika\" }\n  outside:\n    invoke: { workflow: \"./outside.nika\" }\n";
+    let (inside, outside) = (
+        reader("./references/preview-shell.html"),
+        reader("./other/x.html"),
+    );
+    let directory = tempfile::tempdir()?;
+    let driver = project_driver(
+        &directory,
+        &[
+            ("root.nika", root),
+            ("inside.nika", &inside),
+            ("outside.nika", &outside),
+            ("references/preview-shell.html", "<p>shell</p>"),
+            ("other/x.html", "<p>other</p>"),
+        ],
+    )?;
+    let call = |target: &str, globs: &[&str]| {
+        let mut parent = Permits::new();
+        parent.tools = Some(vec!["nika:read".to_owned()]);
+        parent.fs = Some(nika_schema::types::FsPermits::new(
+            globs.iter().map(|glob| (*glob).to_owned()).collect(),
+            Vec::new(),
+        ));
+        ChildCall {
+            target: target.to_owned(),
+            parent_permits: Some(parent),
+            ..child_call()
+        }
+    };
+    let not_run = |refusal: ChildRunRefusal| std::io::Error::other(refusal.message);
+
+    let read = driver
+        .run_child(call("./inside.nika", &["./references/**", "./other/**"]))
+        .await
+        .map_err(not_run)?;
+    assert!(read.ok, "{:?}", read.failure);
+    assert_eq!(read.outputs.get("text"), Some(&Value::from("<p>shell</p>")));
+
+    let refused = driver
+        .run_child(call("./outside.nika", &["./references/**"]))
+        .await
+        .map_err(not_run)?;
+    assert!(!refused.ok, "the meet is empty, so the read is refused");
+    let (code, message) = refused
+        .failure
+        .ok_or("the refused read names its failure")?;
+    assert_eq!(code, "NIKA-SEC-004", "{message}");
+    Ok(())
+}
+
 #[test]
 fn service_driver_runs_a_child_from_the_owned_snapshot() -> TestResult<()> {
     // Pin the normal test-thread budget explicitly: a larger ambient
