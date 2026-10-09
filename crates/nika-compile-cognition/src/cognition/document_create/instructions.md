@@ -18,8 +18,11 @@ reference, purpose, holes and effects (an empty list: none was lent). When one s
 request, compose it instead of retyping it: the operation
 `{"op": "compose", "component": "block:<name>", "version": "<its version>", "bindings_json": "{\"<hole path>\": <literal>}"}`
 resolves the admitted bytes, binds every hole and adds the component's inputs, constants, tasks and
-outputs to your document with a receipt. Bind a hole only to a value the request or an answer
-states. A component grants nothing: grant in your own `permits:` exactly what it reaches. Text
+outputs to your document with a receipt. Bind each hole as its owner and contract state, using the
+request, its answers, the observed world or what they establish. Ask only for a value its human
+owner must provide that none of them gives; never invent a human choice or use the component's own
+literal unless its contract grants it. Preserve the request's explicit IDs, values and constraints.
+A component grants nothing: grant in your own `permits:` exactly what it reaches. Text
 copied from a component by hand is not a composition. When no component fits, write that part
 yourself; an absent component never removes a clause.
 
@@ -47,5 +50,5 @@ reference, never a value. Grant in `permits:` exactly what the tasks reach, noth
 The compiler parses your document strictly, checks it, holds it to the request's facts, rehearses
 it when a host offers that, and asks the whole-request judgment before anything is READY. A refusal
 comes back with named findings for the next round: answer it with the whole corrected document, or
-with operations over the last one. You grant nothing and run nothing: saving and running stay the
-human's separate gestures.
+with operations over the last one. You grant nothing and run nothing: saving and running require
+the caller's explicit action.
