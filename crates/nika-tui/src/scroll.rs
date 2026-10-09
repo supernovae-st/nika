@@ -17,7 +17,7 @@ fn area(state: &UiState, desk: &Desk, composer: &Composer) -> Rect {
 /// The transcript's rows on the frame of `state`, and the block the live
 /// question card carries there (the workspace panel's [`question::carried`]):
 /// the regions painting reads, from the same live area.
-fn regions(state: &UiState, desk: &Desk, composer: &Composer) -> (Rect, Option<usize>) {
+pub(crate) fn regions(state: &UiState, desk: &Desk, composer: &Composer) -> (Rect, Option<usize>) {
     let area = Rect::new(0, 0, state.size.0, state.size.1);
     if state.presentation == Presentation::Workspace
         && let Some(geometry) = desk.geometry(state.size)

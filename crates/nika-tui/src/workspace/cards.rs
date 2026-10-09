@@ -25,6 +25,8 @@ pub(crate) mod diagnostics;
 mod bubble;
 pub(crate) mod review;
 
+use std::ops::Range;
+
 use nika_display::theme::Role;
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -322,6 +324,43 @@ pub(crate) fn render(frame: &mut Frame<'_>, state: &UiState, area: Rect, context
             break;
         }
     }
+}
+
+/// The blocks the conversation painted in `area` with `context` shows on its
+/// rows `rows` (from the area's top), by index, the newest first: the plan
+/// painting reads, each block in the rows of its piece ([`Bubble::spans`]),
+/// so the reading position and a press name one block. A pane too small for
+/// labels paints no piece and names none.
+pub(crate) fn shown_at(
+    state: &UiState,
+    area: Rect,
+    context: Context<'_>,
+    rows: Range<usize>,
+) -> Vec<usize> {
+    if !room_for_labels(area) {
+        return Vec::new();
+    }
+    let pieces = plan(state, area, context, 0);
+    let total: usize = pieces.iter().map(Piece::rows).sum();
+    let skip = total
+        .saturating_sub(usize::from(area.height))
+        .saturating_sub(state.focus_scroll);
+    let (from, to) = (rows.start + skip, rows.end + skip);
+    // Each block's first row and rows, counted as painted: the lift first.
+    let mut at = usize::from(lift(state, area, total));
+    let mut spans = Vec::new();
+    for piece in &pieces {
+        match piece {
+            Piece::Bubble(bubble) => spans.extend(bubble.spans().map(|(top, n)| (at + top, n))),
+            _ => spans.push((at, piece.rows())),
+        }
+        at += piece.rows();
+    }
+    let shown = spans
+        .iter()
+        .enumerate()
+        .filter(|(_, (top, n))| *top < to && top + n > from);
+    shown.map(|(block, _)| block).rev().collect()
 }
 
 /// Total rendered rows, from the same plan, `context` and compact fallback as

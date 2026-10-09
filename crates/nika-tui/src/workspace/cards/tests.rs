@@ -1299,3 +1299,59 @@ fn a_cost_question_keeps_its_warning_and_the_carried_row_stays_quiet() {
     )];
     assert_eq!(cell.fg, warn, "{rows:#?}");
 }
+
+/// The plan names, on each painted row, the block painted there
+/// ([`shown_at`]): at every scroll position, in both forms, inside bubbles
+/// and cards alike, one block a row at most, and over the whole window the
+/// same blocks, the newest first.
+#[test]
+fn each_row_names_the_block_painted_on_it() {
+    let said = [
+        (Kind::Banner, "alpha banner"),
+        (Kind::Human, "bravo"),
+        (Kind::Reply, "charlie"),
+        (Kind::Question, "delta?"),
+        (Kind::Human, "echo"),
+        (Kind::Report, "foxtrot"),
+        (Kind::Run, "golf"),
+        (Kind::Result, "india"),
+        (Kind::Refusal, "juliet refused"),
+        (Kind::Human, "kilo"),
+        (Kind::Reply, "lima"),
+        (Kind::Reply, "mike"),
+    ];
+    let tokens = [
+        "alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "india", "juliet", "kilo",
+        "lima", "mike",
+    ];
+    for area in [Rect::new(0, 0, 40, 12), Rect::new(0, 0, 40, 18)] {
+        let mut state = UiState::new(Presentation::Workspace, false, (40, area.height));
+        for (kind, text) in said {
+            state.transcript.push(Committed::new(kind, text));
+        }
+        let (most, frames) = windows(&mut state, area, (None, None));
+        assert!(most > 0, "{area:?}: the conversation scrolls");
+        for (scroll, frame) in frames.iter().enumerate().take(most + 1) {
+            state.focus_scroll = scroll;
+            let rows = rows_of(frame);
+            let mut named = Vec::new();
+            for (y, row) in rows.iter().enumerate() {
+                let here = shown_at(&state, area, (None, None), y..y + 1);
+                assert!(
+                    here.len() <= 1,
+                    "{area:?} scroll {scroll} row {y}: {here:?}"
+                );
+                for (block, token) in tokens.iter().enumerate() {
+                    if row.contains(token) {
+                        assert_eq!(here, [block], "{area:?} scroll {scroll} row {y}: {row}");
+                    }
+                }
+                named.extend(here);
+            }
+            named.dedup();
+            named.reverse();
+            let whole = shown_at(&state, area, (None, None), 0..rows.len());
+            assert_eq!(whole, named, "{area:?} scroll {scroll}");
+        }
+    }
+}

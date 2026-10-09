@@ -363,8 +363,8 @@ fn box_rows(state: &UiState, composer: &Composer) -> u16 {
 /// box's edge and one cell of air.
 const BOX_INSET: u16 = 4;
 
-/// The box's edges in the ASCII glyph column.
-const ASCII_BOX: border::Set<'static> = border::Set {
+/// A box's edges in the ASCII glyph column: the composer's, the reader's.
+pub(crate) const ASCII_BOX: border::Set<'static> = border::Set {
     top_left: "+",
     top_right: "+",
     bottom_left: "+",
