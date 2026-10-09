@@ -149,6 +149,10 @@ needs keeps its default.
   after a destination sentence, and no fs authority is granted. An unquoted spaced name keeps
   its exact extent: no neighbouring literal, article or last words settle it.
   `stated_paths`, which takes no plan, passes no `url` binding: it realizes no route.
+  `fidelity::stated_routes(intent, doc)` names the destinations realized that way that no
+  `permits.fs` entry covers, from the same `url` bindings of the intent's reading: a route is
+  no file, so the world `nika-onboard` observes before a trial leaves them out
+  (`Scoped::stating`). It grants nothing.
 - Added after the move, an open name's typed answer (`fidelity::asked_names`,
   `fidelity::asked_readings`). An open name is the reader's unquoted spaced name holding a path
   whose first word it leaves open (`paths::open_names`: `un payload out/notification.json`).

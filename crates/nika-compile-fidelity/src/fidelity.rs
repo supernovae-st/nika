@@ -31,6 +31,7 @@ pub use final_gate::unbound_final_gate;
 #[doc(inline)]
 pub use nika_compile_behavior::instant_shape;
 pub use records::raw_text_as_records;
+pub use role::stated_routes;
 pub use scope::unsettled_performed;
 
 /// One structured diagnostic the judge returns and the seat repairs from.
@@ -169,10 +170,7 @@ pub fn laws_observed(
 ) {
     let mut literals = Vec::new();
     strings(doc, &mut literals);
-    let origins: Vec<&str> = (plan.bindings.iter())
-        .filter(|binding| binding.role == "url")
-        .map(|binding| binding.literal.as_str())
-        .collect();
+    let origins = role::origins(plan);
     stated_paths_in(intent, doc, (waived, clarified), world, &origins, out);
     approvals(plan, doc, out);
     invented_gates(plan, doc, out);
