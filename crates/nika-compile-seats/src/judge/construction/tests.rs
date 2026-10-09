@@ -5,7 +5,9 @@
 //! judged state turns them into: the current-byte witness and the resolved contract are facts;
 //! fit stays the judge's, and an offer the catalogue cannot resolve keeps it unknown.
 
-use super::{ALTERNATIVES, CONSTRUCTION, Construction, Construed, HISTORY, assess};
+use super::{
+    ALTERNATIVES, CONSTRUCTION, Construction, Construed, HELD_ALTERNATIVE, HISTORY, HOLDING, assess,
+};
 use crate::foundry::component::pinned;
 use crate::foundry::{Component, ComponentCatalog, ComponentRef, Release, Unresolved};
 use nika_compile::surface::sha256;
@@ -274,4 +276,213 @@ fn a_standing_no_fit_is_recalled_as_history_and_nothing_else_is() {
     let told = Construction::of(&bare).recall(&mut bare, &records, "Judge it.".to_owned());
     assert_eq!(told, "Judge it.");
     assert_eq!(bare, json!({"request": "r"}));
+}
+
+/// The bytes a judged state shows.
+const BYTES: &str = "nika: w\ntasks: {}\n";
+
+/// The lent release's identity, as the door records it.
+fn release() -> Value {
+    json!({"version": "r1", "snapshot_sha256": "11", "profile": "profile/r1"})
+}
+
+/// A receipt of `id` in the lent release witnessed `verdict` on the judged bytes, binding its
+/// path hole `to` a literal, as the door records it (`judge::lent`).
+fn receipt(id: &str, verdict: &str, to: &str) -> Value {
+    let mut receipt = seen(id, LENT, verdict);
+    receipt["bindings"] = json!([{"path": "const.path", "bound": to}]);
+    receipt
+}
+
+/// The judged state of [`BYTES`] whose engine facts hold `offered`, the lent release and what
+/// the door composed.
+fn holding(offered: &Value, composed: &[Value]) -> Value {
+    let mut state = judged(offered);
+    state["candidate_nika"] = json!(BYTES);
+    state["authoring"]["catalogue"] = release();
+    state["authoring"]["composed"] = json!(composed);
+    state
+}
+
+/// What a question is shown of a component the bytes hold: its place in the offer, identity,
+/// title, witness and bindings.
+fn shown(k: usize, id: &str, witness: &str, to: &str) -> Value {
+    json!({"offer": k, "component": {"id": id, "version": "r1"}, "title": format!("the {id} block"),
+        "witness": witness, "bindings": [{"path": "const.path", "bound": to}]})
+}
+
+/// A question judging the bytes is told each offered component they hold as admitted and whose
+/// contract resolves, `expanded` and `invoked` each with its own witness and bindings, bound to
+/// these bytes and the lent release, beside the construction context and what holding means
+/// (each witness said apart). One held whose contract does not resolve is not among them.
+#[test]
+fn a_question_judging_the_bytes_is_told_each_component_they_hold() {
+    let mut offered = offer(&["block:fit", "block:other", "block:gone"]);
+    let composed = [
+        receipt("block:fit", "expanded", "./in/x.json"),
+        receipt("block:other", "invoked", "./in/y.json"),
+        receipt("block:gone", "expanded", "./in/z.json"),
+    ];
+    assess(&Lent, &mut offered, &composed);
+    let mut state = holding(&offered, &composed);
+    let construction = Construction::of(&state);
+    let told = construction.holding(&mut state, "Judge it.".to_owned());
+    assert_eq!(told, format!("Judge it. {CONSTRUCTION} {HOLDING}"));
+    let held = [
+        shown(0, "block:fit", "expanded", "./in/x.json"),
+        shown(1, "block:other", "invoked", "./in/y.json"),
+    ];
+    let bound_to = json!({"candidate_sha256": sha256(BYTES), "catalogue": release(),
+        "held": held});
+    assert_eq!(state["construction"], bound_to);
+    assert_eq!(
+        state["authoring"]["composed"],
+        json!(composed),
+        "the facts kept"
+    );
+    for witness in [
+        "`expanded`: its admitted nodes",
+        "`invoked`: a task of these bytes calls",
+    ] {
+        assert!(HOLDING.contains(witness), "{witness}");
+    }
+}
+
+/// Bytes that hold no offered component as admitted (none composed, one revised, one a rewrite
+/// left behind, one held whose contract does not resolve), facts recorded before construction
+/// statuses, or no facts: a question is told nothing more and its state stays as it is.
+#[test]
+fn nothing_held_tells_a_question_nothing_more() {
+    let state_of = |verdict: Option<&str>, id: &str| {
+        let mut offered = offer(&["block:fit", "block:gone"]);
+        let composed: Vec<Value> = (verdict.into_iter())
+            .map(|verdict| receipt(id, verdict, "./in/x.json"))
+            .collect();
+        assess(&Lent, &mut offered, &composed);
+        holding(&offered, &composed)
+    };
+    let states = [
+        state_of(None, "block:fit"),
+        state_of(Some("revised"), "block:fit"),
+        state_of(Some("absent"), "block:fit"),
+        state_of(Some("expanded"), "block:gone"),
+        holding(
+            &offer(&["block:fit"]),
+            &[receipt("block:fit", "expanded", "./in/x.json")],
+        ),
+        json!({"request": "r", "candidate_nika": BYTES}),
+    ];
+    for state in states {
+        let mut asked = state.clone();
+        let told = Construction::of(&state).holding(&mut asked, "Judge it.".to_owned());
+        assert_eq!(told, "Judge it.", "{state:#}");
+        assert_eq!(asked, state);
+    }
+}
+
+/// A localization over bytes holding a component offers it as `held-<k>` (its witness and
+/// bindings in the option) beside the runtime alternatives, the offers the bytes lack and
+/// `no_fit`, told what each means; `held-<k>` reads as that component held, never as a defect or
+/// a fallback, and its record keeps that basis. `no_fit` keeps its meaning: an offer that could
+/// not be examined keeps the fit unknown.
+#[test]
+fn a_localization_offers_a_held_component_beside_the_ones_lacking() {
+    let mut offered = offer(&["block:fit", "block:other", "block:gone"]);
+    let composed = [receipt("block:fit", "expanded", "./in/x.json")];
+    assess(&Lent, &mut offered, &composed);
+    let mut state = holding(&offered, &composed);
+    let construction = Construction::of(&state);
+    let tasks = ["read".to_owned(), "keep".to_owned()];
+    let instructions = "Say why.".to_owned();
+    let (told, options) = construction.localization((&tasks, true), &mut state, instructions);
+    let keys: Vec<&str> = options.iter().map(|option| option.key.as_str()).collect();
+    let alternatives = [
+        "task-read",
+        "task-keep",
+        "omitted",
+        "component-1",
+        "no_fit",
+        "held-0",
+        "no_task",
+    ];
+    assert_eq!(keys, alternatives);
+    assert_eq!(
+        options[5].description,
+        "`block:fit` (release r1) · the block:fit block: these bytes hold it as admitted (expanded; bound: const.path = \"./in/x.json\")"
+    );
+    let meaning = format!("Say why. {CONSTRUCTION} {HOLDING} {ALTERNATIVES} {HELD_ALTERNATIVE}");
+    assert_eq!(told, meaning);
+    let held = json!([shown(0, "block:fit", "expanded", "./in/x.json")]);
+    assert_eq!(state["construction"]["held"], held);
+    assert_eq!(construction.read("held-0"), Some(Construed::Held));
+    for key in ["held-1", "held-2", "held-x", "component-0"] {
+        assert_eq!(construction.read(key), None, "{key}");
+    }
+    assert_eq!(construction.read("no_fit"), Some(Construed::Undecided));
+    let mut record = json!({"question": "verify-point-6"});
+    construction.annotate(Some(&mut record), Some("held-0"));
+    let basis = json!({"component": offered[0]["component"],
+        "construction": offered[0]["construction"]});
+    assert_eq!(record["construction"], json!({"held": basis}));
+}
+
+/// With no component held, a localization is the one a missing clause always had: each task,
+/// `omitted` when the clause may ask an operation of its own, the construction alternatives, then
+/// `no_task`, told what those alternatives mean, its state unchanged.
+#[test]
+fn a_localization_without_a_held_component_is_unchanged() {
+    let mut offered = offer(&["block:fit", "block:other"]);
+    let composed = [receipt("block:fit", "revised", "./in/x.json")];
+    assess(&Lent, &mut offered, &composed);
+    let state = holding(&offered, &composed);
+    let construction = Construction::of(&state);
+    let tasks = ["read".to_owned()];
+    for (omittable, runtime) in [
+        (true, vec!["task-read", "omitted"]),
+        (false, vec!["task-read"]),
+    ] {
+        let mut asked = state.clone();
+        let (told, options) =
+            construction.localization((&tasks, omittable), &mut asked, "Say why.".to_owned());
+        let mut expected = runtime;
+        expected.extend(["component-0", "component-1", "no_fit", "no_task"]);
+        let keys: Vec<&str> = options.iter().map(|option| option.key.as_str()).collect();
+        assert_eq!(keys, expected);
+        assert_eq!(options[0].description, "the task `read`");
+        assert_eq!(told, construction.told("Say why.".to_owned()));
+        assert_eq!(asked, state);
+    }
+    let mut bare = json!({"request": "r"});
+    let (told, options) =
+        Construction::default().localization((&tasks, false), &mut bare, "Say why.".to_owned());
+    assert_eq!(told, "Say why.");
+    let keys: Vec<&str> = options.iter().map(|option| option.key.as_str()).collect();
+    assert_eq!(keys, ["task-read", "no_task"]);
+}
+
+/// The whole request over a trial run is told what the bytes hold as every judging question is,
+/// beside the judge's own standing `no_fit` history when there is one.
+#[test]
+fn a_later_question_is_told_what_the_bytes_hold_beside_its_history() {
+    let mut offered = offer(&["block:fit", "block:other"]);
+    let composed = [receipt("block:fit", "invoked", "./in/x.json")];
+    assess(&Lent, &mut offered, &composed);
+    let construction = Construction::of(&holding(&offered, &composed));
+    let mut standing = json!({"question": "verify-point-6", "choice": "no_fit",
+        "clause": {"text": "use a component when one applies"}});
+    construction.annotate(Some(&mut standing), Some("no_fit"));
+    let held = json!([shown(0, "block:fit", "invoked", "./in/x.json")]);
+    let mut state = holding(&offered, &composed);
+    let told = construction.recall(&mut state, &[], "Judge it.".to_owned());
+    assert_eq!(told, format!("Judge it. {CONSTRUCTION} {HOLDING}"));
+    assert_eq!(state["construction"]["held"], held);
+    assert_eq!(state.get("history"), None);
+    let mut state = holding(&offered, &composed);
+    let told = construction.recall(&mut state, &[standing], "Judge it.".to_owned());
+    assert_eq!(
+        told,
+        format!("Judge it. {CONSTRUCTION} {HOLDING} {HISTORY}")
+    );
+    assert_eq!(state["construction"]["held"], held);
+    assert_eq!(state["history"]["construction"][0]["choice"], "no_fit");
 }

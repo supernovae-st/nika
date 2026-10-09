@@ -109,7 +109,8 @@ as an external consumer.
     reason the catalogue gives no admitted bytes for it;
   - `composed`: each receipt of the section, witnessed on the bytes that attempt made
     (`foundry::witness`). A receipt a rewrite left behind is `absent`, never current
-    composition, and the section keeps its receipts as lineage;
+    composition, and the section keeps its receipts as lineage. A receipt held as admitted
+    (`expanded`, `invoked`) also states its `bindings`: each hole's path and bound literal;
   - `candidate_sha256`: the bytes they were witnessed on. When no bytes were made, nothing binds.
 
   `authoring` shows the judge, as data, only the facts witnessed on exactly the bytes being
@@ -124,13 +125,26 @@ as an external consumer.
   admitted, and `no_fit`. `Construed::Defect` names the component (release, holes with their
   owners, declared effects and callables) for the document repair; `Construed::Fallback` lets
   that clause's own alternative stand when every offer was examinable; `Construed::Undecided`
-  keeps the fit unknown when an offer could not be resolved. `Construction::recall` shows a
-  later question over the same state (the whole request over a trial run) each standing
-  `no_fit` among the verdict's records, its alternative standing over exactly the offers and
-  statuses that state shows, as the judge's own history (`history`, bound to the candidate's
-  sha256 and the lent catalogue) beside the same construction context: never a fact, and a fit
-  left unknown, no choice or a finding over other statuses is never shown. The verifier that
-  asks the questions and weighs the answers stays in `nika-compile-cognition`.
+  keeps the fit unknown when an offer could not be resolved. `Construction::holding` tells
+  every question that judges the bytes against a clause or the whole request, over the bytes
+  or a trial run of them, what they hold: each offered component held as admitted whose
+  contract resolves, by its place in the offer, identity, title, witness (`expanded` and
+  `invoked` said apart) and bindings, bound to the candidate's sha256 and the lent catalogue
+  (`construction`), with the construction context and what holding means. A held component can
+  carry a clause that conditionally asks to use an admitted component, never another clause:
+  every runtime operation, effect, target and constraint stays judged on what the program does.
+  `Construction::localization` assembles the localization of a missing clause (each task,
+  `omitted` when the clause may ask an operation of its own, the alternatives above, `held-<k>`
+  for each held component, `no_task`) with the same context; `Construed::Held` reads `held-<k>`
+  as that component held, which the verifier takes as the judge taking its `missing` back: the
+  part stays contested, never a defect and never settled by that answer. `Construction::recall`
+  tells a later question over the same state (the whole request over a trial run) what the
+  bytes hold as `holding` does, and shows it each standing `no_fit` among the verdict's
+  records, its alternative standing over exactly the offers and statuses that state shows, as
+  the judge's own history (`history`, bound to the candidate's sha256 and the lent catalogue)
+  beside the same construction context: never a fact, and a fit left unknown, no choice or a
+  finding over other statuses is never shown. The verifier that asks the questions and weighs
+  the answers stays in `nika-compile-cognition`.
 - `repairs` — the laws that end the verifier's work: `progressed` (a defect set is progress
   when it names a new part or narrows the last set) and `carry_declined` (the record of bytes a
   judge rejected keeps each rejection of them once per judge, context and request, so every

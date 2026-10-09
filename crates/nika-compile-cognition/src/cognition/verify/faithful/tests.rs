@@ -46,6 +46,8 @@ mod batched;
 /// The questions a localization that stops, and a doubt held by its cause, kept beside this file
 /// to bound its size.
 mod declined;
+/// What the judged bytes hold of the lent catalogue, told to every question judging them.
+mod held;
 /// The questions over a run of these bytes.
 mod observed;
 /// Which part a task question may call an operation no task performs.

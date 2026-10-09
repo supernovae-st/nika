@@ -100,7 +100,8 @@ const SECTIONS: [&str; 2] = ["document_create", "document_revision"];
 ///   catalogue resolves no admitted bytes for it;
 /// - `composed`: each receipt the section holds, witnessed on the bytes this attempt made
 ///   (`expanded`, `revised`, `invoked`, `absent`, `unreadable`); a receipt a rewrite left behind
-///   is `absent`, never current composition;
+///   is `absent`, never current composition; one held as admitted (`expanded`, `invoked`) also
+///   states its `bindings`, each hole's path and bound literal as the receipt names them;
 /// - `candidate_sha256`: those bytes. With no bytes made, no composition and no binding: no
 ///   round shows the facts.
 ///
@@ -126,8 +127,12 @@ pub fn lent(catalog: Option<&dyn ComponentCatalog>, out: &mut CompileOutcome) {
         let composed: Vec<Value> = (receipts.iter())
             .map(|receipt| {
                 let seen = witness(receipt, bytes);
-                json!({"component": seen["component"], "release": seen["release"],
-                    "verdict": seen["verdict"]})
+                let mut entry = json!({"component": seen["component"],
+                    "release": seen["release"], "verdict": seen["verdict"]});
+                if construction::admitted(&seen["verdict"]) {
+                    entry["bindings"] = construction::bound(receipt);
+                }
+                entry
             })
             .collect();
         if let Some(catalog) = catalog {
@@ -285,6 +290,33 @@ mod tests {
             json!({"request": "r"}),
             "other bytes never read a base's facts"
         );
+    }
+
+    /// A receipt witnessed as held on the bytes (its node re-derived, its bound literal there)
+    /// states what it binds, each hole's path and literal; one the bytes no longer hold states
+    /// none.
+    #[test]
+    fn a_receipt_held_on_the_bytes_states_its_bindings() {
+        let bytes = "nika: w\nconst:\n  path: ./in/x.json\ntasks:\n  x:\n    invoke: { tool: \"nika:read\", args: { path: \"${{ const.path }}\" } }\n";
+        let document = nika_compile::surface::literal_projection(bytes).expect("literal");
+        let release = json!({"version": "r1", "snapshot_sha256": "11"});
+        let binding = json!({"path": "const.path", "hole": "const.path", "owner": "human",
+            "component_literal": "./data/x.json", "bound": "./in/x.json"});
+        let held = json!({"component": {"id": "block:x", "release": release},
+            "nodes": {"tasks": {"x": sha256(&document["tasks"]["x"].to_string())}},
+            "bindings": [binding]});
+        let left = json!({"component": {"id": "block:y", "release": release},
+            "nodes": {"tasks": {"y": "digest"}}, "bindings": [binding]});
+        let entry = json!({"components": [held, left]});
+        let mut out = recorded("document_create", Some(entry), Some(bytes));
+        lent(Some(&Lent { blocks: 1 }), &mut out);
+        let section = &out.provenance.plan.as_ref().expect("record")["document_create"];
+        let composed = &section["facts"]["composed"];
+        assert_eq!(composed[0]["verdict"], "expanded", "{composed:#}");
+        let bound = json!([{"path": "const.path", "bound": "./in/x.json"}]);
+        assert_eq!(composed[0]["bindings"], bound);
+        assert_eq!(composed[1]["verdict"], "absent", "{composed:#}");
+        assert_eq!(composed[1].get("bindings"), None);
     }
 
     /// A revision's own section is recorded the same way and read for its bytes; no catalogue

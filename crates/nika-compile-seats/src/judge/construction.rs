@@ -23,6 +23,15 @@
 //! leaves the fit unknown. A resolver or a receipt establishes identity and expansion, never fit;
 //! a name, a title, a relevance verdict or an author's claim proves none of it.
 //!
+//! Every question that judges these bytes against a clause or the whole request is told what
+//! they hold ([`Construction::holding`]): each offered component they hold as admitted and whose
+//! contract resolves, by identity, witness (`expanded` and `invoked` kept apart) and bindings,
+//! bound to the bytes and the lent catalogue (`construction.held`), with what holding means. A
+//! held component can carry a clause that conditionally asks to use one, never any other clause:
+//! every runtime operation, effect, target and constraint stays judged on what the program does.
+//! A localization offers it as `held-<k>` ([`Construed::Held`]), distinct from `no_fit`, so a
+//! judge that named the clause missing can say what carries it instead of abstaining.
+//!
 //! A later question over the same state (the whole request over a trial run) is shown each
 //! standing `no_fit` of the judge as its own history, never as a fact: the clause and the offers
 //! it was answered over, bound to the judged bytes and the lent catalogue, beside the same
@@ -52,6 +61,18 @@ const NO_FIT: &str = "the clause conditionally asks to use an admitted component
                       none offered can do that part within the original request and its \
                       constraints, so that component-use clause's own alternative stands; this \
                       never excuses a required runtime operation, effect, target or constraint";
+
+/// What a question over the judged bytes is told when they hold an offered component as
+/// admitted: what holding is, by witness, and the one kind of clause it can carry.
+const HOLDING: &str = "`construction.held` lists each offered component these exact bytes (`construction.candidate_sha256`) hold as admitted under this catalogue (`construction.catalogue`), as witnessed on them, never read from a name or a resemblance: `expanded`: its admitted nodes are in these bytes, digest for digest, each hole bound as `bindings` states; `invoked`: a task of these bytes calls it as a child workflow whose nodes these bytes do not show (`bindings`: what its receipt binds there). A clause that conditionally asks to use an admitted component when one applies is carried by a held component whose contract (`authoring.offered`) can do that part with what the request allows. Holding a component carries no other clause: every operation, effect, target, condition, number and output the request asks stays required and is judged on what the program does, the held component's own nodes included.";
+
+/// What a held alternative of a localization means.
+const HELD_ALTERNATIVE: &str = "held-<k>: the clause conditionally asks to use an admitted component when one applies, and that offered component, which these bytes hold as admitted (`construction.held`), can do that part with what the request allows: the clause is carried by that composition as written. It never carries a required runtime operation, effect, target or constraint.";
+
+/// What the runtime alternatives of a localization say: a task, an operation no task performs,
+/// or no task failing the clause.
+const OMITTED: &str = "the clause asks an operation of its own that no task performs";
+const NO_TASK: &str = "no task fails it: the clause is carried as written";
 
 /// Each offered component's construction status on the bytes judged: its row gains
 /// `construction`, `{"held": <the strongest witness verdict a receipt of the same component in
@@ -121,6 +142,10 @@ pub enum Construed {
     Fallback,
     /// The judge finds none fitting, but an offer could not be examined: the fit stays unknown.
     Undecided,
+    /// The judge names an offered component the bytes hold as admitted, whose contract resolves,
+    /// as what carries the clause: its holding is a witnessed fact, its fit the judge's. Asked
+    /// after the clause was judged missing, it takes that answer back without a defect.
+    Held,
 }
 
 impl Construction {
@@ -142,12 +167,77 @@ impl Construction {
 
     /// Whether the bytes hold `row` as admitted.
     fn held(row: &Value) -> bool {
-        (row["construction"]["held"].as_str()).is_some_and(|verdict| HELD.contains(&verdict))
+        admitted(&row["construction"]["held"])
     }
 
     /// Whether `row` resolves and the bytes do not hold it as admitted.
     fn open(row: &Value) -> bool {
         Self::examinable(row) && !Self::held(row)
+    }
+
+    /// Whether `row` resolves and the bytes hold it as admitted: a component that may carry a
+    /// clause asking to use one.
+    fn holds(row: &Value) -> bool {
+        Self::examinable(row) && Self::held(row)
+    }
+
+    /// Each offered component the judged bytes hold ([`Self::holds`]), as a question is shown it:
+    /// its place in the offer, identity, title, witness and bindings (`authoring`: the facts the
+    /// state carries).
+    fn holding_in(&self, authoring: &Value) -> Vec<Value> {
+        (self.offered.iter().enumerate())
+            .filter(|(_, row)| Self::holds(row))
+            .map(|(k, row)| {
+                json!({"offer": k, "component": row["component"], "title": row["title"],
+                    "witness": row["construction"]["held"], "bindings": bindings(authoring, row)})
+            })
+            .collect()
+    }
+
+    /// `instructions` followed by the construction context and what holding means, when the
+    /// judged bytes hold an offered component whose contract resolves: `state` then gains what
+    /// they hold (`construction`: `held`, each such component by its place in the offer, identity,
+    /// title, witness and bindings, bound to the bytes' sha256 and the lent catalogue). With none
+    /// held, both are unchanged. Every question judging a clause or the whole request against
+    /// these bytes or a run of them is told the same.
+    #[must_use]
+    pub fn holding(&self, state: &mut Value, instructions: String) -> String {
+        let held = self.holding_in(&state["authoring"]);
+        if hold(state, &held) {
+            format!("{instructions} {CONSTRUCTION} {HOLDING}")
+        } else {
+            instructions
+        }
+    }
+
+    /// The localization of a clause judged missing over the judged `state`: its options (each of
+    /// the candidate's `tasks`, `omitted` when the clause may ask an operation of its own, each
+    /// offered component the bytes lack and `no_fit` ([`Self::options`]), each one they hold
+    /// (`held-<k>`), then `no_task`), and `instructions` followed by the construction context those
+    /// options need; `state` gains what the bytes hold, as [`Self::holding`] states it.
+    #[must_use]
+    pub fn localization(
+        &self,
+        (tasks, omittable): (&[String], bool),
+        state: &mut Value,
+        instructions: String,
+    ) -> (String, Vec<ChoiceOption>) {
+        let mut options: Vec<ChoiceOption> = (tasks.iter())
+            .map(|task| ChoiceOption::new(format!("task-{task}"), format!("the task `{task}`")))
+            .collect();
+        if omittable {
+            options.push(ChoiceOption::new("omitted", OMITTED));
+        }
+        options.extend(self.options());
+        let held = self.holding_in(&state["authoring"]);
+        options.extend(held.iter().map(held_option));
+        options.push(ChoiceOption::new("no_task", NO_TASK));
+        let told = if hold(state, &held) {
+            format!("{instructions} {CONSTRUCTION} {HOLDING} {ALTERNATIVES} {HELD_ALTERNATIVE}")
+        } else {
+            self.told(instructions)
+        };
+        (told, options)
     }
 
     /// The alternatives as options: `component-<k>` for each open component (`k`: its place in
@@ -190,7 +280,8 @@ impl Construction {
     /// and statuses this state shows, with its clause and that basis, bound to these bytes and
     /// this catalogue. A fit left unknown (an offer that could not be examined), no choice, or a
     /// finding over other offers or statuses is never one. `instructions` followed by the
-    /// construction context and what that history is; unchanged without a finding.
+    /// construction context, what the bytes hold as [`Self::holding`] tells it, and what that
+    /// history is; unchanged with neither a held component nor a finding.
     #[must_use]
     pub fn recall(&self, state: &mut Value, records: &[Value], instructions: String) -> String {
         let shown: Vec<Value> = self.offered.iter().map(basis).collect();
@@ -206,13 +297,17 @@ impl Construction {
                     "choice": "no_fit", "basis": record["construction"]["no_fit"]["offered"]})
             })
             .collect();
-        if found.is_empty() {
-            return instructions;
-        }
+        let held = self.holding_in(&state["authoring"]);
+        let context = match (hold(state, &held), found.is_empty()) {
+            (false, true) => return instructions,
+            (true, true) => return format!("{instructions} {CONSTRUCTION} {HOLDING}"),
+            (true, false) => format!("{CONSTRUCTION} {HOLDING}"),
+            (false, false) => CONSTRUCTION.to_owned(),
+        };
         let bytes = state["candidate_nika"].as_str().map(sha256);
         state["history"] = json!({"candidate_sha256": bytes,
             "catalogue": state["authoring"]["catalogue"], "construction": found});
-        format!("{instructions} {CONSTRUCTION} {HISTORY}")
+        format!("{instructions} {context} {HISTORY}")
     }
 
     /// What the answer `key` says of the construction; `None` for a key that is not one of its
@@ -229,26 +324,31 @@ impl Construction {
                 Construed::Undecided
             });
         }
-        let k: usize = key.strip_prefix("component-")?.parse().ok()?;
+        if let Some(k) = place(key, "held-") {
+            let held = self.offered.get(k).filter(|row| Self::holds(row));
+            return held.map(|_| Construed::Held);
+        }
+        let k = place(key, "component-")?;
         let row = self.offered.get(k).filter(|row| Self::open(row))?;
         Some(Construed::Defect(noted(row)))
     }
 
     /// The basis of a construction answer on its question's record: for `no_fit`, every offered
     /// component with what the bytes hold of it and whether the alternative stands; for a named
-    /// component, its identity. Any other answer leaves the record as it is.
+    /// component, its identity, under `named` when the bytes lack it and `held` when they hold
+    /// it. Any other answer leaves the record as it is.
     pub fn annotate(&self, record: Option<&mut Value>, answer: Option<&str>) {
         let (Some(record), Some(answer)) = (record, answer) else {
             return;
         };
         match self.read(answer) {
             Some(Construed::Defect(_)) => {
-                let k = answer
-                    .trim_start_matches("component-")
-                    .parse::<usize>()
-                    .ok();
-                let row = k.and_then(|k| self.offered.get(k)).map(basis);
-                record["construction"] = json!({"named": row});
+                let row = place(answer, "component-").and_then(|k| self.offered.get(k));
+                record["construction"] = json!({"named": row.map(basis)});
+            }
+            Some(Construed::Held) => {
+                let row = place(answer, "held-").and_then(|k| self.offered.get(k));
+                record["construction"] = json!({"held": row.map(basis)});
             }
             Some(construed) => {
                 let offered: Vec<Value> = self.offered.iter().map(basis).collect();
@@ -264,6 +364,75 @@ impl Construction {
 /// What a construction answer was given over: an offer, and what the judged bytes hold of it.
 fn basis(row: &Value) -> Value {
     json!({"component": row["component"], "construction": row["construction"]})
+}
+
+/// The place in the offer an answer `key` names after `prefix` (`component-<k>`, `held-<k>`).
+fn place(key: &str, prefix: &str) -> Option<usize> {
+    key.strip_prefix(prefix)?.parse().ok()
+}
+
+/// What the judged bytes hold (`held`, [`Construction::holding_in`]), on `state` as
+/// `construction`, bound to those bytes' sha256 and the lent catalogue: whether they hold any.
+fn hold(state: &mut Value, held: &[Value]) -> bool {
+    if held.is_empty() {
+        return false;
+    }
+    let bytes = state["candidate_nika"].as_str().map(sha256);
+    state["construction"] = json!({"candidate_sha256": bytes,
+        "catalogue": state["authoring"]["catalogue"], "held": held});
+    true
+}
+
+/// What the receipt that holds `row` binds, as the door recorded it on the judged bytes
+/// (`authoring.composed`, [`lent`](super::lent)): the receipt of that component in the lent
+/// release witnessed as the row states; null when no such receipt states its bindings.
+fn bindings(authoring: &Value, row: &Value) -> Value {
+    let lent = &authoring["catalogue"];
+    (authoring["composed"].as_array().into_iter().flatten())
+        .find(|seen| {
+            seen["component"] == row["component"]["id"]
+                && seen["verdict"] == row["construction"]["held"]
+                && seen["release"]["version"] == lent["version"]
+                && seen["release"]["snapshot_sha256"] == lent["snapshot_sha256"]
+        })
+        .map_or(Value::Null, |seen| seen["bindings"].clone())
+}
+
+/// A component the bytes hold as a localization offers it: `held-<k>`, by identity, title,
+/// witness and what each of its holes is bound to.
+fn held_option(held: &Value) -> ChoiceOption {
+    let text = |value: &Value| value.as_str().unwrap_or_default().to_owned();
+    let bound: Vec<String> = (held["bindings"].as_array().into_iter().flatten())
+        .map(|binding| format!("{} = {}", text(&binding["path"]), binding["bound"]))
+        .collect();
+    let bound = if bound.is_empty() {
+        String::new()
+    } else {
+        format!("; bound: {}", bound.join(", "))
+    };
+    let described = format!(
+        "`{}` (release {}) · {}: these bytes hold it as admitted ({}{bound})",
+        text(&held["component"]["id"]),
+        text(&held["component"]["version"]),
+        text(&held["title"]),
+        text(&held["witness"]),
+    );
+    ChoiceOption::new(format!("held-{}", held["offer"]), described)
+}
+
+/// Whether a receipt's witness verdict holds its component as admitted.
+pub(super) fn admitted(verdict: &Value) -> bool {
+    verdict
+        .as_str()
+        .is_some_and(|verdict| HELD.contains(&verdict))
+}
+
+/// What a receipt binds, as a question is shown it: each hole's path and its bound literal.
+pub(super) fn bound(receipt: &Value) -> Value {
+    let rows: Vec<Value> = (receipt["bindings"].as_array().into_iter().flatten())
+        .map(|binding| json!({"path": binding["path"], "bound": binding["bound"]}))
+        .collect();
+    Value::Array(rows)
 }
 
 /// What the bytes hold of an open component, as an option and a note say it.
