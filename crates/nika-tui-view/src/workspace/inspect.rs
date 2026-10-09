@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The workflow the human opened, as the renderer's host adapter looked at
-//! it, folded once into the typed facts the four faces of [`crate::workflow`]
+//! it, folded once into the typed facts the four faces of [`crate::workflow()`]
 //! read: the exact bytes of the file, their witness, the check facade's
 //! verdict, findings and hints ([`Checked`]), and the graph of the same
 //! parse. Every fact of one [`Inspected`] comes from one read of one file and
