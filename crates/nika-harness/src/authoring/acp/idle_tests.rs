@@ -97,11 +97,23 @@ fn frames(words: &[&str], counted: &[(&str, u32)]) -> Value {
     Value::Object(pairs.collect())
 }
 
+/// When this session's first thought and first answer arrived, and its last update's word and
+/// time.
+type Firsts = (Option<u64>, Option<u64>, Option<(&'static str, u64)>);
+
+/// No thought, no answer, no update of this session.
+const NONE: Firsts = (None, None, None);
+
+/// Thoughts only, the first at `first` and the last at `last`.
+const fn thinking(first: u64, last: u64) -> Firsts {
+    (Some(first), None, Some(("thought", last)))
+}
+
 /// The activity a record must carry, its window opened at the written prompt (0 ms: the scripted
-/// door spends no setup): this session's frames and the last one's time, the other frames and the
-/// last one's time, and what ended the driver.
+/// door spends no setup): this session's frames, the last one's time, its first thought and answer
+/// and its last update, the other frames and the last one's time, and what ended the driver.
 fn activity(
-    session: (&[(&str, u32)], Option<u64>),
+    session: (&[(&str, u32)], Option<u64>, Firsts),
     foreign: (&[(&str, u32)], Option<u64>),
     ended_by: Option<&str>,
 ) -> Value {
@@ -116,8 +128,11 @@ fn activity(
         "prompt_error",
     ];
     let others = ["other_session", "uncorrelated", "unreadable"];
+    let (thought, answer, update) = session.2;
+    let update = update.map(|(kind, ms)| json!({"kind": kind, "ms": ms}));
     json!({"from_ms": 0,
-        "session": {"frames": frames(&own, session.0), "last_ms": session.1},
+        "session": {"frames": frames(&own, session.0), "last_ms": session.1,
+            "first_thought_ms": thought, "first_answer_ms": answer, "last_update": update},
         "foreign": {"frames": frames(&others, foreign.0), "last_ms": foreign.1},
         "ended_by": ended_by})
 }
@@ -161,7 +176,52 @@ async fn a_call_streaming_activity_past_the_former_total_completes() {
     assert_eq!(returned["elapsed_ms"], 1_450_000);
     assert_eq!(returned["bounds"], bounds(Some(1_450_000)));
     let own = [("thought", 14), ("answer", 1), ("prompt_result", 1)];
-    let received = activity((&own, Some(1_450_000)), (&[], None), Some("completed"));
+    let firsts = (Some(100_000), Some(1_450_000), Some(("answer", 1_450_000)));
+    let session = (&own[..], Some(1_450_000), firsts);
+    let received = activity(session, (&[], None), Some("completed"));
+    assert_eq!(returned["activity"], received);
+    assert_eq!(seen.prompts.load(Ordering::SeqCst), 1);
+}
+
+/// The record tells thinking from answering. Silent 2 s after its prompt, the agent thinks for
+/// 800 s, a thought every 100 s: longer than the whole 600 s allowance, which each thought
+/// re-arms, so it is never cut. It then answers in two frames: the record says the first thought
+/// came at 2 s and the first answer at 852 s, and that its last update was the answer at 862 s,
+/// when the turn ended. One prompt, one call.
+#[tokio::test(start_paused = true)]
+async fn a_silent_start_then_long_thinking_then_the_answer_are_told_apart() {
+    let seen = Arc::new(Seen::default());
+    let mut script = vec![(Duration::from_secs(2), thought("s"))];
+    script.extend(every(8, HUNDRED, &thought("s")));
+    let lead = json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"\n"}});
+    script.push((Duration::from_secs(50), Beat::Update("s", lead)));
+    script.push((Duration::from_secs(10), Beat::Answer));
+    let door = door(Duration::ZERO, peer(script, Arc::clone(&seen)));
+    let seat = authoring(&door);
+    let response = seat.infer(request(None)).await;
+    let response = response.expect("thinking longer than the allowance is not cut");
+    assert!(matches!(&response.content[..], [ContentBlock::Text { text }] if text == "\n{}"));
+    let observed = observed(&seat);
+    let returned = &observed[1];
+    let session = &returned["activity"]["session"];
+    let first = |key: &str| session[key].as_u64();
+    let (thought_at, answer_at) = (first("first_thought_ms"), first("first_answer_ms"));
+    assert_eq!((thought_at, answer_at), (Some(2_000), Some(852_000)));
+    assert!(
+        thought_at < answer_at,
+        "silent until a thought, which preceded the answer"
+    );
+    let last = json!({"kind": "answer", "ms": 862_000});
+    assert_eq!(session["last_update"], last);
+    assert_eq!(returned["elapsed_ms"], 862_000);
+    assert_eq!(returned["bounds"], bounds(Some(862_000)));
+    let own = [("thought", 9), ("answer", 2), ("prompt_result", 1)];
+    let firsts = (Some(2_000), Some(852_000), Some(("answer", 862_000)));
+    let received = activity(
+        (&own, Some(862_000), firsts),
+        (&[], None),
+        Some("completed"),
+    );
     assert_eq!(returned["activity"], received);
     assert_eq!(seen.prompts.load(Ordering::SeqCst), 1);
 }
@@ -206,7 +266,12 @@ async fn a_call_that_goes_silent_times_out_one_allowance_after_its_last_frame() 
     assert_eq!(stood, expected);
     assert_eq!(timed_out["elapsed_ms"], 1_500_000);
     assert_eq!(timed_out["bounds"], bounds(Some(900_000)));
-    let received = activity((&[("thought", 9)], Some(900_000)), (&[], None), None);
+    let session = (
+        &[("thought", 9)][..],
+        Some(900_000),
+        thinking(100_000, 900_000),
+    );
+    let received = activity(session, (&[], None), None);
     assert_eq!(timed_out["activity"], received);
     assert!(timed_out.get("stop_reason").is_none(), "{timed_out}");
     tokio::time::sleep(Duration::from_secs(1)).await;
@@ -258,7 +323,12 @@ async fn stop_during_a_streaming_call_stops_promptly_and_accepts_no_late_answer(
     let elapsed = cancelled["elapsed_ms"].as_u64().expect("ms");
     assert!((700_000..=700_010).contains(&elapsed), "{elapsed}");
     assert_eq!(cancelled["bounds"], bounds(Some(700_000)));
-    let received = activity((&[("thought", 70)], Some(700_000)), (&[], None), None);
+    let session = (
+        &[("thought", 70)][..],
+        Some(700_000),
+        thinking(10_000, 700_000),
+    );
+    let received = activity(session, (&[], None), None);
     assert_eq!(cancelled["activity"], received);
     assert_eq!(seen.prompts.load(Ordering::SeqCst), 1);
     let released = *seen.released.lock().unwrap();
@@ -293,14 +363,22 @@ async fn another_session_and_adapter_bookkeeping_never_rearm_the_deadline() {
     let fifty = Duration::from_secs(50);
     let record = never_rearmed(every(11, fifty, &thought("s-other"))).await;
     let foreign = (&[("other_session", 11)][..], Some(550_000));
-    assert_eq!(record["activity"], activity((&[], None), foreign, None));
+    assert_eq!(
+        record["activity"],
+        activity((&[], None, NONE), foreign, None)
+    );
 
     let usage = json!({"sessionUpdate":"usage_update","used":53_000,"size":200_000});
     let commands = json!({"sessionUpdate":"available_commands_update","availableCommands":[]});
     let mut bookkeeping = every(6, fifty, &Beat::Update("s", usage));
     bookkeeping.extend(every(5, fifty, &Beat::Update("s", commands)));
     let record = never_rearmed(bookkeeping).await;
-    let own = (&[("usage", 6), ("status", 5)][..], Some(550_000));
+    let status_last = (None, None, Some(("status", 550_000)));
+    let own = (
+        &[("usage", 6), ("status", 5)][..],
+        Some(550_000),
+        status_last,
+    );
     assert_eq!(record["activity"], activity(own, (&[], None), None));
 }
 
@@ -317,5 +395,8 @@ async fn another_call_activity_never_rearms_this_call() {
     let (answered, silent) = tokio::join!(working.infer(request(None)), never_rearmed(Vec::new()));
     answered.expect("the working call completes at 950 s");
     assert_eq!(observed(&working)[1]["elapsed_ms"], 950_000);
-    assert_eq!(silent["activity"], activity((&[], None), (&[], None), None));
+    assert_eq!(
+        silent["activity"],
+        activity((&[], None, NONE), (&[], None), None)
+    );
 }
