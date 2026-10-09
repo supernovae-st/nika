@@ -54,6 +54,65 @@ fn busy(mode: &str, release: &Release) -> Term {
     term
 }
 
+/// Reduced motion keeps the actual turn's facts while its marker stays still.
+/// A Stop request and its settlement remain distinct, and idle remains silent.
+#[test]
+fn reduced_motion_keeps_elapsed_stop_and_draft_facts_without_an_idle_tick() {
+    let release = Release::new("reduced-facts");
+    let mut term = child::spawn(
+        "slow-stop:0:workspace:reduced",
+        Some(release.path()),
+        120,
+        40,
+    );
+    term.wait_text("release.nika");
+    term.send("work\r");
+    term.wait_text(BUSY);
+    let mark = term.mark();
+    term.send("draft retained");
+    for seconds in [2, 3] {
+        let measured = format!("{BUSY} · {seconds}s");
+        term.wait_text(&measured);
+        let row = term
+            .screen
+            .lines()
+            .into_iter()
+            .find(|line| line.contains(&measured))
+            .expect("the current busy row");
+        assert!(row.contains(&format!("● {measured}")), "{row}");
+        assert!(term.screen.contains("draft retained"), "{}", term.dump());
+    }
+    term.send("\x03");
+    term.wait_until("Stop requested with the measured elapsed time", |screen| {
+        screen.contains("stopping the preparation")
+            && screen.contains("Ctrl+C again leaves now")
+            && screen.contains(BUSY)
+            && (3..=5).any(|seconds| screen.contains(&format!(" · {seconds}s")))
+    });
+    assert!(!term.screen.contains(child::STOPPED), "{}", term.dump());
+    assert!(term.screen.contains("draft retained"), "{}", term.dump());
+    release.open();
+    term.wait_workspace_frame("Stop settled once with the draft retained", |screen| {
+        screen.seen(child::STOPPED)
+            && screen.contains("Stopped by you")
+            && screen
+                .lines()
+                .iter()
+                .any(|line| line.contains("draft retained"))
+            && !screen.contains("Ctrl+C again leaves now")
+            && !screen.contains("stopping the preparation")
+    });
+    assert!(!term.screen.seen(SECOND), "{}", term.dump());
+    assert!(
+        !term.bytes_since(mark).contains(&7),
+        "a reduced-motion bell rang"
+    );
+    let idle = term.mark();
+    term.settle(Duration::from_millis(1200));
+    assert!(term.bytes_since(idle).is_empty(), "idle drew a timer frame");
+    leave(&mut term);
+}
+
 #[test]
 fn keys_typed_during_a_busy_turn_are_kept_for_after_it() {
     let release = Release::new("kept");

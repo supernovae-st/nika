@@ -93,9 +93,9 @@ pub struct Options {
     pub exit_after: Option<usize>,
     /// The caller's reading of `TERM` (`dumb` refuses).
     pub term: Option<String>,
-    /// Reduced motion (the caller's reading of `NIKA_REDUCED_MOTION`): the
-    /// busy row changes only when the turn says something new — no
-    /// seconds tick, no bell; the welcome mark is final at once.
+    /// Reduced motion (the caller's reading of `NIKA_REDUCED_MOTION`): a
+    /// still busy mark with measured seconds and current work facts retained,
+    /// no bell; the welcome mark is final at once. Idle stays silent.
     pub reduced_motion: bool,
     /// The terminal's title while the door is open (`nika · <project>`);
     /// `None` leaves the title alone.
@@ -1085,12 +1085,9 @@ impl<C: Conversation + 'static> Shell<C> {
             if armed != was_armed {
                 shown = u64::MAX;
             }
-            let (secs, frame) = if self.options.reduced_motion {
-                (0, None)
-            } else {
-                let elapsed = started.elapsed();
-                (elapsed.as_secs(), Some(spinner_frame(elapsed)))
-            };
+            let elapsed = started.elapsed();
+            let secs = elapsed.as_secs();
+            let frame = (!self.options.reduced_motion).then(|| spinner_frame(elapsed));
             if secs != shown || frame != self.state.spinner {
                 shown = secs;
                 self.state.spinner = frame;
