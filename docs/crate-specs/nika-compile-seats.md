@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Status | **MEMBER** (size-cap split of `nika-compile-cognition`, itself a member of the admitted `nika-onboard` unit · ADR-146 · D-2026-07-09-N1 · 2026-10-07) |
-| Layer | L4 — a library surface; lateral L4→L4 edges `nika-compile-cognition → nika-compile-seats → nika-compile`, never back |
+| Layer | L4 — a library surface; lateral L4→L4 edges `nika-compile-cognition → nika-compile-seats → nika-compile`, never back; downward `nika-compile-seats → nika-check` (L0), the checker's own effect inference behind `judge::Effects` |
 | Design | the two capabilities a host lends a preparation of the Compile core: the bounded decision seats (`decide`) and the rehearsal port (`rehearse`), with the reasoning record their calls share (`reasoning`); kept under their historical paths `nika_compile_cognition::{decide, rehearse}` |
 | IMPL | measured by `scripts/crate-metrics.sh nika-compile-seats` at each freeze; the crate carries what `nika-compile-cognition` held in `decide.rs`, `rehearse.rs`, `rehearse/{judged, observed}.rs` and the two reasoning helpers of `cognition/receipt.rs` on 2026-10-07, with their tests (the gate's own counter: 1,523 prod LOC at the split) |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn |
@@ -11,7 +11,7 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 (workspace-inherited) |
 | Publish | `false` — member of the `nika-onboard` unit |
-| Dependencies | **read from `Cargo.toml`, which is authoritative** · `nika-compile` (`AuthoringReasoning`) · `nika-kernel` (the provider seam) · `nika-pack` (the skeletons and stdlib page of the shelf) · `nika-compile-fidelity` (`behavior`, the judge's run) · `serde`, `serde_json`, `thiserror`, `tokio` |
+| Dependencies | **read from `Cargo.toml`, which is authoritative** · `nika-compile` (`AuthoringReasoning`) · `nika-kernel` (the provider seam) · `nika-pack` (the skeletons and stdlib page of the shelf) · `nika-compile-fidelity` (`behavior`, the judge's run) · `nika-check` (`infer_permits`: what each task of a judged candidate touches, `judge::Effects`) · `serde`, `serde_json`, `thiserror`, `tokio` |
 | NIKA codes | none minted here — `DecisionError` is a seat's failure the doors record and fall back from; a rehearsal states its refusal in its report |
 
 ## 1. Purpose
@@ -148,8 +148,29 @@ as an external consumer.
   records, its alternative standing over exactly the offers and statuses that state shows, as
   the judge's own history (`history`, bound to the candidate's sha256 and the lent catalogue)
   beside the same construction context: never a fact, and a fit left unknown, no choice or a
-  finding over other statuses is never shown. The verifier that asks the questions and weighs
-  the answers stays in `nika-compile-cognition`.
+  finding over other statuses is never shown. `told` frames a whole-request question by its
+  round (descended from the verifier at its size cap, 2026-10-09): a creation (`CREATED`: a
+  request to author this very workflow is carried by its bytes), a revision in words
+  (`REVISED`, or `REVISED_APPENDED` for a change appended to the earlier request), or a revision
+  over a base document (`REVISED_DOCUMENT` when the base's own request is unknown,
+  `REVISED_OVER_DOCUMENT` when it is known and the base is shown whole). `Effects` states what
+  each task of a judged candidate touches, as `nika-check` infers it over the workflow reduced
+  to that task and its `const:` block, so a path named through a constant resolves as the
+  runtime resolves it. A task that invokes a tool with no effect of its own (a read, a write, a
+  search, a conversion, a jq program, a check), reads only paths the request names and writes
+  only the output a part the judge answered `carried` states, a path no task reads, is settled
+  by the engine: writing the output a carried part asks is that part, never an extra effect.
+  Another verb, a nested workflow, a model call, a process, the network, a tool outside that
+  list, a face the checker cannot pin (a computed path, host or program) or a write elsewhere
+  leaves a task open. `open` lists the open tasks, the only ones a judge may name as doing
+  something the request does not ask; `show` adds each task's facts to a question's state
+  (`effects`) and says what they are; `settled` answers the extra-operation question with no
+  call when none is open (`only_requested`, `by: engine`, with the facts). `Doubt` is the one
+  question that localizes a whole-request rejection nothing else located when no run of the
+  bytes exists (`verify-doubt`): it shows the request's parts with their answers and the
+  facts, and offers each part (`part-<k>`), each open task (`task-<id>`) and `unlocated`;
+  `Located` reads the answer as a part, a task, or nothing. The verifier that asks the
+  questions and weighs the answers stays in `nika-compile-cognition`.
 - `repairs` — the laws that end the verifier's work: `progressed` (a defect set is progress
   when it names a new part or narrows the last set) and `carry_declined` (the record of bytes a
   judge rejected keeps each rejection of them once per judge, context and request, so every
@@ -201,6 +222,9 @@ with its door code and words. Pure: no file, no network.
   with a wildcard arm that records an unknown kind as `unknown` and stops on an unknown outcome,
   never proceeds.
 - This crate never depends on `nika-compile-cognition`.
+- It reads the checker (`nika-check`, L0) for one inference only, `infer_permits`, the facts
+  `judge::Effects` states; the checker never depends back. A downward edge, admitted by the
+  layer rule; the registry row names it.
 
 ## 4. Related
 

@@ -4813,6 +4813,7 @@ dependencies = [
 name = "nika-compile-seats"
 version = "0.123.0-preview.1"
 dependencies = [
+ "nika-check",
  "nika-compile",
  "nika-compile-fidelity",
  "nika-compile-reader",

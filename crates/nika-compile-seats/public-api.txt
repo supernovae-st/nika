@@ -2903,6 +2903,51 @@ impl<T> nika_error::traits::AsAny for nika_compile_seats::judge::Construed where
 pub fn nika_compile_seats::judge::Construed::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_seats::judge::Construed
 pub type nika_compile_seats::judge::Construed::Output = T
+#[non_exhaustive] pub enum nika_compile_seats::judge::Located
+pub nika_compile_seats::judge::Located::Nothing
+pub nika_compile_seats::judge::Located::Part(usize)
+pub nika_compile_seats::judge::Located::Task(alloc::string::String)
+impl core::clone::Clone for nika_compile_seats::judge::Located
+pub fn nika_compile_seats::judge::Located::clone(&self) -> nika_compile_seats::judge::Located
+impl core::cmp::Eq for nika_compile_seats::judge::Located
+impl core::cmp::PartialEq for nika_compile_seats::judge::Located
+pub fn nika_compile_seats::judge::Located::eq(&self, other: &nika_compile_seats::judge::Located) -> bool
+impl core::fmt::Debug for nika_compile_seats::judge::Located
+pub fn nika_compile_seats::judge::Located::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::judge::Located
+impl<D> owo_colors::OwoColorize for nika_compile_seats::judge::Located
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::judge::Located where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::judge::Located::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::judge::Located where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::judge::Located::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::judge::Located where U: core::convert::From<T>
+pub fn nika_compile_seats::judge::Located::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::judge::Located where U: core::convert::Into<T>
+pub type nika_compile_seats::judge::Located::Error = core::convert::Infallible
+pub fn nika_compile_seats::judge::Located::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::judge::Located where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::judge::Located::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::judge::Located::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::judge::Located where T: core::clone::Clone
+pub type nika_compile_seats::judge::Located::Owned = T
+pub fn nika_compile_seats::judge::Located::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::judge::Located::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::judge::Located where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::judge::Located::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::judge::Located where T: ?core::marker::Sized
+pub fn nika_compile_seats::judge::Located::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::judge::Located where T: ?core::marker::Sized
+pub fn nika_compile_seats::judge::Located::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::judge::Located where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::judge::Located::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::judge::Located
+pub fn nika_compile_seats::judge::Located::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::judge::Located where T: core::clone::Clone
+pub fn nika_compile_seats::judge::Located::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::judge::Located where T: 'static
+pub fn nika_compile_seats::judge::Located::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::judge::Located
+pub type nika_compile_seats::judge::Located::Output = T
 #[non_exhaustive] pub struct nika_compile_seats::judge::Construction
 impl nika_compile_seats::judge::Construction
 pub fn nika_compile_seats::judge::Construction::annotate(&self, record: core::option::Option<&mut serde_json::value::Value>, answer: core::option::Option<&str>)
@@ -2952,11 +2997,114 @@ impl<T> nika_error::traits::AsAny for nika_compile_seats::judge::Construction wh
 pub fn nika_compile_seats::judge::Construction::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_seats::judge::Construction
 pub type nika_compile_seats::judge::Construction::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::judge::Doubt
+impl nika_compile_seats::judge::Doubt
+pub fn nika_compile_seats::judge::Doubt::new(parts: alloc::vec::Vec<alloc::string::String>, open: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_compile_seats::judge::Doubt::question(&self, state: &serde_json::value::Value, effects: &nika_compile_seats::judge::Effects, records: &[serde_json::value::Value]) -> (serde_json::value::Value, alloc::string::String, alloc::vec::Vec<nika_compile_seats::decide::ChoiceOption>)
+pub fn nika_compile_seats::judge::Doubt::read(&self, key: &str) -> core::option::Option<nika_compile_seats::judge::Located>
+impl core::clone::Clone for nika_compile_seats::judge::Doubt
+pub fn nika_compile_seats::judge::Doubt::clone(&self) -> nika_compile_seats::judge::Doubt
+impl core::cmp::Eq for nika_compile_seats::judge::Doubt
+impl core::cmp::PartialEq for nika_compile_seats::judge::Doubt
+pub fn nika_compile_seats::judge::Doubt::eq(&self, other: &nika_compile_seats::judge::Doubt) -> bool
+impl core::default::Default for nika_compile_seats::judge::Doubt
+pub fn nika_compile_seats::judge::Doubt::default() -> nika_compile_seats::judge::Doubt
+impl core::fmt::Debug for nika_compile_seats::judge::Doubt
+pub fn nika_compile_seats::judge::Doubt::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::judge::Doubt
+impl<D> owo_colors::OwoColorize for nika_compile_seats::judge::Doubt
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::judge::Doubt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::judge::Doubt::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::judge::Doubt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::judge::Doubt::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::judge::Doubt where U: core::convert::From<T>
+pub fn nika_compile_seats::judge::Doubt::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::judge::Doubt where U: core::convert::Into<T>
+pub type nika_compile_seats::judge::Doubt::Error = core::convert::Infallible
+pub fn nika_compile_seats::judge::Doubt::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::judge::Doubt where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::judge::Doubt::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::judge::Doubt::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::judge::Doubt where T: core::clone::Clone
+pub type nika_compile_seats::judge::Doubt::Owned = T
+pub fn nika_compile_seats::judge::Doubt::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::judge::Doubt::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::judge::Doubt where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::judge::Doubt::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::judge::Doubt where T: ?core::marker::Sized
+pub fn nika_compile_seats::judge::Doubt::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::judge::Doubt where T: ?core::marker::Sized
+pub fn nika_compile_seats::judge::Doubt::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::judge::Doubt where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::judge::Doubt::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::judge::Doubt
+pub fn nika_compile_seats::judge::Doubt::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::judge::Doubt where T: core::clone::Clone
+pub fn nika_compile_seats::judge::Doubt::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::judge::Doubt where T: 'static
+pub fn nika_compile_seats::judge::Doubt::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::judge::Doubt
+pub type nika_compile_seats::judge::Doubt::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::judge::Effects
+impl nika_compile_seats::judge::Effects
+pub fn nika_compile_seats::judge::Effects::of(candidate: &str, intent: &str) -> core::option::Option<Self>
+pub fn nika_compile_seats::judge::Effects::open(&self, records: &[serde_json::value::Value]) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_seats::judge::Effects::settled(&self, records: &[serde_json::value::Value]) -> serde_json::value::Value
+pub fn nika_compile_seats::judge::Effects::show(&self, state: &mut serde_json::value::Value, records: &[serde_json::value::Value], instructions: &str) -> alloc::string::String
+impl core::clone::Clone for nika_compile_seats::judge::Effects
+pub fn nika_compile_seats::judge::Effects::clone(&self) -> nika_compile_seats::judge::Effects
+impl core::cmp::Eq for nika_compile_seats::judge::Effects
+impl core::cmp::PartialEq for nika_compile_seats::judge::Effects
+pub fn nika_compile_seats::judge::Effects::eq(&self, other: &nika_compile_seats::judge::Effects) -> bool
+impl core::default::Default for nika_compile_seats::judge::Effects
+pub fn nika_compile_seats::judge::Effects::default() -> nika_compile_seats::judge::Effects
+impl core::fmt::Debug for nika_compile_seats::judge::Effects
+pub fn nika_compile_seats::judge::Effects::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::judge::Effects
+impl<D> owo_colors::OwoColorize for nika_compile_seats::judge::Effects
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::judge::Effects where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::judge::Effects::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::judge::Effects where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::judge::Effects::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::judge::Effects where U: core::convert::From<T>
+pub fn nika_compile_seats::judge::Effects::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::judge::Effects where U: core::convert::Into<T>
+pub type nika_compile_seats::judge::Effects::Error = core::convert::Infallible
+pub fn nika_compile_seats::judge::Effects::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::judge::Effects where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::judge::Effects::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::judge::Effects::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::judge::Effects where T: core::clone::Clone
+pub type nika_compile_seats::judge::Effects::Owned = T
+pub fn nika_compile_seats::judge::Effects::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::judge::Effects::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::judge::Effects where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::judge::Effects::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::judge::Effects where T: ?core::marker::Sized
+pub fn nika_compile_seats::judge::Effects::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::judge::Effects where T: ?core::marker::Sized
+pub fn nika_compile_seats::judge::Effects::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::judge::Effects where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::judge::Effects::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::judge::Effects
+pub fn nika_compile_seats::judge::Effects::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::judge::Effects where T: core::clone::Clone
+pub fn nika_compile_seats::judge::Effects::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::judge::Effects where T: 'static
+pub fn nika_compile_seats::judge::Effects::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::judge::Effects
+pub type nika_compile_seats::judge::Effects::Output = T
+pub const nika_compile_seats::judge::CREATED: &str
+pub const nika_compile_seats::judge::REVISED: &str
+pub const nika_compile_seats::judge::REVISED_APPENDED: &str
+pub const nika_compile_seats::judge::REVISED_DOCUMENT: &str
+pub const nika_compile_seats::judge::REVISED_OVER_DOCUMENT: &str
 pub fn nika_compile_seats::judge::authoring(base: &mut serde_json::value::Value, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::judge::judged_state(intent: &str, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome, candidate: &str) -> serde_json::value::Value
 pub fn nika_compile_seats::judge::lent(catalog: core::option::Option<&dyn nika_compile_seats::foundry::component::ComponentCatalog>, out: &mut nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::judge::over_document(base: &mut serde_json::value::Value, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::judge::state(intent: &str, request: &nika_compile::types::CompileRequest, candidate: &str) -> serde_json::value::Value
+pub fn nika_compile_seats::judge::told(state: &serde_json::value::Value, reference: &str, text: &str) -> alloc::string::String
 pub mod nika_compile_seats::objects
 pub enum nika_compile_seats::objects::Objects<'a>
 pub nika_compile_seats::objects::Objects::None
