@@ -4798,6 +4798,7 @@ dependencies = [
  "nika-compile-behavior",
  "nika-compile-reader",
  "nika-schema",
+ "nika-types",
  "serde_json",
  "sha2 0.10.9",
 ]
@@ -4819,6 +4820,7 @@ dependencies = [
  "nika-compile-reader",
  "nika-kernel",
  "nika-pack",
+ "nika-providers",
  "nika-schema",
  "serde",
  "serde_json",

@@ -16,6 +16,7 @@ nika-compile-behavior = { path = "../nika-compile-behavior", version = "0.123.0-
 nika-schema = { path = "../nika-schema", version = "0.123.0-preview.1" } # the approval laws read a gate on the AST the parser gives Check
 nika-check-analyzer = { path = "../nika-check-analyzer", version = "0.123.0-preview.1" } # the refusal substitution (NEP-0020) those laws reuse
 nika-cap = { path = "../nika-cap", version = "0.123.0-preview.1" } # the builtin reach and argument contracts the sketch admission laws read
+nika-types = { path = "../nika-types", version = "0.123.0-preview.1" } # net::{host_is_blocked, is_documentation_host} — the one SSRF host oracle a selected source is judged by (L4→L0)
 jaq-core = { workspace = true } # the jq a candidate states, parsed (never run) for the record-scope and instant-order laws (24 · 25)
 sha2 = { workspace = true } # the digests the kept, semantic and source-revision records and an observation basis bind
 

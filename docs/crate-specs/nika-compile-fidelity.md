@@ -134,6 +134,27 @@ needs keeps its default.
   at this crate's size cap (2026-10-08). An address taken from another, or a longer, origin or
   path is still `INVENTED LITERAL`: a host label, a port, a child segment, a suffix, a path
   character continuing or preceding the stated token (quoted or not), or another spelling.
+- Added 2026-10-09, the selections an author states rather than copies (`fidelity::resolution`):
+  a public source the request names (`named`), sources chosen within a delegation
+  (`delegated`), a routine new output the request asks for without naming it (`derived`), a
+  value the person typed (`answered`), and two kinds only a host states because it holds what
+  verifies them, the value of an offer the person accepted (`offered`) and a value kept from an
+  earlier accepted revision (`retained`). `resolution::admitted` admits a selection when the
+  person's words it cites are verbatim in what they stated (spacing and typographic quotes
+  aside), its value fits its role (`read_source`: an http(s) address without credentials whose
+  host the engine's one SSRF oracle admits, `nika_types::net::host_is_blocked`, and that is
+  neither a documentation name nor a special-use or single-label name; `output_path`: a
+  relative path under the project, never absolute, hidden or above it, and for `derived` absent
+  from the observed world) and the document uses it in that role alone (a source only as a
+  `nika:fetch` URL read with GET or HEAD; an output only as a `nika:write` path, directly or
+  through a bare `${{ const.<name> }}`). Each refusal is one `resolution` diagnostic (`UNAUTHORIZED SELECTION`,
+  `OUT OF SCOPE`). `laws_resolved` is `laws_observed` with the admitted literals covered by
+  Law 2 (`invented_except`); `laws`, `laws_observed` and `invented` keep their behaviour. A
+  public-looking name that resolves to a private address is refused at run time by the fetch
+  effect's own guard. The document door reads it (`nika-compile-cognition`); the private-plan
+  feasibility filter (`nika-compile-seats::compose`, policy `off`) and the sketch door's
+  structural laws do not read provenance yet: the assembler they feed would have to carry the
+  resolved bindings (`nika-compile`, at its size cap), a documented limitation.
 - Added after the move, Law 22b (`fidelity::unnamed_writes`, private, run by `laws`): a
   planned write whose target names no single file must be carried by a `nika:write` task. Such
   a write comes from the reader's unnamed-destination floor or from an unsettled copy. A

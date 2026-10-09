@@ -64,7 +64,6 @@ pub(super) use nika_compile_seats::objects::{
 };
 use proposal::{Composition, Merged, Proposal, decode, merged};
 pub(super) use proposal::{ProposedRegion, nullable_default};
-pub(crate) use verify::WHOLE_QUESTIONS;
 
 /// The explicit cognition a caller permits for one request. Absent seats are not consent.
 #[derive(Clone, Copy)]

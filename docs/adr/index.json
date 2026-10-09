@@ -1777,5 +1777,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-152",
+      "title": "nika-compile-cognition size cap: the authority over a seat's requests descends to nika-compile-seats",
+      "status": "accepted",
+      "date": "2026-10-09",
+      "filename": "adr-152-nika-compile-seats-authority-descent.md",
+      "tags": ["architecture","crates","size-cap","compile"],
+      "affects_crates": ["nika-compile-cognition","nika-compile-seats"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-140","ADR-144","ADR-145","ADR-146","ADR-147"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }

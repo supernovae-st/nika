@@ -11,7 +11,7 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 (workspace-inherited) |
 | Publish | `false` — member of the `nika-onboard` unit |
-| Dependencies | **read from `Cargo.toml`, which is authoritative** · `nika-compile` (`AuthoringReasoning`) · `nika-kernel` (the provider seam) · `nika-pack` (the skeletons and stdlib page of the shelf) · `nika-compile-fidelity` (`behavior`, the judge's run) · `nika-check` (`infer_permits`: what each task of a judged candidate touches, `judge::Effects`) · `serde`, `serde_json`, `thiserror`, `tokio` |
+| Dependencies | **read from `Cargo.toml`, which is authoritative** · `nika-compile` (`AuthoringReasoning`, `NativeMode`) · `nika-kernel` (the provider seam) · `nika-pack` (the skeletons and stdlib page of the shelf) · `nika-compile-fidelity` (`behavior`, the judge's run) · `nika-check` (`infer_permits`: what each task of a judged candidate touches, `judge::Effects`) · `nika-providers` (`Envelope`, `Seat`, `Wire`: the request counters the authority resolves, ADR-152) · `serde`, `serde_json`, `thiserror`, `tokio` |
 | NIKA codes | none minted here — `DecisionError` is a seat's failure the doors record and fall back from; a rehearsal states its refusal in its report |
 
 ## 1. Purpose
@@ -204,6 +204,16 @@ as an external consumer.
   record, whose preservation claim says what each operation proved; the revision door that
   asks for them and judges the result stays in `nika-compile-cognition`.
 
+`authority` is the authority over a seat's requests, descended from the seats' doors at their
+size cap (2026-10-09, ADR-152) and kept at `nika_compile_cognition::authority`: `Authority`
+(a door's bound resolved against what its caller typed, before any request: `resolve`,
+`max_calls`, `envelope`, `record`), `Typed`, `Door`, `Refusal` (`Multiplicity`, `Strategy`,
+`Range`), the counters it re-exports from the provider layer (`Envelope`, `Seat`, `Wire`),
+`worst_case_of` (the request-independent worst case, unknown for request-dependent work),
+`least_requests`, `recovery_requests`, `usage_complete`, `DEFAULT_MAX_CALLS`, `SAMPLES`,
+`REPAIRS`, and the deprecated historical `worst_case`. The counters bound requests, never
+dollars; nothing here grants a request a door did not state.
+
 `remote` is what a door that holds no project admits from its caller's
 engine: `admit_observation` (the host observer's document only, rows about
 paths the request states or files directly inside a stated folder,
@@ -228,6 +238,6 @@ with its door code and words. Pure: no file, no network.
 
 ## 4. Related
 
-- ADR-146 (this split) · ADR-140 (the seats' doors) · ADR-145 (the clause readings) · ADR-144
-  (the re-export precedent) · D-2026-07-09-N1
+- ADR-146 (this split) · ADR-152 (the authority's descent) · ADR-140 (the seats' doors) ·
+  ADR-145 (the clause readings) · ADR-144 (the re-export precedent) · D-2026-07-09-N1
 - `docs/crate-specs/nika-compile-cognition.md` · the doors, the owner of the orchestration

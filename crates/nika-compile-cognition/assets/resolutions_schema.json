@@ -1,0 +1,42 @@
+{
+  "type": "array",
+  "description": "The concrete values the request authorizes without spelling them: a public source it names, sources it lets you choose, a routine new output inside the project. Empty when there is none.",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "value",
+      "kind",
+      "role",
+      "excerpt"
+    ],
+    "properties": {
+      "value": {
+        "type": "string",
+        "description": "The value exactly as the document carries it."
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "named",
+          "delegated",
+          "derived",
+          "answered"
+        ]
+      },
+      "role": {
+        "type": "string",
+        "enum": [
+          "read_source",
+          "output_path",
+          "run_model",
+          "value"
+        ]
+      },
+      "excerpt": {
+        "type": "string",
+        "description": "The person's own words that ask for it, verbatim."
+      }
+    }
+  }
+}

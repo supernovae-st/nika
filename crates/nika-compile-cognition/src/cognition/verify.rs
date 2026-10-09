@@ -37,14 +37,6 @@ use crate::{
     Strategy,
 };
 
-/// The questions the historical estimates count for one whole-request judgment ([`whole`]): the
-/// verdict, then, when it does not carry the request, one part of it asked alone. A part judged
-/// missing adds the question of the task it points to (a located defect takes three), and every
-/// other part, the extra-operation question and the questions over a trial run ([`faithful`])
-/// add their own, each counted by the authority that sends it: the number depends on the
-/// request, and no estimate bounds it.
-pub(crate) const WHOLE_QUESTIONS: usize = 2;
-
 mod faithful;
 mod grounding;
 mod held;

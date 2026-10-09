@@ -11,12 +11,20 @@
 //! sent, never over the core's own journal of attempts. [`worst_case_of`] states what a
 //! configuration can bound without its request, and [`Authority`] resolves a door's bound against what its caller
 //! typed, before any request. The counters bound requests, never dollars.
+//!
+//! Descended from `nika-compile-cognition` (ADR-152), which keeps it at its historical path
+//! `nika_compile_cognition::authority`: the same items, the same behaviour.
 
 use std::sync::Arc;
 
 use serde_json::{Value, json};
 
-use crate::NativeMode;
+use nika_compile::NativeMode;
+
+/// The questions the historical estimates count for one whole-request judgment: the verdict,
+/// then, when it does not carry the request, one part of it asked alone. Every other question of
+/// a judgment depends on the request and is counted by the authority that sends it.
+const WHOLE_QUESTIONS: usize = 2;
 
 /// The physical request counters a seat runs under, owned by the provider layer: [`Envelope`]
 /// holds a bound (or none) and counts, [`Seat`] counts a seat's invocations, [`Wire`] a direct
@@ -31,7 +39,7 @@ pub use nika_providers::authoring::requests::{Envelope, Seat, Wire};
 /// decision seat keeps its own request observations. With `s` samples
 /// formerly clamped to 1..=5 and `r` repairs as the policy holds them:
 /// - an edit's native revision: the candidate and its repairs, then the whole-request judgment
-///   and its locate question (`verify::WHOLE_QUESTIONS`, 2): `3 + r`;
+///   and its locate question (`WHOLE_QUESTIONS`, 2): `3 + r`;
 /// - the sketch door: the sketch, its fills and `r` repairs (a fill, or the graph reproposed),
 ///   each new candidate judged afresh: `2 + r + 2 (1 + r) = 4 + 3r`;
 /// - COLD: each sample and its one evidence repair (`2s`), then `1 + r` verification attempts,
@@ -52,7 +60,7 @@ pub fn worst_case(strategy: NativeMode, samples: u32, repairs: u32, edit: bool) 
 fn historical_worst_case(strategy: NativeMode, samples: u32, repairs: u32, edit: bool) -> u32 {
     let samples = samples.clamp(1, 5);
     let count = |questions: usize| u32::try_from(questions).unwrap_or(u32::MAX);
-    let judged = count(crate::cognition::WHOLE_QUESTIONS);
+    let judged = count(WHOLE_QUESTIONS);
     let rounds = |repairs: u32| repairs.saturating_add(1);
     let native = rounds(repairs).saturating_add(judged);
     let sketch = |repairs: u32| {
@@ -104,7 +112,7 @@ pub fn worst_case_of(
 /// counters refuse what the allowance cannot hold, never a silent cut. The rounds count as typed.
 #[must_use]
 pub fn recovery_requests(rounds: u32) -> u32 {
-    let judged = u32::try_from(crate::cognition::WHOLE_QUESTIONS).unwrap_or(u32::MAX);
+    let judged = u32::try_from(WHOLE_QUESTIONS).unwrap_or(u32::MAX);
     rounds.saturating_mul(judged.saturating_add(1))
 }
 
@@ -614,7 +622,8 @@ mod tests {
         );
         // Both counts stay as typed. Zero samples is refused by the authority/core, not changed
         // silently into one; the policy's default repair count remains absent.
-        let policy = || crate::AuthoringPolicy::new("mock/m", 1, std::time::Duration::from_secs(1));
+        let policy =
+            || nika_compile::AuthoringPolicy::new("mock/m", 1, std::time::Duration::from_secs(1));
         assert_eq!(policy().repairs, None);
         assert_eq!(
             policy().with_repairs(4).with_unbounded_repairs().repairs,

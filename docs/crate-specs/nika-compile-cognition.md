@@ -23,7 +23,10 @@ lives here. The two capabilities a host lends a preparation, the bounded decisio
 are owned by the size-cap member below the doors since 2026-10-07, `nika-compile-seats`
 (ADR-146); this crate keeps them at their historical paths `nika_compile_cognition::{decide,
 rehearse}` (`#[doc(inline)]` re-exports naming the very same items), so every caller reads
-them unchanged. How one clause of a request reads (the verifier's parts and part readings, the
+them unchanged. The authority over a seat's requests (`authority`: the bound a door states, the
+counters that enforce it, the account a receipt keeps) descended there too at this member's
+size cap on 2026-10-09 (ADR-152) and is kept at `nika_compile_cognition::authority` the same
+way. How one clause of a request reads (the verifier's parts and part readings, the
 prohibition reading, the proposal merge's words, the stated spellings) is owned by
 `nika-compile-clauses` (ADR-145), which this crate reads; the merge keeps its `crate::words`
 path. `nika-onboard::compile` combines the members at the existing consumer paths. Provider
@@ -1244,6 +1247,19 @@ told back once with the refusal it followed (`nika_compile_seats::repairs::gaps_
 whose findings name the remedies the engine supports, while the policy still grants a round.
 Declared again, or with no round left, it is accepted, and the door surfaces it for the human to
 dispose of (`gap.N`). A gap declared before any refusal stays the author's.
+
+The author also states the values the request authorizes without spelling them
+(`resolutions`, 2026-10-09: a public source it names, sources it lets the author choose, a
+routine new output inside the project, a value the person typed), each with its kind, role and
+the person's words, verbatim (`assets/resolutions_schema.json`; the kinds a host verifies,
+`offered` and `retained`, are not the author's). The document is judged by `judge_resolved`:
+`nika_compile_fidelity::fidelity::resolution::admitted` admits each selection on those words,
+within its role's scope and use, and Law 2 counts an admitted literal as stated
+(`laws_resolved`). An unreadable or refused selection is a finding the next round repairs from.
+The native record of an accepted document keeps the rows (`plan.resolutions`): provenance,
+never a human answer. The private-plan door (policy `off`) and the sketch door do not carry
+selections yet (their emission would need the core's assembler to bind them), a documented
+limitation; the Session and the agent path judge through this door's judge.
 
 The judge of a document also reads, as data beside the state, the engine facts a request may
 condition on (A5). The door records them for the bytes it made, and so does a document revision

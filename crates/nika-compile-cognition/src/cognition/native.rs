@@ -163,6 +163,9 @@ pub(super) struct Talk {
     /// The receipts of the references and callables the system message carries, stamped on
     /// every call of the conversation's journal: what the seat was actually shown.
     pub(super) presented: Value,
+    /// The selections the accepted candidate states with their provenance (a source the request
+    /// names, one chosen within a delegation, a routine new output), as its record keeps them.
+    pub(super) resolved: Vec<Value>,
 }
 
 impl Talk {
@@ -199,6 +202,7 @@ impl Talk {
             clarified: fidelity::clarified_sources(&request.answers),
             observed: request.knowledge.clone(),
             presented: Value::Null,
+            resolved: Vec::new(),
             repairs: request
                 .authoring_knowledge
                 .as_ref()
@@ -748,21 +752,38 @@ pub(super) fn judge(
     clarified: &[String],
     observed: Option<&Value>,
 ) -> Vec<Diagnostic> {
+    let words = (allowed, &[][..]);
+    judge_resolved(
+        intent, reading, candidate, questions, words, waived, clarified, observed,
+    )
+}
+
+/// [`judge`], with the selections the author states (`fidelity::resolution`): each one is
+/// admitted only on the person's own words and within its role's scope, and an admitted one
+/// covers its literal for Law 2 — never an invented literal, never a human answer.
+pub(super) fn judge_resolved(
+    intent: &str,
+    reading: &Reading,
+    candidate: &str,
+    questions: &[Question],
+    (allowed, selections): (&[String], &[fidelity::resolution::Resolution]),
+    waived: &[String],
+    clarified: &[String],
+    observed: Option<&Value>,
+) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     let Some(doc) = admit(candidate, questions, &mut out) else {
         return out;
     };
     let asked: Vec<Value> = questions.iter().map(|q| recorded(q, &[])).collect();
     let waived = [waived, &fidelity::asked_names(intent, &doc, &asked)[..]].concat();
-    fidelity::laws_observed(
-        intent,
-        &reading.plan,
-        &doc,
-        allowed,
-        &waived,
-        clarified,
-        observed,
-        &mut out,
+    let stated = [intent.to_owned(), allowed.join("\n")].join("\n");
+    let selected = (selections, &[][..]);
+    let covered = fidelity::resolution::admitted(&stated, &doc, selected, observed, &mut out);
+    let words = (allowed, &covered[..]);
+    let plan = &reading.plan;
+    fidelity::laws_resolved(
+        intent, plan, &doc, words, &waived, clarified, observed, &mut out,
     );
     if let Err(diagnostic) = admitted_questions(intent, candidate, questions, observed) {
         out.push(diagnostic);
