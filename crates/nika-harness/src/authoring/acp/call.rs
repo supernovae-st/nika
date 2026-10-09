@@ -201,14 +201,23 @@ impl Progress {
     }
 
     /// The call closed `milestone`; a later milestone is never replaced by an earlier one. The
-    /// written prompt also opens the activity window: only frames completed after it count.
+    /// written prompt also opens the activity window, at the instant its write completed (only
+    /// frames completed after it count), and both are published inside one activity lock, the one
+    /// a concluding snapshot reads them under: no record names the written prompt without it.
     pub(crate) fn mark(&self, milestone: Milestone) {
         let rank = (Milestone::ORDER.iter()).position(|m| *m == milestone);
         let rank = rank.and_then(|at| u8::try_from(at + 1).ok()).unwrap_or(0);
-        self.0.milestone.fetch_max(rank, Ordering::AcqRel);
-        if milestone == Milestone::PromptWritten {
-            self.activity().open(tokio::time::Instant::now());
+        if milestone != Milestone::PromptWritten {
+            self.0.milestone.fetch_max(rank, Ordering::AcqRel);
+            return;
         }
+        let written = tokio::time::Instant::now();
+        let mut window = self.activity();
+        self.0.milestone.fetch_max(rank, Ordering::AcqRel);
+        window.open(written);
+        drop(window);
+        #[cfg(test)]
+        pause::published();
     }
 
     /// What the call received after its prompt. A lock poisoned by a panic elsewhere still holds
@@ -234,24 +243,48 @@ impl Progress {
     }
 }
 
+/// A test's pause point on the thread that marks the written prompt, where the milestone becomes
+/// visible to a concluding snapshot: a record taken there must already hold the prompt's window.
+#[cfg(test)]
+pub(super) mod pause {
+    use std::cell::RefCell;
+
+    thread_local! {
+        static PUBLISHED: RefCell<Option<Box<dyn FnOnce()>>> = const { RefCell::new(None) };
+    }
+
+    /// Run `hook` once, on this thread, when it next publishes the written prompt.
+    pub(in crate::authoring::acp) fn when_published(hook: impl FnOnce() + 'static) {
+        PUBLISHED.with(|slot| *slot.borrow_mut() = Some(Box::new(hook)));
+    }
+
+    /// This thread has just published the written prompt.
+    pub(super) fn published() {
+        let hook = PUBLISHED.with(|slot| slot.borrow_mut().take());
+        if let Some(hook) = hook {
+            hook();
+        }
+    }
+}
+
 /// What every terminal record of an ACP authoring call adds: where the call stood and the last
 /// protocol milestone it closed (null before any), how long it ran from its start, its bounds
 /// (the deadline, and the transport allowance actually passed, null when no stream opened), and
 /// what it received after writing its prompt (`activity`, null when it never wrote one). Closed
-/// facts only, never adapter text. The activity and the elapsed time are read under one lock, so
-/// a frame the driver completes meanwhile is either left out or no later than that time.
+/// facts only, never adapter text. The last milestone, the activity and the elapsed time are read
+/// under one lock: the written prompt is published with its window under that lock, so a record
+/// names the prompt only beside its window, and a frame the driver completes meanwhile is either
+/// left out or no later than the elapsed time.
 pub(crate) fn conclude(mut record: Value, progress: &Progress, deadline: Deadline) -> Value {
     if let Some(fields) = record.as_object_mut() {
         fields.insert("phase".into(), json!(progress.phase().as_str()));
-        let milestone = progress.milestone().map(Milestone::as_str);
-        fields.insert("last_milestone".into(), json!(milestone));
-        let (activity, elapsed) = {
+        let (milestone, activity, elapsed) = {
             let received = progress.activity();
-            (
-                received.record(deadline.started),
-                deadline.started.elapsed(),
-            )
+            let milestone = progress.milestone().map(Milestone::as_str);
+            let activity = received.record(deadline.started);
+            (milestone, activity, deadline.started.elapsed())
         };
+        fields.insert("last_milestone".into(), json!(milestone));
         fields.insert("elapsed_ms".into(), json!(millis(elapsed)));
         let allowance = progress.0.allowance.get().copied().map(millis);
         fields.insert(

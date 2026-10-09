@@ -537,4 +537,52 @@ mod tests {
         );
         assert!(last >= Some(20), "{record}");
     }
+
+    /// The race the final review named: the driver publishes the written prompt and is held right
+    /// there, as a preempted thread would be, while the call concludes on its Stop or deadline on
+    /// another thread. The record that names the written prompt must hold its open window, and
+    /// one taken before the publication names neither. Channels order every step: no sleep.
+    #[test]
+    fn a_record_that_names_the_written_prompt_holds_its_window() {
+        use crate::authoring::acp::call::pause;
+        use crate::authoring::acp::{Deadline, Milestone, conclude};
+        let deadline = Deadline::start(std::time::Duration::from_secs(600));
+        let progress = Progress::default();
+        progress.mark(Milestone::SelectionChecked);
+        let before = conclude(json!({"status":"cancelled"}), &progress, deadline);
+        assert_eq!(before["last_milestone"], "selection_checked");
+        assert_eq!(before.get("activity"), Some(&Value::Null));
+        let (at_pause, paused) = std::sync::mpsc::channel::<()>();
+        let (resume, held) = std::sync::mpsc::channel::<()>();
+        let marks = &progress;
+        let record = std::thread::scope(|scope| {
+            let driver = scope.spawn(move || {
+                pause::when_published(move || {
+                    at_pause.send(()).expect("the test waits for the pause");
+                    held.recv().expect("the test lets the driver go");
+                });
+                marks.mark(Milestone::PromptWritten);
+            });
+            paused
+                .recv()
+                .expect("the driver published the written prompt");
+            let record = conclude(json!({"status":"cancelled"}), marks, deadline);
+            resume.send(()).expect("the driver is held");
+            driver.join().expect("the driver ends");
+            record
+        });
+        assert_eq!(record["last_milestone"], "prompt_written");
+        let ms = |pointer: &str| record.pointer(pointer).and_then(Value::as_u64);
+        let (from, elapsed) = (ms("/activity/from_ms"), ms("/elapsed_ms"));
+        assert!(
+            matches!((from, elapsed), (Some(f), Some(e)) if f <= e),
+            "{record}"
+        );
+        let start = Instant::now();
+        let mut window = Activity::default();
+        window.open(start);
+        let mut opened = record["activity"].clone();
+        opened["from_ms"] = json!(0);
+        assert_eq!(opened, window.record(start), "{record}");
+    }
 }
