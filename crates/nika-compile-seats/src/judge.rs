@@ -171,6 +171,23 @@ pub fn authoring(base: &mut Value, request: &CompileRequest, out: &CompileOutcom
     }
 }
 
+/// What every question of a verdict over `candidate` starts from: the request's state over those
+/// bytes ([`state`]), the base shown whole when the compiler applied the revision over its
+/// complete document ([`over_document`]), and the engine facts witnessed on exactly those bytes
+/// ([`authoring`]).
+#[must_use]
+pub fn judged_state(
+    intent: &str,
+    request: &CompileRequest,
+    out: &CompileOutcome,
+    candidate: &str,
+) -> Value {
+    let mut base = state(intent, request, candidate);
+    over_document(&mut base, request, out);
+    authoring(&mut base, request, out);
+    base
+}
+
 #[cfg(test)]
 mod tests {
     use super::{authoring, lent};
@@ -317,6 +334,26 @@ mod tests {
         assert_eq!(composed[0]["bindings"], bound);
         assert_eq!(composed[1]["verdict"], "absent", "{composed:#}");
         assert_eq!(composed[1].get("bindings"), None);
+    }
+
+    /// What a verdict's questions start from: the request's state over the bytes, the base shown
+    /// whole for a revision applied over its complete document, and the facts witnessed on those
+    /// bytes, each as its own function gives it.
+    #[test]
+    fn a_judged_state_is_the_state_the_revision_mode_and_the_facts() {
+        let bytes = "nika: v\ntasks: {}\n";
+        let request = nika_compile::CompileRequest::edit("nika: base\ntasks: {}\n", "Rename it");
+        let entry = Some(json!({"components": []}));
+        let mut out = recorded("document_revision", entry, Some(bytes));
+        lent(Some(&Lent { blocks: 2 }), &mut out);
+        out.provenance.decision = Some(json!({"document_revision": {"mode": "operations"}}));
+        let mut expected = super::state("Rename it", &request, bytes);
+        super::over_document(&mut expected, &request, &out);
+        authoring(&mut expected, &request, &out);
+        assert_eq!(expected["revision"]["over_document"], true, "{expected:#}");
+        assert_eq!(expected["authoring"]["offered"]["total"], 2, "{expected:#}");
+        let judged = super::judged_state("Rename it", &request, &out, bytes);
+        assert_eq!(judged, expected);
     }
 
     /// A revision's own section is recorded the same way and read for its bytes; no catalogue

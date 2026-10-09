@@ -970,14 +970,14 @@ fn a_document_revision_with_a_known_request_is_judged_over_its_base() {
     let intent = "two days\nChange: keep three days";
     let mut out = crate::initial();
     let mut state = super::state(intent, &known, "nika: x\n");
-    super::over_document(&mut state, &known, &out);
+    nika_compile_seats::judge::over_document(&mut state, &known, &out);
     assert!(
         state["revision"].get("base_nika").is_none(),
         "no document record: {state}"
     );
     out.provenance.decision =
         Some(serde_json::json!({"document_revision": {"mode": "operations"}}));
-    super::over_document(&mut state, &known, &out);
+    nika_compile_seats::judge::over_document(&mut state, &known, &out);
     assert_eq!(state["revision"]["base_nika"], base);
     let told = super::faithful::told(&state, "", "WHOLE");
     assert!(

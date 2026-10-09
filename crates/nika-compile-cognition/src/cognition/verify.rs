@@ -53,7 +53,7 @@ use grounding::grounding;
 use held::held_text;
 pub(super) use held::{HELD_TARGET, held, kept, preserve_unjudged, withdrawn};
 use nika_compile_clauses::parts::{parts, restricts};
-use nika_compile_seats::judge::{Construction, authoring, over_document, state};
+use nika_compile_seats::judge::{Construction, judged_state, state};
 use nika_compile_seats::repairs::carry_declined;
 
 /// Who judges a candidate: a decision seat the caller permits (its calls and usage are its own,
@@ -520,9 +520,7 @@ async fn verdict_on<P: ProviderInferDyn>(
     let sha = knowledge::sha256(candidate);
     // An observation binds only to the bytes it ran: the judge never sees another's.
     let run = observation.filter(|o| o["candidate_sha256"] == sha.as_str());
-    let mut base = state(intent, request, candidate);
-    over_document(&mut base, request, settled);
-    authoring(&mut base, request, settled);
+    let mut base = judged_state(intent, request, settled, candidate);
     if let Some(notes) = unjudged(settled, plan) {
         base[UNJUDGED_SPELLINGS] = notes;
     }
@@ -705,6 +703,7 @@ async fn judge_clause<P: ProviderInferDyn>(
     } else {
         CLAUSE.to_owned()
     };
+    let (shown, instructions) = Construction::shown(base, &instructions);
     let told = faithful::told(base, reference, &instructions);
     for (n, &span) in open.spans.iter().enumerate() {
         let mut options = vec![
@@ -719,7 +718,7 @@ async fn judge_clause<P: ProviderInferDyn>(
         if open.unclaimed && !restricting && !nika_compile_reader::structure::restricts(clause) {
             options.push(ChoiceOption::new("no_operation", NO_OPERATION));
         }
-        let mut asked = base.clone();
+        let mut asked = shown.clone();
         asked["clause"] = json!({"text": clause, "span": [span.0, span.1]});
         let id = match n {
             0 => format!("verify-clause-{k}"),
@@ -1386,9 +1385,7 @@ pub(super) async fn native_verdict<P: ProviderInferDyn>(
     // An observation binds only to the bytes it ran: the judge never sees another's.
     let observation = observation.filter(|o| o["candidate_sha256"] == sha.as_str());
     let mut verdict = Verdict::default();
-    let mut base = state(intent, request, &candidate);
-    over_document(&mut base, request, &out);
-    authoring(&mut base, request, &out);
+    let base = judged_state(intent, request, &out, &candidate);
     let shown = context(&base);
     if let Some(earlier) = judged_before(&out, (request, intent, &shown), &sha, &judge) {
         if !unfinished(&earlier, observation) {

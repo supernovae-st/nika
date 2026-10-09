@@ -2953,6 +2953,7 @@ pub fn nika_compile_seats::judge::Construction::as_any(&self) -> &(dyn core::any
 impl<T> typenum::type_operators::Same for nika_compile_seats::judge::Construction
 pub type nika_compile_seats::judge::Construction::Output = T
 pub fn nika_compile_seats::judge::authoring(base: &mut serde_json::value::Value, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome)
+pub fn nika_compile_seats::judge::judged_state(intent: &str, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome, candidate: &str) -> serde_json::value::Value
 pub fn nika_compile_seats::judge::lent(catalog: core::option::Option<&dyn nika_compile_seats::foundry::component::ComponentCatalog>, out: &mut nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::judge::over_document(base: &mut serde_json::value::Value, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::judge::state(intent: &str, request: &nika_compile::types::CompileRequest, candidate: &str) -> serde_json::value::Value

@@ -657,3 +657,92 @@ fn a_rejection_binds_to_the_whole_request_told_what_the_bytes_hold() {
         assert_eq!(context != untold(&base), another, "{witness:?}");
     }
 }
+
+/// The verdict on the pending clauses the core names (each a part of the tickets request at its
+/// place in it, found by its `words`), over `candidate` whose document door recorded `facts` on
+/// those very bytes, asked of `reader` through the verifier's own entry.
+async fn clauses_judged(
+    candidate: &str,
+    facts: Value,
+    words: &[&str],
+    reader: &Reader,
+) -> (Verdict, Vec<String>) {
+    let clauses: Vec<String> = words.iter().map(|words| part(words).1).collect();
+    let open: Vec<Value> = (clauses.iter())
+        .map(|clause| {
+            let at = TICKETS
+                .find(clause.as_str())
+                .expect("a part of the request");
+            json!({"clause": clause, "witness": "label", "spans": [[at, at + clause.len()]]})
+        })
+        .collect();
+    let mut recorded = facts;
+    recorded["candidate_sha256"] = json!(sha256(candidate));
+    let mut settled = crate::initial();
+    settled.candidate = Some(candidate.to_owned());
+    settled.provenance.decision = Some(json!({"pending": {"open": open}}));
+    settled.provenance.plan = Some(json!({"document_create": {"facts": recorded}}));
+    let judge = Judge::<Scripted>::Seat(reader);
+    let request = CompileRequest::create(TICKETS);
+    let (plan, mut out) = (Plan::default(), crate::initial());
+    let on = (TICKETS, &request, &plan);
+    let verdict = super::super::super::verdict_on(on, &settled, &judge, None, &mut out).await;
+    (verdict, clauses)
+}
+
+/// A pending clause the core names apart from the whole request is asked as every other judging
+/// question is: its question carries what the bytes hold (the component, its witness kept apart,
+/// its bindings, bound to these bytes and this release) beside the construction context, never
+/// the localization's alternatives. A judge that follows it carries the conditional reuse clause
+/// on the held component, a judgment of that clause at its statement, nothing left open.
+#[tokio::test]
+async fn a_pending_clause_is_told_what_the_bytes_hold_and_carried_on_the_held_component() {
+    let candidate = composed(48, true);
+    for witness in ["expanded", "invoked"] {
+        let reader = Reader::new(Reading::Follows);
+        let (verdict, clauses) =
+            clauses_judged(&candidate, facts(Some(witness)), &[REUSE], &reader).await;
+        let asked = reader.question("verify-clause-0");
+        assert_eq!(asked.state["construction"], holding(&candidate, witness));
+        assert_eq!(asked.state["clause"]["text"], clauses[0].as_str());
+        assert!(asked.instructions.contains(HOLDING_SAID), "{witness}");
+        for unsaid in [ALTERNATIVES_SAID, HELD_SAID] {
+            assert!(!asked.instructions.contains(unsaid), "{witness}: {unsaid}");
+        }
+        assert_eq!(ids(&verdict), ["verify-clause-0"], "{witness}");
+        assert_eq!(record(&verdict, "verify-clause-0")["choice"], "carried");
+        assert_eq!(verdict.judgments.len(), 1, "{witness}");
+        assert_eq!(lists(&verdict), found(&[], &[], &[], &[], &[]));
+        assert!(verdict.settled(), "{witness}");
+    }
+}
+
+/// The held facts settle nothing else at a pending clause: a component the catalogue merely
+/// offers tells the clause question nothing, and the clause is located on that offer; told the
+/// component is held, a pending report clause is still judged on the bytes, and without the
+/// author's write it is the defect no task performs.
+#[tokio::test]
+async fn a_pending_clause_is_never_settled_by_a_component_merely_offered_or_another_clause() {
+    let reader = Reader::new(Reading::Follows);
+    let candidate = composed(48, true);
+    let (verdict, clauses) = clauses_judged(&candidate, facts(None), &[REUSE], &reader).await;
+    let asked = reader.question("verify-clause-0");
+    assert_eq!(asked.state.get("construction"), None);
+    assert!(!asked.instructions.contains(HOLDING_SAID));
+    let point = record(&verdict, "verify-clause-0-point");
+    assert_eq!(point["choice"], "component-1", "{point:#}");
+    assert_eq!(verdict.defects, clauses);
+    assert!(verdict.judgments.is_empty() && !verdict.settled());
+    let reader = Reader::new(Reading::Follows);
+    let unreported = composed(48, false);
+    let held = facts(Some("expanded"));
+    let (verdict, clauses) = clauses_judged(&unreported, held, &[DESTINATION], &reader).await;
+    let asked = reader.question("verify-clause-0");
+    assert_eq!(
+        asked.state["construction"],
+        holding(&unreported, "expanded")
+    );
+    let unwritten = [(clauses[0].as_str(), OMITTED)];
+    assert_eq!(lists(&verdict), found(&unwritten, &[], &[], &[], &[]));
+    assert!(verdict.judgments.is_empty() && !verdict.settled());
+}
