@@ -326,9 +326,9 @@ fn run_once(
     (verdict.code, verdict.trace)
 }
 
-/// `NIKA_REDUCED_MOTION` (any non-empty value): the busy row changes only
-/// when the turn says something new, no seconds tick, no bell. A display
-/// choice, not a secret (the same allow `term_name` carries).
+/// `NIKA_REDUCED_MOTION` (any non-empty value): a still busy mark, its
+/// measured seconds and current work facts kept, no bell. A display choice,
+/// not a secret (the same allow `term_name` carries).
 #[allow(clippy::disallowed_methods)]
 fn reduced_motion() -> bool {
     std::env::var("NIKA_REDUCED_MOTION").is_ok_and(|v| !v.trim().is_empty())
