@@ -44,6 +44,7 @@ pub use admission::{AdmissionState, AttemptReceipt, InferenceAdmission, Inferenc
 pub mod authoring;
 pub mod census;
 pub mod dispatch_journal;
+pub mod model_choice;
 #[cfg(test)]
 mod parity_tests;
 pub mod plan;
@@ -63,6 +64,7 @@ mod test_support;
 pub mod wire;
 
 pub use census::{AccessCensus, AccessPath, SeatFact};
+pub use model_choice::{Delegation, ModelAsk, ModelChoice, ModelInventory, ModelOffer, ModelRole};
 pub use plan::{
     ExecutionAccessPlan, LaneVerdict, ModelNeed, ResolvedLane, resolve_execution_plan,
     resolve_execution_plan_declared, resolve_execution_plan_for,

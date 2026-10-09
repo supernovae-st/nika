@@ -174,7 +174,7 @@ pub fn provider_of(model: &str) -> &str {
 /// `--access ollama` and `--access local` both read naturally, and the
 /// shipped agentic CLI tokens (`claude-code` · `codex` · …) ride the
 /// same grammar.
-fn pin_matches(pin: &str, candidate: &AccessCandidate) -> bool {
+pub(crate) fn pin_matches(pin: &str, candidate: &AccessCandidate) -> bool {
     pin == candidate.access || pin == candidate.class.as_str()
 }
 
@@ -201,7 +201,7 @@ fn order_key(c: &AccessCandidate) -> (u8, &str, bool, &'static str, &'static str
 /// The first failing step wins the witness (research §7.2 steps 4→5→6:
 /// access · policy · pin) — deterministic, and the earliest layer is
 /// the one whose fix line helps most.
-fn judge(
+pub(crate) fn judge(
     candidate: &AccessCandidate,
     provider: &str,
     allow_providers: Option<&[String]>,

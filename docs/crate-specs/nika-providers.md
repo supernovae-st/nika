@@ -592,6 +592,38 @@ The host supplies the no-retry transport and opts in. `ProviderReadiness.model_l
 is additive; the existing constructor initializes it absent. `model_available` means
 an advertised model exists, not that a selected model supports inference or authoring.
 
+## Model choice per role (an agent's capability)
+
+`model_choice` lists the models each role can be served by and validates one selection; it
+never reads a person's words. An agent (the conversation harness) reads them in context,
+lists `ModelInventory::offers(role)` and selects a `ModelAsk` (provider id or catalogue
+alias, model id, route id or class, protocol, an optional delegated pick); `choose(role, ask)`
+answers with one typed `ModelChoice`:
+
+| Outcome | When |
+| --- | --- |
+| `Exact(offer)` | exactly one ready offer fits every closed dimension |
+| `Delegated { chosen, rule, among }` | several fit, the person delegated the pick, and the rule ranks them |
+| `Choose(offers)` | several materially different ready offers fit and nothing ranks them |
+| `Unsupported { why, alternatives }` | no ready offer fits; `why` is the route's own witness when one fits unready |
+
+Matching is exact: offer ids, a provider's catalogue aliases and the route pin law
+(`--access` id or class). No near name, nickname guess or universal alias is taken; a
+closed provider, route or protocol is never changed. The catalogue marks no per-model tier,
+so `Delegation::Strongest` applies the highest output list price among the ready offers that
+fit and records that rule (« highest list price among ready offers »); an unpriced offer or a
+shared top price leaves the choice to the person. Alternatives keep every closed dimension but
+the model, else they are the role's ready offers.
+
+Roles never share offers. `from_probes` builds the Run and Author offers from the probe rows
+(each provider's own row or a harness seat serving it, over `candidates_for`) and the route's
+observed compatible listing, else the catalogue's models — row ids, then non-deprecated priced
+ids — on a vendor endpoint, a seat or the mock. An unobserved local or operator-pointed
+endpoint offers nothing. A list price is attached only on a USD-metered route. The decision
+seat is the host's own and enters through `with_offers(ModelRole::Decision, …)`. A ready
+offer is configured, not proven: a seat's acceptance of a model and a route's task limits are
+still judged where the route runs.
+
 ## Local preflight address
 
 `probe::ping_addr` derives the connect-only address that `nika doctor` pings and that
