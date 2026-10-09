@@ -34,9 +34,12 @@ const HELD: [&str; 2] = ["expanded", "invoked"];
 /// What a localization's instructions add when the catalogue offered components.
 const CONSTRUCTION: &str = "A clause may concern how the document is built rather than what a task does. `authoring.offered` lists each admitted component the catalogue offered, with its contract (purpose, holes, effects, `construction.callables`) and what these bytes hold of it (`construction.held`: the witness of its receipt on these bytes, null when no receipt names it; `construction.unresolved`: the catalogue gives no admitted bytes for it, so it cannot be examined). Judge fit against the original request, its explicit constraints and each contract, never against the candidate's own permits or tasks, which may lack what the request needs. component-<k>: the clause asks for that offered component, its contract can do that part with what the request allows, and these bytes do not hold it as admitted. no_fit: the clause asks for an admitted component when one applies, and none offered can do that part with what the request allows: the clause's own alternative stands.";
 
-/// What `no_fit` means as an option.
-const NO_FIT: &str =
-    "no offered component can do this part with what the request allows: its alternative stands";
+/// What `no_fit` means as an option, its premise stated in the option itself: it settles only a
+/// clause whose own condition is to use an admitted component when one applies.
+const NO_FIT: &str = "the clause conditionally asks to use an admitted component when one applies; \
+                      none offered can do that part within the original request and its \
+                      constraints, so that component-use clause's own alternative stands; this \
+                      never excuses a required runtime operation, effect, target or constraint";
 
 /// Each offered component's construction status on the bytes judged: its row gains
 /// `construction`, `{"held": <the strongest witness verdict a receipt of the same component in

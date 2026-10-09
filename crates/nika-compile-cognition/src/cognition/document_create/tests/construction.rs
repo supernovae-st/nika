@@ -63,6 +63,9 @@ enum Whole {
     Facts,
     /// Always unfaithful, whatever the facts.
     Doubting,
+    /// Unfaithful as `Doubting`; over a trial run it names the request's report write as a part
+    /// the run did not carry.
+    RunMissesWrite,
 }
 
 /// What the scripted judge answers when it is asked why a part is missing.
@@ -146,10 +149,10 @@ impl Builder {
         !held && (rows.into_iter().flatten()).any(|row| self.fitting(&row) && open(&row))
     }
 
-    fn judged(&self, keys: &[String], state: &Value) -> String {
+    fn judged(&self, keys: &[String], state: &Value, prompt: &str) -> String {
         let offered = |key: &str| keys.iter().any(|k| k == key);
         let facts = &state["authoring"];
-        let doubted = self.whole == Whole::Doubting || self.wanting(facts);
+        let doubted = self.whole != Whole::Facts || self.wanting(facts);
         if offered("unfaithful") {
             return if doubted { "unfaithful" } else { "faithful" }.to_owned();
         }
@@ -173,7 +176,15 @@ impl Builder {
             return "only_requested".to_owned();
         }
         if offered("consistent") {
-            return "consistent".to_owned();
+            let write = |key: &&String| {
+                (prompt.lines()).any(|line| {
+                    line.starts_with(&format!("- {key}: ")) && line.contains("./out/report.json")
+                })
+            };
+            let missed = (self.whole == Whole::RunMissesWrite)
+                .then(|| keys.iter().filter(|k| k.starts_with("part-")).find(write))
+                .flatten();
+            return missed.map_or_else(|| "consistent".to_owned(), Clone::clone);
         }
         let foundry = (state["clause"]["text"].as_str()).is_some_and(|text| text.contains(FOUNDRY));
         if offered("missing") && foundry && doubted && !offered("unexercised") {
@@ -217,7 +228,14 @@ impl nika_kernel::ai::provider::ProviderInferDyn for Builder {
                 .lock()
                 .expect("facts")
                 .push(state["authoring"].clone());
-            json!({"choice": self.judged(&keys, &state)}).to_string()
+            let prompt: Vec<&str> = (request.messages.iter())
+                .flat_map(|message| message.content.iter())
+                .filter_map(|block| match block {
+                    ContentBlock::Text { text } => Some(text.as_str()),
+                    _ => None,
+                })
+                .collect();
+            json!({"choice": self.judged(&keys, &state, &prompt.join("\n"))}).to_string()
         };
         Ok(InferResponse::new(
             vec![ContentBlock::Text { text }],
@@ -626,6 +644,49 @@ async fn a_contextual_no_fit_settles_only_the_conditional_clause() {
             }
         }
     }
+}
+
+/// The discriminator of a conditional fallback: `no_fit` settles only a clause that asks for an
+/// admitted component when one applies. When the judge names the request's ordinary report write
+/// as a part the trial run did not carry and then answers `no_fit`, nothing excuses the write:
+/// the bytes stay held, the part unsettled, and no repair or composition follows.
+#[tokio::test]
+async fn a_no_fit_never_excuses_a_required_write_the_run_misses() {
+    let room = Room::default();
+    let author = Builder::new(
+        vec![door(HAND_WRITTEN, &[])],
+        Whole::RunMissesWrite,
+        Why::NoFit,
+        &[],
+    );
+    let host = Some(&room as &dyn Rehearse);
+    let out = compiled(&stale_request(), &author, host, &Unrelated).await;
+    assert_ne!(
+        out.status,
+        crate::CompileStatus::Ready,
+        "{:#?}",
+        out.diagnostics
+    );
+    assert_eq!(authored(&out), ["document"], "no repair, no composition");
+    let attempts = attempts(&out);
+    let first = &attempts[0];
+    let write = "and write a JSON object containing count and ids to ./out/report.json";
+    let observed = question(first, "judge_observed").expect("the run was judged");
+    let over_run = (first["questions"].as_array().into_iter().flatten())
+        .find(|q| {
+            (q["question"].as_str()).is_some_and(|id| id.starts_with("verify-observed-point-"))
+        })
+        .expect("the named part was localized over the run");
+    assert_eq!(over_run["clause"]["text"], write, "{first:#}");
+    let k = (over_run["question"].as_str()).and_then(|id| id.rsplit('-').next());
+    assert_eq!(observed["choice"], json!(k.map(|k| format!("part-{k}"))));
+    assert_eq!(over_run["choice"], "no_fit");
+    assert_eq!(first["defects"], json!([]), "{first:#}");
+    assert_eq!(
+        first["unsettled"],
+        json!(["the judge named a part in the trial run, then no offer fitting it"]),
+        "{first:#}"
+    );
 }
 
 /// An offer the catalogue cannot resolve cannot be examined: the judge's `no_fit` decides
