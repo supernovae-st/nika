@@ -667,16 +667,18 @@ fn a_ninth_child_edge_is_refused_before_the_leaf_writes() {
 /// The root's `timeout:` destroys a leaf process eight levels down: the call
 /// fails with `NIKA-TIMEOUT-001` within its bound, no level completes, and the
 /// running leaf's delayed write never lands, observed a full leaf delay after the
-/// run returned. The fixture timings give the eight-level descent real headroom on
-/// a slow runner (the leaf must be running before the root bound fires; a Linux debug
-/// runner did not reach it within 10 s) and keep the leaf sleeping past that bound;
-/// they are not runtime defaults.
+/// run returned. The leaf's writes are granted as the `out/` directory at every level: a
+/// Linux jail binds only paths that exist, so an exact grant for a file not written yet binds
+/// nothing there (macOS Seatbelt filters paths instead). The fixture timings give the
+/// eight-level descent headroom on a slow runner (the leaf must be running before the root
+/// bound fires) and keep the leaf sleeping past that bound; they are not runtime defaults.
 #[test]
 fn a_root_timeout_destroys_a_pending_leaf_eight_levels_down() {
     const ROOT_TIMEOUT_S: u64 = 30;
     const LEAF_DELAY_S: u64 = 45;
     let dir = tmp_dir("comp-deep-timeout");
-    let permits = "permits:\n  exec: [\"sh\"]\n  fs: { read: [\"./late.sh\"], write: [\"./out/started.txt\", \"./out/late.txt\"] }\n";
+    let permits =
+        "permits:\n  exec: [\"sh\"]\n  fs: { read: [\"./late.sh\"], write: [\"./out/**\"] }\n";
     std::fs::create_dir_all(dir.join("out")).expect("out dir");
     write_fixture(
         &dir,
