@@ -212,7 +212,7 @@ fn bound_subtree_admits(glob: &str, path: &str) -> bool {
 /// Whether one path SEGMENT matches one glob segment. `*` matches any run of
 /// characters, and — the load-bearing part — never a `/`, because a segment
 /// by construction contains none.
-fn segment_matches(pat: &str, seg: &str) -> bool {
+pub(crate) fn segment_matches(pat: &str, seg: &str) -> bool {
     match pat.split_once('*') {
         None => pat == seg,
         Some((pre, post)) => {
@@ -242,7 +242,7 @@ fn walk(pats: &[&str], segs: &[&str]) -> bool {
 }
 
 /// Split on `/`, dropping empties so `a//b` and `a/b` segment identically.
-fn segments(s: &str) -> Vec<&str> {
+pub(crate) fn segments(s: &str) -> Vec<&str> {
     s.split('/')
         .filter(|p| !p.is_empty() && *p != ".")
         .collect()

@@ -189,13 +189,37 @@ impl Permits {
     /// (`No < Programs(A∪B) < Any`).
     #[must_use] pub fn union(&self, other: &Self) -> Self;
 
-    /// The tightest boundary that admits only what BOTH operands admit
-    /// (meet). Component-wise list intersection for `fs`/`net`/`tools`;
-    /// `exec` takes the less-permissive of the two (`No` absorbs;
-    /// `Programs(A) ∩ Programs(B)`; `Any ∩ X = X`).
+    /// A boundary that admits only what BOTH operands admit (meet). For the
+    /// glob planes (`fs.read` · `fs.write` · `net.http` · `tools`) it keeps
+    /// every pattern of either side that a pattern of the other side
+    /// contains, at the narrower spelling; `env` and `exec` programs meet
+    /// by exact name; `exec` takes the less-permissive of the two (`No`
+    /// absorbs; `Programs(A) ∩ Programs(B)`; `Any ∩ X = X`).
     #[must_use] pub fn intersect(&self, other: &Self) -> Self;
 }
 ```
+
+**Containment (`subsume.rs`).** Each glob plane decides « every value the
+narrow pattern admits is admitted by the wide one » in the reading of the
+matcher it is enforced with: path globs as `glob_admits` walks them after
+`lexically_normalize` (`./` and `//` folded, byte case, `*` within one
+segment, `**` across any depth), hosts as `host_glob_matches` (ASCII case
+folded, a leading `*.` subdomain wildcard), tool ids as `glob_matches` (a
+trailing `*` stopping at a `:`/`/` boundary). A path pattern that leaves the
+workspace (`path_leaves_workspace`: absolute, `~`/`$HOME`-anchored, climbing)
+or names any `..` segment meets by exact spelling only: the run resolves it
+against the host, the operator home or a symlink, which no lexical
+comparison sees. Two patterns that overlap without either containing the
+other (`*.csv` · `report*`) still meet to nothing.
+
+The result is a sound under-approximation (`intersect(a,b).allows(x)` ⟹
+`a.allows(x) && b.allows(x)`) and order-independent as a set: `nika-check`'s
+composition lane meets parent ∩ child-declared and `nika-service-execution`'s
+child runner meets child ∩ parent, and both admit the same values. The run
+then judges each kept grant by its own path identity (NEP-0009): a kept
+narrower literal absorbs symlinked ancestors, including one at the root of
+the wider grant it was kept under, which that wider grant's own identity
+holds lexical.
 
 **Why ship these now with no wired caller** (FCI-001 "kernel traits
 upfront, implementations deferred" spirit — already this codebase's own
@@ -466,7 +490,7 @@ parameterized over the 5 predicate closures.
 | `prop_trailing_star_matches_prefix_only` | `"<prefix>*"` matches iff `candidate.starts_with(prefix)` |
 | `prop_widening_is_monotone` | appending an arbitrary extra entry to any glob list never revokes a previously-allowed atom — ⊆-monotonicity |
 | `prop_union_is_the_join` | `union(p1,p2).allows(a) == p1.allows(a) OR p2.allows(a)`, across all 5 predicates |
-| `prop_intersect_is_the_meet` | `intersect(p1,p2).allows(a) == p1.allows(a) AND p2.allows(a)`, dual law |
+| `prop_intersect_is_the_meet` | `intersect(p1,p2).allows(a)` ⟹ `p1.allows(a) AND p2.allows(a)` (sound; incomparable globs meet to nothing), order-independent, and a workspace literal one side admits through the other side's glob survives it |
 | `prop_union_intersect_algebraic_sanity` | commutativity + idempotence for both operations |
 
 ### 8.3 Explicitly deferred from property-testing (kept as example tests only)
@@ -515,6 +539,7 @@ should be a single pass given the crate's size (~490 LOC).
 | Date | Author | Change |
 |---|---|---|
 | 2026-07-03 | Gate 1 (architect pass) | Initial spec. Extraction scope locked: the 4 permits DTOs + the pure fits predicate + the NEW union/intersect lattice. AST-coupled escapes diagnostics stay in `nika-schema`. Runtime enforcement untouched. Zero NIKA-CAP codes (infallible algebra). Non-breaking migration via same-path re-export. |
+| 2026-10-09 | composition grant | `intersect` keeps a glob-plane pattern the other side contains (`subsume.rs`) instead of comparing spellings, so a child literal inside its parent's glob composes (`NIKA-COMP-002` false refusal) at check and at run alike. Workspace-leaving and `..` path patterns keep the exact-spelling meet. Public surface unchanged. |
 
 🦋
 

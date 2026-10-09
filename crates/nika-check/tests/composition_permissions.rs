@@ -108,8 +108,12 @@ fn a_missing_category_does_not_claim_that_the_whole_block_is_empty() {
     assert!(!detail.contains("absent"), "{detail}");
 }
 
+/// Each child grant sits inside the parent's: `nika:read` under `nika:*`,
+/// `./data/item.txt` under `./data/**`, `api.example.com` under
+/// `*.example.com`. The meet keeps the narrower grant, so these compose
+/// (they were refused while the meet compared spellings).
 #[test]
-fn two_individually_admitting_patterns_still_fail_the_conservative_meet() {
+fn two_individually_admitting_patterns_compose_through_the_meet() {
     let cases = [
         (
             "{ tools: ['nika:*'], fs: { read: ['./data/item.txt'] } }",
@@ -129,18 +133,132 @@ fn two_individually_admitting_patterns_still_fail_the_conservative_meet() {
     ];
     for (parent, child, action) in cases {
         let report = composed(Some(parent), Some(child), action);
-        let detail = refusal(&report);
-        assert!(detail.contains("conservative"), "{detail}");
-        assert!(
-            detail.contains(PARENT) && detail.contains(CHILD),
-            "{detail}"
-        );
+        assert!(report.composition.is_empty(), "{:?}", report.composition);
         assert!(
             composed(Some(child), Some(child), action)
                 .composition
                 .is_empty()
         );
     }
+}
+
+/// `./data/*.txt` and `./data/item*` both admit `./data/item.txt` and
+/// neither contains the other: the meet stays empty and the refusal keeps
+/// its conservative wording, naming both files.
+#[test]
+fn two_incomparable_patterns_still_fail_the_conservative_meet() {
+    let report = composed(
+        Some(&read_grant("./data/*.txt")),
+        Some(&read_grant("./data/item*")),
+        &read_of("./data/item.txt"),
+    );
+    let detail = refusal(&report);
+    assert!(detail.contains("conservative"), "{detail}");
+    assert!(
+        detail.contains(PARENT) && detail.contains(CHILD),
+        "{detail}"
+    );
+}
+
+// ─── a child grant inside the parent's glob composes (spec 14 laws 3/4) ───
+
+const SHELL: &str = "./references/preview-shell.html";
+
+fn read_grant(glob: &str) -> String {
+    format!("{{ tools: ['nika:read'], fs: {{ read: ['{glob}'] }} }}")
+}
+
+fn read_of(path: &str) -> String {
+    format!("invoke: {{ tool: 'nika:read', args: {{ path: '{path}' }} }}")
+}
+
+/// Today's refusal when the parent does not admit a read the child grants.
+fn parent_refusal(need: &str) -> String {
+    format!(
+        "child body needs fs read `{need}`; parent boundary in `{PARENT}` \
+         (`permits:` declared) does not admit it; add the intended grant in \
+         that file (spec 14 laws 3/4)"
+    )
+}
+
+fn finding_codes(report: &CheckReport) -> Vec<Option<String>> {
+    report.findings.iter().map(|f| f.code.clone()).collect()
+}
+
+/// The reported journey: the parent grants `./references/**` and the child
+/// declares and reads exactly one file in it. That honest grant now checks
+/// exactly as the workaround did (repeating the parent's glob in the child).
+#[test]
+fn a_literal_inside_the_parent_glob_composes_like_the_repeated_glob() {
+    let parent = read_grant("./references/**");
+    let honest = composed(Some(&parent), Some(&read_grant(SHELL)), &read_of(SHELL));
+    let repeated = composed(Some(&parent), Some(&parent), &read_of(SHELL));
+    assert!(honest.composition.is_empty(), "{:?}", honest.composition);
+    assert!(
+        repeated.composition.is_empty(),
+        "{:?}",
+        repeated.composition
+    );
+    assert_eq!(finding_codes(&honest), finding_codes(&repeated));
+}
+
+#[test]
+fn a_literal_outside_the_parent_glob_keeps_todays_refusal() {
+    let parent = read_grant("./references/**");
+    let inside = composed(Some(&parent), Some(&read_grant(SHELL)), &read_of(SHELL));
+    assert!(inside.composition.is_empty(), "{:?}", inside.composition);
+    let outside = "./other/x.html";
+    let report = composed(Some(&parent), Some(&read_grant(outside)), &read_of(outside));
+    assert_eq!(refusal(&report), parent_refusal(outside));
+}
+
+/// A narrower child glob composes; a wider one (`./**`) is cut to the
+/// parent's tree: a read inside it composes, a read outside it is refused.
+#[test]
+fn a_narrower_glob_composes_and_a_wider_child_glob_stays_capped() {
+    let parent = read_grant("./references/**");
+    let nested = composed(
+        Some(&parent),
+        Some(&read_grant("./references/html/**")),
+        &read_of("./references/html/a.html"),
+    );
+    assert!(nested.composition.is_empty(), "{:?}", nested.composition);
+    let wide = read_grant("./**");
+    let within = composed(Some(&parent), Some(&wide), &read_of(SHELL));
+    assert!(within.composition.is_empty(), "{:?}", within.composition);
+    let outside = "./other/x.html";
+    let report = composed(Some(&parent), Some(&wide), &read_of(outside));
+    assert_eq!(refusal(&report), parent_refusal(outside));
+}
+
+/// Containment reads paths as the matcher does: the `./` spelling folds,
+/// case does not, and a grant naming `..` keeps the spelling-only meet with
+/// today's conservative refusal. Reads that leave the workspace (`..`
+/// escapes · absolute paths) infer no need here at all; their refusal stays
+/// the meet's and the run's (`nika-cap` · `NIKA-SEC-004`).
+#[test]
+fn dot_spelling_case_and_climbs_follow_the_matcher() {
+    let spelled = composed(
+        Some(&read_grant("references/**")),
+        Some(&read_grant(SHELL)),
+        &read_of(SHELL),
+    );
+    assert!(spelled.composition.is_empty(), "{:?}", spelled.composition);
+    let parent = read_grant("./references/**");
+    let upper = "./References/x.html";
+    let report = composed(Some(&parent), Some(&read_grant(upper)), &read_of(upper));
+    assert_eq!(refusal(&report), parent_refusal(upper));
+    let climbing = composed(
+        Some(&parent),
+        Some(&read_grant("./references/../references/x.html")),
+        &read_of("./references/x.html"),
+    );
+    let detail = refusal(&climbing);
+    assert!(detail.contains("conservative"), "{detail}");
+    assert!(
+        detail.contains(PARENT) && detail.contains(CHILD),
+        "{detail}"
+    );
 }
 
 #[test]
