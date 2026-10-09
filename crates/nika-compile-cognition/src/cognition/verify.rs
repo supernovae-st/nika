@@ -48,12 +48,12 @@ pub(crate) const WHOLE_QUESTIONS: usize = 2;
 mod faithful;
 mod grounding;
 mod held;
-use faithful::{Pointed, whole};
+use faithful::{Pointed, told, whole};
 use grounding::grounding;
 use held::held_text;
 pub(super) use held::{HELD_TARGET, held, kept, preserve_unjudged, withdrawn};
 use nika_compile_clauses::parts::{parts, restricts};
-use nika_compile_seats::judge::{authoring, over_document, state};
+use nika_compile_seats::judge::{Construction, authoring, over_document, state};
 use nika_compile_seats::repairs::carry_declined;
 
 /// Who judges a candidate: a decision seat the caller permits (its calls and usage are its own,
@@ -626,7 +626,7 @@ fn context(base: &Value) -> String {
     if let Some(state) = shown.as_object_mut() {
         state.remove("candidate_nika");
     }
-    shown["contract"] = json!(faithful::told(base, "", WHOLE));
+    shown["contract"] = json!(told(base, "", &Construction::shown(base, WHOLE).1));
     knowledge::sha256(&shown.to_string())
 }
 

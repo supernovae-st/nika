@@ -3,7 +3,7 @@
 
 //! The whole request against the candidate (R4 A11, R5 R6 and A1). The whole-request verdict is
 //! the READY gate: « faithful » carries the request; a call that returns no admitted choice
-//! judges nothing and stays unknown.
+//! judges nothing and stays unknown; it is told what the bytes hold ([`Construction::shown`]).
 //!
 //! Any other answer declines these bytes: they are never asked of the same judge again (R6),
 //! and it is not yet a defect. Each part of the request is asked alone, as evidence and never as
@@ -209,8 +209,9 @@ pub(super) async fn whole<P: ProviderInferDyn>(
             "something the request asks is missing, extra or different",
         ),
     ];
-    let instructions = told(base, reference, WHOLE);
-    let question = ChoiceQuestion::new("verify-request", instructions, base.clone(), options);
+    let (state, instructions) = Construction::shown(base, WHOLE);
+    let instructions = told(base, reference, &instructions);
+    let question = ChoiceQuestion::new("verify-request", instructions, state, options);
     let carried = |question: &str| {
         Judgment::new(
             intent,
@@ -455,9 +456,8 @@ fn part_question<P: ProviderInferDyn>(
     } else {
         format!("{CLAUSE} {PART}")
     };
-    let mut state = asked.base.clone();
+    let (mut state, instructions) = Construction::shown(asked.base, &instructions);
     state["clause"] = json!({"text": part.text});
-    let instructions = Construction::of(asked.base).holding(&mut state, instructions);
     let instructions = told(asked.base, asked.reference, &instructions);
     ChoiceQuestion::new(format!("verify-part-{k}"), instructions, state, options)
 }
@@ -685,9 +685,8 @@ fn observed_question<P: ProviderInferDyn>(
     if part.restricting {
         instructions = format!("{instructions} {RESTRICTING}");
     }
-    let mut judged = state.clone();
+    let (mut judged, instructions) = Construction::shown(state, &instructions);
     judged["clause"] = json!({"text": part.text});
-    let instructions = Construction::of(asked.base).holding(&mut judged, instructions);
     let instructions = told(asked.base, asked.reference, &instructions);
     let id = format!("verify-observed-part-{k}");
     Some(ChoiceQuestion::new(id, instructions, judged, options))

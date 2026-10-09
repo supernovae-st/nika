@@ -127,10 +127,12 @@ as an external consumer.
   that clause's own alternative stand when every offer was examinable; `Construed::Undecided`
   keeps the fit unknown when an offer could not be resolved. `Construction::holding` tells
   every question that judges the bytes against a clause or the whole request, over the bytes
-  or a trial run of them, what they hold: each offered component held as admitted whose
-  contract resolves, by its place in the offer, identity, title, witness (`expanded` and
-  `invoked` said apart) and bindings, bound to the candidate's sha256 and the lent catalogue
-  (`construction`), with the construction context and what holding means. A held component can
+  or a trial run of them (the whole-request verdict included, through `Construction::shown`,
+  which also gives the contract a carried rejection binds to), what they hold: each offered
+  component held as admitted whose contract resolves, by its place in the offer, identity,
+  title, witness (`expanded` and `invoked` said apart) and bindings, bound to the candidate's
+  sha256 and the lent catalogue (`construction`), with the construction context and what
+  holding means. A held component can
   carry a clause that conditionally asks to use an admitted component, never another clause:
   every runtime operation, effect, target and constraint stays judged on what the program does.
   `Construction::localization` assembles the localization of a missing clause (each task,
