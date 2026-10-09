@@ -1454,6 +1454,187 @@ impl<T> tracing::instrument::Instrument for nika_session_change::save_run::SaveR
 impl<T> tracing::instrument::WithSubscriber for nika_session_change::save_run::SaveRun
 impl<T> typenum::type_operators::Same for nika_session_change::save_run::SaveRun
 pub type nika_session_change::save_run::SaveRun::Output = T
+pub mod nika_session_change::tools
+#[non_exhaustive] pub struct nika_session_change::tools::ToolCall
+pub nika_session_change::tools::ToolCall::arguments: serde_json::value::Value
+pub nika_session_change::tools::ToolCall::meta: core::option::Option<alloc::string::String>
+pub nika_session_change::tools::ToolCall::name: alloc::string::String
+impl nika_session_change::tools::ToolCall
+pub fn nika_session_change::tools::ToolCall::new(name: impl core::convert::Into<alloc::string::String>, arguments: serde_json::value::Value) -> Self
+pub fn nika_session_change::tools::ToolCall::with_meta(self, meta: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_session_change::tools::ToolCall
+pub fn nika_session_change::tools::ToolCall::clone(&self) -> nika_session_change::tools::ToolCall
+impl core::cmp::Eq for nika_session_change::tools::ToolCall
+impl core::cmp::PartialEq for nika_session_change::tools::ToolCall
+pub fn nika_session_change::tools::ToolCall::eq(&self, other: &nika_session_change::tools::ToolCall) -> bool
+impl core::fmt::Debug for nika_session_change::tools::ToolCall
+pub fn nika_session_change::tools::ToolCall::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_change::tools::ToolCall
+impl serde_core::ser::Serialize for nika_session_change::tools::ToolCall
+pub fn nika_session_change::tools::ToolCall::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session_change::tools::ToolCall
+pub fn nika_session_change::tools::ToolCall::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session_change::tools::ToolCall
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::tools::ToolCall where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::tools::ToolCall::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::tools::ToolCall where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::tools::ToolCall::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::tools::ToolCall where U: core::convert::From<T>
+pub fn nika_session_change::tools::ToolCall::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::tools::ToolCall where U: core::convert::Into<T>
+pub type nika_session_change::tools::ToolCall::Error = core::convert::Infallible
+pub fn nika_session_change::tools::ToolCall::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::tools::ToolCall where U: core::convert::TryFrom<T>
+pub type nika_session_change::tools::ToolCall::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::tools::ToolCall::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::tools::ToolCall where T: core::clone::Clone
+pub type nika_session_change::tools::ToolCall::Owned = T
+pub fn nika_session_change::tools::ToolCall::clone_into(&self, target: &mut T)
+pub fn nika_session_change::tools::ToolCall::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::tools::ToolCall where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::tools::ToolCall::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::tools::ToolCall where T: ?core::marker::Sized
+pub fn nika_session_change::tools::ToolCall::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::tools::ToolCall where T: ?core::marker::Sized
+pub fn nika_session_change::tools::ToolCall::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::tools::ToolCall where T: core::clone::Clone
+pub unsafe fn nika_session_change::tools::ToolCall::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::tools::ToolCall
+pub fn nika_session_change::tools::ToolCall::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::tools::ToolCall where T: core::clone::Clone
+pub fn nika_session_change::tools::ToolCall::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::tools::ToolCall where T: 'static
+pub fn nika_session_change::tools::ToolCall::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_session_change::tools::ToolCall where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::tools::ToolCall where T: ?core::marker::Sized
+pub fn nika_session_change::tools::ToolCall::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::tools::ToolCall::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::tools::ToolCall
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::tools::ToolCall
+impl<T> typenum::type_operators::Same for nika_session_change::tools::ToolCall
+pub type nika_session_change::tools::ToolCall::Output = T
+#[non_exhaustive] pub struct nika_session_change::tools::ToolDef
+pub nika_session_change::tools::ToolDef::description: alloc::string::String
+pub nika_session_change::tools::ToolDef::input_schema: serde_json::value::Value
+pub nika_session_change::tools::ToolDef::name: alloc::string::String
+pub nika_session_change::tools::ToolDef::read_only: bool
+impl nika_session_change::tools::ToolDef
+pub fn nika_session_change::tools::ToolDef::new(name: impl core::convert::Into<alloc::string::String>, description: impl core::convert::Into<alloc::string::String>, input_schema: serde_json::value::Value, read_only: bool) -> Self
+impl core::clone::Clone for nika_session_change::tools::ToolDef
+pub fn nika_session_change::tools::ToolDef::clone(&self) -> nika_session_change::tools::ToolDef
+impl core::cmp::Eq for nika_session_change::tools::ToolDef
+impl core::cmp::PartialEq for nika_session_change::tools::ToolDef
+pub fn nika_session_change::tools::ToolDef::eq(&self, other: &nika_session_change::tools::ToolDef) -> bool
+impl core::fmt::Debug for nika_session_change::tools::ToolDef
+pub fn nika_session_change::tools::ToolDef::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_change::tools::ToolDef
+impl serde_core::ser::Serialize for nika_session_change::tools::ToolDef
+pub fn nika_session_change::tools::ToolDef::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session_change::tools::ToolDef
+pub fn nika_session_change::tools::ToolDef::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session_change::tools::ToolDef
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::tools::ToolDef where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::tools::ToolDef::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::tools::ToolDef where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::tools::ToolDef::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::tools::ToolDef where U: core::convert::From<T>
+pub fn nika_session_change::tools::ToolDef::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::tools::ToolDef where U: core::convert::Into<T>
+pub type nika_session_change::tools::ToolDef::Error = core::convert::Infallible
+pub fn nika_session_change::tools::ToolDef::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::tools::ToolDef where U: core::convert::TryFrom<T>
+pub type nika_session_change::tools::ToolDef::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::tools::ToolDef::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::tools::ToolDef where T: core::clone::Clone
+pub type nika_session_change::tools::ToolDef::Owned = T
+pub fn nika_session_change::tools::ToolDef::clone_into(&self, target: &mut T)
+pub fn nika_session_change::tools::ToolDef::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::tools::ToolDef where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::tools::ToolDef::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::tools::ToolDef where T: ?core::marker::Sized
+pub fn nika_session_change::tools::ToolDef::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::tools::ToolDef where T: ?core::marker::Sized
+pub fn nika_session_change::tools::ToolDef::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::tools::ToolDef where T: core::clone::Clone
+pub unsafe fn nika_session_change::tools::ToolDef::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::tools::ToolDef
+pub fn nika_session_change::tools::ToolDef::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::tools::ToolDef where T: core::clone::Clone
+pub fn nika_session_change::tools::ToolDef::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::tools::ToolDef where T: 'static
+pub fn nika_session_change::tools::ToolDef::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_session_change::tools::ToolDef where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::tools::ToolDef where T: ?core::marker::Sized
+pub fn nika_session_change::tools::ToolDef::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::tools::ToolDef::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::tools::ToolDef
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::tools::ToolDef
+impl<T> typenum::type_operators::Same for nika_session_change::tools::ToolDef
+pub type nika_session_change::tools::ToolDef::Output = T
+#[non_exhaustive] pub struct nika_session_change::tools::ToolReply
+pub nika_session_change::tools::ToolReply::ends_turn: bool
+pub nika_session_change::tools::ToolReply::is_error: bool
+pub nika_session_change::tools::ToolReply::text: alloc::string::String
+impl nika_session_change::tools::ToolReply
+pub fn nika_session_change::tools::ToolReply::ends_turn(text: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_session_change::tools::ToolReply::error(text: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_session_change::tools::ToolReply::ok(text: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_session_change::tools::ToolReply
+pub fn nika_session_change::tools::ToolReply::clone(&self) -> nika_session_change::tools::ToolReply
+impl core::cmp::Eq for nika_session_change::tools::ToolReply
+impl core::cmp::PartialEq for nika_session_change::tools::ToolReply
+pub fn nika_session_change::tools::ToolReply::eq(&self, other: &nika_session_change::tools::ToolReply) -> bool
+impl core::fmt::Debug for nika_session_change::tools::ToolReply
+pub fn nika_session_change::tools::ToolReply::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_change::tools::ToolReply
+impl serde_core::ser::Serialize for nika_session_change::tools::ToolReply
+pub fn nika_session_change::tools::ToolReply::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session_change::tools::ToolReply
+pub fn nika_session_change::tools::ToolReply::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session_change::tools::ToolReply
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::tools::ToolReply where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::tools::ToolReply::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::tools::ToolReply where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::tools::ToolReply::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::tools::ToolReply where U: core::convert::From<T>
+pub fn nika_session_change::tools::ToolReply::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::tools::ToolReply where U: core::convert::Into<T>
+pub type nika_session_change::tools::ToolReply::Error = core::convert::Infallible
+pub fn nika_session_change::tools::ToolReply::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::tools::ToolReply where U: core::convert::TryFrom<T>
+pub type nika_session_change::tools::ToolReply::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::tools::ToolReply::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::tools::ToolReply where T: core::clone::Clone
+pub type nika_session_change::tools::ToolReply::Owned = T
+pub fn nika_session_change::tools::ToolReply::clone_into(&self, target: &mut T)
+pub fn nika_session_change::tools::ToolReply::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::tools::ToolReply where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::tools::ToolReply::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::tools::ToolReply where T: ?core::marker::Sized
+pub fn nika_session_change::tools::ToolReply::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::tools::ToolReply where T: ?core::marker::Sized
+pub fn nika_session_change::tools::ToolReply::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::tools::ToolReply where T: core::clone::Clone
+pub unsafe fn nika_session_change::tools::ToolReply::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::tools::ToolReply
+pub fn nika_session_change::tools::ToolReply::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::tools::ToolReply where T: core::clone::Clone
+pub fn nika_session_change::tools::ToolReply::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::tools::ToolReply where T: 'static
+pub fn nika_session_change::tools::ToolReply::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_session_change::tools::ToolReply where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::tools::ToolReply where T: ?core::marker::Sized
+pub fn nika_session_change::tools::ToolReply::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::tools::ToolReply::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::tools::ToolReply
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::tools::ToolReply
+impl<T> typenum::type_operators::Same for nika_session_change::tools::ToolReply
+pub type nika_session_change::tools::ToolReply::Output = T
+pub const nika_session_change::tools::CONTRACT: &str
+pub const nika_session_change::tools::NAMES: [&str; 17]
+pub trait nika_session_change::tools::SessionTools: core::marker::Send + core::marker::Sync
+pub fn nika_session_change::tools::SessionTools::call(&self, call: nika_session_change::tools::ToolCall) -> nika_session_change::tools::ToolReply
+pub fn nika_session_change::tools::SessionTools::tools(&self) -> alloc::vec::Vec<nika_session_change::tools::ToolDef>
 pub mod nika_session_change::work
 #[non_exhaustive] pub enum nika_session_change::work::AnswerAct
 pub nika_session_change::work::AnswerAct::Bound

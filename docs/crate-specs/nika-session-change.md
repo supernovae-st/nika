@@ -110,6 +110,16 @@ Two typed readings joined these modules on 2026-10-08, so every host reads the s
   a revision over a base (`operations` or `replaced`), each component witnessed on those bytes.
   `RunEnd` is the one reading of the run door's exit codes. It grants nothing: consents,
   answers and runs still go through the session's own doors.
+- **`tools`** — the tools a session serves to the intelligence that leads its conversation
+  (`CONTRACT` = `nika/author-tools@0`), typed once for Nika's own agent loop and for an ACP
+  agent's loop reaching them over MCP (`nika-mcp`'s conversation tool server). `NAMES` fixes
+  the 17 tool names, each a lowercase word an MCP client mounts unchanged (`mcp__nika__<name>`).
+  `SessionTools` is the one trait: `tools()` lists the `ToolDef`s (name, description, argument
+  JSON Schema, read-only), `call(ToolCall)` runs one call (name, arguments as sent, `meta` = the
+  caller's tool-use id when known) on the caller's thread and answers a `ToolReply` (text,
+  `is_error`, `ends_turn`: Nika's loop parks its run on it; MCP returns the text). The session
+  implements it against its own state; a loop or a transport only lists and relays, and no reply
+  grants anything. The Session writer owns the contract's evolution.
 
 ## 3. Boundary
 
