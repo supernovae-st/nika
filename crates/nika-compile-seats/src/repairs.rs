@@ -99,7 +99,7 @@ pub fn gaps_after_refusal(
 const NO_PROGRESS: &str = "No candidate passed the checks: the last repair named only findings already named, so the rounds stopped on no progress, not on a repair budget. The original request, candidates and diagnostics are retained. No workflow was emitted. Inspect the repeated diagnostic before another attempt.";
 
 /// The conclusion of rounds a failed authoring call ended.
-const CALL_FAILED: &str = "No candidate passed the checks: the authoring call failed after a candidate was judged (its receipt states why), not on a repair budget. The original request, candidates and diagnostics are retained. No workflow was emitted.";
+const CALL_FAILED: &str = "No candidate passed the checks: the authoring call failed (its receipt states why), not on a repair budget. The original request, candidates and diagnostics are retained. No workflow was emitted.";
 
 /// The conclusion of rounds an answer the door could not read or represent ended.
 const UNREAD: &str = "No candidate passed the checks: the seat's last answer could not be read or represented (the finding before this one says why), not on a repair budget. The original request, candidates and diagnostics are retained. No workflow was emitted.";
@@ -107,8 +107,9 @@ const UNREAD: &str = "No candidate passed the checks: the seat's last answer cou
 /// The conclusion of rounds that reached the repair limit the policy states.
 const EXHAUSTED: &str = "No candidate passed the checks within the repair budget; the original request, candidates and diagnostics are retained. No workflow was emitted. Inspect the last diagnostic before another bounded attempt.";
 
-/// Why a native authoring talk that judged a candidate ended with none accepted, read from what
-/// it recorded: the route step it adds (none when its route already ends on the cause) and the
+/// Why a native authoring talk that judged a candidate, or refused an ask, ended with none
+/// accepted, read from what it recorded: the route step it adds (none when its route already
+/// ends on the cause) and the
 /// conclusion stated. Its route ending on no progress (the last repair named only findings
 /// already named), its last round a failed call or an answer it could not read or represent;
 /// else the rounds reached the repair limit the policy states. No count bounds them by default,

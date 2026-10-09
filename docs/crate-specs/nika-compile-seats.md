@@ -139,7 +139,8 @@ as an external consumer.
   dropped) and `gaps_after_refusal` (each gap a repair round's answer declares for the first
   time after a refusal, told back as a finding that carries the refusal it followed, whose
   findings name the remedies the engine supports; the caller tells them once, then accepts);
-  and `stopped`, why a native authoring talk that judged a candidate ended with none accepted,
+  and `stopped`, why a native authoring talk that judged a candidate, or refused an ask, ended
+  with none accepted,
   read from its route and its last round as the route step it adds and the conclusion stated:
   no progress (the route already ends on it), a failed call (`native: call failed`), an answer
   it could not read or represent (`native: answer unread`), else the repair limit the policy
