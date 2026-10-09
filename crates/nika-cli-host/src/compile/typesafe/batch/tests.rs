@@ -736,7 +736,7 @@ fn an_id_asked_twice_stays_unsent_across_halves() {
 /// unasked, a malformed 200 fails its own half alone, and a half left without a response is
 /// unknown.
 #[test]
-fn a_halfs_partial_or_failed_reply_fails_only_its_items_and_is_never_resent() {
+fn a_partial_or_failed_reply_to_a_half_fails_only_its_items_and_is_never_resent() {
     let questions = qualification(6);
     let partial = reply(
         &format!(
