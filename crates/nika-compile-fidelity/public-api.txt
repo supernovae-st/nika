@@ -2523,6 +2523,8 @@ pub type nika_compile_fidelity::fidelity::Diagnostic::Output = T
 pub const nika_compile_fidelity::fidelity::SOURCE_PATHS: &str
 pub fn nika_compile_fidelity::fidelity::allowed_values(answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_fidelity::fidelity::approvals(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
+pub fn nika_compile_fidelity::fidelity::asked_names(intent: &str, doc: &serde_json::value::Value, asked: &[serde_json::value::Value]) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_fidelity::fidelity::asked_readings(intent: &str, doc: core::option::Option<&serde_json::value::Value>, asked: &[serde_json::value::Value], key: &str) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn nika_compile_fidelity::fidelity::clarified_sources(answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_fidelity::fidelity::covers(entry: &str, path: &str) -> bool
 pub fn nika_compile_fidelity::fidelity::depends_on(doc: &serde_json::value::Value, task: &str, roots: &[alloc::string::String]) -> bool
@@ -2666,6 +2668,7 @@ pub fn nika_compile_fidelity::grounding::seen_in(world: core::option::Option<&se
 pub mod nika_compile_fidelity::literal
 pub mod nika_compile_fidelity::literal::answered
 pub fn nika_compile_fidelity::literal::answered::grant_host(after: &mut serde_json::value::Value, slug: &str, value: &serde_json::value::Value) -> bool
+pub fn nika_compile_fidelity::literal::answered::grant_paths(after: &mut serde_json::value::Value, side: &str, keys: &[&str], introduced: &[alloc::string::String]) -> bool
 pub fn nika_compile_fidelity::literal::fill_slot(node: &mut serde_json::value::Value, answer: serde_json::value::Value) -> bool
 pub fn nika_compile_fidelity::literal::has_expression(value: &serde_json::value::Value) -> bool
 pub fn nika_compile_fidelity::literal::inexact_integer(json: &str) -> core::option::Option<&str>

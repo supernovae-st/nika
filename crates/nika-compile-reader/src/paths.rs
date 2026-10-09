@@ -101,6 +101,33 @@ pub fn single_file(text: &str) -> Option<String> {
     }
 }
 
+/// The open names of a phrase: each unquoted spaced name holding a path whose first word the
+/// reader cannot settle (`un payload out/notification.json`), in order. A dynamic template
+/// (`<slug>`, `{name}`, `$x`) is not one; it stays for the typed answer door.
+#[must_use]
+pub fn open_names(text: &str) -> Vec<String> {
+    (literals(text).into_iter())
+        .filter_map(|shape| match shape {
+            PathShape::Placeholder(name)
+                if name.contains('/') && !name.contains(['<', '>', '{', '}', '$']) =>
+            {
+                Some(name)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The files an open name may name, longest first: the name from each of its words on, down to
+/// its path alone. Each is a start the reader left open, never another word or a shortened path.
+#[must_use]
+pub fn readings(name: &str) -> Vec<String> {
+    let words: Vec<&str> = name.split(' ').collect();
+    (0..words.len())
+        .map(|from| words[from..].join(" "))
+        .collect()
+}
+
 /// One literal read as a path, or nothing when it is prose. A word is the common case;
 /// a whole string with spaces (an answer, a quoted span) is one literal only when quoted,
 /// or when it can only be a file's name.
@@ -923,5 +950,42 @@ mod tests {
                 literals(text)
             );
         }
+    }
+
+    /// An open name is the reader's own unquoted spaced placeholder holding a path; its readings
+    /// are the starts the reader left open, longest first, ending on the path alone. A quoted
+    /// name, an exact path, a spaced name without a path and a dynamic template are not open.
+    #[test]
+    fn an_open_name_reads_from_each_start_the_reader_left_open() {
+        let stock = "Une fois la source complète, prépare exactement un payload \
+                     out/notification.json contenant channel, puis effectue un POST. Écris \
+                     out/report.json.";
+        assert_eq!(open_names(stock), ["payload out/notification.json"]);
+        assert_eq!(
+            readings("payload out/notification.json"),
+            ["payload out/notification.json", "out/notification.json"]
+        );
+        let two = "Copy the file project notes/input.json to team draft notes/output.json";
+        assert_eq!(
+            open_names(two),
+            ["project notes/input.json", "team draft notes/output.json"]
+        );
+        assert_eq!(
+            readings("team draft notes/output.json"),
+            [
+                "team draft notes/output.json",
+                "draft notes/output.json",
+                "notes/output.json"
+            ]
+        );
+        for closed in [
+            "Prépare exactement un « payload out/notification.json ».",
+            "Écris out/report.json puis lis ./in/a.json.",
+            "Read the file budget 2026.csv",
+            "Read the file draft ./catalog/<slug>.md",
+        ] {
+            assert!(open_names(closed).is_empty(), "{closed}");
+        }
+        assert_eq!(readings("out/report.json"), ["out/report.json"]);
     }
 }

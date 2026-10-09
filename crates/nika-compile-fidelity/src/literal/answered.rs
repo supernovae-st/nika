@@ -1,10 +1,41 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Pure permit projection for an answered literal endpoint. The compile core still selects
-//! the answer, proves its literal replacement, emits source and runs Check; no effect occurs here.
+//! Pure permit projection for an answered literal endpoint or path. The compile core still
+//! selects the answer, proves its literal replacement, emits source and runs Check; no effect
+//! occurs here.
 
 use serde_json::{Value, json};
+
+/// Complete the one empty entry (`""`) a seat left on one side of `permits.fs` (`read` ·
+/// `write`) while a path was asked, in place: the capability inference's `introduced` paths on
+/// that side, each the answer of one of the questions `keys` (its constant), in the keys' order.
+/// Every other entry is kept. No empty entry or two, or an introduced path no question answered,
+/// grants nothing.
+pub fn grant_paths(after: &mut Value, side: &str, keys: &[&str], introduced: &[String]) -> bool {
+    let mut answered: Vec<String> = Vec::new();
+    for slug in keys.iter().filter_map(|key| key.strip_prefix("const.")) {
+        let path = after["const"][slug]
+            .as_str()
+            .filter(|path| introduced.iter().any(|p| p == path));
+        if let Some(path) = path.filter(|path| !answered.iter().any(|p| p == path)) {
+            answered.push(path.to_owned());
+        }
+    }
+    let list = after.pointer_mut(&format!("/permits/fs/{side}"));
+    let whole = !answered.is_empty() && answered.len() == introduced.len();
+    let Some(list) = list.and_then(Value::as_array_mut).filter(|_| whole) else {
+        return false;
+    };
+    let mut blanks = (list.iter().enumerate()).filter(|(_, entry)| entry.as_str() == Some(""));
+    let (Some((at, _)), None) = (blanks.next(), blanks.next()) else {
+        return false;
+    };
+    let rest = list.split_off(at);
+    list.extend(answered.into_iter().map(Value::String));
+    list.extend(rest.into_iter().skip(1));
+    true
+}
 
 /// Add the host of an answered URL to `permits.net.http` when a `nika:fetch` url or a
 /// `nika:notify` target reads exactly that answer (`${{ const.<slug> }}`): an absent list and its
@@ -70,6 +101,76 @@ fn host_of(url: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A candidate whose asked `const.payload_path` was answered `out/notification.json` and whose
+    /// `const.note` was answered `./secret.txt`, its write side `write`, its read side stated.
+    fn answered(write: &Value) -> Value {
+        json!({"const": {"payload_path": "out/notification.json", "note": "./secret.txt"},
+            "permits": {"fs": {"read": ["world/source.json"], "write": write}}})
+    }
+
+    /// The inferred path an answered question supplies completes its side's one empty entry in
+    /// place, every other entry kept, the other side untouched. No empty entry or two, no path
+    /// introduced, or an introduced path no question answered grants nothing and changes nothing.
+    #[test]
+    fn an_answered_path_completes_its_sides_one_empty_entry_in_place() {
+        let keys = ["const.payload_path", "const.note"];
+        let introduced = ["out/notification.json".to_owned()];
+        for (before, after) in [
+            (
+                json!(["out/report.json", ""]),
+                json!(["out/report.json", "out/notification.json"]),
+            ),
+            (
+                json!(["", "out/report.json"]),
+                json!(["out/notification.json", "out/report.json"]),
+            ),
+            (json!([""]), json!(["out/notification.json"])),
+        ] {
+            let mut doc = answered(&before);
+            assert!(
+                grant_paths(&mut doc, "write", &keys, &introduced),
+                "{before}"
+            );
+            assert_eq!(doc["permits"]["fs"]["write"], after, "{before}");
+            assert_eq!(doc["permits"]["fs"]["read"], json!(["world/source.json"]));
+        }
+        let mut doc = answered(&json!(["out/report.json", ""]));
+        assert!(!grant_paths(&mut doc, "read", &keys, &introduced));
+        let unanswered = [
+            "out/notification.json".to_owned(),
+            "out/other.json".to_owned(),
+        ];
+        for (write, introduced) in [
+            (json!(["", ""]), &introduced[..]),
+            (json!(["out/report.json"]), &introduced[..]),
+            (json!(["out/report.json", ""]), &[][..]),
+            (json!(["out/report.json", ""]), &unanswered[..]),
+        ] {
+            let mut doc = answered(&write);
+            assert!(
+                !grant_paths(&mut doc, "write", &keys, introduced),
+                "{write}"
+            );
+            assert_eq!(doc["permits"]["fs"]["write"], write, "{write}");
+        }
+        // Content answered by another question supplies nothing.
+        let mut doc = answered(&json!(["out/report.json", ""]));
+        assert!(!grant_paths(
+            &mut doc,
+            "write",
+            &["const.note"],
+            &introduced
+        ));
+        // Two questions answering paths on one side complete its one empty entry, in their order.
+        let both = ["out/a.json".to_owned(), "out/b.json".to_owned()];
+        let mut doc = json!({"const": {"b_path": "out/b.json", "a_path": "out/a.json"},
+            "permits": {"fs": {"write": ["out/report.json", ""]}}});
+        let order = ["const.b_path", "const.a_path"];
+        assert!(grant_paths(&mut doc, "write", &order, &both));
+        let completed = json!(["out/report.json", "out/b.json", "out/a.json"]);
+        assert_eq!(doc["permits"]["fs"]["write"], completed);
+    }
 
     #[test]
     fn an_answered_url_grants_its_host_without_its_port() {

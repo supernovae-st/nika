@@ -64,9 +64,10 @@ back on the surface.
 `doors` owns deterministic HOT admission, plan/native replay and record application.
 Record application completes a native candidate's boundary only from its answers: an
 answered endpoint's host (`permits.net.http`), and an answered bare `${{ const.<slug> }}`
-path, which replaces the seat's empty `permits.fs` placeholder (`[""]`, flow or block
-`- ""`) in the direction the capability inference derives — never a path that escapes the
-workspace, never a glob, never a direction the seat declared with any other entry.
+path, which completes the seat's one empty `permits.fs` entry (`""`, flow or block `- ""`) in
+place, beside the entries the seat stated, in the direction the capability inference derives,
+each path the answer of one of the record's questions — never a path that escapes the
+workspace, never a glob, never a side with no empty entry or two.
 A replayed HOT record receives the reader's unnamed-destination floor again (idempotent), so a
 record written before that law asks the path of the write it lacked (« … dans un fichier »).
 The assembler's `const.output_path` question stays open when the answer names no file:

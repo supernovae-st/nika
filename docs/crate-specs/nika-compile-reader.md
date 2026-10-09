@@ -510,3 +510,10 @@ reader's own vocabulary) · `text` (the shared text helpers).
   longer stated origin (`http://h.example.evil`, `http://h:8080`,
   `http://h.example@evil.example`) composes nothing. Neither does a longer or otherwise-spelt
   path (`/api/private`, `/api-v2`, `"/api+v2"`, `/api:cancel`, `"/v2+/api"`, `/Admin`).
+
+`paths` also states the names whose start it leaves open, for fidelity's law 1 and its typed
+answer. `open_names` lists each unquoted spaced placeholder holding a path, never a dynamic
+template (`un payload out/notification.json` → `payload out/notification.json`).
+`readings` lists the starts that placeholder leaves open, longest first: the whole name,
+then the name from each later word, down to the path alone (`out/notification.json`). Both
+are structural: no word decides a start, and a quoted name is one exact literal.

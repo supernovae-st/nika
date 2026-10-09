@@ -16,7 +16,10 @@ use super::{
     lexicon::{self, Reading},
     plan::Plan,
 };
-use nika_compile_fidelity::{literal::answered::grant_host, sketch::same_caller};
+use nika_compile_fidelity::{
+    literal::answered::{grant_host, grant_paths},
+    sketch::same_caller,
+};
 use serde_json::{Value, json};
 
 mod answered_paths;
@@ -607,11 +610,7 @@ fn apply_native(
         }
     }
     if !open {
-        paths = grant_answered_paths(
-            record["source"].as_str().unwrap_or_default(),
-            &mut source,
-            out,
-        );
+        paths = grant_answered_paths(record, &mut source, out);
     }
     // An unused envelope model is not a runtime requirement. Ask only when Check
     // proves language work remains, including parametric fan-out calls.
@@ -765,20 +764,23 @@ fn bake(source: &mut String, question: &Value, literal: &str, out: &mut CompileO
     }
 }
 
-/// Complete the read or write boundary a seat left as its empty placeholder (`[""]`, the
-/// one narrow shape the judge admits while a path is still asked) with the exact paths the
-/// answers introduced, as `grant_host` completes an answered endpoint. The paths are the
-/// capability inference's own (`nika check --infer-permits`), taken over the seat's source
-/// and over the answered one: only their difference, in the direction the tool uses, bound
-/// to a bare `${{ const.<slug> }}` (the inference resolves nothing else). A path that
-/// escapes the workspace is never inferred; a glob, or a direction the seat declared with
-/// any other entry, is never touched — the check then refuses the candidate, as before.
+/// Complete the read or write boundary a seat left with one empty entry (`""`, the shape the
+/// judge admits while a path is still asked) with the exact paths the answers introduced, as
+/// `grant_host` completes an answered endpoint: in place, every other entry kept ([`grant_paths`]).
+/// The paths are the capability inference's own on that side (`nika check --infer-permits`, over
+/// the seat's source and the answered one: their difference, a bare `${{ const.<slug> }}` the only
+/// form it resolves), and each must be the answer of one of the record's questions. A path that
+/// escapes the workspace is never inferred; a glob, a side with no empty entry or two, or a path no
+/// question answered is never touched — the check then refuses the candidate, as before.
 fn grant_answered_paths(
-    seat_source: &str,
+    record: &Value,
     source: &mut String,
     out: &mut CompileOutcome,
 ) -> AnsweredPaths {
-    let paths = AnsweredPaths::introduced(seat_source, source);
+    let paths = AnsweredPaths::introduced(record["source"].as_str().unwrap_or_default(), source);
+    let keys: Vec<&str> = (record["questions"].as_array().into_iter().flatten())
+        .filter_map(|question| question["key"].as_str())
+        .collect();
     for (direction, introduced) in [("read", paths.reads()), ("write", paths.writes())] {
         if introduced.is_empty() {
             continue;
@@ -786,15 +788,10 @@ fn grant_answered_paths(
         let Some(before) = crate::edit::literal_projection(source) else {
             break;
         };
-        let placeholder = before
-            .pointer(&format!("/permits/fs/{direction}"))
-            .and_then(Value::as_array)
-            .is_some_and(|list| matches!(list.as_slice(), [only] if only.as_str() == Some("")));
-        if !placeholder {
+        let mut after = before.clone();
+        if !grant_paths(&mut after, direction, &keys, introduced) {
             continue;
         }
-        let mut after = before.clone();
-        after["permits"]["fs"][direction] = json!(introduced);
         if let Some(edited) =
             crate::edit_source::emit_at(source, &before, &after, &["permits", "fs", direction])
         {
