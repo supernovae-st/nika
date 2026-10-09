@@ -2860,6 +2860,7 @@ pub mod nika_compile_seats::judge
 #[non_exhaustive] pub enum nika_compile_seats::judge::Construed
 pub nika_compile_seats::judge::Construed::Defect(alloc::string::String)
 pub nika_compile_seats::judge::Construed::Fallback
+pub nika_compile_seats::judge::Construed::Held
 pub nika_compile_seats::judge::Construed::Undecided
 impl core::clone::Clone for nika_compile_seats::judge::Construed
 pub fn nika_compile_seats::judge::Construed::clone(&self) -> nika_compile_seats::judge::Construed
@@ -2905,6 +2906,8 @@ pub type nika_compile_seats::judge::Construed::Output = T
 #[non_exhaustive] pub struct nika_compile_seats::judge::Construction
 impl nika_compile_seats::judge::Construction
 pub fn nika_compile_seats::judge::Construction::annotate(&self, record: core::option::Option<&mut serde_json::value::Value>, answer: core::option::Option<&str>)
+pub fn nika_compile_seats::judge::Construction::holding(&self, state: &mut serde_json::value::Value, instructions: alloc::string::String) -> alloc::string::String
+pub fn nika_compile_seats::judge::Construction::localization(&self, (tasks, omittable): (&[alloc::string::String], bool), state: &mut serde_json::value::Value, instructions: alloc::string::String) -> (alloc::string::String, alloc::vec::Vec<nika_compile_seats::decide::ChoiceOption>)
 pub fn nika_compile_seats::judge::Construction::of(state: &serde_json::value::Value) -> Self
 pub fn nika_compile_seats::judge::Construction::options(&self) -> alloc::vec::Vec<nika_compile_seats::decide::ChoiceOption>
 pub fn nika_compile_seats::judge::Construction::read(&self, key: &str) -> core::option::Option<nika_compile_seats::judge::Construed>

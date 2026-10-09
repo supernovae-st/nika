@@ -169,7 +169,7 @@ pub(super) enum Pointed {
     Defect(String),
     /// No offer fits and each was examinable: the clause's own alternative stands.
     Fallback,
-    /// No task fails it.
+    /// No task fails it, or a component the bytes hold carries it ([`Construed::Held`]).
     NoTask,
     /// No choice was made.
     Unsettled,
@@ -457,6 +457,7 @@ fn part_question<P: ProviderInferDyn>(
     };
     let mut state = asked.base.clone();
     state["clause"] = json!({"text": part.text});
+    let instructions = Construction::of(asked.base).holding(&mut state, instructions);
     let instructions = told(asked.base, asked.reference, &instructions);
     ChoiceQuestion::new(format!("verify-part-{k}"), instructions, state, options)
 }
@@ -481,8 +482,8 @@ pub(super) fn pointed_to(task: &str) -> String {
 /// Why a part judged missing is missing: the task that fails it, an operation of its own no
 /// task performs (never offered for a prohibition or a structure law, which ask none), an
 /// offered component the bytes do not hold or no offer fitting ([`Construction`]), or no task
-/// failing it after all. `state` is what the part was judged on (the base state, or the base
-/// and a trial run). `None` when the call got no answer: the localization stops.
+/// failing it after all (`held-<k>`: a component they hold). `state` is what the part was judged
+/// on (the base state, or the base and a trial run). `None` when the call got no answer (it stops).
 pub(super) async fn point<P: ProviderInferDyn>(
     id: &str,
     part: &str,
@@ -495,20 +496,6 @@ pub(super) async fn point<P: ProviderInferDyn>(
     let restricting = restricts(part);
     let omittable = asks_an_operation(part);
     let construction = Construction::of(state);
-    let mut options: Vec<ChoiceOption> = (tasks.iter())
-        .map(|task| ChoiceOption::new(format!("task-{task}"), format!("the task `{task}`")))
-        .collect();
-    if omittable {
-        options.push(ChoiceOption::new(
-            "omitted",
-            "the clause asks an operation of its own that no task performs",
-        ));
-    }
-    options.extend(construction.options());
-    options.push(ChoiceOption::new(
-        "no_task",
-        "no task fails it: the clause is carried as written",
-    ));
     let mut asked = state.clone();
     asked["clause"] = json!({"text": part});
     // A question over a trial run says what its observation is, as every question over it does.
@@ -523,7 +510,8 @@ pub(super) async fn point<P: ProviderInferDyn>(
     if restricting {
         instructions = format!("{instructions} {RESTRICTING}");
     }
-    let instructions = construction.told(instructions);
+    let (instructions, options) =
+        construction.localization((tasks, omittable), &mut asked, instructions);
     let question = ChoiceQuestion::new(id, told(state, reference, &instructions), asked, options);
     let returned = verdict.answers();
     let answer = ask(judge, &question, "judge_point", verdict, out).await;
@@ -539,6 +527,7 @@ pub(super) async fn point<P: ProviderInferDyn>(
         Some(key) => match construction.read(key) {
             Some(Construed::Defect(note)) => Pointed::Defect(note),
             Some(Construed::Fallback) => Pointed::Fallback,
+            Some(Construed::Held) => Pointed::NoTask,
             Some(_) => Pointed::Unsettled,
             None => named(key, tasks).map_or(Pointed::Unsettled, |t| Pointed::Task(t.to_owned())),
         },
@@ -698,6 +687,7 @@ fn observed_question<P: ProviderInferDyn>(
     }
     let mut judged = state.clone();
     judged["clause"] = json!({"text": part.text});
+    let instructions = Construction::of(asked.base).holding(&mut judged, instructions);
     let instructions = told(asked.base, asked.reference, &instructions);
     let id = format!("verify-observed-part-{k}");
     Some(ChoiceQuestion::new(id, instructions, judged, options))
