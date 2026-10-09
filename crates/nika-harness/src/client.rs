@@ -693,6 +693,9 @@ mod effort;
 /// A completion profile's required session mode, applied and read back before the prompt.
 mod mode;
 
+/// One ACP session kept open across turns (`crate::conversation`).
+pub(crate) mod conversation;
+
 /// The engine's verdict → the wire outcome. `AllowOnce` selects the
 /// agent's `allow_once` option; `allow_always` is NEVER selected even
 /// when it is the only allow (A-5 — the ask then cancels, fail-closed).

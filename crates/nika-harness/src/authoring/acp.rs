@@ -40,14 +40,17 @@ pub(crate) const MAX_ANSWER: usize = 512 * 1024;
 const NAME: &str = "@agentclientprotocol/claude-agent-acp";
 const VERSION: &str = "0.81.1";
 
-/// Which one-shot the audited profile serves. Only the words of a refusal
-/// differ: the identity, options and judgments are the same for both.
+/// Which role the audited profile serves. Only the words of a refusal differ: the identity
+/// and the admission are the same for every role; a one-shot's options and judgments are the
+/// same for both one-shots, and a conversation has its own ([`conversation_profile`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Completion {
     /// A conversational or Compiler authoring round.
     Authoring,
     /// One Run `infer:` task declared over `run.access.protocol: acp`.
     Infer,
+    /// A Session conversation the agent leads with Nika's tools (`crate::conversation`).
+    Conversation,
 }
 
 impl Completion {
@@ -56,6 +59,7 @@ impl Completion {
         match self {
             Self::Authoring => "ACP authoring",
             Self::Infer => "ACP infer",
+            Self::Conversation => "ACP conversation",
         }
     }
 }
@@ -86,6 +90,11 @@ impl Profile {
             Self::ClaudeCode => (NAME, VERSION),
             Self::Codex => (codex::NAME, codex::VERSION),
         }
+    }
+
+    /// The exact adapter version the profile was audited on.
+    pub(crate) const fn version(self) -> &'static str {
+        self.identity().1
     }
 }
 
@@ -121,7 +130,7 @@ impl OneShot {
 
     /// The exact adapter version the profile was audited on.
     pub(crate) const fn version(self) -> &'static str {
-        self.profile.identity().1
+        self.profile.version()
     }
 }
 
@@ -154,6 +163,19 @@ pub(crate) fn profile() -> Value {
         "tools":[], "mcpServers":{}, "strictMcpConfig":true,
         "settingSources":[], "plugins":[], "skills":[], "agents":{},
         "allowDangerouslySkipPermissions":false, "maxTurns":1, "persistSession":false
+    }}}))
+}
+
+/// Options passed by this exact adapter to SDK query before a conversation's first prompt: the
+/// one-shot's closed surface (no built-in tools, strict MCP, no settings, plugins, skills or
+/// agents, nothing persisted) with no turn limit, the agent's own loop running until it answers.
+/// The only MCP server is Nika's tool server, mounted through `session/new`'s `mcpServers`
+/// (`crate::conversation`), never through these options.
+pub(crate) fn conversation_profile() -> Value {
+    show_thinking(json!({"claudeCode":{"options":{
+        "tools":[], "mcpServers":{}, "strictMcpConfig":true,
+        "settingSources":[], "plugins":[], "skills":[], "agents":{},
+        "allowDangerouslySkipPermissions":false, "persistSession":false
     }}}))
 }
 

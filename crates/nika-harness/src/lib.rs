@@ -25,6 +25,7 @@ pub mod client;
 /// The authoring seat a compile names as `<harness>/<model>`: the operator's agent over ACP,
 /// or native Codex under its measured tool-free profile.
 pub mod compile_seat;
+pub mod conversation;
 pub mod declaration;
 pub mod infer;
 mod media;
@@ -36,6 +37,9 @@ pub mod spawn;
 pub mod wire;
 
 pub use client::{IDLE_TIMEOUT_SECS, MAX_LINE_BYTES, drive, drive_with_idle};
+pub use conversation::{
+    Conversation, ConversationSetup, ToolOffer, Transport, TurnEnd, TurnEvent, TurnStream,
+};
 pub use declaration::{
     declared_adapter_id, seat_from_env, seat_from_id, seat_from_lookup, seat_http_err,
 };
