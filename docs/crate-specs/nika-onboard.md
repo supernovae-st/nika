@@ -57,7 +57,12 @@ against an identity fixed by the build and pinned when a Session opens. Under
 strategy `off`, nothing named is `Unread` and attaches no knowledge. Naming a
 source under that strategy is refused (`ConfigError::KnowledgeUnread`). Off
 beside a source on one layer is refused (`ConfigError::ContradictoryKnowledge`);
-an explicit path named `off` stays a directory.
+an explicit path named `off` stays a directory. A door's own layer may name the
+embedded release explicitly (`AuthoringSettings::with_knowledge_embedded`, which
+replaces whatever knowledge that layer named): it decides as `Named` with
+`KnowledgeSource::Embedded` and `KnowledgeLayer::Explicit`, so the environment's
+knowledge is not read while its strategy, effort and held-out corpus still apply.
+No flag or environment word sets it; the Session's `/knowledge embedded` does.
 
 `AuthoringConfig::with_knowledge` composes an admitted release for the request's
 intent; a revision takes precedence over the caller's clarified fallback. An
