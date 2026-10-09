@@ -150,9 +150,12 @@ impl HarnessAuthoring {
     }
 
     /// One call's answer, or how it ended: Stop first, then the deadline, then the call. The
-    /// waiting select only wakes; the verdict reads Stop and the clock again at the very poll that
-    /// would admit the answer (the cancel flag has no waker, and a deadline timer may not have
-    /// fired yet), so neither loses to an answer ready at the same instant. Nothing is retried.
+    /// deadline ends the call once it has kept silent for its whole allowance, each activity
+    /// frame of its agent re-arming it; a direct seat shows no frames, so its call keeps the first
+    /// arming. The waiting select only wakes; the verdict reads Stop and the clock again at the
+    /// very poll that would admit the answer (the cancel flag has no waker, and a deadline timer
+    /// may not have fired yet), so neither loses to an answer ready at the same instant. Nothing
+    /// is retried.
     async fn call(
         &self,
         native: crate::HarnessInferRequest,
@@ -178,12 +181,12 @@ impl HarnessAuthoring {
         let ended = tokio::select! {
             biased;
             () = stopped(cancel) => Ended::Cancelled,
-            () = deadline.passed() => Ended::TimedOut,
+            () = deadline.passed(progress) => Ended::TimedOut,
             result = call => Ended::Done(result),
         };
         match ended {
             Ended::Done(_) if cancel.is_some_and(CancelCtx::is_cancelled) => Ended::Cancelled,
-            Ended::Done(_) if deadline.expired() => Ended::TimedOut,
+            Ended::Done(_) if deadline.expired(progress) => Ended::TimedOut,
             ended => ended,
         }
     }
@@ -419,7 +422,9 @@ impl ProviderInferDyn for HarnessAuthoring {
         if timeout.is_zero() {
             return Err(refused("harness authoring deadline must be positive"));
         }
-        // The call's own deadline, counted from here: setup, probes and the spawn spend it too.
+        // The call's own deadline, armed here (setup, probes and the spawn spend it too) and
+        // re-armed by each activity frame of its agent: `timeout` bounds its silence, not its
+        // whole duration.
         let deadline = acp::Deadline::start(timeout);
         let (system, prompt) = fold(&request.messages)?;
         let schema = match &request.response_format {

@@ -847,20 +847,21 @@ async fn handshake_over(
 
 impl SpawnedHarness {
     /// Open one session stream and return it with the transport bound it was given. Each frame
-    /// read and each write is bounded by [`crate::IDLE_TIMEOUT_SECS`], or, inside a call's
-    /// `deadline`, by what that deadline leaves once the identity probes and the profile proof are
-    /// done: read before the spawn, so an expired deadline spawns nothing, probe included.
+    /// read and each write is bounded by [`crate::IDLE_TIMEOUT_SECS`], or, for a `call` (its
+    /// deadline and its progress), by the call's own allowance, which its deadline re-arms. That
+    /// deadline is read before the probes and again before the spawn, so a deadline spent by the
+    /// identity probes and the profile proof spawns nothing, probe included.
     async fn open_stream(
         &self,
         request: HarnessRequest,
-        deadline: Option<Deadline>,
-        progress: Option<crate::authoring::acp::Progress>,
+        call: Option<(Deadline, crate::authoring::acp::Progress)>,
     ) -> Result<(HarnessEventStream, std::time::Duration), HarnessError> {
         let passed = || HarnessError::Session {
             reason: "the call deadline passed before the adapter started; nothing was spawned"
                 .to_owned(),
         };
-        if deadline.is_some_and(Deadline::expired) {
+        let spent = || (call.as_ref()).is_some_and(|(deadline, marks)| deadline.expired(marks));
+        if spent() {
             return Err(passed());
         }
         // Identity before dialect (spec §4): a version outside the pin
@@ -873,12 +874,11 @@ impl SpawnedHarness {
             }
             _ => Vec::new(),
         };
-        let idle = match deadline {
-            None => std::time::Duration::from_secs(crate::IDLE_TIMEOUT_SECS),
-            Some(deadline) => Some(deadline.remaining())
-                .filter(|left| !left.is_zero())
-                .ok_or_else(passed)?,
-        };
+        if spent() {
+            return Err(passed());
+        }
+        let generic = std::time::Duration::from_secs(crate::IDLE_TIMEOUT_SECS);
+        let idle = (call.as_ref()).map_or(generic, |(deadline, _)| deadline.allowance());
         let mut child =
             self.spawn_child(self.completion.map(|_| request.cwd.as_path()), &profile_env)?;
         let stdout = child.stdout.take().ok_or_else(|| HarnessError::Session {
@@ -890,7 +890,7 @@ impl SpawnedHarness {
         // The child rides INSIDE the stream's driver task: dropping the
         // stream drops the driver, the driver drops the child, and
         // kill_on_drop reaps it — the cancel-safety contract.
-        let (completion, marks) = (self.completion, progress);
+        let (completion, marks) = (self.completion, call.map(|(_, marks)| marks));
         let stream = drive_with_child(stdout, stdin, request, child, completion, idle, marks);
         Ok((stream, idle))
     }
@@ -901,7 +901,7 @@ impl SpawnedHarness {
 // blanket erasure builds `Arc<dyn DynAgentBackend>` from it).
 impl AgentBackendDyn for SpawnedHarness {
     async fn run_agent(&self, request: HarnessRequest) -> Result<HarnessEventStream, HarnessError> {
-        Ok(self.open_stream(request, None, None).await?.0)
+        Ok(self.open_stream(request, None).await?.0)
     }
 }
 
@@ -918,7 +918,7 @@ impl Door for SpawnedHarness {
         progress: crate::authoring::acp::Progress,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Opened, HarnessError>> + Send + '_>> {
         Box::pin(async move {
-            let opened = self.open_stream(request, Some(deadline), Some(progress));
+            let opened = self.open_stream(request, Some((deadline, progress)));
             let (stream, allowance) = opened.await?;
             Ok(Opened { stream, allowance })
         })

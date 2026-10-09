@@ -25,6 +25,12 @@
 //! frame after the prompt cannot tell an adapter or SDK that stalled from a model reasoning
 //! without emitting anything: an adapter may suppress upstream events, and this side sees only
 //! the frames written to it.
+//!
+//! The same frames keep the call alive. Each frame of this session that shows its agent working
+//! (an answer, thought, tool, media or plan update) re-arms the call's deadline when its line is
+//! complete. Usage and status updates are bookkeeping an adapter can write without its agent
+//! advancing, and requests, the prompt's own answer and every frame the call cannot attribute to
+//! itself never re-arm it.
 use nika_kernel::ai::harness::HarnessError;
 use serde_json::{Value, json};
 use tokio::time::Instant;
@@ -105,6 +111,8 @@ enum Frame {
     Tool,
     /// This session's message chunk whose content is not text.
     Media,
+    /// This session's plan update.
+    Plan,
     /// This session's update of any other kind, or of none.
     OtherUpdate,
     /// An agent request for a permission (else for another client action), and whether it names
@@ -173,8 +181,17 @@ impl Frame {
                 | "available_commands_update",
             ) => Self::Status,
             Some("tool_call" | "tool_call_update") => Self::Tool,
+            Some("plan") => Self::Plan,
             _ => Self::OtherUpdate,
         }
+    }
+
+    /// Whether the frame shows this session's agent working, which re-arms the call's deadline.
+    const fn rearms(self) -> bool {
+        matches!(
+            self,
+            Self::Answer | Self::Thought | Self::Tool | Self::Media | Self::Plan
+        )
     }
 
     /// Where the frame is counted: whether this call attributes it to itself, and its category.
@@ -184,7 +201,7 @@ impl Frame {
             Self::Thought => (true, "thought"),
             Self::Usage => (true, "usage"),
             Self::Status => (true, "status"),
-            Self::Tool | Self::Media | Self::OtherUpdate => (true, "other_update"),
+            Self::Tool | Self::Media | Self::Plan | Self::OtherUpdate => (true, "other_update"),
             Self::Request { ours: true, .. } => (true, "client_request"),
             Self::PromptResult(_) => (true, "prompt_result"),
             Self::RpcError { prompt: true } => (true, "prompt_error"),
@@ -203,7 +220,7 @@ impl Frame {
             Self::Status => "status",
             Self::Tool => "tool_update",
             Self::Media => "media_update",
-            Self::OtherUpdate => "other_update",
+            Self::Plan | Self::OtherUpdate => "other_update",
             Self::Request {
                 permission: true, ..
             } => "permission_request",
@@ -254,6 +271,9 @@ pub(super) struct Activity {
     /// The other frames' counts, in [`FOREIGN`] order, each saturating.
     foreign: [u32; FOREIGN.len()],
     foreign_last: Option<Instant>,
+    /// When the last frame showing this session's agent working arrived: the call's deadline
+    /// counts its silence from there.
+    rearmed: Option<Instant>,
     /// What a failure of the driver would end on now: the frame it last received, or the
     /// transport once a read or a write failed.
     current: Option<Ending>,
@@ -283,7 +303,15 @@ impl Activity {
             *count = count.saturating_add(1);
         }
         *last = Some(at);
+        if frame.rearms() {
+            self.rearmed = Some(at);
+        }
         self.current = Some(Ending::Frame(frame));
+    }
+
+    /// When the last frame showing this session's agent working arrived, if one did.
+    pub(super) const fn rearmed(&self) -> Option<Instant> {
+        self.rearmed
     }
 
     /// A read or a write failed inside the window: a failure now ends on the transport, and the
@@ -477,6 +505,78 @@ mod tests {
             let line = json!({"jsonrpc":"2.0","id":3,"result":result});
             assert_eq!(of(&line.to_string()), Frame::PromptResult(Stop::Other));
         }
+    }
+
+    /// Only a frame showing this session's agent working re-arms the call's deadline: an answer,
+    /// thought, tool, media or plan update. Its usage and status bookkeeping, another kind of
+    /// update, a request, an answer or error to the prompt, a stray response, an unreadable line
+    /// and every other session's frame, the same kinds included, never do.
+    #[test]
+    fn only_this_session_agent_work_rearms_the_deadline() {
+        let chunk =
+            |content: Value| json!({"sessionUpdate":"agent_message_chunk","content":content});
+        let working = [
+            json!({"sessionUpdate":"agent_thought_chunk"}),
+            chunk(json!({"type":"text","text":"x"})),
+            chunk(json!({"type":"image"})),
+            json!({"sessionUpdate":"tool_call"}),
+            json!({"sessionUpdate":"tool_call_update"}),
+            json!({"sessionUpdate":"plan"}),
+        ];
+        for kind in &working {
+            assert!(of(&update("s", kind).to_string()).rearms(), "{kind}");
+            assert!(!of(&update("t", kind).to_string()).rearms(), "{kind}");
+        }
+        let bookkeeping = [
+            "usage_update",
+            "config_option_update",
+            "current_mode_update",
+            "session_info_update",
+            "available_commands_update",
+            "user_message_chunk",
+            "unknown_update",
+        ];
+        for kind in bookkeeping {
+            let line = update("s", &json!({ "sessionUpdate": kind }));
+            assert!(!of(&line.to_string()).rearms(), "{kind}");
+        }
+        let permission = json!({"jsonrpc":"2.0","id":7,"method":"session/request_permission",
+            "params":{"sessionId":"s"}});
+        let others = [
+            json!({"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}),
+            json!({"jsonrpc":"2.0","id":3,"error":{"code":1,"message":"m"}}),
+            json!({"jsonrpc":"2.0","id":2,"result":{}}),
+            permission,
+        ];
+        for line in &others {
+            assert!(!of(&line.to_string()).rearms(), "{line}");
+        }
+        assert!(!of("not json").rearms());
+    }
+
+    /// The re-arming is the time of the last working frame inside the window: none before the
+    /// prompt was written, and bookkeeping or foreign frames after it leave it where it was.
+    #[tokio::test(start_paused = true)]
+    async fn the_last_working_frame_in_the_window_is_the_rearming() {
+        let start = Instant::now();
+        let mut activity = Activity::default();
+        activity.received(Frame::Thought, start);
+        assert_eq!(activity.rearmed(), None, "nothing before the prompt");
+        activity.open(start);
+        tokio::time::sleep(std::time::Duration::from_millis(7)).await;
+        let thought = Instant::now();
+        activity.received(Frame::Thought, thought);
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        let later = [
+            Frame::Usage,
+            Frame::Status,
+            Frame::OtherSession,
+            Frame::Unreadable,
+        ];
+        for frame in later {
+            activity.received(frame, Instant::now());
+        }
+        assert_eq!(activity.rearmed(), Some(thought));
     }
 
     /// Nothing counts before the window opens; counts saturate; a failed read or write ends on the

@@ -129,20 +129,24 @@ fn activity(
         "ended_by": ended_by})
 }
 
-/// The record without what this observation adds, and without its own elapsed time.
+/// The record without what this observation adds, and without its own elapsed time and bounds
+/// (whose re-arming the thoughts move).
 fn kept_before(record: &Value) -> Value {
     let mut kept = record.clone();
     if let Some(fields) = kept.as_object_mut() {
         fields.remove("activity");
         fields.remove("elapsed_ms");
+        fields.remove("bounds");
     }
     kept
 }
 
 /// The blind spot, then its correction. A peer silent after the prompt and a peer that thinks and
-/// reports usage and status without ever answering end alike at the same deadline: timed out
-/// after the written prompt, nothing accepted, and every fact the record already kept reads the
-/// same. What arrived after the prompt now tells them apart, by exact counts and time.
+/// reports usage and status without ever answering end alike: timed out after the written prompt,
+/// nothing accepted, and every fact the record already kept reads the same. What arrived after
+/// the prompt now tells them apart, by exact counts and time. The thinking peer's last thought
+/// re-armed its deadline, so it timed out one allowance after that thought, at 900 s, where the
+/// silent peer timed out at 600 s.
 #[tokio::test(start_paused = true)]
 async fn the_same_timed_out_prompt_tells_silence_from_unanswered_activity() {
     let minute = Duration::from_secs(60);
@@ -158,7 +162,11 @@ async fn the_same_timed_out_prompt_tells_silence_from_unanswered_activity() {
     ];
     let (silent_answer, silent) = call(scripted(Vec::new(), false)).await;
     let (busy_answer, busy) = call(scripted(busy, false)).await;
-    for (answer, record) in [(&silent_answer, &silent), (&busy_answer, &busy)] {
+    let ends = [
+        (&silent_answer, &silent, 600_000),
+        (&busy_answer, &busy, 900_000),
+    ];
+    for (answer, record, end) in ends {
         assert!(
             matches!(answer, Err(ProviderError::Api { status: 408, .. })),
             "{answer:?}"
@@ -177,8 +185,10 @@ async fn the_same_timed_out_prompt_tells_silence_from_unanswered_activity() {
         );
         assert_eq!(stood, expected);
         let elapsed = record["elapsed_ms"].as_u64().expect("ms");
-        assert!((600_000..601_000).contains(&elapsed), "{elapsed}");
+        assert!((end..end + 1_000).contains(&elapsed), "{elapsed}");
     }
+    assert_eq!(silent["bounds"]["rearmed_ms"], Value::Null);
+    assert_eq!(busy["bounds"]["rearmed_ms"], 300_000);
     // The blind spot: without what arrived after the prompt, the two records are one record.
     assert_eq!(kept_before(&silent), kept_before(&busy));
     // The correction: no completed frame at all, against five of this session's own.
