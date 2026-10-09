@@ -502,14 +502,14 @@ fn assert_pointed(point: &Value) {
     assert_eq!(point["role"], "judge_point");
     assert_eq!(point["choice"], format!("task-{WRITE_TASK}"));
     // Every task, the omitted operation, then the contextual remedies the default round's lent
-    // release offers: each of the bundled r2 release's 36 admitted blocks (`component-<k>`, in
+    // release offers: each of the bundled r2 release's 37 admitted blocks (`component-<k>`, in
     // catalogue order, none held by these bytes) closed by `no_fit`; then no task, and none.
     let mut options: Vec<String> = ["task-read_source", "task-transform", "task-write_result"]
         .into_iter()
         .chain(["omitted"])
         .map(str::to_owned)
         .collect();
-    options.extend((0..36).map(|k| format!("component-{k}")));
+    options.extend((0..37).map(|k| format!("component-{k}")));
     options.extend(["no_fit", "no_task", "none"].map(str::to_owned));
     assert_eq!(point["options"], json!(options));
     assert_eq!(

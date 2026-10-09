@@ -13,7 +13,7 @@ use include_dir::{Dir, DirEntry, include_dir};
 static PAYLOAD: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/assets/knowledge-release-r2");
 
 pub(super) const SNAPSHOT_SHA256: &str =
-    "6476372aa7eedf02e3b718dcd1c51769d97450eb0ae825a62b33fcf10a2471af";
+    "1be7d6101dab9eff54f35be07463f4e320607c4a837d04ef90519abaadf48166";
 pub(super) const POLICY_ID: &str = "policy-r2";
 pub(super) const POLICY_SHA256: &str =
     "53ef65a30e54220dfe76472f9fd766af2ef4817d4daea6bab38dab1337381cdf";

@@ -1,0 +1,17 @@
+nika: p58-json-filter-records
+const:
+  source_path: ./data/records.json
+permits:
+  fs: { read: ["./data/records.json"] }
+  tools: ["nika:read"]
+tasks:
+  read_records:
+    invoke: { tool: "nika:read", args: { path: "${{ const.source_path }}" } }
+  parse_records:
+    with: { raw: "${{ tasks.read_records.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.raw }}", expression: "fromjson" } }
+  filter_records:
+    with: { records: "${{ tasks.parse_records.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.records }}", expression: '[.[] | select(.status == "open")]' } }
+outputs:
+  selected: ${{ tasks.filter_records.output }}

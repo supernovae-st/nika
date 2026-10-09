@@ -1,6 +1,6 @@
 {
  "downgrades": {
-  "CHECK_UNPROVEN": 193
+  "CHECK_UNPROVEN": 195
  },
  "exclusions": {
   "kinds": [],
@@ -15,7 +15,7 @@
  "files": {
   "LICENSES/AGPL-3.0-or-later.txt": "92ac0dc98d118e8b63b43d0de9de2273158260e7f49a42ad1f8e3d475979840c",
   "LICENSES/Apache-2.0.txt": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
-  "NOTICE.md": "a64a4f3171bb8d8770d8002a24cc2932e543d840a10022a1e55784158799870b",
+  "NOTICE.md": "c611eefb5e2c5f37721a09cd1a28bb4489cadabf69bab69773d53fc0733c0c95",
   "blocks/after-failure-branch.nika": "b5bee636141ea31e77a1132e674cb4bd0d3890ae7a5d1cf8dfd32df074357a85",
   "blocks/after-terminal-report.nika": "a49dc2314ddfbd3ad71d2203b32452b3d7880dcecf754ed9ebb0d6f60f337e2e",
   "blocks/agent-compose-self-check.nika": "3093b6b87e00297806f2b0b9b482edeab5e5c7bed136c9ce6b8670b616ea42ae",
@@ -35,6 +35,7 @@
   "blocks/infer-returns-enum.nika": "71b4ce5023d0c8c3c549ff48b710b8c041e3c9688aa8d2255831e1dec54f1dc1",
   "blocks/infer-structured-schema.nika": "a858df728008f5e2a1a0eb71a221b3497c391dbe392bf80cbac0feb7b5eafa37",
   "blocks/json-filter-gate-post.nika": "415b84591339306c6828dd026a7e00dcc3cda8952586ae5a00072c4514d8cf8b",
+  "blocks/json-filter-records.nika": "c8d1b85aba51f2c54b3b5b65d059b9006c1d7e6df0f0d5c7c6d37693ed08174d",
   "blocks/lift-taint-caller-path.nika": "fe4724427259e2f3654e0416a13d01c0452a676ed6650178b4906d0986b2ada0",
   "blocks/lookup-enrich-by-key.nika": "72cf1d910081db589750ea30460fd657cbcbf8371f135993c8e3d32c11540ca6",
   "blocks/multi-csv-group-totals.nika": "84d1577db3622abaf22d686a123355cbb08ea171bac588038c218ea90337a99d",
@@ -116,22 +117,22 @@
   "examples/pack-23-parallel-review.nika": "5f27673340b02736852915786d25963f82300f521e08a7974674c59b2ccd7af2",
   "examples/pack-24-recover-optional-file.nika": "0cf9cb7dfe868402472b9b54321cb914844fcd7a055adade5c450fbd32d2ce29",
   "examples/pack-25-aggregate-by-key.nika": "ba8a7e9d17f91b815e69c9544f7530615e1b1ba7295408ecd60c27ac29191d22",
-  "knowledge/blocks.jsonl": "cb28adf27c8c491819892fa151ca16677c220ad2b3812927fdcdf17e36713d61",
-  "knowledge/callables.jsonl": "4d85499efc34ba275acc41b27e5f61947dc948bd58c84588f401f4a685d20088",
-  "knowledge/capability_interfaces.jsonl": "a936b7b71c8c0a8077f647225c6720bd64c60773c7695ba8148d9cf40702fffc",
-  "knowledge/constructs.jsonl": "f154850a406b8addb8401d03d22aef966e9f0c511cc42bf696d4e8c5d94f6bd9",
-  "knowledge/counterexamples.jsonl": "91a19a0d90eca8f65b557b200a9cb5401319e7747d33b75a6b63edb9b509a78e",
-  "knowledge/diagnostics.jsonl": "ae722110dd405ebcb8f72bc3a6c66906d5f05d66d20efd820965ed912b94de66",
-  "knowledge/examples.jsonl": "3b34d80c5892cecc50af5d6b8a8caaaef2b029be1370ae1de43eaa7073b46cd2",
+  "knowledge/blocks.jsonl": "867daa96a8f4dc65b6d29b56f16608e28cf6cd145e3cc7c6fa049a6c410fdbf3",
+  "knowledge/callables.jsonl": "2f0d76c8d03870866d75c0286718d0765ff111411c39f12701ba1cfb98752a38",
+  "knowledge/capability_interfaces.jsonl": "8a625531056066b0b463c9c84fadac021de51564ba99e1c18036cc598e783807",
+  "knowledge/constructs.jsonl": "d346dbfcdf75f9f82f33f902dcfdc11a75efac71bd8524fb2d68392b278778cb",
+  "knowledge/counterexamples.jsonl": "3495034fc3ba279615d5d4d13301a66762ea8343c6a84e0fe0c53146137df511",
+  "knowledge/diagnostics.jsonl": "3d02bad2e8729f9c5430863245cd2980cecaa88a544caf431ea7bef02d901c66",
+  "knowledge/examples.jsonl": "3065a49b23f6d6f7b605d05fc1ecf51bbff55b941f97bf7ff09cb34a62e8fa1e",
   "knowledge/families.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "knowledge/intent_facets.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "knowledge/pattern_packs.jsonl": "756ec47188808e9d924adbcffede536a517d9a54c8cb4dffa17d52a08e9ddb42",
   "knowledge/patterns.jsonl": "5d38c6975ba35bc6308220ac0dd083abf192de537c906ed0ea047bc688dd8cdc",
-  "knowledge/relations.jsonl": "b9ba1c201664c474ac6bb5ada4c1a25b5cc39249998ced653bff938311f63c04",
+  "knowledge/relations.jsonl": "08aad8f80d926b7c1be5fbf3a39b3c94c0c8dee49e11eb4a53a80b81b89b79e0",
   "knowledge/repair_principles.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "knowledge/skeletons.jsonl": "3c95058bbaaf26345e61167480618335e3d7a343467e7a1aace8b71554234c21",
+  "knowledge/skeletons.jsonl": "f2788d9d1976fb2e181394786b91004a068851bd29179fc747b120ec259c3c4a",
   "knowledge/skills.jsonl": "21f00a13f78118b5bb3af99242469febd377e1ef44057e8103f3596fb4695d28",
-  "knowledge/source_artifacts.jsonl": "fdf706c0f7cc9b8e9b6ccc7429f0fdc6962fee61b3dce2a08ef37b0b53b58898",
+  "knowledge/source_artifacts.jsonl": "c5b7d068fbddeb31955f56258830fa37d9637d8af6351e7e34f9472d276fa907",
   "skills/agentic-delegation.md": "35261d978dbe9b24a56ac7028af8caee8e29df6d5fe9ef03c96b426e1925b875",
   "skills/api-sync-with-idempotency.md": "2e51081ecf0c3d1cabc8349f5abdfd82498f41c92c342d5eb84d1c3ed3ce571f",
   "skills/batch-process-and-report.md": "3b3fbdb9ded4906ce321bc92bc1b9deef68ea95788c29ff86ef42c73b084e8c2",
@@ -150,20 +151,20 @@
   "skills/validate-and-quarantine.md": "a013e3e0364490b94e533a904c349e42c101807904a1a938b868f7596ec19e28"
  },
  "format": "nika-knowledge-release/3",
- "input_digest": "8278887350bf73577d60d7c4fe9b57f3a97d6cd3dc679efad579c03ad9d5b56d",
- "knowledge_version": "knowledge-0.123.0-r2-publication-recut-20261008",
+ "input_digest": "5e9505763606cc8403638e436edcddbe8de6a6e1b1ab220ba959d226339db864",
+ "knowledge_version": "knowledge-0.123.0-r2-json-filter-records-20261009",
  "policy": {
   "id": "policy-r2",
   "sha256": "53ef65a30e54220dfe76472f9fd766af2ef4817d4daea6bab38dab1337381cdf"
  },
  "profile": "nika-knowledge-release-profile/r2",
  "relations": {
-  "count": 1111,
+  "count": 1121,
   "file": "knowledge/relations.jsonl"
  },
  "rows": {
   "block": {
-   "count": 36,
+   "count": 37,
    "file": "knowledge/blocks.jsonl"
   },
   "callable": {
@@ -219,14 +220,14 @@
    "file": "knowledge/skills.jsonl"
   },
   "source_artifact": {
-   "count": 7,
+   "count": 9,
    "file": "knowledge/source_artifacts.jsonl"
   }
  },
  "target": {
-  "binary": "nika 0.122.0 (563ab54e9)",
+  "binary": "nika 0.122.0 (b9fd7a681)",
   "spec_sha": "a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0",
-  "verifier_sha256": "a221e7bad65e84a4f6c98fc742487af60f4165fbd302a41515af136eb911c5ac"
+  "verifier_sha256": "2fe376d41033f9c93de2e4434fa8a35199a89f44bd6380648a9cfea9a237b5f6"
  },
  "tool": {
   "id": "nika_bench.foundry.release_r2",

@@ -12,14 +12,14 @@ use super::a8_tests::{A8_SNAPSHOT, a8_identity, pin_of};
 use super::*;
 use crate::knowledge::pin::KnowledgePin;
 
-const R2_SNAPSHOT: &str = "6476372aa7eedf02e3b718dcd1c51769d97450eb0ae825a62b33fcf10a2471af";
+const R2_SNAPSHOT: &str = "1be7d6101dab9eff54f35be07463f4e320607c4a837d04ef90519abaadf48166";
 const R2_POLICY: &str = "policy-r2";
 const R2_POLICY_SHA256: &str = "53ef65a30e54220dfe76472f9fd766af2ef4817d4daea6bab38dab1337381cdf";
 /// The payload as qualified: its files, their bytes, its rows by kind and its relations.
-const R2_FILES: usize = 136;
-const R2_BYTES: usize = 945_373;
+const R2_FILES: usize = 137;
+const R2_BYTES: usize = 951_856;
 const R2_ROWS: [(&str, usize); 15] = [
-    ("blocks", 36),
+    ("blocks", 37),
     ("callables", 29),
     ("capability_interfaces", 32),
     ("constructs", 30),
@@ -33,9 +33,9 @@ const R2_ROWS: [(&str, usize); 15] = [
     ("repair_principles", 0),
     ("skeletons", 23),
     ("skills", 16),
-    ("source_artifacts", 7),
+    ("source_artifacts", 9),
 ];
-const R2_RELATIONS: usize = 1111;
+const R2_RELATIONS: usize = 1121;
 
 fn r2_identity() -> TrustedIdentity {
     TrustedIdentity::r2(R2_SNAPSHOT, R2_POLICY, R2_POLICY_SHA256).expect("issued")
@@ -89,7 +89,7 @@ fn new_pins_name_r2_and_earlier_pins_keep_their_bytes() {
     assert_eq!(fresh.manifest_sha256, R2_SNAPSHOT);
     let reopened = fresh.reopen().expect("a new pin reopens");
     assert_eq!(fresh.moved(&reopened), None);
-    assert_eq!(reopened.rows("blocks").len(), 36);
+    assert_eq!(reopened.rows("blocks").len(), 37);
     let a8 = admit(Some(&a8_identity())).expect("a8 retained");
     let earlier = pin_of(&a8, a8_identity()).reopen().expect("a8 pin");
     assert_eq!(earlier.manifest_sha256(), A8_SNAPSHOT);

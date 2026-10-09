@@ -61,7 +61,7 @@ fn a_checked_block_resolves_by_id_and_release_with_its_admitted_bytes() {
     let release = snapshot.release();
     assert_eq!(
         release.version,
-        "knowledge-0.123.0-r2-publication-recut-20261008"
+        "knowledge-0.123.0-r2-json-filter-records-20261009"
     );
     assert_eq!(release.snapshot_sha256, snapshot.manifest_sha256());
     let pinned = ComponentRef::new(BLOCK)
@@ -237,8 +237,8 @@ async fn a_request_sharing_no_word_with_the_block_reaches_it_through_the_whole_c
     let coverage = &record["coverage"];
     assert_eq!(coverage["complete"], true, "{coverage:#}");
     assert_eq!(
-        coverage["admitted_entries"], 357,
-        "every r2 row but its 7 source artifacts"
+        coverage["admitted_entries"], 358,
+        "every r2 row but its 9 source artifacts"
     );
     assert_eq!(coverage["resolved_in_full"], 1);
     assert_eq!(

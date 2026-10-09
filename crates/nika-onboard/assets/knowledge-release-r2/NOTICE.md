@@ -1,4 +1,4 @@
-# Notices · Nika knowledge release knowledge-0.123.0-r2-publication-recut-20261008
+# Notices · Nika knowledge release knowledge-0.123.0-r2-json-filter-records-20261009
 
 Release policy `policy-r2`, profile `nika-knowledge-release-profile/r2`.
 
@@ -12,10 +12,10 @@ the licence texts are in LICENSES/.
 - Nika Foundry: original business procedure scenarios of the project · 1 source row(s) · ownership project · licence AGPL-3.0-or-later (LICENSES/AGPL-3.0-or-later.txt)
   - attribution: Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
   - modification: Projected by the Nika project: procedure contracts as candidate patterns.
-- Nika engine: the language capability manifest of the pinned candidate · 2 source row(s) · ownership project · licence AGPL-3.0-or-later (LICENSES/AGPL-3.0-or-later.txt)
+- Nika engine: the language capability manifest of the pinned candidate · 3 source row(s) · ownership project · licence AGPL-3.0-or-later (LICENSES/AGPL-3.0-or-later.txt)
   - attribution: Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
   - modification: Projected by the Nika project: selected fields, normalized identifiers.
-- Nika language pack: specification examples and templates of the pinned candidate · 1 source row(s) · ownership project · licence Apache-2.0 (LICENSES/Apache-2.0.txt)
+- Nika language pack: specification examples and templates of the pinned candidate · 2 source row(s) · ownership project · licence Apache-2.0 (LICENSES/Apache-2.0.txt)
   - attribution: 2026 SuperNovae Studio <nika@supernovae.studio>
   - modification: Projected by the Nika project: structural analysis rows of the pack, and its foundation examples verbatim as example bodies with their own header as intent.
 - Nika construct probes: project programs checked on a pinned candidate · 1 source row(s) · ownership project · licence AGPL-3.0-or-later (LICENSES/AGPL-3.0-or-later.txt)

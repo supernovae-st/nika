@@ -208,10 +208,10 @@ fn a_replayed_candidate_the_judge_doubts_is_written_again_not_left_held() {
     let (pointed, why) = asked(&bodies[2]).expect("the task the missing part points to");
     assert_eq!(pointed["clause"], json!({"text": PART}));
     // Both tasks, the omitted operation, then the contextual remedies the default round's lent
-    // release offers: each of the bundled r2 release's 36 admitted blocks (`component-<k>`, in
+    // release offers: each of the bundled r2 release's 37 admitted blocks (`component-<k>`, in
     // catalogue order, none held by these bytes) closed by `no_fit`; then no task, and none.
     let mut offered: Vec<String> = [TASKS[0], TASKS[1], "omitted"].map(str::to_owned).into();
-    offered.extend((0..36).map(|k| format!("component-{k}")));
+    offered.extend((0..37).map(|k| format!("component-{k}")));
     offered.extend(["no_fit", "no_task", "none"].map(str::to_owned));
     assert_eq!(why, offered);
     assert!(

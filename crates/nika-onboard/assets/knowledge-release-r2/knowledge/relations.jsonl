@@ -172,6 +172,16 @@
 {"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CONSTRUCT","to":"construct:when"}
 {"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-gate-post","rel":"USES_CONSTRUCT","to":"construct:with"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"DERIVED_FROM","to":"src:probes"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:json-filter-records","rel":"REALIZES","to":"pattern:lang:parse-json-document"}
+{"attrs":{"source":"authored:foundry-language-patterns"},"from":"block:json-filter-records","rel":"REALIZES","to":"pattern:lang:read-known-file"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"USES_CALLABLE","to":"callable:nika:jq"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"USES_CALLABLE","to":"callable:nika:read"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"USES_CONSTRUCT","to":"construct:const"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"USES_CONSTRUCT","to":"construct:outputs"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"USES_CONSTRUCT","to":"construct:permits"}
+{"attrs":{"source":"authored:foundry-v0"},"from":"block:json-filter-records","rel":"USES_CONSTRUCT","to":"construct:with"}
 {"attrs":{"source":"authored:foundry-v0"},"from":"block:lift-taint-caller-path","rel":"DERIVED_FROM","to":"src:probes"}
 {"attrs":{"source":"authored:foundry-v0"},"from":"block:lift-taint-caller-path","rel":"USES_CALLABLE","to":"callable:nika:jq"}
 {"attrs":{"source":"authored:foundry-v0"},"from":"block:lift-taint-caller-path","rel":"USES_CALLABLE","to":"callable:nika:read"}
@@ -354,134 +364,134 @@
 {"attrs":{"source":"authored:foundry-v0"},"from":"block:when-skipped-fallback","rel":"USES_CONSTRUCT","to":"construct:outputs"}
 {"attrs":{"source":"authored:foundry-v0"},"from":"block:when-skipped-fallback","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"authored:foundry-v0"},"from":"block:when-skipped-fallback","rel":"USES_CONSTRUCT","to":"construct:when"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:assert","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:assert","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:assert","rel":"IMPLEMENTS","to":"capability:Guard"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:chart","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:chart","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:chart","rel":"IMPLEMENTS","to":"capability:MediaRenderer"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:compose","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:compose","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:compose","rel":"IMPLEMENTS","to":"capability:SelfChecker"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:convert","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:convert","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:convert","rel":"IMPLEMENTS","to":"capability:FormatConverter"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:convert","rel":"IMPLEMENTS","to":"capability:StructuredRecordSource"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:date","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:date","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:date","rel":"IMPLEMENTS","to":"capability:Clock"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:decide","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:decide","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:decide","rel":"IMPLEMENTS","to":"capability:DeterministicDecider"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:done","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:edit","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:done","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:edit","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:edit","rel":"IMPLEMENTS","to":"capability:ArtifactEditor"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:emit","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:emit","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:emit","rel":"IMPLEMENTS","to":"capability:Emitter"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:fetch","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:fetch","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:fetch","rel":"IMPLEMENTS","to":"capability:ExternalMutator"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:fetch","rel":"IMPLEMENTS","to":"capability:RemoteResourceSource"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:glob","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:glob","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:glob","rel":"IMPLEMENTS","to":"capability:EnumerableSource"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:grep","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:grep","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:grep","rel":"IMPLEMENTS","to":"capability:SearchableCorpus"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:hash","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:hash","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:hash","rel":"IMPLEMENTS","to":"capability:Hasher"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:image_fx","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:image_fx","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:image_fx","rel":"IMPLEMENTS","to":"capability:MediaRenderer"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:image_generate","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:image_generate","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:image_generate","rel":"IMPLEMENTS","to":"capability:MediaRenderer"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:inspect","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:inspect","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:inspect","rel":"IMPLEMENTS","to":"capability:RunIntrospector"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:jq","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:jq","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:jq","rel":"IMPLEMENTS","to":"capability:Aggregator"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:jq","rel":"IMPLEMENTS","to":"capability:Classifier"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:jq","rel":"IMPLEMENTS","to":"capability:Ranker"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:jq","rel":"IMPLEMENTS","to":"capability:RecordTransformer"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:json_diff","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:json_diff","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:json_diff","rel":"IMPLEMENTS","to":"capability:Comparator"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:json_merge_patch","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:json_merge_patch","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:json_merge_patch","rel":"IMPLEMENTS","to":"capability:RecordTransformer"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:log","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:log","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:log","rel":"IMPLEMENTS","to":"capability:Emitter"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:notify","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:notify","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:notify","rel":"IMPLEMENTS","to":"capability:Notifier"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:prompt","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:prompt","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:prompt","rel":"IMPLEMENTS","to":"capability:HumanApprovalGate"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:read","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:read","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:read","rel":"IMPLEMENTS","to":"capability:ReadableSource"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:remove_file","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:tts_generate","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:remove_file","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:tts_generate","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:tts_generate","rel":"IMPLEMENTS","to":"capability:MediaRenderer"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:uuid","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:uuid","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:uuid","rel":"IMPLEMENTS","to":"capability:Clock"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:validate","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:validate","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:validate","rel":"IMPLEMENTS","to":"capability:Validator"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:wait","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:wait","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:wait","rel":"IMPLEMENTS","to":"capability:Waiter"}
-{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:write","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"catalog --tools --json"},"from":"callable:nika:write","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"callable:nika:write","rel":"IMPLEMENTS","to":"capability:ArtifactWriter"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:after","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:after","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":7},"from":"construct:after","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:after.unwind","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:after.unwind","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:after.unwind","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:agent","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:agent","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:agent","rel":"IMPLEMENTS","to":"capability:AgenticResearch"}
 {"attrs":{"source":"foundry.probes","verified_count":6},"from":"construct:agent","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:agent.skills","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:agent.skills","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:agent.skills","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:const","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:const","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:const","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:exec","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:exec","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:exec","rel":"IMPLEMENTS","to":"capability:ProcessRunner"}
 {"attrs":{"source":"foundry.probes","verified_count":6},"from":"construct:exec","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:extract","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:extract","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:extract","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:for_each","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:for_each","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":6},"from":"construct:for_each","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:gate","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:gate","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":2},"from":"construct:gate","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:group","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:group","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:group","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:infer","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:infer","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:infer","rel":"IMPLEMENTS","to":"capability:Classifier"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:infer","rel":"IMPLEMENTS","to":"capability:Drafter"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:infer","rel":"IMPLEMENTS","to":"capability:StructuredExtractor"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:infer","rel":"IMPLEMENTS","to":"capability:Summarizer"}
 {"attrs":{"source":"foundry.probes","verified_count":10},"from":"construct:infer","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:infer.schema","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:infer.schema","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:infer.schema","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:inputs","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:inputs","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":2},"from":"construct:inputs","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:invoke.tool","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:invoke.tool","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":3},"from":"construct:invoke.tool","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:invoke.workflow","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:invoke.workflow","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:invoke.workflow","rel":"IMPLEMENTS","to":"capability:SubworkflowCallable"}
 {"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:invoke.workflow","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:lift","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:lift","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":4},"from":"construct:lift","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:model","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:model","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:model","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:nika","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:nika","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:nika","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:on_error","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:on_error","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":4},"from":"construct:on_error","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:outputs","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:outputs","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":5},"from":"construct:outputs","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:permits","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:permits","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":10},"from":"construct:permits","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:retry","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:retry","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":2},"from":"construct:retry","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:returns","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:returns","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":4},"from":"construct:returns","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:run","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:run","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:run","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:secrets","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:secrets","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":4},"from":"construct:secrets","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:secrets.egress","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:secrets.egress","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":3},"from":"construct:secrets.egress","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:tasks","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:tasks","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":1},"from":"construct:tasks","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:timeout","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:timeout","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":2},"from":"construct:timeout","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:when","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:when","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.ontology.IMPLEMENTS","status":"EXPERIMENTAL"},"from":"construct:when","rel":"IMPLEMENTS","to":"capability:Guard"}
 {"attrs":{"source":"foundry.probes","verified_count":5},"from":"construct:when","rel":"VERIFIED_BY","to":"src:probes"}
-{"attrs":{"source":"foundry.cards"},"from":"construct:with","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
+{"attrs":{"source":"foundry.cards"},"from":"construct:with","rel":"DERIVED_FROM","to":"src:manifest:b9fd7a681"}
 {"attrs":{"source":"foundry.probes","verified_count":7},"from":"construct:with","rel":"VERIFIED_BY","to":"src:probes"}
 {"attrs":{"because":"verbatim copy of conformance/dag/body-ref-outside-boundary-reject.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:dag-body-ref-outside-boundary-reject","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
 {"attrs":{"because":"verbatim copy of conformance/dag/cycle-reject.nika of the Nika specification (Apache-2.0)","source":"authored:foundry-spec-cases","spec_sha":"a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0"},"from":"counterexample:conformance:dag-cycle-reject","rel":"DERIVED_FROM","to":"src:spec-conformance:a88d3c6e400d"}
@@ -878,7 +888,7 @@
 {"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:validate-records","rel":"DERIVED_FROM","to":"src:probes"}
 {"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:write-artifact","rel":"DERIVED_FROM","to":"src:manifest:563ab54e9"}
 {"attrs":{"source":"authored:foundry-language-patterns"},"from":"pattern:lang:write-artifact","rel":"DERIVED_FROM","to":"src:probes"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/agent-loop","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/agent-loop","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/agent-loop","rel":"USES_CONSTRUCT","to":"construct:agent"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/agent-loop","rel":"USES_CONSTRUCT","to":"construct:infer"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/agent-loop","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
@@ -888,14 +898,14 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/agent-loop","rel":"USES_CONSTRUCT","to":"construct:outputs"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/agent-loop","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/agent-loop","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/aggregate-by-key","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/aggregate-by-key","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:after"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:outputs"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/aggregate-by-key","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/api-upload-and-create","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/api-upload-and-create","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/api-upload-and-create","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/api-upload-and-create","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/api-upload-and-create","rel":"USES_CONSTRUCT","to":"construct:on_error"}
@@ -903,7 +913,7 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/api-upload-and-create","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/api-upload-and-create","rel":"USES_CONSTRUCT","to":"construct:secrets"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/api-upload-and-create","rel":"USES_CONSTRUCT","to":"construct:secrets.egress"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/bounded-batch","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/bounded-batch","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:after"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:for_each"}
@@ -916,7 +926,7 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:run"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:timeout"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/bounded-batch","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/chain","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/chain","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/chain","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/chain","rel":"USES_CONSTRUCT","to":"construct:infer"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/chain","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
@@ -925,7 +935,7 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/chain","rel":"USES_CONSTRUCT","to":"construct:outputs"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/chain","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/chain","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/classify-and-route","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/classify-and-route","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/classify-and-route","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/classify-and-route","rel":"USES_CONSTRUCT","to":"construct:infer"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/classify-and-route","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
@@ -934,7 +944,7 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/classify-and-route","rel":"USES_CONSTRUCT","to":"construct:outputs"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/classify-and-route","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/classify-and-route","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/corpus-qa","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/corpus-qa","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:after"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:infer"}
@@ -945,14 +955,14 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:when"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/corpus-qa","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/deduplicate-records","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/deduplicate-records","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:after"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:outputs"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/deduplicate-records","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/docker-report","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/docker-report","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/docker-report","rel":"USES_CONSTRUCT","to":"construct:exec"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/docker-report","rel":"USES_CONSTRUCT","to":"construct:infer"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/docker-report","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
@@ -961,7 +971,7 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/docker-report","rel":"USES_CONSTRUCT","to":"construct:outputs"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/docker-report","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/docker-report","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/document-to-fields","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/document-to-fields","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/document-to-fields","rel":"USES_CONSTRUCT","to":"construct:after"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/document-to-fields","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/document-to-fields","rel":"USES_CONSTRUCT","to":"construct:infer"}
@@ -971,7 +981,7 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/document-to-fields","rel":"USES_CONSTRUCT","to":"construct:outputs"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/document-to-fields","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/document-to-fields","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/etl-state","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/etl-state","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/etl-state","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/etl-state","rel":"USES_CONSTRUCT","to":"construct:gate"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/etl-state","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
@@ -980,7 +990,7 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/etl-state","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/etl-state","rel":"USES_CONSTRUCT","to":"construct:when"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/etl-state","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/evaluate-and-optimize","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/evaluate-and-optimize","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/evaluate-and-optimize","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/evaluate-and-optimize","rel":"USES_CONSTRUCT","to":"construct:infer"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/evaluate-and-optimize","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
@@ -988,7 +998,7 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/evaluate-and-optimize","rel":"USES_CONSTRUCT","to":"construct:outputs"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/evaluate-and-optimize","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/evaluate-and-optimize","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/fanout","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/fanout","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:after"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:for_each"}
@@ -1002,7 +1012,7 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:run"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:timeout"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/fanout","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/gate-and-act","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/gate-and-act","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:extract"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
@@ -1013,12 +1023,12 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:secrets.egress"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:when"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/gate-and-act","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/hello","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/hello","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/hello","rel":"USES_CONSTRUCT","to":"construct:infer"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/hello","rel":"USES_CONSTRUCT","to":"construct:model"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/hello","rel":"USES_CONSTRUCT","to":"construct:outputs"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/hello","rel":"USES_CONSTRUCT","to":"construct:permits"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/human-gated-ship","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/human-gated-ship","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:after"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:exec"}
@@ -1031,7 +1041,7 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:secrets.egress"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:when"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/human-gated-ship","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/media-asset-pack","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/media-asset-pack","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/media-asset-pack","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/media-asset-pack","rel":"USES_CONSTRUCT","to":"construct:infer"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/media-asset-pack","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
@@ -1041,7 +1051,7 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/media-asset-pack","rel":"USES_CONSTRUCT","to":"construct:outputs"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/media-asset-pack","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/media-asset-pack","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/parallel-review","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/parallel-review","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:after"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:for_each"}
@@ -1054,7 +1064,7 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:run"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:timeout"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/parallel-review","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/project-public-fields","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/project-public-fields","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:after"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:infer"}
@@ -1066,7 +1076,7 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:run"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:timeout"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/project-public-fields","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/recover-optional-file","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/recover-optional-file","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:after"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
@@ -1077,21 +1087,21 @@
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:run"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:timeout"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/recover-optional-file","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/snapshot-diff","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/snapshot-diff","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:after"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:outputs"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/snapshot-diff","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/validate-records","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/validate-records","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/validate-records","rel":"USES_CONSTRUCT","to":"construct:after"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/validate-records","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/validate-records","rel":"USES_CONSTRUCT","to":"construct:invoke.tool"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/validate-records","rel":"USES_CONSTRUCT","to":"construct:outputs"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/validate-records","rel":"USES_CONSTRUCT","to":"construct:permits"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/validate-records","rel":"USES_CONSTRUCT","to":"construct:with"}
-{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/website-brief","rel":"DERIVED_FROM","to":"src:pack:563ab54e9"}
+{"attrs":{"source":"nika compile <slug> --json"},"from":"skeleton:compile/website-brief","rel":"DERIVED_FROM","to":"src:pack:b9fd7a681"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/website-brief","rel":"USES_CONSTRUCT","to":"construct:const"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/website-brief","rel":"USES_CONSTRUCT","to":"construct:infer"}
 {"attrs":{"source":"foundry.analyze"},"from":"skeleton:compile/website-brief","rel":"USES_CONSTRUCT","to":"construct:infer.schema"}
