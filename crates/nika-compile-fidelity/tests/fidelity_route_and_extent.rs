@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! A request that names a payload file in prose, its words verbatim: an unquoted spaced name
+//! A request that names an endpoint's route and a payload file in prose, its words verbatim:
+//! `/notifications/stock`, sent a POST on the local sink the request states, is that endpoint's
+//! route, realized by a send to exactly that URL, never a local directory to grant. A local path
+//! the request reads stays a path, even after a sentence that writes. An unquoted spaced name
 //! (`un payload out/notification.json`) keeps its exact extent: neither its last words nor any
-//! neighbouring literal settle it, and a quoted name owns its whole extent. The same request
-//! names an endpoint's route (`/notifications/stock`, sent a POST on the local sink it states);
-//! no send realizes a stated route here, so that route stays owed beside the name.
+//! neighbouring literal settle it, and a quoted name owns its whole extent.
 use nika_compile_fidelity::fidelity::{Diagnostic, laws_observed};
 use nika_compile_reader::lexicon;
 use serde_json::{Map, Value, json};
@@ -63,8 +64,43 @@ fn unrealized(intent: &str, doc: &Value) -> Vec<String> {
 /// Both output files, as a candidate may read the request.
 const OUTPUTS: [&str; 2] = ["out/report.json", "out/notification.json"];
 
+/// A POST to exactly the stated route (its URL written whole, or the sink through a constant)
+/// realizes it; the open spaced name alone stays owed, by its exact extent.
+#[test]
+fn the_stated_route_is_realized_by_a_send_to_exactly_it() {
+    assert_eq!(
+        unrealized(STOCK, &stock(&OUTPUTS, Some(ROUTE_URL))),
+        [PAYLOAD]
+    );
+    let consts = json!({"sink_url": "http://127.0.0.1:57468"});
+    let bound = "${{ const.sink_url }}/notifications/stock";
+    let doc = candidate(&["world/source.json"], &OUTPUTS, Some(bound), &consts);
+    assert_eq!(unrealized(STOCK, &doc), [PAYLOAD]);
+    let whole = stock(&["out/report.json", PAYLOAD], Some(ROUTE_URL));
+    assert_eq!(unrealized(STOCK, &whole), [""; 0]);
+}
+
+/// The route stays owed: no send, a send to another route, a send to an origin the request
+/// never states, and a GET realize nothing.
+#[test]
+fn only_a_send_to_exactly_the_stated_route_realizes_it() {
+    let elsewhere = [
+        None,
+        Some("http://127.0.0.1:57468/notifications/alerts"),
+        Some("http://127.0.0.1:9/notifications/stock"),
+    ];
+    for url in elsewhere {
+        let doc = stock(&OUTPUTS, url);
+        let owed = ["/notifications/stock", PAYLOAD];
+        assert_eq!(unrealized(STOCK, &doc), owed, "{url:?}");
+    }
+    let mut get = stock(&OUTPUTS, Some(ROUTE_URL));
+    get["tasks"]["post"]["invoke"]["args"]["method"] = json!("GET");
+    assert_eq!(unrealized(STOCK, &get), ["/notifications/stock", PAYLOAD]);
+}
+
 /// A name the request quotes owns its whole extent, spaces included: writing its last words
-/// writes another file. The route the request names stays owed beside it.
+/// writes another file.
 #[test]
 fn a_quoted_spaced_name_keeps_its_whole_extent() {
     let quoted = STOCK.replace(
@@ -72,7 +108,7 @@ fn a_quoted_spaced_name_keeps_its_whole_extent() {
         "un « payload out/notification.json »",
     );
     let doc = stock(&OUTPUTS, Some(ROUTE_URL));
-    assert_eq!(unrealized(&quoted, &doc), [PAYLOAD, "/notifications/stock"]);
+    assert_eq!(unrealized(&quoted, &doc), [PAYLOAD]);
 }
 
 /// An unquoted spaced name keeps its exact extent whatever literal or article stands beside it
@@ -97,4 +133,26 @@ fn a_spaced_name_keeps_its_exact_extent() {
         let whole = wrote("project notes/summary.json");
         assert_eq!(unrealized(intent, &whole), [""; 0], "{intent}");
     }
+}
+
+/// A source the request states after a destination sentence stays a source: an earlier `to`
+/// never makes it a destination a send to the stated sink at that route could realize.
+#[test]
+fn a_source_after_a_destination_sentence_is_never_realized_by_a_send() {
+    let intent =
+        "Write to ./out/report.json. Read /srv/stock. Send the report to http://127.0.0.1:57468.";
+    let url = Some("http://127.0.0.1:57468/srv/stock");
+    let doc = candidate(&[], &["./out/report.json"], url, &json!({}));
+    assert_eq!(unrealized(intent, &doc), ["/srv/stock"]);
+}
+
+/// A local path the request reads stays a path to read: a send to the stated sink at that route
+/// realizes no read of it.
+#[test]
+fn a_local_path_the_request_reads_is_never_realized_by_a_send() {
+    let intent = "Lis les pages de /srv/stock, puis effectue un POST vers http://127.0.0.1:57468 et \
+                  écris ./out/report.json.";
+    let url = Some("http://127.0.0.1:57468/srv/stock");
+    let doc = candidate(&[], &["./out/report.json"], url, &json!({}));
+    assert_eq!(unrealized(intent, &doc), ["/srv/stock"]);
 }
