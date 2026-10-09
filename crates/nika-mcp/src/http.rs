@@ -48,7 +48,10 @@ use crate::{MAX_MSG_BYTES, McpError, protocol};
 const MAX_HEAD_BYTES: usize = 16 * 1024;
 
 /// Per-connection read deadline — a stalled client releases its thread.
-const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+pub(crate) const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// One JSON-RPC message in, its reply out (`None` for a notification).
+pub(crate) type Dispatch<'a> = &'a dyn Fn(&serde_json::Value) -> Option<serde_json::Value>;
 
 /// One parsed request — method · target path · lowercased header map ·
 /// raw body bytes.
@@ -147,15 +150,16 @@ impl HttpServer {
                 continue;
             };
             let _ = stream.set_read_timeout(Some(READ_TIMEOUT));
-            handle_conn(stream, token);
+            handle_conn(stream, token, &protocol::dispatch);
         }
     }
 }
 
-/// One connection = one request = one response, then close. Transport
-/// write errors are swallowed — the client hung up; there is nobody
-/// left to tell.
-fn handle_conn(stream: TcpStream, token: Option<&str>) {
+/// One connection = one request = one response, then close, the request
+/// answered by `dispatch` (the oracle's, or a conversation's tool server's).
+/// Transport write errors are swallowed — the client hung up; there is
+/// nobody left to tell.
+pub(crate) fn handle_conn(stream: TcpStream, token: Option<&str>, dispatch: Dispatch<'_>) {
     let mut reader = BufReader::new(match stream.try_clone() {
         Ok(clone) => clone,
         Err(_) => return,
@@ -163,7 +167,7 @@ fn handle_conn(stream: TcpStream, token: Option<&str>) {
     let mut out = stream;
     match parse_request(&mut reader) {
         Ok(req) => {
-            let (status, reason, content_type, body) = respond(&req, token);
+            let (status, reason, content_type, body) = respond(&req, token, dispatch);
             let _ = write_response(&mut out, status, reason, content_type, body.as_bytes());
         }
         Err(refusal) => {
@@ -178,9 +182,13 @@ fn handle_conn(stream: TcpStream, token: Option<&str>) {
     }
 }
 
-/// Route one parsed request through the gates to the pure dispatch —
-/// returns (status · reason · content-type · body).
-fn respond(req: &Request, token: Option<&str>) -> (u16, &'static str, &'static str, String) {
+/// Route one parsed request through the gates to `dispatch` — returns
+/// (status · reason · content-type · body).
+fn respond(
+    req: &Request,
+    token: Option<&str>,
+    dispatch: Dispatch<'_>,
+) -> (u16, &'static str, &'static str, String) {
     if !origin_allowed(req.headers.get("origin").map(String::as_str)) {
         return (
             403,
@@ -223,12 +231,12 @@ fn respond(req: &Request, token: Option<&str>) -> (u16, &'static str, &'static s
             format!("no route {} — the MCP endpoint is /mcp", req.target),
         );
     }
-    dispatch_body(&req.body)
+    dispatch_body(&req.body, dispatch)
 }
 
 /// Parse the body as ONE JSON-RPC message and dispatch it — the exact
 /// contract the stdio pump applies per line, minus the framing.
-fn dispatch_body(body: &[u8]) -> (u16, &'static str, &'static str, String) {
+fn dispatch_body(body: &[u8], dispatch: Dispatch<'_>) -> (u16, &'static str, &'static str, String) {
     let parsed = std::str::from_utf8(body)
         .map_err(|e| e.to_string())
         .and_then(|s| serde_json::from_str::<serde_json::Value>(s).map_err(|e| e.to_string()));
@@ -252,7 +260,7 @@ fn dispatch_body(body: &[u8]) -> (u16, &'static str, &'static str, String) {
             return (400, "Bad Request", "application/json", reply.to_string());
         }
     };
-    match protocol::dispatch(&msg) {
+    match dispatch(&msg) {
         Some(reply) => (200, "OK", "application/json", reply.to_string()),
         // A notification produces no reply — 202 is the spec's word for it.
         None => (202, "Accepted", "application/json", String::new()),
@@ -524,11 +532,11 @@ mod tests {
     #[test]
     fn get_is_405_and_origin_still_gates_it() {
         let req = parse("GET /mcp HTTP/1.1\r\nHost: x\r\n\r\n").expect("parses");
-        let (status, ..) = respond(&req, None);
+        let (status, ..) = respond(&req, None, &protocol::dispatch);
         assert_eq!(status, 405);
         let req =
             parse("GET /mcp HTTP/1.1\r\nOrigin: https://evil.example.com\r\n\r\n").expect("parses");
-        let (status, ..) = respond(&req, None);
+        let (status, ..) = respond(&req, None, &protocol::dispatch);
         assert_eq!(status, 403);
     }
 
@@ -537,17 +545,21 @@ mod tests {
     /// answers 400 naming the 2025-06-18 removal.
     #[test]
     fn dispatch_shapes_request_notification_batch() {
-        let (status, _, ct, body) = dispatch_body(br#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#);
+        let dispatch = &protocol::dispatch;
+        let (status, _, ct, body) =
+            dispatch_body(br#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#, dispatch);
         assert_eq!((status, ct), (200, "application/json"));
         let v: serde_json::Value = serde_json::from_str(&body).expect("json");
         assert_eq!(v["id"], 1);
 
-        let (status, _, _, body) =
-            dispatch_body(br#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#);
+        let (status, _, _, body) = dispatch_body(
+            br#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
+            dispatch,
+        );
         assert_eq!(status, 202);
         assert!(body.is_empty());
 
-        let (status, _, _, body) = dispatch_body(br"[]");
+        let (status, _, _, body) = dispatch_body(br"[]", dispatch);
         assert_eq!(status, 400);
         assert!(body.contains("2025-06-18"), "{body}");
     }

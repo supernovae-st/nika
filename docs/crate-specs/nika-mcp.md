@@ -76,6 +76,32 @@ makes a tool safe to expose to any connecting client (ADR-080 · MCP stdio CVE
 sandbox). The effectful `run` path is gated behind `permits:` and lives in
 `nika-cli`/`nika-runtime`, never here.
 
+## 4bis. The conversation tool server (2026-10-09)
+
+`conversation` serves a session's own tools to the ACP agent that leads its conversation. The
+tools are the session's (`nika_session_change::tools::SessionTools`, contract
+`nika/author-tools@0`): this crate exposes and relays them, never interprets one, and holds no
+authority of its own (lateral L4→L4 edge to `nika-session-change`, which never depends back).
+
+- `dispatch` (crate-private, pure over the trait): `initialize` (version negotiation as the
+  oracle's, `serverInfo.name` = `SERVER_NAME` = `nika`, capabilities `tools` only), `tools/list`
+  (each `ToolDef` as `{name, description, inputSchema, annotations.readOnlyHint}`), `tools/call`
+  and `ping`; a notification gets no reply, a batch `-32600`. A call naming a tool the session does
+  not list answers `isError: true` and never reaches the session; a listed call is handed over as
+  a `ToolCall` (arguments as sent, `meta` = the tool-use id Claude Code names in
+  `_meta["claudecode/toolUseId"]`), and its `ToolReply` returns as one text block, a failure as
+  `isError: true`, a turn-ending reply as plain text.
+- `ToolServer` — the Streamable HTTP transport of §3 under its own law: bound to `127.0.0.1` on
+  an ephemeral port, its bearer minted for this conversation alone (256 bits from the OS via
+  `getrandom`, never in a debug rendering) and always required, the same origin gate, body bounds
+  and one request per connection. `serve` is blocking and sequential (a call holds the next
+  request for as long as its tool runs; the caller runs it on a thread of its own) until its
+  `Closer` closes it, explicitly or when dropped. `url`, `bearer` and `tool_names` are what the
+  caller hands the harness (`nika_harness::conversation::ToolOffer`).
+- `bridge(url, bearer, input, output)` — a stdio MCP session relayed to that server line by line,
+  each message posted with the bearer; loopback endpoints only. It is library-only: no CLI starts
+  it yet (`nika mcp --session` belongs to the CLI owner).
+
 ## 6. The client half — registry · pins · runtime dispatch
 
 The crate also speaks MCP as a **client**, for the servers a workflow

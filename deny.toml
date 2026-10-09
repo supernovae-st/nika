@@ -116,6 +116,7 @@ wrappers = [
   "nika-service-execution", # L3 shared driver: tokio dev-dep ONLY for #[tokio::test] over the async service seam (zero runtime tokio dep)
   "nika-serve",            # L4 remote HTTP: tokio net/rt/sync own the listener (W06 · loopback Bearer server)
   "nika-dap",              # L4 forensics (the trust plane · 2026-07-20): tokio dev-dep ONLY — the anchor submit-path tests park a current-thread executor around the HttpPostDyn seam (zero runtime tokio dep · the L4 shim owns the production executor)
+  "nika-mcp",              # L4 MCP: tokio dev-dep ONLY — the conversation relay test drives a harness conversation against the crate's real tool server (zero runtime tokio dep · the server stays sync)
   "nika-trace",            # L4 flight-recorder reader (descended from nika-cli 2026-08-11 · the 15k wall · ADR-110): the anchor verb's production submit parks a current-thread executor around the nika-http Rekor/RFC 3161 round-trips (the nika-models idiom · the lib is sync everywhere else)
   # Transitive consumers via reqwest → hyper stack (allowed through nika-catalog-verify)
   # tower-http joined via chromiumoxide's reqwest 0.13 tree (nika-browser M2.5).

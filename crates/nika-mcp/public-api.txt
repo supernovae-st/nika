@@ -176,6 +176,78 @@ pub fn nika_mcp::client::StdioMcpClient::tools_list(&self) -> core::result::Resu
 pub fn nika_mcp::client::approve_server<C: nika_mcp::client::ToolsListDyn + ?core::marker::Sized>(config: &nika_mcp::client::McpServerConfig, client: &C, project_dir: &std::path::Path, now_epoch: u64) -> core::result::Result<nika_mcp::client::ApproveReport, nika_mcp::pin::PinError>
 pub fn nika_mcp::client::connect_verified<C: nika_mcp::client::ToolsListDyn + ?core::marker::Sized>(config: &nika_mcp::client::McpServerConfig, client: &C, project_dir: &std::path::Path, now_epoch: u64) -> core::result::Result<nika_mcp::client::ConnectOutcome, nika_mcp::pin::PinError>
 pub fn nika_mcp::client::load_server_configs(project_dir: &std::path::Path) -> core::result::Result<alloc::vec::Vec<nika_mcp::client::McpServerConfig>, nika_mcp::pin::PinError>
+pub mod nika_mcp::conversation
+pub struct nika_mcp::conversation::Closer
+impl nika_mcp::conversation::Closer
+pub fn nika_mcp::conversation::Closer::close(&self)
+impl core::fmt::Debug for nika_mcp::conversation::Closer
+pub fn nika_mcp::conversation::Closer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::ops::drop::Drop for nika_mcp::conversation::Closer
+pub fn nika_mcp::conversation::Closer::drop(&mut self)
+impl<D> owo_colors::OwoColorize for nika_mcp::conversation::Closer
+impl<T, U> core::convert::Into<U> for nika_mcp::conversation::Closer where U: core::convert::From<T>
+pub fn nika_mcp::conversation::Closer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::conversation::Closer where U: core::convert::Into<T>
+pub type nika_mcp::conversation::Closer::Error = core::convert::Infallible
+pub fn nika_mcp::conversation::Closer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::conversation::Closer where U: core::convert::TryFrom<T>
+pub type nika_mcp::conversation::Closer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::conversation::Closer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_mcp::conversation::Closer where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::conversation::Closer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::conversation::Closer where T: ?core::marker::Sized
+pub fn nika_mcp::conversation::Closer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::conversation::Closer where T: ?core::marker::Sized
+pub fn nika_mcp::conversation::Closer::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_mcp::conversation::Closer
+pub fn nika_mcp::conversation::Closer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_mcp::conversation::Closer where T: 'static
+pub fn nika_mcp::conversation::Closer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::conversation::Closer where T: ?core::marker::Sized
+pub fn nika_mcp::conversation::Closer::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::conversation::Closer::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::conversation::Closer
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::conversation::Closer
+impl<T> typenum::type_operators::Same for nika_mcp::conversation::Closer
+pub type nika_mcp::conversation::Closer::Output = T
+pub struct nika_mcp::conversation::ToolServer
+impl nika_mcp::conversation::ToolServer
+pub fn nika_mcp::conversation::ToolServer::bearer(&self) -> &str
+pub fn nika_mcp::conversation::ToolServer::closer(&self) -> core::result::Result<nika_mcp::conversation::Closer, nika_mcp::McpError>
+pub fn nika_mcp::conversation::ToolServer::serve(&self)
+pub fn nika_mcp::conversation::ToolServer::start(tools: alloc::sync::Arc<dyn nika_session_change::tools::SessionTools>) -> core::result::Result<Self, nika_mcp::McpError>
+pub fn nika_mcp::conversation::ToolServer::tool_names(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_mcp::conversation::ToolServer::url(&self) -> core::result::Result<alloc::string::String, nika_mcp::McpError>
+impl core::fmt::Debug for nika_mcp::conversation::ToolServer
+pub fn nika_mcp::conversation::ToolServer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_mcp::conversation::ToolServer
+impl<T, U> core::convert::Into<U> for nika_mcp::conversation::ToolServer where U: core::convert::From<T>
+pub fn nika_mcp::conversation::ToolServer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::conversation::ToolServer where U: core::convert::Into<T>
+pub type nika_mcp::conversation::ToolServer::Error = core::convert::Infallible
+pub fn nika_mcp::conversation::ToolServer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::conversation::ToolServer where U: core::convert::TryFrom<T>
+pub type nika_mcp::conversation::ToolServer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::conversation::ToolServer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_mcp::conversation::ToolServer where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::conversation::ToolServer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::conversation::ToolServer where T: ?core::marker::Sized
+pub fn nika_mcp::conversation::ToolServer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::conversation::ToolServer where T: ?core::marker::Sized
+pub fn nika_mcp::conversation::ToolServer::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_mcp::conversation::ToolServer
+pub fn nika_mcp::conversation::ToolServer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_mcp::conversation::ToolServer where T: 'static
+pub fn nika_mcp::conversation::ToolServer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::conversation::ToolServer where T: ?core::marker::Sized
+pub fn nika_mcp::conversation::ToolServer::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::conversation::ToolServer::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::conversation::ToolServer
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::conversation::ToolServer
+impl<T> typenum::type_operators::Same for nika_mcp::conversation::ToolServer
+pub type nika_mcp::conversation::ToolServer::Output = T
+pub const nika_mcp::conversation::SERVER_NAME: &str
+pub fn nika_mcp::conversation::bridge<R: alloc::io::buf_read::BufRead, W: core::io::write::Write>(url: &str, bearer: &str, input: R, output: W) -> core::result::Result<(), nika_mcp::McpError>
 pub mod nika_mcp::dispatch
 pub struct nika_mcp::dispatch::McpToolPlane
 impl nika_mcp::dispatch::McpToolPlane

@@ -5211,11 +5211,13 @@ name = "nika-mcp"
 version = "0.123.0-preview.1"
 dependencies = [
  "blake3",
+ "getrandom 0.3.4",
  "nika-builtin",
  "nika-catalog",
  "nika-check",
  "nika-cli-host",
  "nika-graph",
+ "nika-harness",
  "nika-kernel",
  "nika-migrate",
  "nika-onboard",
@@ -5225,10 +5227,12 @@ dependencies = [
  "nika-sandbox-landlock",
  "nika-sandbox-seatbelt",
  "nika-schema",
+ "nika-session-change",
  "proptest",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
+ "tokio",
 ]
 
 [[package]]
