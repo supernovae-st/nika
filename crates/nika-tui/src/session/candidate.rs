@@ -13,17 +13,17 @@
 //! A previous fold lends only its look, and only to the very same bytes at the
 //! very same path; every other fact (the identity, the changes and their
 //! witnesses, what the workflow reaches, what a `save & run` would run, the
-//! rehearsal, the standing) is taken from the Session anew. The fold grants
-//! nothing and joins no consent.
+//! typed compile record bound to its bytes, the rehearsal, the standing) is
+//! taken from the Session anew. The fold grants nothing and joins no consent.
 
 use std::fmt::Write as _;
 
 use nika_session::change::{ProjectChange, ProjectChangeSet, Witness};
-use nika_session::work::Waiting;
+use nika_session::work::{DocumentRevision, Waiting};
 use nika_session::{ProposalId, SessionRuntime};
 
 use super::look::judge;
-use crate::workspace::candidate::{Proposed, RunAfter};
+use crate::workspace::candidate::{Proposed, RunAfter, admitted};
 use crate::workspace::cards::review::KEEP;
 use crate::workspace::inspect::Inspected;
 
@@ -76,14 +76,12 @@ pub(crate) fn take(runtime: &SessionRuntime, kept: Option<&Proposed>) -> Option<
             (words, reaches_outside(audit.world.reach))
         })
         .collect();
+    let revision = runtime.pending_revision();
     let fold = Proposed::new(candidate.id.clone(), candidate.aside, look)
         .changing(set.changes.iter().map(words).collect())
         .reaching(effects)
-        .revising(
-            runtime
-                .pending_revision()
-                .map_or_else(Vec::new, |r| revised(&r)),
-        )
+        .revising(revision.as_ref().map_or_else(Vec::new, revised))
+        .recording(bound(set, revision))
         .declaring(world)
         .running(run_after(set))
         .unshown(set.changes.len().saturating_sub(1))
@@ -134,10 +132,19 @@ fn draft(runtime: &SessionRuntime, kept: Option<&Proposed>) -> Option<Proposed> 
     Some(Proposed::new(ProposalId::of(&source), true, look).drafted())
 }
 
+/// The typed compile record, kept with the fold where it names the file it binds: the Session
+/// binds it to one workflow's bytes by digest, so with one workflow in the set those are the
+/// shown file's. Several workflows leave that file unnamed here, and no record is kept.
+fn bound(set: &ProjectChangeSet, record: Option<DocumentRevision>) -> Option<DocumentRevision> {
+    let workflows = set.changes.iter().filter(|c| c.is_workflow()).count();
+    record.filter(|_| workflows == 1)
+}
+
 /// How the typed compile record describes the pending document: a creation without earlier
-/// bytes, literal edits, or a whole replacement. An unknown mode claims none of those. Every
-/// component not witnessed as bound on these bytes needs attention.
-fn revised(revision: &nika_session::work::DocumentRevision) -> Vec<(String, bool)> {
+/// bytes, literal edits, or a whole replacement. An unknown mode claims none of those. A
+/// component `expanded` or `invoked` on these bytes is admitted held reuse ([`admitted`]);
+/// any other witness needs attention.
+fn revised(revision: &DocumentRevision) -> Vec<(String, bool)> {
     let mut rows = vec![match revision.mode.as_str() {
         "operations" if revision.changed.is_empty() => {
             ("revised in place · no node changed".to_owned(), false)
@@ -168,7 +175,7 @@ fn revised(revision: &nika_session::work::DocumentRevision) -> Vec<(String, bool
             words.push_str(" · ");
             words.push_str(&bound.join(", "));
         }
-        (words, component.witness != "expanded")
+        (words, !admitted(&component.witness))
     }));
     rows
 }

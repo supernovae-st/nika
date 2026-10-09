@@ -23,11 +23,12 @@
 
 use nika_display::theme::Role;
 use nika_session::ProposalId;
+use nika_session::work::DocumentRevision;
 use nika_tui_view::Face;
 use ratatui::text::{Line, Span};
 use unicode_width::UnicodeWidthStr;
 
-use super::cards::review::Review;
+use super::cards::review::{Review, hang};
 use super::inspect::{Inspected, title_row};
 use super::text::{fit_head, marks, twins, wrap};
 use crate::visual::role;
@@ -43,6 +44,30 @@ const FACES: &str = "Left/Right change the face";
 /// nothing has run.
 fn answers(sep: &str) -> String {
     format!("what a yes answers{sep}not saved{sep}nothing has run on your files")
+}
+
+/// Whether a component witness names admitted held reuse: `expanded` (its
+/// nodes, as bound) and `invoked` (its calling task, as receipted) are two
+/// distinct admitted states; `revised`, `absent`, `unreadable` and
+/// `unwitnessed` need attention.
+pub(crate) fn admitted(witness: &str) -> bool {
+    matches!(witness, "expanded" | "invoked")
+}
+
+/// Whether a compile record states an ordinary making of its bytes: a
+/// revision by operations, or a creation (`written`, `composed`) with no
+/// base. A replacement or a record of another kind needs attention.
+fn usual(record: &DocumentRevision) -> bool {
+    match record.mode.as_str() {
+        "operations" => true,
+        "written" | "composed" => record.base_sha256.is_none(),
+        _ => false,
+    }
+}
+
+/// The role a fact wears: a `plain` one its own, any other attention.
+fn tone(plain: bool, role: Role) -> Role {
+    if plain { role } else { Role::Warn }
 }
 
 /// What a `save & run` of a candidate runs once its save checked clean, as
@@ -70,6 +95,9 @@ pub struct Proposed {
     /// How its workflow was revised over the complete document and which components it holds,
     /// each with whether it needs attention: `(words, warn)`.
     revision: Vec<(String, bool)>,
+    /// The typed compile record the Session binds to these exact bytes, kept
+    /// only where it names the shown workflow ([`Self::recording`]).
+    record: Option<DocumentRevision>,
     /// Where each audited workflow reaches as declared, and whether that leaves this machine
     /// (or cannot be told): `(words, outside)`.
     world: Vec<(String, bool)>,
@@ -91,6 +119,7 @@ impl PartialEq for Proposed {
             && self.changes == other.changes
             && self.effects == other.effects
             && self.revision == other.revision
+            && self.record == other.record
             && self.world == other.world
             && self.after == other.after
             && self.rehearsed == other.rehearsed
@@ -112,6 +141,7 @@ impl Proposed {
             changes: Vec::new(),
             effects: None,
             revision: Vec::new(),
+            record: None,
             world: Vec::new(),
             after: None,
             rehearsed: None,
@@ -145,6 +175,13 @@ impl Proposed {
     /// states it, and whether each row needs attention.
     pub(crate) fn revising(mut self, revision: Vec<(String, bool)>) -> Self {
         self.revision = revision;
+        self
+    }
+
+    /// With the typed compile record bound to its shown workflow's bytes:
+    /// the check face details it ([`Self::reuse`]).
+    pub(crate) fn recording(mut self, record: Option<DocumentRevision>) -> Self {
+        self.record = record;
         self
     }
 
@@ -438,7 +475,63 @@ impl Proposed {
             self.look
                 .judged_lines_in(face, width, ascii, color, &said, compact),
         );
+        if face == Face::Check {
+            body.extend(self.reuse(usize::from(width), ascii, color));
+        }
         (title, body)
+    }
+
+    /// The compile record bound to these bytes, as one detail of the check
+    /// face: how they were made, then each admitted component they hold, what
+    /// these bytes show of it now ([`admitted`] or attention), its version,
+    /// its release and admitted-file digests and its bindings. Typed facts
+    /// only, each row whole ([`hang`]) in the glyph column in use.
+    fn reuse(&self, width: usize, ascii: bool, color: bool) -> Vec<Line<'static>> {
+        let Some(record) = &self.record else {
+            return Vec::new();
+        };
+        let short = |sha: &str| sha.chars().take(12).collect::<String>();
+        let (mode, these) = (&record.mode, short(&record.candidate_sha256));
+        let mut making = Vec::new();
+        if let Some(base) = &record.base_sha256 {
+            making.push(format!("over the base, sha256 {}", short(base)));
+        }
+        if !record.changed.is_empty() {
+            making.push(format!("changed · {}", record.changed.join(", ")));
+        }
+        if !record.preservation.is_empty() {
+            making.push(format!("preservation · {}", record.preservation));
+        }
+        let heading = format!("compile record · {mode} · binds these bytes, sha256 {these}");
+        let mut sections = vec![(heading, tone(usual(record), Role::Strong), making)];
+        for component in &record.components {
+            let version = component.version.as_deref().unwrap_or("unversioned");
+            let (id, witness) = (&component.id, &component.witness);
+            let (release, file) = (&component.release, &component.file_sha256);
+            let pairs = [("release", release), ("file", file)];
+            let digests: Vec<String> = (pairs.into_iter())
+                .filter_map(|(label, sha)| Some(format!("{label} {}", short(sha.as_ref()?))))
+                .collect();
+            // The version stands on its own row: a release name fits whole there.
+            let mut facts = vec![version.to_owned()];
+            if !digests.is_empty() {
+                facts.push(digests.join(" · "));
+            }
+            let bound = component.bindings.iter();
+            facts.extend(bound.map(|b| format!("{} = {}", b.path, b.value)));
+            let worn = tone(admitted(witness), Role::Good);
+            sections.push((format!("{id} · {witness}"), worn, facts));
+        }
+        let mut lines = vec![Line::default()];
+        let dim = role::style(Role::Dim, color);
+        for (title, worn, rows) in sections {
+            let style = role::style(worn, color);
+            let hung = hang(&twins(&title, ascii), 0, width);
+            lines.extend(hung.into_iter().map(|row| Line::styled(row, style)));
+            let below = rows.iter().flat_map(|r| hang(&twins(r, ascii), 2, width));
+            lines.extend(below.map(|row| Line::styled(row, dim)));
+        }
+        lines
     }
 }
 

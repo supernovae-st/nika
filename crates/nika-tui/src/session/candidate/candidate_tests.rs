@@ -366,6 +366,64 @@ fn a_revision_names_what_changed_and_warns_on_a_rewrite_or_a_moved_component() {
     );
 }
 
+/// `expanded` and `invoked` are two admitted states of held reuse, each named by its own word;
+/// only a witness that is neither (revised, absent, unreadable, unwitnessed) needs attention.
+#[test]
+fn an_invoked_component_is_admitted_like_an_expanded_one_and_named_apart() {
+    use nika_session::work::DocumentRevision;
+    let record = serde_json::json!({"mode": "composed", "candidate_sha256": "c",
+        "components": [{"component": {"id": "block:json-filter-records",
+            "release": {"version": "1.0.0"}}}]});
+    for (witness, attention) in [
+        ("expanded", false),
+        ("invoked", false),
+        ("revised", true),
+        ("absent", true),
+        ("unreadable", true),
+        ("unwitnessed", true),
+    ] {
+        let revision = DocumentRevision::of(&record, &[witness.to_owned()]).expect("revision");
+        let words = format!("component · block:json-filter-records 1.0.0 · {witness}");
+        assert_eq!(
+            super::revised(&revision)[1],
+            (words, attention),
+            "{witness}"
+        );
+    }
+    // A component the Session did not witness is `unwitnessed`: attention, never admitted.
+    let unseen = DocumentRevision::of(&record, &[]).expect("revision");
+    assert!(
+        super::revised(&unseen)[1].1,
+        "{:?}",
+        super::revised(&unseen)
+    );
+}
+
+/// The typed record stays with the fold only where it names the file it binds: the Session
+/// binds it to one workflow's bytes by digest, so a set of one workflow names it, two do not.
+#[test]
+fn the_typed_record_is_kept_only_where_it_binds_the_one_workflow_shown() {
+    use nika_session::work::DocumentRevision;
+    let room = Room::new("bound");
+    let at = |path: &str| {
+        ProjectChangeSet::workflow_at(&room.0, COPY, path, format!("nika: {path}\n"))
+            .expect("a workflow set")
+    };
+    let one = at("first.nika");
+    let raw = serde_json::json!({"mode": "written", "candidate_sha256": "c"});
+    let record = DocumentRevision::of(&raw, &[]);
+    assert!(record.is_some());
+    assert_eq!(super::bound(&one, record.clone()), record);
+    assert_eq!(super::bound(&one, None), None);
+    let mut two = one.clone();
+    two.changes.extend(at("second.nika").changes);
+    assert_eq!(
+        super::bound(&two, record),
+        None,
+        "two workflows: the file is not named"
+    );
+}
+
 /// An exact skeleton the compiler drafts whole and then asks one value of before it proposes.
 const ASKS: &str = "aggregate-by-key";
 

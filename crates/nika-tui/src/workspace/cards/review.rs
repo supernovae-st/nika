@@ -97,7 +97,7 @@ impl Review {
 /// word stays whole on a row where it fits one (a [`KEEP`] binds a count to
 /// its unit); a wider one breaks between its characters, never inside one.
 /// Widths are the layout's cells, and no row is cut.
-fn hang(words: &str, indent: usize, width: usize) -> Vec<String> {
+pub(crate) fn hang(words: &str, indent: usize, width: usize) -> Vec<String> {
     if width == 0 {
         return Vec::new();
     }
