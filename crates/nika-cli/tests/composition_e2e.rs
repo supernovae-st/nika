@@ -668,12 +668,13 @@ fn a_ninth_child_edge_is_refused_before_the_leaf_writes() {
 /// fails with `NIKA-TIMEOUT-001` within its bound, no level completes, and the
 /// running leaf's delayed write never lands, observed a full leaf delay after the
 /// run returned. The fixture timings give the eight-level descent real headroom on
-/// a slow runner (the leaf must be running before the root bound fires); they are
-/// not runtime defaults.
+/// a slow runner (the leaf must be running before the root bound fires; a Linux debug
+/// runner did not reach it within 10 s) and keep the leaf sleeping past that bound;
+/// they are not runtime defaults.
 #[test]
 fn a_root_timeout_destroys_a_pending_leaf_eight_levels_down() {
-    const ROOT_TIMEOUT_S: u64 = 10;
-    const LEAF_DELAY_S: u64 = 15;
+    const ROOT_TIMEOUT_S: u64 = 30;
+    const LEAF_DELAY_S: u64 = 45;
     let dir = tmp_dir("comp-deep-timeout");
     let permits = "permits:\n  exec: [\"sh\"]\n  fs: { read: [\"./late.sh\"], write: [\"./out/started.txt\", \"./out/late.txt\"] }\n";
     std::fs::create_dir_all(dir.join("out")).expect("out dir");

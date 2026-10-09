@@ -123,7 +123,7 @@ fn scenario(name: &str, expected_calls: usize) {
         .spawn()
         .expect("child");
     let started = Instant::now();
-    let deadline = started + Duration::from_secs(60);
+    let deadline = started + CHILD_HANG_GUARD;
     let status = loop {
         if let Some(status) = child.try_wait().expect("wait") {
             break status;
@@ -155,6 +155,10 @@ fn scenario(name: &str, expected_calls: usize) {
     );
     assert!(!root.join("sortie.txt").exists(), "no workflow executed");
 }
+
+/// How long a bounded child may run before it is taken for hung: a guard against a hang, never
+/// a performance bound. A Linux debug runner took about 6 s per phase of the money child.
+const CHILD_HANG_GUARD: Duration = Duration::from_secs(180);
 
 #[test]
 fn compact_money_and_both_confirm_doors_make_no_http_attempts() {
