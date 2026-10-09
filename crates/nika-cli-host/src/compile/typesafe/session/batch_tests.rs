@@ -482,3 +482,48 @@ fn each_request_that_left_carries_its_transport_time() {
     assert_eq!(unsent["sent"], false);
     assert!(unsent.get("elapsed_ms").is_none(), "{unsent}");
 }
+
+/// The seat a Session keeps learns its capacity across compiles. A qualification of eight is
+/// refused whole, then in its first half of four, and answered in parts of two, its second four
+/// split before it left. The next compile's batch of eight to the same seat starts under what
+/// was learned: four requests of two, none refused, each naming the bound it was split under.
+#[test]
+fn a_later_compile_starts_under_the_capacity_the_seat_learned() {
+    let eight: Vec<ChoiceQuestion> = (0..8).map(part).collect();
+    let pairs = |k: usize| answering(k..k + 2, FIRST_HALF);
+    let mut script = vec![over_capacity(), over_capacity()];
+    script.extend([0, 2, 4, 6].map(pairs));
+    script.extend([0, 2, 4, 6].map(pairs));
+    let peer = Peer::start(script);
+    let journal = setup(&peer);
+    for _ in 0..2 {
+        let seat = journal.consult(Ok(()));
+        let batch = ChoiceBatch::of("foundry-qualification", &eight);
+        let answers = block_on(seat.choose_each(&batch));
+        assert!(answers.iter().all(Result::is_ok), "{answers:?}");
+        assert!(seat.finish().is_some());
+    }
+    let asked: Vec<usize> = (peer.bodies().iter())
+        .map(|body| body["questions"].as_object().unwrap().len())
+        .collect();
+    assert_eq!(
+        asked,
+        [8, 4, 2, 2, 2, 2, 2, 2, 2, 2],
+        "two refusals, then parts of two"
+    );
+    let observations = journal.observations();
+    let first = observations[0]["attempts"].as_array().unwrap();
+    let split: Vec<&Value> = first
+        .iter()
+        .map(|attempt| &attempt["split_below"])
+        .collect();
+    let (none, four) = (&Value::Null, &json!(4));
+    assert_eq!(split, [none, none, none, none, four, four]);
+    let later = observations[1]["attempts"].as_array().unwrap();
+    assert_eq!(later.len(), 4, "{later:?}");
+    for attempt in later {
+        let seen = (&attempt["outcome"], &attempt["split_below"]);
+        assert_eq!(seen, (&json!("answered"), &json!(3)), "{attempt}");
+        assert!(attempt.get("refusal").is_none(), "{attempt}");
+    }
+}

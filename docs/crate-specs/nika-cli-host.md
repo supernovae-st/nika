@@ -479,7 +479,11 @@ operations and the questions over a trial run), NONE allowed, never Foundry or k
 selection, never authority. Each attempt records the question id and its offered keys
 (`task-<id>`, `part-<k>`), never the question's state, so a trial run's texts sent to the
 seat are not journaled here. Each attempt that left also records `elapsed_ms`, the time
-its transport took as measured here (the System One partition reads no clock).
+its transport took as measured here (the System One partition reads no clock). The one
+`TypesafeSeat` a Session keeps also keeps what its batches learned of the service's capacity
+(`system_one::Capacity`): a later batch starts under it, its requests split before they leave
+and naming that bound (`split_below`), so a qualification refused for capacity in one compile
+is not refused again at that size in the next. Nothing of it persists beyond the process.
 `SessionSeat::finish` consumes the scope; Drop performs the same conservative closure on
 errors or cancellation.
 The @2 observation records `scope_ended`; only fully answered or unsent attempts

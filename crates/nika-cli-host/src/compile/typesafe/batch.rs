@@ -86,7 +86,7 @@ impl TypesafeSeat {
         batch: &ChoiceBatch,
         watch: &dyn Requests,
     ) -> BatchExchange {
-        let mut partition = system_one::Partition::of(batch);
+        let mut partition = self.capacity.partition(batch);
         if let Some(record) = partition.unsent(batch, "not_sent") {
             watch.unsent(record);
         }
@@ -120,6 +120,7 @@ impl TypesafeSeat {
             partition.timed(at, started.elapsed());
             watch.settled(slots[at], partition.record(at, batch, &slots));
         }
+        self.capacity.learn(&partition);
         BatchExchange::of(partition)
     }
 }
