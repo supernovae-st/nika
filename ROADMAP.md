@@ -951,8 +951,11 @@ the historical `v0.8X.Y` layer-phase scheme is retired).
 - [`SECURITY.md`](SECURITY.md) — vulnerability disclosure · 11-row defense layers + NIKA-390 queued
 - [`CHANGELOG.md`](CHANGELOG.md) — release log · per-crate semver entries
 - [`docs/adr/`](docs/adr/) — 38+ ADRs · architectural decisions canonical
-- **Pre-release labels are reserved for the design-partner track**
-  (`1.0.0-rc.N` · per D-2026-06-20-N1). The historical `v0.80.0-alpha.*`
+- **Release-candidate labels are reserved for the design-partner track**
+  (`1.0.0-rc.N` · per D-2026-06-20-N1). A 0.x wave may also ship as a
+  **preview**, `vX.Y.Z-preview.N`: a GitHub pre-release that is never the
+  Latest release, never in the Homebrew formula, published to npm only under
+  the `next` dist-tag, and never announced. The historical `v0.80.0-alpha.*`
   tags predate this policy. Every stable tag is diamond — if it isn't
   diamond, it doesn't get tagged.
 

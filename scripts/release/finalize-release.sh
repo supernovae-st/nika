@@ -86,10 +86,14 @@ if [ "$prerelease" = false ] && [ "$tap_ready" != true ]; then
   exit 77
 fi
 make_latest=false
+# A prerelease is published but never announced: only a stable release opens
+# a discussion in Announcements.
+announce=()
 if [ "$prerelease" = false ]; then
   # GitHub's documented legacy policy chooses Latest by SemVer/creation date;
   # an explicit true would let delayed recovery of an older stable regress it.
   make_latest=legacy
+  announce=(-f discussion_category_name=Announcements)
 fi
 
 publish_failed=false
@@ -97,7 +101,7 @@ publish_failed=false
 # orphaned 0.118.5. Bind this transition to the tag and SHA just re-proved.
 if ! gh api --method PATCH "repos/${repo}/releases/${release_id}" \
   -f "tag_name=$tag" -f "target_commitish=$sha" \
-  -F draft=false -f discussion_category_name=Announcements \
+  -F draft=false ${announce[@]+"${announce[@]}"} \
   -f "make_latest=${make_latest}" >/dev/null; then
   publish_failed=true
 fi

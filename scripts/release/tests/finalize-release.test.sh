@@ -243,16 +243,20 @@ grep -Fq 'REFUSED tag v9.9.8' "$TEST_ROOT/post-patch-drift.out" \
 ! grep -q '^transitioned=' "$TEST_ROOT/post-patch-drift.out" \
   || fail 'finalizer claimed publication after tag drift'
 
-# Prerelease publication explicitly refuses Latest selection.
-make_assets 9.9.9-rc.1
-RELEASE_TAG=v9.9.9-rc.1
+# Prerelease publication explicitly refuses Latest selection and is never
+# announced: no discussion is opened for a preview.
+make_assets 9.9.9-preview.1
+RELEASE_TAG=v9.9.9-preview.1
 RELEASE_PRERELEASE=true
 printf '<!-- nika-ghcr-digest: %s -->\n' "$DIGEST" >"$RELEASE_BODY"
 printf 'true\n' >"$RELEASE_DRAFT"
 : >"$PATCH_LOG"
 result="$(run_finalizer full false)"
 [ "$result" = 'transitioned=true' ] || fail 'fully proven prerelease draft did not publish'
-grep -Fqx -- "-f tag_name=$RELEASE_TAG -f target_commitish=$SHA -F draft=false -f discussion_category_name=Announcements -f make_latest=false" \
+grep -Fqx -- "-f tag_name=$RELEASE_TAG -f target_commitish=$SHA -F draft=false -f make_latest=false" \
   "$PATCH_LOG" || fail 'prerelease finalizer PATCH arguments drifted'
+if grep -Fq 'discussion_category_name' "$PATCH_LOG"; then
+  fail 'a prerelease opened an Announcements discussion'
+fi
 
 echo 'finalize-release.test: PASS'
