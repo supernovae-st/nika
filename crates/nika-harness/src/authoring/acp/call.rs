@@ -11,49 +11,72 @@ use std::time::Duration;
 use nika_error::traits::NikaErrorCode;
 use nika_kernel::ai::harness::{HarnessError, HarnessEventStream, HarnessRequest};
 use serde_json::{Value, json};
+use tokio::time::Instant;
 
 use super::OneShot;
 use super::activity::Activity;
 
-/// One call's own deadline: when the call started and how long it may take. Every bound below
-/// it counts from that same start, so setup, identity probes and the spawn spend it too.
+/// One call's own deadline: the longest the call may go without a sign of its agent working,
+/// never a limit on its whole duration. It is armed at the call's start, so setup, identity
+/// probes, the spawn and the handshake spend it too, and each activity frame of the call's own
+/// session after its prompt re-arms it (`activity` decides which frames show the agent working).
+/// The call times out only once a whole allowance has passed with no such frame: silence is the
+/// transport's signal. Another session's or call's frames, adapter bookkeeping and the clock
+/// alone never re-arm it, and a call whose seat shows no frames keeps its first arming.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Deadline {
-    started: tokio::time::Instant,
-    timeout: Duration,
+    started: Instant,
+    allowance: Duration,
 }
 
 impl Deadline {
-    /// The deadline of a call starting now.
-    pub(crate) fn start(timeout: Duration) -> Self {
+    /// The deadline of a call starting now, allowed `allowance` of silence.
+    pub(crate) fn start(allowance: Duration) -> Self {
         Self {
-            started: tokio::time::Instant::now(),
-            timeout,
+            started: Instant::now(),
+            allowance,
         }
     }
 
-    /// What the deadline still leaves, read from the clock now.
-    pub(crate) fn remaining(self) -> Duration {
-        self.timeout.saturating_sub(self.started.elapsed())
+    /// The silence the call may keep: also each transport read's and write's bound, since a
+    /// frame may come a whole allowance after the last re-arming.
+    pub(crate) const fn allowance(self) -> Duration {
+        self.allowance
+    }
+
+    /// What the deadline still leaves, read from the clock now: the allowance, less the time
+    /// since the call's start or since the last activity frame of `progress`, whichever is later.
+    pub(crate) fn remaining(self, progress: &Progress) -> Duration {
+        let armed = (progress.rearmed()).map_or(self.started, |at| at.max(self.started));
+        self.allowance.saturating_sub(armed.elapsed())
     }
 
     /// Whether the deadline has passed, read from the clock now, never from a timer that may
     /// not have fired yet.
-    pub(crate) fn expired(self) -> bool {
-        self.remaining().is_zero()
+    pub(crate) fn expired(self, progress: &Progress) -> bool {
+        self.remaining(progress).is_zero()
     }
 
-    /// Resolves once the deadline has passed: a waiting select's wake-up, never its verdict.
-    pub(crate) async fn passed(self) {
-        tokio::time::sleep(self.remaining()).await;
+    /// Resolves once the call has kept silent for a whole allowance: a waiting select's wake-up,
+    /// never its verdict. Each wake-up reads the deadline again, so a frame that re-armed it
+    /// meanwhile only moves the next wake-up later; no frame needs to wake it.
+    pub(crate) async fn passed(self, progress: &Progress) {
+        loop {
+            let left = self.remaining(progress);
+            if left.is_zero() {
+                return;
+            }
+            tokio::time::sleep(left).await;
+        }
     }
 }
 
 /// What one ACP authoring completion opens inside its call's deadline: the registry adapter,
 /// spawned under its audited profile, or a scripted peer. Each frame read and each write of the
-/// stream is bounded by what the deadline leaves when the transport starts, counted from the
-/// call's start; an expired deadline opens nothing. The deadline itself stays the caller's to
-/// enforce above the stream. The unwind bounds keep the public authoring seat's auto traits.
+/// stream is bounded by the call's whole allowance, so the transport never ends a call its
+/// deadline still allows; a deadline expired before the transport starts opens nothing. The
+/// deadline itself stays the caller's to enforce above the stream. The unwind bounds keep the
+/// public authoring seat's auto traits.
 pub(crate) trait Door:
     Send + Sync + std::panic::UnwindSafe + std::panic::RefUnwindSafe + std::fmt::Debug
 {
@@ -74,8 +97,7 @@ pub(crate) trait Door:
 pub(crate) struct Opened {
     /// The completion's events.
     pub(crate) stream: HarnessEventStream,
-    /// The bound passed to the transport: what the deadline left once the adapter was ready to
-    /// start, never a fixed default.
+    /// The bound passed to the transport: the call's own allowance, never a fixed default.
     pub(crate) allowance: Duration,
 }
 
@@ -170,9 +192,9 @@ impl Milestone {
 
 /// What one call has reached, kept outside it: a deadline or a Stop that drops the call can still
 /// tell where it stood, the last protocol milestone it closed, which transport bound it had been
-/// given and what it received after its prompt. A handle: the stream's driver marks the same call
-/// from its own task, synchronously, and nothing is published before the terminal record
-/// snapshots it.
+/// given and what it received after its prompt, whose activity frames re-arm the call's deadline.
+/// A handle: the stream's driver marks the same call from its own task, synchronously, and nothing
+/// is published before the terminal record snapshots it.
 #[derive(Debug, Default, Clone)]
 pub(crate) struct Progress(Arc<Marks>);
 
@@ -229,6 +251,11 @@ impl Progress {
             .unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// When the last activity frame re-armed the call's deadline, if one did.
+    fn rearmed(&self) -> Option<Instant> {
+        self.activity().rearmed()
+    }
+
     /// The phase the call last reached.
     pub(crate) fn phase(&self) -> Phase {
         Phase::from_rank(self.0.phase.load(Ordering::Acquire))
@@ -268,29 +295,33 @@ pub(super) mod pause {
 }
 
 /// What every terminal record of an ACP authoring call adds: where the call stood and the last
-/// protocol milestone it closed (null before any), how long it ran from its start, its bounds
-/// (the deadline, and the transport allowance actually passed, null when no stream opened), and
-/// what it received after writing its prompt (`activity`, null when it never wrote one). Closed
-/// facts only, never adapter text. The last milestone, the activity and the elapsed time are read
-/// under one lock: the written prompt is published with its window under that lock, so a record
-/// names the prompt only beside its window, and a frame the driver completes meanwhile is either
-/// left out or no later than the elapsed time.
+/// protocol milestone it closed (null before any), how long it ran from its start, its bounds,
+/// and what it received after writing its prompt (`activity`, null when it never wrote one).
+/// The bounds hold no total deadline (`deadline_ms` null), the silence allowance (`idle_ms`),
+/// when an activity frame last re-armed it (`rearmed_ms`, null when none did, so the allowance
+/// counted from the call's start), and the transport allowance actually passed (null when no
+/// stream opened): a timed out record says how long the call had kept silent and since when.
+/// Closed facts only, never adapter text. The last milestone, the activity, the re-arming and the
+/// elapsed time are read under one lock: the written prompt is published with its window under
+/// that lock, so a record names the prompt only beside its window, and a frame the driver
+/// completes meanwhile is either left out or no later than the elapsed time.
 pub(crate) fn conclude(mut record: Value, progress: &Progress, deadline: Deadline) -> Value {
     if let Some(fields) = record.as_object_mut() {
         fields.insert("phase".into(), json!(progress.phase().as_str()));
-        let (milestone, activity, elapsed) = {
+        let since = |at: Instant| millis(at.saturating_duration_since(deadline.started));
+        let (milestone, activity, rearmed, elapsed) = {
             let received = progress.activity();
             let milestone = progress.milestone().map(Milestone::as_str);
             let activity = received.record(deadline.started);
-            (milestone, activity, deadline.started.elapsed())
+            let rearmed = received.rearmed().map(since);
+            (milestone, activity, rearmed, deadline.started.elapsed())
         };
         fields.insert("last_milestone".into(), json!(milestone));
         fields.insert("elapsed_ms".into(), json!(millis(elapsed)));
         let allowance = progress.0.allowance.get().copied().map(millis);
-        fields.insert(
-            "bounds".into(),
-            json!({"deadline_ms": millis(deadline.timeout), "transport_allowance_ms": allowance}),
-        );
+        let bounds = json!({"deadline_ms": null, "idle_ms": millis(deadline.allowance),
+            "rearmed_ms": rearmed, "transport_allowance_ms": allowance});
+        fields.insert("bounds".into(), bounds);
         fields.insert("activity".into(), activity);
     }
     record

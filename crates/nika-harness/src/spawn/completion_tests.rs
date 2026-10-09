@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! A spawned completion opened inside a call's deadline, against keyless scripted adapters: the
 //! deadline is spent by the probes, an expired one starts no process, and the transport is bounded
-//! by what it leaves, never by the fixed generic bound.
+//! by the call's own allowance, never by the fixed generic bound.
 use super::*;
 use crate::authoring::acp::{Completion, Deadline, Door, Progress};
 use futures_core::Stream as _;
@@ -97,11 +97,11 @@ async fn a_deadline_spent_by_the_probe_spawns_no_session() {
     assert_eq!(starts(&log), 1, "the probe ran; no session adapter started");
 }
 
-/// The spawned transport is bounded by what the deadline leaves when the adapter starts: an
-/// adapter that never answers `session/new` ends the session within that allowance, not after
-/// the fixed generic 300 s bound, and the bound reported is the one passed.
+/// The spawned transport is bounded by the call's own allowance: an adapter that never answers
+/// `session/new` ends the session within that allowance, not after the fixed generic 300 s
+/// bound, and the bound reported is the one passed.
 #[tokio::test]
-async fn the_spawned_transport_is_bounded_by_what_the_deadline_leaves() {
+async fn the_spawned_transport_is_bounded_by_the_call_allowance() {
     let dir = tempfile::tempdir().expect("dir");
     let (seat, log) = adapter(dir.path(), "0", false);
     let started = tokio::time::Instant::now();

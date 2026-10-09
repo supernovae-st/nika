@@ -27,7 +27,8 @@ pub(super) type Peer =
 
 /// One completion door over a scripted ACP peer: each open spends `setup` (the probes and the
 /// spawn it stands for), opens nothing once the deadline has passed, then drives the peer under
-/// the completion profile with what the deadline leaves, recording what it gave and did.
+/// the completion profile with the call's allowance, as the spawned adapter does, recording what
+/// it gave and did.
 #[derive(Default)]
 pub(super) struct Scripted {
     setup: Duration,
@@ -77,11 +78,12 @@ impl Door for Arc<Scripted> {
                     reason: reason.clone(),
                 });
             }
-            let allowance = Some(deadline.remaining())
-                .filter(|left| !left.is_zero())
-                .ok_or_else(|| HarnessError::Session {
+            if deadline.expired(&progress) {
+                return Err(HarnessError::Session {
                     reason: "expired before the spawn".into(),
-                })?;
+                });
+            }
+            let allowance = deadline.allowance();
             let peer = self.peer.lock().unwrap().take().expect("one peer per door");
             self.spawned.fetch_add(1, Ordering::SeqCst);
             self.allowances.lock().unwrap().push(allowance);
@@ -312,7 +314,8 @@ fn within(elapsed: Duration, expected: Duration) -> bool {
 
 /// The incident's shape, discriminated: a valid answer silent for 450 s inside its 600 s deadline.
 /// The former wiring handed every completion the fixed 300 s bound, which ends it at 300 s with
-/// the pinned safe words; the authoring call now gives its transport what the deadline leaves.
+/// the pinned safe words; the authoring call now gives its transport its own allowance, and the
+/// answer that ends the silence is the frame that last re-armed the deadline.
 #[tokio::test(start_paused = true)]
 async fn a_valid_completion_silent_past_the_former_bound_completes_within_its_deadline() {
     let (ours, theirs) = tokio::io::duplex(64 * 1024);
@@ -350,34 +353,31 @@ async fn a_valid_completion_silent_past_the_former_bound_completes_within_its_de
     assert_eq!(returned["stop_reason"], json!(StopReason::EndTurn));
     assert_eq!(json!(StopReason::EndTurn), json!(ACCEPTED_STOP));
     assert_eq!(returned["phase"], "completion");
-    assert_eq!(
-        returned["bounds"],
-        json!({"deadline_ms": 600_000, "transport_allowance_ms": 600_000})
-    );
+    let bounds = json!({"deadline_ms": null, "idle_ms": 600_000, "rearmed_ms": 450_000,
+        "transport_allowance_ms": 600_000});
+    assert_eq!(returned["bounds"], bounds);
     assert_eq!(door.opens.load(Ordering::SeqCst), 1);
 }
 
-/// Probes and the spawn spend the same deadline: 100 s of setup leaves 500 s to the transport,
-/// and the receipt names the value actually passed.
+/// Probes and the spawn spend the same deadline before any activity frame: 100 s of setup and
+/// 450 s of silence fit in its 600 s. The transport is given the call's whole allowance, since a
+/// frame may come that long after any re-arming, and the receipt names the value actually passed.
 #[tokio::test(start_paused = true)]
-async fn setup_time_reduces_the_allowance_the_transport_is_given() {
+async fn setup_time_spends_the_deadline_and_the_transport_keeps_the_allowance() {
     let door = door(Duration::from_secs(100), silent(Duration::from_secs(450)));
     let seat = authoring(&door);
     seat.infer(request(None))
         .await
         .expect("100 + 450 s fit in 600 s");
-    assert_eq!(
-        *door.allowances.lock().unwrap(),
-        vec![Duration::from_secs(500)]
-    );
+    assert_eq!(*door.allowances.lock().unwrap(), vec![DEADLINE]);
     let returned = &observed(&seat)[1];
-    assert_eq!(returned["bounds"]["transport_allowance_ms"], 500_000);
+    assert_eq!(returned["bounds"]["transport_allowance_ms"], 600_000);
     let elapsed = returned["elapsed_ms"].as_u64().expect("ms");
     assert!((550_000..551_000).contains(&elapsed), "{elapsed}");
 }
 
-/// Beyond the total deadline the call stays timed out: the late answer is never accepted, no
-/// second call is made, and the record says where the call stood.
+/// A call silent for its whole allowance stays timed out: the late answer is never accepted, no
+/// second call is made, and the record says where the call stood and that nothing re-armed it.
 #[tokio::test(start_paused = true)]
 async fn an_answer_beyond_the_deadline_stays_timed_out() {
     let door = door(Duration::from_secs(100), silent(Duration::from_secs(520)));
@@ -406,7 +406,9 @@ async fn an_answer_beyond_the_deadline_stays_timed_out() {
     assert_eq!(timed_out["phase"], "session");
     let elapsed = timed_out["elapsed_ms"].as_u64().expect("ms");
     assert!((600_000..601_000).contains(&elapsed), "{elapsed}");
-    assert_eq!(timed_out["bounds"]["transport_allowance_ms"], 500_000);
+    let bounds = json!({"deadline_ms": null, "idle_ms": 600_000, "rearmed_ms": null,
+        "transport_allowance_ms": 600_000});
+    assert_eq!(timed_out["bounds"], bounds);
     assert!(timed_out.get("stop_reason").is_none());
     assert_eq!(door.opens.load(Ordering::SeqCst), 1);
 }
@@ -563,7 +565,7 @@ impl Door for Ready {
             hold: self.hold,
             done: false,
         });
-        let allowance = deadline.remaining();
+        let allowance = deadline.allowance();
         Box::pin(async move { Ok(Opened { stream, allowance }) })
     }
 }

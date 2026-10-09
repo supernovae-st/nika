@@ -213,11 +213,11 @@ pub(crate) fn descriptor(
     let (tools, bounds) = match profile {
         Profile::ClaudeCode => (
             "none; audited empty tools and strict empty MCP",
-            "one prompt per call; SDK maxTurns 1; the call's own deadline; 512 KiB answer",
+            "one prompt per call; SDK maxTurns 1; the call's own silence allowance, re-armed by each activity frame; 512 KiB answer",
         ),
         Profile::Codex => (
             "apply_patch only, confined to the per-call scratch removed after the call (not an empty-tools profile); tool features, plugins and every configured MCP server disabled and read back at spawn; read-only mode: no network, every approval denied; any tool beat refuses the answer",
-            "one prompt per call; the call's own deadline; 512 KiB answer",
+            "one prompt per call; the call's own silence allowance, re-armed by each activity frame; 512 KiB answer",
         ),
     };
     json!({"kind":"harness_infer", "transport":"acp", "adapter":adapter, "requested_model":requested,
@@ -260,7 +260,8 @@ fn failed(error: &HarnessError) -> Failure {
 }
 
 /// One authoring completion through `door`, inside the call's `deadline`, each boundary it
-/// crosses told to `progress`. The deadline stays the caller's to enforce; nothing is retried.
+/// crosses told to `progress`, whose activity frames re-arm the deadline. The deadline stays the
+/// caller's to enforce; nothing is retried.
 pub(crate) async fn run(
     door: &dyn Door,
     native: crate::HarnessInferRequest,
@@ -350,3 +351,6 @@ mod deadline_tests;
 
 #[cfg(test)]
 mod activity_tests;
+
+#[cfg(test)]
+mod idle_tests;
