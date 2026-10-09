@@ -343,10 +343,14 @@ pub struct Authoring {
     /// What the compile's authoring calls reported, when it made any: the one actual-call
     /// evidence of the snapshot, beside the [`Intelligence`] that was only selected.
     pub calls: Option<AuthoringCalls>,
+    /// How long the compile's other stages took, as its decision record states them; `None`
+    /// when it names neither a knowledge qualification time nor a trial.
+    pub stages: Option<StageTimes>,
 }
 
 impl Authoring {
-    /// What a host shows of a compile outcome: its word, its draft and its calls' receipt.
+    /// What a host shows of a compile outcome: its word, its draft, its calls' receipt and the
+    /// time its other stages took.
     #[must_use]
     pub fn of(outcome: &CompileOutcome) -> Self {
         Self {
@@ -356,6 +360,58 @@ impl Authoring {
             candidate: (outcome.candidate.as_deref()).map(|source| Witness::of(source.as_bytes())),
             draft: outcome.candidate.clone(),
             calls: (outcome.provenance.authoring.as_ref()).map(AuthoringCalls::of),
+            stages: (outcome.provenance.decision.as_ref()).and_then(StageTimes::of),
+        }
+    }
+}
+
+/// The time a compile's stages beside its authoring calls took, read from its decision record
+/// and never re-derived or summed: the Foundry knowledge qualification (its references asked of
+/// the decision seat as one batch, `knowledge_qualification.elapsed_ms`) and each trial of a
+/// candidate (`rehearsal.reports`). A time the record does not state is `None`, never zero.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct StageTimes {
+    /// The wall time of the knowledge qualification, when the compile states one.
+    pub qualification_ms: Option<u64>,
+    /// Each trial of a candidate, in the order the preparation ran them.
+    pub trials: Vec<TrialTime>,
+}
+
+impl StageTimes {
+    /// The stage times a decision record states; `None` when it states neither.
+    fn of(decision: &serde_json::Value) -> Option<Self> {
+        let qualification_ms = decision["knowledge_qualification"]["elapsed_ms"].as_u64();
+        let reports = decision["rehearsal"]["reports"].as_array();
+        let trials: Vec<TrialTime> = reports.into_iter().flatten().map(TrialTime::of).collect();
+        let stated = qualification_ms.is_some() || !trials.is_empty();
+        stated.then_some(Self {
+            qualification_ms,
+            trials,
+        })
+    }
+}
+
+/// One trial of a candidate through an allowlist of its record: how far it went, how long it ran
+/// and the runtime bound the host gave it; never its outputs, texts or failure message.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct TrialTime {
+    /// How far it went (`completed` · `stopped` · `never_attempted`).
+    pub attempt: Option<String>,
+    /// The wall time it ran, when it was attempted.
+    pub elapsed_ms: Option<u64>,
+    /// The runtime bound the host gave it.
+    pub runtime_bound_ms: Option<u64>,
+}
+
+impl TrialTime {
+    /// The allowlisted facts of one trial report.
+    fn of(report: &serde_json::Value) -> Self {
+        Self {
+            attempt: name(&report["attempt"]),
+            elapsed_ms: report["elapsed_ms"].as_u64(),
+            runtime_bound_ms: report["runtime_bound_ms"].as_u64(),
         }
     }
 }

@@ -93,7 +93,12 @@ Two typed readings joined these modules on 2026-10-08, so every host reads the s
   and time bounds, the wall time, the stop reason or the engine's failure kind, and the
   reasoning and usage the provider reported. A fact the receipt does not hold is null, never
   guessed or summed; prompts, answers, proposed objects, served model names and error text never
-  pass.
+  pass. Its `stages` carry the time the compile's other stages took, as its decision record
+  states them (`StageTimes`): the knowledge qualification's wall time (`qualification_ms`, its
+  references asked of the decision seat as one batch) and each trial of a candidate in the order
+  run (`TrialTime`: how far it went, its `elapsed_ms` and the host's `runtime_bound_ms`), never
+  summed, null where the record states none, and absent when it states neither; no output,
+  read-back or failure text passes.
   `Knowledge` is the authoring knowledge the session reads, one typed state: `admitted` (the
   release's `source` — `embedded` or `disk` —, `version`, `manifest_sha256` and who chose it:
   `default`, `conversation`, `host` or `environment`), `refused` (the named source's kind, the
