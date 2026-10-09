@@ -360,7 +360,7 @@ mod endpoint_guard_tests {
 
     #[test]
     fn conversation_and_proposal_answers_keep_the_collected_endpoint_context() {
-        const ANSWER: &str = "Use `openai/deepseek-v4-flash-0731`.";
+        const ANSWER: &str = "Use `openai/deepseek-v4-flash-0731` as the model.";
         for (endpoint, refused) in [
             ("https://api.openai.com/v1/chat/completions", true),
             ("https://api.scaleway.ai/v1/chat/completions", false),

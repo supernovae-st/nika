@@ -171,6 +171,14 @@ host endpoint observations. `audit_over` preserves a configured OpenAI-compatibl
 route; the existing `audit` wrapper retains conservative profile defaults. Both
 are pure resolutions: this crate still never calls a provider. Its tests live beside it (`src/guard.rs`).
 
+A `provider/name` token is judged as a model by its role, never by its shape: only when it
+fills a model slot — the value of a `model:` field, a `--model` flag, or a name the prose
+calls a model (« the model `x` » · « the `x` model » · « `x` as the model »). An output or
+input path (`news/2026-10-09.md`, a folder named like a provider) keeps its role wherever the
+reply carries it, and a model slot is judged whatever its name looks like (a capitalised or
+two-letter provider, a folder word). There is no folder list. A model named in prose without
+a model slot (« Use `x`. ») is not judged.
+
 ## The automation rail (read by Session)
 
 `lifecycle` compiles where an automation stands as separate facts, DRAFT · SAVED · CHECKED ·
