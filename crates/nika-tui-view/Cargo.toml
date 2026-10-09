@@ -25,10 +25,10 @@ workspace = true
 [dependencies]
 ratatui       = { workspace = true }   # the styled lines a view renders (Line · Span · Style)
 unicode-width = "0.2"                  # widths grapheme by grapheme, the table the buffer uses
-nika-session  = { path = "../nika-session", version = "0.122.0", default-features = false }   # the plan face reads the review's run order and gates (nika_session::review)
-nika-display  = { path = "../nika-display", version = "0.122.0" }   # the theme roles, the wires of the graph face, the check layers, the JSON shape
+nika-session  = { path = "../nika-session", version = "0.123.0-preview.1", default-features = false }   # the plan face reads the review's run order and gates (nika_session::review)
+nika-display  = { path = "../nika-display", version = "0.123.0-preview.1" }   # the theme roles, the wires of the graph face, the check layers, the JSON shape
 
 [dev-dependencies]
-nika-cli-host = { path = "../nika-cli-host", version = "0.122.0", default-features = false }   # the faces tests stand in for the owner of the check facts (oracle::audit_source, once per fixture)
+nika-cli-host = { path = "../nika-cli-host", version = "0.123.0-preview.1", default-features = false }   # the faces tests stand in for the owner of the check facts (oracle::audit_source, once per fixture)
 sha2 = { workspace = true }   # the relocated brand rendition provenance proof
 ratatui = { workspace = true, features = ["unstable-rendered-line-info"] }   # the wrapping tests compare the window with the Paragraph's own line count

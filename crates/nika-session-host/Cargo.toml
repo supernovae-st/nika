@@ -23,11 +23,11 @@ publish                = false  # Interface crate — a member of the nika-sessi
 workspace = true
 
 [dependencies]
-nika-session  = { path = "../nika-session", version = "0.122.0", default-features = false }  # the ONE SessionRuntime every door drives (lateral L4→L4 · never back)
-nika-cli-host = { path = "../nika-cli-host", version = "0.122.0", default-features = false }  # lane — the run child a native Session run goes through · probe::home_dir
-nika-catalog  = { path = "../nika-catalog", version = "0.122.0", features = ["providers"] }   # the provider's first cataloged model when a choice names none
-nika-onboard  = { path = "../nika-onboard", version = "0.122.0" }      # compile::room::JqHelper — the binary a rehearsal's nika:jq steps run with
-nika-types    = { path = "../nika-types", version = "0.122.0" }        # cancel::CancelCtx — the Stop token of the turn under way
+nika-session  = { path = "../nika-session", version = "0.123.0-preview.1", default-features = false }  # the ONE SessionRuntime every door drives (lateral L4→L4 · never back)
+nika-cli-host = { path = "../nika-cli-host", version = "0.123.0-preview.1", default-features = false }  # lane — the run child a native Session run goes through · probe::home_dir
+nika-catalog  = { path = "../nika-catalog", version = "0.123.0-preview.1", features = ["providers"] }   # the provider's first cataloged model when a choice names none
+nika-onboard  = { path = "../nika-onboard", version = "0.123.0-preview.1" }      # compile::room::JqHelper — the binary a rehearsal's nika:jq steps run with
+nika-types    = { path = "../nika-types", version = "0.123.0-preview.1" }        # cancel::CancelCtx — the Stop token of the turn under way
 
 blake3          = { workspace = true }  # the digest of a command's exact bytes in the ledger
 bytes           = { workspace = true }

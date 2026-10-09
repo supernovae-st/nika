@@ -20,7 +20,7 @@ homepage.workspace     = true
 publish                = false  # member of the nika-onboard unit — never on crates.io alone
 
 [dependencies]
-nika-compile-reader = { path = "../nika-compile-reader", version = "0.122.0" } # the restriction, keep, exclusion and operation words, the heads, the fold and the structure laws a clause is read by (ONE unit, several members · ADR-145)
+nika-compile-reader = { path = "../nika-compile-reader", version = "0.123.0-preview.1" } # the restriction, keep, exclusion and operation words, the heads, the fold and the structure laws a clause is read by (ONE unit, several members · ADR-145)
 unicode-normalization = { workspace = true, default-features = false } # a stated literal and an observed value compared under canonical decomposition (R4 A11)
 
 [package.metadata.lore]

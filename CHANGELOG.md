@@ -16,6 +16,879 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.123.0-preview.1](https://github.com/supernovae-st/nika/compare/v0.122.0..v0.123.0-preview.1) - 2026-10-09
+
+**Preview: honest scope.** 0.123.0-preview.1 is a pre-release of the 0.123 wave. It is not the
+Latest release, it is not in the Homebrew formula, and npm carries it only under the `next`
+dist-tag. Install it by its version: `install.sh --version 0.123.0-preview.1`, the release
+tarballs, or the `ghcr.io/supernovae-st/nika:0.123.0-preview.1` image. Homebrew and the default
+install script stay on 0.122.0.
+
+What it brings:
+- complete-document Session authoring, with typed clarification;
+- judging context for the admitted components a candidate holds;
+- executable reuse of an admitted Foundry component;
+- a progress-aware ACP authoring deadline;
+- the native workspace's review and settled-Run composition;
+- an internal split of the compile unit into a separate behavior member (no behavior change).
+
+What it does not claim: no general reliability or speed qualification. Preparing a workflow from
+an intention currently takes minutes rather than seconds, and the verifier still holds some
+legitimate requests. Several capabilities are still in progress, notably grouped answers, the
+clarification pause, live role settings, Session Run Stop, and schedules bound to saved
+revisions.
+
+### Added
+
+- **Compile records which door wrote the candidate and what each call saw.** The existing decision record now retains source ownership, request and response digests, consumed proposals, Foundry delivery evidence, calls with unknown usage preserved, and Check and Rehearsal evidence bound to the final bytes. Behavioral satisfaction remains UNKNOWN: no behavioral judge runs. Within the new forensic proposal projection, refused or ignored model output is kept by digest only; pre-existing native notes and round records are unchanged.
+- **`nika compile` and `nika serve` try a candidate before READY.**
+  A seated free-intent compile now runs each final candidate on a
+  scratch copy of its stated inputs, in the observed room the Session
+  uses; the trial's report reaches the judge and the repairs, and a
+  failing trial is never READY. Serve tries it on the caller's
+  `trial_inputs` (health `compileTrialInputs`).
+- **Create and revise continuously in the CLI or TUI.** Preparation no longer
+  imposes a default call count, repair count or monetary confirmation. It uses
+  the selected connection and its technical limits, keeps usage and historical
+  charges, and stops on completion, no progress, a refused or failed call, or
+  the human's Stop. Explicit bounded callers retain their limits; workflow
+  budgets and the separate Save/Run permissions are unchanged.
+  **Keep decision-service usage separate from the author.** An explicitly
+  selected Jev seat can assist the existing typed compiler decisions under
+  API or subscription authoring without an implicit three-call cap. Each
+  compile closes its consultation scope; unanswered sends and unknown invoices
+  remain visible. Neither returned usage nor a configured model name proves
+  a final bill or the model actually served. No API fallback is granted.
+- **Workflows can remove one regular file with `nika:remove_file`.** It takes exactly `{ path: string }`, needs the tool grant and a `permits.fs.write` bound on the exact path, creates no parent and reads no content; a missing name, a directory, a link or a special file fails as the tool's own error, and an authority refusal stays `NIKA-SEC-004` even when the at-removal re-judgment denies what the first judgment allowed. `nika check` refuses an invalid literal path before any run and orders every same-path write, edit and removal through the precedence graph (`with:`, group folds, `after:`); an `unwind` edge is not order. Its output is untrusted, the returned path is not proof of disk state, and the check-then-unlink is not one atomic operation. There is no recursive, glob, force, missing-ok or `nika:delete` form.
+- **The decision model now qualifies recalled Foundry knowledge before
+  the author reads it.** Each reference the word and graph recall found
+  is put to the selected decision model against the whole request; one
+  it finds unrelated never reaches the author, one it cannot judge stays
+  shown as a hypothesis. `decision.knowledge_qualification` records what
+  was found, shown, discarded and unqualified, every answer, and which
+  shown code the candidate kept. Without a decision model the recall is
+  shown unqualified and the record says so.
+- **A harness authoring call's record names the last protocol step it
+  closed.** Beside its phase, a terminal ACP authoring record now says
+  which step this side last completed: the stream opened, the agent's
+  initialize accepted, its session created, the requested selection
+  checked, the prompt written, or an answer chunk received. A call that
+  stalls is localized to the step after it, without any adapter text; it
+  says nothing about what the agent's model did, its other activity or
+  how long anything generated, and the deadline is unchanged.
+- **A harness authoring call's record says what it received after its
+  prompt.** A terminal ACP authoring record now carries `activity`: when
+  the prompt was written, how many complete frames arrived after it in
+  fixed categories (answer, thought, usage, status, other updates, client
+  requests, the answer or error to the prompt) and when the last did;
+  another session's frames, stray responses, other notifications and
+  unreadable lines are counted apart, so they never read as the call
+  advancing. When the session ended, it also names how: completed, the
+  transport, or the exact refused category (a token or request limit, a
+  declined or called-off turn, a tool, media or other update, a
+  permission or client request) that the safe message folds into one
+  sentence. No prompt, answer, thought, method, identifier, path or error
+  text is kept, and acceptance, deadlines, Stop and retries are
+  unchanged. A thought or usage frame proves only that the adapter wrote
+  it, and no frame after the prompt cannot tell a stalled adapter from a
+  model reasoning without emitting anything.
+- **ACP image evidence stays visible and bounded.** Images returned by an ACP agent are recorded in the run trace and shown in task
+  details with their storage status. Received bytes can be saved in the project's
+  content-addressed store; a reported file path alone is never opened or claimed
+  as a saved image. Reported model selection remains distinct from served-model
+  attestation and billing.
+- **Add explicit, bounded private capture for returned Compile authoring Text.**
+  Keep capture off by default, withhold resolved credentials, preserve compiler outcomes
+  when storage is unavailable, and retain reservation and close facts. `CompileCommand`
+  gains a `capture` field; its existing constructor keeps capture off. `CompileArgs` stays
+  unchanged.
+- **Filesystem backends can remove a regular file without following its name.** The kernel's file-writing interface gains a provided regular-only removal that existing backends refuse until they implement it. The host, room and in-memory backends implement it: a symlink, a directory, a special node, an absent name or a path naming no final file is refused and left as it was, the file is never read, and no parent is created. The check and the removal are two steps, not one atomic operation on the same file: a name replaced between them may be removed in its place, and a substituted symlink is unlinked, never followed. The existing removal is unchanged.
+- **Scaleway has a distinct API provider and saved intelligence choice.**
+  Its credentials and project endpoint remain separate from OpenAI. The exact
+  hosted model keeps observed usage and an unknown price. The exported Rust
+  `CANONICAL_IDS` array changes from 17 to 18 entries; consumers that name its
+  array length must update with this release.
+  Explicit compatible API endpoints remain supported by admission and SDK
+  export; a selected ACP/harness path cannot borrow an unused API endpoint.
+- **`nika serve --decision-model` seats a judge beside the author.**
+  The `nika compile --decision-model` words (`typesafe/<jev>` or a
+  direct `provider/name`): it judges every candidate and answers the
+  finite choices in place of the author judging its own work. Health
+  lists `compileDecisionSeat`; a seat that cannot open refuses startup.
+- **A Serve answer round can be judged without authoring again.** After
+  a native round asked questions, a client could replay it with its
+  answers and no provider call, but nothing then judged the replayed
+  workflow, so it stayed incomplete; getting it ready meant a new
+  authoring round, which spent again and could write other bytes. A
+  request with `cognition: "explicitProvider"` and the round's
+  `replay_token` now replays the kept plan with the answers and asks the
+  server's seat only to judge it. A workflow the seat accepts is ready;
+  one it does not accept is held and its token forgotten, so those bytes
+  are never put to the same judge again through it.
+- **A remote compile sees the caller's files as `nika compile` does.**
+  `nika compile --observe-only <intent>` prints the bounded observation
+  of the files an intent states (headers, keys, short categorical
+  values, never a row); `POST /v1/compile` generation 2 admits it as
+  `observed_world` (health `compileObservedWorld`), so the seat, the
+  grounding law and the judge read the real shape instead of asking.
+- **`nika serve --sessions` serves the project's native Session over
+  HTTP.** An operator who binds a listener can now name the Session
+  routes (health `sessionHost`): the same Session bare `nika` opens, whose
+  runs are the resident's jobs and run only the bytes the Session
+  checked. Without the flag the listener serves no Session.
+- **A Session's work snapshot says what the last answer line did.** When a
+  line is typed for an authoring question, the snapshot now names that
+  question and the act the session performed: the value it bound and how
+  the line gave it (as typed, an offered key, a part chosen by the one
+  reading call, or the seat an empty line took as the offered default), the round dropped, the request restated in words, the
+  question still waiting with the reason, or the refusal's class. It is
+  recorded where the act happened, so a bound value stays bound when the
+  compile that follows does not finish, and it is absent after an aside, a
+  read-only command or a line for another prompt. It travels in the shared
+  Session work snapshot and its host projection.
+- **A Session's work snapshot names each authoring call it made.** Beside
+  the totals, every call the last compile sent now appears in call order
+  with its role, the digests of its instruction and answer schema, the
+  bytes it sent, how many references rode with it, its output and time
+  bounds, its wall time, how it ended (the provider's stop reason or the
+  engine's failure kind) and the reasoning and usage the provider
+  reported. What the receipt does not record stays null, never guessed,
+  and no prompt, answer, proposed object or error text is carried. Both
+  the native workspace and the HTTP host read it from the same snapshot.
+- **A Session's intelligence choice holds for its conversation.** A
+  choice made in a Session, or named by its opener, is kept by that
+  conversation's history and resumed over the operator's default; it is
+  never written to the operator's kept choice. `nika session --json
+  --intelligence <words>` and the HTTP open body (`intelligence`) name it
+  in the census's own words; words the census does not read open
+  nothing. Both doors advertise `sessionIntelligence`.
+- **A created workflow carries its creation record in the Session.** A
+  proposal from a fresh request now shows how the compiler made the
+  document, written whole or composed from admitted components, with no
+  base, bound to the proposed bytes and each component witnessed on them;
+  the consent prompt says so. A revision keeps its record over its base,
+  whether or not it replaces a saved file.
+- **`nika session --json`: the Session for programs.** The same native
+  Session as bare `nika` in this directory, spoken as one JSON object
+  per line on stdio: a client submits a line against the snapshot it
+  answers, reads the proposal and the questions, consents to Save and
+  asks for a Run separately, and closes by ending its input. The
+  engine identity lists the `sessionHost` capability.
+- **An explicit source recovery after the sketch door's exhaustion (library policy, off by
+  default).** `AuthoringPolicy::with_source_recovery(n)` (0..=3) lets the same seat write the
+  whole `.nika` of a new workflow only when the sketch door ended without an accepted candidate
+  and nothing is left for the human to answer. Each source faces the strict parser, the pure
+  Check, the fidelity laws, the rehearsal when offered and the whole-request judgment before
+  READY; refusals are repaired within the stated rounds, every request is charged to the same
+  authority and receipt, and the recovery is recorded (route, `decision.native.recovery`,
+  `authoring_recovery` finding). `native: only` stays retired, no host offers the policy yet,
+  and a revision is never recovered from source.
+- **Source recovery reachable from the product by explicit operator configuration.**
+  `NIKA_AUTHORING_SOURCE_RECOVERY=<0..3>` (or a host's `AuthoringSettings::source_recovery`)
+  is resolved by the shared authoring parser for the CLI and the Session (and its TUI): a count
+  outside `0..=3`, or rounds under `off` or `only`, is refused. Serve stays unconfigured: its
+  seat resolves only its named settings, never the environment, so its count is 0. The policy carries it on the same seat;
+  the CLI receipt states `recovery_requests` and `worst_case_with_recovery` beside its allowance,
+  and a Session unknown-cost review reserves them in the same account, stating the allowance and
+  the theoretical worst case. Nothing changes when it is absent.
+- **Explicit Claude ACP preparation.** Session can persist an explicit Claude ACP choice for conversation and workflow authoring, preserving native choices, bounded calls, unknown subscription billing and existing API exposure. The audited adapter profile disables tools before a prompt; unsupported adapters or incomplete answers refuse without fallback.
+- **Open a task's child journal from its workspace detail.** The journal named
+  by the parent's settle frame is captured once and verified; recorded head,
+  source and outcome commitments are compared while absent facts stay explicit.
+  Child execution identity and length remain not compared. Each opening asks
+  its own read, and Backspace returns to the parent without starting work.
+- **The workspace opens a run's outputs, current files and Proof.** Outputs
+  come from its settlement; reported files are read now, without claiming they
+  are unchanged since the run. Proof verifies one captured journal and binds
+  it only when execution, source hash and receipt agree. Reopening repaints
+  retained conversation and the last observed run as history; Proof is checked
+  again on demand. Outputs and task rows are not restored, and nothing replays.
+- **Stop a preparation, or send a correction, while Nika works.** In the
+  terminal session the first `Ctrl+C` during a preparation asks the Session
+  to stop it and keeps the conversation; a second press still leaves. `Enter`
+  with words in the box asks the same stop and queues them as a correction,
+  sent as the next line when the turn ends on the free prompt; a chain of
+  corrections is sent one after another. A correction never answers a
+  decision: after a proposal, question, gate or choice it returns to the box
+  unsent, and after a cost question the box stays empty while the transcript
+  keeps the correction whole. Every queued correction is kept in input history
+  like a sent line. A Run is never stopped by these keys, and the row says so.
+- **Inspect a task from the workspace Run face.** Select a task, open its
+  observed state, failure, usage and output, then return to the list. Selection
+  follows the execution and task identity through wrapping and resizing.
+  Unobserved tasks and missing measurements stay explicit; inspecting a task
+  does not start or authorize work.
+- **Typed terminal replies answer the question actually in view.**
+  In the workspace the question waiting for your reply stands right above the
+  answer line, with as many of its words as the terminal has room for, its
+  offers and `F2` for the whole text; status and lifecycle rows that would only
+  repeat it make room for it. Offered keys and your own words are each sent
+  once, with the identity of the question on screen; a stale reply cannot start
+  a new request or grant Save or Run consent. A reply that was not taken returns
+  exactly, ahead of newer unsent words, or keeps its offer selected; nothing is
+  replayed and no applied state is inferred. When the Session reports the value
+  it took, the conversation says `Answer taken` with that value and how it was
+  read. Messages from one speaker share a bubble, yours on the right and Nika's
+  on the left, while questions, proposals, approvals and failures keep a framed
+  card that names itself when scrolled into part-way and its row has room for
+  the heading. A short conversation rests against the decision or composer
+  below it. The current proposal's
+  review says first what a `yes` answers, then its changes and effects, and
+  ends on the proposal's identity, while its object shows the inspected
+  content; the status row says a plain `yes` means Save only. Below 100
+  columns the restored object folds to a three-row strip while that review or
+  the question needs the room, keeping your proportions and saving nothing.
+  `F2` reads the complete question or proposal and returns to the same draft
+  without sending it.
+- **Bare `nika` opens the native workspace.** The current project, conversation and workflow inspection share the terminal. Source, Plan, Graph and Check use the same witnessed parent file; imports and run readiness stay UNKNOWN because this inspection reads the parent file alone. Opening a workflow performs no Save or Run. `NIKA_TUI=inline` retains the earlier presentation, and plain and pipe entry remain available.
+- **Arrange the terminal workspace without losing the conversation.** Session and
+  Workbench share the same work, with bounded mouse and keyboard resizing and
+  host-owned display preferences. A contextual slash chooser and command palette
+  keep insertion separate from sending, preserve the draft and focus, and treat
+  paste as data. Recognized knowledge-admission refusals explain their scope with
+  read-only raw details; refusal before authoring no longer claims generation.
+
+### Changed
+
+- **`nika-compile-behavior` (ADR-149).** The behavioural contract a
+  request states and its judgment over rehearsals descend from
+  `nika-compile-fidelity` at the 15k prod-LOC wall as a member of the
+  `nika-onboard` unit (D-2026-07-09-N1), with the date-time shape
+  classifier both crates read. `nika_compile_fidelity::behavior` and
+  `nika_compile_fidelity::fidelity::instant_shape` remain and name the
+  same items, so no import changes; a type's run-time name now names the
+  member. No judgment, record, wire, budget or Stop behaviour changes.
+- **An open request now takes its next useful action instead of a
+  fixed escalation.** A request the deterministic reader composed whole
+  is now checked by the selected judge before it can be ready, and the
+  author repairs what the judge finds missing; readings a decision seat
+  settled are checked the same way. When the author's plan holds a
+  computation its typed steps cannot state, or reads a source field
+  the request never names, the sketch door composes the request next
+  instead of a separate program round or a question to you.
+  `decision.agenda` records each action and what motivated it; the
+  `--hot-policy` and `--authoring-strategy` flags and old receipts read
+  as before.
+- **A new workflow is asked of its author as one whole document.** Under
+  the default strategy (`escalate`) and under `only`, the first authoring
+  call of a fresh creation now asks for the complete `.nika` in the whole
+  language, with the lent catalogue's admitted components composed by
+  identity and receipted, instead of a private plan and a sketch that had
+  to fail first. The document is judged, settled and repaired like any
+  candidate; `sketch` keeps the sketch door and `off` the private plan,
+  and `only` is no longer refused.
+- **The embedded knowledge release offers a JSON record filter.** The
+  current r2 release adds the admitted component
+  `block:json-filter-records`, which reads a JSON array of records and
+  keeps the ones a jq expression selects, whole and in source order; its
+  path is the human's to bind, its expression the compiler's. Every
+  checked row of the release is re-verified on the current engine. An
+  explicit embedded pin to the release it replaces is refused by its
+  identity; reopening a Session pins the new release and keeps its
+  earlier receipts.
+- **New authoring draws on the r2 knowledge release.** The build embeds
+  the r2 Foundry release whole, from its own directory, and admits it
+  against its issued snapshot and policy before anything is collected;
+  CLI, Session and Serve authoring use it when nothing else is named.
+  The a8 and R3 releases stay embedded, so a project pinned to either
+  is still admitted against its own identity, and a pin naming a
+  release this build does not carry is refused as an identity mismatch.
+- **The terminal workspace keeps one adaptive conversation beside its object.**
+  A bounded composer and one primary home for project and model facts reduce
+  repeated chrome. Actual project entries and workflow graphs use compact cards,
+  truthful dependency wires and a quiet violet palette; unsupported graph shapes
+  retain exact dependency rows. The selected object expands through its local
+  control or F4, with the conversation beside it on wide terminals. Manual
+  separator movement preserves the requested width and draft. Folded panels
+  remain reachable as Project, Conversation and Object. Diagnostics exclude
+  underlying pointer actions, and navigation preserves pending Stop feedback.
+- **A proposal under review keeps only what changes the decision.** Its
+  card lists every change, effect, declared reach and uncertainty once, a
+  wrapped line hung under its fact, and carries the proposal identity and
+  the `F2` reader key on its bottom border; the status keeps the
+  proposal's standing, its row under `Save? ›` names `save & run` beside
+  `yes` and `no` when the Session admits one run, the object header names
+  the workflow and its exact bytes once, and an earlier proposal is titled
+  `Proposal`. A settled run states its outcome once in its header, a cut
+  lifecycle rail keeps its newest stages, and the run's own result no
+  longer opens with `Latest reply above`.
+- **Clarify preparation selection and idle navigation in the workspace.**
+  The conversation labels the selected preparation connection separately from
+  observed activity. When idle, it keeps intelligence selection and panel/scroll
+  controls visible, and explains how to focus the conversation and press End
+  to return to the latest messages. Reopened runs name the action that reads
+  their saved journal. The Session's status keeps leading its row;
+  consent, Stop, cost questions and completion keep their own instructions.
+- **The preparation model line names the semantic verifier.**
+  The workspace and welcome view identify the selected verifier, including when
+  the authoring model verifies its own workflow.
+- **The verifier asks the parts of a request together.** When it
+  doubted a workflow, the verifier asked each part of the request one
+  after another, waiting for each answer before sending the next. A
+  decision service now receives the parts of one step all at once,
+  each still its own question, and a model seated for decisions answers
+  them in one request whose answer names each part by its id. The
+  answers are read in the same order as before, so what is judged,
+  recorded and repaired is unchanged; only the waiting is shorter. A
+  part whose answer was sent but never read, because an earlier
+  question got no answer, is recorded as sent.
+
+### Fixed
+
+- **Workflow authoring judgments.** Whole-request verification distinguishes the workflow being authored from the files its program writes, keeps its stated name checked, and does not mistake an unsaved proposal for a missing self-write.
+- **Repeated authoring findings.** When the same findings stop preparation with repair rounds still available, the refusal names those findings and explains that Nika stopped reopening them instead of claiming the allowance was spent.
+- **Delegated agent tasks inherit the effective workflow model.** A task
+  model override still wins, and a refused model never falls back to the
+  native provider. Requested identity remains separate from the model
+  reported by the harness.
+- **An authoring answer is refused when the AI app moved the chosen
+  model or effort during the turn.** Over ACP, an agent may switch the
+  model or the reasoning effort mid-turn (a rate-limit fallback, for
+  instance). Workflow runs already refused such an answer; authoring now
+  does too, naming the move, while a move of a dimension nobody chose is
+  kept in the call's record.
+- **An ACP session that advertises a qualified model id is selected by
+  that exact id.** A request for `openai/gpt-5.5` looked only for
+  `gpt-5.5`, so a session advertising `openai/gpt-5.5` verbatim was
+  refused before any selection. The exact requested id is now matched
+  first, the provider-less name only after; a near name is never taken
+  for the requested one.
+- **ACP selection preserves complete advertised model variants.** Explicit
+  names must match an offered ID or display name; unavailable variants
+  refuse before prompting instead of silently selecting a family alias.
+  Exact config choices and the harness default retain their usual paths.
+- **A Session over an ACP seat carries an explicit reasoning effort.**
+  A Session whose intelligence is an AI app reached over ACP refused a
+  named effort (`max`) before any call, although the ACP session applies
+  the effort through its advertised reasoning option and reads it back.
+  Authoring calls and conversational turns now carry it; a direct seat
+  still refuses it before any byte is sent, never dropping it.
+- **A lost sign-in of the preparing app is told as one.** When the
+  sign-in of the app preparing through ACP had expired, preparation
+  said its transport ended before a complete answer. Nika now reads the
+  app's own typed error kind and says that the app's sign-in has expired
+  or was revoked and that signing in again in that app is the way on.
+  The app's own words are still never shown, and nothing falls back to
+  another model.
+- **An answered path completes a placeholder list written without
+  indentation.** A write permit declared as an empty placeholder in a
+  block list whose dash sits at the key's own indent was never filled
+  from the person's answer, so Check refused the answered path. The
+  answer now completes it as it completes the flow form.
+- **Authoring accepts the final answer beside reasoning.** Authoring reads the sole final text of a completed model response when separate
+  reasoning blocks accompany it. Proposal, sketch, fill, source recovery, transform
+  and judgment keep their existing validation and usage records; reasoning alone,
+  multiple answers, tool blocks and incomplete responses are still refused.
+- **`nika check --json` reports a parse refusal whole.** A workflow
+  refused while parsing produced a JSON finding cut at its first line, so
+  a diagnostic that quotes an authored value holding a line feed (or a
+  carriage return and line feed) lost the rest of its message and its
+  explain pointer. The finding is now rendered from the parser's typed
+  error: its code and its whole message, never the source frame the
+  human lane prints beneath it. The human output and the exit code are
+  unchanged.
+- **Codex prepares workflows again, its tools off before it starts.**
+  Codex now runs with every tool-bearing feature disabled before the
+  turn begins: shell, web search, apps, MCP servers, skills, sub-agents
+  and images. The profile was measured on codex-cli 0.160, and another
+  version refuses before any prompt is sent. The same rule now applies
+  in the CLI and in a Session, so Codex can author in both.
+- **A missing admitted component is located on the document, not a task.**
+  When the whole-request judge finds a clause asking for an admitted
+  Foundry component missing, its localization can now name the offered
+  component the candidate does not hold (resolved from the lent release,
+  its receipt witnessed on the current bytes and pinned by release version
+  and digest), and the document door's repair composes it by reference.
+  The judge's contextual no-fit lets that conditional clause's own
+  alternative stand only when every offer was examinable; an offer the
+  catalogue cannot resolve, or no choice, stays unknown. The candidate's
+  own permits never decide which component fits.
+- **A `typesafe/<jev>` decision seat sends each question at most once.** Its client
+  no longer replays a request refused at the HTTP/2 protocol level, and a client
+  that could retry is refused before sending. The receipt distinguishes this
+  transport from a `provider/name` seat, which keeps its client’s protocol retries.
+  An uncertain delivery may still be billed; this is not a price guarantee.
+- **An explicit reasoning effort is admitted on the exact `deepseek/deepseek-flash`.**
+  Its catalog entry now lists `low`, `high` and `max`, as the provider's model
+  listing and documentation state for that exact name, so
+  `NIKA_AUTHORING_REASONING=low` or `--authoring-reasoning low` is sent as
+  `thinking.type=enabled` and `reasoning_effort=low` on its direct route, with
+  the same output caps; it was refused before any byte. Nothing else inherits
+  the levels: suffixed or dated names, old aliases, gateways and overridden
+  endpoints still refuse an explicit level before sending, no default changed,
+  and the effort a call was served stays unknown.
+- **Let the verified transform express projected outputs defined by a
+  computation instead of asking which source field an absent generated
+  output means.** Keep source-field grounding and final candidate checks.
+- **The document author's instructions no longer contradict two
+  accepted behaviors.** They told the model to bind a component's holes
+  only from values the request or an answer states, although a hole an
+  owner binds from observed data is supported; they now bind each hole
+  as its owner and contract state, ask only for what a human owner must
+  provide, and still never invent a human choice. They also called
+  saving and running separate human gestures, although an explicit Save
+  and Run is one accepted gesture; they now say saving and running
+  require the caller's explicit action.
+- **The egress proxy no longer waits for stderr before it connects.** It
+  wrote each journal line on the connection thread before dialing, so a
+  run that held the stderr lock (`nika run --output json`, `nika test`)
+  kept every CONNECT of a confined `exec` waiting until the run ended, and
+  the child's client timed out (`curl: (28)` on any `permits.net.http`
+  host). The line is now queued for the proxy's own journal thread and
+  reaches stderr as soon as it is free.
+- **An endpoint's route is no longer owed as a local directory.** A
+  route the request sends to on an endpoint it states
+  (`POST /notifications/stock` to the stated local sink) is realized by
+  a send to exactly that URL. A send to another route or origin, or a
+  GET, still leaves it owed; a local path the request reads stays owed,
+  even after a sentence that writes; a file name with spaces keeps its
+  exact extent.
+- **A harness authoring call is no longer cut while its agent is visibly
+  working.** An ACP authoring call's per-call time (600 s by default) used
+  to bound its whole duration, both in the harness and around every
+  compile authoring call, so a call still streaming its reasoning near
+  that limit was timed out with no answer. It now bounds the call's
+  silence: armed when the call starts, re-armed by each answer, thought,
+  tool or plan update of the call's own session, so the call times out
+  only once a whole allowance passes with no such frame, and its
+  transport is given that same allowance per frame. The compile layer no
+  longer wraps a harness route in a total of its own; API routes keep
+  theirs. Usage and status updates, another session's or call's frames
+  and stray lines never re-arm it; Stop still ends the call at once,
+  nothing is retried, and the 408 timeout form is unchanged. The
+  terminal record's `bounds` now say `deadline_ms: null`, the allowance
+  as `idle_ms` and when an activity frame last re-armed it as
+  `rearmed_ms` (null when none did). A direct (native) harness seat
+  shows no frames and keeps its deadline.
+- **A harness authoring call that runs out of time is reported as a
+  timeout.** When the call's own deadline passed first, its error was a
+  generic provider error (NIKA-339) and the per-call receipt said
+  `provider_error` while the harness record said `timed_out`. It is now
+  the established timeout form, API 408 under NIKA-330, which the receipt
+  and the call observer both read as `timeout`, behind a call ledger or
+  not. A refusal whose words merely say it timed out stays a provider
+  error, and the deadline itself is unchanged.
+- **Conversation recovery keeps an earlier uncertain operation in its
+  historical position after later successful work.** Reopening does not
+  append the same warning as a new failure; unresolved effects and charges
+  remain recorded, and new uncertainty still receives a notice.
+- **The authoring pack presents every Foundry row its recall reaches, whole.**
+  The knowledge door kept at most three families, eight patterns, eight
+  blocks, three examples and one skill, cut each block file at 6 KiB,
+  its metadata at 1 KiB and the pack at 40 KiB, and gave a repair round
+  three principles per code (six per message). These counts were not
+  derived from any route. Every row the recall reaches is now presented
+  whole, the block's version, status and proof first, with every repair
+  principle of the codes found; callable contracts are whole sections,
+  and the builtins named by presented blocks and examples get theirs.
+  The pack builder is now `knowledge-door-v6`.
+- **Check names the exact loopback grant a run accepts.** A task that
+  fetches an exact loopback host (`127.0.0.1`, `localhost`, `::1`) was
+  told no permit could admit it, although the run admits that host once
+  its exact literal is declared in `permits.net.http`. The finding now
+  says so and offers that one grant as its fix; a wildcard or another
+  loopback host still does not grant it, and private, link-local and
+  metadata targets keep the floor's refusal with no grant fix.
+- **A stopped authoring states why it stopped.** When no candidate
+  passed the checks, the conclusion now says whether the repairs stopped
+  on no progress (a repair that named only findings already named), on
+  a failed authoring call, on an answer that could not be read, or on a
+  repair limit you set. « Within the repair budget » is said only for
+  that limit: no limit applies by default.
+- **A file name whose first word the request leaves open can be asked.**
+  In « prépare exactement un payload out/notification.json », the words
+  may name `out/notification.json` or a spaced folder. A candidate that
+  asks it (a blank constant read whole as that task's path, one empty
+  `permits.fs` entry on that side, a question whose label quotes the
+  name) is no longer refused: the question offers exactly the name's
+  readings, and the answer round bakes the chosen one into the same
+  recorded candidate and completes that empty entry in place, beside the
+  paths the candidate already grants, before its round's judge. Written
+  whole, the name still realizes itself; unnamed or quoted, it is still
+  owed exactly.
+- **Unpriced preparation responses no longer imply an incomplete operation.**
+  Successfully returned API responses no longer produce a misleading notice on
+  reopen. Unknown charges remain visible, and unanswered or failed calls retain
+  their uncertainty.
+- **File-protection clauses no longer request an extra read during rehearsal.**
+  When an intention reads a file and says not to modify its parent directory,
+  the closed English and French protection forms leave that parent out of the
+  requested inputs and outputs. Paths match whole literals, so a child path
+  cannot give its parent a read role. Independent and shared reads remain
+  inputs, and conditional or unrecognized clauses are not discarded. An
+  explicit directory read still cannot supply a file's rehearsal witness.
+- **Editor completion includes every canonical provider.**
+  Scaleway and the previously missing Moonshot now appear in model suggestions.
+  Membership is checked against the embedded canon; the presentation order and
+  alphabetical order for additional providers stay explicit.
+- **Keep authoring notes and refused Sketch and native question keys and gaps out of the public round journal, retaining their digest and shape.**
+  Native ask rounds follow the same rule and retain admitted questions for the human. Report
+  schema decode failures by class and position while preserving the internal repair
+  diagnostic. Structural and admission diagnostics and the historical native candidate
+  remain separate public paths.
+- **A refund word inside a bound relative file name or a typed comparison
+  value no longer invents a money-moving obligation.** Explicit refund
+  requests and absolute paths that could name API endpoints retain the
+  existing checks.
+- **Trial runs of « Save ./out/x … » requests.** A path the request
+  names after a bare verb, which the candidate writes and never reads,
+  was required as an input, so the trial run never started (« the
+  observed input … is absent »). It is now read back as the output.
+- **A second Ctrl-C aborts `nika run --output json` and `nika test` at
+  once.** Their fold held the process-wide stderr lock until the run
+  ended, so every other writer waited for it. The signal thread prints
+  its notice before it exits, so the abort waited for in-flight work to
+  finish, and the egress journal stalled confined connects the same way.
+  The fold now takes the lock one write at a time, like the default lane.
+- **Save keeps proposals over nested record keys.** The check of a
+  proposal's sources before Save counted only a document's top-level
+  keys, so a candidate reading a key of the records inside one of its
+  lists was withdrawn as if the file had changed. Those record keys now
+  count as observed, and a key the records really lost still stops Save.
+- **A new workflow is no longer written as whole source by a model.** Under the default
+  `escalate` policy the private plan reads the attached knowledge as context (it no longer
+  selects a source door), and a plan that ends without a candidate escalates to the sketch
+  door: the model states the structure and its typed fills, and the compiler writes the source.
+  An explicit `native: only` for a new workflow sends no request and names `escalate` or
+  `sketch`; exact names, the support grammar, a reader refusal, a revision and the replay of a
+  recorded source keep their doors. The request bound (`--authoring-max-calls`) is unchanged for
+  `escalate` with repairs, and a typed `only` is never told to buy more requests. An answered
+  endpoint grants its host only when a fetch url or notify target reads it whole. This shared
+  route does not yet cover the CLI, Session and Serve entries' own mode handling.
+  **The sketch door keeps what a graph states through its fills and its replay.** A `nika:jq`
+  task bound to several edges now reads them all, as one input object keyed by their names (it
+  read only the first, and a join could be READY over a table it never received); a semantic
+  record compiled under an observed world stays closed, and its answer round replays under the
+  same world; a question the request or the observed world already settles is refused while the
+  sketch can still be repaired; and the record keeps a stated trigger in the request's own words
+  (« Chaque lundi matin »), refusing a trigger that is not. A sketch may read a file the request
+  names bare (`orders.csv`) where the compile observation places exactly one observed file of
+  that name (`./data/orders.csv`), and its record replays only under that same observation; the
+  placement never grants a write, a host or another name, and without one the path stays
+  refused. Records written before this change for a multi-edge program or with a normalized
+  trigger may refuse their replay: compile afresh.
+- **The private Plan door now reads the context the compiler was given.** Its
+  opening call, its one anchoring repair and the verifier's repair carry the
+  attached knowledge pack's references, the callables they name, the observed
+  world and the answers already given, as untrusted data beside the request. The
+  merge still takes evidence only from the request's own words. Each such call's
+  receipt entry names those references and a `semantic_context` marker (the pack's
+  and the world's digests, or null). Onboard records the pack or the world as
+  presented only when a call carrying them attests a return. Routes, modes and
+  call counts are unchanged. A return proves neither use of the context nor cost.
+- **An answer round keeps the sketch it answers.** A workflow composed from a sketch is now
+  replayed on every answer round from its accepted graph and fills, under the same request, its
+  answers and its observed world: named results, approval gates, agent and loop controls and the
+  request's own duties survive, and a stored program text is never used. A record that was
+  changed, written for another request, money, world or answer, or replaced by a new request is
+  refused with a plain explanation instead of being reused, and a duty the workflow could not
+  carry stays open whatever its answer. Reassembling a workflow is not approving it: a replayed
+  workflow is ready only after the round's own check of the whole request. A host can also keep
+  the exact authoring answers it was sent: a compile wrapped in the new scoped observer reports
+  each authoring and repair answer exactly as received, including refused ones, while the
+  compile's own record keeps withholding their text; a call that returned nothing is reported as
+  a failure, never as an empty answer.
+- **Semantic revisions can repair a candidate rejected by the judge.**
+  Each refill preserves the accepted graph, uses the resolved requirements,
+  and receives a fresh binding and verdict. Repeated defects and exhausted
+  repair allowances stop preparation without replacing the saved workflow.
+- **Keep a semantic proposal bound to the exact bounded project observation that compiled it, so Save can recheck its recorded source facts without running the workflow.**
+  Meaning shows the semantic reading and its limits. Recognized literal reads remain partial
+  coverage; source changes still withdraw affected proposals.
+- **Serve preserves its one-request native authoring default.** Repairs and
+  transport retries consume the server grant, callers cannot widen it, and
+  receipts report the server's actual repair preference.
+- **Serve uses the shared semantic creation strategy.** Native authoring and
+  its request account now both resolve Escalate, allowing Plan and Sketch
+  proposals to reach compiler-owned source emission. The default grant still
+  permits one request; judgment and repair need an explicit larger grant.
+  Historical edits and the limits of Cold Plan replay remain unchanged.
+- **Account choice keeps the requested app explicit.** Choosing account access with multiple apps now asks for an explicit app and optional model, keeping the pending request and previous choice intact instead of selecting the first installed app.
+- **An answer that is the question's own shape binds without a routing call.**
+  A `provider/name` typed alone at the model question, or an offered key
+  typed alone at a choice, was first sent to the turn classifier before it
+  bound. Such a line cannot change the request, ask about the question,
+  run or cancel: it now binds at once, and the route records it as an
+  answer by protocol. A sentence around the same value is still read.
+- **An unnamed account app is asked for, not refused.** With several
+  apps that can answer, or none, `1` alone is now asked again as a
+  question that keeps the pending request instead of being shown as a
+  failure; a single app that can answer is still chosen by `1`, and an
+  app named explicitly that cannot answer is still refused. The apps
+  line labels each app `sign-in seen` or `no sign-in seen`, seen first.
+- **A request that mentions a template, a model or a run reaches authoring.**
+  The session answers from its own catalog only a closed engine question
+  (the workflows here, the builtins, the providers, the gallery, a
+  workflow's verdict, a code, the last run, a word of the language).
+  Before, a word anywhere in a request turned it into a catalog answer:
+  « Fill the template in ./submissions.json… », « Use a model to classify
+  which tickets… » or « the running total » never reached authoring.
+  Beside a waiting proposal, a question about it reads the proposal.
+- **Continue a conversation after a completed unpriced preparation.** Reopening keeps the observed costs and completed calls visible while allowing a fresh preparation choice. It never restores spending authority from the previous session or treats missing usage as free.
+- **A doubted workflow is repaired only from a defect the verifier
+  locates.** When the verifier doubted a workflow, it was asked which
+  part of the request was missing, and the workflow was repaired from
+  that part, or from the whole request when none was named, even from a
+  part the workflow honored, such as a restriction like « need no
+  time-zone conversion » that no step broke. The verifier is now asked
+  about each part of the request alone, in the request's own words; for
+  a part it finds missing, which step fails it or, unless the part only
+  forbids something, whether no step performs it; and when no part is
+  missing, which step does something not asked, a step with no effect of
+  its own (a read, a filter, a check) never counting as one. The
+  workflow is repaired only from a defect located that way, and the
+  repair is told the verifier's reason. A doubt the verifier does not
+  locate, an abstention included, is never repaired from: Nika holds the
+  workflow without proposing it, writes nothing, says what held it and
+  what can decide it (a correction, another model or another verifier),
+  and does not ask the same verifier about those bytes again in that
+  compile. The configured verifier also reads, by default, what a
+  Session trial run of those exact bytes read and wrote: a run that
+  wrote every output it was read for can settle each open part its
+  inputs exercise, then the whole request when they exercise every part,
+  while a part its inputs never exercise stays open and no run clears a
+  defect the verifier located in the workflow itself. A doubted workflow
+  takes more verifier questions, one per part of the request and then
+  the follow-up ones; a question that gets no answer ends them.
+- **Conversation footers distinguish the latest reply from the last Run.**
+  A refused revision no longer appears to inherit an earlier execution
+  result, while pending Save and question prompts keep their own status.
+- **Sessions without intelligence no longer create false inference records.**
+  Greetings and local protocol fallbacks avoid creating project state for
+  calls that never occur; actual intelligence calls retain their records.
+- **Opening a Session pins its knowledge release once.** A host door's
+  Session admitted this build's embedded release for a default
+  configuration, then again for the one the environment names; it now
+  admits it once, under the configuration it keeps, with the same strict
+  admission, roughly halving host-session opening time in the measured
+  repeated-open tests. A plain open is unchanged.
+- **A replayed workflow the verifier doubts is never replayed to it
+  again.** An answer round replays the workflow and judges it, but never
+  repairs it: when the verifier found it unfaithful, the session stopped
+  with « built but not proposed » and asked for the request again. When
+  the verifier locates a defect (a part of the request it names the
+  failing step for, or finds no step performing, or a step doing
+  something not asked), the session now writes the workflow again under
+  every answer already given, where the authoring round's own judgment
+  and repairs run. A verifier that doubted the replay without locating a
+  defect gives no defect to write again from: the replay stays held, and
+  its record is dropped by the compiler, by the session round (whose
+  retry with a stronger model then writes the workflow afresh) and by
+  `nika compile`, which removes its plan record and says so, so no later
+  round replays those bytes. An answer round over a COLD or WARM plan
+  now judges the whole request again on the bytes it replays.
+- **A request resumed or typed again reaches authoring as the goal.**
+  After the intelligence choice, or after a session reopens with its
+  goal restored, the same request was read as a turn beside its own
+  goal: a classifier call answered « already working on that », and
+  nothing was prepared. A request equal to the current goal now is the
+  goal; a different request beside it is still routed.
+- **Session calls ask their route's capacity during continuous preparation.**
+  The turn classifier, the chat reply, the decision seat's choice and
+  the reasoning calls carried fixed output ceilings (8,192 tokens, a
+  label ceiling, 256 for a choice) that truncated long answers and
+  forced a low reasoning effort on reasoning routes. They now ask the
+  route's capacity; an explicit limit given by the caller is kept.
+- **A Session's run runs only the world its check judged, children
+  included.** A run the Session requested was bound to its workflow's
+  own bytes, so a child workflow or a skill rewritten after the check
+  still ran. The check now reads the workflow and every child it reaches
+  once, with the run's own reader, and binds the request to that world's
+  closure; the child run compares it after admission and refuses any
+  other world before any task. A workflow the run cannot capture, such
+  as a symlinked one, is no longer reported clean.
+- **Revising a saved workflow keeps its file and admitted budget.** Session
+  binds the revision to the saved file and its original bytes, refuses a
+  changed base, and requires a fresh Save decision. An unsettled work line
+  classified as a modification revises that file; new work can still create
+  a separate workflow. Failed or unknown classification keeps the current
+  state without authoring. A revision without a new amount inherits an
+  unambiguous in-memory ceiling only for the same resolved file and bytes;
+  stale bindings refuse. No execution consent is restored, and saved monetary
+  constraints are not recovered across restart.
+- **An answer typed for something that no longer waits is refused, never
+  read as a new request.** A Session line typed while a host showed a
+  question, a gate, a proposal or a run's cost review opened a new turn
+  once nothing waited any more, so an answer to a question dropped since,
+  or a second yes at an answered gate or a decided review, reached the
+  classifier and, with an intelligence, the model as a fresh request. It
+  now goes to that state's own identity door and is refused as answered,
+  decided or stale; leaving and the read-only commands still pass. An
+  authoring question's answer is also refused while a run's cost review
+  owns the next line, and the question keeps waiting.
+- **A sketched tool can no longer write or read another task's file.** When a workflow is
+  composed from a sketch, every file argument a builtin takes (a chart's output or data file, an
+  image's input, output directory, references or mask, a speech output directory, a decision
+  bundle, a multipart upload) must be one of the paths its own task states, on the side it reads
+  or writes. Another task's file is refused before a candidate exists, even when the workflow's
+  permissions would allow it; a templated or malformed path is refused instead of ignored. A
+  task that never states the file its tool always reads or writes (an edit stated only as a
+  write, a chart with no output) is refused while the sketch can still be repaired, not after. A
+  refused fill names unknown tasks, fields and keys by their position only, so text a model
+  proposed is never repeated back.
+- **A proposed fill can no longer vanish or redirect a sketched workflow.** The sketch authoring
+  door now reads the proposed graph exactly and checks every fill against the holes of the
+  accepted graph before it emits anything. A fill for a task or field the graph does not have, a
+  second fill of one hole, a missing or wrongly typed value, an unfilled required hole, an
+  argument object that replaces a path, input, bound content or channel the graph owns, and a
+  content template that drops its bound input are each refused by name before a candidate
+  exists, and repaired within the same bounded budget. Malformed graph fields and edge names
+  that collide or shadow a gate or loop binding are refused instead of silently dropped. A
+  lawful graph and fills emit exactly the same workflow as before.
+- **A sketched workflow keeps every result and control the request names.** A workflow composed
+  from a sketch can now name its results (`outputs`, each the result of one of its tasks)
+  instead of exposing only the last task's output, state an agent's turn bound and its own
+  effect-free tools, and state whether a loop stops at its first failure. A stated value is
+  emitted exactly; a sketch that states none keeps its previous behaviour, and the record says
+  which values were defaults. A misplaced or malformed control, a duplicate or dangling result,
+  an effectful agent tool, and a write fed by several inputs without a template are refused at
+  the sketch step, where they can still be repaired. A request made of independent copies (each
+  source to its own destination) is no longer folded into one read by the plan: it continues in
+  the sketch step within the same request budget, or is named when no sketch step is allowed.
+- **Keep the original request when correcting a stopped creation before any
+  workflow has been saved.** Explicit new work stays independent; cancelled
+  candidates grant no Save or Run authority.
+- **Trace verification bounds its custody, anchor and lease reads.** Reads
+  use held regular-file descriptors and refuse final symlinks. Unavailable
+  side inputs remain distinct from absent or malformed ones; an unreadable
+  anchor reports UNAVAILABLE, never a claim of forgery. The selected parent
+  may resolve through a link; contained project reads still refuse child links.
+- **A command typed while Nika prepares no longer stops the preparation.**
+  `/details`, `/status` or any other command the conversation knows was
+  queued as a correction: Enter asked the preparation to stop. A command
+  reads and never redirects the work, so it now waits in the box with a
+  hint, and Enter sends it when it is your turn. Words that only mention
+  a command, or a path starting with a slash, still correct the work.
+- **The transcript stays at the reader's position when preparation ends.**
+  The decision remains visible, and End returns to the latest reply.
+- **The workspace activity card says what is under way, then how it ended.**
+  One card per turn follows the Session's typed activity: its heading names
+  the phase under way (Understanding, Generating, Checking, Repairing), one
+  row keeps the step under way, repairs share one counted row, and the
+  workflow author's calls (writing and model review) share one row that says
+  in plain words what the call does (`write a step`, `review your request` …),
+  the requested model (never a served identity) and whether it is running,
+  returned or stopped. The heading counts author calls, repair calls and
+  stopped ones, and says that conversation routing and decision-service calls
+  are not counted there. A returned call is not shown as a success. When the
+  turn ends the card reads `Settled`, `Stopped by you` or `Not completed`,
+  with the time the terminal measured. While a turn works, the hint says that
+  typing waits and that `Ctrl+C` twice leaves without recalling a call already
+  sent; a scrolled-back conversation says `End` returns to the latest
+  messages. No phase, model, percentage or usage is inferred from words.
+- **Intelligence choices and preparation models stay visible.** The terminal intelligence chooser keeps all four numbered routes beside the composer on small screens. The `Prepare:` heading names the already resolved API or local authoring model when no model was explicitly configured; it does not claim that model answered a turn.
+- **Reopened runs recover their recorded artifacts from one verified journal.**
+  Run, Outputs and Files share the captured bytes and expose only the history
+  the host adopted. Refused recaptures and declined adoption withdraw old
+  projections while retaining Proof and its reason. Terminal output maps are
+  recorded whole within 64 KiB, sized without payload above it, or withheld
+  whole when secret scrubbing is needed. File contents are read now; opening
+  a view starts no run and restores no approval.
+- **Reduced-motion activity:** keeps measured elapsed time and the current work,
+  Stop request and armed-exit facts visible with a still marker. Drafts remain
+  available, no completion bell rings and idle terminal views stay silent.
+- **A reopened footer tells an earlier run from this session.** Until a
+  run is observed here, the rail reads `Run ○ (earlier ✓)` and the status
+  row opens with `last run ✓ exit 0 in an earlier session`, so a kept
+  success is no longer mistaken for a fresh check or run, or for none.
+- **Resize and welcome animation keep the terminal responsive.** Fullscreen resize redraws the workspace without a cursor-position query, keeping
+  the session responsive on terminals that do not answer that query. The welcome
+  reveal stops waking the terminal after its last distinct frame.
+- **A run's steps read once, in order.** The workspace no longer shows
+  a run's steps twice: the live activity card gives way to the run's own
+  task lines, which now read once after the check and the run
+  announcement.
+- **The interactive run stream preserves evidence of incomplete delivery.**
+  Non-UTF-8 frames stop the child instead of being repaired. The workspace
+  bounds event deduplication and marks late or out-of-order frames incomplete;
+  a settled run alone does not establish a complete stream or verified Proof.
+- **A scrolled transcript keeps its reading position at a turn's end.**
+  Words typed meanwhile, a cleared spending-question draft or a Stop's
+  queued correction no longer move the rows being read, nor does the
+  correction while it is sent and worked on.
+- **A verifier's rejection now holds for the rest of the request.** A
+  workflow the verifier rejected was kept from it within one compilation
+  only: writing the workflow again could yield the same bytes, and the
+  same verifier, asked again, could then accept them. The session now
+  carries the verifier's rejections into every later compilation of the
+  same request, and `nika compile` keeps them beside its plan record, in
+  `.nika/compile/<sha256>.declined.json`, carried even under `--fresh`:
+  the same bytes under the same verifier, for the same request, answers
+  and observed files, keep the earlier rejection, with no new question,
+  and the CLI says so. The parts it found missing are repaired from, so
+  writing the same workflow again no longer ends the round. A corrected
+  request, other answers or changed files are judged afresh, and an
+  abstention is not carried, so a new round may still decide it. When
+  the verifier's questions stopped early, a call refused or failed, or
+  when it waited for a trial run that a later round now has, the later
+  round asks only what it never answered, never what it already did.
+  Serve keeps no conversation and carries none. A replayed workflow is
+  also never ready in an answer round that no verifier judges, unless
+  the deterministic reader planned it alone: an `--answer` round with
+  neither `--authoring-model` nor `--decision-model`, or a session
+  answer round compiled without a model because the money allowance
+  blocks one, replays the plan and stays incomplete until a verifier
+  judges it.
+- **Every clause the verifier checks on its own now sees an admitted
+  component the workflow holds.** When the compiler asks the verifier
+  about one clause of the request apart from the rest, that question is
+  now told, like every other question about the workflow, which admitted
+  catalogue component the workflow holds, whether it is expanded or
+  invoked, and what its holes are bound to. A clause that conditionally
+  asks to use such a component can be satisfied by it. Every other clause
+  is still checked on what the workflow does.
+- **An accepted request is checked against its trial run.** When
+  preparation ran the candidate on a copy of your files, a verifier's
+  « faithful » no longer ends the verification on the program text
+  alone: each part of the request is judged again against what the
+  run read and wrote. An output that contradicts a part (for example
+  every overtime minute counted and no normal minute) becomes a
+  located defect that is repaired, never a proposal; an uncertain
+  answer over the run keeps the candidate unproposed. Answer rounds
+  now run the trial before their judge reads the bytes too.
+- **The verifier now sees an admitted component the workflow already
+  holds.** A request may say to use an admitted catalogue component when
+  one applies. When the reviewed workflow holds such a component, the
+  question on each part of the request and the questions over its trial
+  run are now told so: which component, whether it is expanded into the
+  workflow or invoked as a child workflow, and what its holes are bound
+  to. A held component can satisfy that one clause. Every other operation,
+  target, threshold and output the request asks is still checked on its
+  own. When the verifier first judged that clause missing, it can now name
+  the held component instead of abstaining. That keeps the part open for
+  the trial run or a correction; it never makes the workflow ready by
+  itself.
+- **The requested write is never an extra operation.** A verifier
+  that named the task writing the very file the request asks for as
+  « something the request does not ask » sent preparation into
+  repairs that could not progress and ended with nothing proposed.
+  Naming such a task now decides nothing; the trial run, when there is
+  one, decides the disagreement.
+- **The trial-run check keeps the verifier's own component finding.**
+  When the verifier found that no admitted component could do a part
+  the request conditionally asks to reuse one for, and let that part's
+  own alternative stand, the question over the trial run now shows that
+  finding as the verifier's history: the clause and the components it
+  examined, bound to the same bytes and catalogue, with the same
+  reading of how a document is built. It is history, never a fact: the
+  alternative's runtime work stays required, and a part still named
+  missing over the run keeps the candidate unproposed.
+- **A revision's replaced clause is no longer asked as an obligation of
+  its trial run.** When a revision changes part of the earlier request
+  (for example an age threshold raised from 48 to 72 hours), each
+  earlier part asked again over the trial run may now be answered
+  superseded by a later correction, as the question over the program
+  already allowed. The change and every untouched part stay required,
+  and a part left without a decision keeps the revision unproposed.
+- **The verifier's whole-request check also sees an admitted component
+  the workflow holds.** The question that asks whether the workflow does
+  everything the request asks is now told, like the questions on each
+  part, which admitted catalogue component the workflow holds, whether it
+  is expanded or invoked, and what its holes are bound to. A request that
+  conditionally asks to use such a component is no longer judged
+  unfaithful for it alone. Every operation, threshold and output is still
+  required. A rejection recorded before the verifier was told this is
+  asked again rather than repeated.
 ## [0.122.0](https://github.com/supernovae-st/nika/compare/v0.121.0..v0.122.0) - 2026-10-02
 
 ### Added
