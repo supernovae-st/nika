@@ -5,7 +5,7 @@
 //! ended, and the typed identity of a failure, kept before display flattens it into words.
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::Duration;
 
 use nika_error::traits::NikaErrorCode;
@@ -13,6 +13,7 @@ use nika_kernel::ai::harness::{HarnessError, HarnessEventStream, HarnessRequest}
 use serde_json::{Value, json};
 
 use super::OneShot;
+use super::activity::Activity;
 
 /// One call's own deadline: when the call started and how long it may take. Every bound below
 /// it counts from that same start, so setup, identity probes and the spawn spend it too.
@@ -168,9 +169,10 @@ impl Milestone {
 }
 
 /// What one call has reached, kept outside it: a deadline or a Stop that drops the call can still
-/// tell where it stood, the last protocol milestone it closed and which transport bound it had
-/// been given. A handle: the stream's driver marks the same call from its own task, synchronously,
-/// and nothing is published before the terminal record snapshots it.
+/// tell where it stood, the last protocol milestone it closed, which transport bound it had been
+/// given and what it received after its prompt. A handle: the stream's driver marks the same call
+/// from its own task, synchronously, and nothing is published before the terminal record
+/// snapshots it.
 #[derive(Debug, Default, Clone)]
 pub(crate) struct Progress(Arc<Marks>);
 
@@ -180,6 +182,8 @@ struct Marks {
     /// The rank of the last milestone closed (its place in [`Milestone::ORDER`], plus one).
     milestone: AtomicU8,
     allowance: OnceLock<Duration>,
+    /// The completed frames received once the prompt was written (`activity`).
+    activity: Mutex<Activity>,
 }
 
 impl Progress {
@@ -196,11 +200,24 @@ impl Progress {
         self.mark(Milestone::StreamOpened);
     }
 
-    /// The call closed `milestone`; a later milestone is never replaced by an earlier one.
+    /// The call closed `milestone`; a later milestone is never replaced by an earlier one. The
+    /// written prompt also opens the activity window: only frames completed after it count.
     pub(crate) fn mark(&self, milestone: Milestone) {
         let rank = (Milestone::ORDER.iter()).position(|m| *m == milestone);
         let rank = rank.and_then(|at| u8::try_from(at + 1).ok()).unwrap_or(0);
         self.0.milestone.fetch_max(rank, Ordering::AcqRel);
+        if milestone == Milestone::PromptWritten {
+            self.activity().open(tokio::time::Instant::now());
+        }
+    }
+
+    /// What the call received after its prompt. A lock poisoned by a panic elsewhere still holds
+    /// plain counts and times, so they are read rather than lost.
+    pub(super) fn activity(&self) -> MutexGuard<'_, Activity> {
+        self.0
+            .activity
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     /// The phase the call last reached.
@@ -218,23 +235,30 @@ impl Progress {
 }
 
 /// What every terminal record of an ACP authoring call adds: where the call stood and the last
-/// protocol milestone it closed (null before any), how long it ran from its start, and its bounds
-/// (the deadline, and the transport allowance actually passed, null when no stream opened). Closed
-/// facts only, never adapter text.
+/// protocol milestone it closed (null before any), how long it ran from its start, its bounds
+/// (the deadline, and the transport allowance actually passed, null when no stream opened), and
+/// what it received after writing its prompt (`activity`, null when it never wrote one). Closed
+/// facts only, never adapter text. The activity and the elapsed time are read under one lock, so
+/// a frame the driver completes meanwhile is either left out or no later than that time.
 pub(crate) fn conclude(mut record: Value, progress: &Progress, deadline: Deadline) -> Value {
     if let Some(fields) = record.as_object_mut() {
         fields.insert("phase".into(), json!(progress.phase().as_str()));
         let milestone = progress.milestone().map(Milestone::as_str);
         fields.insert("last_milestone".into(), json!(milestone));
-        fields.insert(
-            "elapsed_ms".into(),
-            json!(millis(deadline.started.elapsed())),
-        );
+        let (activity, elapsed) = {
+            let received = progress.activity();
+            (
+                received.record(deadline.started),
+                deadline.started.elapsed(),
+            )
+        };
+        fields.insert("elapsed_ms".into(), json!(millis(elapsed)));
         let allowance = progress.0.allowance.get().copied().map(millis);
         fields.insert(
             "bounds".into(),
             json!({"deadline_ms": millis(deadline.timeout), "transport_allowance_ms": allowance}),
         );
+        fields.insert("activity".into(), activity);
     }
     record
 }

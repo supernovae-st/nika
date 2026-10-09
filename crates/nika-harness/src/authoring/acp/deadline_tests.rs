@@ -12,8 +12,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, DuplexStream};
 
-const DEADLINE: Duration = Duration::from_secs(600);
-const SECRET: &str = "sk-secret-marker-7731";
+pub(super) const DEADLINE: Duration = Duration::from_secs(600);
+pub(super) const SECRET: &str = "sk-secret-marker-7731";
 
 fn claude() -> OneShot {
     OneShot {
@@ -22,13 +22,14 @@ fn claude() -> OneShot {
     }
 }
 
-type Peer = Box<dyn FnOnce(DuplexStream) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send>;
+pub(super) type Peer =
+    Box<dyn FnOnce(DuplexStream) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send>;
 
 /// One completion door over a scripted ACP peer: each open spends `setup` (the probes and the
 /// spawn it stands for), opens nothing once the deadline has passed, then drives the peer under
 /// the completion profile with what the deadline leaves, recording what it gave and did.
 #[derive(Default)]
-struct Scripted {
+pub(super) struct Scripted {
     setup: Duration,
     peer: Mutex<Option<Peer>>,
     unavailable: Option<String>,
@@ -95,7 +96,7 @@ impl Door for Arc<Scripted> {
     }
 }
 
-fn door(setup: Duration, peer: Peer) -> Arc<Scripted> {
+pub(super) fn door(setup: Duration, peer: Peer) -> Arc<Scripted> {
     Arc::new(Scripted {
         setup,
         peer: Mutex::new(Some(peer)),
@@ -103,11 +104,11 @@ fn door(setup: Duration, peer: Peer) -> Arc<Scripted> {
     })
 }
 
-fn authoring(door: &Arc<Scripted>) -> HarnessAuthoring {
+pub(super) fn authoring(door: &Arc<Scripted>) -> HarnessAuthoring {
     HarnessAuthoring::with_test_door("claude-code", Box::new(Arc::clone(door)))
 }
 
-fn request(cancel: Option<CancelCtx>) -> InferRequest {
+pub(super) fn request(cancel: Option<CancelCtx>) -> InferRequest {
     let mut request = InferRequest::new("session", vec![Message::text(Role::User, "draft")]);
     request.timeout = Some(DEADLINE);
     request.cancel = cancel;
@@ -115,24 +116,24 @@ fn request(cancel: Option<CancelCtx>) -> InferRequest {
 }
 
 /// The receipt's observed records; no adapter text (the secret marker) anywhere in it.
-fn observed(seat: &HarnessAuthoring) -> Vec<Value> {
+pub(super) fn observed(seat: &HarnessAuthoring) -> Vec<Value> {
     let receipt = seat.descriptor().expect("descriptor");
     assert!(!receipt.to_string().contains(SECRET), "{receipt}");
     receipt["observed"].as_array().cloned().expect("observed")
 }
 
-async fn read(r: &mut BufReader<tokio::io::ReadHalf<DuplexStream>>) -> Value {
+pub(super) async fn read(r: &mut BufReader<tokio::io::ReadHalf<DuplexStream>>) -> Value {
     let mut line = String::new();
     r.read_line(&mut line).await.unwrap();
     serde_json::from_str(&line).unwrap_or(Value::Null)
 }
 
-async fn write(w: &mut tokio::io::WriteHalf<DuplexStream>, value: &Value) -> bool {
+pub(super) async fn write(w: &mut tokio::io::WriteHalf<DuplexStream>, value: &Value) -> bool {
     w.write_all(format!("{value}\n").as_bytes()).await.is_ok()
 }
 
 /// The admitted identity and a plain session, then the prompt request the client sent.
-async fn handshake(
+pub(super) async fn handshake(
     r: &mut BufReader<tokio::io::ReadHalf<DuplexStream>>,
     w: &mut tokio::io::WriteHalf<DuplexStream>,
 ) -> Value {
@@ -174,7 +175,7 @@ fn silent(silence: Duration) -> Peer {
 
 /// A peer that reads the first request it is sent (`initialize`) and holds the transport
 /// without a reply.
-fn holds_initialize() -> Peer {
+pub(super) fn holds_initialize() -> Peer {
     Box::new(|theirs| {
         Box::pin(async move {
             let (r, _w) = tokio::io::split(theirs);
