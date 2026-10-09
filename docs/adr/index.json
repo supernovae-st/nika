@@ -1793,5 +1793,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-153",
+      "title": "nika-session-agent: the conversation the Session's selected intelligence leads",
+      "status": "accepted",
+      "date": "2026-10-09",
+      "filename": "adr-153-nika-session-agent.md",
+      "tags": ["architecture","crates","session","agent","conversation"],
+      "affects_crates": ["nika-session-agent","nika-session","nika-session-change"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-125","ADR-133","ADR-144","ADR-148"],
+      "requires": ["ADR-144"],
+      "enables": []
+    }
   ]
 }

@@ -1111,3 +1111,13 @@ tags = ["architecture", "crates", "size-cap", "compile"]
 affects_crates = ["nika-compile-cognition", "nika-compile-seats"]
 affects_layers = ["L4"]
 
+[[adr]]
+id = "ADR-153"
+title = "nika-session-agent: the conversation the Session's selected intelligence leads"
+status = "accepted"
+date = "2026-10-09"
+filename = "adr-153-nika-session-agent.md"
+tags = ["architecture", "crates", "session", "agent", "conversation"]
+affects_crates = ["nika-session-agent", "nika-session", "nika-session-change"]
+affects_layers = ["L4"]
+

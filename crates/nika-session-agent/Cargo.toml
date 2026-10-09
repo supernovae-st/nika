@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#
+# nika-session-agent · L4 · the conversation the Session's selected intelligence leads: one
+# model, the Session's tools, the person's lines steering or following a run, Stop, and the
+# tree every turn appends to, with its compaction. Member of the nika-session unit (ADR-153 ·
+# the ADR-144 pattern): nika-session → nika-session-agent → nika-session-change, never back.
+# WIP with its unit.
+[package]
+name        = "nika-session-agent"
+description = "L4 interface — the conversation the Session's selected intelligence leads: the loop over one model and the Session's tools (no step, turn or token quota; Stop and real capacities end it), the person's steering and follow-up lines, a call that ends the turn until the person answers, the Session tree of entries with parents and its compaction; it carries calls and replies and never interprets them. A member of the nika-session unit (ADR-153)"
+
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Interface crate — a member of the nika-session unit; the `nika` binary is the only consumer.
+
+[lints]
+workspace = true
+
+[dependencies]
+nika-kernel         = { path = "../nika-kernel", version = "0.123.0-preview.1" }          # provider::{Message, ContentBlock, ToolDef, StopReason, TokenUsage} · CancelCtx · Clock — the seams a turn is made of
+nika-session-change = { path = "../nika-session-change", version = "0.123.0-preview.1" }  # tools::SessionTools — the ONE tool contract the Session serves (lateral L4→L4 · never back)
+
+blake3     = { workspace = true }  # the chain that binds each tree line to the one before it
+serde      = { workspace = true }
+serde_json = { workspace = true }
+thiserror  = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

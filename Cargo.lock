@@ -5598,6 +5598,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-session-agent"
+version = "0.123.0-preview.1"
+dependencies = [
+ "blake3",
+ "nika-kernel",
+ "nika-session-change",
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "nika-session-change"
 version = "0.123.0-preview.1"
 dependencies = [
