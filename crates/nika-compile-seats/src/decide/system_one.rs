@@ -18,6 +18,7 @@
 //! carries an invalid request (`api_usage_error`), so a status alone never says capacity.
 
 use std::collections::{BTreeMap, VecDeque};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use nika_compile::surface::sha256;
 use serde_json::{Map, Value, json};
@@ -412,6 +413,11 @@ pub struct Attempt {
     pub items: Vec<usize>,
     /// The attempt whose capacity refusal it asks one half of again.
     pub halves: Option<usize>,
+    /// The bound it was split under before it left, when it was: the fewest items of a request
+    /// refused for capacity, in this batch or before it ([`Partition::seeded`]).
+    pub split_below: Option<usize>,
+    /// How long its transport took, as the host measured it ([`Partition::timed`]).
+    pub elapsed_ms: Option<u64>,
     /// The size of its body in bytes: what left, never a token count.
     pub bytes: usize,
     /// The SHA-256 of its body.
@@ -441,9 +447,14 @@ pub struct Attempt {
 /// request carrying several items asks them again, in its two halves, first half first, each
 /// half the body [`request`] writes for its own questions, so each still reads exactly the state
 /// it reads alone. Halves are strictly smaller, so the partition ends; a single item so refused
-/// is `over_capacity`, never truncated or resent, and nothing else is ever asked again. Pure:
+/// is `over_capacity`, never truncated or resent, and nothing else is ever asked again. Such a
+/// refusal also bounds the batch: once a request of n items was refused for capacity, a waiting
+/// request of n items or more is split in halves before it leaves, in order, never sent whole
+/// to be refused again; a single item is never split, nor refused in advance. A partition may
+/// start under the bound its seat learned from earlier batches ([`Partition::seeded`]). Pure:
 /// the host sends each body through its own single-attempt client, says what came back, and
-/// withholds what waits when it must stop ([`Partition::withhold`]).
+/// withholds what waits when it must stop ([`Partition::withhold`]); it reads no clock, the host
+/// says how long each request took ([`Partition::timed`]).
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Partition {
@@ -458,8 +469,20 @@ pub struct Partition {
     pub attempts: Vec<Attempt>,
     /// Why the items still waiting were withheld, when they were.
     withheld: Option<DecisionError>,
-    /// The items of each request still to begin, and the attempt it halves.
-    waiting: VecDeque<(Vec<usize>, Option<usize>)>,
+    /// Each request still to begin, in order.
+    waiting: VecDeque<Part>,
+    /// A request of this many items or more is split before it leaves: the fewest items of a
+    /// request refused for capacity, or the bound the partition was seeded with.
+    below: Option<usize>,
+}
+
+/// One request still to begin: its items, the attempt whose capacity refusal it asks again, and
+/// the bound it was split under.
+#[derive(Clone, Debug, PartialEq)]
+struct Part {
+    items: Vec<usize>,
+    halves: Option<usize>,
+    split_below: Option<usize>,
 }
 
 impl Partition {
@@ -476,16 +499,31 @@ impl Partition {
                 _ => (Err(DecisionError(WAITING.to_owned())), "waiting"),
             })
             .unzip();
+        let first = Part {
+            items: sendable,
+            halves: None,
+            split_below: None,
+        };
         Self {
             answers,
             outcomes,
             attempts: Vec::new(),
             withheld: None,
-            waiting: (!sendable.is_empty())
-                .then_some((sendable, None))
+            waiting: (!first.items.is_empty())
+                .then_some(first)
                 .into_iter()
                 .collect(),
+            below: None,
         }
+    }
+
+    /// The same partition before any request, starting under `below` (its seat's [`Capacity`]):
+    /// a request of `below` items or more is split in halves before it leaves, as after a
+    /// refusal for capacity of a request that size; `None` changes nothing.
+    #[must_use]
+    pub fn seeded(mut self, below: Option<usize>) -> Self {
+        self.below = below;
+        self
     }
 
     /// Whether a request is still to begin.
@@ -495,14 +533,30 @@ impl Partition {
     }
 
     /// Begin the next request: its attempt, in flight, and the body to send for `model`; `None`
-    /// when nothing waits.
+    /// when nothing waits. A request as large as one refused for capacity is first split in
+    /// halves, the first half begun and the second waiting next, until it is smaller or a single
+    /// item.
     pub fn begin(&mut self, batch: &ChoiceBatch, model: &str) -> Option<(usize, Value)> {
-        let (items, halves) = self.waiting.pop_front()?;
-        let body = request(model, &carried(batch, &items));
+        let mut part = self.waiting.pop_front()?;
+        let below = self.below;
+        let splits = |items: &[usize]| below.filter(|b| items.len() >= *b && items.len() > 1);
+        while let Some(bound) = splits(&part.items) {
+            let second = part.items.split_off(part.items.len() / 2);
+            let (halves, split_below) = (part.halves, Some(bound));
+            self.waiting.push_front(Part {
+                items: second,
+                halves,
+                split_below,
+            });
+            part.split_below = split_below;
+        }
+        let body = request(model, &carried(batch, &part.items));
         let text = serde_json::to_string(&body).unwrap_or_default();
         self.attempts.push(Attempt {
-            items,
-            halves,
+            items: part.items,
+            halves: part.halves,
+            split_below: part.split_below,
+            elapsed_ms: None,
             bytes: text.len(),
             sha256: sha256(&text),
             sent: true,
@@ -542,9 +596,16 @@ impl Partition {
         attempt.refusal = refusal(status, body);
         let (word, error) = match attempt.refusal {
             Some(Refusal::Capacity { .. }) if attempt.items.len() > 1 => {
-                let (first, second) = attempt.items.split_at(attempt.items.len() / 2);
-                self.waiting.push_front((second.to_vec(), Some(at)));
-                self.waiting.push_front((first.to_vec(), Some(at)));
+                let refused = attempt.items.len();
+                self.below = Some(self.below.map_or(refused, |below| below.min(refused)));
+                let (first, second) = attempt.items.split_at(refused / 2);
+                let half = |items: &[usize]| Part {
+                    items: items.to_vec(),
+                    halves: Some(at),
+                    split_below: None,
+                };
+                self.waiting.push_front(half(second));
+                self.waiting.push_front(half(first));
                 (attempt.halved, attempt.error) = (true, Some(DecisionError(message)));
                 return;
             }
@@ -580,10 +641,35 @@ impl Partition {
     /// Withhold every item still waiting (the host stops, or cannot record a request before it
     /// leaves): never sent, each failing with `error` under the outcome `word`.
     pub fn withhold(&mut self, word: &'static str, error: &DecisionError) {
-        for (items, _) in self.waiting.drain(..) {
+        for Part { items, .. } in self.waiting.drain(..) {
             fail((&mut self.answers, &mut self.outcomes), &items, word, error);
         }
         self.withheld.get_or_insert_with(|| error.clone());
+    }
+
+    /// The host measured attempt `at`'s transport, from just before its request left to its
+    /// response or failure (`elapsed_ms` on its record): the partition reads no clock.
+    pub fn timed(&mut self, at: usize, elapsed: std::time::Duration) {
+        if let Some(attempt) = self.attempts.get_mut(at) {
+            attempt.elapsed_ms = Some(u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX));
+        }
+    }
+
+    /// The bound a later batch to the same seat may start under ([`Capacity`]), once a request
+    /// of this batch carrying several items was refused for capacity: one more than the most
+    /// items a request of it carried and got answered, never above the fewest a request was
+    /// refused for capacity with, and that fewest when none was answered. `None` when no such
+    /// request was refused: the batch never met the seat's capacity, whatever it answered.
+    #[must_use]
+    pub fn learned(&self) -> Option<usize> {
+        let refused = (self.attempts.iter().filter(|a| a.halved))
+            .map(|a| a.items.len())
+            .min()?;
+        let answered = (self.attempts.iter())
+            .filter(|a| a.status.is_some() && a.error.is_none())
+            .map(|a| a.items.len())
+            .max();
+        Some(answered.map_or(refused, |most| refused.min(most.saturating_add(1))))
     }
 
     /// What the attempts reported they used: each count summed over the attempts that may have
@@ -637,7 +723,9 @@ impl Partition {
     /// The journal record of attempt `at`: its items by id with their options and outcomes,
     /// never their words or state; how far it went, its status, model, usage once, the ids it
     /// was answered without asking, its body's size and digest, and its refusal's closed reason.
-    /// A half names the journal slot of the attempt it halves (`slots`, one per attempt begun).
+    /// A half names the journal slot of the attempt it halves (`slots`, one per attempt begun); a
+    /// request split before it left names the bound it was split under (`split_below`); and once
+    /// the host timed it, its transport time (`elapsed_ms`).
     #[must_use]
     pub fn record(&self, at: usize, batch: &ChoiceBatch, slots: &[usize]) -> Value {
         let Some(attempt) = self.attempts.get(at) else {
@@ -669,6 +757,12 @@ impl Partition {
         }
         if let Some(slot) = attempt.halves.and_then(|parent| slots.get(parent)) {
             record["halves"] = json!(slot);
+        }
+        if let Some(below) = attempt.split_below {
+            record["split_below"] = json!(below);
+        }
+        if let Some(elapsed) = attempt.elapsed_ms {
+            record["elapsed_ms"] = json!(elapsed);
         }
         record
     }
@@ -708,6 +802,46 @@ impl Partition {
                 record
             })
             .collect()
+    }
+}
+
+/// What one seat learned of its capacity across its batches, for as long as the seat lives
+/// (nothing is persisted): the bound its next batch starts under. Each settled batch refused for
+/// capacity lowers it to what that batch learned ([`Partition::learned`]); it never rises, and a
+/// seat never refused for capacity has none, so its batches start whole.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct Capacity {
+    /// The bound, `usize::MAX` while none is known.
+    below: AtomicUsize,
+}
+
+impl Default for Capacity {
+    fn default() -> Self {
+        Self {
+            below: AtomicUsize::new(usize::MAX),
+        }
+    }
+}
+
+impl Capacity {
+    /// The bound learned so far: a request of this many items or more is split before it leaves.
+    #[must_use]
+    pub fn below(&self) -> Option<usize> {
+        Some(self.below.load(Ordering::Acquire)).filter(|below| *below < usize::MAX)
+    }
+
+    /// The partition of `batch`, starting under the bound learned so far ([`Partition::seeded`]).
+    #[must_use]
+    pub fn partition(&self, batch: &ChoiceBatch) -> Partition {
+        Partition::of(batch).seeded(self.below())
+    }
+
+    /// Lower the bound to what the settled `partition` learned, when it learned one.
+    pub fn learn(&self, partition: &Partition) {
+        if let Some(learned) = partition.learned() {
+            self.below.fetch_min(learned, Ordering::AcqRel);
+        }
     }
 }
 

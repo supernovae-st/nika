@@ -8,7 +8,7 @@
 use serde_json::{Value, json};
 
 use super::super::{ChoiceBatch, ChoiceOption, ChoiceQuestion};
-use super::{Partition, Refusal, read, refusal, request};
+use super::{Capacity, Partition, Refusal, read, refusal, request};
 
 /// The refusal of a request past the context capacity, for many questions or one alone.
 const MAX_TOKENS: &str = r#"{"detail": {"error_type": "max_tokens_exceeded"}}"#;
@@ -156,17 +156,28 @@ fn only_a_capacity_refusal_halves_and_a_refused_single_item_ends_over_capacity()
     );
 }
 
-/// A batch whose every request is refused for capacity ends after exactly 2n - 1 attempts, every
-/// item over capacity: halves are strictly smaller, so no recursion or quota is needed.
+/// A batch whose every request is refused for capacity ends with each item asked alone exactly
+/// once, every item over capacity: halves are strictly smaller, so no recursion or quota is
+/// needed. No request is ever as large as one refused before it, so the batch ends after fewer
+/// requests than halving alone makes (2n - 1): only the first half of each refused request is
+/// asked whole, every other part is split before it leaves.
 #[test]
-fn a_batch_refused_at_every_size_ends_after_2n_minus_1_attempts() {
-    for n in [1_usize, 2, 3, 7, 16, 382] {
+fn a_batch_refused_at_every_size_ends_with_each_item_asked_alone_once() {
+    for (n, requests) in [
+        (1_usize, 1_usize),
+        (2, 3),
+        (3, 5),
+        (7, 10),
+        (16, 20),
+        (382, 390),
+    ] {
         let batch = batch(n);
         let mut partition = Partition::of(&batch);
         while let Some((at, _)) = partition.begin(&batch, "jev") {
             partition.responded(at, &batch, 400, MAX_TOKENS.as_bytes());
         }
-        assert_eq!(partition.attempts.len(), 2 * n - 1, "{n}");
+        assert_eq!(partition.attempts.len(), requests, "{n}");
+        assert!(requests < 2 * n, "{n}");
         assert!(
             partition.outcomes.iter().all(|o| *o == "over_capacity"),
             "{n}"
@@ -177,7 +188,169 @@ fn a_batch_refused_at_every_size_ends_after_2n_minus_1_attempts() {
             .filter(|a| a.items.len() == 1)
             .count();
         assert_eq!(singles, n, "each item asked alone exactly once");
+        let mut fewest_refused = usize::MAX;
+        for attempt in partition.attempts.iter().filter(|a| a.items.len() > 1) {
+            assert!(
+                attempt.items.len() < fewest_refused,
+                "{n}: {:?}",
+                attempt.items
+            );
+            fewest_refused = attempt.items.len();
+        }
     }
+}
+
+/// A scripted service whose context holds `capacity` items: a 200 answering every item of a
+/// request within it, the capacity refusal past it.
+fn within(batch: &ChoiceBatch, at: &[usize], capacity: usize) -> (u16, Vec<u8>) {
+    if at.len() > capacity {
+        (400, MAX_TOKENS.as_bytes().to_vec())
+    } else {
+        (200, answering(batch, at, 10))
+    }
+}
+
+/// Every request `partition` makes against the scripted `capacity`, in order, until none waits.
+fn drive(partition: &mut Partition, batch: &ChoiceBatch, capacity: usize) -> Vec<Vec<usize>> {
+    while let Some((at, _)) = partition.begin(batch, "jev") {
+        let items = partition.attempts[at].items.clone();
+        let (status, body) = within(batch, &items, capacity);
+        partition.responded(at, batch, status, &body);
+    }
+    partition.attempts.iter().map(|a| a.items.clone()).collect()
+}
+
+/// The capacity a refusal teaches holds for the rest of the batch. Against a service that holds
+/// two items, a batch of eight is refused, then its first half of four: the second half of four,
+/// waiting, is as large as a request just refused, so it is split before it leaves and never
+/// refused. Two refused requests where halving alone makes three (the eight, then each four),
+/// in item order, each item answered once; every request is journaled as before, a part split
+/// before it left also naming the bound it was split under beside the attempt it asks again.
+#[test]
+fn a_waiting_part_as_large_as_a_refused_one_is_split_before_it_leaves() {
+    let batch = batch(8);
+    let mut partition = Partition::of(&batch);
+    let sent = drive(&mut partition, &batch, 2);
+    let expected = [
+        vec![0, 1, 2, 3, 4, 5, 6, 7],
+        vec![0, 1, 2, 3],
+        vec![0, 1],
+        vec![2, 3],
+        vec![4, 5],
+        vec![6, 7],
+    ];
+    assert_eq!(sent, expected, "the second four never left whole");
+    let refused: Vec<usize> = (partition.attempts.iter().enumerate())
+        .filter(|(_, a)| a.refusal == Some(Refusal::Capacity { status: 400 }))
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(
+        refused,
+        [0, 1],
+        "two refused requests, where halving alone makes three"
+    );
+    assert_eq!(partition.outcomes, ["chosen"; 8]);
+    let slots = [40, 41, 42, 43, 44, 45];
+    let journal: Vec<(Value, Value, Value)> = (0..slots.len())
+        .map(|at| partition.record(at, &batch, &slots))
+        .map(|r| {
+            (
+                r["outcome"].clone(),
+                r["halves"].clone(),
+                r["split_below"].clone(),
+            )
+        })
+        .collect();
+    let refusal = (json!("http_error"), Value::Null, Value::Null);
+    let half = |of: u64| (json!("http_error"), json!(of), Value::Null);
+    let answered = |of: u64| (json!("answered"), json!(of), Value::Null);
+    let split = (json!("answered"), json!(40), json!(4));
+    let expected = [
+        refusal,
+        half(40),
+        answered(41),
+        answered(41),
+        split.clone(),
+        split,
+    ];
+    assert_eq!(journal, expected, "a half names the slot it halves");
+}
+
+/// A seat starts its later batches under what its earlier ones learned. A batch within capacity
+/// teaches nothing; one refused for capacity teaches one more than the most items it got
+/// answered at once, so the next batch of eight to the same seat is asked in four requests of
+/// two, none refused. A batch never refused leaves the bound as it was; a refusal under it lowers
+/// it; nothing raises it.
+#[test]
+fn a_seat_starts_its_later_batches_under_the_capacity_it_learned() {
+    let capacity = Capacity::default();
+    assert_eq!(capacity.below(), None);
+    let pair = batch(2);
+    let mut whole = capacity.partition(&pair);
+    assert_eq!(drive(&mut whole, &pair, 2), [vec![0, 1]]);
+    capacity.learn(&whole);
+    assert_eq!(
+        capacity.below(),
+        None,
+        "a batch within capacity teaches nothing"
+    );
+    let eight = batch(8);
+    let mut first = capacity.partition(&eight);
+    assert_eq!(drive(&mut first, &eight, 2).len(), 6);
+    let learned = first.learned();
+    assert_eq!(
+        learned,
+        Some(3),
+        "the most items answered at once, plus one"
+    );
+    capacity.learn(&first);
+    assert_eq!(capacity.below(), Some(3));
+    let split: Vec<Option<usize>> = first.attempts.iter().map(|a| a.split_below).collect();
+    assert_eq!(split, [None, None, None, None, Some(4), Some(4)]);
+    let mut later = capacity.partition(&eight);
+    let sent = drive(&mut later, &eight, 2);
+    assert_eq!(sent, [vec![0, 1], vec![2, 3], vec![4, 5], vec![6, 7]]);
+    let seeded = |a: &super::Attempt| a.refusal.is_none() && a.split_below == Some(3);
+    assert!(later.attempts.iter().all(seeded), "{:?}", later.attempts);
+    assert_eq!(later.outcomes, ["chosen"; 8]);
+    assert_eq!(later.learned(), None);
+    capacity.learn(&later);
+    assert_eq!(
+        capacity.below(),
+        Some(3),
+        "a batch never refused leaves it as it was"
+    );
+    let mut tighter = capacity.partition(&eight);
+    drive(&mut tighter, &eight, 1);
+    let refused = tighter.attempts.iter().filter(|a| a.refusal.is_some());
+    assert_eq!(refused.count(), 1);
+    capacity.learn(&tighter);
+    assert_eq!(
+        capacity.below(),
+        Some(2),
+        "a refusal under the bound lowers it"
+    );
+    capacity.learn(&first);
+    assert_eq!(capacity.below(), Some(2), "nothing raises it");
+}
+
+/// The host says how long each request took, and the partition reads no clock: a record carries
+/// the measured time once it was given, and none before.
+#[test]
+fn a_timed_request_records_the_hosts_measure() {
+    let batch = batch(2);
+    let mut partition = Partition::of(&batch);
+    let (at, _) = partition.begin(&batch, "jev").unwrap_or_default();
+    assert!(
+        partition
+            .record(at, &batch, &[])
+            .get("elapsed_ms")
+            .is_none()
+    );
+    partition.responded(at, &batch, 200, &answering(&batch, &[0, 1], 7));
+    partition.timed(at, std::time::Duration::from_millis(1_234));
+    assert_eq!(partition.attempts[at].elapsed_ms, Some(1_234));
+    assert_eq!(partition.record(at, &batch, &[])["elapsed_ms"], 1_234);
 }
 
 /// An id asked twice never rides any request, whatever half it would fall in; a batch whose

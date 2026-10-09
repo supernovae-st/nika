@@ -427,6 +427,7 @@ impl<T> typenum::type_operators::Same for nika_compile_seats::decide::system_one
 pub type nika_compile_seats::decide::system_one::Refusal::Output = T
 #[non_exhaustive] pub struct nika_compile_seats::decide::system_one::Attempt
 pub nika_compile_seats::decide::system_one::Attempt::bytes: usize
+pub nika_compile_seats::decide::system_one::Attempt::elapsed_ms: core::option::Option<u64>
 pub nika_compile_seats::decide::system_one::Attempt::error: core::option::Option<nika_compile_seats::decide::DecisionError>
 pub nika_compile_seats::decide::system_one::Attempt::halved: bool
 pub nika_compile_seats::decide::system_one::Attempt::halves: core::option::Option<usize>
@@ -435,6 +436,7 @@ pub nika_compile_seats::decide::system_one::Attempt::model: core::option::Option
 pub nika_compile_seats::decide::system_one::Attempt::refusal: core::option::Option<nika_compile_seats::decide::system_one::Refusal>
 pub nika_compile_seats::decide::system_one::Attempt::sent: bool
 pub nika_compile_seats::decide::system_one::Attempt::sha256: alloc::string::String
+pub nika_compile_seats::decide::system_one::Attempt::split_below: core::option::Option<usize>
 pub nika_compile_seats::decide::system_one::Attempt::status: core::option::Option<u16>
 pub nika_compile_seats::decide::system_one::Attempt::unasked: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_seats::decide::system_one::Attempt::usage: nika_compile_seats::decide::system_one::Usage
@@ -474,6 +476,36 @@ impl<T> nika_error::traits::AsAny for nika_compile_seats::decide::system_one::At
 pub fn nika_compile_seats::decide::system_one::Attempt::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_seats::decide::system_one::Attempt
 pub type nika_compile_seats::decide::system_one::Attempt::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::decide::system_one::Capacity
+impl nika_compile_seats::decide::system_one::Capacity
+pub fn nika_compile_seats::decide::system_one::Capacity::below(&self) -> core::option::Option<usize>
+pub fn nika_compile_seats::decide::system_one::Capacity::learn(&self, partition: &nika_compile_seats::decide::system_one::Partition)
+pub fn nika_compile_seats::decide::system_one::Capacity::partition(&self, batch: &nika_compile_seats::decide::ChoiceBatch) -> nika_compile_seats::decide::system_one::Partition
+impl core::default::Default for nika_compile_seats::decide::system_one::Capacity
+pub fn nika_compile_seats::decide::system_one::Capacity::default() -> Self
+impl core::fmt::Debug for nika_compile_seats::decide::system_one::Capacity
+pub fn nika_compile_seats::decide::system_one::Capacity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_compile_seats::decide::system_one::Capacity
+impl<T, U> core::convert::Into<U> for nika_compile_seats::decide::system_one::Capacity where U: core::convert::From<T>
+pub fn nika_compile_seats::decide::system_one::Capacity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::decide::system_one::Capacity where U: core::convert::Into<T>
+pub type nika_compile_seats::decide::system_one::Capacity::Error = core::convert::Infallible
+pub fn nika_compile_seats::decide::system_one::Capacity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::decide::system_one::Capacity where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::decide::system_one::Capacity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::decide::system_one::Capacity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_seats::decide::system_one::Capacity where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::decide::system_one::Capacity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::decide::system_one::Capacity where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::system_one::Capacity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::decide::system_one::Capacity where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::system_one::Capacity::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_seats::decide::system_one::Capacity
+pub fn nika_compile_seats::decide::system_one::Capacity::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_seats::decide::system_one::Capacity where T: 'static
+pub fn nika_compile_seats::decide::system_one::Capacity::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::decide::system_one::Capacity
+pub type nika_compile_seats::decide::system_one::Capacity::Output = T
 #[non_exhaustive] pub struct nika_compile_seats::decide::system_one::Partition
 pub nika_compile_seats::decide::system_one::Partition::answers: alloc::vec::Vec<core::result::Result<nika_compile_seats::decide::ChoiceAnswer, nika_compile_seats::decide::DecisionError>>
 pub nika_compile_seats::decide::system_one::Partition::attempts: alloc::vec::Vec<nika_compile_seats::decide::system_one::Attempt>
@@ -481,11 +513,14 @@ pub nika_compile_seats::decide::system_one::Partition::outcomes: alloc::vec::Vec
 impl nika_compile_seats::decide::system_one::Partition
 pub fn nika_compile_seats::decide::system_one::Partition::begin(&mut self, batch: &nika_compile_seats::decide::ChoiceBatch, model: &str) -> core::option::Option<(usize, serde_json::value::Value)>
 pub fn nika_compile_seats::decide::system_one::Partition::error(&self) -> core::option::Option<nika_compile_seats::decide::DecisionError>
+pub fn nika_compile_seats::decide::system_one::Partition::learned(&self) -> core::option::Option<usize>
 pub fn nika_compile_seats::decide::system_one::Partition::lost(&mut self, at: usize, sent: bool, error: nika_compile_seats::decide::DecisionError)
 pub fn nika_compile_seats::decide::system_one::Partition::model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_compile_seats::decide::system_one::Partition::of(batch: &nika_compile_seats::decide::ChoiceBatch) -> Self
 pub fn nika_compile_seats::decide::system_one::Partition::record(&self, at: usize, batch: &nika_compile_seats::decide::ChoiceBatch, slots: &[usize]) -> serde_json::value::Value
 pub fn nika_compile_seats::decide::system_one::Partition::responded(&mut self, at: usize, batch: &nika_compile_seats::decide::ChoiceBatch, status: u16, body: &[u8])
+pub fn nika_compile_seats::decide::system_one::Partition::seeded(self, below: core::option::Option<usize>) -> Self
+pub fn nika_compile_seats::decide::system_one::Partition::timed(&mut self, at: usize, elapsed: core::time::Duration)
 pub fn nika_compile_seats::decide::system_one::Partition::unasked(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_seats::decide::system_one::Partition::unsent(&self, batch: &nika_compile_seats::decide::ChoiceBatch, word: &str) -> core::option::Option<serde_json::value::Value>
 pub fn nika_compile_seats::decide::system_one::Partition::usage(&self) -> nika_compile_seats::decide::system_one::Usage

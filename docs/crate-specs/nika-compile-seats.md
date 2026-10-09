@@ -43,7 +43,17 @@ as an external consumer.
   item); `ProviderChoice` settles a batch in ONE request (`closed_choices`: the shared words and
   state once, an answer schema keyed by item id; `decoded_each`: each item's key bound by its
   id, an item left without one of its keys failing alone, a failed request failing every item,
-  the request's usage and reasoning riding the first item's answer only).
+  the request's usage and reasoning riding the first item's answer only). `system_one` is the
+  System One wire form of a batch, without transport: `Partition` asks every item in one request
+  and asks a request's items again, in halves, only after the service refused it for capacity
+  (a single item so refused is `over_capacity`). That refusal also bounds the rest of the batch:
+  a waiting request as large as one refused is split in halves, in order, before it leaves, so
+  a sibling half is never sent whole to be refused again (its journal record names the bound it
+  was split under, `split_below`). `Capacity` keeps what a seat's batches learned for as long as
+  the seat lives: one more than the most items a refused batch got answered at once, never at or
+  above a refused size (`Partition::learned`), which only lowers and seeds its later batches
+  (`Partition::seeded`); a batch that never met the capacity teaches nothing. The partition reads
+  no clock: the host measures each request's transport (`Partition::timed`, `elapsed_ms`).
 - `compose` — the candidate composer (ADR-147): the distinct admissible
   COLD plans in first-seen order, each judged by the deterministic `feasibility` filter against
   the reading's floor and the request before any seat sees it, the topology dimensions recalled
