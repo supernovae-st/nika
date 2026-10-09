@@ -27,6 +27,7 @@ nika-cli
 nika-cli-host
 nika-clock
 nika-compile
+nika-compile-behavior
 nika-compile-clauses
 nika-compile-cognition
 nika-compile-fidelity

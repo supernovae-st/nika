@@ -1745,5 +1745,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-149",
+      "title": "nika-compile-fidelity size-cap member split: the behavioural contract and its judge descend to nika-compile-behavior",
+      "status": "accepted",
+      "date": "2026-10-09",
+      "filename": "adr-149-nika-compile-fidelity-member-split-nika-compile-behavior.md",
+      "tags": ["architecture","crates","split","size-cap","compile"],
+      "affects_crates": ["nika-compile-fidelity","nika-compile-behavior"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-003","ADR-137","ADR-138","ADR-141","ADR-145","ADR-146"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }

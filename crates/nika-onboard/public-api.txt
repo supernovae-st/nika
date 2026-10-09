@@ -142,7 +142,7 @@ impl<T> typenum::type_operators::Same for nika_onboard::compile::copy::native::S
 pub type nika_onboard::compile::copy::native::Scoped::Output = T
 #[non_exhaustive] pub struct nika_onboard::compile::copy::native::Settled
 impl nika_onboard::compile::copy::native::Settled
-pub fn nika_onboard::compile::copy::native::Settled::into_parts(self) -> (nika_compile_fidelity::behavior::accounting::Usage, core::result::Result<core::option::Option<nika_onboard::compile::copy::native::Preview>, alloc::string::String>)
+pub fn nika_onboard::compile::copy::native::Settled::into_parts(self) -> (nika_compile_behavior::behavior::accounting::Usage, core::result::Result<core::option::Option<nika_onboard::compile::copy::native::Preview>, alloc::string::String>)
 impl<D> owo_colors::OwoColorize for nika_onboard::compile::copy::native::Settled
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::copy::native::Settled where U: core::convert::From<T>
 pub fn nika_onboard::compile::copy::native::Settled::into(self) -> U
@@ -176,7 +176,7 @@ pub fn nika_onboard::compile::copy::words::rehearsed_lines(q: &nika_onboard::com
 pub nika_onboard::compile::copy::Qualification::NotCopy
 pub nika_onboard::compile::copy::Qualification::Qualified(alloc::boxed::Box<nika_onboard::compile::copy::Qualified>)
 pub nika_onboard::compile::copy::Qualification::Refused
-pub nika_onboard::compile::copy::Qualification::Refused::turn: nika_compile_fidelity::behavior::accounting::Usage
+pub nika_onboard::compile::copy::Qualification::Refused::turn: nika_compile_behavior::behavior::accounting::Usage
 pub nika_onboard::compile::copy::Qualification::Refused::why: alloc::string::String
 impl core::clone::Clone for nika_onboard::compile::copy::Qualification
 pub fn nika_onboard::compile::copy::Qualification::clone(&self) -> nika_onboard::compile::copy::Qualification
@@ -266,11 +266,11 @@ impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::copy::See
 impl<T> typenum::type_operators::Same for nika_onboard::compile::copy::Seen
 pub type nika_onboard::compile::copy::Seen::Output = T
 #[non_exhaustive] pub struct nika_onboard::compile::copy::Allowance
-pub nika_onboard::compile::copy::Allowance::before: nika_compile_fidelity::behavior::accounting::Usage
-pub nika_onboard::compile::copy::Allowance::round: nika_compile_fidelity::behavior::accounting::Limits
-pub nika_onboard::compile::copy::Allowance::turn: nika_compile_fidelity::behavior::accounting::Limits
+pub nika_onboard::compile::copy::Allowance::before: nika_compile_behavior::behavior::accounting::Usage
+pub nika_onboard::compile::copy::Allowance::round: nika_compile_behavior::behavior::accounting::Limits
+pub nika_onboard::compile::copy::Allowance::turn: nika_compile_behavior::behavior::accounting::Limits
 impl nika_onboard::compile::copy::Allowance
-pub const fn nika_onboard::compile::copy::Allowance::new(round: nika_compile_fidelity::behavior::accounting::Limits, turn: nika_compile_fidelity::behavior::accounting::Limits, before: nika_compile_fidelity::behavior::accounting::Usage) -> Self
+pub const fn nika_onboard::compile::copy::Allowance::new(round: nika_compile_behavior::behavior::accounting::Limits, turn: nika_compile_behavior::behavior::accounting::Limits, before: nika_compile_behavior::behavior::accounting::Usage) -> Self
 impl core::clone::Clone for nika_onboard::compile::copy::Allowance
 pub fn nika_onboard::compile::copy::Allowance::clone(&self) -> nika_onboard::compile::copy::Allowance
 impl core::cmp::Eq for nika_onboard::compile::copy::Allowance
@@ -381,7 +381,7 @@ pub type nika_onboard::compile::copy::Preview::Output = T
 pub nika_onboard::compile::copy::Qualified::lowering: nika_compile::assemble::read::CopyLowering
 pub nika_onboard::compile::copy::Qualified::outcome: nika_compile::types::CompileOutcome
 pub nika_onboard::compile::copy::Qualified::preview: nika_onboard::compile::copy::Preview
-pub nika_onboard::compile::copy::Qualified::turn: nika_compile_fidelity::behavior::accounting::Usage
+pub nika_onboard::compile::copy::Qualified::turn: nika_compile_behavior::behavior::accounting::Usage
 pub nika_onboard::compile::copy::Qualified::verdicts: alloc::vec::Vec<alloc::string::String>
 pub nika_onboard::compile::copy::Qualified::witness: nika_onboard::compile::copy::Witness
 impl core::clone::Clone for nika_onboard::compile::copy::Qualified

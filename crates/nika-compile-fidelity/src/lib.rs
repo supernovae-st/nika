@@ -17,7 +17,8 @@
 //!   paths and hosts), its structural laws, its typed holes and the document it states.
 //! - [`candidate`] · the plan a candidate document states, and a revision's delta.
 //! - [`behavior`] · the behavioural contract a request states, independent of any candidate,
-//!   and its typed judgment over what a round of rehearsals consumed and wrote.
+//!   and its typed judgment over what a round of rehearsals consumed and wrote, owned by the
+//!   size-cap member below this crate (`nika-compile-behavior`, ADR-149) and kept here.
 
 #![cfg_attr(
     test,
@@ -31,7 +32,11 @@
     )
 )]
 
-pub mod behavior;
+/// The behavioural contract and its judgment ([`behavior`]) are owned by the size-cap member
+/// below the candidate laws since 2026-10-09 (ADR-149): `nika_compile_behavior::behavior`. This
+/// compatibility path is kept and names the very same items (types, functions), never copies.
+#[doc(inline)]
+pub use nika_compile_behavior::behavior;
 pub mod binding;
 pub mod candidate;
 pub mod decimal;

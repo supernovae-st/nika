@@ -25,7 +25,7 @@ use super::values::{
     Cell, Datum, Row, Same, as_text, exact_row_form, jq_order, order_is_meaningful, reading,
     row_form, same, shown, sort_key, value_at,
 };
-use crate::fidelity::instant_shape;
+use crate::instant_shape;
 
 /// The number policies a relation states, by field.
 type Policies = BTreeMap<String, NumberPolicy>;

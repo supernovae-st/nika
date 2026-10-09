@@ -287,9 +287,9 @@ pub fn read_basis(intent: &str, initial: &BTreeMap<String, String>) -> Value {
 }
 
 /// The behavior contract as a request basis keeps it: for each obligation its identity, target,
-/// presence kind, the reason of an unsupported requirement and the request's own words; and the
-/// sources it names. Partial by construction: what the request proves stays recomputable from
-/// the request, never claimed by a record.
+/// presence kind (`unknown` for a kind it does not read), the reason of an unsupported
+/// requirement and the request's own words; and the sources it names. Partial by construction:
+/// what the request proves stays recomputable from the request, never claimed by a record.
 #[must_use]
 pub fn contract_projection(contract: &Contract) -> Value {
     let obligations: Vec<Value> = (contract.obligations.iter())
@@ -301,6 +301,10 @@ pub fn contract_projection(contract: &Contract) -> Value {
                 Presence::Approval => "approval",
                 Presence::Undecided => "undecided",
                 Presence::When(_) | Presence::OnlyWhen(_) => "conditional",
+                // `Presence` is `#[non_exhaustive]` in its own crate (ADR-149): a kind this
+                // projection does not read is recorded as such, never as a kind it knows, so a
+                // record never claims a write the contract does not state.
+                _ => "unknown",
             };
             let unsupported = match &o.requirement {
                 Requirement::Unsupported(why) => Some(why.as_str()),
@@ -342,5 +346,47 @@ mod caller_tests {
         let mut invalid = stored.clone();
         invalid["answers"]["destination"] = json!(42);
         assert!(!same_caller(&invalid, &invalid, &current));
+    }
+
+    /// A basis keeps the word of every presence kind the contract states, byte for byte, now
+    /// that `Presence` lives in its own crate (ADR-149): a replayed record compares them.
+    #[test]
+    fn the_projection_keeps_the_word_of_every_known_presence() {
+        use crate::behavior::{Condition, Filter, Format, Obligation, Target};
+        let condition = || Condition::new("./in/a.csv", Format::Csv, Filter::all(), true);
+        let presences = [
+            Presence::Required,
+            Presence::Unproven,
+            Presence::Forbidden,
+            Presence::Approval,
+            Presence::Undecided,
+            Presence::When(condition()),
+            Presence::OnlyWhen(condition()),
+        ];
+        let obligations = (presences.into_iter().enumerate())
+            .map(|(at, presence)| {
+                let (id, target) = (format!("write {at}"), format!("./out/{at}.json"));
+                let target = Target::new(target, Format::Json);
+                let requirement = if at == 0 {
+                    Requirement::Unsupported("a join of several sources".to_owned())
+                } else {
+                    Requirement::PresenceOnly
+                };
+                Obligation::new(id, Some(target), presence, requirement, "w")
+            })
+            .collect();
+        let contract = Contract::new(obligations).with_sources(vec!["./in/a.csv".to_owned()]);
+        assert_eq!(
+            contract_projection(&contract),
+            json!({"obligations": [
+                ["write 0", "./out/0.json", "required", "a join of several sources", "w"],
+                ["write 1", "./out/1.json", "unproven", null, "w"],
+                ["write 2", "./out/2.json", "forbidden", null, "w"],
+                ["write 3", "./out/3.json", "approval", null, "w"],
+                ["write 4", "./out/4.json", "undecided", null, "w"],
+                ["write 5", "./out/5.json", "conditional", null, "w"],
+                ["write 6", "./out/6.json", "conditional", null, "w"],
+            ], "sources": ["./in/a.csv"]})
+        );
     }
 }

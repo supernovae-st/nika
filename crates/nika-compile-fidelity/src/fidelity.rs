@@ -23,7 +23,10 @@ mod record_scope;
 mod records;
 mod scope;
 pub use final_gate::unbound_final_gate;
-pub use instants::instant_shape;
+/// The date-time shape classifier Law 25 reads, owned by `nika-compile-behavior` since
+/// 2026-10-09 (ADR-149), whose judge reads it too; this path names the very same function.
+#[doc(inline)]
+pub use nika_compile_behavior::instant_shape;
 pub use records::raw_text_as_records;
 pub use scope::unsettled_performed;
 
