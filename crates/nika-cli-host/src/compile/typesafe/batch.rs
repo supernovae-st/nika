@@ -5,7 +5,7 @@
 //! single-attempt client. ONE request carries every item whose id the batch asks once; the
 //! service's refusal for capacity alone asks a request's items again in its two halves, as the
 //! partition law of [`system_one`] decides, which also reads each reply by id and keeps each
-//! physical request's usage once. This driver sends each request, tells the [`Requests`] watching
+//! physical request's usage once. This driver sends each request, tells the `Requests` watching
 //! it before the request can leave and once it settled, and sends nothing more once the operator
 //! stopped preparation. An id the batch asks twice is never sent.
 
