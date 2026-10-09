@@ -2,15 +2,17 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! A component the judged bytes hold as admitted, told to every question that judges them (A5,
-//! R6): each part asked alone, each part asked again over a whole trial run and the whole request
-//! over that run carry what these bytes hold of the lent catalogue (`construction.held`: the
-//! component, its witness and its bindings, bound to these bytes), beside the construction
-//! context a localization reads. A judge that follows that context can settle the clause that
-//! conditionally asks to use an admitted component; every other part stays judged on what the
-//! program does. A localization may name the held component (`held-<k>`): that takes the judge's
-//! own `missing` back and leaves the part contested, never settled by itself. The SCRIPTED seat
-//! decides from what each question shows: these tests establish what the questions carry and how
-//! the verdict weighs the answers, never a model's behaviour.
+//! R6): the whole request, each part asked alone, each part asked again over a whole trial run and
+//! the whole request over that run carry what these bytes hold of the lent catalogue
+//! (`construction.held`: the component, its witness and its bindings, bound to these bytes),
+//! beside the construction context a localization reads. A judge that follows that context can
+//! settle the clause that conditionally asks to use an admitted component, and find the whole
+//! request faithful when the rest is carried; every other part stays judged on what the program
+//! does. A localization may name the held component (`held-<k>`): that takes the judge's own
+//! `missing` back and leaves the part contested, never settled by itself. A rejection binds to
+//! the whole-request contract that says so. The SCRIPTED seat decides from what each question
+//! shows: these tests establish what the questions carry and how the verdict weighs the answers,
+//! never a model's behaviour.
 
 use super::*;
 
@@ -171,10 +173,12 @@ enum Reading {
 }
 
 /// A SCRIPTED seat deciding each question from what it shows, never from its order: it doubts the
-/// whole request, judges each part on the candidate's bytes and on what it is told of how they
-/// are built, says why a part is missing, and keeps every question it was asked.
+/// whole request (or, `judges_whole`, finds it faithful when every part of it is carried as that
+/// question shows the bytes), judges each part on the candidate's bytes and on what it is told of
+/// how they are built, says why a part is missing, and keeps every question it was asked.
 struct Reader {
     reading: Reading,
+    judges_whole: bool,
     asked: Mutex<Vec<ChoiceQuestion>>,
 }
 
@@ -182,7 +186,16 @@ impl Reader {
     fn new(reading: Reading) -> Self {
         Self {
             reading,
+            judges_whole: false,
             asked: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// The same seat, judging the whole request from what its question shows.
+    fn judging(reading: Reading) -> Self {
+        Self {
+            judges_whole: true,
+            ..Self::new(reading)
         }
     }
 
@@ -260,7 +273,14 @@ impl Reader {
             .as_str()
             .unwrap_or_default();
         if offers("unfaithful") {
-            "unfaithful".to_owned()
+            let request = question.state["request"].as_str().unwrap_or_default();
+            let every = (parts(request).iter()).all(|part| self.carries(part, question));
+            let answer = if self.judges_whole && every {
+                "faithful"
+            } else {
+                "unfaithful"
+            };
+            answer.to_owned()
         } else if offers("only_requested") {
             "only_requested".to_owned()
         } else if offers("no_task") {
@@ -295,20 +315,29 @@ impl DecisionSeat for Reader {
 /// The whole verdict of the tickets request over `candidate`, its state showing `facts`, asked of
 /// `reader` beside a whole trial run of these bytes; and its binding.
 async fn judged_over(candidate: &str, facts: Value, reader: &Reader) -> (Verdict, Binding) {
+    judged_on(candidate, facts, reader, Some(&run(candidate))).await
+}
+
+/// The same verdict beside `observation`, a run of these bytes, or none.
+async fn judged_on(
+    candidate: &str,
+    facts: Value,
+    reader: &Reader,
+    observation: Option<&Value>,
+) -> (Verdict, Binding) {
     let request = CompileRequest::create(TICKETS);
     let mut base = state(TICKETS, &request, candidate);
     base["authoring"] = facts;
     let binding = Binding::of(TICKETS, &request, &Plan::default(), candidate);
     let judge = Judge::<Scripted>::Seat(reader);
     let (mut verdict, mut out) = (Verdict::default(), crate::initial());
-    let observation = run(candidate);
     let asked = (&base, "fixture");
     whole(
         TICKETS,
         asked,
         &judge,
         &binding,
-        Some(&observation),
+        observation,
         &mut verdict,
         &mut out,
     )
@@ -324,11 +353,12 @@ fn part(words: &str) -> (usize, String) {
     (at, split[at].clone())
 }
 
-/// Every part question and the whole request over the run carry what the composed bytes hold:
-/// the filter component, `expanded` with its source bound, bound to these bytes and this release
-/// (`construction`), beside the construction context and what holding means (`expanded` and
-/// `invoked` each said apart), never a localization's alternatives. The whole-request and extra
-/// questions read the bytes as they did. A judge that follows the context carries the clause.
+/// The whole request, every part question and the whole request over the run carry what the
+/// composed bytes hold: the filter component, `expanded` with its source bound, bound to these
+/// bytes and this release (`construction`), beside the construction context and what holding
+/// means (`expanded` and `invoked` each said apart), never a localization's alternatives. The
+/// extra-operation question reads the bytes as it did. A judge that follows the context carries
+/// the clause.
 #[tokio::test]
 async fn every_question_judging_the_bytes_is_told_what_they_hold() {
     let candidate = composed(48, true);
@@ -344,7 +374,7 @@ async fn every_question_judging_the_bytes_is_told_what_they_hold() {
     let expanded = "`expanded`: its admitted nodes are in these bytes, digest for digest";
     let invoked = "`invoked`: a task of these bytes calls it as a child workflow";
     let mut judging: Vec<String> = (0..count).map(|k| format!("verify-part-{k}")).collect();
-    judging.push("verify-observed".to_owned());
+    judging.extend(["verify-request".to_owned(), "verify-observed".to_owned()]);
     for id in &judging {
         let question = reader.question(id);
         assert_eq!(question.state["construction"], shown, "{id}");
@@ -367,11 +397,9 @@ async fn every_question_judging_the_bytes_is_told_what_they_hold() {
     let over_run = reader.question("verify-observed");
     assert_eq!(over_run.state["observation"], run(&candidate));
     assert_eq!(over_run.state.get("history"), None, "no finding to recall");
-    for id in ["verify-request", "verify-extra"] {
-        let question = reader.question(id);
-        assert_eq!(question.state.get("construction"), None, "{id}");
-        assert!(!question.instructions.contains(HOLDING_SAID), "{id}");
-    }
+    let extra = reader.question("verify-extra");
+    assert_eq!(extra.state.get("construction"), None);
+    assert!(!extra.instructions.contains(HOLDING_SAID));
 }
 
 /// A judge that follows what each question shows settles the clause asking to use an admitted
@@ -522,4 +550,199 @@ async fn a_held_component_named_at_the_localization_leaves_the_part_contested() 
     assert_eq!(lists(&verdict), open);
     assert_eq!(verdict.judgments, NO_JUDGMENT);
     assert!(!verdict.settled() && verdict.doubted());
+}
+
+/// A judge of the whole request that follows what its question shows finds a candidate holding
+/// the applicable component faithful when every other part is carried: the conditional reuse
+/// clause no longer makes the whole request unfaithful. With no trial run the whole request is
+/// carried by that one question; beside a whole run, every part is asked again over it first.
+/// `expanded` and `invoked` alike, each kept apart in what the judge is told.
+#[tokio::test]
+async fn a_whole_request_told_the_held_component_is_faithful_when_the_rest_is_carried() {
+    let candidate = composed(48, true);
+    let observed = run(&candidate);
+    for (witness, over) in [
+        ("expanded", None),
+        ("invoked", None),
+        ("expanded", Some(&observed)),
+    ] {
+        let reader = Reader::judging(Reading::Follows);
+        let shown = facts(Some(witness));
+        let (verdict, binding) = judged_on(&candidate, shown, &reader, over).await;
+        assert_eq!(record(&verdict, "verify-request")["choice"], "faithful");
+        let judgment = carried(TICKETS, "verify-request", SEAT, &binding);
+        assert_eq!(verdict.judgments, [judgment], "{witness}");
+        assert_eq!(verdict.settled_by, Some("verify-request"));
+        assert_eq!(lists(&verdict), found(&[], &[], &[], &[], &[]));
+        assert!(verdict.settled() && !verdict.doubted());
+        let asked = reader.question("verify-request");
+        assert_eq!(asked.state["construction"], holding(&candidate, witness));
+        assert!(asked.instructions.contains(HOLDING_SAID));
+        let mut expected = vec!["verify-request".to_owned()];
+        if over.is_some() {
+            let count = parts(TICKETS).len();
+            expected.extend((0..count).map(|k| format!("verify-observed-part-{k}")));
+        }
+        assert_eq!(ids(&verdict), expected, "{witness}");
+    }
+}
+
+/// The held component never excuses the rest of the request: told it, the whole-request judge
+/// still finds the bytes unfaithful without the author's report or with another threshold than
+/// 48, and the localization names that part. A component the catalogue merely offers, which the
+/// bytes do not hold, tells the whole-request question nothing and makes nothing faithful.
+#[tokio::test]
+async fn a_whole_request_stays_unfaithful_on_a_missing_part_or_a_component_merely_offered() {
+    let (_, write) = part(DESTINATION);
+    let (_, threshold) = part(THRESHOLD);
+    let filters = points("filter_records");
+    let cases = [
+        (
+            composed(48, false),
+            Some("expanded"),
+            Some((write, OMITTED)),
+        ),
+        (
+            composed(24, true),
+            Some("expanded"),
+            Some((threshold, filters.as_str())),
+        ),
+        (composed(48, true), None, None),
+    ];
+    for (candidate, witness, located) in cases {
+        let reader = Reader::judging(Reading::Follows);
+        let (verdict, _) = judged_on(&candidate, facts(witness), &reader, None).await;
+        assert_eq!(record(&verdict, "verify-request")["choice"], "unfaithful");
+        assert!(verdict.judgments.is_empty() && !verdict.settled());
+        let asked = reader.question("verify-request");
+        match witness {
+            Some(witness) => {
+                let shown = holding(&candidate, witness);
+                assert_eq!(asked.state["construction"], shown);
+            }
+            None => assert_eq!(asked.state.get("construction"), None),
+        }
+        assert_eq!(asked.instructions.contains(HOLDING_SAID), witness.is_some());
+        if let Some((part, note)) = located {
+            let expected = found(&[(part.as_str(), note)], &[], &[], &["unfaithful"], &[]);
+            assert_eq!(lists(&verdict), expected);
+        }
+    }
+}
+
+/// A rejection binds to the context its judge was shown, the whole-request contract included
+/// (R6): over bytes that hold a component, that contract now says what they hold, so a rejection
+/// recorded under the earlier contract (the question not told) asks the judge again; over bytes
+/// that hold none, the context is the one it was.
+#[test]
+fn a_rejection_binds_to_the_whole_request_told_what_the_bytes_hold() {
+    let candidate = composed(48, true);
+    let request = CompileRequest::create(TICKETS);
+    let untold = |base: &Value| {
+        let mut shown = base.clone();
+        if let Some(state) = shown.as_object_mut() {
+            state.remove("candidate_nika");
+        }
+        shown["contract"] = json!(super::super::told(base, "", WHOLE));
+        sha256(&shown.to_string())
+    };
+    for (witness, another) in [
+        (Some("expanded"), true),
+        (Some("invoked"), true),
+        (None, false),
+    ] {
+        let mut base = state(TICKETS, &request, &candidate);
+        base["authoring"] = facts(witness);
+        let context = super::super::super::context(&base);
+        assert_eq!(context != untold(&base), another, "{witness:?}");
+    }
+}
+
+/// The verdict on the pending clauses the core names (each a part of the tickets request at its
+/// place in it, found by its `words`), over `candidate` whose document door recorded `facts` on
+/// those very bytes, asked of `reader` through the verifier's own entry.
+async fn clauses_judged(
+    candidate: &str,
+    facts: Value,
+    words: &[&str],
+    reader: &Reader,
+) -> (Verdict, Vec<String>) {
+    let clauses: Vec<String> = words.iter().map(|words| part(words).1).collect();
+    let open: Vec<Value> = (clauses.iter())
+        .map(|clause| {
+            let at = TICKETS
+                .find(clause.as_str())
+                .expect("a part of the request");
+            json!({"clause": clause, "witness": "label", "spans": [[at, at + clause.len()]]})
+        })
+        .collect();
+    let mut recorded = facts;
+    recorded["candidate_sha256"] = json!(sha256(candidate));
+    let mut settled = crate::initial();
+    settled.candidate = Some(candidate.to_owned());
+    settled.provenance.decision = Some(json!({"pending": {"open": open}}));
+    settled.provenance.plan = Some(json!({"document_create": {"facts": recorded}}));
+    let judge = Judge::<Scripted>::Seat(reader);
+    let request = CompileRequest::create(TICKETS);
+    let (plan, mut out) = (Plan::default(), crate::initial());
+    let on = (TICKETS, &request, &plan);
+    let verdict = super::super::super::verdict_on(on, &settled, &judge, None, &mut out).await;
+    (verdict, clauses)
+}
+
+/// A pending clause the core names apart from the whole request is asked as every other judging
+/// question is: its question carries what the bytes hold (the component, its witness kept apart,
+/// its bindings, bound to these bytes and this release) beside the construction context, never
+/// the localization's alternatives. A judge that follows it carries the conditional reuse clause
+/// on the held component, a judgment of that clause at its statement, nothing left open.
+#[tokio::test]
+async fn a_pending_clause_is_told_what_the_bytes_hold_and_carried_on_the_held_component() {
+    let candidate = composed(48, true);
+    for witness in ["expanded", "invoked"] {
+        let reader = Reader::new(Reading::Follows);
+        let (verdict, clauses) =
+            clauses_judged(&candidate, facts(Some(witness)), &[REUSE], &reader).await;
+        let asked = reader.question("verify-clause-0");
+        assert_eq!(asked.state["construction"], holding(&candidate, witness));
+        assert_eq!(asked.state["clause"]["text"], clauses[0].as_str());
+        assert!(asked.instructions.contains(HOLDING_SAID), "{witness}");
+        for unsaid in [ALTERNATIVES_SAID, HELD_SAID] {
+            assert!(!asked.instructions.contains(unsaid), "{witness}: {unsaid}");
+        }
+        assert_eq!(ids(&verdict), ["verify-clause-0"], "{witness}");
+        assert_eq!(record(&verdict, "verify-clause-0")["choice"], "carried");
+        assert_eq!(verdict.judgments.len(), 1, "{witness}");
+        assert_eq!(lists(&verdict), found(&[], &[], &[], &[], &[]));
+        assert!(verdict.settled(), "{witness}");
+    }
+}
+
+/// The held facts settle nothing else at a pending clause: a component the catalogue merely
+/// offers tells the clause question nothing, and the clause is located on that offer; told the
+/// component is held, a pending report clause is still judged on the bytes, and without the
+/// author's write it is the defect no task performs.
+#[tokio::test]
+async fn a_pending_clause_is_never_settled_by_a_component_merely_offered_or_another_clause() {
+    let reader = Reader::new(Reading::Follows);
+    let candidate = composed(48, true);
+    let (verdict, clauses) = clauses_judged(&candidate, facts(None), &[REUSE], &reader).await;
+    let asked = reader.question("verify-clause-0");
+    assert_eq!(asked.state.get("construction"), None);
+    assert!(!asked.instructions.contains(HOLDING_SAID));
+    let point = record(&verdict, "verify-clause-0-point");
+    assert_eq!(point["choice"], "component-1", "{point:#}");
+    assert_eq!(verdict.defects, clauses);
+    assert!(verdict.judgments.is_empty() && !verdict.settled());
+    let reader = Reader::new(Reading::Follows);
+    let unreported = composed(48, false);
+    let held = facts(Some("expanded"));
+    let (verdict, clauses) = clauses_judged(&unreported, held, &[DESTINATION], &reader).await;
+    let asked = reader.question("verify-clause-0");
+    assert_eq!(
+        asked.state["construction"],
+        holding(&unreported, "expanded")
+    );
+    let unwritten = [(clauses[0].as_str(), OMITTED)];
+    assert_eq!(lists(&verdict), found(&unwritten, &[], &[], &[], &[]));
+    assert!(verdict.judgments.is_empty() && !verdict.settled());
 }

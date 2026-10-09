@@ -23,8 +23,9 @@
 //! leaves the fit unknown. A resolver or a receipt establishes identity and expansion, never fit;
 //! a name, a title, a relevance verdict or an author's claim proves none of it.
 //!
-//! Every question that judges these bytes against a clause or the whole request is told what
-//! they hold ([`Construction::holding`]): each offered component they hold as admitted and whose
+//! Every question that judges these bytes against a clause or the whole request (the whole-request
+//! verdict among them) is told what they hold ([`Construction::holding`],
+//! [`Construction::shown`]): each offered component they hold as admitted and whose
 //! contract resolves, by identity, witness (`expanded` and `invoked` kept apart) and bindings,
 //! bound to the bytes and the lent catalogue (`construction.held`), with what holding means. A
 //! held component can carry a clause that conditionally asks to use one, never any other clause:
@@ -208,6 +209,16 @@ impl Construction {
         } else {
             instructions
         }
+    }
+
+    /// What a question judging the bytes of `state` against a clause or the whole request is
+    /// shown: a copy of that state and `instructions`, both told what the bytes hold as
+    /// [`Self::holding`] tells it, or both as they are when nothing is held.
+    #[must_use]
+    pub fn shown(state: &Value, instructions: &str) -> (Value, String) {
+        let mut shown = state.clone();
+        let told = Self::of(state).holding(&mut shown, instructions.to_owned());
+        (shown, told)
     }
 
     /// The localization of a clause judged missing over the judged `state`: its options (each of

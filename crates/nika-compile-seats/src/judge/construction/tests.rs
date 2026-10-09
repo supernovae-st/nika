@@ -486,3 +486,31 @@ fn a_later_question_is_told_what_the_bytes_hold_beside_its_history() {
     assert_eq!(state["construction"]["held"], held);
     assert_eq!(state["history"]["construction"][0]["choice"], "no_fit");
 }
+
+/// What a question judging the bytes is shown (the whole request among them): a copy of the
+/// judged state and its instructions, both told what the bytes hold when they hold a component,
+/// `invoked` kept apart from `expanded`; both as they are when nothing is held.
+#[test]
+fn a_question_is_shown_a_copy_of_the_state_told_what_the_bytes_hold() {
+    for witness in ["expanded", "invoked"] {
+        let mut offered = offer(&["block:fit", "block:other"]);
+        let composed = [receipt("block:fit", witness, "./in/x.json")];
+        assess(&Lent, &mut offered, &composed);
+        let state = holding(&offered, &composed);
+        let (asked, told) = Construction::shown(&state, "Judge it.");
+        assert_eq!(told, format!("Judge it. {CONSTRUCTION} {HOLDING}"));
+        let held = json!([shown(0, "block:fit", witness, "./in/x.json")]);
+        assert_eq!(asked["construction"]["held"], held, "{witness}");
+        let mut rest = asked.clone();
+        rest.as_object_mut()
+            .expect("a state")
+            .remove("construction");
+        assert_eq!(rest, state, "otherwise a copy of the judged state");
+    }
+    let mut offered = offer(&["block:fit"]);
+    assess(&Lent, &mut offered, &[]);
+    for state in [holding(&offered, &[]), json!({"request": "r"})] {
+        let asked = Construction::shown(&state, "Judge it.");
+        assert_eq!(asked, (state.clone(), "Judge it.".to_owned()));
+    }
+}

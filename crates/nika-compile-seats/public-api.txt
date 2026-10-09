@@ -2912,6 +2912,7 @@ pub fn nika_compile_seats::judge::Construction::of(state: &serde_json::value::Va
 pub fn nika_compile_seats::judge::Construction::options(&self) -> alloc::vec::Vec<nika_compile_seats::decide::ChoiceOption>
 pub fn nika_compile_seats::judge::Construction::read(&self, key: &str) -> core::option::Option<nika_compile_seats::judge::Construed>
 pub fn nika_compile_seats::judge::Construction::recall(&self, state: &mut serde_json::value::Value, records: &[serde_json::value::Value], instructions: alloc::string::String) -> alloc::string::String
+pub fn nika_compile_seats::judge::Construction::shown(state: &serde_json::value::Value, instructions: &str) -> (serde_json::value::Value, alloc::string::String)
 pub fn nika_compile_seats::judge::Construction::told(&self, instructions: alloc::string::String) -> alloc::string::String
 impl core::clone::Clone for nika_compile_seats::judge::Construction
 pub fn nika_compile_seats::judge::Construction::clone(&self) -> nika_compile_seats::judge::Construction
@@ -2952,6 +2953,7 @@ pub fn nika_compile_seats::judge::Construction::as_any(&self) -> &(dyn core::any
 impl<T> typenum::type_operators::Same for nika_compile_seats::judge::Construction
 pub type nika_compile_seats::judge::Construction::Output = T
 pub fn nika_compile_seats::judge::authoring(base: &mut serde_json::value::Value, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome)
+pub fn nika_compile_seats::judge::judged_state(intent: &str, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome, candidate: &str) -> serde_json::value::Value
 pub fn nika_compile_seats::judge::lent(catalog: core::option::Option<&dyn nika_compile_seats::foundry::component::ComponentCatalog>, out: &mut nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::judge::over_document(base: &mut serde_json::value::Value, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::judge::state(intent: &str, request: &nika_compile::types::CompileRequest, candidate: &str) -> serde_json::value::Value
