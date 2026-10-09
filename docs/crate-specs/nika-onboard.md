@@ -95,7 +95,10 @@ Session and Serve. The build embeds the current release, the r2 run contract
 (profile r2, `policy-r2`, embedded whole from its directory and admitted against
 its issued snapshot), and retains the a8 and R3 releases for earlier pins
 (`knowledge::bundled`); a pin naming a release this build does not embed meets
-the strict door of its own profile, so its refusal names the identity. `Snapshot::open(dir, identity)` on disk and
+the strict door of its own profile, so its refusal names the identity. A current release
+replaced in place is not retained: an explicit embedded pin to the r2 release `6476372a…`
+that `1be7d610…` replaced is refused as an identity mismatch, while reopening a Session pins
+the current release and keeps its historical receipts. `Snapshot::open(dir, identity)` on disk and
 `Snapshot::from_files(label, files, identity)` in memory are the only doors.
 Without a trusted identity nothing is collected. The disk form holds the root
 and its three layout directories by descriptor (rustix). The root's final
