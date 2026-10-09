@@ -478,8 +478,10 @@ the seat decides: clause reading, feasible-plan ranking and semantic verificatio
 operations and the questions over a trial run), NONE allowed, never Foundry or knowledge
 selection, never authority. Each attempt records the question id and its offered keys
 (`task-<id>`, `part-<k>`), never the question's state, so a trial run's texts sent to the
-seat are not journaled here. `SessionSeat::finish` consumes the
-scope; Drop performs the same conservative closure on errors or cancellation.
+seat are not journaled here. Each attempt that left also records `elapsed_ms`, the time
+its transport took as measured here (the System One partition reads no clock).
+`SessionSeat::finish` consumes the scope; Drop performs the same conservative closure on
+errors or cancellation.
 The @2 observation records `scope_ended`; only fully answered or unsent attempts
 close as Closed. A send with no observed result stays Uncertain. Cost remains
 unknown after either state, never assigned to the author's account or priced0.

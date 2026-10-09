@@ -450,3 +450,35 @@ fn stop_after_a_capacity_refusal_journals_the_withheld_items_unsent() {
     assert_eq!(withheld, ["stopped", "stopped", "stopped"]);
     assert_eq!(receipt["state"], "Closed");
 }
+
+/// Every request that left carries the time its transport took, in whole milliseconds (measured,
+/// so only its presence and type are judged): each physical request of a halved batch, and a
+/// single question's. A request never sent carries none.
+#[test]
+fn each_request_that_left_carries_its_transport_time() {
+    let peer = Peer::start(vec![
+        over_capacity(),
+        answering(0..1, FIRST_HALF),
+        answering(1..3, SECOND_HALF),
+    ]);
+    let journal = setup(&peer);
+    let seat = journal.consult(Ok(()));
+    let answers = block_on(seat.choose_each(&parts()));
+    assert!(answers.iter().all(Result::is_ok), "{answers:?}");
+    let alone = Peer::start(vec![reply(&choice("verify-part-0", "carried"))]);
+    let single = setup(&alone).consult(Ok(()));
+    assert!(block_on(single.choose(&part(0))).is_ok());
+    let refused = setup(&alone).consult(Err("the allowance is spent".into()));
+    assert!(block_on(refused.choose(&part(1))).is_err());
+    let receipt = seat.finish().unwrap();
+    let mut left = receipt["attempts"].as_array().unwrap().clone();
+    assert_eq!(left.len(), 3, "the refused request and its two halves");
+    left.push(single.finish().unwrap()["attempts"][0].clone());
+    for attempt in &left {
+        assert_eq!(attempt["sent"], true, "{attempt}");
+        assert!(attempt["elapsed_ms"].is_u64(), "{attempt}");
+    }
+    let unsent = refused.finish().unwrap()["attempts"][0].clone();
+    assert_eq!(unsent["sent"], false);
+    assert!(unsent.get("elapsed_ms").is_none(), "{unsent}");
+}
