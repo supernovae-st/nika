@@ -175,6 +175,8 @@ pub struct Live {
     /// The Session state the shell painted last (at its last prompt): a line typed there
     /// answers that state by its identity, or nothing ([`SessionRuntime::submit`]).
     shown: work::Waiting,
+    /// Presentation scope for selections; runtime identity remains the strong shown token.
+    question_epoch: u64,
 }
 
 impl std::fmt::Debug for Live {
@@ -221,6 +223,7 @@ impl Live {
             run_started: Arc::default(),
             layout,
             shown: work::Waiting::Free,
+            question_epoch: 0,
         };
         live.open_runtime(kept);
         live
@@ -316,6 +319,7 @@ impl Live {
                 feed.activity(activity);
             }
         }));
+        self.question_epoch = asked::epoch();
         self.runtime = Some(runtime);
     }
 
@@ -366,7 +370,7 @@ impl Live {
         let Some(runtime) = self.runtime.as_ref() else {
             return Vec::new();
         };
-        let quiet = matches!(self.waiting(), Waiting::Free | Waiting::Choosing);
+        let quiet = self.quiet_prompt();
         footer_beats(
             runtime.lifecycle(),
             runtime.status_line(),
@@ -380,31 +384,23 @@ impl Live {
     /// shell sends a line only once this prompt is painted (its typeahead law), so the line
     /// answers exactly this state, by identity, or nothing.
     fn wait(&mut self) -> Beat {
-        self.shown = (self.runtime.as_ref()).map_or(work::Waiting::Free, SessionRuntime::waiting);
-        Beat::Wait(self.waiting())
+        let snapshot = self.runtime.as_ref().map(SessionRuntime::work);
+        self.shown = snapshot
+            .as_ref()
+            .map_or(work::Waiting::Free, |work| work.waiting.clone());
+        Beat::Wait(snapshot.as_ref().map_or(Waiting::Free, |work| {
+            asked::capture(work, self.question_epoch)
+        }))
     }
 
-    /// What the runtime waits for: the Session's one precedence (the plain loop reads the same).
-    fn waiting(&self) -> Waiting {
-        let Some(runtime) = self.runtime.as_ref() else {
-            return Waiting::Free;
-        };
-        match runtime.waiting() {
-            work::Waiting::RunReview { .. } => Waiting::Question {
-                key: "run_cost".into(),
-            },
-            work::Waiting::CostChoice => Waiting::Question {
-                key: "unknown_cost".into(),
-            },
-            work::Waiting::IntelligenceChoice => Waiting::Choosing,
-            work::Waiting::Consent { .. } => Waiting::Proposal,
-            work::Waiting::Gate { .. } => Waiting::Gate,
-            work::Waiting::Question { key, .. } | work::Waiting::Activation { key } => {
-                Waiting::Question { key }
-            }
-            work::Waiting::Input { .. } => Waiting::Question { key: String::new() },
-            _ => Waiting::Free,
-        }
+    /// Whether the runtime's prompt is quiet; a retained run keeps its own footer.
+    fn quiet_prompt(&self) -> bool {
+        self.runtime.as_ref().is_none_or(|runtime| {
+            matches!(
+                runtime.waiting(),
+                work::Waiting::Free | work::Waiting::IntelligenceChoice
+            )
+        })
     }
 
     /// One outcome to beats, and the handoff it asks for.
@@ -443,7 +439,10 @@ impl Live {
                 beats.extend(rest);
                 return (beats, again);
             }
-            TurnOutcome::Proposal { preview, .. } | TurnOutcome::Held { preview, .. } => {
+            TurnOutcome::Proposal { id, preview } => {
+                beats.push(Beat::Say(Committed::proposal(id, preview)));
+            }
+            TurnOutcome::Held { preview, .. } => {
                 beats.push(Beat::Say(Committed::new(Kind::Proposal, preview)));
             }
             TurnOutcome::RunRequested { report, run } => {
@@ -462,14 +461,8 @@ impl Live {
                 }
                 handoff = Some(self.keep(work, label));
             }
-            TurnOutcome::Question { key, question, .. } if key == "unknown_cost" => {
-                beats.push(Beat::Say(Committed::new(
-                    Kind::Question,
-                    authoring_cost_question(&question),
-                )));
-            }
-            TurnOutcome::Question { question, .. } => {
-                beats.push(Beat::Say(Committed::new(Kind::Question, question)));
+            TurnOutcome::Question { key, question, .. } => {
+                beats.push(Beat::Say(self.question(&key, question)));
             }
             TurnOutcome::GateAsk { question, .. } => {
                 beats.push(Beat::Say(Committed::new(Kind::Gate, question)));
@@ -506,6 +499,17 @@ impl Live {
             beats.push(self.wait());
         }
         (beats, handoff)
+    }
+
+    /// Preserve the cost wording or capture the logical question's strong identity.
+    fn question(&self, key: &str, question: String) -> Committed {
+        if key == "unknown_cost" {
+            return Committed::new(Kind::Question, authoring_cost_question(&question));
+        }
+        match self.runtime.as_ref() {
+            Some(runtime) => asked::question(&runtime.work(), key, question, self.question_epoch),
+            None => Committed::new(Kind::Question, question),
+        }
     }
 
     /// Leaving at a cost review drops the held child and sends nothing.
@@ -776,6 +780,16 @@ impl Conversation for Live {
 
     fn submit_observed(&mut self, line: &str, busy: &Sender<String>, seen: &Seen) -> Turn {
         self.lent(Feed::new(busy.clone(), Some(seen.clone())), line)
+    }
+
+    fn answer_bound(
+        &mut self,
+        text: &str,
+        witness: &str,
+        busy: &Sender<String>,
+        seen: &Seen,
+    ) -> Turn {
+        self.lent_answer(Feed::new(busy.clone(), Some(seen.clone())), text, witness)
     }
 
     fn submit(&mut self, line: &str) -> Turn {
@@ -1161,6 +1175,7 @@ fn governing(snapshot: &ProjectSnapshot, home: Option<&Path>) -> Manifest {
 }
 
 pub mod acquire;
+mod asked;
 mod candidate;
 pub mod feed;
 mod footer;
@@ -1168,6 +1183,7 @@ mod layout;
 pub(crate) mod legs;
 mod look;
 mod selection;
+mod typed_answer;
 
 /// The one audit fold of a look, for the workspace's own tests.
 /// Where an asked workflow reaches, as the Session declared it: the requested run's check when it

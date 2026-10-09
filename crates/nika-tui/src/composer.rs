@@ -13,11 +13,14 @@
 //! The composer also keeps the command chooser (`chooser`): the slash list
 //! of a command being typed and the palette. Choosing inserts words into the
 //! draft and never sends them; `Enter` stays the only way a line leaves.
+//! It keeps the selection among a typed choice's offers too (`answer`):
+//! presentation only, the draft untouched; `Enter` on a selection answers.
 //!
 //! Exit criterion (written down, ADR-139 §5): the day this wrapper needs to
 //! re-implement cursor movement or wrapping, the crate is replaced by an
 //! owned editor.
 
+pub(crate) mod answer;
 pub(crate) mod chooser;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -65,6 +68,8 @@ pub struct Composer {
     /// Words the palette set aside to insert a command: back in the box once
     /// the line that replaced them is taken, or at once with `Esc`.
     aside: Option<String>,
+    /// The offer selected for the typed choice on screen (`answer`).
+    answer: answer::Answer,
 }
 
 impl Default for Composer {
@@ -88,6 +93,7 @@ impl Composer {
             draft: None,
             chooser: chooser::Chooser::default(),
             aside: None,
+            answer: answer::Answer::default(),
         }
     }
 
@@ -233,6 +239,20 @@ impl Composer {
         self.area = fresh_like(&self.area);
         self.recall = None;
         self.draft = None;
+    }
+
+    /// Put `words` that were not sent (a correction a decision kept, an
+    /// answer that was not taken) back in the box, exactly, first: what the
+    /// box holds now (typed while the turn worked) follows on its own line,
+    /// so neither replaces the other.
+    pub(crate) fn put_back(&mut self, words: &str) {
+        let rest = self.text();
+        self.clear();
+        self.paste(words);
+        if !rest.trim().is_empty() {
+            self.paste("\n");
+            self.paste(&rest);
+        }
     }
 
     /// A fresh answer clears every pre-question draft, returning its exact
@@ -591,6 +611,22 @@ mod tests {
         assert_eq!(composer.take(), "", "a blank box keeps nothing");
         composer.handle(key(KeyCode::Up, KeyModifiers::NONE));
         assert_eq!(composer.text(), long, "the blank take added no entry");
+    }
+
+    /// Words that were not sent come back exactly and first; what was typed
+    /// meanwhile follows on its own line, never replaced; a box holding only
+    /// blanks takes the words alone.
+    #[test]
+    fn put_back_keeps_the_exact_words_and_what_was_typed_meanwhile() {
+        let words = "  the CSV, not the JSON\nkeep the header row ";
+        let mut composer = Composer::new();
+        composer.paste("typed while it worked");
+        composer.put_back(words);
+        assert_eq!(composer.text(), format!("{words}\ntyped while it worked"));
+        let mut blank = Composer::new();
+        blank.paste("   ");
+        blank.put_back(words);
+        assert_eq!(blank.text(), words);
     }
 
     #[test]

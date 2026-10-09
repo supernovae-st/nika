@@ -13,6 +13,7 @@
 //! on identical input.
 
 use nika_display::activity_card::{ActivityCard, Ending, Update};
+use nika_session::ProposalId;
 
 /// Where the session is drawn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,6 +94,16 @@ pub struct Committed {
     pub kind: Kind,
     /// The text, `\n`-separated lines.
     pub text: String,
+    /// The identity a consent names, on the preview of a proposal the
+    /// Session made ([`Committed::proposal`]); never on a held revision's
+    /// preview or any other block, so a presenter tells one proposal from
+    /// another by identity, never by its words.
+    proposal: Option<ProposalId>,
+    /// The scoped identity of the typed question this block asks
+    /// ([`Asked::witness`]), on the words of a question the Session asked as
+    /// that document ([`Committed::question`]); never on a cost, Run or
+    /// prose question, so a presenter ties words to a question by identity.
+    question: Option<String>,
 }
 
 impl Committed {
@@ -102,6 +113,129 @@ impl Committed {
         Self {
             kind,
             text: text.into(),
+            proposal: None,
+            question: None,
+        }
+    }
+
+    /// The exact `preview` of the proposal the Session made under `id`: the
+    /// one block a presenter may tie to the candidate a consent names.
+    #[must_use]
+    pub(crate) fn proposal(id: ProposalId, preview: impl Into<String>) -> Self {
+        Self {
+            kind: Kind::Proposal,
+            text: preview.into(),
+            proposal: Some(id),
+            question: None,
+        }
+    }
+
+    /// The identity a consent names, when the Session said this block is
+    /// that proposal's preview.
+    #[must_use]
+    pub(crate) fn proposal_id(&self) -> Option<&ProposalId> {
+        self.proposal.as_ref()
+    }
+
+    /// The exact `text` of the typed question the Session asked as `witness`
+    /// ([`Asked::witness`]): the one block a presenter may tie to the
+    /// question it paints.
+    #[must_use]
+    pub(crate) fn question(witness: impl Into<String>, text: impl Into<String>) -> Self {
+        Self {
+            kind: Kind::Question,
+            text: text.into(),
+            proposal: None,
+            question: Some(witness.into()),
+        }
+    }
+
+    /// The scoped identity of the typed question, when the Session said this
+    /// block is that question's words.
+    #[must_use]
+    pub(crate) fn question_witness(&self) -> Option<&str> {
+        self.question.as_deref()
+    }
+}
+
+/// One answer a typed choice offers: its key, the exact words an answer
+/// sends, and what choosing it means.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Offer {
+    /// The answer, verbatim: what `Enter` on this offer sends.
+    pub key: String,
+    /// What choosing it means, in the compiler's words.
+    pub label: String,
+}
+
+impl Offer {
+    /// An offer of `key`, meaning `label`.
+    #[must_use]
+    pub fn new(key: impl Into<String>, label: impl Into<String>) -> Self {
+        Self {
+            key: key.into(),
+            label: label.into(),
+        }
+    }
+}
+
+/// The shape an answer to a typed question takes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Shape {
+    /// One of these offers, in the compiler's order (a reply in the human's
+    /// own words remains possible).
+    Choice(Vec<Offer>),
+    /// Words.
+    Text,
+    /// An exact value.
+    Literal,
+}
+
+/// A typed question as this shell paints it: the compiler's document for the
+/// question that waits, and the identity an answer to it names. Painting it
+/// grants nothing: an answer still goes through
+/// [`Conversation::answer_bound`] with this exact `witness`, and the
+/// conversation decides.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Asked {
+    /// The compiler's wording of the missing value.
+    pub label: String,
+    /// Why the compiler cannot complete without it.
+    pub why: String,
+    /// Whether the candidate cannot be ready without it.
+    pub mandatory: bool,
+    /// The shape an answer takes.
+    pub shape: Shape,
+    /// The identity of this asking, as the conversation showed it: an answer
+    /// names it, and a question asked again (another revision, another
+    /// intelligence) has another one.
+    pub witness: String,
+    /// The conversation's own token of the session that asked it: a
+    /// presentation scope, never an identity an answer names.
+    pub epoch: u64,
+}
+
+impl Asked {
+    /// A typed question of `shape`, asked as `witness` in the session `epoch`.
+    #[must_use]
+    pub fn new(
+        label: impl Into<String>,
+        why: impl Into<String>,
+        mandatory: bool,
+        shape: Shape,
+        witness: impl Into<String>,
+        epoch: u64,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            why: why.into(),
+            mandatory,
+            shape,
+            witness: witness.into(),
+            epoch,
         }
     }
 }
@@ -117,10 +251,25 @@ pub enum Waiting {
     Free,
     /// A choice on a numbered screen.
     Choosing,
-    /// An authoring question by key.
+    /// An authoring question by key, kept in prose (a cost decision, a run's
+    /// input, a shape this shell does not name): a line sent while it waits
+    /// is an ordinary line, and no identity rides with it. Consumers outside
+    /// this crate build it by its one field, so it keeps exactly that field.
     Question {
         /// The question's key (`model` · `const.rule_expression` …).
         key: String,
+    },
+    /// The typed question the key names, as the conversation showed it
+    /// ([`Waiting::asked`]): every line sent while it is painted answers it
+    /// by its identity ([`Asked::witness`]), through
+    /// [`Conversation::answer_bound`] alone.
+    #[non_exhaustive]
+    QuestionDocument {
+        /// The question's key (`model` · `const.rule_expression` …).
+        key: String,
+        /// The compiler's document of the question, and the identity an
+        /// answer to it names.
+        asked: Asked,
     },
     /// Consent on the exact bytes of a candidate.
     Proposal,
@@ -129,13 +278,23 @@ pub enum Waiting {
 }
 
 impl Waiting {
+    /// The typed question `asked` waiting under `key`
+    /// ([`Waiting::QuestionDocument`]).
+    #[must_use]
+    pub fn asked(key: impl Into<String>, asked: Asked) -> Self {
+        Self::QuestionDocument {
+            key: key.into(),
+            asked,
+        }
+    }
+
     /// The prompt naming the same waiting state as the plain loop.
     #[must_use]
     pub fn prompt(&self) -> &'static str {
         match self {
             Self::Free => "nika › ",
             Self::Choosing => "› ",
-            Self::Question { .. } => "reply › ",
+            Self::Question { .. } | Self::QuestionDocument { .. } => "reply › ",
             Self::Proposal => "Save? › ",
             Self::Gate => "answer › ",
         }
@@ -149,9 +308,17 @@ impl Waiting {
         match self {
             Self::Free => "describe work · /help · Run: run <file>.nika",
             Self::Choosing => "1 account · 2 API · 3 local · 4 no AI · cancel",
-            Self::Question { key } if key == "unknown_cost" || key == "run_cost" => {
+            Self::Question { key } | Self::QuestionDocument { key, .. }
+                if key == "unknown_cost" || key == "run_cost" =>
+            {
                 "yes approves once · no or Ctrl+C cancels · details shows the full evidence"
             }
+            Self::QuestionDocument { asked, .. } if matches!(&asked.shape, Shape::Choice(offers) if !offers.is_empty()) => {
+                "↑↓ choose · Enter answers · or type your reply · cancel drops it"
+            }
+            // The typed question's card stands right above the line: keys
+            // only, `cancel` in the Session's own verb.
+            Self::QuestionDocument { .. } => "Enter answers · cancel drops it",
             Self::Question { .. } => "answer the question above · cancel to stop",
             Self::Proposal => "yes + Enter: Save · no: cancel · /show: inspect",
             Self::Gate => "approve or refuse · nothing else answers a gate",
@@ -181,6 +348,10 @@ pub enum Beat {
     /// The Session stopped the turn's preparation at the human's request, in
     /// its own words: the activity card says so, and no proposal came of it.
     Cancelled(String),
+    /// This answer was not taken: the shell returns this exact text to the
+    /// draft (or keeps the offer it came from selected). It claims nothing
+    /// beyond that refusal: no question was answered by it.
+    NotTaken(String),
     /// The session closed the door.
     Quit,
 }
@@ -290,6 +461,8 @@ impl UiState {
             Beat::Busy(label) => self.busy = Some(label),
             Beat::Status(line) => self.status = line,
             Beat::Rail(line) => self.rail = line,
+            // The words belong to the draft, which the shell holds.
+            Beat::NotTaken(_) => {}
             Beat::Quit => self.quit = true,
         }
     }
@@ -522,6 +695,11 @@ pub enum Stopping {
 /// to its worker, called from the shell's thread while the turn runs.
 pub type Stopper = Box<dyn Fn() -> Stopping + Send>;
 
+/// What a conversation without an identity-bound answer says when a typed
+/// answer reaches it ([`Conversation::answer_bound`]): nothing was sent.
+const NOT_BOUND: &str =
+    "This conversation cannot answer a typed question by its identity. Nothing was sent.";
+
 /// Whatever answers the composer: the live session runtime, or a fixture.
 /// `Send`: the shell computes a turn on a worker thread so the terminal
 /// stays live (the busy state changes while a seat is called).
@@ -570,6 +748,28 @@ pub trait Conversation: Send {
     ) -> Turn {
         let _ = seen;
         self.submit_with(line, busy)
+    }
+    /// Answer the typed question painted as `witness` ([`Asked::witness`])
+    /// with `text`, an offered key the human chose or their own words, by
+    /// that question's identity: never as a general line, so it never falls
+    /// back to [`Conversation::submit_observed`]. The sinks are that turn's.
+    /// The default cannot name a question's identity and sends nothing: one
+    /// notice says so, then [`Beat::NotTaken`] returns `text` to the draft.
+    fn answer_bound(
+        &mut self,
+        text: &str,
+        witness: &str,
+        busy: &std::sync::mpsc::Sender<String>,
+        seen: &crate::session::feed::Seen,
+    ) -> Turn {
+        let _ = (witness, busy, seen);
+        Turn {
+            beats: vec![
+                Beat::Say(Committed::new(Kind::Notice, NOT_BOUND)),
+                Beat::NotTaken(text.to_owned()),
+            ],
+            handoff: None,
+        }
     }
     /// Perform the handed-off work with the terminal handed back; the beats
     /// that follow it (the observation, the next prompt).
@@ -725,16 +925,68 @@ impl Conversation for Script {
 mod tests {
     use super::*;
 
+    /// A question kept in prose: no typed document was shown for it.
+    fn prose(key: &str) -> Waiting {
+        Waiting::Question {
+            key: key.to_owned(),
+        }
+    }
+
+    /// A typed question of `shape`, asked as `witness` in the session `epoch`.
+    fn typed(key: &str, shape: Shape, witness: &str, epoch: u64) -> Waiting {
+        let asked = Asked::new("Which currency?", "", true, shape, witness, epoch);
+        Waiting::asked(key, asked)
+    }
+
+    /// The legacy question keeps its construction, prompt and hint beside the
+    /// typed document: a key in prose is never a document, a document is built
+    /// by [`Waiting::asked`] alone, and the two never compare equal.
+    #[test]
+    fn a_legacy_question_keeps_its_construction_beside_the_typed_document() {
+        let legacy = Waiting::Question {
+            key: "legacy".to_owned(),
+        };
+        assert_eq!(legacy.prompt(), "reply › ");
+        assert_eq!(legacy.hint(), "answer the question above · cancel to stop");
+        let asked = Asked::new("Which currency?", "", true, Shape::Text, "w1", 1);
+        let document = Waiting::asked("legacy", asked.clone());
+        let built = Waiting::QuestionDocument {
+            key: "legacy".to_owned(),
+            asked,
+        };
+        assert_eq!(document, built);
+        assert_ne!(document, legacy, "never the question in prose");
+        assert_eq!(document.prompt(), "reply › ");
+        assert_ne!(document.hint(), legacy.hint());
+    }
+
+    /// The words and the identity of a question the Session asked as a typed
+    /// document ride together; every other block, a proposal included,
+    /// carries no question identity.
+    #[test]
+    fn a_question_block_carries_its_scoped_identity_alone() {
+        let words = "the currency code\n  (The compiler cannot invent this.)  ";
+        let tagged = Committed::question("3:q-1", words);
+        assert_eq!(tagged.kind, Kind::Question);
+        assert_eq!(tagged.text, words);
+        assert_eq!(tagged.question_witness(), Some("3:q-1"));
+        assert_eq!(tagged.proposal_id(), None);
+        assert_ne!(tagged, Committed::new(Kind::Question, words));
+        let preview = Committed::proposal(ProposalId::of("p"), "p");
+        for block in [Committed::new(Kind::Question, words), preview] {
+            assert_eq!(block.question_witness(), None, "{block:?}");
+        }
+    }
+
     #[test]
     fn the_prompt_names_what_waits_and_never_crosses() {
         assert_eq!(Waiting::Free.prompt(), "nika › ");
         assert_eq!(Waiting::Proposal.prompt(), "Save? › ");
         assert_eq!(Waiting::Gate.prompt(), "answer › ");
+        assert_eq!(prose("model").prompt(), "reply › ");
+        let choice = Shape::Choice(vec![Offer::new("eur", "Euro")]);
         assert_eq!(
-            Waiting::Question {
-                key: "model".to_owned()
-            }
-            .prompt(),
+            typed("const.currency", choice, "w1", 1).prompt(),
             "reply › "
         );
         assert_eq!(Waiting::Choosing.prompt(), "› ");
@@ -745,10 +997,7 @@ mod tests {
     #[test]
     fn a_spending_question_names_its_three_choices_in_words() {
         for key in ["unknown_cost", "run_cost"] {
-            let hint = Waiting::Question {
-                key: key.to_owned(),
-            }
-            .hint();
+            let hint = prose(key).hint();
             for choice in ["yes approves once", "no or Ctrl+C cancels", "details"] {
                 assert!(hint.contains(choice), "{key}: {hint}");
             }
@@ -756,13 +1005,113 @@ mod tests {
         // The key alone does not prove that an actual default was offered.
         for key in ["model", "revision.new_path", "", "required_input"] {
             assert_eq!(
-                Waiting::Question {
-                    key: key.to_owned()
-                }
-                .hint(),
+                prose(key).hint(),
                 "answer the question above · cancel to stop"
             );
         }
+    }
+
+    /// A typed question names its keys, never « stop »: a choice how to
+    /// choose and that the human's own reply remains; every typed shape that
+    /// `Enter` answers and `cancel` drops it. A question in prose keeps its
+    /// own hint, whatever its key.
+    #[test]
+    fn a_typed_question_names_enter_and_cancel_and_prose_keeps_its_hint() {
+        let choice = Shape::Choice(vec![Offer::new("eur", "Euro"), Offer::new("usd", "")]);
+        let chosen = typed("const.currency", choice, "w1", 1).hint();
+        assert_eq!(
+            chosen,
+            "↑↓ choose · Enter answers · or type your reply · cancel drops it"
+        );
+        let words = "Enter answers · cancel drops it";
+        for shape in [Shape::Text, Shape::Literal, Shape::Choice(Vec::new())] {
+            assert_eq!(typed("const.notes", shape, "w1", 1).hint(), words);
+        }
+        for hint in [chosen, words] {
+            let keys = hint.contains("Enter") && hint.contains("cancel");
+            let honest = !hint.contains("stop") && !hint.contains("above");
+            assert!(keys && honest, "{hint}");
+        }
+        let kept = prose("const.notes").hint();
+        assert_eq!(kept, "answer the question above · cancel to stop");
+    }
+
+    /// A conversation that records every door a line could leave by.
+    #[derive(Default)]
+    struct Doors {
+        lines: Vec<String>,
+    }
+
+    impl Conversation for Doors {
+        fn open(&mut self) -> Vec<Beat> {
+            Vec::new()
+        }
+
+        fn submit(&mut self, line: &str) -> Turn {
+            self.lines.push(format!("submit {line}"));
+            Turn {
+                beats: vec![Beat::Wait(Waiting::Free)],
+                handoff: None,
+            }
+        }
+
+        fn submit_with(&mut self, line: &str, _: &std::sync::mpsc::Sender<String>) -> Turn {
+            self.lines.push(format!("submit_with {line}"));
+            self.submit(line)
+        }
+
+        fn submit_observed(
+            &mut self,
+            line: &str,
+            busy: &std::sync::mpsc::Sender<String>,
+            _: &crate::session::feed::Seen,
+        ) -> Turn {
+            self.lines.push(format!("submit_observed {line}"));
+            self.submit_with(line, busy)
+        }
+
+        fn perform(&mut self, _: &Handoff) -> Vec<Beat> {
+            Vec::new()
+        }
+    }
+
+    /// The sinks a turn lends, nobody reading them.
+    fn sinks() -> (std::sync::mpsc::Sender<String>, crate::session::feed::Seen) {
+        let (busy, _) = std::sync::mpsc::channel();
+        let (queue, _) = std::sync::mpsc::sync_channel(1);
+        let gap = std::sync::Arc::new(crate::session::feed::Gap::default());
+        (busy, crate::session::feed::Seen::new(queue, gap))
+    }
+
+    /// A conversation that cannot bind an answer to a question's identity
+    /// sends nothing through any door, says so once, and returns the exact
+    /// words; the script fixture plays no turn for it.
+    #[test]
+    fn the_default_answer_door_sends_nothing_and_returns_the_exact_text() {
+        let (busy, seen) = sinks();
+        let words = "  use the CSV export\nnot the JSON one  ";
+        let mut doors = Doors::default();
+        let turn = doors.answer_bound(words, "witness-1", &busy, &seen);
+        assert!(doors.lines.is_empty(), "a door was used: {:?}", doors.lines);
+        assert_eq!(
+            turn.beats,
+            [
+                Beat::Say(Committed::new(Kind::Notice, NOT_BOUND)),
+                Beat::NotTaken(words.to_owned()),
+            ]
+        );
+        assert!(turn.handoff.is_none());
+        assert!(NOT_BOUND.contains("Nothing was sent"), "{NOT_BOUND}");
+        let mut script = Script::demo();
+        let before = script.remaining();
+        let turn = script.answer_bound("eur", "witness-1", &busy, &seen);
+        assert_eq!(script.remaining(), before, "no scripted turn was played");
+        assert_eq!(turn.beats.last(), Some(&Beat::NotTaken("eur".to_owned())));
+        // The words go to the shell's draft; the state they belong to is unchanged.
+        let mut state = UiState::new(Presentation::Inline, false, (80, 24));
+        let painted = state.clone();
+        state.apply(Beat::NotTaken("eur".to_owned()));
+        assert_eq!(state, painted);
     }
 
     #[test]
@@ -1038,9 +1387,7 @@ mod tests {
         assert_eq!(
             states,
             vec![
-                Waiting::Question {
-                    key: "const.source_path".to_owned()
-                },
+                prose("const.source_path"),
                 Waiting::Proposal,
                 Waiting::Free,
                 Waiting::Gate,

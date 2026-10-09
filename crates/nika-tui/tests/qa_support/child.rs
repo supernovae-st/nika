@@ -252,6 +252,7 @@ pub(crate) fn host() {
     let mut options = Options::new(presentation);
     options.term = Some("xterm-256color".to_owned());
     options.ascii = mode.ends_with(":workspace-ascii");
+    options.reduced_motion = mode.split(':').nth(3) == Some("reduced");
     let code = match app::run(child, options) {
         Ok(exit) => i32::from(exit.code()),
         Err(_) => 2,

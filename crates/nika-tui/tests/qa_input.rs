@@ -606,11 +606,17 @@ fn choosing_at_a_gate_fills_the_draft_and_never_answers_it() {
 }
 
 /// The palette names the conversation explicitly: from the preview or the
-/// aside, its `PgUp` and `End` entries must move that transcript, keep the draft
-/// and leave a pending Save unanswered.
-#[test]
-fn palette_conversation_navigation_reaches_the_transcript_from_other_regions() {
-    let mut term = opened(80, 24, true);
+/// aside, its `PgUp` and `End` entries must move that transcript, give the
+/// conversation the keys, keep the draft and leave a pending Save unanswered.
+///
+/// Each check waits for one complete native frame. A frame larger than the
+/// process's line buffer leaves it in several writes, and a read between
+/// them shows the new transcript above a stale composer row, so a wait that
+/// holds before the frame's end judges a half-painted screen.
+fn palette_conversation_navigation(term: &mut Term) {
+    term.wait_prompt(FREE);
+    term.send("\x14");
+    term.wait_text(WORKSPACE);
     term.walk(&JOURNEY[..2]);
     term.send("keep my navigation draft");
     term.wait_text("Save? › keep my navigation draft");
@@ -623,14 +629,12 @@ fn palette_conversation_navigation_reaches_the_transcript_from_other_regions() {
         term.send("earlier messages");
         term.wait_text("› PgUp");
         term.send("\r");
-        term.wait_until("the conversation scrolled from another region", |screen| {
-            !screen.contains("commands ›") && screen.contains("↓ latest")
+        term.wait_workspace_frame("the conversation scrolled from another region", |screen| {
+            !screen.contains("commands ›")
+                && screen.contains("↓ latest")
+                && screen.contains("Save? › keep my navigation draft")
+                && screen.lines()[0].contains("[Conversation]")
         });
-        assert!(
-            term.screen.contains("Save? › keep my navigation draft"),
-            "{}",
-            term.dump()
-        );
         for _ in 0..origin {
             term.send(F6);
         }
@@ -639,10 +643,11 @@ fn palette_conversation_navigation_reaches_the_transcript_from_other_regions() {
         term.send("back to the latest message");
         term.wait_text("› End");
         term.send("\r");
-        term.wait_until("the conversation returned to its latest row", |screen| {
+        term.wait_workspace_frame("the conversation returned to its latest row", |screen| {
             !screen.contains("commands ›")
                 && !screen.contains("↓ latest")
                 && screen.contains("Save? › keep my navigation draft")
+                && screen.lines()[0].contains("[Conversation]")
         });
         term.settle(SETTLE);
         assert!(
@@ -651,5 +656,18 @@ fn palette_conversation_navigation_reaches_the_transcript_from_other_regions() {
             term.dump()
         );
     }
-    leave(&mut term);
+    leave(term);
+}
+
+#[test]
+fn palette_conversation_navigation_reaches_the_transcript_from_other_regions() {
+    palette_conversation_navigation(&mut Term::proto(&[], 80, 24));
+}
+
+/// The same proof with the terminal read in 64-byte slices: every wait is
+/// judged inside the frames too, so only a complete frame can satisfy it,
+/// whatever the scheduling (the race the whole-read run only shows under load).
+#[test]
+fn palette_conversation_navigation_holds_when_frames_arrive_in_slices() {
+    palette_conversation_navigation(&mut Term::proto(&[], 80, 24).reading_at_most(64));
 }

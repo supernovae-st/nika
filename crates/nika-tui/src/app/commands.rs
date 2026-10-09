@@ -36,7 +36,9 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::{Heard, Shell, is_ctrl_c};
 use crate::composer::chooser::Chosen;
 use crate::events::UiEvent;
-use crate::model::{Committed, Conversation, Presentation, UiState};
+use crate::model::{Conversation, Presentation, UiState};
+use crate::render::question;
+use crate::workspace::cards::review;
 use crate::workspace::desk::{self, Desk, Route};
 use crate::workspace::focus::Region;
 use crate::workspace::geometry;
@@ -190,14 +192,19 @@ impl<C: Conversation + 'static> Shell<C> {
     /// Offer the chooser what exists now: the conversation's commands and
     /// the view keys the presentation routes; tell it whether it has the keys.
     pub(super) fn sync_choices(&mut self) {
+        // Only the palette lists keys: the transcript is read for it alone.
+        let read = (self.composer.palette_open())
+            .then(|| self.reader())
+            .flatten()
+            .and_then(|index| self.state.transcript.get(index))
+            .map(|block| catalog::Read::of(block.kind));
         let view = catalog::View {
             presentation: self.state.presentation,
             fits: geometry::fits(self.state.size),
             // A palette's own height changes while searching; keep its return
             // action available even when that temporarily fits all messages.
             scrolled: self.state.focus_scroll > 0 || self.composer.palette_open(),
-            // Only the palette lists keys: the transcript is read for it alone.
-            diagnostic: self.composer.palette_open() && self.summarized().is_some(),
+            read,
             // What F4 does now, as the object's own action says it.
             object: self.desk.toggled(self.state.size),
         };
@@ -207,10 +214,23 @@ impl<C: Conversation + 'static> Shell<C> {
         self.composer.set_focused(focused);
     }
 
-    /// The latest block the conversation's cards show summarized, whose full
-    /// words the diagnostic view shows.
-    fn summarized(&self) -> Option<&Committed> {
-        diagnostic::latest(&self.state.transcript, diagnostic::summarized)
+    /// The transcript block whose whole words the reader shows, by index: the
+    /// typed question waiting at the answer line, tied to its block by
+    /// identity (the block the live card carries, whatever the card shows
+    /// now); else the latest block the conversation's cards show summarized (a
+    /// recognized refusal or banner) or the current proposal reviewed against
+    /// the same candidate the workspace paints.
+    fn reader(&self) -> Option<usize> {
+        if let Some(index) = question::asked_block(&self.state) {
+            return Some(index);
+        }
+        // Only where the workspace paints the review: inline and the focus
+        // view show every block as said.
+        let review = (self.desk.geometry(self.state.size))
+            .filter(|_| self.state.presentation == Presentation::Workspace)
+            .and_then(|_| self.desk.review(self.state.ascii));
+        let current = review::summarized(&self.state, review.as_ref()).map(|(index, _)| index);
+        diagnostic::latest_shown(&self.state.transcript, current)
     }
 
     /// The shell's readers, before the ordinary precedence (the module's
@@ -288,7 +308,10 @@ impl<C: Conversation + 'static> Shell<C> {
         if key.code != catalog::DIAGNOSTIC_KEY || !key.modifiers.is_empty() {
             return false;
         }
-        let Some(block) = self.summarized() else {
+        let Some(block) = self
+            .reader()
+            .and_then(|index| self.state.transcript.get(index))
+        else {
             return false;
         };
         self.diagnostic = Some(diagnostic::Diagnostic::of(block));

@@ -202,7 +202,7 @@ fn the_welcome_example_needs_no_file_and_asks_only_its_open_value() {
     let asked = question(&beats);
     assert!(asked.to_lowercase().contains("currency"), "{asked}");
     assert!(
-        matches!(waits(&beats), Some(Waiting::Question { .. })),
+        matches!(waits(&beats), Some(Waiting::QuestionDocument { .. })),
         "{beats:?}"
     );
     assert_eq!(
@@ -290,7 +290,7 @@ fn a_run_review_keeps_its_contract_and_details_leave_the_challenge_untouched() {
     assert_eq!(
         waits(&asked),
         Some(Waiting::Question {
-            key: "run_cost".to_owned()
+            key: "run_cost".to_owned(),
         })
     );
     assert!(live.fresh_input_required());
@@ -1063,7 +1063,15 @@ fn a_reopened_footer_tells_an_earlier_success_from_this_session() {
         "{wide:?}"
     );
     let (narrow, narrow_rows) = footer_rows(told, 40);
-    assert_eq!(narrow, ["Draft ✓ · Saved ✓ · Checked ○ · Active ○", note]);
+    // The complete earlier-session note stays visible; a cut mark tells that
+    // both rows continue instead of silently dropping their remaining facts.
+    assert_eq!(
+        narrow,
+        [
+            "Draft ✓ · Saved ✓ · Checked ○ · Active…",
+            &format!("{note}…")
+        ]
+    );
     assert_eq!(wide_rows, footer_rows(plain.clone(), 75).1);
     assert_eq!(narrow_rows, footer_rows(plain, 40).1);
 }

@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Scope a reply's footer separately from retained Run facts. Facts can contain
 //! an incomplete preparation: presentation must not infer success from that variant.
-use super::{Beat, Live, Stage, TurnOutcome, Waiting};
+use super::{Beat, Live, Stage, TurnOutcome};
 
 pub(super) fn reply_label(outcome: &TurnOutcome) -> Option<&'static str> {
     match outcome {
@@ -29,9 +29,7 @@ impl Live {
                 .kept
                 .as_ref()
                 .is_some_and(|r| r.as_ref().is_ok_and(|r| r.exit.is_some()));
-        if let Some(label) =
-            label.filter(|_| run && matches!(self.waiting(), Waiting::Free | Waiting::Choosing))
-        {
+        if let Some(label) = label.filter(|_| run && self.quiet_prompt()) {
             for beat in &mut beats {
                 if let Beat::Status(status) = beat {
                     *status = format!("{label} · {status}");

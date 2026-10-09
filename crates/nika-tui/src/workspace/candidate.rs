@@ -25,9 +25,20 @@ use nika_session::ProposalId;
 use nika_tui_view::Face;
 use ratatui::text::{Line, Span};
 
+use super::cards::review::Review;
 use super::inspect::{Inspected, title_row};
 use super::text::{marks, twins, wrap};
 use crate::visual::role;
+
+/// The indent of each effect after the first under the review's one
+/// `when it runs` heading.
+const HUNG: &str = "  ";
+
+/// What a yes answers while a proposal waits: nothing is saved yet and
+/// nothing has run.
+fn answers(sep: &str) -> String {
+    format!("what a yes answers{sep}not saved{sep}nothing has run on your files")
+}
 
 /// The candidate under review, fixed at its fold.
 #[derive(Clone, Debug)]
@@ -179,11 +190,53 @@ impl Proposed {
         }
     }
 
-    /// How the aside and the conversation panel name it.
+    /// How the aside and the conversation panel name it. A draft lands
+    /// nowhere yet: it takes the title its object shows, never the path it
+    /// holds until a proposal says where, and says it is unsaved without one.
     #[must_use]
     pub fn label(&self) -> String {
-        let kind = if self.draft { "draft" } else { "proposal" };
-        format!("{kind} {}", self.path())
+        if !self.draft {
+            return format!("proposal {}", self.path());
+        }
+        let title = self.look.title();
+        if title == self.path() {
+            "draft (unsaved)".to_owned()
+        } else {
+            format!("draft {title}")
+        }
+    }
+
+    /// The conversation's review of it while a consent can name it (neither
+    /// the compiler's draft nor set aside), the facts a yes decides first:
+    /// what a yes answers, every change it lands, what the workflow reaches
+    /// when it runs (one `when it runs` heading), how it was revised and
+    /// rehearsed; then one quiet footnote with the identity a consent names
+    /// and the witness of the exact pending bytes. Every fact once, each with
+    /// its role.
+    #[must_use]
+    pub(crate) fn review(&self, ascii: bool) -> Option<Review> {
+        if self.draft || self.aside {
+            return None;
+        }
+        let (sep, _) = marks(ascii);
+        let mut facts = vec![(answers(sep), Role::Strong)];
+        facts.extend(self.facts(sep, true));
+        facts.push((self.identity(sep), Role::Dim));
+        Some(Review::new(self.id.clone(), facts))
+    }
+
+    /// The review's footnote: the identity a consent names, then the witness
+    /// of the exact pending bytes (`/show` prints every byte, `F2` reads the
+    /// Session's whole words).
+    fn identity(&self, sep: &str) -> String {
+        let id = &self.id;
+        match self.witness() {
+            Some(witness) => {
+                let short: String = witness.chars().take(12).collect();
+                format!("proposal {id}{sep}these bytes {short}")
+            }
+            None => format!("proposal {id}"),
+        }
     }
 
     /// The facts above every face: the identity and what a yes answers, the
@@ -199,9 +252,20 @@ impl Proposed {
         let standing = if self.aside {
             format!("set aside while the revision's question waits{sep}not consentable now")
         } else {
-            format!("what a yes answers{sep}not saved{sep}nothing has run on your files")
+            answers(sep)
         };
         let mut rows = vec![(format!("proposal {id}{sep}{standing}"), Role::Strong)];
+        rows.extend(self.facts(sep, false));
+        rows
+    }
+
+    /// The facts under the standing, in their order and with their roles:
+    /// every change, the changes whose bytes no face shows, how the workflow
+    /// was revised, what it reaches when it runs (`grouped`: each effect after
+    /// the first hung under one `when it runs` heading), where it reaches as
+    /// declared, and its rehearsal.
+    fn facts(&self, sep: &str, grouped: bool) -> Vec<(String, Role)> {
+        let mut rows: Vec<(String, Role)> = Vec::new();
         rows.extend(self.changes.iter().map(|c| (c.clone(), Role::Accent)));
         if self.unshown > 0 {
             rows.push((
@@ -226,11 +290,16 @@ impl Proposed {
                 format!("when it runs{sep}nothing outside the process"),
                 Role::Dim,
             )),
-            Some(effects) => rows.extend(
-                effects
-                    .iter()
-                    .map(|effect| (format!("when it runs{sep}{effect}"), Role::Dim)),
-            ),
+            Some(effects) => {
+                for (at, effect) in effects.iter().enumerate() {
+                    let row = if grouped && at > 0 {
+                        format!("{HUNG}{effect}")
+                    } else {
+                        format!("when it runs{sep}{effect}")
+                    };
+                    rows.push((row, Role::Dim));
+                }
+            }
         }
         rows.extend(self.world.iter().map(|(words, outside)| {
             let role = if *outside { Role::Warn } else { Role::Dim };
@@ -274,12 +343,41 @@ impl Proposed {
         color: bool,
         compact: bool,
     ) -> (Line<'static>, Vec<Line<'static>>) {
+        self.face_with(self.head(ascii), face, width, ascii, color, compact)
+    }
+
+    /// The face while the conversation reviews this candidate
+    /// ([`Self::review`]): the review is the one home of the facts above
+    /// every face, so the face keeps its title, the witness of its bytes and
+    /// the face itself.
+    pub(crate) fn reviewed_face_lines(
+        &self,
+        face: Face,
+        width: u16,
+        ascii: bool,
+        color: bool,
+        compact: bool,
+    ) -> (Line<'static>, Vec<Line<'static>>) {
+        self.face_with(Vec::new(), face, width, ascii, color, compact)
+    }
+
+    /// The title row, `facts` (wrapped, never cut), the witness of the
+    /// pending bytes, then the viewer's face of those bytes. Pure.
+    fn face_with(
+        &self,
+        facts: Vec<(String, Role)>,
+        face: Face,
+        width: u16,
+        ascii: bool,
+        color: bool,
+        compact: bool,
+    ) -> (Line<'static>, Vec<Line<'static>>) {
         let (sep, cut) = marks(ascii);
         let kind = if self.draft { "draft" } else { "proposal" };
         let name = format!("{kind}{sep}{}", self.look.title());
         let title = title_row(&name, face, width, ascii, color);
         let mut body = Vec::new();
-        for (row, tone) in self.head(ascii) {
+        for (row, tone) in facts {
             for part in wrap(&twins(&row, ascii), usize::from(width), cut) {
                 body.push(Line::from(Span::styled(part, role::style(tone, color))));
             }

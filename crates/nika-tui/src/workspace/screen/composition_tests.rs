@@ -15,7 +15,7 @@ use ratatui::buffer::Buffer;
 use unicode_width::UnicodeWidthStr;
 
 use super::*;
-use crate::model::{Committed, Kind, Presentation, Waiting};
+use crate::model::{Asked, Committed, Kind, Presentation, Shape, Waiting};
 use crate::visual::icon::Icon;
 use crate::visual::logomark::REVEAL_ENDS;
 use crate::workspace::aside::{Entry, Tab};
@@ -115,6 +115,7 @@ fn frame_of(
     let chrome = Chrome {
         arrangement,
         dragging: None,
+        folded: false,
     };
     terminal
         .draw(|frame| {
@@ -320,6 +321,7 @@ fn the_conversation_title_is_quiet_and_separators_stay_dim() {
             let chrome = Chrome {
                 arrangement: restored(),
                 dragging: None,
+                folded: false,
             };
             terminal
                 .draw(|frame| {
@@ -544,6 +546,189 @@ fn the_draft_stays_the_same_text_across_resizes_and_expansion() {
             let shown = rows.join("\n");
             assert_eq!(shown.matches("keep this").count(), 1, "{at}\n{shown}");
             assert_eq!(shown.matches("exact draft").count(), 1, "{at}\n{shown}");
+        }
+    }
+}
+
+/// The panel paints the current proposal as the screen's review at every
+/// qualified size: the latest view ends on where the whole words are read,
+/// the cost prose stays with the reader, the human's request stays in view
+/// where the transcript holds both, and the draft stays; a screen with no
+/// review paints the Session's words.
+#[test]
+fn the_panel_paints_the_current_proposal_as_its_review() {
+    use crate::workspace::cards::review::fixture;
+    for (width, height) in [(80, 24), (120, 40), (180, 48)] {
+        let at = format!("{width}x{height}");
+        let proposal = Committed::proposal(fixture::id(), fixture::PREVIEW);
+        let state = fixture::state((width, height), proposal, Waiting::Proposal);
+        let composer = composer(DRAFT, false);
+        let review = fixture::candidate(fixture::id(), false).review(false);
+        let screen = studio(Some(SEAT)).reviewing(review);
+        let (rows, _) = frame_of(&screen, &state, &composer, paint(false, false), restored());
+        let shown = rows.join("\n");
+        let reviewed = shown.contains("Full proposal, in the Session's words");
+        assert!(reviewed, "{at}\n{shown}");
+        assert!(!shown.contains(fixture::COST), "{at}\n{shown}");
+        let request = shown.contains("copy the brief into out");
+        assert!(width == 80 || request, "{at}\n{shown}");
+        assert_eq!(shown.matches(DRAFT).count(), 1, "{at}\n{shown}");
+        let plain = studio(Some(SEAT));
+        let (rows, _) = frame_of(&plain, &state, &composer, paint(false, false), restored());
+        let said = rows.join("\n");
+        let reviewed = said.contains("Full proposal, in the Session's words");
+        assert!(!reviewed, "{at}\n{said}");
+    }
+}
+
+/// The panel at every qualified size carries the question's first exact
+/// words in its live card, above the line that answers it, and its block reads
+/// one quiet row: the words are painted once, never as their tail alone, and a
+/// question in prose keeps its whole card.
+#[test]
+fn the_panel_carries_the_first_question_words_at_every_size() {
+    let words = "Which file holds the notes to digest?\n    (The compiler cannot invent this authoring value.)\nreply on the next line · `cancel` drops this · `why?` explains";
+    let label = "Which file holds the notes";
+    for (width, height) in [(60, 18), (80, 24), (120, 40), (180, 48)] {
+        let at = format!("{width}x{height}");
+        let asked = Asked::new("Which file?", "", true, Shape::Text, "3:q", 3);
+        let waiting = Waiting::asked("const.notes", asked);
+        let mut state = state((width, height), false, false, waiting);
+        state.transcript[1] = Committed::question("3:q", words);
+        let composer = composer("", false);
+        let screen = studio(Some(SEAT));
+        let (rows, _) = frame_of(&screen, &state, &composer, paint(false, false), restored());
+        let shown = rows.join("\n");
+        assert_eq!(shown.matches(label).count(), 1, "{at}\n{shown}");
+        assert!(shown.contains("the question waits below"), "{at}\n{shown}");
+        let first = rows.iter().position(|row| row.contains(label));
+        let line = rows.iter().position(|row| row.contains("reply ›"));
+        assert!(
+            first.zip(line).is_some_and(|(first, line)| first < line),
+            "{at}\n{shown}"
+        );
+        let mut prose = state.clone();
+        prose.transcript[1] = Committed::new(Kind::Question, words);
+        let (rows, _) = frame_of(&screen, &prose, &composer, paint(false, false), restored());
+        assert!(!rows.join("\n").contains("waits below"), "{at}");
+    }
+}
+
+/// Where the title fills the object's first row, its action stands at the
+/// right end of the continuation cue's row, one blank cell after the cue's
+/// widest words (the cue the object paints scrolled between its ends): the
+/// folded strip's frame shows the cue and the action whole, neither over the
+/// other, at the cells the pointer reads.
+#[test]
+fn a_full_title_row_leaves_the_action_to_the_cue_row() {
+    for ascii in [false, true] {
+        let at = format!("ascii={ascii}");
+        let body: Vec<Line<'static>> = (0..20).map(|n| Line::raw(format!("line {n}"))).collect();
+        let shown = Object::Workflow {
+            title: Line::raw("x".repeat(55)),
+            body,
+        };
+        let widest = object::lines_from(&shown, 60, 3, paint(ascii, false), 5);
+        assert_eq!(widest.last().map(Line::width), Some(CUE_CELLS), "{at}");
+        let size = (60, 16);
+        let geometry = folded(Geometry::of(Rect::new(0, 0, 60, 16), false).expect("fits"));
+        let next = Some(geometry::Layout::Workbench);
+        let action = object_action(&shown, &geometry, Region::Conversation, next, ascii);
+        let (cells, words) = action.expect("the cue's row offers it");
+        let (expand, below) = if ascii {
+            ("[+] Expand - F4", "v More below - scroll")
+        } else {
+            ("[+] Expand · F4", "↓ More below · scroll")
+        };
+        assert_eq!(words, expand, "{at}");
+        assert_eq!(cells.y, geometry.object.bottom() - 1, "{at}");
+        assert_eq!(cells.right(), geometry.object.right(), "{at}");
+        assert!(usize::from(cells.x - geometry.object.x) > CUE_CELLS, "{at}");
+        let mut screen = studio(None);
+        screen.object = shown;
+        let state = state(size, ascii, false, Waiting::Free);
+        let chrome = Chrome {
+            arrangement: restored(),
+            dragging: None,
+            folded: true,
+        };
+        let mut terminal = Terminal::new(TestBackend::new(size.0, size.1)).expect("terminal");
+        terminal
+            .draw(|frame| {
+                let focus = Focus::composing();
+                let composer = composer("", ascii);
+                let paint = paint(ascii, false);
+                assert!(draw_in(
+                    frame, &screen, paint, &focus, &state, &composer, chrome
+                ));
+            })
+            .expect("draw");
+        let row = row_text(terminal.backend().buffer(), cells.y, 0, size.0);
+        assert!(row.starts_with(below), "{at}: {row}");
+        assert!(row.ends_with(expand), "{at}: {row}");
+        let title = row_text(terminal.backend().buffer(), geometry.object.y, 0, size.0);
+        assert!(
+            title.starts_with(&"x".repeat(55)),
+            "{at}: the title kept whole"
+        );
+    }
+}
+
+/// Where the title fills the object's first row and no continuation cue
+/// stands, a last row the object's lines leave free (strictly fewer body
+/// lines than rows under the title) carries the action at its right end:
+/// the frame paints it whole on that blank row, at the cells the pointer
+/// reads. With exactly as many lines as rows the last line keeps its row,
+/// nothing covers it, and `F4` alone acts.
+#[test]
+fn a_free_last_row_carries_the_action_the_title_row_cannot() {
+    // At 16 rows the restored Object already fills the available growth.
+    // Use an actual expandable frame, as drawing and the pointer do.
+    let size = (60, 18);
+    let area = Rect::new(0, 0, size.0, size.1);
+    let geometry = Geometry::of(area, false).expect("fits");
+    let next = toggled(area, false, &restored(), false);
+    assert_eq!(next, Some(geometry::Layout::Workbench));
+    assert_eq!(
+        toggled(Rect::new(0, 0, 60, 16), false, &restored(), false),
+        None
+    );
+    let under = usize::from(geometry.object.height - 1);
+    for ascii in [false, true] {
+        let expand = if ascii {
+            "[+] Expand - F4"
+        } else {
+            "[+] Expand · F4"
+        };
+        for (lines, offered) in [(under - 1, true), (under, false)] {
+            let at = format!("ascii={ascii} lines={lines}");
+            let body = (0..lines).map(|n| Line::raw(format!("line {n}")));
+            let shown = Object::Workflow {
+                title: Line::raw("x".repeat(55)),
+                body: body.collect(),
+            };
+            let action = object_action(&shown, &geometry, Region::Conversation, next, ascii);
+            assert_eq!(action.is_some(), offered, "{at}");
+            let mut screen = studio(None);
+            screen.object = shown;
+            let state = state(size, ascii, false, Waiting::Free);
+            let composer = composer("", ascii);
+            let (rows, _) = frame_of(&screen, &state, &composer, paint(ascii, false), restored());
+            let last = &rows[usize::from(geometry.object.bottom() - 1)];
+            if let Some((cells, words)) = action {
+                assert_eq!(words, expand, "{at}");
+                assert_eq!(cells.y, geometry.object.bottom() - 1, "{at}");
+                assert_eq!(cells.right(), geometry.object.right(), "{at}");
+                assert!(last.ends_with(expand), "{at}: {last}");
+                let before = last.strip_suffix(expand).unwrap_or(last);
+                assert!(before.trim().is_empty(), "{at}: nothing covered: {last}");
+            } else {
+                let kept = format!("line {}", lines - 1);
+                assert!(last.starts_with(&kept), "{at}: {last}");
+                assert!(!last.contains("[+]"), "{at}: {last}");
+            }
+            let title = &rows[usize::from(geometry.object.y)];
+            assert!(title.starts_with(&"x".repeat(55)), "{at}: the title whole");
         }
     }
 }

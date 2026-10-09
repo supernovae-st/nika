@@ -220,4 +220,25 @@ mod tests {
         assert_eq!(rx.try_recv().as_deref(), Ok("the demo holds this turn"));
         assert!(!turn.beats.is_empty());
     }
+
+    /// The demo cannot name a question's identity: a typed answer reaches
+    /// none of its doors (its held turn would say so on the busy row), plays
+    /// no scripted turn, and comes back exactly.
+    #[test]
+    fn a_typed_answer_reaches_no_door_of_the_demo() {
+        let mut demo = Demo {
+            script: Script::demo(),
+            pace: Duration::from_millis(30),
+            refusal: None,
+        };
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (queue, _) = std::sync::mpsc::sync_channel(1);
+        let seen = nika_tui::session::feed::Seen::new(queue, std::sync::Arc::default());
+        let remaining = demo.script.remaining();
+        let turn = demo.answer_bound(" eur ", "witness-1", &tx, &seen);
+        assert!(rx.try_recv().is_err(), "no door was used");
+        assert_eq!(demo.script.remaining(), remaining, "no scripted turn");
+        assert_eq!(turn.beats.last(), Some(&Beat::NotTaken(" eur ".to_owned())));
+        assert!(turn.handoff.is_none());
+    }
 }

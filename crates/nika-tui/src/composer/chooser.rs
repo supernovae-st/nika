@@ -216,6 +216,11 @@ impl Composer {
         self.area.set_cursor_style(cursor);
     }
 
+    /// Whether the composer holds the keys ([`Self::set_focused`]).
+    pub(crate) fn focused(&self) -> bool {
+        self.chooser.focused
+    }
+
     /// Open the palette over the draft, which waits untouched; open, close it.
     pub(crate) fn toggle_palette(&mut self) {
         if self.chooser.query.is_some() {

@@ -32,6 +32,7 @@ use ratatui::widgets::{Paragraph, Widget};
 use unicode_width::UnicodeWidthStr;
 
 use super::aside::{self, Aside};
+use super::cards::{self, review::Review};
 use super::conversation::{self, Thread};
 use super::focus::{Extent, Focus, Region};
 use super::geometry::{self, Arrangement, Geometry, Separator};
@@ -41,7 +42,7 @@ use super::pinned::{self, Pinned};
 use crate::composer::Composer;
 use crate::model::UiState;
 use crate::render::{
-    activity_marker, boxed_live_rows, live_rows, render_boxed_live, render_live, render_transcript,
+    activity_marker, boxed_live_rows, live_rows, render_boxed_live, render_live, rest_rows,
 };
 use crate::visual::role;
 
@@ -61,6 +62,9 @@ pub struct Screen {
     pub thread: Thread,
     /// The run pinned in view, if any.
     pub pinned: Option<Pinned>,
+    /// The candidate a consent can name, as the conversation reviews it: the
+    /// same review its scroll bounds read.
+    review: Option<Review>,
 }
 
 impl Screen {
@@ -73,6 +77,7 @@ impl Screen {
             object,
             thread,
             pinned: None,
+            review: None,
         }
     }
 
@@ -80,6 +85,14 @@ impl Screen {
     #[must_use]
     pub fn pinning(mut self, run: Pinned) -> Self {
         self.pinned = Some(run);
+        self
+    }
+
+    /// This screen with the candidate a consent can name (`None`: none, and
+    /// every block keeps its words as said).
+    #[must_use]
+    pub(crate) fn reviewing(mut self, review: Option<Review>) -> Self {
+        self.review = review;
         self
     }
 }
@@ -108,13 +121,34 @@ pub(crate) fn extent_in(screen: &Screen, geometry: &Geometry) -> Extent {
 }
 
 /// How a frame is arranged beyond its facts: the object restored or expanded
-/// and the separators' shares, and the separator the pointer holds.
+/// and the separators' shares, the separator the pointer holds, and whether
+/// a current decision folds the stacked object ([`folded`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Chrome {
     /// The layout in view and the separators' shares.
     pub(crate) arrangement: Arrangement,
     /// The separator the pointer is moving, shown reversed.
     pub(crate) dragging: Option<Separator>,
+    /// The stacked object folds to its strip ([`crate::workspace::desk::Desk::folds`]).
+    pub(crate) folded: bool,
+}
+
+/// The rows a folded object keeps: its title, one row and the continuation cue.
+const FOLDED_ROWS: u16 = 3;
+
+/// `geometry` with its stacked object folded to [`FOLDED_ROWS`], the
+/// conversation under it taking the rows given up; the header, the aside, the
+/// pinned row and the arrangement stay. A decision the restored split cannot
+/// show folds a frame; its every reader takes this one geometry.
+#[must_use]
+pub(crate) fn folded(mut geometry: Geometry) -> Geometry {
+    if geometry.stacked {
+        let given = geometry.object.height.saturating_sub(FOLDED_ROWS);
+        geometry.object.height -= given;
+        geometry.conversation.y -= given;
+        geometry.conversation.height += given;
+    }
+    geometry
 }
 
 /// Draw the workspace on the whole frame with the object restored, the aside
@@ -132,6 +166,7 @@ pub fn draw(
     let chrome = Chrome {
         arrangement: Arrangement::of(geometry::Layout::Session),
         dragging: None,
+        folded: false,
     };
     draw_in(frame, screen, paint, focus, state, composer, chrome)
 }
@@ -148,9 +183,12 @@ pub(crate) fn draw_in(
 ) -> bool {
     let area = frame.area();
     let pinned = screen.pinned.is_some();
-    let Some(geometry) = Geometry::arranged(area, pinned, &chrome.arrangement) else {
+    let Some(mut geometry) = Geometry::arranged(area, pinned, &chrome.arrangement) else {
         return false;
     };
+    if chrome.folded {
+        geometry = folded(geometry);
+    }
     let (ascii, color) = (paint.ascii, paint.color);
     frame
         .buffer_mut()
@@ -165,7 +203,7 @@ pub(crate) fn draw_in(
         geometry.aside.is_none().then_some(focus.region),
         (ascii, color),
     );
-    let next = toggled(area, pinned, &chrome.arrangement);
+    let next = toggled(area, pinned, &chrome.arrangement, chrome.folded);
     let action = object_action(&screen.object, &geometry, focus.region, next, ascii);
     aside_and_object(frame, screen, &geometry, paint, focus, action.is_some());
     if let Some((cells, words)) = action {
@@ -358,18 +396,23 @@ pub(crate) fn region_at(
 }
 
 /// What expanding or restoring the object shows on a frame of `area`
-/// arranged as `arrangement`, a run pinned when `pinned`: the one answer
-/// the object's action, a press on it, `F4` and the palette read. A kept
-/// expansion always restores; the restored object expands only where the
-/// expanded one holds strictly more cells, its shares as chosen. `None`
-/// where nothing would change (below the minimum, or no room to grow).
+/// arranged as `arrangement`, a run pinned when `pinned`, the object folded
+/// when `fold` ([`folded`]): the one answer the object's action, a press on
+/// it, `F4` and the palette read. A kept expansion always restores; the
+/// restored object expands only where the expanded one holds strictly more
+/// cells, its shares as chosen. `None` where nothing would change (below the
+/// minimum, or no room to grow).
 #[must_use]
 pub(crate) fn toggled(
     area: Rect,
     pinned: bool,
     arrangement: &Arrangement,
+    fold: bool,
 ) -> Option<geometry::Layout> {
-    let now = Geometry::arranged(area, pinned, arrangement)?;
+    let mut now = Geometry::arranged(area, pinned, arrangement)?;
+    if fold {
+        now = folded(now);
+    }
     let next = arrangement.layout.toggled();
     if next == geometry::Layout::Session {
         return Some(next);
@@ -378,11 +421,19 @@ pub(crate) fn toggled(
     (grown.object.area() > now.object.area()).then_some(next)
 }
 
+/// The cells the widest continuation cue an object paints on its last row
+/// takes (`↑ Above · ↓ Below · scroll`, in either glyph column).
+const CUE_CELLS: usize = 26;
+
 /// The object's own action for `next` ([`toggled`]) and the cells it takes
 /// on a frame of `geometry`: the right end of the object's first row, one
 /// blank cell after its title (the welcome has none: it gives the action its
 /// first row), in the longest form that fits (`[+] Expand · F4`, then
-/// `[+] F4`; `[-]` restores). `None` where `next` is, under the folded
+/// `[+] F4`; `[-]` restores); with no room there, the right end of the
+/// continuation cue's row, one blank cell after its widest words, or with no
+/// cue the right end of a last row the object's lines leave free (strictly
+/// fewer body lines than rows under the title), so neither a face, a line
+/// nor the cue is ever covered. `None` where `next` is, under the folded
 /// project list, or where no form fits: `F4` and the palette still act.
 /// Drawing and the pointer read this one answer.
 #[must_use]
@@ -420,11 +471,22 @@ pub(crate) fn object_action(
         (true, false) => ["[-] Restore · F4", "[-] F4"],
         (true, true) => ["[-] Restore - F4", "[-] F4"],
     };
-    forms.into_iter().find_map(|words| {
-        let cells = u16::try_from(words.width()).ok()?;
-        let fits = title + 1 + usize::from(cells) <= usize::from(area.width);
-        fits.then(|| (Rect::new(area.right() - cells, area.y, cells, 1), words))
-    })
+    let body = object::length(shown);
+    let cue = area.height >= 3 && body > usize::from(area.height - 1);
+    // No cue: the last row is free only while the body lines are strictly
+    // fewer than the rows under the title, never on an equal count.
+    let free = !cue && body < usize::from(area.height.saturating_sub(1));
+    let last = if cue { CUE_CELLS } else { 0 };
+    let rows = [(area.y, title), (area.bottom().saturating_sub(1), last)];
+    rows.into_iter()
+        .take(1 + usize::from(cue || free))
+        .find_map(|(y, used)| {
+            forms.into_iter().find_map(|words| {
+                let cells = u16::try_from(words.width()).ok()?;
+                let fits = used + 1 + usize::from(cells) <= usize::from(area.width);
+                fits.then(|| (Rect::new(area.right() - cells, y, cells, 1), words))
+            })
+        })
 }
 
 /// The header ([`masthead`]) of the place and the intelligence selected for
@@ -526,7 +588,10 @@ fn panel(
             focused_title(color),
         );
     }
-    render_transcript(frame, state, transcript);
+    // The live question card's words, read where its block stood as one row:
+    // the same projection the scroll bounds measure ([`carried`]).
+    let carried = crate::render::question::carried(state, composer, bottom, boxed(geometry));
+    cards::render(frame, state, transcript, (screen.review.as_ref(), carried));
     if state.focus_scroll > 0
         && let Some(marker) = latest_area(transcript, ascii)
     {
@@ -571,8 +636,8 @@ fn panel_content(geometry: &Geometry) -> Rect {
 
 /// Whether the composer stands boxed under its caption: beside the object,
 /// where the panel has [`BOXED_ROWS`]; the compact conversation under the
-/// object keeps the plain composer.
-fn boxed(geometry: &Geometry) -> bool {
+/// object keeps the plain composer. Painting and the pointer read it.
+pub(crate) fn boxed(geometry: &Geometry) -> bool {
     !geometry.stacked && panel_content(geometry).height >= BOXED_ROWS
 }
 
@@ -585,6 +650,31 @@ pub(crate) fn panel_areas(
     composer: &Composer,
     thread: &Thread,
 ) -> [Rect; 4] {
+    split_panel(geometry, thread, |width, room| {
+        if boxed(geometry) {
+            boxed_live_rows(state, composer, width, room)
+        } else {
+            live_rows(state, composer, width, room)
+        }
+    })
+}
+
+/// The transcript of `geometry`'s conversation at rest, its live area as
+/// [`rest_rows`] asks, whatever is typed, listed or busy: where a decision's
+/// demand is measured.
+pub(crate) fn rest_transcript(geometry: &Geometry, state: &UiState, thread: &Thread) -> Rect {
+    split_panel(geometry, thread, |width, room| {
+        rest_rows(state, width).min(room)
+    })[1]
+}
+
+/// The panel cut into its title, transcript, attachments of `thread` and the
+/// live area `live` sizes for its width and the rows left.
+fn split_panel(
+    geometry: &Geometry,
+    thread: &Thread,
+    live: impl FnOnce(u16, u16) -> u16,
+) -> [Rect; 4] {
     let area = panel_content(geometry);
     let heading = if !geometry.stacked && area.height >= RULED_ROWS {
         2
@@ -593,11 +683,7 @@ pub(crate) fn panel_areas(
     };
     let context = u16::from(!thread.attached.is_empty());
     let room = area.height.saturating_sub(heading + context);
-    let live = if boxed(geometry) {
-        boxed_live_rows(state, composer, area.width, room)
-    } else {
-        live_rows(state, composer, area.width, room)
-    };
+    let live = live(area.width, room);
     Layout::vertical([
         Constraint::Length(heading),
         Constraint::Min(0),

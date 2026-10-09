@@ -347,3 +347,59 @@ fn the_draft_shows_while_its_question_waits_and_answers_no_consent() {
     assert!(live.candidate().is_none(), "{}", words(&turn.beats));
     assert!(!room.0.join(DEST).exists(), "a draft writes nothing");
 }
+
+/// Typed creation records have no earlier bytes; an unknown record cannot
+/// inherit a replacement claim. These are projection fixtures, not a live CREATE.
+#[test]
+fn document_records_do_not_describe_a_creation_or_unknown_mode_as_replacement() {
+    for (mode, base, changed, expected, attention) in [
+        ("written", None, vec![], "created · written", false),
+        ("composed", None, vec![], "created · composed", false),
+        (
+            "operations",
+            Some("base"),
+            vec![],
+            "revised in place · no node changed",
+            false,
+        ),
+        (
+            "operations",
+            Some("base"),
+            vec!["tasks.read"],
+            "revised in place · tasks.read",
+            false,
+        ),
+        (
+            "replaced",
+            Some("base"),
+            vec![],
+            "rewritten whole · no preservation of the earlier bytes is claimed",
+            true,
+        ),
+        (
+            "future-record",
+            None,
+            vec![],
+            "document record · mode not described",
+            true,
+        ),
+        (
+            "written",
+            Some("base"),
+            vec![],
+            "document record · mode not described",
+            true,
+        ),
+    ] {
+        let record = serde_json::json!({"mode": mode, "base_sha256": base,
+            "candidate_sha256": "a".repeat(64), "changed": changed,
+            "preservation": "", "components": []});
+        let revision =
+            nika_session::work::DocumentRevision::of(&record, &[]).expect("the typed record");
+        assert_eq!(
+            super::revised(&revision),
+            vec![(expected.to_owned(), attention)],
+            "mode {mode}, base {base:?}"
+        );
+    }
+}

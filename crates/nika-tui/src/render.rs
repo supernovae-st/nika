@@ -12,11 +12,16 @@
 //!
 //! The live area holds the command chooser under the line it fills
 //! (`chooser`): while it shows, the area may take all but two rows of what
-//! it is given, so the transcript and its rule always keep a row.
+//! it is given, so the transcript and its rule always keep a row. A typed
+//! question's card stands above that line (`question`): it may take as much,
+//! and it gives way first, so the line that answers keeps its row.
 
 mod chooser;
 #[cfg(test)]
 mod chooser_tests;
+pub(crate) mod question;
+#[cfg(test)]
+mod question_tests;
 
 pub(crate) use nika_tui_view::workspace::wrapped::{height, pages, paint_page, window};
 
@@ -52,11 +57,15 @@ fn face(kind: Kind, color: bool, ascii: bool) -> (&'static str, Style) {
 }
 
 /// The renderer's own words in the glyph column in use: under `ascii` its
-/// markers and separators (`›`, `·`, `…`) take their ASCII twins. Only text the
-/// renderer writes goes through here; the Session's words are never rewritten.
-fn own(text: &str, ascii: bool) -> String {
+/// markers, separators and arrows (`›`, `·`, `…`, `↑↓`) take their ASCII
+/// twins. Only text the renderer writes goes through here; the Session's words
+/// are never rewritten.
+pub(crate) fn own(text: &str, ascii: bool) -> String {
     if ascii {
-        text.replace('›', ">").replace('·', "-").replace('…', "...")
+        text.replace('›', ">")
+            .replace('·', "-")
+            .replace('…', "...")
+            .replace("↑↓", "Up/Down")
     } else {
         text.to_owned()
     }
@@ -94,10 +103,13 @@ pub(crate) fn activity_marker(state: &UiState) -> Option<Span<'static>> {
 }
 
 /// A working phase can name a model and the last completed phase. Reserve
-/// enough rows to read those words rather than clipping them to one line.
-fn status_rows(state: &UiState, choosing: bool, width: u16) -> u16 {
-    if state.busy.is_some() {
-        wrapped_rows(&[status_line(state, choosing)], width).min(3)
+/// enough rows to read those words rather than clipping them to one line;
+/// none while the question's live home takes the row over (`lent`, [`Lent`]).
+fn status_rows(state: &UiState, choosing: bool, width: u16, lent: bool) -> u16 {
+    if lent {
+        0
+    } else if state.busy.is_some() {
+        wrapped_rows(&[status_line(state, choosing, width)], width).min(3)
     } else {
         1
     }
@@ -165,12 +177,13 @@ pub fn render_block(block: &Committed, color: bool, ascii: bool, buf: &mut Buffe
 }
 
 /// The rows of the live area at `width`: the lifecycle rail when the
-/// session reports one, the status, a draft set aside, the prompt and
-/// composer (the palette's search instead while it is open), the chooser,
-/// the hint. Clamped so the live area never eats the whole terminal: half of
-/// `height` (or, in a short panel such as the Workbench's conversation, what
-/// three lines of a multi-line draft need beside the status and the hint),
-/// or all but two rows while the chooser shows; never more than all but two.
+/// session reports one, the status, a draft set aside, a typed question's
+/// card, the prompt and composer (the palette's search instead while it is
+/// open), the chooser, the hint. Clamped so the live area never eats the
+/// whole terminal: half of `height` (or, in a short panel such as the
+/// Workbench's conversation, what three lines of a multi-line draft need
+/// beside the status and the hint), or all but two rows while the chooser or
+/// a typed question's card shows; never more than all but two.
 #[must_use]
 pub fn live_rows(state: &UiState, composer: &Composer, width: u16, height: u16) -> u16 {
     rows_of_live(state, composer, width, height, false)
@@ -202,20 +215,31 @@ fn rows_of_live(state: &UiState, composer: &Composer, width: u16, height: u16, b
             .content_rows(editor_width(state, composer, inner))
             .max(if boxed { 2 } else { 1 })
     };
-    // The chooser borrows the rail's row while it shows.
-    let rail = usize::from(rail_shown(state) && chooser == 0);
+    // The chooser borrows the rail's row while it shows; the question's live
+    // home takes the rows that only repeat it ([`Lent`]).
+    let homed = question::homed(state, composer);
+    let lent = Lent::of(state, homed, state.interrupt_armed);
+    let rail = usize::from(rail_shown(state) && chooser == 0 && !lent.rail);
     let aside = usize::from(composer.aside().is_some());
-    let hint = usize::from(wrapped_rows(&[hint_line(state, composer, width)], width).min(3));
-    let status = usize::from(status_rows(state, composer.listing().is_some(), width));
-    let edges = if boxed { usize::from(BOX_ROWS) } else { 0 };
-    let rows = rail + status + aside + edges + input + chooser + hint;
+    let hint = usize::from(wrapped_rows(&hint_lines(state, composer, width), width).min(3));
+    let listing = composer.listing().is_some();
+    let status = usize::from(status_rows(state, listing, width, lent.status));
+    let edges = if boxed {
+        usize::from(box_rows(state, composer))
+    } else {
+        0
+    };
+    let card = usize::from(question::rows(state, composer, width));
+    let rows = rail + status + aside + card + edges + input + chooser + hint;
     // Only a multi-line draft asks past the half; a one-line draft never does.
     let readable = if input > 1 {
         u16::try_from(status + edges + input.min(READABLE_LINES) + hint).unwrap_or(u16::MAX)
     } else {
         0
     };
-    let maximum = if chooser > 0 {
+    // The chooser and a typed question's card are the decision at hand: they
+    // may take all but the two rows the transcript and its rule keep.
+    let maximum = if chooser > 0 || card > 0 {
         height.saturating_sub(2)
     } else {
         height
@@ -226,12 +250,84 @@ fn rows_of_live(state: &UiState, composer: &Composer, width: u16, height: u16, b
     u16::try_from(rows.clamp(3, usize::from(maximum))).unwrap_or(maximum)
 }
 
+/// The rows a live area `width` wide asks for at rest, as [`live_rows`]
+/// counts them with nothing typed, listed, set aside or busy and no room
+/// limit: the rail and one status row (but those the question's live home
+/// takes over, [`Lent`]), a typed question's whole card, a one-row line and
+/// the waiting state's own hint. A decision's demand reads it, so typing, the
+/// chooser and work never move the regions.
+pub(crate) fn rest_rows(state: &UiState, width: u16) -> u16 {
+    let card = question::rest_rows(state, width);
+    let words = own(
+        waiting_hint(&state.waiting, state.ascii, width),
+        state.ascii,
+    );
+    let lines: Vec<Line<'_>> = words.split('\n').map(Line::raw).collect();
+    // At rest no exit is armed: the same rule the live rows read ([`Lent`]).
+    let lent = Lent::of(state, question::rest_homed(state), false);
+    let rail = u16::from(rail_shown(state) && !lent.rail);
+    let status = u16::from(!lent.status);
+    rail + status + card + 1 + wrapped_rows(&lines, width).min(3)
+}
+
+/// The lifecycle rail of a first question on a new draft: the draft being
+/// composed, nothing saved, checked, active or run. Only this exact rail
+/// says nothing the question's live home and the object's standing do not.
+const FIRST_QUESTION_RAIL: &str = "Draft ● · Saved ○ · Checked ○ · Active ○ · Run ○";
+
+/// The Session's own status while a typed question waits, before the
+/// question's label (`SessionRuntime::status_line`): the one status the
+/// question's live home may take over, and only for its own label.
+const QUESTION_STATUS: &str = "Needs one answer · ";
+
+/// The live area's state rows a homed typed question takes over: the
+/// lifecycle rail while it is exactly a first question's
+/// ([`FIRST_QUESTION_RAIL`]), and the status while it is exactly the
+/// Session's sentence for this question ([`QUESTION_STATUS`] and its label),
+/// never while an exit is armed. Any other rail or status (an earlier run, a
+/// saved or active workflow, a cost, a gate, words unknown here) keeps its
+/// row, and nothing is read out of either. Demand, painting and the rest
+/// rows read this one rule.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Lent {
+    /// The rail's row goes to the card.
+    rail: bool,
+    /// The status row goes to the card.
+    status: bool,
+}
+
+impl Lent {
+    /// The rows `state`'s homed question (`homed`) takes over, an exit
+    /// `armed` or not.
+    fn of(state: &UiState, homed: bool, armed: bool) -> Self {
+        let Waiting::QuestionDocument { asked, .. } = &state.waiting else {
+            return Self::default();
+        };
+        if !homed {
+            return Self::default();
+        }
+        Self {
+            rail: state.rail == FIRST_QUESTION_RAIL,
+            status: !armed && state.status == format!("{QUESTION_STATUS}{}", asked.label),
+        }
+    }
+}
+
 /// The lines of a multi-line draft a short live area still shows: the rail
 /// yields its row to them.
 const READABLE_LINES: usize = 3;
 
 /// The rows a boxed composer adds: its caption and the box's top and bottom.
 const BOX_ROWS: u16 = 3;
+
+/// The rows the boxed composer adds now ([`BOX_ROWS`]): no caption under the
+/// question's live home, whose card names the question right above the line,
+/// nor while a proposal or a gate waits, whose own prompt names the line.
+fn box_rows(state: &UiState, composer: &Composer) -> u16 {
+    let named = question::homed(state, composer)
+        || matches!(state.waiting, Waiting::Proposal | Waiting::Gate);
+    BOX_ROWS - u16::from(named)
+}
 
 /// The columns a boxed composer takes around its line: on each side, the
 /// box's edge and one cell of air.
@@ -281,15 +377,38 @@ fn rail_shown(state: &UiState) -> bool {
         && (state.presentation != Presentation::Workspace || !state.rail.split(" · ").all(pending))
 }
 
-/// The lifecycle rail, dim like the chrome: five facts, never one badge.
-fn rail_line(state: &UiState) -> Line<'static> {
+/// The lifecycle rail, dim like the chrome: five facts, never one badge, on a
+/// row `width` cells wide, cut with a visible mark rather than clipped.
+fn rail_line(state: &UiState, width: u16) -> Line<'static> {
     Line::from(Span::styled(
-        state.rail.clone(),
+        cut(&state.rail, width, state.ascii),
         Style::default().add_modifier(Modifier::DIM),
     ))
 }
 
-fn status_line(state: &UiState, choosing: bool) -> Line<'static> {
+/// `text` on a row of `width` cells: whole when it fits, else cut at a cell
+/// boundary with a visible mark, never right after a dangling separator.
+fn cut(text: &str, width: u16, ascii: bool) -> String {
+    let width = usize::from(width);
+    if unicode_width::UnicodeWidthStr::width(text) <= width {
+        return text.to_owned();
+    }
+    let mark = if ascii { "..." } else { "…" };
+    let fitted = chooser::fit(text, width, ascii);
+    let kept = fitted.strip_suffix(mark).unwrap_or(&fitted);
+    format!("{}{mark}", kept.trim_end().trim_end_matches('·').trim_end())
+}
+
+/// The status of a proposal waiting for consent: not saved yet, and what a
+/// plain `yes` does. It claims no other request unavailable.
+const PROPOSAL_STATUS: &str = "Not saved yet · yes means Save only";
+
+/// The status row on a row `width` cells wide. While work runs its phases
+/// wrap ([`status_rows`]); otherwise it is one row: the shell's own note
+/// follows the Session's words only when both fit, and never while a decision
+/// waits in the fitting workspace; the Session's words are cut with a visible
+/// mark, never rewritten.
+fn status_line(state: &UiState, choosing: bool, width: u16) -> Line<'static> {
     let dim = role::style(Role::Dim, state.color);
     let accent = accent(state.color);
     if state.interrupt_armed {
@@ -297,10 +416,8 @@ fn status_line(state: &UiState, choosing: bool) -> Line<'static> {
         // only when nothing was interrupted (an interrupted turn and a
         // cancelled decision say so in their own words), so this row may sit
         // under a turn that just succeeded.
-        return Line::from(Span::styled(
-            own("Ctrl+C again leaves · any key stays", state.ascii),
-            accent,
-        ));
+        let words = own("Ctrl+C again leaves · any key stays", state.ascii);
+        return Line::from(Span::styled(cut(&words, width, state.ascii), accent));
     }
     if let Some(marker) = activity_marker(state) {
         let label = state.busy.as_deref().unwrap_or_default();
@@ -329,10 +446,10 @@ fn status_line(state: &UiState, choosing: bool) -> Line<'static> {
         }
         Line::from(spans)
     } else if state.waiting == Waiting::Proposal {
-        Line::styled(
-            own("Save these changes · Run separately", state.ascii),
-            role::style(Role::Warn, state.color).add_modifier(Modifier::BOLD),
-        )
+        // What a plain `yes` does, never what else may be asked for.
+        let words = own(PROPOSAL_STATUS, state.ascii);
+        let style = role::style(Role::Warn, state.color).add_modifier(Modifier::BOLD);
+        Line::styled(cut(&words, width, state.ascii), style)
     } else {
         // Where the automation stands, then the presentation's own note.
         let mode = match state.presentation {
@@ -343,6 +460,8 @@ fn status_line(state: &UiState, choosing: bool) -> Line<'static> {
             Presentation::Workspace if !crate::workspace::geometry::fits(state.size) => {
                 "workspace needs 60x16 · Esc inline · PgUp/PgDn scroll"
             }
+            // A decision waiting names its own keys: the panel's note waits.
+            Presentation::Workspace if state.waiting != Waiting::Free => "",
             Presentation::Workspace => "workspace · F6 panel · Esc back",
         };
         let mode = own(mode, state.ascii);
@@ -357,7 +476,14 @@ fn status_line(state: &UiState, choosing: bool) -> Line<'static> {
         } else {
             earlier_cue(state).unwrap_or_default()
         };
-        Line::from(Span::styled(format!("{text}{cue}"), dim))
+        let whole = format!("{text}{cue}");
+        let fits = unicode_width::UnicodeWidthStr::width(whole.as_str()) <= usize::from(width);
+        let shown = if fits {
+            whole
+        } else {
+            cut(&state.status, width, state.ascii)
+        };
+        Line::from(Span::styled(shown, dim))
     }
 }
 
@@ -380,19 +506,64 @@ const WORKING_HINT: &str =
 /// on the idle hint row, always with what it does.
 const PALETTE_HINT: &str = "Ctrl+O: commands";
 
-/// Whether `text` holds in `width` cells as the row paints it: in the glyph
-/// column in use, measured with the layout's own width table.
-fn fits_row(text: &str, ascii: bool, width: u16) -> bool {
-    unicode_width::UnicodeWidthStr::width(own(text, ascii).as_str()) <= usize::from(width)
+/// The narrower forms of `waiting`'s hint ([`Waiting::hint`]), longest first,
+/// each a whole cue shorter or lower: a row too narrow for one form takes the
+/// next, so no key is ever parted from what it does. A `\n` sets the cues
+/// after it on a second row rather than drop them.
+fn narrower(waiting: &Waiting) -> &'static [&'static str] {
+    match waiting {
+        Waiting::Question { key } | Waiting::QuestionDocument { key, .. }
+            if key == "unknown_cost" || key == "run_cost" =>
+        {
+            &[
+                "yes approves once · no or Ctrl+C cancels",
+                "yes approves once · no cancels",
+            ]
+        }
+        Waiting::QuestionDocument { .. } if crate::composer::answer::choice(waiting).is_some() => {
+            &[
+                "↑↓ choose · Enter answers · cancel drops it",
+                "Enter answers · cancel drops it",
+                "Enter answers",
+            ]
+        }
+        Waiting::QuestionDocument { .. } => &["Enter answers"],
+        Waiting::Question { .. } => &["answer the question above"],
+        Waiting::Proposal => &["yes + Enter: Save · no: cancel"],
+        Waiting::Gate => &["approve or refuse"],
+        Waiting::Choosing => &[
+            "1 account · 2 API · 3 local · 4 no AI\ncancel",
+            "1 to 4 chooses · cancel",
+        ],
+        Waiting::Free => &[],
+    }
 }
 
-/// The hint row: a notice the last key left, else how to choose while the
+/// The form of `waiting`'s hint a row `width` cells wide holds ([`narrower`]),
+/// the narrowest when none does.
+fn waiting_hint(waiting: &Waiting, ascii: bool, width: u16) -> &'static str {
+    let (full, forms) = (waiting.hint(), narrower(waiting));
+    (std::iter::once(full).chain(forms.iter().copied()))
+        .find(|hint| fits_row(hint, ascii, width))
+        .unwrap_or_else(|| forms.last().copied().unwrap_or(full))
+}
+
+/// Whether each row of `text` holds in `width` cells as the row paints it: in
+/// the glyph column in use, measured with the layout's own width table.
+fn fits_row(text: &str, ascii: bool, width: u16) -> bool {
+    own(text, ascii)
+        .split('\n')
+        .all(|row| unicode_width::UnicodeWidthStr::width(row) <= usize::from(width))
+}
+
+/// The hint's rows: a notice the last key left, else how to choose while the
 /// chooser shows, else what keys do while a turn works, else what the
 /// waiting state takes. At a free prompt the row is the one place that names
 /// the palette key; the workspace's composer also says how `Enter` sends and
 /// `Alt+Enter` breaks a line, and keeps `F6` and `Esc` on its status row and
-/// the empty composer invites `/`, so neither repeats here.
-fn hint_line(state: &UiState, composer: &Composer, width: u16) -> Line<'static> {
+/// the empty composer invites `/`, so neither repeats here. One row, unless a
+/// decision's form sets a whole cue on a second ([`narrower`]).
+fn hint_lines(state: &UiState, composer: &Composer, width: u16) -> Vec<Line<'static>> {
     let choosing = composer
         .listing()
         .map(|listing| chooser::hint(&listing, state.busy.is_some(), state.ascii));
@@ -432,7 +603,8 @@ fn hint_line(state: &UiState, composer: &Composer, width: u16) -> Line<'static> 
             state.waiting.hint().to_owned()
         }
     } else {
-        state.waiting.hint().to_owned()
+        // A narrower row drops a whole cue, never a key from what it does.
+        waiting_hint(&state.waiting, state.ascii, width).to_owned()
     };
     let text = match (&state.completion, choosing) {
         (Some(notice), _) => own(notice, state.ascii),
@@ -444,16 +616,23 @@ fn hint_line(state: &UiState, composer: &Composer, width: u16) -> Line<'static> 
         Waiting::Free if state.busy.is_none() && state.completion.is_none() => Role::Dim,
         _ => Role::Accent,
     };
-    Line::from(Span::styled(text, role::style(tone, state.color)))
+    let style = role::style(tone, state.color);
+    text.split('\n')
+        .map(|row| Line::from(Span::styled(row.to_owned(), style)))
+        .collect()
 }
 
 /// The rows of the live area, top to bottom: the rail, the status, a draft
-/// set aside, the caption and the box when boxed, the line being written (or
-/// the palette's search), the chooser under it, a filler, the hint.
+/// set aside, a typed question's card, the caption and the box when boxed,
+/// the line being written (or the palette's search), the chooser under it, a
+/// filler, the hint.
 struct LiveAreas {
     rail: Rect,
     status: Rect,
     aside: Rect,
+    /// The typed question's card (`question`): painting and the pointer
+    /// read this one rectangle.
+    card: Rect,
     /// The caption and the box (its edges included), when boxed.
     boxed: Option<(Rect, Rect)>,
     /// The prompt and the line being written: inside the box when boxed.
@@ -471,8 +650,11 @@ fn live_areas(state: &UiState, composer: &Composer, area: Rect, boxed: bool) -> 
     let chooser_wanted =
         u16::try_from(chooser::rows(state, composer, area.width)).unwrap_or(u16::MAX);
     let choosing = chooser_wanted > 0;
-    let hint_wanted = wrapped_rows(&[hint_line(state, composer, area.width)], area.width).min(3);
-    let status_wanted = status_rows(state, composer.listing().is_some(), area.width);
+    let hint_wanted = wrapped_rows(&hint_lines(state, composer, area.width), area.width).min(3);
+    let homed = question::homed(state, composer);
+    let lent = Lent::of(state, homed, state.interrupt_armed);
+    let listing = composer.listing().is_some();
+    let status_wanted = status_rows(state, listing, area.width, lent.status);
     let inner = inner_width(area.width, boxed);
     let lines = if composer.palette_open() {
         1
@@ -480,14 +662,21 @@ fn live_areas(state: &UiState, composer: &Composer, area: Rect, boxed: bool) -> 
         composer.rows(editor_width(state, composer, inner))
     };
     let readable = lines.min(u16::try_from(READABLE_LINES).unwrap_or(u16::MAX));
-    let edges = if boxed { BOX_ROWS } else { 0 };
+    let edges = if boxed { box_rows(state, composer) } else { 0 };
+    let card_wanted = question::rows(state, composer, area.width);
+    // The question's live home is short of rows: the rail lends it its row.
+    let short =
+        homed && area.height < 1 + status_wanted + card_wanted + edges + readable + hint_wanted;
     // The rail takes a row of its own above the status (both are full
     // sentences; one 80-column row cannot hold them side by side), yields it
     // on a terminal too short for four rows or to the first lines of a
-    // multi-line draft, and lends it to the chooser.
+    // multi-line draft, and lends it to the chooser, a short live home and a
+    // live home it only repeats ([`Lent`]).
     let rail_rows = u16::from(
         rail_shown(state)
             && !choosing
+            && !short
+            && !lent.rail
             && area.height >= 4 + edges
             && (lines < 2 || area.height > hint_wanted + status_wanted + readable + edges),
     );
@@ -500,6 +689,10 @@ fn live_areas(state: &UiState, composer: &Composer, area: Rect, boxed: bool) -> 
     let fixed = rail_rows + hint_rows + status_rows + edges;
     let aside_rows = u16::from(composer.aside().is_some() && area.height >= fixed + 2);
     let spare = area.height.saturating_sub(fixed + aside_rows);
+    // A typed question's card stands above the line that answers it and gives
+    // way first: the line keeps a row of its own.
+    let card_rows = card_wanted.min(spare.saturating_sub(1));
+    let spare = spare - card_rows;
     let (input, chooser, filler) = if choosing {
         let input = lines.clamp(1, spare.max(1));
         let chooser = chooser_wanted.min(spare.saturating_sub(input));
@@ -515,21 +708,23 @@ fn live_areas(state: &UiState, composer: &Composer, area: Rect, boxed: bool) -> 
             Constraint::Length(0),
         )
     };
-    let [rail, status, aside, input, chooser, _, hint] = Layout::vertical([
+    let [rail, status, aside, card, input, chooser, _, hint] = Layout::vertical([
         Constraint::Length(rail_rows),
         Constraint::Length(status_rows),
         Constraint::Length(aside_rows),
+        Constraint::Length(card_rows),
         input,
         chooser,
         filler,
         Constraint::Length(hint_rows),
     ])
     .areas(area);
-    // Boxed, the caption takes the first row and the box the rest, the line
-    // one cell of air inside each edge.
+    // Boxed, the caption takes the first row (none under the live home) and
+    // the box the rest, the line one cell of air inside each edge.
     let (boxed, input) = if boxed {
+        let caption = edges.saturating_sub(BOX_ROWS - 1);
         let [caption, frame] =
-            Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(input);
+            Layout::vertical([Constraint::Length(caption), Constraint::Min(0)]).areas(input);
         let air = Margin::new(BOX_INSET / 2, 1);
         (Some((caption, frame)), frame.inner(air))
     } else {
@@ -539,6 +734,7 @@ fn live_areas(state: &UiState, composer: &Composer, area: Rect, boxed: bool) -> 
         rail,
         status,
         aside,
+        card,
         boxed,
         input,
         chooser,
@@ -570,8 +766,10 @@ pub(crate) fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Com
 }
 
 /// The workspace's live area with its composer boxed under a slim caption
-/// (« Your message », or « Your answer » while a decision waits): the same
-/// prompt, line, chooser and hint as [`render_live`], in quiet edges.
+/// (« Your message », or « Your answer » while a decision waits; none where
+/// the question's live home or the decision's own prompt names the line,
+/// [`box_rows`]): the same prompt, line, chooser and hint as [`render_live`],
+/// in quiet edges.
 pub(crate) fn render_boxed_live(
     frame: &mut Frame<'_>,
     state: &UiState,
@@ -590,16 +788,19 @@ fn render_live_in(
 ) {
     let areas = live_areas(state, composer, area, boxed);
     if areas.rail.height > 0 {
-        frame.render_widget(Paragraph::new(rail_line(state)), areas.rail);
+        let rail = rail_line(state, areas.rail.width);
+        frame.render_widget(Paragraph::new(rail), areas.rail);
     }
+    let status = status_line(state, composer.listing().is_some(), areas.status.width);
     frame.render_widget(
-        Paragraph::new(status_line(state, composer.listing().is_some())).wrap(Wrap { trim: false }),
+        Paragraph::new(status).wrap(Wrap { trim: false }),
         areas.status,
     );
     if let Some(aside) = composer.aside().filter(|_| areas.aside.height > 0) {
         let line = chooser::aside_line(aside, areas.aside.width, state.ascii, state.color);
         frame.render_widget(Paragraph::new(line), areas.aside);
     }
+    question::render(state, composer, areas.card, frame.buffer_mut());
     if let Some((caption, edges)) = areas.boxed {
         let quiet = role::style(Role::Dim, state.color);
         frame.render_widget(
@@ -650,7 +851,7 @@ fn render_live_in(
     }
     chooser::render(state, composer, areas.chooser, frame.buffer_mut());
     frame.render_widget(
-        Paragraph::new(hint_line(state, composer, area.width)).wrap(Wrap { trim: false }),
+        Paragraph::new(hint_lines(state, composer, area.width)).wrap(Wrap { trim: false }),
         areas.hint,
     );
 }
@@ -666,7 +867,9 @@ pub fn draw_inline(frame: &mut Frame<'_>, state: &UiState, composer: &Composer) 
 /// the last row: the focus presentation and the workspace panel share it.
 pub(crate) fn render_transcript(frame: &mut Frame<'_>, state: &UiState, area: Rect) {
     if state.presentation == Presentation::Workspace {
-        crate::workspace::cards::render(frame, state, area);
+        // The focus view standing in for a workspace too small to fit: every
+        // block as said, as its scroll bounds measure it.
+        crate::workspace::cards::render(frame, state, area, (None, None));
         return;
     }
     let mut lines: Vec<Line<'static>> = Vec::new();
@@ -680,17 +883,22 @@ pub(crate) fn render_transcript(frame: &mut Frame<'_>, state: &UiState, area: Re
     window(&lines, area, skip, frame.buffer_mut());
 }
 
-/// The focus presentation: the transcript above (scrolled from the end), a
-/// rule, the same live area below.
-pub fn draw_focus(frame: &mut Frame<'_>, state: &UiState, composer: &Composer) {
-    let area = frame.area();
+/// The focus presentation's rows on `area`: the transcript, its rule, the
+/// live area. Painting and the pointer read these same rectangles.
+pub(crate) fn focus_areas(area: Rect, state: &UiState, composer: &Composer) -> [Rect; 3] {
     let live = live_rows(state, composer, area.width, area.height);
-    let [transcript, rule, bottom] = Layout::vertical([
+    Layout::vertical([
         Constraint::Min(1),
         Constraint::Length(1),
         Constraint::Length(live),
     ])
-    .areas(area);
+    .areas(area)
+}
+
+/// The focus presentation: the transcript above (scrolled from the end), a
+/// rule, the same live area below.
+pub fn draw_focus(frame: &mut Frame<'_>, state: &UiState, composer: &Composer) {
+    let [transcript, rule, bottom] = focus_areas(frame.area(), state, composer);
     render_transcript(frame, state, transcript);
     let glyph = if state.ascii { "-" } else { "─" };
     frame.render_widget(
@@ -704,763 +912,4 @@ pub fn draw_focus(frame: &mut Frame<'_>, state: &UiState, composer: &Composer) {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used)]
-mod tests {
-    use ratatui::Terminal;
-    use ratatui::backend::TestBackend;
-
-    use super::*;
-    use crate::model::{Beat, Script};
-
-    fn state_after_demo(presentation: Presentation) -> UiState {
-        let mut state = UiState::new(presentation, false, (80, 24));
-        let mut script = Script::demo();
-        for beat in script.open() {
-            state.apply(beat);
-        }
-        for beat in script.submit("digest my notes") {
-            state.apply(beat);
-        }
-        state
-    }
-
-    fn row(buffer: &Buffer, y: u16) -> String {
-        (0..buffer.area.width)
-            .map(|x| buffer[(x, y)].symbol().to_owned())
-            .collect::<String>()
-            .trim_end()
-            .to_owned()
-    }
-
-    #[test]
-    fn a_paste_beyond_terminal_height_keeps_its_text_and_draws_without_overflow() {
-        let text = "input row\n".repeat(70_000) + "last input";
-        let mut composer = Composer::new();
-        composer.paste(&text);
-        assert_eq!(composer.content_rows(80), 70_001);
-        for (width, height) in [(12, 4), (80, 24), (180, 48)] {
-            let mut state = UiState::new(Presentation::Focus, false, (width, height));
-            state.rail = "Draft · Saved · Checked".to_owned();
-            let live = live_rows(&state, &composer, width, height);
-            assert!(live <= height.saturating_div(2).max(3));
-            let mut terminal = Terminal::new(TestBackend::new(width, height)).expect("terminal");
-            terminal
-                .draw(|frame| draw_focus(frame, &state, &composer))
-                .expect("large paste draws");
-            assert_eq!(
-                composer.text(),
-                text,
-                "drawing must not truncate the user's draft"
-            );
-        }
-    }
-
-    #[test]
-    fn a_block_keeps_its_glyph_on_the_first_line_only() {
-        let block = Committed::new(Kind::Gate, "write ./digest.md\noverwrite?");
-        let lines = block_lines(&block, false, false);
-        assert_eq!(lines.len(), 2);
-        assert_eq!(lines[0].spans[0].content.as_ref(), "⏸ ");
-        assert_eq!(lines[1].spans[0].content.as_ref(), "  ");
-        assert_eq!(wrapped_rows(&lines, 80), 2);
-        // Word wrapping needs five rows; cell division used to clip the last one.
-        assert_eq!(wrapped_rows(&lines, 10), 5);
-    }
-
-    #[test]
-    fn word_wrapping_preserves_the_final_confirmation_line() {
-        let block = Committed::new(
-            Kind::Question,
-            "alpha bravo charlie delta echo foxtrot échéance alpha bravo charlie delta echo foxtrot\nContinue once? yes / no",
-        );
-        for width in [12, 20, 40, 80] {
-            let rows = wrapped_rows(&block_lines(&block, false, false), width);
-            let mut buffer = Buffer::empty(Rect::new(0, 0, width, rows));
-            render_block(&block, false, false, &mut buffer);
-            let shown = (0..rows)
-                .map(|y| row(&buffer, y))
-                .collect::<Vec<_>>()
-                .join(" ");
-            let words = shown.split_whitespace().collect::<Vec<_>>().join(" ");
-            assert!(
-                words.ends_with("Continue once? yes / no"),
-                "width {width}: {shown:?}"
-            );
-        }
-    }
-
-    /// The busy row's marker turns with the loader's frame and stays the
-    /// still dot when no frame is set (reduced motion).
-    #[test]
-    fn the_busy_row_turns_the_loader_and_stays_still_without_a_frame() {
-        let mut state = UiState::new(Presentation::Inline, false, (60, 5));
-        state.busy = Some("working through your words · 3s".to_owned());
-        state.spinner = Some(3);
-        let composer = Composer::new();
-        let backend = TestBackend::new(60, 5);
-        let mut terminal = Terminal::new(backend).expect("test terminal");
-        terminal
-            .draw(|frame| draw_inline(frame, &state, &composer))
-            .expect("draw");
-        let turning = row(terminal.backend().buffer(), 0);
-        assert!(turning.starts_with("⠸ working"), "{turning:?}");
-        state.spinner = None;
-        terminal
-            .draw(|frame| draw_inline(frame, &state, &composer))
-            .expect("draw");
-        let still = row(terminal.backend().buffer(), 0);
-        assert!(still.starts_with("● working"), "{still:?}");
-    }
-
-    #[test]
-    fn the_busy_hint_names_preparation_controls_and_keeps_run_distinct() {
-        for width in [44, 60, 80] {
-            for ascii in [false, true] {
-                let mut state = UiState::new(Presentation::Inline, false, (width, 8));
-                state.ascii = ascii;
-                state.busy = Some("preparing your workflow".into());
-                let mut terminal = Terminal::new(TestBackend::new(width, 8)).expect("terminal");
-                terminal
-                    .draw(|frame| draw_inline(frame, &state, &Composer::new()))
-                    .expect("draw");
-                let shown = (0..8)
-                    .map(|y| row(terminal.backend().buffer(), y))
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                let shown = shown.split_whitespace().collect::<Vec<_>>().join(" ");
-                for instruction in [
-                    "Preparing: Ctrl+C requests Stop",
-                    "correction + Enter",
-                    "Run: typing waits",
-                ] {
-                    assert!(shown.contains(instruction), "{width}: {shown}");
-                }
-                assert!(!shown.contains("Ctrl+C twice leaves"));
-                if ascii {
-                    assert!(shown.is_ascii());
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn workspace_navigation_fits_one_row_and_yields_to_the_current_action() {
-        let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
-        let words = |line: Line<'_>| -> String {
-            line.spans
-                .iter()
-                .map(|span| span.content.as_ref())
-                .collect()
-        };
-        // The Session's words keep leading the status row: no prefix pushes them aside.
-        state.status = "Last Run · Done · the run failed · `release.nika`".into();
-        let composer = Composer::new();
-        for (scroll, commands) in [
-            // The composer says how `Enter` sends, as the approved design does.
-            (0, ["Enter send", "Ctrl+O", "Enter send"]),
-            (3, ["click chat", "End: latest", "/intelligence"]),
-        ] {
-            state.focus_scroll = scroll;
-            for width in [39, 44, 49, 50, 60, 68, 92] {
-                for ascii in [false, true] {
-                    state.ascii = ascii;
-                    let hint = hint_line(&state, &composer, width);
-                    let text = words(hint.clone());
-                    for command in commands {
-                        assert!(text.contains(command), "{scroll} {width}: {text}");
-                    }
-                    if scroll == 0 && width >= 50 {
-                        // The new line keeps its compatible key where every cue fits.
-                        assert!(text.contains("Alt+Enter new line"), "{width}: {text}");
-                    }
-                    if text.contains("Ctrl+O") {
-                        assert!(text.contains(PALETTE_HINT), "{scroll} {width}: {text}");
-                    }
-                    // `F6` and `Esc` keep their one home, the status row.
-                    assert!(!text.contains("F6"), "{scroll} {width}: {text}");
-                    assert!(words(status_line(&state, false)).contains("F6 panel"));
-                    assert_eq!(wrapped_rows(&[hint], width), 1, "{scroll} {width}: {text}");
-                    if ascii {
-                        assert!(text.is_ascii());
-                    }
-                    assert!(words(status_line(&state, false)).starts_with(&state.status));
-                }
-            }
-        }
-        for waiting in [
-            Waiting::Choosing,
-            Waiting::Proposal,
-            Waiting::Gate,
-            Waiting::Question {
-                key: "unknown_cost".into(),
-            },
-        ] {
-            state.waiting = waiting;
-            assert_eq!(
-                words(hint_line(&state, &composer, 44)),
-                own(state.waiting.hint(), true)
-            );
-        }
-        state.waiting = Waiting::Free;
-        state.busy = Some("checking files locally".into());
-        assert_eq!(words(hint_line(&state, &composer, 44)), WORKING_HINT);
-        assert!(words(status_line(&state, false)).contains("checking files locally"));
-        state.completion = Some(ENTER.into());
-        assert_eq!(words(hint_line(&state, &composer, 44)), ENTER);
-        state.completion = None;
-        state.busy = None;
-        state.spinner = Some(3); // A stale animation frame is not active work.
-        assert!(words(status_line(&state, false)).starts_with(&state.status));
-        assert!(!words(status_line(&state, false)).contains("Idle"));
-        state.focus_scroll = 0;
-        state.presentation = Presentation::Inline;
-        // The free prompt names the palette key once, where the row holds it.
-        assert_eq!(
-            words(hint_line(&state, &composer, 80)),
-            "describe work - /help - Run: run <file>.nika - Ctrl+O: commands"
-        );
-        state.presentation = Presentation::Workspace;
-        state.size = (40, 12); // Focus fallback has no workspace panel navigation.
-        assert_eq!(
-            words(hint_line(&state, &composer, 40)),
-            own(state.waiting.hint(), true)
-        );
-    }
-
-    /// The palette key keeps its action wherever the free hint names it: a
-    /// row too narrow for every cue drops one whole, never the words after
-    /// `Ctrl+O`, and each form is chosen by the cells it paints.
-    #[test]
-    fn the_palette_key_keeps_its_action_in_every_free_hint() {
-        let composer = Composer::new();
-        let words = |line: Line<'_>| -> String {
-            line.spans
-                .iter()
-                .map(|span| span.content.as_ref())
-                .collect()
-        };
-        for (scroll, width, expected) in [
-            (0, 50, "Enter send · Alt+Enter new line · Ctrl+O: commands"),
-            (0, 49, "Enter send · Ctrl+O: commands"),
-            (0, 29, "Enter send · Ctrl+O: commands"),
-            (0, 28, PALETTE_HINT),
-            (
-                3,
-                58,
-                "click chat; End: latest · /intelligence · Ctrl+O: commands",
-            ),
-            (3, 57, "click chat; End: latest · /intelligence"),
-            (3, 38, "End: latest · /intelligence"),
-        ] {
-            for ascii in [false, true] {
-                let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
-                state.focus_scroll = scroll;
-                state.ascii = ascii;
-                let shown = words(hint_line(&state, &composer, width));
-                let at = format!("{scroll} {width} ascii={ascii}");
-                assert_eq!(shown, own(expected, ascii), "{at}");
-                let cells = unicode_width::UnicodeWidthStr::width(shown.as_str());
-                assert!(cells <= usize::from(width), "{at}: {shown}");
-            }
-        }
-    }
-
-    /// Below the workspace's minimum the focus view stands in: the status row
-    /// names only what works there (Esc back inline, the page keys) and the
-    /// size it waits for, never the panel key it cannot honour; from the
-    /// minimum the workspace's own note returns.
-    #[test]
-    fn below_the_minimum_the_status_row_names_only_keys_that_work() {
-        let words = |line: Line<'_>| -> String {
-            line.spans
-                .iter()
-                .map(|span| span.content.as_ref())
-                .collect()
-        };
-        let (width, height) = crate::workspace::geometry::MIN_SIZE;
-        let minimum = format!("{width}x{height}");
-        for (size, fits) in [
-            ((59, 15), false),
-            ((59, 40), false),
-            ((200, 15), false),
-            ((60, 16), true),
-            ((120, 40), true),
-        ] {
-            for ascii in [false, true] {
-                let mut state = UiState::new(Presentation::Workspace, false, size);
-                state.ascii = ascii;
-                let note = words(status_line(&state, false));
-                assert_eq!(note.contains("F6 panel"), fits, "{size:?}: {note}");
-                assert_eq!(note.contains(&minimum), !fits, "{size:?}: {note}");
-                let small = note.contains("Esc inline") && note.contains("PgUp/PgDn");
-                assert_eq!(small, !fits, "{size:?}: {note}");
-                assert_eq!(note.is_ascii(), ascii, "{size:?}: {note}");
-            }
-        }
-    }
-
-    /// The armed row says what a second press does and claims no
-    /// interruption, in both glyph columns.
-    #[test]
-    fn the_armed_row_says_what_a_second_press_does_and_claims_no_interruption() {
-        let mut state = UiState::new(Presentation::Inline, false, (60, 5));
-        state.interrupt_armed = true;
-        let composer = Composer::new();
-        let mut terminal = Terminal::new(TestBackend::new(60, 5)).expect("test terminal");
-        for ascii in [false, true] {
-            state.ascii = ascii;
-            terminal
-                .draw(|frame| draw_inline(frame, &state, &composer))
-                .expect("draw");
-            let armed = row(terminal.backend().buffer(), 0);
-            let sep = if ascii { " - " } else { " · " };
-            assert_eq!(armed, format!("Ctrl+C again leaves{sep}any key stays"));
-        }
-    }
-
-    #[test]
-    fn the_inline_frame_shows_the_prompt_that_names_what_waits() {
-        let state = state_after_demo(Presentation::Inline);
-        let composer = Composer::new();
-        let backend = TestBackend::new(60, 5);
-        let mut terminal = Terminal::new(backend).expect("test terminal");
-        terminal
-            .draw(|frame| draw_inline(frame, &state, &composer))
-            .expect("draw");
-        let buffer = terminal.backend().buffer();
-        assert!(
-            row(buffer, 1).starts_with("reply ›"),
-            "{:?}",
-            row(buffer, 1)
-        );
-        assert!(
-            row(buffer, 4).contains("answer the question"),
-            "{:?}",
-            row(buffer, 4)
-        );
-    }
-
-    /// The lifecycle rail sits on a row of its own above the status, the
-    /// prompt keeps its place below, and the live area grows by that row.
-    #[test]
-    fn the_rail_sits_above_the_status_row() {
-        let composer = Composer::new();
-        let mut fresh = UiState::new(Presentation::Inline, false, (80, 40));
-        let before = live_rows(&fresh, &composer, 80, 40);
-        fresh.apply(Beat::Rail("Draft ○ · Saved ○".to_owned()));
-        assert_eq!(live_rows(&fresh, &composer, 80, 40), before + 1);
-        let mut state = state_after_demo(Presentation::Inline);
-        state.apply(Beat::Rail(
-            "Draft ✓ · Saved ○ · Checked ○ · Active ○ · Run ○".to_owned(),
-        ));
-        let backend = TestBackend::new(60, 6);
-        let mut terminal = Terminal::new(backend).expect("test terminal");
-        terminal
-            .draw(|frame| draw_inline(frame, &state, &composer))
-            .expect("draw");
-        let buffer = terminal.backend().buffer();
-        assert!(
-            row(buffer, 0).starts_with("Draft ✓ · Saved ○ · Checked ○"),
-            "{:?}",
-            row(buffer, 0)
-        );
-        assert!(
-            row(buffer, 2).starts_with("reply ›"),
-            "{:?}",
-            row(buffer, 2)
-        );
-    }
-
-    #[test]
-    fn the_focus_frame_lists_the_transcript_above_the_same_live_area() {
-        let state = state_after_demo(Presentation::Focus);
-        let composer = Composer::new();
-        let backend = TestBackend::new(70, 14);
-        let mut terminal = Terminal::new(backend).expect("test terminal");
-        terminal
-            .draw(|frame| draw_focus(frame, &state, &composer))
-            .expect("draw");
-        let buffer = terminal.backend().buffer();
-        let rows: Vec<String> = (0..14).map(|y| row(buffer, y)).collect();
-        assert!(
-            rows.iter()
-                .any(|r| r.contains("Which file holds the notes")),
-            "{rows:#?}"
-        );
-        assert!(rows.iter().any(|r| r.starts_with("reply ›")), "{rows:#?}");
-        assert!(rows.iter().any(|r| r.starts_with("───")), "{rows:#?}");
-        assert!(
-            rows.iter()
-                .any(|r| r.contains("focus · Esc returns inline")),
-            "{rows:#?}"
-        );
-    }
-
-    #[test]
-    fn save_and_its_answer_stay_visible_in_the_narrow_conversation() {
-        for color in [false, true] {
-            let mut state = UiState::new(Presentation::Workspace, color, (35, 8));
-            state.waiting = Waiting::Proposal;
-            let composer = Composer::new();
-            let height = live_rows(&state, &composer, 35, 20);
-            let mut terminal = Terminal::new(TestBackend::new(35, height)).expect("test terminal");
-            terminal
-                .draw(|frame| render_live(frame, &state, &composer, frame.area()))
-                .expect("draw");
-            let buffer = terminal.backend().buffer();
-            let text = (0..height)
-                .map(|y| row(buffer, y))
-                .collect::<Vec<_>>()
-                .join(" ");
-            for words in [
-                "Save?",
-                "yes + Enter: Save",
-                "no: cancel",
-                "/show: inspect",
-                "Run separately",
-            ] {
-                assert!(text.contains(words), "{words}: {text}");
-            }
-            assert_eq!(
-                buffer[(0, 0)].fg,
-                if color {
-                    ratatui::style::Color::Rgb(233, 191, 126)
-                } else {
-                    ratatui::style::Color::Reset
-                }
-            );
-        }
-    }
-
-    /// A short live area (the Workbench's compact conversation) keeps the
-    /// first lines of a multi-line draft readable: the rail yields its row to
-    /// them, and two rows stay for the transcript and its rule.
-    #[test]
-    fn a_short_live_area_keeps_a_multi_line_draft_readable() {
-        let mut state = UiState::new(Presentation::Workspace, false, (80, 24));
-        state.rail = "Draft ○ · Saved ○ · Checked ○ · Active ○ · Run ○".to_owned();
-        let mut composer = Composer::new();
-        composer.paste("keep this\nexact draft");
-        // Six rows given: half is three, the draft and its rows need four.
-        let live = live_rows(&state, &composer, 60, 6);
-        assert_eq!(live, 4);
-        let mut terminal = Terminal::new(TestBackend::new(60, live)).expect("terminal");
-        terminal
-            .draw(|frame| render_live(frame, &state, &composer, frame.area()))
-            .expect("draw");
-        let rows: Vec<String> = (0..live)
-            .map(|y| row(terminal.backend().buffer(), y))
-            .collect();
-        assert_eq!(rows[1], "nika › keep this");
-        assert_eq!(rows[2], "       exact draft");
-        assert!(!rows.iter().any(|r| r.contains("Draft ○")), "{rows:#?}");
-        // One line keeps the rail's half: three rows of six.
-        let mut one = Composer::new();
-        one.paste("one line");
-        assert_eq!(live_rows(&state, &one, 60, 6), 3);
-    }
-
-    #[test]
-    fn the_live_area_never_takes_more_than_half_the_screen() {
-        let mut state = UiState::new(Presentation::Inline, false, (80, 24));
-        state.apply(Beat::Wait(Waiting::Free));
-        let mut composer = Composer::new();
-        composer.paste(&"x".repeat(2000));
-        assert_eq!(live_rows(&state, &composer, 80, 24), 12);
-        assert_eq!(live_rows(&state, &composer, 80, 4), 3);
-    }
-
-    #[test]
-    fn the_ascii_column_gives_the_renderer_glyphs_their_twins_and_keeps_the_session_words() {
-        let mut state = state_after_demo(Presentation::Focus);
-        state.ascii = true;
-        let composer = Composer::new();
-        let mut terminal = Terminal::new(TestBackend::new(80, 30)).expect("test terminal");
-        terminal
-            .draw(|frame| draw_focus(frame, &state, &composer))
-            .expect("draw");
-        let buffer = terminal.backend().buffer();
-        let rows: Vec<String> = (0..30).map(|y| row(buffer, y)).collect();
-        let find = |needle: &str| rows.iter().position(|r| r.contains(needle));
-        let prompt = find("reply >").expect("the prompt marker in ASCII");
-        let rule = rows
-            .iter()
-            .position(|r| r.starts_with("---"))
-            .expect("rule");
-        for y in [rule, prompt, prompt + 1] {
-            assert!(rows[y].is_ascii(), "row {y}: {:?}", rows[y]);
-        }
-        assert!(find("focus - Esc returns inline").is_some(), "{rows:#?}");
-        assert!(
-            find("answer the question above - cancel to stop").is_some(),
-            "{rows:#?}"
-        );
-        // The Session's own words are never rewritten by the glyph column.
-        assert!(rows.iter().any(|r| r.contains(" · ")), "{rows:#?}");
-        let human = Committed::new(Kind::Human, "digest my notes");
-        let refusal = Committed::new(Kind::Refusal, "not allowed");
-        let gate = Committed::new(Kind::Gate, "approve the write?");
-        let text = |block: &Committed| -> String {
-            block_lines(block, false, true)[0]
-                .spans
-                .iter()
-                .map(|s| s.content.as_ref())
-                .collect()
-        };
-        assert_eq!(text(&human), "> digest my notes");
-        assert_eq!(text(&refusal), "x not allowed");
-        assert_eq!(text(&gate), "|| approve the write?");
-    }
-
-    #[test]
-    fn the_ascii_loader_turns_through_ascii_frames() {
-        let mut state = UiState::new(Presentation::Inline, false, (40, 4));
-        state.ascii = true;
-        state.apply(Beat::Busy("thinking".to_owned()));
-        for frame in 0..8u8 {
-            state.spinner = Some(frame);
-            let line = status_line(&state, false);
-            let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
-            assert!(text.is_ascii() && text.ends_with("thinking"), "{text:?}");
-        }
-        state.spinner = None;
-        let still: String = status_line(&state, false)
-            .spans
-            .iter()
-            .map(|s| s.content.as_ref())
-            .collect();
-        assert_eq!(still, "* thinking");
-    }
-
-    /// While a turn works the marker turns through the theme's own frames in
-    /// one steady style, the accent of active work set in weight: a frame
-    /// moves the glyph, never the hue. Reduced motion is the still dot in that
-    /// style, no colour leaves the weight alone, and an idle view (even with a
-    /// stale frame) has no marker.
-    #[test]
-    fn activity_marker_turns_native_frames_in_one_steady_hue_and_never_animates_idle() {
-        let mut state = UiState::new(Presentation::Workspace, true, (120, 40));
-        state.spinner = Some(3);
-        assert!(activity_marker(&state).is_none());
-        state.busy = Some("authoring".to_owned());
-        let steady = role::style(Role::Accent, true).add_modifier(Modifier::BOLD);
-        // Two whole turns of the orbit: each frame its own glyph, one style.
-        for frame in 0..20_u8 {
-            state.spinner = Some(frame);
-            let mark = activity_marker(&state).expect("an observed busy turn");
-            let glyph = SPINNER[usize::from(frame) % SPINNER.len()];
-            assert_eq!(mark.content, format!("{glyph} "), "frame {frame}");
-            assert_eq!(mark.style, steady, "frame {frame}");
-        }
-        state.spinner = None;
-        let still = activity_marker(&state).expect("reduced motion");
-        assert_eq!(still.content, "● ");
-        assert_eq!(still.style, steady);
-        assert_eq!(activity_marker(&state), Some(still));
-        state.ascii = true;
-        state.color = false;
-        let weight = Style::default().add_modifier(Modifier::BOLD);
-        for frame in 0..10_u8 {
-            state.spinner = Some(frame);
-            let mark = activity_marker(&state).expect("ASCII busy marker");
-            let glyph = ASCII_SPINNER[usize::from(frame) % ASCII_SPINNER.len()];
-            assert_eq!(mark.content, format!("{glyph} "), "frame {frame}");
-            assert_eq!(mark.style, weight, "frame {frame}");
-        }
-        state.spinner = None;
-        let still = activity_marker(&state).expect("reduced motion in ASCII");
-        assert_eq!(still.content, "* ");
-        assert_eq!(still.style, weight);
-        state.busy = None;
-        state.waiting = Waiting::Gate;
-        assert!(activity_marker(&state).is_none());
-    }
-
-    #[test]
-    fn busy_phases_wrap_and_keep_the_model_visible() {
-        let composer = Composer::new();
-        for width in [37, 44, 50] {
-            let mut state = UiState::new(Presentation::Workspace, true, (width, 30));
-            state.busy = Some(
-                "✓ recorded 5 requirements · ● authoring · deepseek/deepseek-v4-pro · 3s"
-                    .to_owned(),
-            );
-            state.spinner = Some(3);
-            let rows = live_rows(&state, &composer, width, 30);
-            assert!(status_rows(&state, false, width) > 1);
-            assert!(status_rows(&state, false, width) <= 3);
-            let mut terminal = Terminal::new(TestBackend::new(width, rows)).expect("test terminal");
-            terminal
-                .draw(|frame| render_live(frame, &state, &composer, frame.area()))
-                .expect("draw");
-            let buffer = terminal.backend().buffer();
-            let words = (0..rows)
-                .map(|y| row(buffer, y))
-                .collect::<Vec<_>>()
-                .join(" ");
-            for fact in ["authoring", "deepseek/deepseek-v4-pro", "nika ›"] {
-                assert!(words.contains(fact), "width {width}: {words}");
-            }
-        }
-    }
-
-    /// An activity card's rows wear the tone of the Session's glyph, as the busy row
-    /// does; a run's step and the words themselves are untouched, and no hue without colour.
-    #[test]
-    fn activity_rows_wear_their_glyph_tone_and_keep_their_words() {
-        let block = Committed::new(
-            Kind::Activity,
-            "Repairing\n✓ recorded 6 requirements\n● authoring · m\n↻ a stronger model reads it\n✔ a · 3 ms · 1/2",
-        );
-        let lines = block_lines(&block, true, false);
-        let tone = |i: usize| lines[i].spans[1].style;
-        assert_eq!(tone(0), role::style(Role::Strong, true));
-        assert_eq!(tone(1), role::style(Role::Good, true));
-        assert_eq!(tone(2), role::style(Role::Accent, true));
-        assert_eq!(tone(3), role::style(Role::Warn, true));
-        assert_eq!(
-            tone(4),
-            Style::default(),
-            "a run's step keeps its block style"
-        );
-        let words: Vec<String> = (lines.iter())
-            .map(|line| line.spans.iter().map(|s| s.content.as_ref()).collect())
-            .collect();
-        assert_eq!(words.join("\n"), block.text);
-        for line in block_lines(&block, false, false) {
-            assert!(line.spans.iter().all(|s| s.style.fg.is_none()), "{line:?}");
-        }
-        // Another kind is never toned by its words.
-        let report = Committed::new(Kind::Report, "✓ looks like a phase");
-        assert_eq!(
-            block_lines(&report, true, false)[0].spans[1].style,
-            Style::default()
-        );
-        let mut state = UiState::new(Presentation::Workspace, true, (80, 4));
-        state.apply(Beat::Busy("↻ a stronger model reads it".to_owned()));
-        let busy = status_line(&state, false);
-        assert_eq!(busy.spans[1].style, role::style(Role::Warn, true));
-    }
-
-    /// While a turn works, the hint says what typing and Ctrl+C do then, in words; the
-    /// hint of what waits returns with the turn's end. A completion still wins.
-    #[test]
-    fn the_hint_says_what_keys_do_while_a_turn_works() {
-        let mut state = UiState::new(Presentation::Inline, true, (80, 5));
-        state.waiting = Waiting::Proposal;
-        let composer = Composer::new();
-        let text = |state: &UiState| -> String {
-            hint_line(state, &composer, 80)
-                .spans
-                .iter()
-                .map(|s| s.content.as_ref())
-                .collect()
-        };
-        assert!(text(&state).starts_with("yes + Enter: Save"));
-        state.apply(Beat::Busy("reviewing your reply".to_owned()));
-        let working = text(&state);
-        for words in [
-            "Preparing: Ctrl+C requests Stop",
-            "correction + Enter",
-            "Run: typing waits",
-        ] {
-            assert!(working.contains(words), "{working}");
-        }
-        assert!(!working.contains("Save"), "{working}");
-        assert_eq!(
-            hint_line(&state, &composer, 80).spans[0].style,
-            role::style(Role::Accent, true),
-            "no consent tone while nothing can be consented to"
-        );
-        assert!(working.chars().count() <= 80, "one row at 80 columns");
-        state.ascii = true;
-        assert!(text(&state).is_ascii());
-        state.completion = Some(ENTER.to_owned());
-        assert_eq!(text(&state), ENTER);
-        state.completion = None;
-        state.apply(Beat::Wait(Waiting::Proposal));
-        assert!(text(&state).starts_with("yes + Enter: Save"));
-    }
-
-    const ENTER: &str = "Nika is working - Enter sends when it is your turn";
-
-    /// Focus and the small workspace fallback name End on the status row. A
-    /// fitting workspace owns that cue beside its clickable transcript marker.
-    #[test]
-    fn a_scrolled_back_transcript_names_the_way_back_to_the_latest() {
-        let words = |state: &UiState| -> String {
-            status_line(state, false)
-                .spans
-                .iter()
-                .map(|s| s.content.as_ref())
-                .collect()
-        };
-        for (presentation, size, status_cue) in [
-            (Presentation::Focus, (80, 24), true),
-            (Presentation::Workspace, (50, 14), true),
-            (Presentation::Workspace, (80, 24), false),
-        ] {
-            let mut state = UiState::new(presentation, false, size);
-            state.status = "Ready for review".to_owned();
-            assert!(!words(&state).contains("End: latest"));
-            state.focus_scroll = 3;
-            assert!(
-                words(&state).ends_with("reading earlier messages · End: latest") == status_cue,
-                "{}",
-                words(&state)
-            );
-            state.apply(Beat::Busy("● authoring · m".to_owned()));
-            assert_eq!(
-                words(&state).ends_with("End: latest"),
-                status_cue,
-                "{}",
-                words(&state)
-            );
-            state.ascii = true;
-            assert_eq!(
-                words(&state).ends_with("reading earlier messages - End: latest"),
-                status_cue
-            );
-        }
-        let mut inline = UiState::new(Presentation::Inline, false, (80, 24));
-        inline.focus_scroll = 3;
-        assert!(!words(&inline).contains("End: latest"));
-    }
-
-    /// The workspace says the lifecycle once it says something: a fresh
-    /// session's five pending fields take no row there, a field reached (or
-    /// an earlier result) does, and the inline view keeps its rail as before.
-    #[test]
-    fn an_untouched_lifecycle_takes_no_workspace_row() {
-        let composer = Composer::new();
-        let fresh = "Draft ○ · Saved ○ · Checked ○ · Active ○ · Run ○";
-        let begun = "Draft ● · Saved ○ · Checked ○ · Active ○ · Run ○";
-        let earlier = format!("{fresh} (earlier ✓)");
-        for presentation in [Presentation::Workspace, Presentation::Inline] {
-            let mut state = UiState::new(presentation, false, (120, 40));
-            let bare = live_rows(&state, &composer, 80, 40);
-            let quiet = presentation == Presentation::Workspace;
-            for (rail, shown) in [(fresh, !quiet), (begun, true), (earlier.as_str(), true)] {
-                state.apply(Beat::Rail(rail.to_owned()));
-                let rows = live_rows(&state, &composer, 80, 40);
-                assert_eq!(rows, bare + u16::from(shown), "{presentation:?} {rail}");
-            }
-        }
-    }
-
-    /// The boxed composer asks for its caption and its two edges, and wraps
-    /// its line at the box's inner width: a line the plain row holds takes
-    /// two rows inside the box.
-    #[test]
-    fn a_boxed_composer_asks_its_caption_edges_and_inner_rows() {
-        let state = UiState::new(Presentation::Workspace, false, (120, 40));
-        let mut short = Composer::new();
-        short.paste("short");
-        let plain = live_rows(&state, &short, 40, 40);
-        assert_eq!(boxed_live_rows(&state, &short, 40, 40), plain + 4);
-        let mut long = Composer::new();
-        long.paste(&"x".repeat(31));
-        assert_eq!(live_rows(&state, &long, 40, 40), plain);
-        assert_eq!(boxed_live_rows(&state, &long, 40, 40), plain + 4);
-    }
-}
+mod tests;

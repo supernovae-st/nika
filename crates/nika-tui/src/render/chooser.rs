@@ -42,10 +42,12 @@ pub(crate) fn context(state: &UiState) -> Option<&'static str> {
         Waiting::Proposal => Some("A proposal waits · no command answers it · yes + Enter: Save"),
         Waiting::Gate => Some("A gate waits · no command answers it · approve or refuse"),
         Waiting::Choosing => Some("The intelligence choice waits · no command answers it"),
-        Waiting::Question { key } if key == "unknown_cost" || key == "run_cost" => {
+        Waiting::Question { key } | Waiting::QuestionDocument { key, .. }
+            if key == "unknown_cost" || key == "run_cost" =>
+        {
             Some("A cost decision waits · no command approves it · only your yes does")
         }
-        Waiting::Question { .. } => {
+        Waiting::Question { .. } | Waiting::QuestionDocument { .. } => {
             Some("A question waits · no command answers it · your reply does")
         }
     }
@@ -105,7 +107,7 @@ fn arrows(text: &str, ascii: bool) -> String {
 }
 
 /// `text` cut to `width` cells, the cut marked.
-fn fit(text: &str, width: usize, ascii: bool) -> String {
+pub(super) fn fit(text: &str, width: usize, ascii: bool) -> String {
     if text.width() <= width {
         return text.to_owned();
     }

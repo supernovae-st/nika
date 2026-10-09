@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The full diagnostic: the Session's own words of the latest refusal the
-//! conversation shows summarized, read over the frame and never edited.
+//! The full words: the Session's own words of the block shown short of whole
+//! (the typed question waiting at the answer line, the current proposal the
+//! cards review, or the latest refusal the conversation shows summarized),
+//! read over the frame and never edited.
 //!
 //! The transcript keeps the Session's block untouched; a summary only changes
 //! how a card shows it. `F2` (or the palette) opens this view while such a
-//! refusal exists, the arrows and the page keys scroll it, and `Esc`, `Enter` or `F2`
+//! block exists, the arrows and the page keys scroll it, and `Esc`, `Enter` or `F2`
 //! closes it with the composer, its draft and the keyboard focus exactly as
 //! they were. It sends nothing and grants nothing; any other key closes it
 //! and takes its ordinary path.
@@ -20,7 +22,7 @@ use ratatui::text::Line;
 use ratatui::widgets::{Block, Clear, Paragraph, Wrap};
 
 use super::catalog::DIAGNOSTIC_KEY;
-use crate::model::Committed;
+use crate::model::{Committed, Kind};
 use crate::visual::role;
 use crate::workspace::cards::diagnostics::{Shown, shown};
 
@@ -54,6 +56,19 @@ pub(crate) fn latest(
     transcript.iter().rev().find(|block| summarized(block))
 }
 
+/// The latest block of `transcript` whose full words this view shows, by
+/// index: a recognized refusal or a shortened banner, or the current proposal
+/// the cards review, at `proposal`.
+pub(crate) fn latest_shown(transcript: &[Committed], proposal: Option<usize>) -> Option<usize> {
+    let current = proposal.and_then(|index| transcript.get(index));
+    let found = latest(transcript, |block| {
+        summarized(block) || current.is_some_and(|it| std::ptr::eq(it, block))
+    })?;
+    transcript
+        .iter()
+        .position(|block| std::ptr::eq(block, found))
+}
+
 /// What the view did with a key.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Viewed {
@@ -68,6 +83,8 @@ pub(crate) enum Viewed {
 /// The view, open over the frame.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Diagnostic {
+    /// What the words are, named in the frame's title.
+    what: &'static str,
     /// The block's words, exactly as the Session said them.
     words: String,
     /// The first row shown.
@@ -77,9 +94,17 @@ pub(crate) struct Diagnostic {
 }
 
 impl Diagnostic {
-    /// The view of `block`'s own words, from their top.
+    /// The view of `block`'s own words, from their top: the whole proposal
+    /// for a proposal's preview, the whole question for a question's words,
+    /// the full diagnostic for anything else.
     pub(crate) fn of(block: &Committed) -> Self {
+        let what = match block.kind {
+            Kind::Proposal => "Full proposal",
+            Kind::Question => "Full question",
+            _ => "Full diagnostic",
+        };
         Self {
+            what,
             words: block.text.clone(),
             scroll: 0,
             last: usize::MAX,
@@ -135,7 +160,7 @@ impl Diagnostic {
         } else {
             (" · ", border::PLAIN)
         };
-        let title = format!(" Full diagnostic{sep}the Session's words, read only ");
+        let title = format!(" {}{sep}the Session's words, read only ", self.what);
         let keys = if ascii {
             " Up/Down PgUp/PgDn scroll - Esc/Enter returns "
         } else {
@@ -276,6 +301,51 @@ mod tests {
         ] {
             assert!(shown.contains(words), "{words}: {shown}");
         }
+    }
+
+    /// The reader opens the latest summarized block: the current proposal at
+    /// its index, or a recognized refusal after it, never another proposal;
+    /// it names the whole proposal and the whole question truthfully and
+    /// holds their exact bytes, odd spacing and line ends included, while a
+    /// refusal keeps its title.
+    #[test]
+    fn the_current_proposal_opens_whole_under_its_own_title() {
+        use crate::workspace::cards::review::fixture;
+        let preview = format!("{}\r\n  trailing spaces  \n\n", fixture::PREVIEW);
+        let proposal = Committed::proposal(fixture::id(), preview.clone());
+        let older = Committed::new(Kind::Proposal, "an older preview");
+        let refusal = Committed::new(Kind::Refusal, untrusted_refusal());
+        let reply = Committed::new(Kind::Reply, "a reply");
+        let transcript = [older.clone(), proposal.clone(), reply.clone()];
+        assert_eq!(latest_shown(&transcript, Some(1)), Some(1));
+        assert_eq!(latest_shown(&transcript, None), None);
+        assert_eq!(latest_shown(&transcript, Some(9)), None, "no such block");
+        let after = [proposal.clone(), refusal.clone()];
+        assert_eq!(latest_shown(&after, Some(0)), Some(1));
+        let view = Diagnostic::of(&proposal);
+        assert_eq!(view.words().as_bytes(), preview.as_bytes());
+        let words = "the currency code\r\n  (The compiler cannot invent this.)  \n";
+        let question = Committed::question("3:q-1", words);
+        assert_eq!(
+            Diagnostic::of(&question).words().as_bytes(),
+            words.as_bytes()
+        );
+        for (block, title) in [
+            (&proposal, "Full proposal"),
+            (&question, "Full question"),
+            (&refusal, "Full diagnostic"),
+        ] {
+            let mut terminal = Terminal::new(TestBackend::new(70, 8)).expect("terminal");
+            terminal
+                .draw(|frame| Diagnostic::of(block).render(frame, frame.area(), false, false))
+                .expect("draw");
+            let top: String = (0..70)
+                .map(|x| terminal.backend().buffer()[(x, 0)].symbol())
+                .collect();
+            assert!(top.contains(title), "{top}");
+            assert!(top.contains("the Session's words, read only"), "{top}");
+        }
+        assert_eq!(older.text, "an older preview");
     }
 
     #[test]

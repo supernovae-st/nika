@@ -62,6 +62,55 @@ fn every_face_names_the_identity_the_changes_the_reach_and_the_bytes() {
     assert!(!check.contains("nothing known blocks a run"), "{check}");
 }
 
+/// The review reads the facts a yes decides first: what a yes answers, every
+/// change and the changes no face shows, one `when it runs` heading with each
+/// further effect hung under it, the rehearsal; then one quiet footnote with
+/// the exact identity a consent names and the witness of the pending bytes,
+/// then where the Session's whole words are read. Every fact once, each with
+/// its role; a draft or set aside candidate has no review.
+#[test]
+fn the_review_leads_with_what_a_yes_decides_and_ends_on_its_identity() {
+    let candidate = fold("preview A", false, None).unshown(1);
+    let id = ProposalId::of("preview A").to_string();
+    let short: String = Witness::of(SOURCE.as_bytes()).0.chars().take(12).collect();
+    let review = candidate.review(false).expect("a consent can name it");
+    let unshown =
+        "1 more change(s) whose bytes these faces do not show · `/show` prints every byte";
+    let footnote = format!("proposal {id} · these bytes {short}");
+    let expected = [
+        "what a yes answers · not saved · nothing has run on your files",
+        "creates copy-brief.nika · 10 lines · new",
+        unshown,
+        "when it runs · reads ./notes/brief.md",
+        "  writes ./out/copy.md",
+        "rehearsal · no proof is bound to this identity",
+        footnote.as_str(),
+        "Full proposal, in the Session's words: F2",
+    ];
+    assert_eq!(rows(&review.lines(false, false)), expected);
+    let styled = review.lines(true, false);
+    for (at, tone) in [
+        (0, Role::Strong),
+        (1, Role::Accent),
+        (2, Role::Warn),
+        (3, Role::Dim),
+        (4, Role::Dim),
+        (6, Role::Dim),
+    ] {
+        assert_eq!(styled[at].style, role::style(tone, true), "row {at}");
+    }
+    let twin = candidate.review(true).expect("a review");
+    let ascii = rows(&twin.lines(false, true));
+    assert!(ascii.iter().all(|row| row.is_ascii()), "{ascii:#?}");
+    let first = ascii[0].starts_with("what a yes answers - not saved");
+    assert!(first, "{ascii:#?}");
+    assert_eq!(ascii[6], format!("proposal {id} - these bytes {short}"));
+    let aside = fold("preview A", true, None);
+    assert!(aside.review(false).is_none(), "set aside");
+    let draft = fold("preview A", false, None).drafted();
+    assert!(draft.review(false).is_none(), "a draft");
+}
+
 #[test]
 fn a_set_aside_candidate_is_never_offered_to_a_yes() {
     let candidate = fold("preview A", true, None);
@@ -189,4 +238,20 @@ fn a_document_revision_is_stated_with_each_component_and_its_witness() {
             .contains("revised in place - const.max_age_hours"),
         "the ASCII column twins the separator"
     );
+}
+
+/// A draft lands nowhere yet: its label takes the title its object shows,
+/// never the path it holds until a proposal says where, and says it is
+/// unsaved without one; a proposal's label names where it lands.
+#[test]
+fn a_draft_takes_its_object_title_never_its_placeholder_path() {
+    let witness = Witness::of(SOURCE.as_bytes()).0;
+    let named = crate::session::judge_for_tests("draft.nika", witness, SOURCE);
+    let draft = Proposed::new(ProposalId::of("draft"), false, named).drafted();
+    assert_eq!(draft.label(), "draft copy-brief");
+    let bare = Inspected::unjudged("draft.nika", "w".to_owned(), "nika: draft".to_owned());
+    let unsaved = Proposed::new(ProposalId::of("draft"), false, bare.clone()).drafted();
+    assert_eq!(unsaved.label(), "draft (unsaved)");
+    let proposal = Proposed::new(ProposalId::of("p"), false, bare);
+    assert_eq!(proposal.label(), "proposal draft.nika");
 }

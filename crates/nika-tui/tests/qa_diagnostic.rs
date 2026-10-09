@@ -113,15 +113,12 @@ fn the_palette_diagnostic_opens_at_rest_and_while_a_turn_is_working() {
         term.send("diagnostic");
         term.wait_text("Full diagnostic");
         term.send("\r");
-        term.wait_until("the read-only diagnostic frame", |screen| {
+        // One complete frame: its title row and its body rows, never a part.
+        term.wait_workspace_frame("the read-only diagnostic frame", |screen| {
             screen.lines()[0].contains("Full diagnostic")
                 && screen.lines()[0].contains("the Session's words, read only")
+                && screen.contains("ADMISSION_UNTRUSTED")
         });
-        assert!(
-            term.screen.contains("ADMISSION_UNTRUSTED"),
-            "{}",
-            term.dump()
-        );
         let words = term
             .screen
             .lines()
@@ -137,12 +134,11 @@ fn the_palette_diagnostic_opens_at_rest_and_while_a_turn_is_working() {
         term.send(if busy { "\x1b" } else { "\r" });
         term.wait_text("keep this exact draft");
         if busy {
-            term.wait_prompt(REPLY);
-            assert!(
-                term.screen.contains("keep this exact draft"),
-                "{}",
-                term.dump()
-            );
+            // The new prompt shifts every draft cell: wait for the whole row.
+            let draft = format!("{REPLY} keep this exact draft");
+            term.wait_until("the reply prompt beside the exact draft", |screen| {
+                screen.row_starting(&draft).is_some()
+            });
         } else {
             term.wait_text("nika › keep this exact draft");
             assert!(!term.screen.seen(QUESTION), "{}", term.dump());
