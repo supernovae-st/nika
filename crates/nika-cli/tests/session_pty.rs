@@ -18,6 +18,10 @@ use expectrl::session::{OsSession, Session};
 use expectrl::stream::log::LogStream;
 use expectrl::{Eof, Expect};
 
+#[path = "support/loopback_model.rs"]
+mod loopback_model;
+use loopback_model::{CHOICE, Model, SAID};
+
 type LoggedSession = Session<UnixProcess, LogStream<PtyStream, std::io::Stderr>>;
 
 fn bin() -> &'static str {
@@ -180,6 +184,75 @@ fn the_kept_choice_opens_the_session_without_asking() {
     session.send_line("/quit").expect("quit");
     session.expect(Eof).expect("closes");
     assert_eq!(exit_code(&mut session), 0);
+}
+
+/// A historical knowledge override on the plain loop (`NIKA_KNOWLEDGE` naming a release root
+/// that carries no trusted identity): the banner keeps its warning and names the one action; a
+/// line only the model answers waits, said in a few words that suggest no flag the session cannot
+/// take; `/knowledge embedded` resumes it once under the embedded release and the model's reply
+/// follows. The kept choice of intelligence is unchanged.
+#[test]
+fn a_refused_knowledge_override_waits_then_resumes_on_the_plain_loop() {
+    let (project, home) = rig("knowledge");
+    let release = tempfile::tempdir().expect("an old release root");
+    let model = Model::start();
+    Model::chosen_in(home.path());
+    let kept = home.path().join(".nika").join("session-intelligence.json");
+    let mut cmd = Command::new(bin());
+    cmd.current_dir(project.path())
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("NO_COLOR", "1")
+        .env("TERM", "xterm-256color")
+        .env("NIKA_TUI", "0")
+        .env("NIKA_KEYCHAIN", "off")
+        .env("HOME", home.path())
+        .env("NIKA_KNOWLEDGE", release.path())
+        .env("NIKA_VLLM_BASE_URL", model.base());
+    let session = OsSession::spawn(cmd).expect("pty spawn");
+    let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
+    session.set_expect_timeout(Some(Duration::from_secs(60)));
+    session
+        .expect("What do you want to automate?")
+        .expect("the conversation opens first");
+    session
+        .expect("knowledge override not admitted · `/knowledge embedded` uses the knowledge built into Nika for this conversation")
+        .expect("the one action");
+    session
+        .expect("ADMISSION_UNTRUSTED")
+        .expect("the warning stays, last");
+    session.expect("nika ›").expect("the prompt");
+    session
+        .send_line("hello there, how are you today?")
+        .expect("a line only the model answers");
+    session
+        .expect("Knowledge override not admitted (NIKA_KNOWLEDGE · ADMISSION_UNTRUSTED) · this message reached no model and waits")
+        .expect("held, in a few words");
+    session.expect("nika ›").expect("the prompt again");
+    assert!(model.bodies().is_empty(), "no model request while it waits");
+    session
+        .send_line("/knowledge embedded")
+        .expect("the choice");
+    session
+        .expect("holds for this conversation")
+        .expect("the knowledge named for this conversation");
+    session.expect(SAID).expect("the held line resumed once");
+    session.expect("nika ›").expect("the prompt");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+    assert_eq!(exit_code(&mut session), 0);
+    let bodies = model.bodies();
+    assert_eq!(bodies.len(), 1, "the held line, once: {bodies:#?}");
+    assert!(
+        bodies[0].to_string().contains("how are you today"),
+        "{}",
+        bodies[0]
+    );
+    assert_eq!(
+        std::fs::read_to_string(&kept).expect("the kept choice"),
+        CHOICE,
+        "the kept choice of intelligence is unchanged"
+    );
 }
 
 /// `nika thread` is gone: no alias, the parser's own refusal.
