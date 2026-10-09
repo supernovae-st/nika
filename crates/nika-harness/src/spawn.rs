@@ -854,6 +854,7 @@ impl SpawnedHarness {
         &self,
         request: HarnessRequest,
         deadline: Option<Deadline>,
+        progress: Option<crate::authoring::acp::Progress>,
     ) -> Result<(HarnessEventStream, std::time::Duration), HarnessError> {
         let passed = || HarnessError::Session {
             reason: "the call deadline passed before the adapter started; nothing was spawned"
@@ -889,7 +890,8 @@ impl SpawnedHarness {
         // The child rides INSIDE the stream's driver task: dropping the
         // stream drops the driver, the driver drops the child, and
         // kill_on_drop reaps it — the cancel-safety contract.
-        let stream = drive_with_child(stdout, stdin, request, child, self.completion, idle);
+        let (completion, marks) = (self.completion, progress);
+        let stream = drive_with_child(stdout, stdin, request, child, completion, idle, marks);
         Ok((stream, idle))
     }
 }
@@ -899,7 +901,7 @@ impl SpawnedHarness {
 // blanket erasure builds `Arc<dyn DynAgentBackend>` from it).
 impl AgentBackendDyn for SpawnedHarness {
     async fn run_agent(&self, request: HarnessRequest) -> Result<HarnessEventStream, HarnessError> {
-        Ok(self.open_stream(request, None).await?.0)
+        Ok(self.open_stream(request, None, None).await?.0)
     }
 }
 
@@ -913,9 +915,11 @@ impl Door for SpawnedHarness {
         &self,
         request: HarnessRequest,
         deadline: Deadline,
+        progress: crate::authoring::acp::Progress,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Opened, HarnessError>> + Send + '_>> {
         Box::pin(async move {
-            let (stream, allowance) = self.open_stream(request, Some(deadline)).await?;
+            let opened = self.open_stream(request, Some(deadline), Some(progress));
+            let (stream, allowance) = opened.await?;
             Ok(Opened { stream, allowance })
         })
     }
@@ -932,8 +936,9 @@ fn drive_with_child(
     child: tokio::process::Child,
     completion: Option<OneShot>,
     idle: std::time::Duration,
+    progress: Option<crate::authoring::acp::Progress>,
 ) -> HarnessEventStream {
-    let inner = crate::client::drive_profile(stdout, stdin, request, idle, completion);
+    let inner = crate::client::drive_profile(stdout, stdin, request, idle, completion, progress);
     #[cfg(unix)]
     let group = completion.and_then(|_| child.id());
     Box::pin(ChildStream {

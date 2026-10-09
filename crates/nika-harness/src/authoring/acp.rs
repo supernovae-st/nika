@@ -10,7 +10,7 @@ use std::{fmt::Write as _, pin::Pin};
 mod call;
 pub(crate) mod codex;
 
-pub(crate) use call::{Deadline, Door, Failure, Opened, Phase, Progress, conclude};
+pub(crate) use call::{Deadline, Door, Failure, Milestone, Opened, Phase, Progress, conclude};
 
 /// The one wire stop a completion profile accepts: the driver refuses every other before the
 /// turn closes, so an accepted answer's stop reason is observed (the kernel's canonical
@@ -285,11 +285,14 @@ pub(crate) async fn run(
     let Opened {
         mut stream,
         allowance,
-    } = door.open(request, deadline).await.map_err(|e| failed(&e))?;
+    } = (door.open(request, deadline, progress.clone()).await).map_err(|e| failed(&e))?;
     progress.opened(allowance);
     while let Some(event) = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await {
         match event.map_err(|e| failed(&e))? {
-            HarnessEvent::MessageChunk { .. } => progress.reach(Phase::Answer),
+            HarnessEvent::MessageChunk { .. } => {
+                progress.reach(Phase::Answer);
+                progress.mark(Milestone::AnswerChunk);
+            }
             HarnessEvent::Completed { outcome } if outcome.images.is_empty() => {
                 progress.reach(Phase::Completion);
                 return completed(*outcome, one_shot.version());

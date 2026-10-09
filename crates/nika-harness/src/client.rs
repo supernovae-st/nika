@@ -17,6 +17,7 @@
 //! returns, dropping the transport (B3.2's confined spawn adds
 //! kill-on-drop on the child underneath).
 
+use crate::authoring::acp::Milestone;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -90,7 +91,7 @@ where
     R: AsyncRead + Unpin + Send + 'static,
     W: AsyncWrite + Unpin + Send + 'static,
 {
-    drive_profile(reader, writer, request, idle, None)
+    drive_profile(reader, writer, request, idle, None, None)
 }
 
 pub(crate) fn drive_profile<R, W>(
@@ -99,6 +100,7 @@ pub(crate) fn drive_profile<R, W>(
     request: HarnessRequest,
     idle: std::time::Duration,
     completion: Option<crate::authoring::acp::OneShot>,
+    progress: Option<crate::authoring::acp::Progress>,
 ) -> HarnessEventStream
 where
     R: AsyncRead + Unpin + Send + 'static,
@@ -118,6 +120,7 @@ where
             selection: HarnessSelection::default(),
             media: crate::media::MediaState::default(),
             completion,
+            progress,
         };
         if let Err(e) = driver.run(request).await {
             let e = driver.media.no_replay(e);
@@ -159,6 +162,8 @@ struct Driver<R, W> {
     media: crate::media::MediaState,
     /// The audited one-shot completion profile this session runs under, if any.
     completion: Option<crate::authoring::acp::OneShot>,
+    /// The authoring call this session's closed protocol milestones are told to, if any.
+    progress: Option<crate::authoring::acp::Progress>,
 }
 
 impl<R, W> Driver<R, W>
@@ -190,6 +195,7 @@ where
                 ),
             });
         }
+        Milestone::InitializeAccepted.reached(self.progress.as_ref());
 
         let mut params = serde_json::to_value(NewSessionParams {
             cwd: request.cwd.clone(),
@@ -206,7 +212,9 @@ where
             .await?;
         let session: wire::NewSessionResult =
             self.await_response(ID_SESSION_NEW, "session/new").await?;
+        Milestone::SessionCreated.reached(self.progress.as_ref());
         self.seat_session(&session, &request).await?;
+        Milestone::SelectionChecked.reached(self.progress.as_ref());
 
         // The system prompt has no v1 seat outside session modes — B3.1
         // folds it ahead of the user text (the wrapped-fidelity class:
@@ -224,6 +232,7 @@ where
             },
         )
         .await?;
+        Milestone::PromptWritten.reached(self.progress.as_ref());
 
         self.pump(&session.session_id, &request).await
     }

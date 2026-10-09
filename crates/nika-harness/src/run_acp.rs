@@ -213,6 +213,7 @@ impl AcpOneShot {
                 role: Completion::Infer,
                 profile: self.profile,
             }),
+            None,
         )
     }
 }

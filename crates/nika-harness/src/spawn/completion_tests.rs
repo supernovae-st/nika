@@ -4,7 +4,7 @@
 //! deadline is spent by the probes, an expired one starts no process, and the transport is bounded
 //! by what it leaves, never by the fixed generic bound.
 use super::*;
-use crate::authoring::acp::{Completion, Deadline, Door};
+use crate::authoring::acp::{Completion, Deadline, Door, Progress};
 use futures_core::Stream as _;
 use std::time::Duration;
 
@@ -59,7 +59,13 @@ async fn an_expired_deadline_starts_no_process() {
     let dir = tempfile::tempdir().expect("dir");
     let (seat, log) = adapter(dir.path(), "0", true);
     let request = HarnessRequest::new("p", dir.path());
-    let opened = seat.open(request, Deadline::start(Duration::ZERO)).await;
+    let opened = seat
+        .open(
+            request,
+            Deadline::start(Duration::ZERO),
+            Progress::default(),
+        )
+        .await;
     assert!(
         matches!(&opened, Err(HarnessError::Session { reason }) if reason.contains("nothing was spawned")),
         "{:?}",
@@ -76,7 +82,11 @@ async fn a_deadline_spent_by_the_probe_spawns_no_session() {
     let (seat, log) = adapter(dir.path(), "0.6", true);
     let request = HarnessRequest::new("p", dir.path());
     let opened = seat
-        .open(request, Deadline::start(Duration::from_millis(400)))
+        .open(
+            request,
+            Deadline::start(Duration::from_millis(400)),
+            Progress::default(),
+        )
         .await;
     assert!(
         matches!(&opened, Err(HarnessError::Session { reason }) if reason.contains("nothing was spawned")),
@@ -97,7 +107,11 @@ async fn the_spawned_transport_is_bounded_by_what_the_deadline_leaves() {
     let started = tokio::time::Instant::now();
     let deadline = Deadline::start(Duration::from_millis(1500));
     let opened = seat
-        .open(HarnessRequest::new("p", dir.path()), deadline)
+        .open(
+            HarnessRequest::new("p", dir.path()),
+            deadline,
+            Progress::default(),
+        )
         .await
         .expect("the adapter opens");
     assert!(

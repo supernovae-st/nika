@@ -64,6 +64,7 @@ impl Door for Arc<Scripted> {
         &self,
         request: HarnessRequest,
         deadline: Deadline,
+        progress: Progress,
     ) -> Pin<Box<dyn Future<Output = Result<Opened, HarnessError>> + Send + '_>> {
         Box::pin(async move {
             self.opens.fetch_add(1, Ordering::SeqCst);
@@ -86,7 +87,9 @@ impl Door for Arc<Scripted> {
             let (ours, theirs) = tokio::io::duplex(64 * 1024);
             tokio::spawn(peer(theirs));
             let (r, w) = tokio::io::split(ours);
-            let stream = crate::client::drive_profile(r, w, request, allowance, Some(claude()));
+            let marks = Some(progress);
+            let stream =
+                crate::client::drive_profile(r, w, request, allowance, Some(claude()), marks);
             Ok(Opened { stream, allowance })
         })
     }
@@ -169,6 +172,111 @@ fn silent(silence: Duration) -> Peer {
     })
 }
 
+/// A peer that reads the first request it is sent (`initialize`) and holds the transport
+/// without a reply.
+fn holds_initialize() -> Peer {
+    Box::new(|theirs| {
+        Box::pin(async move {
+            let (r, _w) = tokio::io::split(theirs);
+            let _ = read(&mut BufReader::new(r)).await;
+            std::future::pending::<()>().await;
+        })
+    })
+}
+
+/// A peer that admits `initialize`, then reads `session/new` and holds it without a reply.
+fn holds_session_new() -> Peer {
+    Box::new(|theirs| {
+        Box::pin(async move {
+            let (r, mut w) = tokio::io::split(theirs);
+            let mut r = BufReader::new(r);
+            let init = read(&mut r).await;
+            let identity = json!({"protocolVersion":1,"agentInfo":{"name":NAME,"version":VERSION}});
+            write(
+                &mut w,
+                &json!({"jsonrpc":"2.0","id":init["id"],"result":identity}),
+            )
+            .await;
+            let _ = read(&mut r).await;
+            std::future::pending::<()>().await;
+        })
+    })
+}
+
+/// A peer that admits, opens the session, reads the prompt (counting it) and stays silent.
+fn holds_prompt(prompts: Arc<AtomicUsize>) -> Peer {
+    Box::new(move |theirs| {
+        Box::pin(async move {
+            let (r, mut w) = tokio::io::split(theirs);
+            let prompt = handshake(&mut BufReader::new(r), &mut w).await;
+            if prompt["method"] == "session/prompt" {
+                prompts.fetch_add(1, Ordering::SeqCst);
+            }
+            std::future::pending::<()>().await;
+        })
+    })
+}
+
+/// A call that times out names the last protocol milestone this side closed, never more: a peer
+/// that never answers `initialize` leaves it at the opened stream; a peer silent after the prompt
+/// leaves it at the written prompt, the accepted initialize, the created session and the selection
+/// checks behind it, with exactly one prompt sent. Either way nothing is accepted.
+#[tokio::test(start_paused = true)]
+async fn a_timed_out_call_names_the_last_protocol_milestone_it_closed() {
+    let door_a = door(Duration::ZERO, holds_initialize());
+    let seat = authoring(&door_a);
+    assert!(seat.infer(request(None)).await.is_err());
+    let stalled = observed(&seat)[1].clone();
+    assert_eq!(
+        (
+            &stalled["status"],
+            &stalled["phase"],
+            &stalled["answer_accepted"]
+        ),
+        (&json!("timed_out"), &json!("session"), &json!(false))
+    );
+    assert_eq!(stalled["last_milestone"], "stream_opened");
+
+    let door_i = door(Duration::ZERO, holds_session_new());
+    let seat = authoring(&door_i);
+    assert!(seat.infer(request(None)).await.is_err());
+    assert_eq!(observed(&seat)[1]["last_milestone"], "initialize_accepted");
+
+    let prompts = Arc::new(AtomicUsize::new(0));
+    let door_b = door(Duration::ZERO, holds_prompt(Arc::clone(&prompts)));
+    let seat = authoring(&door_b);
+    assert!(seat.infer(request(None)).await.is_err());
+    let stalled = observed(&seat)[1].clone();
+    assert_eq!(
+        (
+            &stalled["status"],
+            &stalled["phase"],
+            &stalled["answer_accepted"]
+        ),
+        (&json!("timed_out"), &json!("session"), &json!(false))
+    );
+    assert_eq!(stalled["last_milestone"], "prompt_written");
+    assert_eq!(prompts.load(Ordering::SeqCst), 1, "one prompt sent");
+}
+
+/// A selection the session refuses closes no milestone after the session: the call fails before
+/// any prompt, never marked as checked or prompted.
+#[tokio::test(start_paused = true)]
+async fn a_refused_selection_is_never_marked_checked_or_prompted() {
+    let door = door(Duration::ZERO, silent(Duration::ZERO));
+    let seat = authoring(&door);
+    // An explicit effort the plain session advertises no option for: refused before the prompt.
+    let mut asked = request(None);
+    asked.reasoning_effort = Some(nika_kernel::ai::provider::ReasoningEffort::High);
+    assert!(seat.infer(asked).await.is_err());
+    let refused = observed(&seat)[1].clone();
+    assert_eq!(
+        (&refused["status"], &refused["failure"]["class"]),
+        (&json!("failed"), &json!("selection"))
+    );
+    assert_eq!(refused["last_milestone"], "session_created");
+}
+
 /// A peer that admits, opens the session and answers the prompt with a JSON-RPC `error`.
 fn erring(error: Value) -> Peer {
     Box::new(move |theirs| {
@@ -212,7 +320,7 @@ async fn a_valid_completion_silent_past_the_former_bound_completes_within_its_de
     let started = tokio::time::Instant::now();
     let bound = Duration::from_secs(crate::IDLE_TIMEOUT_SECS);
     let request_once = HarnessRequest::new("p", "/tmp");
-    let stream = crate::client::drive_profile(r, w, request_once, bound, Some(claude()));
+    let stream = crate::client::drive_profile(r, w, request_once, bound, Some(claude()), None);
     let ended = whole(stream).await;
     assert!(
         within(started.elapsed(), bound),
@@ -447,6 +555,7 @@ impl Door for Ready {
         &self,
         _: HarnessRequest,
         deadline: Deadline,
+        _: Progress,
     ) -> Pin<Box<dyn Future<Output = Result<Opened, HarnessError>> + Send + '_>> {
         let stream: HarnessEventStream = Box::pin(Turn {
             cancel: self.cancel.clone(),
