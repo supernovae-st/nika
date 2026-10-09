@@ -17,7 +17,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::composer::chooser::Entry;
-use crate::model::Presentation;
+use crate::model::{Kind, Presentation};
 use crate::workspace::geometry::Layout;
 
 /// A command's name, effect, scope, help and search words.
@@ -112,11 +112,35 @@ pub(crate) struct View {
     pub(crate) fits: bool,
     /// The transcript is scrolled back from its latest row.
     pub(crate) scrolled: bool,
-    /// A summarized diagnostic exists, so the full one can be shown.
-    pub(crate) diagnostic: bool,
+    /// Whose whole words `F2` reads now; `None` when no block's are short
+    /// of whole on screen, and the key is not offered.
+    pub(crate) read: Option<Read>,
     /// What `F4` shows now: the object expanded (`Workbench`) or restored
     /// (`Session`); `None` where it would change nothing, and is not offered.
     pub(crate) object: Option<Layout>,
+}
+
+/// Whose whole words the reader opens ([`super::diagnostic`]), read only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Read {
+    /// The latest summarized refusal or shortened banner.
+    Diagnostic,
+    /// The current proposal the cards review.
+    Proposal,
+    /// The typed question waiting at the answer line.
+    Question,
+}
+
+impl Read {
+    /// What the reader opens for a block of `kind`: a proposal's preview, a
+    /// question's words, else a summarized diagnostic.
+    pub(crate) fn of(kind: Kind) -> Self {
+        match kind {
+            Kind::Proposal => Self::Proposal,
+            Kind::Question => Self::Question,
+            _ => Self::Diagnostic,
+        }
+    }
 }
 
 /// Everything to choose from: the conversation's `commands`, then the view
@@ -148,6 +172,34 @@ pub(crate) const DIAGNOSTIC_KEY: KeyCode = KeyCode::F(2);
 
 fn press(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
     KeyEvent::new(code, modifiers)
+}
+
+/// The `F2` entry while a block's whole words are read there, read only: the
+/// question waiting at the answer line, the current proposal the cards
+/// review, or the latest summarized refusal.
+fn details(view: View) -> Option<Entry> {
+    let (effect, scope, help, words) = match view.read? {
+        Read::Question => (
+            "Full question",
+            "current question · read only",
+            "The question at your answer line, in the Session's own words; nothing is sent.",
+            "details question full words why reply answer",
+        ),
+        Read::Proposal => (
+            "Full proposal",
+            "current proposal · read only",
+            "The current proposal in the Session's own words; nothing is sent, saved or run.",
+            "details proposal preview review full words policy cost",
+        ),
+        Read::Diagnostic => (
+            "Full diagnostic",
+            "latest summarized refusal · read only",
+            "The Session's own words of the latest summarized refusal; nothing is sent.",
+            "details diagnostic error refusal raw evidence words",
+        ),
+    };
+    let pressed = press(DIAGNOSTIC_KEY, KeyModifiers::NONE);
+    Some(Entry::key(pressed, "F2", effect, scope, help, words))
 }
 
 /// The view keys `view` routes: none sends, answers or grants anything.
@@ -211,16 +263,7 @@ fn keys(view: View) -> Vec<Entry> {
             ));
         }
     }
-    if view.diagnostic {
-        keys.push(Entry::key(
-            press(DIAGNOSTIC_KEY, none),
-            "F2",
-            "Full diagnostic",
-            "latest summarized refusal · read only",
-            "The Session's own words of the latest summarized refusal; nothing is sent.",
-            "details diagnostic error refusal raw evidence words",
-        ));
-    }
+    keys.extend(details(view));
     let (effect, help) = if full {
         (
             "Back inline",
@@ -261,7 +304,7 @@ mod tests {
             presentation,
             fits: true,
             scrolled: false,
-            diagnostic: false,
+            read: None,
             object: Some(Layout::Workbench),
         }
     }
@@ -340,7 +383,7 @@ mod tests {
         assert_eq!(names(&keys(small)), ["PgUp", "Ctrl+T", "Ctrl+L"]);
         let busy_reading = View {
             scrolled: true,
-            diagnostic: true,
+            read: Some(Read::Diagnostic),
             ..view(Presentation::Workspace)
         };
         assert_eq!(
@@ -350,6 +393,47 @@ mod tests {
         let inline = keys(view(Presentation::Inline));
         assert_eq!(inline[0].effect, "Full screen");
         assert_eq!(keys(view(Presentation::Focus))[1].effect, "Back inline");
+    }
+
+    /// `F2` names the words it opens, read only: the question waiting at the
+    /// answer line, the current proposal the cards review, or the latest
+    /// summarized refusal; no entry while no block's words are read there.
+    #[test]
+    fn the_f2_entry_names_the_words_it_opens() {
+        for (read, effect, scope) in [
+            (
+                Read::Question,
+                "Full question",
+                "current question · read only",
+            ),
+            (
+                Read::Proposal,
+                "Full proposal",
+                "current proposal · read only",
+            ),
+            (
+                Read::Diagnostic,
+                "Full diagnostic",
+                "latest summarized refusal · read only",
+            ),
+        ] {
+            let entries = keys(View {
+                read: Some(read),
+                ..view(Presentation::Workspace)
+            });
+            let f2: Vec<&Entry> = entries.iter().filter(|entry| entry.name == "F2").collect();
+            assert_eq!(f2.len(), 1, "{effect}");
+            assert_eq!(f2[0].effect, effect);
+            assert_eq!(f2[0].scope, scope);
+            assert!(f2[0].help.contains("nothing is sent"), "{}", f2[0].help);
+        }
+        let silent = keys(view(Presentation::Workspace));
+        assert!(silent.iter().all(|entry| entry.name != "F2"));
+        assert_eq!(Read::of(Kind::Question), Read::Question);
+        assert_eq!(Read::of(Kind::Proposal), Read::Proposal);
+        for kind in [Kind::Refusal, Kind::Banner, Kind::Reply] {
+            assert_eq!(Read::of(kind), Read::Diagnostic, "{kind:?}");
+        }
     }
 
     /// `F4` names what it does now, view only: `Expand the object` where

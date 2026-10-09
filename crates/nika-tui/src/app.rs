@@ -69,11 +69,13 @@ mod acquire;
 mod commands;
 mod opening;
 mod progress;
+mod said;
 mod stop;
 mod welcome;
 mod worker;
 
 use commands::{Busy, Caught, ENTER_WAITS, KeyDecision, LEAVE_WAITS, busy_key, decide};
+use said::{Picked, Said};
 
 /// How the shell runs.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -347,16 +349,17 @@ enum Defused {
 
 /// Whether a turn's beats leave the session waiting on the human (a
 /// question, a proposal, a gate, a choice): the last wait they name is not
-/// the free prompt.
+/// the free prompt, or an answer was not taken (its question still waits).
 fn ends_on_decision(beats: &[Beat]) -> bool {
-    beats
-        .iter()
-        .rev()
-        .find_map(|beat| match beat {
-            Beat::Wait(waiting) => Some(*waiting != Waiting::Free),
-            _ => None,
-        })
-        .unwrap_or(false)
+    beats.iter().any(|beat| matches!(beat, Beat::NotTaken(_)))
+        || beats
+            .iter()
+            .rev()
+            .find_map(|beat| match beat {
+                Beat::Wait(waiting) => Some(*waiting != Waiting::Free),
+                _ => None,
+            })
+            .unwrap_or(false)
 }
 
 /// Sort one typed-ahead event by the typeahead law.
@@ -594,16 +597,23 @@ impl<C: Conversation + 'static> Shell<C> {
             KeyDecision::Route(_) => return Ok(Step::Stay),
             KeyDecision::Interrupt | KeyDecision::Repaint | KeyDecision::Compose => {}
         }
-        // `Tab` reaches here only where the chooser has nothing to offer.
-        match self.composer.handle(key) {
-            ComposerAction::Submit(line) => match self.submit(&line, broker)? {
-                Submitted::Left(exit) => return Ok(Step::Leave(exit)),
-                Submitted::Handoff(Some(handoff)) => return Ok(Step::Handoff(handoff)),
-                Submitted::Handoff(None) => {}
+        // A typed choice's offers read first; `Tab` reaches the composer only
+        // where the chooser has nothing to offer.
+        let said = match self.pick(key) {
+            Picked::Sent(said) => said,
+            Picked::Moved => return Ok(Step::Stay),
+            Picked::Pass => match self.composer.handle(key) {
+                ComposerAction::Submit(line) => self.said(line),
+                ComposerAction::Complete | ComposerAction::Edited | ComposerAction::Ignored => {
+                    return Ok(Step::Stay);
+                }
             },
-            ComposerAction::Complete | ComposerAction::Edited | ComposerAction::Ignored => {}
+        };
+        match self.submit(said, broker)? {
+            Submitted::Left(exit) => Ok(Step::Leave(exit)),
+            Submitted::Handoff(Some(handoff)) => Ok(Step::Handoff(handoff)),
+            Submitted::Handoff(None) => Ok(Step::Stay),
         }
-        Ok(Step::Stay)
     }
 
     fn interrupt(&mut self) -> io::Result<Step> {
@@ -632,9 +642,13 @@ impl<C: Conversation + 'static> Shell<C> {
 
     /// One line sent: echo it, let the conversation answer, and report the
     /// handoff it asks for, if any ([`Self::submit`] sends what it queued).
-    fn submit_one(&mut self, line: &str, broker: &mut Broker) -> io::Result<Submitted> {
+    /// A typed question's answer takes the same path to its own door
+    /// ([`Said`]); the echo says what was sent, never that it applied.
+    fn submit_one(&mut self, said: &Said, broker: &mut Broker) -> io::Result<Submitted> {
         self.submitted += 1;
-        let echo = format!("{}{}", self.state.waiting.prompt(), line.trim_end());
+        let line = said.text();
+        let prompt = render::own(self.state.waiting.prompt(), self.state.ascii);
+        let echo = format!("{prompt}{}", line.trim_end());
         // A line sent from a scrolled transcript (a queued correction) keeps the reading position.
         self.keep_reading(|state, _| state.transcript.push(Committed::new(Kind::Human, echo)));
         self.commit_inline()?;
@@ -656,7 +670,7 @@ impl<C: Conversation + 'static> Shell<C> {
             self.draw()?;
         }
         let started = std::time::Instant::now();
-        let mut turn = match self.run_turn(line, broker)? {
+        let mut turn = match self.run_turn(said, broker)? {
             TurnEnd::Done(turn) => turn,
             TurnEnd::Left(exit) => return Ok(Submitted::Left(exit)),
         };
@@ -688,6 +702,7 @@ impl<C: Conversation + 'static> Shell<C> {
         } else {
             None
         };
+        let unsent = self.answered(&turn.beats);
         self.apply_all(turn.beats)?;
         if fresh {
             if let Some(exit) = self.fresh_input(broker)? {
@@ -698,6 +713,8 @@ impl<C: Conversation + 'static> Shell<C> {
             // fills the box and never answers it.
             self.set_aside_typeahead(typed)?;
         }
+        // An answer not taken: its exact words first, what was typed after.
+        self.give_back(unsent, fresh);
         if self.options.exit_after == Some(self.submitted) {
             self.state.quit = true;
         }
@@ -882,6 +899,10 @@ impl<C: Conversation + 'static> Shell<C> {
         }
         for beat in beats {
             let busy = matches!(beat, Beat::Busy(_));
+            if let Beat::Wait(waiting) = &beat {
+                // A typed choice's selection follows the question it belongs to.
+                self.composer.follow(waiting);
+            }
             crate::scroll::preserve_reading(&mut self.state, &self.desk, &self.composer, |state| {
                 state.apply(beat);
             });
@@ -987,7 +1008,7 @@ impl<C: Conversation + 'static> Shell<C> {
     /// ([`Self::end_turn`]). The composer stays usable meanwhile
     /// ([`Self::hear`]). A panic in the turn resumes here (the panic hook
     /// has restored the terminal).
-    fn run_turn(&mut self, line: &str, broker: &mut Broker) -> io::Result<TurnEnd> {
+    fn run_turn(&mut self, said: &Said, broker: &mut Broker) -> io::Result<TurnEnd> {
         let (tx, rx) = mpsc::channel::<String>();
         let (done_tx, done_rx) = mpsc::channel::<(C, Turn)>();
         // What the shell observes of a run the turn drives: a bounded queue
@@ -997,12 +1018,13 @@ impl<C: Conversation + 'static> Shell<C> {
         let seen = crate::session::feed::Seen::new(seen_tx, std::sync::Arc::clone(&gap));
         let mut conversation = self.conversation.take().ok_or_else(conversation_left)?;
         self.hold.arm(conversation.stopper());
-        let line = line.to_owned();
+        let said = said.clone();
         // The shell keeps one sender: the busy channel never disconnects,
         // so each wait below is one poll slice, never a spin.
         let _pace = tx.clone();
         let worker = worker::turn().spawn(move || {
-            let turn = conversation.submit_observed(&line, &tx, &seen);
+            // A line to whatever waits, or a typed answer by its identity.
+            let turn = said.send(&mut conversation, &tx, &seen);
             let _ = done_tx.send((conversation, turn));
         })?;
         self.typed_live = false;
@@ -1159,12 +1181,17 @@ impl<C: Conversation + 'static> Shell<C> {
             self.state.size = (size.width, size.height);
         }
         if self.state.presentation == Presentation::Workspace {
-            // The panel's title names the recipient; the empty box invites.
-            self.name_recipient(conversation::invitation(self.state.ascii).to_owned());
+            // Invite a new request only while this line has no pending decision.
+            let invitation = if matches!(self.state.waiting, Waiting::Free) {
+                conversation::invitation(self.state.ascii)
+            } else {
+                ""
+            };
+            self.name_recipient(invitation.to_owned());
             // The face in view is rendered here, before the frame, only when
             // it changed; the frame paints its lines.
             let (ascii, color) = (self.state.ascii, self.state.color);
-            self.desk.prepare(self.state.size, ascii, color);
+            self.desk.prepare_for(&self.state, ascii, color);
         }
         self.sync_choices();
         let paint = self.welcome_paint();
@@ -1369,8 +1396,13 @@ mod typeahead_tests {
             Beat::Wait(Waiting::Gate),
             Beat::Wait(Waiting::Free)
         ]));
-        assert!(!ends_on_decision(&[say]));
+        assert!(!ends_on_decision(std::slice::from_ref(&say)));
         assert!(!ends_on_decision(&[]));
+        // An answer not taken: its words return to the box, so a key typed
+        // while it worked never sends them, whatever wait follows (or none).
+        let refused = Beat::NotTaken("eur".to_owned());
+        assert!(ends_on_decision(&[say, refused.clone()]));
+        assert!(ends_on_decision(&[refused, Beat::Wait(Waiting::Free)]));
     }
 
     #[test]

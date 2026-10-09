@@ -125,6 +125,8 @@ pub(crate) struct Term {
     /// The stream boundary before the most recent input or resize.
     input_mark: usize,
     eof: bool,
+    /// At most this many bytes per pump ([`Term::reading_at_most`]).
+    read_limit: Option<usize>,
 }
 
 impl Term {
@@ -165,7 +167,17 @@ impl Term {
             raw: Vec::new(),
             input_mark: 0,
             eof: false,
+            read_limit: None,
         }
+    }
+
+    /// This terminal read adversarially: each pump takes at most `bytes` of
+    /// what the process wrote, so every wait judges its predicate inside the
+    /// frames too, whatever the scheduling. A proof that holds this way waits
+    /// for a complete semantic frame, never for a lucky read boundary.
+    pub(crate) fn reading_at_most(mut self, bytes: usize) -> Self {
+        self.read_limit = Some(bytes.max(1));
+        self
     }
 
     /// The process id.
@@ -178,8 +190,9 @@ impl Term {
     pub(crate) fn pump(&mut self) -> usize {
         let mut total = 0;
         let mut buf = [0u8; 16 * 1024];
+        let limit = self.read_limit.unwrap_or(buf.len()).min(buf.len());
         while !self.eof {
-            match self.pty.try_read(&mut buf) {
+            match self.pty.try_read(&mut buf[..limit]) {
                 Ok(0) => self.eof = true,
                 Ok(n) => {
                     total += n;
@@ -190,6 +203,10 @@ impl Term {
                         // fails means it is gone, which the next read says.
                         let _ = self.pty.write_all(&reply);
                         let _ = self.pty.flush();
+                    }
+                    if self.read_limit.is_some() {
+                        // One slice per pump: the caller judges the screen now.
+                        break;
                     }
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,

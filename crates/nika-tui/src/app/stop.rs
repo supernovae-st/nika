@@ -28,6 +28,7 @@
 
 use std::io;
 
+use super::said::Said;
 use super::{ENTER_WAITS, Exit, Shell, Submitted};
 use nika_display::activity_card::{correction_queued, correction_unsent};
 
@@ -129,13 +130,10 @@ enum Fate {
 /// Submit `first`, then each correction a turn queued, one after another: a
 /// loop that keeps one line at a time, never a nested call, however long the
 /// chain. `one` submits a line and gives the correction its turn queued.
-fn chain<T>(
-    first: &str,
-    mut one: impl FnMut(&str) -> io::Result<(T, Option<String>)>,
-) -> io::Result<T> {
+fn chain<L, T>(first: L, mut one: impl FnMut(L) -> io::Result<(T, Option<L>)>) -> io::Result<T> {
     let (mut last, mut next) = one(first)?;
     while let Some(line) = next {
-        (last, next) = one(&line)?;
+        (last, next) = one(line)?;
     }
     Ok(last)
 }
@@ -154,12 +152,13 @@ fn fate(waiting: &Waiting, fresh: bool, handoff: bool, quit: bool) -> Fate {
 }
 
 impl<C: Conversation + 'static> Shell<C> {
-    /// The human sent `line`: it, then each correction its turn queued, in
-    /// order ([`chain`]).
-    pub(super) fn submit(&mut self, line: &str, broker: &mut Broker) -> io::Result<Submitted> {
-        chain(line, |line| {
-            let submitted = self.submit_one(line, broker)?;
-            Ok((submitted, self.hold.chained.take()))
+    /// The human sent `said`: it, then each correction its turn queued, in
+    /// order ([`chain`]). A correction is only ever sent at the free prompt
+    /// ([`fate`]), so it is a line, never an answer.
+    pub(super) fn submit(&mut self, said: Said, broker: &mut Broker) -> io::Result<Submitted> {
+        chain(said, |said| {
+            let submitted = self.submit_one(&said, broker)?;
+            Ok((submitted, self.hold.chained.take().map(Said::Line)))
         })
     }
 
@@ -257,13 +256,7 @@ impl<C: Conversation + 'static> Shell<C> {
         self.keep_reading(|state, composer| {
             if fate == Fate::Draft {
                 // The correction first, then whatever was typed after it.
-                let rest = composer.text();
-                composer.clear();
-                composer.paste(&queued);
-                if !rest.trim().is_empty() {
-                    composer.paste("\n");
-                    composer.paste(&rest);
-                }
+                composer.put_back(&queued);
             }
             state.transcript.push(Committed::new(Kind::Notice, notice));
         });
@@ -328,6 +321,14 @@ mod tests {
         assert_eq!(fate(&Waiting::Free, false, false, false), Fate::Send);
         assert_eq!(fate(&Waiting::Free, false, true, false), Fate::Draft);
         assert_eq!(fate(&Waiting::Free, false, false, true), Fate::Draft);
+        let typed = crate::model::Asked::new(
+            "Which currency?",
+            "",
+            true,
+            crate::model::Shape::Choice(vec![crate::model::Offer::new("eur", "Euro")]),
+            "witness",
+            1,
+        );
         for waiting in [
             Waiting::Proposal,
             Waiting::Gate,
@@ -335,6 +336,8 @@ mod tests {
             Waiting::Question {
                 key: "const.source_path".to_owned(),
             },
+            // A typed question is a decision too: a correction never answers it.
+            Waiting::asked("const.currency", typed),
         ] {
             assert_eq!(
                 fate(&waiting, false, false, false),
@@ -431,7 +434,7 @@ mod tests {
     fn a_long_correction_chain_runs_in_a_loop() {
         const LONG: usize = 200_000;
         let mut sent = 0_usize;
-        let last = chain("first", |line| {
+        let last = chain("first".to_owned(), |line| {
             sent += 1;
             let expected = if sent == 1 {
                 "first".to_owned()
@@ -444,7 +447,7 @@ mod tests {
         .expect("every line sent");
         assert_eq!((last, sent), (LONG, LONG));
         let mut tried = 0;
-        let failed = chain("first", |_| {
+        let failed = chain("first".to_owned(), |_| {
             tried += 1;
             if tried == 3 {
                 Err(io::Error::other("the terminal closed"))

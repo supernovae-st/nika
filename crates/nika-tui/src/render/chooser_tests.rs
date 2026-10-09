@@ -294,7 +294,7 @@ fn a_short_area_scrolls_the_list_with_the_selection() {
     assert_eq!(
         shown,
         [
-            "Save these changes · Run separately",
+            "Not saved yet · yes means Save only",
             "Save? › /",
             "A proposal waits · no command answers it · yes + Enter: Save",
             "› /intelligence  Choose the AI this session reasons with",

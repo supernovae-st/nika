@@ -13,15 +13,27 @@
 //! nothing is sent, approved or saved. The object expands only where that
 //! enlarges it, and a kept expansion always restores. A change settles once
 //! no separator is held; the shell takes it then ([`Desk::take_settled`]) for
-//! its host to keep.
+//! its host to keep. A current decision the restored stacked split cannot
+//! show folds the object to its strip for as long as it is current
+//! ([`Desk::folds`]); nothing of that is kept.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Position, Rect};
 
 use super::{Desk, Route};
+use crate::model::{Presentation, UiState};
+use crate::render::question;
+use crate::workspace::cards;
+use crate::workspace::cards::review::{self, Review};
 use crate::workspace::focus::Region;
 use crate::workspace::geometry::{Arrangement, Geometry, Layout, Separator};
+use crate::workspace::project::{self, Opened};
 use crate::workspace::screen;
+
+/// The rows of the exchange that led to a homed question its restored
+/// stacked conversation keeps above the question's own row at rest; short of
+/// them, the object folds to its strip.
+pub(super) const QUESTION_CONTEXT: usize = 3;
 
 /// The columns a separator key moves the aside or the conversation by.
 const COLUMN_STEP: u16 = 2;
@@ -38,12 +50,65 @@ pub(crate) struct Drag {
 }
 
 impl Desk {
-    /// The regions of a terminal of `size` as the desk arranges them; `None`
-    /// below the minimum. Every reader of the frame takes this one.
+    /// The regions of a terminal of `size` as the desk arranges them, the
+    /// stacked object folded while a decision asks it ([`Desk::folds`]);
+    /// `None` below the minimum. Every reader of the frame takes this one.
     #[must_use]
     pub(crate) fn geometry(&self, size: (u16, u16)) -> Option<Geometry> {
+        let geometry = self.arranged(size)?;
+        Some(if self.folds(size) {
+            screen::folded(geometry)
+        } else {
+            geometry
+        })
+    }
+
+    /// The regions of a terminal of `size` as the arrangement alone lays them out.
+    fn arranged(&self, size: (u16, u16)) -> Option<Geometry> {
         let area = Rect::new(0, 0, size.0, size.1);
         Geometry::arranged(area, self.pins(), &self.arrangement)
+    }
+
+    /// Whether a current decision folds the stacked object to its strip on a
+    /// terminal of `size` ([`screen::folded`]): decided once per frame
+    /// ([`Desk::prepare_for`]) and held while the size, the arrangement and
+    /// the pin it was decided for hold; never while the aside holds the keys,
+    /// its overlay taking the object's restored rows.
+    #[must_use]
+    pub(crate) fn folds(&self, size: (u16, u16)) -> bool {
+        self.fold == Some((size, self.arrangement, self.pins()))
+            && self.focus.region != Region::Aside
+    }
+
+    /// Whether the current typed decision overflows the restored stacked
+    /// conversation of the workspace: the proposal the conversation reviews
+    /// or the question its live card carries (never a gate, a choice, a draft
+    /// or set-aside candidate, or another identity), from its piece to the
+    /// end, beside the live area at rest ([`screen::rest_transcript`]); a
+    /// homed question also asks [`QUESTION_CONTEXT`] rows of the exchange
+    /// that led to it.
+    pub(super) fn overflowed(&self, state: &UiState, review: Option<&Review>) -> bool {
+        let reviewed = review::summarized(state, review).map(|(at, _)| at);
+        let asked = question::asked_block(state);
+        let (Some(from), Some(geometry)) = (reviewed.or(asked), self.arranged(state.size)) else {
+            return false;
+        };
+        if state.presentation != Presentation::Workspace
+            || self.arrangement.layout != Layout::Session
+            || !geometry.stacked
+        {
+            return false;
+        }
+        let label = self.shown().map(Opened::label);
+        let thread = project::thread(self.view.as_ref(), label.as_deref());
+        let transcript = screen::rest_transcript(&geometry, state, &thread);
+        let context = if reviewed.is_none() && question::rest_homed(state) {
+            QUESTION_CONTEXT
+        } else {
+            0
+        };
+        let decision = cards::rows_from(state, transcript, (review, asked), from);
+        decision + context > usize::from(transcript.height)
     }
 
     /// The layout in view and the separators' shares (the shell reads it
@@ -75,7 +140,7 @@ impl Desk {
     #[must_use]
     pub(crate) fn toggled(&self, size: (u16, u16)) -> Option<Layout> {
         let area = Rect::new(0, 0, size.0, size.1);
-        screen::toggled(area, self.pins(), &self.arrangement)
+        screen::toggled(area, self.pins(), &self.arrangement, self.folds(size))
     }
 
     /// Expand or restore the object (`F4`, its own action) on a terminal of

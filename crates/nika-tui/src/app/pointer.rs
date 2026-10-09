@@ -7,7 +7,9 @@
 //! expands or restores it as `F4` does, a region the folded header names takes
 //! the keys as `F6` moves them, a separator follows the pointer while its
 //! button is held (within its bounds), and the marker of a transcript scrolled
-//! back returns it to its latest row as `End` does. While the full diagnostic
+//! back returns it to its latest row as `End` does. A press on an offer of the
+//! typed choice painted selects it and gives the conversation the keys, at
+//! rest only; it never answers: `Enter` does. While the full diagnostic
 //! covers the frame, nothing under it takes the pointer. Hold Shift for the
 //! terminal's own selection/copy where supported; F4, F6, the separator keys,
 //! arrows, PageUp/PageDown, End and Enter remain the complete keyboard path.
@@ -123,6 +125,57 @@ fn route(state: &mut UiState, desk: &mut Desk, composer: &Composer, mouse: Mouse
         return Route::Repaint;
     }
     Route::Nothing
+}
+
+/// The offer of the typed choice painted that a plain left press lands on,
+/// read from the rectangles the frame painted: the conversation's live area
+/// in the workspace, the foot of the focus view (also where it stands in for
+/// a workspace too small). Inline leaves the pointer to the terminal.
+fn offer_at_press(
+    state: &UiState,
+    desk: &Desk,
+    composer: &Composer,
+    mouse: MouseEvent,
+) -> Option<usize> {
+    let plain = mouse.modifiers == KeyModifiers::NONE;
+    if mouse.kind != MouseEventKind::Down(MouseButton::Left) || !plain {
+        return None;
+    }
+    let workspace = (state.presentation == Presentation::Workspace)
+        .then(|| desk.geometry(state.size))
+        .flatten();
+    let (live, boxed) = match (state.presentation, workspace) {
+        (Presentation::Inline, _) => return None,
+        (_, Some(geometry)) => {
+            let thread = desk.screen(state.ascii).thread;
+            let areas = screen::panel_areas(&geometry, state, composer, &thread);
+            (areas[3], screen::boxed(&geometry))
+        }
+        (_, None) => {
+            let frame = Rect::new(0, 0, state.size.0, state.size.1);
+            (crate::render::focus_areas(frame, state, composer)[2], false)
+        }
+    };
+    let point = Position::new(mouse.column, mouse.row);
+    crate::render::question::offer_at(state, composer, live, boxed, point)
+}
+
+/// A press on an offer of the typed choice painted, while the offers take a
+/// selection: that offer is selected and the conversation takes the keys.
+/// Nothing else changes and nothing is sent; `Enter` answers. `None` leaves
+/// the press to the regions (a focus click, as before).
+fn press_offer(
+    state: &UiState,
+    desk: &mut Desk,
+    composer: &mut Composer,
+    mouse: MouseEvent,
+) -> Option<Route> {
+    let index = offer_at_press(state, desk, composer, mouse)?;
+    if !composer.select_offer(&state.waiting, index) {
+        return None;
+    }
+    desk.focus.region = Region::Conversation;
+    Some(Route::Repaint)
 }
 
 /// A press on the chrome rather than on a region's content: a region the
@@ -331,7 +384,10 @@ impl<C: Conversation + 'static> Shell<C> {
             self.desk.release();
             return Route::Nothing;
         }
-        let routed = route(&mut self.state, &mut self.desk, &self.composer, mouse);
+        let routed = match self.offer_pressed(mouse) {
+            Some(routed) => routed,
+            None => route(&mut self.state, &mut self.desk, &self.composer, mouse),
+        };
         if self.composer.palette_open()
             && matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left))
             && self.desk.focus.region != Region::Conversation
@@ -350,6 +406,16 @@ impl<C: Conversation + 'static> Shell<C> {
         }
         routed
     }
+
+    /// A press on an offer of the typed choice painted ([`press_offer`]), at
+    /// rest only: while a turn holds the conversation the offers are inert.
+    fn offer_pressed(&mut self, mouse: MouseEvent) -> Option<Route> {
+        if self.conversation.is_none() || self.state.busy.is_some() {
+            return None;
+        }
+        press_offer(&self.state, &mut self.desk, &mut self.composer, mouse)
+    }
+
     /// One event heard while a turn runs. An interruption acts now (the
     /// exit to leave with, once armed). The composer stays usable: words,
     /// pastes and edits land in the draft as they are typed, a bare `Enter`
@@ -1048,5 +1114,136 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A typed choice of nine offers painted in `presentation` at `size`, the
+    /// draft empty, the keys on the composer.
+    fn offered(
+        presentation: Presentation,
+        size: (u16, u16),
+        ascii: bool,
+    ) -> (UiState, Desk, Composer) {
+        use crate::model::{Asked, Offer, Shape, Waiting};
+        let (mut state, desk, _) = setup(size);
+        state.presentation = presentation;
+        state.ascii = ascii;
+        let offers = (0..9)
+            .map(|n| Offer::new(format!("opt-{n}"), format!("label {n}")))
+            .collect();
+        let asked = Asked::new("Which currency?", "", true, Shape::Choice(offers), "w-1", 1);
+        state.waiting = Waiting::asked("const.currency", asked);
+        let mut composer = Composer::new();
+        composer.set_focused(true);
+        composer.follow(&state.waiting);
+        (state, desk, composer)
+    }
+
+    fn press(x: u16, y: u16) -> MouseEvent {
+        mouse(MouseEventKind::Down(MouseButton::Left), x, y)
+    }
+
+    /// The frame `state` paints in its presentation, and its live area.
+    fn live_frame(
+        state: &UiState,
+        desk: &Desk,
+        composer: &Composer,
+    ) -> (ratatui::buffer::Buffer, Rect) {
+        let frame = Rect::new(0, 0, state.size.0, state.size.1);
+        let workspace = (state.presentation == Presentation::Workspace)
+            .then(|| desk.geometry(state.size))
+            .flatten();
+        if let Some(geometry) = workspace {
+            let thread = desk.screen(state.ascii).thread;
+            let live = screen::panel_areas(&geometry, state, composer, &thread)[3];
+            return (painted(state, desk, composer), live);
+        }
+        let backend = ratatui::backend::TestBackend::new(frame.width, frame.height);
+        let mut terminal = ratatui::Terminal::new(backend).expect("terminal");
+        terminal
+            .draw(|f| crate::render::draw_focus(f, state, composer))
+            .expect("draw");
+        let live = crate::render::focus_areas(frame, state, composer)[2];
+        (terminal.backend().buffer().clone(), live)
+    }
+
+    /// Every offer row the frame paints is the one a press there selects, in
+    /// the workspace (stacked and beside) and in the focus view, in both glyph
+    /// columns. The press selects only: the conversation takes the keys, the
+    /// draft, the transcript and its reading place stay, nothing is sent (no
+    /// conversation is reachable from here); the next frame marks the offer.
+    #[test]
+    fn a_press_on_a_painted_offer_selects_it_only_and_gives_the_conversation_the_keys() {
+        for (presentation, size) in [
+            (Presentation::Workspace, (80, 24)),
+            (Presentation::Workspace, (60, 18)),
+            (Presentation::Workspace, (120, 40)),
+            (Presentation::Focus, (80, 24)),
+        ] {
+            for ascii in [false, true] {
+                let at = format!("{presentation:?} {size:?} ascii={ascii}");
+                let (state, mut desk, mut composer) = offered(presentation, size, ascii);
+                let (buffer, live) = live_frame(&state, &desk, &composer);
+                let sep = if ascii { " - " } else { " · " };
+                let mut first = None;
+                for y in live.y..live.bottom() {
+                    let text = cells(&buffer, live.x, live.right(), y);
+                    let shown =
+                        (0..9).find(|n| text.trim_end() == format!("  opt-{n}{sep}label {n}"));
+                    let hit = offer_at_press(&state, &desk, &composer, press(live.x + 3, y));
+                    assert_eq!(hit, shown, "{at} row {y}: {text:?}");
+                    first = first.or(hit.map(|index| (index, y)));
+                }
+                let (index, y) = first.expect("an offer is painted");
+                desk.focus.region = Region::Object;
+                let blocks = state.transcript.len();
+                let pressed = press_offer(&state, &mut desk, &mut composer, press(live.x + 3, y));
+                assert_eq!(pressed, Some(Route::Repaint), "{at}");
+                assert_eq!(composer.offer_selected(&state.waiting), Some(index), "{at}");
+                assert_eq!(desk.focus.region, Region::Conversation, "{at}");
+                assert!(
+                    composer.text().is_empty(),
+                    "{at}: a press never writes the draft"
+                );
+                assert_eq!((state.transcript.len(), state.focus_scroll), (blocks, 0));
+                let (buffer, _) = live_frame(&state, &desk, &composer);
+                let mark = if ascii { "> " } else { "› " };
+                let row = cells(&buffer, live.x, live.right(), y);
+                assert!(
+                    row.starts_with(&format!("{mark}opt-{index}")),
+                    "{at}: {row}"
+                );
+            }
+        }
+    }
+
+    /// A press selects nothing while the box holds words, with another button
+    /// or a modifier, off the offers' rows, or inline: the regions take it as
+    /// before, and the draft stays exact.
+    #[test]
+    fn a_press_selects_no_offer_with_words_in_the_box_or_off_its_rows() {
+        let (mut state, mut desk, mut composer) =
+            offered(Presentation::Workspace, (120, 40), false);
+        let (_, live) = live_frame(&state, &desk, &composer);
+        let y = (live.y..live.bottom())
+            .find(|y| offer_at_press(&state, &desk, &composer, press(live.x + 3, *y)).is_some())
+            .expect("an offer row");
+        composer.paste("my own words");
+        let pressed = press_offer(&state, &mut desk, &mut composer, press(live.x + 3, y));
+        assert_eq!(pressed, None, "inert with words in the box");
+        assert_eq!(composer.offer_selected(&state.waiting), None);
+        assert_eq!(composer.text(), "my own words");
+        composer.clear();
+        let mut right = press(live.x + 3, y);
+        right.kind = MouseEventKind::Down(MouseButton::Right);
+        let mut shifted = press(live.x + 3, y);
+        shifted.modifiers = KeyModifiers::SHIFT;
+        for event in [right, shifted, press(live.x + 3, live.y)] {
+            let pressed = press_offer(&state, &mut desk, &mut composer, event);
+            assert_eq!(pressed, None, "{event:?}");
+        }
+        assert_eq!(composer.offer_selected(&state.waiting), None);
+        state.presentation = Presentation::Inline;
+        let inline = offer_at_press(&state, &desk, &composer, press(live.x + 3, y));
+        assert_eq!(inline, None, "inline leaves the pointer to the terminal");
     }
 }

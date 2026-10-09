@@ -459,7 +459,9 @@ impl Inspected {
             };
             let mut verdict = format!("{words}{sep}this file only");
             if !self.findings.is_empty() {
-                let _ = write!(verdict, "{sep}{} findings in Check", self.findings.len());
+                let count = self.findings.len();
+                let noun = if count == 1 { "finding" } else { "findings" };
+                let _ = write!(verdict, "{sep}{count} {noun} in Check");
             }
             rows.extend(
                 wrap(&verdict, usize::from(width), cut)

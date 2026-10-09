@@ -47,6 +47,7 @@ use ratatui::Frame;
 use ratatui::text::Line;
 
 use super::candidate::Proposed;
+use super::cards::review::{self, Review};
 use super::live::{LiveRun, Pick, RunFace, Want};
 use crate::model::Conversation;
 use crate::session::acquire::{ChildRead, Fetched, Proven};
@@ -63,7 +64,7 @@ use super::object::{Object, Paint};
 use super::project::{self, Opened, ProjectView, Target};
 use super::screen::{self, Screen};
 use crate::composer::Composer;
-use crate::model::UiState;
+use crate::model::{Presentation, UiState};
 
 mod layout;
 use layout::Drag;
@@ -126,6 +127,11 @@ pub(crate) struct Desk {
     drag: Option<Drag>,
     /// The arrangement changed since the shell last took it to be kept.
     unsettled: bool,
+    /// The frame a current decision folds the stacked object on: the size,
+    /// the arrangement and the pin decided for, once per frame
+    /// ([`Desk::prepare_for`], read through [`Desk::folds`]); another
+    /// candidate drops it.
+    fold: Option<((u16, u16), Arrangement, bool)>,
 }
 
 /// The reading a request was made for: the leg's reading, and the child
@@ -189,9 +195,20 @@ pub(crate) fn acquire_all<C: Conversation + ?Sized>(
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Drawn {
     /// What was rendered (a look's path, or a candidate's identity) and the
-    /// witness of its bytes, the face, the region's width, the glyph column
-    /// and the colour it was rendered for.
-    key: (String, Option<String>, Face, RunFace, u16, bool, bool, bool),
+    /// witness of its bytes, the face, the region's width, the glyph column,
+    /// the colour, the short graph format, and whether the conversation
+    /// reviews the candidate shown (its facts then live there alone).
+    key: (
+        String,
+        Option<String>,
+        Face,
+        RunFace,
+        u16,
+        bool,
+        bool,
+        bool,
+        bool,
+    ),
     title: Line<'static>,
     body: Vec<Line<'static>>,
     /// The body line of the picked task, when the run's list shows one.
@@ -243,6 +260,7 @@ impl Desk {
             arrangement: Arrangement::of(Layout::Session),
             drag: None,
             unsettled: false,
+            fold: None,
         }
     }
 
@@ -330,15 +348,38 @@ impl Desk {
         }
     }
 
+    /// Render the face in view for the frame of `state`, before it: the
+    /// candidate shown leaves its facts to the conversation while the
+    /// conversation reviews it ([`review::summarized`]), the same decision
+    /// the transcript paints with, cached with the face so painting, the
+    /// extent, the pointer and scrolling read one body. First, once per
+    /// frame, whether that decision or the live question folds the stacked
+    /// object ([`Desk::folds`]): the face is rendered for the cells it gets.
+    pub(crate) fn prepare_for(&mut self, state: &UiState, ascii: bool, color: bool) {
+        let review = self.review(ascii);
+        let reviewed = state.presentation == Presentation::Workspace
+            && review::summarized(state, review.as_ref()).is_some();
+        let folds = self.overflowed(state, review.as_ref());
+        self.fold = folds.then_some((state.size, self.arrangement, self.pins()));
+        self.prepare_reviewed(state.size, ascii, color, reviewed);
+    }
+
+    /// [`Self::prepare_for`] with no review in the conversation.
+    #[cfg(test)]
+    pub(crate) fn prepare(&mut self, size: (u16, u16), ascii: bool, color: bool) {
+        self.prepare_reviewed(size, ascii, color, false);
+    }
+
     /// Render the face in view for a terminal of `size`, before the frame and
     /// only when the look or the candidate, the face, the region's width, the
-    /// glyph column, colour or short graph format changed: drawing paints these lines and
-    /// calls no viewer.
-    pub(crate) fn prepare(&mut self, size: (u16, u16), ascii: bool, color: bool) {
+    /// glyph column, colour, short graph format or review changed: drawing
+    /// paints these lines and calls no viewer.
+    fn prepare_reviewed(&mut self, size: (u16, u16), ascii: bool, color: bool, reviewed: bool) {
         let (Some((from, witness)), Some(geometry)) = (self.rendered_from(), self.geometry(size))
         else {
             return;
         };
+        let reviewed = reviewed && matches!(self.shown(), Some(Opened::Candidate(_)));
         // The face is rendered for the cells the object paints it in.
         let width = screen::object_body(&geometry).width;
         let height = geometry.object.height;
@@ -357,6 +398,7 @@ impl Desk {
             ascii,
             color,
             compact,
+            reviewed,
         );
         if let Some(drawn) = self.drawn.as_mut().filter(|d| d.key == key) {
             // The same lines in another viewport: a picked task stays in view.
@@ -369,18 +411,22 @@ impl Desk {
             }
             return;
         }
-        // Compact rows and cards have different line identities. Start the
-        // graph at its top when that format changes; keep source and focus.
+        // Compact rows and cards have different line identities, and so do a
+        // face with and without its facts. Start the reading at its top when
+        // either changes; keep source and focus.
         if self.drawn.as_ref().is_some_and(|drawn| {
             drawn.key.0 == key.0
                 && drawn.key.1 == key.1
                 && drawn.key.2 == key.2
-                && drawn.key.7 != compact
+                && (drawn.key.7 != compact || drawn.key.8 != reviewed)
         }) {
             self.focus.scroll = 0;
         }
         let mut picked_line = None;
         let lines = match (self.shown(), &self.look) {
+            (Some(Opened::Candidate(c)), _) if reviewed => {
+                c.reviewed_face_lines(self.face, width, ascii, color, compact)
+            }
             (Some(Opened::Candidate(c)), _) => {
                 c.face_lines_in(self.face, width, ascii, color, compact)
             }
@@ -502,6 +548,8 @@ impl Desk {
         if next == self.candidate {
             return;
         }
+        // Another candidate is another decision: the next frame decides the fold.
+        self.fold = None;
         // The same identity with other facts (its rehearsal words): rendered
         // anew where it is, never taken back from another object in view.
         let identity = |c: &Proposed| (c.id().clone(), c.aside());
@@ -620,10 +668,21 @@ impl Desk {
         let project = view.map_or("", |v| v.name.as_str());
         let pinned = (self.live.as_ref().map(|leg| leg.pinned(project)))
             .or_else(|| view.and_then(|v| v.pinned.clone()));
+        let screen = screen.reviewing(self.review(ascii));
         match pinned {
             Some(run) => screen.pinning(run),
             None => screen,
         }
+    }
+
+    /// The candidate a consent can name, as the conversation reviews it: the
+    /// one review the transcript's paint ([`Self::screen`]), its scroll bounds
+    /// and the full-words reader read.
+    #[must_use]
+    pub(crate) fn review(&self, ascii: bool) -> Option<Review> {
+        self.candidate
+            .as_ref()
+            .and_then(|candidate| candidate.review(ascii))
     }
 
     /// What the regions hold on a terminal of `size`, as the arrangement lays
@@ -839,6 +898,7 @@ pub(crate) fn draw(
     state: &UiState,
     composer: &Composer,
 ) -> bool {
+    let area = frame.area();
     screen::draw_in(
         frame,
         &desk.screen(paint.ascii),
@@ -849,6 +909,7 @@ pub(crate) fn draw(
         screen::Chrome {
             arrangement: desk.arrangement,
             dragging: desk.dragging(),
+            folded: desk.folds((area.width, area.height)),
         },
     )
 }
@@ -886,3 +947,7 @@ mod tests;
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod layout_tests;
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod fold_tests;

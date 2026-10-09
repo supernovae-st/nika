@@ -105,9 +105,9 @@ fn draft(runtime: &SessionRuntime, kept: Option<&Proposed>) -> Option<Proposed> 
     Some(Proposed::new(ProposalId::of(&source), true, look).drafted())
 }
 
-/// How the pending workflow was revised over its complete document, as the compile record states
-/// it: what changed, never that it is what was meant. A whole replacement claims no preservation
-/// and each component not witnessed as bound on these bytes needs attention.
+/// How the typed compile record describes the pending document: a creation without earlier
+/// bytes, literal edits, or a whole replacement. An unknown mode claims none of those. Every
+/// component not witnessed as bound on these bytes needs attention.
 fn revised(revision: &nika_session::work::DocumentRevision) -> Vec<(String, bool)> {
     let mut rows = vec![match revision.mode.as_str() {
         "operations" if revision.changed.is_empty() => {
@@ -117,10 +117,14 @@ fn revised(revision: &nika_session::work::DocumentRevision) -> Vec<(String, bool
             format!("revised in place · {}", revision.changed.join(", ")),
             false,
         ),
-        _ => (
+        "written" | "composed" if revision.base_sha256.is_none() => {
+            (format!("created · {}", revision.mode), false)
+        }
+        "replaced" => (
             "rewritten whole · no preservation of the earlier bytes is claimed".to_owned(),
             true,
         ),
+        _ => ("document record · mode not described".to_owned(), true),
     }];
     rows.extend(revision.components.iter().map(|component| {
         let bound: Vec<String> = (component.bindings.iter())

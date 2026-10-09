@@ -36,6 +36,9 @@ mod vt;
 #[path = "workspace_pty/run.rs"]
 mod run;
 
+#[path = "workspace_pty/question.rs"]
+mod question;
+
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -1057,6 +1060,37 @@ fn preview_text(screen: &vt::Screen) -> String {
         .join(" ")
 }
 
+/// The centre conversation at the same 120-column geometry. This reads the
+/// actual decision region, so duplicate facts in the object cannot mask a
+/// missing review. Card edges are not part of the words being checked.
+fn review_text(screen: &vt::Screen) -> String {
+    review_rows(screen)
+        .join(" ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Read each row in that same conversation region, without its frame edges.
+fn review_rows(screen: &vt::Screen) -> Vec<String> {
+    assert_eq!(screen.size().0, 120);
+    screen
+        .lines()
+        .into_iter()
+        .map(|line| {
+            let mut cell = 0;
+            line.chars()
+                .filter(|glyph| {
+                    let at = cell;
+                    cell += unicode_width::UnicodeWidthChar::width(*glyph).unwrap_or(0);
+                    (21..68).contains(&at)
+                })
+                .collect::<String>()
+                .replace('│', " ")
+        })
+        .collect()
+}
+
 /// 6 · Words typed before the first frame land in the draft and are never
 /// sent; a region holding the keys reads them instead of the composer; `Esc`
 /// gives the keys back; `Ctrl+L` repaints with the draft intact.
@@ -1221,13 +1255,13 @@ fn save_is_never_run_in_the_workspace() {
     );
 }
 
-/// The candidate identity the object region shows (`proposal <12 hex> · what
-/// a yes answers`), when one is shown.
+/// The exact candidate identity in the review's quiet footnote
+/// (`proposal <12 hex>`), independent of the separate consent-facts row.
 fn shown_identity(screen: &str) -> Option<String> {
-    let tail = " · what a yes answers";
+    let head = "proposal ";
     screen.lines().find_map(|line| {
-        let at = line.find(tail)?;
-        let id = line[..at].rsplit("proposal ").next()?;
+        let at = line.find(head)? + head.len();
+        let id = line.get(at..)?.split_whitespace().next()?;
         (id.len() == 12 && id.chars().all(|c| c.is_ascii_hexdigit())).then(|| id.to_owned())
     })
 }
@@ -1260,21 +1294,34 @@ fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
     let mut term = rig.spawn("12-candidate", 120, 36);
     wait_workspace(&mut term);
     term.send("Read ./notes/brief.md and write it to ./out/copy.md\r");
-    term.wait_until("the candidate in view", |s| {
-        s.contains("Save?") && s.contains("what a yes answers")
+    term.wait_workspace_frame("the candidate in view", |s| {
+        s.contains("Save?") && review_text(s).contains("what a yes answers")
     });
-    let shown = term.text();
-    let a = shown_identity(&shown).expect("an identity is shown");
+    let a = shown_identity(&review_text(&term.screen)).expect("an identity is shown");
     let preview = preview_text(&term.screen);
+    let review = review_text(&term.screen);
     for said in [
         "not saved",
         "creates compiled-workflow.nika",
         "when it runs",
         "rehearsal",
-        "[graph]",
     ] {
-        assert!(preview.contains(said), "{said}\n{}", term.dump());
+        assert!(
+            review.contains(said),
+            "missing review fact {said}\n{}",
+            term.dump()
+        );
+        assert!(
+            !preview.contains(said),
+            "duplicated review fact {said}\n{}",
+            term.dump()
+        );
     }
+    assert!(
+        preview.contains("[graph]"),
+        "the object retains its face\n{}",
+        term.dump()
+    );
     assert_eq!(rig.tree(), before, "a proposal writes nothing");
     // The observed graph opens first. Read Source, then all the other faces;
     // none of these navigation keys is a consent.
@@ -1295,10 +1342,10 @@ fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
     term.keys(ESC);
     // A revision of the proposal's money: a new identity, A gone from the object.
     term.send("budget 0.10 USD\r");
-    term.wait_until("the revised candidate", |s| {
-        shown_identity(&s.lines().join("\n")).is_some_and(|id| id != a)
+    term.wait_workspace_frame("the revised candidate", |s| {
+        shown_identity(&review_text(s)).is_some_and(|id| id != a)
     });
-    let b = shown_identity(&term.text()).expect("B");
+    let b = shown_identity(&review_text(&term.screen)).expect("B");
     let witness_row = shown_bytes(&term.text()).expect("the pending bytes' witness");
     assert_eq!(rig.tree(), before, "a revision writes nothing");
     term.send("yes\r");
@@ -1314,7 +1361,7 @@ fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
     );
     assert!(term.text().contains(&saved), "{}", term.dump());
     assert_ne!(
-        shown_identity(&term.text()),
+        shown_identity(&review_text(&term.screen)),
         Some(b),
         "a saved candidate is no longer one"
     );

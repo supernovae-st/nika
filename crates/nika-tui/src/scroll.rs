@@ -5,18 +5,28 @@
 
 use crate::composer::Composer;
 use crate::model::{Presentation, UiState};
-use crate::render::{block_lines, content_rows, live_rows};
+use crate::render::{block_lines, content_rows, live_rows, question};
 use crate::workspace::{cards, desk::Desk, focus::Region, screen};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
 
 fn area(state: &UiState, desk: &Desk, composer: &Composer) -> Rect {
+    regions(state, desk, composer).0
+}
+
+/// The transcript's rows on the frame of `state`, and the block the live
+/// question card carries there (the workspace panel's [`question::carried`]):
+/// the regions painting reads, from the same live area.
+fn regions(state: &UiState, desk: &Desk, composer: &Composer) -> (Rect, Option<usize>) {
     let area = Rect::new(0, 0, state.size.0, state.size.1);
     if state.presentation == Presentation::Workspace
         && let Some(geometry) = desk.geometry(state.size)
     {
         let shown = desk.screen(state.ascii);
-        return screen::panel_areas(&geometry, state, composer, &shown.thread)[1];
+        let [_, transcript, _, live] =
+            screen::panel_areas(&geometry, state, composer, &shown.thread);
+        let carried = question::carried(state, composer, live, screen::boxed(&geometry));
+        return (transcript, carried);
     }
     let live = live_rows(state, composer, area.width, area.height);
     let [transcript, _, _] = Layout::vertical([
@@ -25,7 +35,7 @@ fn area(state: &UiState, desk: &Desk, composer: &Composer) -> Rect {
         Constraint::Length(live),
     ])
     .areas(area);
-    transcript
+    (transcript, None)
 }
 
 /// Move a page, with one shared row, clamped to the actually rendered content.
@@ -58,9 +68,12 @@ pub(crate) fn rows(
 }
 
 fn maximum(state: &UiState, desk: &Desk, composer: &Composer) -> usize {
-    let area = area(state, desk, composer);
+    let (area, carried) = regions(state, desk, composer);
     let rows = if state.presentation == Presentation::Workspace {
-        cards::height(state, area)
+        // The review and the carried question the workspace paints with; the
+        // focus view standing in below the minimum paints every block as said.
+        let review = (desk.geometry(state.size)).and_then(|_| desk.review(state.ascii));
+        cards::height(state, area, (review.as_ref(), carried))
     } else {
         let lines: Vec<_> = state
             .transcript
@@ -516,6 +529,35 @@ mod tests {
                     KeyEvent::new(KeyCode::End, KeyModifiers::NONE)
                 ));
             }
+        }
+    }
+
+    /// The scroll bounds read the review the workspace paints with: while the
+    /// current proposal reads as its review, the measure counts the reviewed
+    /// rows, never the Session's longer words; below the minimum the focus
+    /// view standing in paints and measures every block as said.
+    #[test]
+    fn the_scroll_bounds_read_the_review_the_workspace_paints() {
+        use crate::model::Waiting;
+        use crate::workspace::cards::review::fixture;
+        use nika_session::ProposalId;
+        let long = format!("{}\n{}", fixture::PREVIEW, "cost and policy\n".repeat(40));
+        let id = ProposalId::of(&long);
+        let mut desk = Desk::new();
+        desk.proposed(Some(fixture::candidate(id.clone(), false)));
+        let composer = Composer::new();
+        for size in [(80, 24), (120, 40), (180, 48), (50, 14)] {
+            let proposal = Committed::proposal(id.clone(), long.clone());
+            let state = fixture::state(size, proposal, Waiting::Proposal);
+            let viewport = area(&state, &desk, &composer);
+            let said = cards::height(&state, viewport, (None, None));
+            let review = (desk.geometry(size)).and_then(|_| desk.review(state.ascii));
+            let measured = cards::height(&state, viewport, (review.as_ref(), None));
+            assert_eq!(review.is_some(), size != (50, 14), "{size:?}");
+            let shorter = review.is_none() || measured < said;
+            assert!(shorter, "{size:?}: {measured} {said}");
+            let most = measured.saturating_sub(usize::from(viewport.height));
+            assert_eq!(maximum(&state, &desk, &composer), most, "{size:?}");
         }
     }
 }

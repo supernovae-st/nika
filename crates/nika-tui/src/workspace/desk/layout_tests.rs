@@ -793,6 +793,34 @@ fn painted_action(
     })
 }
 
+/// The form of the action painted at the right end of the object's last row,
+/// the continuation cue's, if one is.
+fn cue_action(buffer: &Buffer, object: Rect, expanded: bool, ascii: bool) -> Option<&'static str> {
+    let last = Rect::new(object.x, object.bottom() - 1, object.width, 1);
+    painted_action(buffer, last, expanded, ascii)
+}
+
+/// A secondary action remains quiet without relying on colour.
+fn quiet_action(buffer: &Buffer, object: Rect, form: &str, at: &str) {
+    let cells = u16::try_from(form.chars().count()).expect("cells");
+    let cell = &buffer[(object.right() - cells, object.y)];
+    assert_eq!((cell.fg, cell.bg), (Color::Reset, Color::Reset), "{at}");
+    assert!(
+        cell.modifier.contains(Modifier::DIM),
+        "{at}: secondary action is not quiet"
+    );
+}
+
+/// The widest continuation cue an object paints on its last row.
+const WIDEST_CUE: &str = "↑ Above · ↓ Below · scroll";
+
+/// Whether the object of `desk` paints a continuation cue in `geometry`.
+fn overflows(desk: &Desk, geometry: &Geometry) -> bool {
+    let rows = geometry.object.height;
+    let lines = crate::workspace::object::length(&desk.screen(false).object);
+    rows >= 3 && lines > usize::from(rows - 1)
+}
+
 /// The cells the object's title takes on `desk`'s frame of `size`, as the
 /// object region paints it (cut at its body's edge).
 fn title_cells(desk: &Desk, size: (u16, u16), ascii: bool) -> usize {
@@ -819,7 +847,9 @@ fn area_of(rect: Rect) -> u32 {
 }
 
 /// The object's own title row offers one action, never a mode: the longest
-/// form that fits after the title, none where none fits (`F4` still acts).
+/// form that fits after the title; where none fits, the continuation cue's
+/// row offers the longest form after the cue's widest words, or with no cue a
+/// strictly free last row offers it (`F4` still acts where no row has room).
 /// `F4` grows the object while the conversation keeps its composer and the
 /// draft, then gives back exactly the frame before; each press changes the
 /// view only. No frame names Session or Workbench, and the action reads
@@ -847,16 +877,24 @@ fn one_object_action_expands_and_restores_the_object_at_the_target_sizes() {
                 let fitting = fitting_action(title, body, expanded, ascii);
                 let shown = painted_action(&buffer, geometry.object, expanded, ascii);
                 assert_eq!(shown, fitting, "{at}\n{text}");
+                let below = fitting.is_none() && overflows(&desk, &geometry);
+                // No cue: only a last row strictly free of the body's lines offers it.
+                let lines = crate::workspace::object::length(&desk.screen(false).object);
+                let room = usize::from(geometry.object.height.saturating_sub(1));
+                let free = fitting.is_none() && !overflows(&desk, &geometry) && lines < room;
+                let freed = free
+                    .then(|| fitting_action(0, body, expanded, ascii))
+                    .flatten();
+                let cue = below
+                    .then(|| fitting_action(WIDEST_CUE.width(), body, expanded, ascii))
+                    .flatten()
+                    .or(freed);
+                let lower = cue_action(&buffer, geometry.object, expanded, ascii);
+                assert_eq!(lower, cue, "{at}\n{text}");
                 offered.push(shown.is_some());
                 let object = geometry.object;
                 if let Some(form) = shown {
-                    let cells = u16::try_from(form.chars().count()).expect("cells");
-                    let cell = &buffer[(object.right() - cells, object.y)];
-                    assert_eq!((cell.fg, cell.bg), (Color::Reset, Color::Reset), "{at}");
-                    assert!(
-                        cell.modifier.contains(Modifier::DIM),
-                        "{at}: secondary action is not quiet"
-                    );
+                    quiet_action(&buffer, object, form, &at);
                 }
                 let draft = rows.iter().position(|row| row.contains(DRAFT));
                 let draft = u16::try_from(draft.expect("the draft on screen")).expect("row");
@@ -917,8 +955,9 @@ fn one_object_action_expands_and_restores_the_object_at_the_target_sizes() {
 
 /// The action is the longest form that fits after the title with one blank
 /// cell between them: the compact form exactly where the long one cannot
-/// fit, and no action (nothing to press) one cell narrower. No form ever
-/// covers a cell of the title.
+/// fit, and none on the title row one cell narrower, where the continuation
+/// cue's row offers it after the cue's widest words, or with no cue a
+/// strictly free last row does. No form ever covers a cell of the title.
 #[test]
 fn the_object_action_takes_the_longest_form_that_fits_after_its_title() {
     let area = Rect::new(0, 0, WIDE.0, WIDE.1);
@@ -952,6 +991,20 @@ fn the_object_action_takes_the_longest_form_that_fits_after_its_title() {
             let (_, buffer) = frame(&desk, WIDE, &state, &composer, paint(ascii, false));
             let shown = painted_action(&buffer, geometry.object, false, ascii);
             assert_eq!(shown, expected, "{at}");
+            let below = expected.is_none() && overflows(&desk, &geometry);
+            // No cue: only a last row strictly free of the body's lines offers it.
+            let lines = crate::workspace::object::length(&desk.screen(false).object);
+            let room = usize::from(geometry.object.height.saturating_sub(1));
+            let free = expected.is_none() && !overflows(&desk, &geometry) && lines < room;
+            let freed = free
+                .then(|| fitting_action(0, body.width, false, ascii))
+                .flatten();
+            let cue = below
+                .then(|| fitting_action(WIDEST_CUE.width(), body.width, false, ascii))
+                .flatten()
+                .or(freed);
+            let lower = cue_action(&buffer, geometry.object, false, ascii);
+            assert_eq!(lower, cue, "{at}");
             let gap = body.x + u16::try_from(title).expect("cells");
             let blank = buffer[(gap, body.y)].symbol();
             assert_eq!(blank, " ", "{at}: the title is covered");

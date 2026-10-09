@@ -29,7 +29,10 @@ carries beyond the latest release is described one file per change in
 - On an interactive terminal, `nika` opens the full-screen workspace with the
   current project, workflow inspection and conversation. At narrow sizes the
   conversation stays in focus. `F6` moves between regions, `Esc` returns to the
-  composer, and `Alt+Enter` breaks a line. Opening a workflow from the project
+  composer from another region and, from the conversation, leaves the full
+  screen for the inline view, and `Alt+Enter` breaks a line; the
+  [terminal workspace guide](../terminal-workspace.md) lists every key.
+  Opening a workflow from the project
   list shows Source, Plan, Graph and Check for the same observed bytes; it does
   not attach the workflow to your message or run it. The check covers the parent
   file only and keeps imported dependencies and run readiness unknown.
@@ -286,6 +289,10 @@ clause by clause.
 
 - `yes` writes only the reviewed bytes and checks them. Saving never runs a
   workflow, and a new save clears the previous run status.
+- `save & run`, while a proposal waits, explicitly requests saving its reviewed
+  source followed by one Run. The source and witnessed world are checked before
+  landing it; Save and Run retain separate outcomes. If the Run cannot start
+  after a successful Save, the saved source remains.
 - `run it` runs the saved workflow once, and only when the file on disk checks
   clean. You can name a file and a ceiling:
   `run paid-orders.nika with a ceiling of 0.05`.
@@ -302,8 +309,11 @@ clause by clause.
   Answer a waiting approval before you ask for another run.
 - When a run's cost cannot be estimated, the terminal view asks a separate
   `yes / no / details` question that approves that one run only.
-- The qualified sequence is review, `yes`, then a separate `run it`. It does not
-  cover stating a run ceiling while a proposal still waits for its `yes`.
+- Actual native journeys cover review, `yes`, then a separate `run it`, and the
+  explicit proposal-bound `save & run`. They check the exact saved source and
+  useful output, and that inspection or resize does not repeat execution.
+  Stating a new run ceiling while a proposal still waits remains separately
+  qualified.
 
 ## Inspect the result
 

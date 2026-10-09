@@ -2,16 +2,26 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! One continuous conversation, with bounded decision and diagnostic cards.
-//! Labels follow typed blocks, never parsed prose. Clipping can start inside
-//! a message without losing wrapped text.
+//! Labels follow typed blocks, never parsed prose. Consecutive blocks of one
+//! speaker share one bubble ([`bubble`]): the human's at the right end on the
+//! raised surface, Nika's at the left. A question, a proposal, a gate and a
+//! refusal keep their bounded card. One plan of pieces both measures and
+//! paints, so the scroll bounds are the rows drawn; clipping can start inside
+//! a piece without losing wrapped text, and no block's words are rewritten.
 //! A refusal recognised by the Session's exact sentence reads first as a short
-//! summary ([`diagnostics`]); the block keeps the Session's words whole, and
-//! measuring and painting use the same lines.
+//! summary ([`diagnostics`]), and the current proposal, tied to the candidate
+//! by identity, as its typed review ([`review`]); each block keeps the
+//! Session's words whole, and measuring and painting use the same lines. The
+//! question the live card carries with its words (`render::question`) reads
+//! one quiet row where its block stands, the block itself untouched.
 
 // The presenter's file sits beside the root modules; the cards that paint it
 // own the module.
 #[path = "../diagnostics.rs"]
 pub(crate) mod diagnostics;
+
+mod bubble;
+pub(crate) mod review;
 
 use nika_display::theme::Role;
 use ratatui::Frame;
@@ -21,7 +31,9 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use unicode_width::UnicodeWidthStr;
 
+use self::bubble::{Bubble, Form};
 use self::diagnostics::{Shown, Summary};
+use self::review::Review;
 use super::text::fit_head;
 
 use crate::model::{Committed, Kind, UiState};
@@ -75,22 +87,28 @@ fn framed(kind: Kind) -> bool {
     )
 }
 
-fn message_width(kind: Kind, width: u16) -> u16 {
-    if framed(kind) {
-        width.saturating_sub(4)
-    } else {
-        width
-    }
+/// The rows a bounded card takes for `rows` of words: its title, its bottom
+/// border and one row of air.
+fn card_height(rows: usize) -> usize {
+    rows.saturating_add(3)
 }
 
-fn message_height(kind: Kind, rows: usize) -> usize {
-    rows.saturating_add(if framed(kind) {
-        3
-    } else if kind == Kind::Banner {
-        1
+/// Where a question the live card carries stood: its words wait below, at the
+/// line that answers them.
+const CARRIED: (&str, &str) = ("↓ the question waits below", "v the question waits below");
+
+/// The rows the carried question's marker takes: its row and one of air.
+const MARKER_ROWS: usize = 2;
+
+/// The carried question's one quiet row, cut to `width` cells.
+fn carried_line(width: u16, color: bool, ascii: bool) -> Line<'static> {
+    let (text, cut) = if ascii {
+        (CARRIED.1, "...")
     } else {
-        2
-    })
+        (CARRIED.0, "…")
+    };
+    let text = fit_head(text, usize::from(width), cut);
+    Line::styled(text, role::style(Role::Dim, color))
 }
 
 /// A summary under the block's own glyph and tone: the cause first, then the
@@ -115,34 +133,133 @@ fn summary_lines(kind: Kind, summary: &Summary, color: bool, ascii: bool) -> Vec
     lines
 }
 
-/// Paint the visible end of the conversation without allocating off-screen cells.
-pub(crate) fn render(frame: &mut Frame<'_>, state: &UiState, area: Rect) {
+/// The lines `block`, at `index` in the transcript, paints: the candidate's
+/// review for the current proposal (`current`), else the card's own lines.
+fn shown_lines(
+    block: &Committed,
+    index: usize,
+    current: Option<(usize, &Review)>,
+    color: bool,
+    ascii: bool,
+) -> Vec<Line<'static>> {
+    match current {
+        Some((at, review)) if at == index => review.lines(color, ascii),
+        _ => card_lines(block, color, ascii),
+    }
+}
+
+/// What the cards read beside the transcript: the candidate the current
+/// proposal is reviewed against, and the block the live question card carries.
+pub(crate) type Context<'a> = (Option<&'a Review>, Option<usize>);
+
+/// Every block's lines from block `from` in a pane `width` cells wide too
+/// small for cards, the current proposal as its review and the carried
+/// question as its row: what the compact fallback paints and measures alike.
+fn compact_lines(
+    state: &UiState,
+    context: Context<'_>,
+    width: u16,
+    from: usize,
+) -> Vec<Line<'static>> {
+    let (review, carried) = context;
+    let current = review::summarized(state, review);
+    let (color, ascii) = (state.color, state.ascii);
+    (state.transcript.iter().enumerate().skip(from))
+        .flat_map(|(index, block)| {
+            if carried == Some(index) {
+                vec![carried_line(width, color, ascii)]
+            } else {
+                shown_lines(block, index, current, color, ascii)
+            }
+        })
+        .collect()
+}
+
+/// One piece of the conversation, as both measured and painted.
+enum Piece<'a> {
+    /// A decision or a refusal in its bounded card: the block, the lines it
+    /// paints and their rows inside the card.
+    Card(&'a Committed, Vec<Line<'static>>, usize),
+    /// One speaker's consecutive blocks.
+    Bubble(Bubble),
+    /// The question the live card carries: one quiet row where it stood.
+    Marker,
+}
+
+impl Piece<'_> {
+    /// Every row it takes, its row of air included.
+    fn rows(&self) -> usize {
+        match self {
+            Self::Card(_, _, rows) => card_height(*rows),
+            Self::Bubble(bubble) => bubble.rows(),
+            Self::Marker => MARKER_ROWS,
+        }
+    }
+}
+
+/// The conversation in `area` from block `from` on, piece by piece: the one
+/// plan [`rows_from`], [`height`] and [`render`] read. Consecutive blocks of
+/// one speaker share a bubble; a decision or a refusal stands alone in its
+/// card (so the pieces from one are those of the whole plan), the current
+/// proposal's card reads as the candidate's `review` ([`review::summarized`])
+/// and the carried block as the live question's one row.
+fn plan<'a>(
+    state: &'a UiState,
+    area: Rect,
+    (review, carried): Context<'_>,
+    from: usize,
+) -> Vec<Piece<'a>> {
+    let form = Form::of(area);
+    let (color, ascii) = (state.color, state.ascii);
+    let current = review::summarized(state, review);
+    let mut pieces = Vec::new();
+    let mut group: Vec<&Committed> = Vec::new();
+    for (index, block) in state.transcript.iter().enumerate().skip(from) {
+        let bound = framed(block.kind);
+        let you = block.kind == Kind::Human;
+        if group
+            .first()
+            .is_some_and(|first| bound || (first.kind == Kind::Human) != you)
+        {
+            pieces.push(Piece::Bubble(Bubble::of(&group, area, form, color, ascii)));
+            group.clear();
+        }
+        if bound && carried == Some(index) {
+            pieces.push(Piece::Marker);
+        } else if bound {
+            let lines = shown_lines(block, index, current, color, ascii);
+            let rows = content_rows(&lines, area.width.saturating_sub(4));
+            pieces.push(Piece::Card(block, lines, rows));
+        } else {
+            group.push(block);
+        }
+    }
+    if !group.is_empty() {
+        pieces.push(Piece::Bubble(Bubble::of(&group, area, form, color, ascii)));
+    }
+    pieces
+}
+
+/// Paint the visible end of the conversation without allocating off-screen
+/// cells, read with `context` (`(None, None)` keeps every block as said). A
+/// plan shorter than `area` at its live position stands on the area's last
+/// row ([`lift`]): its latest piece touches the decision under it.
+pub(crate) fn render(frame: &mut Frame<'_>, state: &UiState, area: Rect, context: Context<'_>) {
     if area.is_empty() {
         return;
     }
     if !room_for_labels(area) {
-        compact(frame, state, area);
+        compact(frame, state, area, context);
         return;
     }
-    let cards: Vec<_> = state
-        .transcript
-        .iter()
-        .map(|block| {
-            let lines = message_lines(block, state.color, state.ascii);
-            let rows = content_rows(&lines, message_width(block.kind, area.width));
-            (block, lines, rows)
-        })
-        .collect();
-    let total: usize = cards
-        .iter()
-        .map(|(block, _, rows)| message_height(block.kind, *rows))
-        .sum();
+    let pieces = plan(state, area, context, 0);
+    let total: usize = pieces.iter().map(Piece::rows).sum();
     let mut skip = total
         .saturating_sub(usize::from(area.height))
         .saturating_sub(state.focus_scroll);
-    let mut y = area.y;
-    for (block, lines, rows) in cards {
-        let height = message_height(block.kind, rows);
+    let mut y = area.y + lift(state, area, total);
+    for piece in &pieces {
+        let height = piece.rows();
         if skip >= height {
             skip -= height;
             continue;
@@ -151,15 +268,21 @@ pub(crate) fn render(frame: &mut Frame<'_>, state: &UiState, area: Rect) {
             .saturating_sub(skip)
             .min(usize::from(area.bottom() - y));
         let visible = u16::try_from(visible).unwrap_or(area.height);
-        paint(
-            frame,
-            block,
-            &lines,
-            rows,
-            Rect::new(area.x, y, area.width, visible),
-            skip,
-            state,
-        );
+        let at = Rect::new(area.x, y, area.width, visible);
+        match piece {
+            Piece::Card(block, lines, rows) => {
+                paint_card(frame, block, lines, *rows, at, skip, state);
+            }
+            Piece::Bubble(bubble) => {
+                bubble.paint(frame.buffer_mut(), at, skip, state.color, state.ascii);
+            }
+            Piece::Marker if skip == 0 => {
+                let line = carried_line(at.width, state.color, state.ascii);
+                frame.render_widget(Paragraph::new(line), Rect::new(at.x, at.y, at.width, 1));
+            }
+            // Scrolled past its row, only its air remains.
+            Piece::Marker => {}
+        }
         y += visible;
         skip = 0;
         if y == area.bottom() {
@@ -168,28 +291,22 @@ pub(crate) fn render(frame: &mut Frame<'_>, state: &UiState, area: Rect) {
     }
 }
 
-/// Total rendered rows, using the same widths and compact fallback as painting.
-pub(crate) fn height(state: &UiState, area: Rect) -> usize {
+/// Total rendered rows, from the same plan, `context` and compact fallback as
+/// painting.
+pub(crate) fn height(state: &UiState, area: Rect, context: Context<'_>) -> usize {
+    rows_from(state, area, context, 0)
+}
+
+/// The rendered rows from block `from` to the end, from the same plan,
+/// `context` and compact fallback as painting: what a decision standing at
+/// `from` asks of the transcript.
+pub(crate) fn rows_from(state: &UiState, area: Rect, context: Context<'_>, from: usize) -> usize {
     if !room_for_labels(area) {
-        let lines: Vec<_> = state
-            .transcript
-            .iter()
-            .flat_map(|block| card_lines(block, state.color, state.ascii))
-            .collect();
-        return content_rows(&lines, area.width);
+        return content_rows(&compact_lines(state, context, area.width, from), area.width);
     }
-    state
-        .transcript
+    plan(state, area, context, from)
         .iter()
-        .map(|block| {
-            message_height(
-                block.kind,
-                content_rows(
-                    &message_lines(block, state.color, state.ascii),
-                    message_width(block.kind, area.width),
-                ),
-            )
-        })
+        .map(Piece::rows)
         .sum()
 }
 
@@ -199,19 +316,52 @@ fn room_for_labels(area: Rect) -> bool {
 }
 
 /// In a short split, every row belongs to the question or answer, not chrome.
-fn compact(frame: &mut Frame<'_>, state: &UiState, area: Rect) {
-    let lines: Vec<_> = state
-        .transcript
-        .iter()
-        .flat_map(|block| card_lines(block, state.color, state.ascii))
-        .collect();
-    let skip = content_rows(&lines, area.width)
+fn compact(frame: &mut Frame<'_>, state: &UiState, area: Rect, context: Context<'_>) {
+    let lines = compact_lines(state, context, area.width, 0);
+    let rows = content_rows(&lines, area.width);
+    let skip = rows
         .saturating_sub(usize::from(area.height))
         .saturating_sub(state.focus_scroll);
-    window(&lines, area, skip, frame.buffer_mut());
+    let above = lift(state, area, rows);
+    let at = Rect::new(area.x, area.y + above, area.width, area.height - above);
+    window(&lines, at, skip, frame.buffer_mut());
 }
 
-fn paint(
+/// The rows above a plan `rows` long in `area` at its live position: what the
+/// area holds beyond it, so its last row stands on the area's last row and
+/// the empty rows go above it. Scrolled back, or longer than the area, none:
+/// manual reading, the scroll bounds and every offset stay as measured.
+fn lift(state: &UiState, area: Rect, rows: usize) -> u16 {
+    if state.focus_scroll > 0 {
+        return 0;
+    }
+    let short = usize::from(area.height).saturating_sub(rows);
+    u16::try_from(short).unwrap_or(0)
+}
+
+/// The heading of a card entered part-way, `above` rows of its words over the
+/// first one shown, in `room` cells: its label, cut if need be, and the count
+/// whole; `None` when the row cannot hold both.
+fn continued(label: &str, above: usize, room: usize, ascii: bool) -> Option<String> {
+    let (sep, up, cut) = if ascii {
+        ("-", "^", "...")
+    } else {
+        ("·", "↑", "…")
+    };
+    let plural = if above == 1 { "" } else { "s" };
+    let count = format!(" {sep} {up} {above} row{plural}");
+    let name = room
+        .checked_sub(count.width())
+        .filter(|cells| *cells > cut.width())?;
+    Some(format!("{}{count}", fit_head(label, name, cut)))
+}
+
+/// A decision or a refusal on its bounded raised surface: the title in the
+/// top border, the words one cell inside each edge, the bottom border, from
+/// its row `offset` on. Entered part-way, its first row shown names it and
+/// counts the rows of words above ([`continued`]), the words one row lower:
+/// no row's cost changes, and one row back shows the words that row covers.
+fn paint_card(
     frame: &mut Frame<'_>,
     block: &Committed,
     lines: &[Line<'static>],
@@ -220,10 +370,6 @@ fn paint(
     offset: usize,
     state: &UiState,
 ) {
-    if !framed(block.kind) {
-        paint_message(frame, block, lines, rows, area, offset, state);
-        return;
-    }
     let height = usize::from(area.height);
     let painted = height.min(rows.saturating_add(2).saturating_sub(offset));
     let painted = u16::try_from(painted).unwrap_or(area.height);
@@ -238,8 +384,19 @@ fn paint(
     } else {
         ("╭─", "╮", "│", "╰", "╯", "─", "…")
     };
-    if offset == 0 {
-        let label = fit_head(label, usize::from(area.width).saturating_sub(5), cut);
+    let room = usize::from(area.width).saturating_sub(5);
+    let entered = if offset > 0 && offset <= rows && height >= 2 {
+        continued(label, offset, room, state.ascii)
+    } else {
+        None
+    };
+    let first = offset.max(1) + usize::from(entered.is_some());
+    let label = if offset == 0 {
+        Some(fit_head(label, room, cut))
+    } else {
+        entered
+    };
+    if let Some(label) = label {
         let title = format!(
             "{top} {label} {}{top_end}",
             rule.repeat(usize::from(area.width).saturating_sub(label.width() + 5))
@@ -249,7 +406,6 @@ fn paint(
             Rect::new(area.x, area.y, area.width, 1),
         );
     }
-    let first = offset.max(1);
     let last = offset.saturating_add(height).min(rows.saturating_add(1));
     if last > first {
         let body = Rect::new(
@@ -284,445 +440,6 @@ fn paint(
     }
 }
 
-/// Speaker, content, then one breathing row. A banner already introduces
-/// itself and needs no additional speaker. Measuring and painting use
-/// the complete pane width, including when a scrolled frame starts mid-turn.
-fn paint_message(
-    frame: &mut Frame<'_>,
-    block: &Committed,
-    lines: &[Line<'static>],
-    rows: usize,
-    area: Rect,
-    offset: usize,
-    state: &UiState,
-) {
-    let label_rows = usize::from(block.kind != Kind::Banner);
-    if offset == 0 && label_rows > 0 {
-        let (label, tone) = heading(block.kind);
-        let cut = if state.ascii { "..." } else { "…" };
-        let label = fit_head(label, usize::from(area.width), cut);
-        frame.render_widget(
-            Paragraph::new(Line::styled(label, role::style(tone, state.color))),
-            Rect::new(area.x, area.y, area.width, 1),
-        );
-    }
-    let first = offset.max(label_rows);
-    let last = offset
-        .saturating_add(usize::from(area.height))
-        .min(rows.saturating_add(label_rows));
-    if last > first {
-        let body = Rect::new(
-            area.x,
-            area.y + u16::try_from(first - offset).unwrap_or(area.height),
-            area.width,
-            u16::try_from(last - first).unwrap_or(area.height),
-        );
-        window(lines, body, first - label_rows, frame.buffer_mut());
-    }
-}
-
 #[cfg(test)]
 #[allow(clippy::expect_used)]
-mod tests {
-    use super::diagnostics::tests::{
-        ROOT, WARNING_LINE, knowledge_refusal, opening_banner, provider_failure,
-    };
-    use super::*;
-    use crate::model::Presentation;
-    use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
-
-    /// Every row the cards paint at `width` with the whole conversation in
-    /// view, the measured height exactly.
-    fn painted(state: &UiState, width: u16) -> (Vec<String>, Buffer) {
-        let rows = u16::try_from(height(state, Rect::new(0, 0, width, 6))).expect("rows");
-        let mut terminal = Terminal::new(TestBackend::new(width, rows)).expect("terminal");
-        terminal
-            .draw(|frame| render(frame, state, frame.area()))
-            .expect("draw");
-        let buffer = terminal.backend().buffer().clone();
-        let text = (0..rows)
-            .map(|y| (0..width).map(|x| buffer[(x, y)].symbol()).collect())
-            .collect();
-        (text, buffer)
-    }
-
-    /// Body words from either the open conversation or a bounded decision.
-    fn words(rows: &[String]) -> String {
-        let inner = |row: &String| {
-            let cells: Vec<char> = row.chars().collect();
-            if cells.len() > 2 && matches!(cells[0], '│' | '|') {
-                Some(cells[1..cells.len() - 1].iter().collect::<String>())
-            } else if row.starts_with(['╭', '╰', '+'])
-                || matches!(
-                    row.trim(),
-                    "You" | "Nika" | "Activity" | "Run" | "Result" | "Report"
-                )
-            {
-                None
-            } else {
-                Some(row.clone())
-            }
-        };
-        let words: Vec<String> = (rows.iter().filter_map(inner))
-            .flat_map(|row| {
-                row.split_whitespace()
-                    .map(str::to_owned)
-                    .collect::<Vec<_>>()
-            })
-            .collect();
-        words.join(" ")
-    }
-
-    /// Ordinary conversation flows through one surface. Only the actual
-    /// message and its speaker need space; repeated frames add no meaning.
-    #[test]
-    fn ordinary_turns_share_one_quiet_conversation_surface() {
-        for ascii in [false, true] {
-            for color in [false, true] {
-                let mut state = UiState::new(Presentation::Workspace, color, (40, 12));
-                state.ascii = ascii;
-                state
-                    .transcript
-                    .push(Committed::new(Kind::Human, "Keep a compact brief."));
-                state.transcript.push(Committed::new(
-                    Kind::Reply,
-                    "I will keep each update concise.",
-                ));
-                let before = state.transcript.clone();
-                let (rows, buffer) = painted(&state, 40);
-                let text: Vec<_> = rows.iter().map(|row| row.trim_end()).collect();
-                assert_eq!(
-                    text,
-                    [
-                        "You",
-                        "Keep a compact brief.",
-                        "",
-                        "Nika",
-                        "I will keep each update concise.",
-                        "",
-                    ]
-                );
-                assert!(
-                    buffer
-                        .content()
-                        .iter()
-                        .all(|cell| cell.bg == ratatui::style::Color::Reset)
-                );
-                assert_eq!(state.transcript, before);
-                if !color {
-                    assert!(
-                        buffer
-                            .content()
-                            .iter()
-                            .all(|cell| cell.fg == ratatui::style::Color::Reset)
-                    );
-                }
-            }
-        }
-    }
-
-    /// Short panes still distinguish a sent message from the assistant reply.
-    #[test]
-    fn a_compact_conversation_keeps_the_human_speaker() {
-        for ascii in [false, true] {
-            let area = Rect::new(0, 0, 40, 4);
-            let mut state = UiState::new(Presentation::Workspace, false, (40, 4));
-            state.ascii = ascii;
-            state
-                .transcript
-                .push(Committed::new(Kind::Human, "Keep a compact brief."));
-            state.transcript.push(Committed::new(
-                Kind::Reply,
-                "I will keep each update concise.",
-            ));
-            let before = state.transcript.clone();
-            assert_eq!(height(&state, area), 2);
-            let mut terminal = Terminal::new(TestBackend::new(40, 4)).expect("terminal");
-            terminal
-                .draw(|frame| render(frame, &state, area))
-                .expect("draw");
-            let buffer = terminal.backend().buffer();
-            let rows: Vec<String> = (0..4)
-                .map(|y| {
-                    (0..40)
-                        .map(|x| buffer[(x, y)].symbol())
-                        .collect::<String>()
-                        .trim_end()
-                        .to_owned()
-                })
-                .collect();
-            assert_eq!(
-                rows,
-                [
-                    format!("{} Keep a compact brief.", if ascii { ">" } else { "›" }),
-                    "I will keep each update concise.".to_owned(),
-                    String::new(),
-                    String::new()
-                ]
-            );
-            assert_eq!(state.transcript, before);
-        }
-    }
-
-    /// The knowledge refusal reads as its four sentences at every width, glyph
-    /// column and colour mode, never as its root or its codes; the measured
-    /// height ends on the bottom border, and the transcript keeps its words.
-    #[test]
-    fn a_recognised_refusal_reads_as_its_summary_at_every_width() {
-        let refusal = knowledge_refusal(ROOT);
-        for ascii in [false, true] {
-            for color in [false, true] {
-                for width in [24, 44, 72, 120] {
-                    let mut state = UiState::new(Presentation::Workspace, color, (width, 40));
-                    state.ascii = ascii;
-                    state.transcript.push(Committed::new(
-                        Kind::Human,
-                        "read notes.md and write digest.md",
-                    ));
-                    state
-                        .transcript
-                        .push(Committed::new(Kind::Refusal, refusal.clone()));
-                    let (rows, buffer) = painted(&state, width);
-                    let glyph = if ascii { "x" } else { "✖" };
-                    let summary = format!(
-                        "{glyph} Nika cannot verify the knowledge release named by NIKA_KNOWLEDGE. This authoring request was not sent; no write. Earlier routing may have reached the model. Next: quit and restart Nika with NIKA_KNOWLEDGE unset (built-in knowledge) or NIKA_KNOWLEDGE=off. Details: F2"
-                    );
-                    let case = format!("width {width} ascii {ascii} color {color}");
-                    assert!(words(&rows).ends_with(&summary), "{case}: {rows:#?}");
-                    let all = rows.join("\n");
-                    for wall in [ROOT, "ADMISSION_UNTRUSTED", "NIKA_AUTHORING_STRATEGY"] {
-                        assert!(!all.contains(wall), "{case}: {wall} in {all}");
-                    }
-                    assert!(all.contains("Could not continue"), "{case}: {all}");
-                    // A card is its title, body and bottom border, then one gap row.
-                    assert!(rows.len() >= 4, "{case}");
-                    let (foot, gap) = (&rows[rows.len() - 2], &rows[rows.len() - 1]);
-                    assert!(foot.starts_with(if ascii { "+" } else { "╰" }), "{case}");
-                    assert!(gap.trim().is_empty(), "{case}: {gap:?}");
-                    assert!(!ascii || all.is_ascii(), "{case}: {all}");
-                    assert!(
-                        color
-                            || buffer
-                                .content()
-                                .iter()
-                                .all(|cell| cell.fg == ratatui::style::Color::Reset),
-                        "{case}"
-                    );
-                    assert_eq!(state.transcript[1].text, refusal, "{case}");
-                }
-            }
-        }
-    }
-
-    /// In a split too short for cards, the summary's end is what shows, and
-    /// the measure counts the same lines.
-    #[test]
-    fn a_short_split_shows_the_summary_end() {
-        let area = Rect::new(0, 0, 40, 5);
-        let mut state = UiState::new(Presentation::Workspace, false, (40, 5));
-        let block = Committed::new(Kind::Refusal, knowledge_refusal(ROOT));
-        state.transcript.push(block.clone());
-        assert_eq!(
-            height(&state, area),
-            content_rows(&card_lines(&block, false, false), 40)
-        );
-        let mut terminal = Terminal::new(TestBackend::new(40, 5)).expect("terminal");
-        terminal
-            .draw(|frame| render(frame, &state, area))
-            .expect("draw");
-        let buffer = terminal.backend().buffer();
-        let last: String = (0..40).map(|x| buffer[(x, 4)].symbol()).collect();
-        assert_eq!(last.trim_end(), "  Details: F2");
-    }
-
-    /// A provider failure may have sent its call: its card paints the
-    /// Session's words exactly, the uncertain scope included, and claims
-    /// nothing more.
-    #[test]
-    fn a_provider_failure_card_paints_the_session_words() {
-        let block = Committed::new(Kind::Refusal, provider_failure());
-        for (color, ascii) in [(false, false), (true, true)] {
-            assert_eq!(
-                card_lines(&block, color, ascii),
-                block_lines(&block, color, ascii)
-            );
-        }
-        let mut state = UiState::new(Presentation::Workspace, false, (60, 40));
-        state.transcript.push(block.clone());
-        let (rows, _) = painted(&state, 60);
-        let words = words(&rows);
-        assert!(
-            words.starts_with("✖ I couldn't use the authoring seat for this part — "),
-            "{words}"
-        );
-        assert!(
-            words.contains("a failed call can still have been sent."),
-            "{words}"
-        );
-        assert!(
-            !words.to_lowercase().contains("nothing was sent"),
-            "{words}"
-        );
-        assert_eq!(state.transcript[0], block);
-    }
-
-    /// The opening banner warns in one short line; its other lines, and the
-    /// block, stay as the Session wrote them.
-    #[test]
-    fn the_banner_card_warns_in_one_short_line() {
-        let said = opening_banner(ROOT);
-        let mut state = UiState::new(Presentation::Workspace, false, (72, 40));
-        state
-            .transcript
-            .push(Committed::new(Kind::Banner, said.clone()));
-        let (rows, _) = painted(&state, 72);
-        let all = words(&rows);
-        let warning = WARNING_LINE
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ");
-        assert!(
-            all.starts_with("Nika ·") && all.ends_with(&warning),
-            "{all}"
-        );
-        assert!(
-            !all.contains(ROOT) && !all.contains("ADMISSION_UNTRUSTED"),
-            "{all}"
-        );
-        assert_eq!(state.transcript[0].text, said);
-    }
-
-    #[test]
-    fn compact_view_keeps_the_tail_beyond_u16_rows() {
-        let area = Rect::new(0, 0, 30, 5);
-        let mut state = UiState::new(Presentation::Workspace, false, (30, 5));
-        state.transcript.push(Committed::new(
-            Kind::Reply,
-            "row\n".repeat(70_000) + "final detail",
-        ));
-        assert!(height(&state, area) > usize::from(u16::MAX));
-        let mut terminal = Terminal::new(TestBackend::new(30, 5)).expect("terminal");
-        terminal
-            .draw(|frame| render(frame, &state, area))
-            .expect("compact draws");
-        let shown = terminal
-            .backend()
-            .buffer()
-            .content()
-            .iter()
-            .map(ratatui::buffer::Cell::symbol)
-            .collect::<String>();
-        assert!(shown.contains("final detail"), "{shown}");
-    }
-
-    #[test]
-    fn complete_cards_keep_both_borders_and_padding_at_every_width() {
-        for ascii in [false, true] {
-            for width in [6, 12, 22, 44, 72] {
-                let mut state = UiState::new(Presentation::Workspace, true, (width, 8));
-                state.ascii = ascii;
-                state.transcript.push(Committed::new(Kind::Proposal, "ok"));
-                let mut terminal = Terminal::new(TestBackend::new(width, 8)).expect("terminal");
-                terminal
-                    .draw(|frame| render(frame, &state, frame.area()))
-                    .expect("draw");
-                let buffer = terminal.backend().buffer();
-                assert_eq!(
-                    buffer[(width - 1, 0)].symbol(),
-                    if ascii { "+" } else { "╮" }
-                );
-                assert_eq!(
-                    buffer[(width - 1, 1)].symbol(),
-                    if ascii { "|" } else { "│" }
-                );
-                assert_eq!(
-                    buffer[(width - 1, 2)].symbol(),
-                    if ascii { "+" } else { "╯" }
-                );
-                assert_eq!(buffer[(1, 1)].symbol(), " ");
-                assert_eq!(buffer[(width - 2, 1)].symbol(), " ");
-                assert_eq!(buffer[(2, 1)].symbol(), "o");
-                assert_eq!(buffer[(3, 1)].symbol(), "k");
-            }
-        }
-    }
-
-    #[test]
-    fn wrapped_message_rows_remain_reachable_without_repeated_frames() {
-        let area = Rect::new(0, 0, 20, 6);
-        let mut state = UiState::new(Presentation::Workspace, false, (20, 6));
-        state.transcript.push(Committed::new(
-            Kind::Reply,
-            "12345678901234567\n".repeat(8) + "last row",
-        ));
-        assert_eq!(
-            height(&state, area),
-            11,
-            "17 cells fit in the full 20-cell conversation body"
-        );
-        let mut terminal = Terminal::new(TestBackend::new(20, 6)).expect("terminal");
-        let mut saw_first = false;
-        let mut saw_last = false;
-        for scroll in 0..=height(&state, area) - usize::from(area.height) {
-            state.focus_scroll = scroll;
-            terminal
-                .draw(|frame| render(frame, &state, area))
-                .expect("draw");
-            let buffer = terminal.backend().buffer();
-            let rows: Vec<String> = (0..6)
-                .map(|y| (0..20).map(|x| buffer[(x, y)].symbol()).collect())
-                .collect();
-            saw_first |= rows[0].contains("Nika");
-            saw_last |= rows.iter().any(|row| row.contains("last row"));
-            assert!(!rows.iter().any(|row| row.contains(['╭', '╰', '│'])));
-        }
-        assert!(saw_first && saw_last, "both ends stay reachable");
-    }
-
-    #[test]
-    fn a_clipped_card_keeps_the_end_and_scrolling_reveals_the_previous_turn() {
-        let mut state = UiState::new(Presentation::Workspace, true, (35, 12));
-        state
-            .transcript
-            .push(Committed::new(Kind::Human, "earlier intent"));
-        state.transcript.push(Committed::new(
-            Kind::Reply,
-            "a long reply\n".repeat(30) + "the final detail",
-        ));
-        let mut terminal = Terminal::new(TestBackend::new(35, 12)).expect("test terminal");
-        let text = |buffer: &ratatui::buffer::Buffer| {
-            (0..12)
-                .map(|y| (0..35).map(|x| buffer[(x, y)].symbol()).collect::<String>())
-                .collect::<Vec<_>>()
-                .join("\n")
-        };
-        terminal
-            .draw(|frame| render(frame, &state, frame.area()))
-            .expect("draw");
-        let buffer = terminal.backend().buffer();
-        assert!(text(buffer).contains("the final detail"));
-        assert!(!text(buffer).contains("earlier intent"));
-        assert!(
-            buffer
-                .content()
-                .iter()
-                .all(|cell| cell.bg == ratatui::style::Color::Reset),
-            "a scrolled reply remains on the conversation surface"
-        );
-        state.focus_scroll = usize::MAX;
-        state.color = false;
-        state.ascii = true;
-        terminal
-            .draw(|frame| render(frame, &state, frame.area()))
-            .expect("draw older");
-        let buffer = terminal.backend().buffer();
-        assert!(text(buffer).contains("earlier intent"));
-        assert!(text(buffer).is_ascii());
-        assert!(
-            buffer
-                .content()
-                .iter()
-                .all(|cell| cell.fg == ratatui::style::Color::Reset)
-        );
-    }
-}
+mod tests;
