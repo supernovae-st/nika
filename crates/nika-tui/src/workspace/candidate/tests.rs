@@ -7,8 +7,20 @@
 //! review keeps only what changes the decision, each continuation hung under its fact.
 
 use super::*;
+use crate::visual::role;
+use crate::workspace::cards::review::OR;
+use crate::workspace::inspect::Inspected;
+use crate::workspace::text::twins;
+use nika_display::theme::Role;
+use nika_session::ProposalId;
 use nika_session::change::Witness;
+use nika_session::work::DocumentRevision;
+use nika_tui_view::Face;
+use ratatui::text::Line;
 use unicode_width::UnicodeWidthStr;
+
+/// How the faces' witness row says a key turns the face.
+const FACES: &str = "Left/Right change the face";
 
 const SOURCE: &str = "nika: copy-brief\npermits:\n  fs: { read: [\"./notes/brief.md\"], write: [\"./out/copy.md\"] }\n  tools: [\"nika:read\", \"nika:write\"]\ntasks:\n  read_source:\n    invoke: { tool: \"nika:read\", args: { path: \"./notes/brief.md\" } }\n  write_output:\n    with: { text: \"${{ tasks.read_source.output }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"./out/copy.md\", content: \"${{ with.text }}\" } }\n";
 

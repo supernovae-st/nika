@@ -24,6 +24,31 @@ follow_ups: ["the admission evidence of the member, pending with its WIP unit", 
 
 # ADR-143: nika-tui size-cap member split — nika-tui-view
 
+## Amendment · 9 October 2026 · the object in view, the header and the project data
+
+The open-UX work adds the continuous composer surface and the agent-led
+conversation to a renderer that stood at 18,976 of its 19,000 production lines.
+Under the 2026-10-07 rule (pure presentation lives in this member), one more
+cohesive part moves down, with no new crate and no new dependency edge:
+
+- the object in view: the look's faces (`workspace::inspect`, with the plain
+  check facts `Checked` and `Said` it reads), the proposal's faces and facts
+  with the review card model (`workspace::candidate`: `Proposed`, `RunAfter`,
+  `Review`, `OR`) and the renderer's own glyph twins (`workspace::text::own`);
+- the header's composition (`workspace::masthead`);
+- the project's data and pure projections (`workspace::project`:
+  `ProjectView`, `WorkflowView`, the place, thread, welcome, workflow and run
+  objects).
+
+The renderer keeps the fold of the check facade's audit into those plain facts
+(beside the host adapter that takes the look, so this member depends on no
+check facade), the aside routing over the live run (what an entry opens and
+the object it resolves to) and the review's position in the transcript. It
+re-exports item by item, so its callers and public paths do not change. Tests
+that need the native project or the check facade stay at the native boundary.
+Both public-api snapshots are re-rendered in the same change. The ceilings do
+not change.
+
 ## Amendment · 9 October 2026 · completed native interaction composition
 
 The composed native renderer now includes the live question home, retained

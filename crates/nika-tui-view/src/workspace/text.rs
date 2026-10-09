@@ -162,6 +162,22 @@ pub fn hang(words: &str, indent: usize, width: usize) -> Vec<String> {
     rows.into_iter().map(|row| row.replace(KEEP, " ")).collect()
 }
 
+/// The renderer's own words in the glyph column in use: under `ascii` its
+/// markers, separators and arrows (`›`, `·`, `…`, `↑↓`) take their ASCII
+/// twins. Only text the renderer writes goes through here; the Session's words
+/// are never rewritten.
+#[must_use]
+pub fn own(text: &str, ascii: bool) -> String {
+    if ascii {
+        text.replace('›', ">")
+            .replace('·', "-")
+            .replace('…', "...")
+            .replace("↑↓", "Up/Down")
+    } else {
+        text.to_owned()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

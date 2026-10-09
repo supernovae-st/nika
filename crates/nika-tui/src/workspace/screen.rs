@@ -43,8 +43,7 @@ use crate::composer::Composer;
 use crate::model::UiState;
 use crate::render::{Consent, Panel, activity_marker, panel_rows, render_panel_live, rest_rows};
 use crate::visual::role;
-
-mod masthead;
+use nika_tui_view::workspace::masthead;
 
 /// Everything one workspace frame shows, as the Session projects it.
 #[derive(Clone, Debug, PartialEq, Eq)]

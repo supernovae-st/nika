@@ -54,7 +54,8 @@ fn named(place: &Place, ascii: bool) -> usize {
 /// The fewest cells the place keeps on the header's first row: its glyph
 /// and the start of its name with the cut mark (the project list names it
 /// whole).
-pub(super) fn least_place(place: &Place, ascii: bool) -> usize {
+#[must_use]
+pub fn least_place(place: &Place, ascii: bool) -> usize {
     let name = place.project.as_deref().unwrap_or("no project");
     let start = name.width().min(NAME_KEPT) + marks(ascii).1.width();
     (Icon::Project.glyph(ascii).width() + 1 + start).min(named(place, ascii))
@@ -200,7 +201,7 @@ fn compose(
 /// Paint the header into `area`, its words ending one blank cell before
 /// `names` (the region names' cells, which the caller paints and the pointer
 /// reads) when they are drawn, else one blank cell before the edge.
-pub(super) fn render(
+pub fn render(
     (place, seat): (&Place, Option<&str>),
     area: Rect,
     names: Option<Rect>,
