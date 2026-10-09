@@ -387,49 +387,78 @@ fn the_palette_returns_to_the_exact_draft_and_its_focus() {
         for workspace in [false, true] {
             let mut term = opened(cols, rows, workspace);
             let at = format!("{cols}x{rows} workspace={workspace}");
-            term.send("line one\x1b\rline two");
-            term.wait_until(&format!("{at}: the draft"), |screen| {
-                screen.contains("nika › line one") && screen.contains("line two")
-            });
-            if workspace {
-                // The keys leave the composer first: the palette still opens.
-                term.send(F6);
-                term.settle(Duration::from_millis(200));
-            }
-            term.send(CTRL_O);
-            term.wait_text("commands ›");
-            assert!(
-                !term.screen.contains("line one"),
-                "{at}: the draft is out of view under the palette\n{}",
-                term.dump()
-            );
-            term.send("model");
-            term.wait_until(&format!("{at}: the search"), |screen| {
-                screen.contains("commands › model")
-                    && screen.contains("› /status")
-                    && screen.contains("/intelligence")
-            });
-            term.send(ESC);
-            term.wait_until(&format!("{at}: the exact draft back"), |screen| {
-                screen.contains("nika › line one")
-                    && screen.contains("line two")
-                    && !screen.contains("commands ›")
-            });
-            if workspace {
-                // The preview has the keys again; its own Esc returns to the composer.
-                term.send(ESC);
-                term.settle(Duration::from_millis(200));
-            }
-            term.send("!");
-            term.wait_text("line two!");
-            nothing_sent(&mut term, &at);
-            leave(&mut term);
+            palette_returns_to_the_draft(&mut term, &at, workspace);
         }
     }
 }
 
-/// What only the project aside shows, folded over the object at 80 x 24
-/// while it holds the keys.
+/// The same proof with the terminal read in 64-byte slices at the size whose
+/// workspace palette frame moves the composer box up and outgrows the
+/// process's line buffer: the draft is judged on the frame the palette
+/// paints, never between its writes, whatever the scheduling.
+#[test]
+fn the_palette_hides_the_draft_on_a_complete_frame_read_in_slices() {
+    for workspace in [false, true] {
+        let mut term = Term::proto(&[], 120, 40).reading_at_most(64);
+        term.wait_prompt(FREE);
+        if workspace {
+            term.send("\x14");
+            term.wait_text(WORKSPACE);
+        }
+        let at = format!("120x40 workspace={workspace} read in slices");
+        palette_returns_to_the_draft(&mut term, &at, workspace);
+    }
+}
+
+fn palette_returns_to_the_draft(term: &mut Term, at: &str, workspace: bool) {
+    term.send("line one\x1b\rline two");
+    term.wait_until(&format!("{at}: the draft"), |screen| {
+        screen.contains("nika › line one") && screen.contains("line two")
+    });
+    if workspace {
+        // The keys leave the composer first: the palette still opens.
+        term.send(F6);
+        term.settle(Duration::from_millis(200));
+    }
+    term.send(CTRL_O);
+    if workspace {
+        // The palette's frame moves the composer box up and reaches the
+        // terminal in more than one write: one complete native frame says
+        // where the draft is, never the rows a first write leaves stale.
+        term.wait_workspace_frame(&format!("{at}: the palette"), |screen| {
+            screen.contains("commands ›")
+        });
+    } else {
+        term.wait_text("commands ›");
+    }
+    assert!(
+        !term.screen.contains("line one"),
+        "{at}: the draft is out of view under the palette\n{}",
+        term.dump()
+    );
+    term.send("model");
+    term.wait_until(&format!("{at}: the search"), |screen| {
+        screen.contains("commands › model")
+            && screen.contains("› /status")
+            && screen.contains("/intelligence")
+    });
+    term.send(ESC);
+    term.wait_until(&format!("{at}: the exact draft back"), |screen| {
+        screen.contains("nika › line one")
+            && screen.contains("line two")
+            && !screen.contains("commands ›")
+    });
+    if workspace {
+        // The preview has the keys again; its own Esc returns to the composer.
+        term.send(ESC);
+        term.settle(Duration::from_millis(200));
+    }
+    term.send("!");
+    term.wait_text("line two!");
+    nothing_sent(term, at);
+    leave(term);
+}
+
 const ASIDE: &str = "Nika · Files";
 
 /// Cancelling the palette gives the keys back to the region that held them,
