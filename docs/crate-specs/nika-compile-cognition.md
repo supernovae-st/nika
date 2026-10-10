@@ -610,7 +610,11 @@ judge outvotes it there; a verdict that declined nothing may be asked again.
   admitted choice (over the bytes, or over the same observation) is read back from its record
   with no call (`read_back: true` on the question's record, counted in the attempt's
   `read_back`): the judge is never asked again what it answered, its rejection stands, and only
-  what it never got is asked. The route says `verify: same bytes, localization resumed`.
+  what it never got is asked. The route says `verify: same bytes, localization resumed`. An
+  attempt holding an answer over a trial run this call does not have (no run, or another one)
+  is not resumed: that answer cannot be read back, so the attempt stands as it was, repeated
+  with no call, and the bytes alone never settle what the run stood against (amended
+  2026-10-10).
 - **A verdict repeated from an attempt of this compile** (`same_bytes_as` set) is no progress:
   COLD's repairs end on it (`verify: no progress`); the sketch door reopens nothing from its
   defects and withdraws the candidate whatever count is left (`native: no progress`), its
@@ -1379,7 +1383,38 @@ here.
 
 `judge_document(stated, candidate, (authored, host), observed)` is the door's judge over a
 candidate a Session conversation wrote: the strict parser, the pure Check, then the fidelity laws
-against everything the person stated in the request it answers. The author's selections are
+against everything the person stated in the request it answers, over the world the host observed
+for it (`observed`: without it no law that reads the project fires). The author's selections are
 admitted on the person's own words; the ones the host verified itself (an offer it showed, a
 value an accepted revision bound) have their scope and use judged only. It calls, reads and
-writes nothing.
+writes nothing. These are the laws only.
+
+`verify_document(request, candidate, (authored, host), cognition, host)` is what a conversation's
+document is proposed on: it is verified exactly as a native door verifies its own candidate, and
+settled READY only on the whole-request verdict. `request` is what a compile round of the same
+conversation sends: the stated request as a creation, the world its host observed
+(`with_knowledge`, the observation the one-shot door reads), the verdicts its earlier rounds kept
+(`with_declined`) and the authoring policy. The entry reads the caller's basis and the money as
+`compile_with_cognition_composed` does (a stated ceiling that closes the seats leaves no judge),
+then:
+
+- the laws over the world (`judge_document`'s chain); a refusal ends there, INCOMPLETE, one
+  `conversation` finding (kind `Refused`) per refusal, no judge asked;
+- the core's finish (`nika_compile::surface::finish`): anything short of READY ends there as it
+  is (questions, Check findings, unjudged dependencies);
+- a room the host lends runs the READY bytes once (`Rehearsals::trial`) and the verdict reads that
+  run; the room's account keeps the request's stated endpoint routes out of the files it observes
+  (`fidelity::stated_routes`), as the one-shot door's does;
+- the verdict of `verify::verdict_by` under the decision seat the caller permits, else its
+  bounded authoring provider under the request's policy, with the R6 carry over
+  `request.declined` and the `semantic_verification` record. Settled: READY (route
+  `verify: judged (<judge>)`). Otherwise as the document door ends a candidate: the room's refusal
+  named (`unobserved`), a doubt no defect located held (`held`, the unresolved text included),
+  located defects kept as the preview (`kept`: what the author repairs from), a verdict that never
+  got an answer withdrawn unjudged (`preserve_unjudged`);
+- with no judge permitted, nothing is READY: the whole request stays pending on these bytes
+  (`decision.pending.open`, the core's record shape) with a `semantic_verification` finding, and
+  the room runs nothing (a run serves only a verdict, so the judge is chosen before it).
+
+Every route starts `conversation: document`; the room's final barrier, the money record, the
+observed-world record and the forensic record close it as for any compile.

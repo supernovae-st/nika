@@ -50,7 +50,7 @@ use nika_compile_seats::repairs::carry_declined;
 
 /// Who judges a candidate: a decision seat the caller permits (its calls and usage are its own,
 /// recorded here), or the authoring provider through the journaled authoring call.
-enum Judge<'a, P: ProviderInferDyn> {
+pub(super) enum Judge<'a, P: ProviderInferDyn> {
     Seat(&'a dyn DecisionSeat),
     Provider(&'a AuthoringPolicy, &'a P),
 }
@@ -616,11 +616,17 @@ fn context(base: &Value) -> String {
 
 /// Whether a repeated verdict left its localization unfinished: a call got no answer, or it
 /// waited for a whole trial run that this call now has. Its whole-request answer stands (R6);
-/// what it never got is asked.
+/// what it never got is asked. An answer it got over a trial run this call does not have is
+/// never read back, so that verdict stands as it was: resumed, the bytes alone would settle
+/// what the run stood against.
 fn unfinished(earlier: &Verdict, observation: Option<&Value>) -> bool {
     let waited = (earlier.unsettled.iter()).any(|why| faithful::waited_for_a_run(why))
         && observation.is_some_and(faithful::trial_whole);
-    earlier.stopped || waited
+    let ran = observation.map(|observed| knowledge::sha256(&observed.to_string()));
+    let unrun = (earlier.earlier.iter())
+        .filter_map(|record| record["observation"]["sha256"].as_str())
+        .any(|sha| ran.as_deref() != Some(sha));
+    (earlier.stopped || waited) && !unrun
 }
 
 /// Each finding once, at its first place: a clause and the same part asked again name one
@@ -1352,11 +1358,27 @@ pub(super) async fn judged_native<P: ProviderInferDyn>(
 /// outcome and the verdict that leave it not READY (its defects are what a repair starts from).
 /// `attempt` is the verification attempt the record names: the repairs that preceded it.
 #[allow(clippy::too_many_arguments)] // the native door's verdict state, threaded once
-pub(super) async fn native_verdict<P: ProviderInferDyn>(
+pub(super) fn native_verdict<'a, P: ProviderInferDyn>(
+    intent: &'a str,
+    reading: &'a Reading,
+    policy: &'a AuthoringPolicy,
+    (provider, decision): (&'a P, Option<&'a dyn DecisionSeat>),
+    request: &'a CompileRequest,
+    out: CompileOutcome,
+    attempt: usize,
+    observation: Option<&'a Value>,
+) -> impl Future<Output = Result<CompileOutcome, Box<(CompileOutcome, Verdict)>>> + 'a {
+    // The verdict's own future, no layer around it: every door awaits it at its own size.
+    let judge = decision.map_or(Judge::Provider(policy, provider), Judge::Seat);
+    verdict_by(intent, reading, judge, request, out, attempt, observation)
+}
+
+/// [`native_verdict`] under the `judge` the caller chose (a conversation's document is judged
+/// by the decision seat it permits, else its bounded authoring provider).
+pub(super) async fn verdict_by<P: ProviderInferDyn>(
     intent: &str,
     reading: &Reading,
-    policy: &AuthoringPolicy,
-    (provider, decision): (&P, Option<&dyn DecisionSeat>),
+    judge: Judge<'_, P>,
     request: &CompileRequest,
     mut out: CompileOutcome,
     attempt: usize,
@@ -1366,7 +1388,6 @@ pub(super) async fn native_verdict<P: ProviderInferDyn>(
     let Some(candidate) = out.candidate.clone().filter(|_| ready) else {
         return Ok(out);
     };
-    let judge = decision.map_or(Judge::Provider(policy, provider), Judge::Seat);
     // Bytes this judge already answered and did not accept are never asked of it again (R6):
     // the attempt repeats that verdict with no call.
     let sha = knowledge::sha256(&candidate);

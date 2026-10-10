@@ -14,7 +14,7 @@ use nika_fs::OwnedDir;
 use nika_session_agent::Store;
 use nika_session_agent::tree::read_line;
 
-use super::conversation::Citations;
+use nika_session_agent::conversation::Citations;
 
 /// The tree's file in the history directory.
 pub(crate) const TREE_FILE: &str = "tree.jsonl";

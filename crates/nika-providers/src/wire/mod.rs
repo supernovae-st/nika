@@ -32,21 +32,18 @@ use futures_core::Stream;
 use nika_kernel::ai::provider::{InferEvent, ProviderError, ProviderHttpError};
 use nika_kernel::genai::GenAiSystem;
 use nika_kernel::http::HttpError;
+use nika_kernel::secret::Secret;
 
-use crate::profile::Profile;
 use crate::sse::SseParser;
 
-/// Default transport deadline for CLOUD providers when the task declares
-/// no `timeout:` — matches the HTTP effect's historical 30s default (the
-/// pre-plumb behavior · cloud completions comfortably fit it).
-pub(crate) const CLOUD_DEFAULT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
-
-/// Default transport deadline for the 5 LOCAL servers (`ollama` ·
-/// `lmstudio` · `llamacpp` · `localai` · `vllm`) when the task declares
-/// no `timeout:` — a local model routinely needs minutes for one
-/// completion on consumer hardware; the 30s cloud default killed every
-/// serious local-first workflow with a 408 (F1 field report 2026-07-04).
-pub(crate) const LOCAL_DEFAULT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+/// The total deadline of a BUFFERED provider call whose task declares no `timeout:`, local or
+/// cloud alike: ten minutes, the provider transport's own bound on a connection that delivers
+/// nothing (the provider client's idle-read guard). A buffered answer arrives whole at the end,
+/// so no shorter implicit deadline can tell a slow legitimate call (a reasoning model, a long
+/// prompt) from a stalled one: the former 30 s cloud default cut legitimate summaries at 30.0 s,
+/// as the former 300 s local one cut slow local models. A task `timeout:` sets its own bound.
+pub(crate) const BUFFERED_DEFAULT_TIMEOUT: std::time::Duration =
+    std::time::Duration::from_secs(600);
 
 /// A parsed `data:image/...;base64,...` URL (the inline form file vision
 /// becomes after the verb loads bytes).
@@ -88,25 +85,19 @@ pub(crate) fn image_source_is_url(source: &str) -> bool {
 /// The per-request transport deadline for one provider round-trip.
 ///
 /// BUFFERED calls always get a total deadline: the task-level `timeout:`
-/// (plumbed via `InferRequest::timeout`) when declared, else the
-/// per-provider default (local ≫ cloud — the sovereignty story breaks
-/// when a 14B model gets 30s). STREAMING requests carry only an EXPLICIT
-/// task timeout (else `None`): an SSE generation legitimately outlives
-/// any fixed total budget — the http effect's idle-read guard reaps a
+/// (plumbed via `InferRequest::timeout`) when declared, else
+/// [`BUFFERED_DEFAULT_TIMEOUT`] for every provider. STREAMING requests carry
+/// only an EXPLICIT task timeout (else `None`): an SSE generation legitimately
+/// outlives any fixed total budget — the http effect's idle-read guard reaps a
 /// STALLED stream instead (`nika-http` streaming timeout semantics).
 pub(crate) fn transport_deadline(
-    profile: &Profile,
     req: &nika_kernel::ai::provider::InferRequest,
     stream: bool,
 ) -> Option<std::time::Duration> {
     if stream {
         return req.timeout;
     }
-    Some(req.timeout.unwrap_or(if profile.is_local() {
-        LOCAL_DEFAULT_TIMEOUT
-    } else {
-        CLOUD_DEFAULT_TIMEOUT
-    }))
+    Some(req.timeout.unwrap_or(BUFFERED_DEFAULT_TIMEOUT))
 }
 
 /// Transport-layer failure → provider error (no HTTP status yet).
@@ -123,12 +114,13 @@ pub(crate) fn map_http_err(e: &HttpError) -> ProviderError {
         HttpError::Timeout { .. } => ProviderError::Api {
             status: 408,
             message: format!(
-                "{e}; buffered inference defaults to {}s local / {}s cloud. \
-                 For a buffered call, choose a smaller non-reasoning local model \
-                 or set timeout: 7m on the task (next to infer:). \
-                 Streaming has an idle-read guard, not this implicit total deadline.",
-                LOCAL_DEFAULT_TIMEOUT.as_secs(),
-                CLOUD_DEFAULT_TIMEOUT.as_secs(),
+                "{e}: the task's timeout: when it states one, else the {}s a buffered call \
+                 is given, local or cloud (the provider transport also closes a connection \
+                 silent that long). A buffered answer arrives whole at the end: to bound it \
+                 otherwise, set timeout: on the task (next to infer:), e.g. timeout: 7m; a \
+                 smaller non-reasoning model answers sooner. Streaming has an idle-read \
+                 guard, not this total deadline.",
+                BUFFERED_DEFAULT_TIMEOUT.as_secs(),
             ),
         },
         _ => ProviderError::Other {
@@ -138,11 +130,11 @@ pub(crate) fn map_http_err(e: &HttpError) -> ProviderError {
 }
 
 /// Non-2xx on a streaming open: drain the (effect-capped) error body so the
-/// provider's safe identifiers + retry-after survive into the same typed
-/// mapping as the non-streaming path. Raw response prose is never retained.
+/// provider's safe identifiers + retry-after (and its message, as the kernel
+/// reduces it) survive into the same typed mapping as the non-streaming path.
 pub(crate) async fn stream_status_error(
     resp: nika_kernel::http::HttpStreamResponse,
-    model: &str,
+    key: Option<&Secret>,
 ) -> ProviderError {
     const ERROR_BODY_CAP: usize = 64 * 1024;
     let mut body = resp.body;
@@ -163,20 +155,23 @@ pub(crate) async fn stream_status_error(
         resp.status,
         &buf,
         resp.headers.get("retry-after").map(String::as_str),
-        model,
+        key,
     )
 }
 
-/// Non-2xx status + body → sanitized metadata. Do not retain response prose,
-/// request identifiers, credentials, or arbitrary identifier-shaped strings.
+/// Non-2xx status + body → sanitized metadata. Do not retain raw bodies,
+/// request identifiers, credentials, or arbitrary identifier-shaped strings:
+/// the provider's own message reaches the person only as the kernel reduces it,
+/// with `key` (the credential the call sent) withheld, and nothing classifies it.
 pub(crate) fn status_error(
     status: u16,
     body: &[u8],
     retry_after: Option<&str>,
-    _model: &str,
+    key: Option<&Secret>,
 ) -> ProviderError {
     let value = serde_json::from_slice::<serde_json::Value>(body).ok();
     let field = |name| value.as_ref()?.get("error")?.get(name)?.as_str();
+    let top = |name| value.as_ref()?.get(name)?.as_str();
     // The Gemini API names its delay in the BODY (`google.rpc.RetryInfo`
     // · `error.details[].retryDelay = "39s"`), not in a header — the
     // backoff reads it through the same bounded parser as `Retry-After`.
@@ -188,20 +183,30 @@ pub(crate) fn status_error(
     // HTTP 402 is a billing refusal by status alone: filed under the existing
     // `credit_balance_exhausted` identifier. A provider that answers an
     // exhausted balance with a 400 and the reason in prose (Anthropic) stays
-    // an ordinary 400 here: prose is never classified (the hostile-body law);
-    // the infer verb names both readings of such a 400.
+    // an ordinary 400 here: prose is never classified (the hostile-body law),
+    // only relayed for the person to read; the infer verb names both readings.
     let code = if status == 402 {
         Some("credit_balance_exhausted")
     } else {
         field("code")
     };
+    let details = ProviderHttpError::new(
+        status,
+        code,
+        field("type").or_else(|| field("status")),
+        retry_after,
+    );
+    // `error.message` (most wires), else a bare `error`, `message` or `detail` string.
+    let message = field("message")
+        .or_else(|| top("error"))
+        .or_else(|| top("message"))
+        .or_else(|| top("detail"));
+    let withheld = key.map(Secret::expose);
     ProviderError::HttpResponse {
-        details: ProviderHttpError::new(
-            status,
-            code,
-            field("type").or_else(|| field("status")),
-            retry_after,
-        ),
+        details: match message {
+            Some(message) => details.with_message(message, withheld.as_slice()),
+            None => details,
+        },
     }
 }
 
@@ -439,9 +444,9 @@ mod tests {
         ] {
             let error = status_error(
                 status,
-                br#"{"error":{"message":"private"}}"#,
+                br#"{"error":{"message":"refused"}}"#,
                 Some("2"),
-                "m",
+                None,
             );
             assert_eq!(error.nika_code().num, code);
             assert_eq!(error.is_transient(), transient);
@@ -450,19 +455,21 @@ mod tests {
             };
             assert_eq!(details.status(), status);
             assert_eq!(details.retry_after_ms(), Some(2000));
-            assert!(!error.to_string().contains("private"));
+            let shown = error.to_string();
+            assert!(shown.contains("the provider said: \"refused\""), "{shown}");
         }
-        let auth = status_error(401, b"{}", None, "m");
+        let auth = status_error(401, b"{}", None, None);
         assert!(auth.to_string().contains("does not probe present keys"));
     }
 
     /// HTTP 402 is a billing refusal by status: the credit class, no retry,
-    /// the label names the top-up, and no prose survives. A 400 that carries
-    /// the reason only in prose (Anthropic's exhausted balance) stays an
-    /// ordinary 400: prose is never classified.
+    /// the label names the top-up. A 400 that carries the reason only in prose
+    /// (Anthropic's exhausted balance) stays an ordinary 400, since prose is
+    /// never classified; the person reads the provider's own words, not the key.
     #[test]
     fn a_payment_required_status_is_billing_by_status_alone() {
-        let error = status_error(402, br#"{"error":{"message":"private"}}"#, None, "m");
+        let body = br#"{"error":{"message":"Insufficient Balance"}}"#;
+        let error = status_error(402, body, None, None);
         let ProviderError::HttpResponse { details } = &error else {
             panic!("{error:?}")
         };
@@ -471,13 +478,18 @@ mod tests {
         let text = error.to_string();
         assert!(text.contains("quota exhausted (credit balance)"), "{text}");
         assert!(text.contains("top up"), "{text}");
-        assert!(!text.contains("private"), "{text}");
-        let body = br#"{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}"#;
-        let plain = status_error(400, body, None, "anthropic/claude-sonnet-5");
+        assert!(text.contains("said: \"Insufficient Balance\""), "{text}");
+        let body = br#"{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API with sk-ant-test."}}"#;
+        let key = Secret::new("sk-ant-test");
+        let plain = status_error(400, body, None, Some(&key));
         let ProviderError::HttpResponse { details } = &plain else {
             panic!("{plain:?}")
         };
         assert!(!details.is_quota_exhausted(), "prose is never classified");
+        assert_eq!(
+            details.message(),
+            Some("Your credit balance is too low to access the Anthropic API with [withheld].")
+        );
     }
 
     #[test]
@@ -496,14 +508,17 @@ mod tests {
 
     #[test]
     fn timeout_maps_to_api_408() {
-        for duration_ms in [30_000, 300_000, 420_000] {
+        for duration_ms in [30_000, 420_000, 600_000] {
             let err = map_http_err(&HttpError::Timeout { duration_ms });
             match &err {
                 ProviderError::Api { status, message } => {
                     assert_eq!(*status, 408);
                     assert!(message.contains(&format!("{duration_ms}ms")), "{message}");
-                    assert!(message.contains("300s local"), "{message}");
-                    assert!(message.contains("30s cloud"), "{message}");
+                    // The deadline is named for what it is: the task's own, else the one
+                    // buffered default; no class default is claimed any more.
+                    assert!(message.contains("the task's timeout: when it states one"));
+                    assert!(message.contains("600s a buffered call"), "{message}");
+                    assert!(!message.contains("30s cloud"), "{message}");
                     assert!(message.contains("timeout: 7m"), "{message}");
                     assert!(message.contains("next to infer:"), "{message}");
                     assert!(message.contains("smaller non-reasoning"), "{message}");
@@ -550,7 +565,7 @@ mod tests {
             None,
             Box::pin(Q(chunks.into())),
         );
-        let err = stream_status_error(resp, "m").await;
+        let err = stream_status_error(resp, None).await;
         match err {
             ProviderError::HttpResponse { details } => {
                 assert_eq!(details.status(), 500);
@@ -570,35 +585,25 @@ mod tests {
         use nika_kernel::ai::provider::{InferRequest, Message, Role};
         use std::time::Duration;
 
-        let profiles = crate::profile::seed();
-        let ollama = profiles.iter().find(|p| p.id == "ollama").expect("ollama");
-        let openai = profiles.iter().find(|p| p.id == "openai").expect("openai");
         let req = |t: Option<Duration>| {
             let mut r = InferRequest::new("m", vec![Message::text(Role::User, "q")]);
             r.timeout = t;
             r
         };
 
-        // Buffered · no task budget → the per-class default.
+        // Buffered · no task budget → the one buffered default, local or cloud.
         assert_eq!(
-            transport_deadline(ollama, &req(None), false),
-            Some(LOCAL_DEFAULT_TIMEOUT),
-            "local default is the generous one"
+            transport_deadline(&req(None), false),
+            Some(BUFFERED_DEFAULT_TIMEOUT)
         );
-        assert_eq!(
-            transport_deadline(openai, &req(None), false),
-            Some(CLOUD_DEFAULT_TIMEOUT),
-            "cloud keeps the historical 30s"
-        );
-        // Buffered · task budget → it wins on BOTH classes.
+        // Buffered · task budget → it wins.
         let budget = Some(Duration::from_secs(420));
-        assert_eq!(transport_deadline(ollama, &req(budget), false), budget);
-        assert_eq!(transport_deadline(openai, &req(budget), false), budget);
+        assert_eq!(transport_deadline(&req(budget), false), budget);
         // Streaming → explicit-only (None = idle guard governs).
-        assert_eq!(transport_deadline(openai, &req(None), true), None);
-        assert_eq!(transport_deadline(openai, &req(budget), true), budget);
-        // The local default honours the ≥300s floor (F1 acceptance).
-        assert!(LOCAL_DEFAULT_TIMEOUT >= Duration::from_secs(300));
+        assert_eq!(transport_deadline(&req(None), true), None);
+        assert_eq!(transport_deadline(&req(budget), true), budget);
+        // The provider transport's own bound on a silent connection, never a shorter guess.
+        assert_eq!(BUFFERED_DEFAULT_TIMEOUT, Duration::from_secs(600));
     }
 
     #[test]

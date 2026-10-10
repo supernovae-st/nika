@@ -147,7 +147,12 @@ NIKA-339 provider transport/other range and remains `NIKA-INFER-001` at the infe
 verb. Both error-trait and inherent `is_transient()` agree. The runtime may retry
 only under the authored attempt/backoff/timeout policy; the provider layer never
 replays independently. The timeout adapter retains its existing API-408 terminal
-policy. A missing response does not prove that no tokens were generated or billed.
+policy, and its message names the deadline that applied: the task's `timeout:`
+when it states one, else the 600 s every buffered call is given, local or cloud
+(`wire::BUFFERED_DEFAULT_TIMEOUT`, the provider transport's own bound on a silent
+connection, so no shorter implicit deadline cuts a legitimate answer). Streaming
+carries only an explicit deadline and the idle-read guard.
+A missing response does not prove that no tokens were generated or billed.
 Streaming yields the error once and does not synthesize a successful `Done`.
 For an agent, a connection failure after any tool completed suppresses automatic
 whole-task replay, including an `on_codes` override. The transport remains
@@ -253,10 +258,25 @@ The shared buffered and stream-open non-2xx boundary returns the additive,
 in-process `ProviderError::HttpResponse` variant. Its `ProviderHttpError`
 metadata retains the status, recognized provider `error.code`/`error.type`,
 and a bounded Retry-After (numeric seconds or preferred HTTP-date form).
-Response messages, raw bodies, request IDs, unknown identifiers, and invalid
-headers are omitted. The identifier vocabulary is deliberately closed: even
-an identifier-shaped value can contain a credential. New provider codes need
-an explicit vocabulary update before they become visible diagnostics.
+Raw bodies, request IDs, unknown identifiers, and invalid headers are
+omitted. The identifier vocabulary is deliberately closed: even an
+identifier-shaped value can contain a credential. New provider codes need an
+explicit vocabulary update before any decision reads them.
+
+The provider's own message reaches the person: `error.message`, or else a
+bare `error`, `message` or `detail` string, attached with
+`ProviderHttpError::with_message` and shown as `the provider said: "…"`. The
+kernel keeps one line of at most 400 characters. It removes control and
+invisible formatting characters (direction overrides, zero-width, tag
+characters), withholds the key the call sent by value (also when invisible
+characters split it), and replaces credential-shaped words (known key
+prefixes, long letter-and-digit runs, UUIDs, values labelled as a key or token)
+with `[withheld]`. The shape filter is not a general secret detector. Neither
+this crate nor the kernel classifies the message: transience, quota and retry
+read only the status and the closed vocabulary. An exhausted balance
+explained in prose (an Anthropic 400) therefore stays an ordinary 400, which
+the person can now read. The compile server's `redact_authoring_error` still
+keeps provider text from remote clients.
 
 `insufficient_quota` or `credit_balance_exhausted` makes the failure terminal,
 even when the provider includes Retry-After. Other 429 responses remain
@@ -264,6 +284,15 @@ transient, as do 5xx responses. This uses the existing `is_transient` retry
 seam and NIKA code ranges: exhausted quota maps to the existing API-error
 code, transient 429 to the existing rate-limit code. Authentication failures
 retain their operator guidance. Legacy error variants remain constructible.
+
+The transport never re-sends a provider call: the money admission counts the
+requests a call may send (the author's `retry:` and the schema re-asks only).
+A 429, 503 or 529 ends the call at its first answer; `retry::transient_rejection`
+reads its status and the delay the provider named (`Retry-After`, or Gemini's
+`retryDelay`) for the author's `retry:` or the Session, which decide by their
+own counted policy. Each `TransportReport` and each receipt counts the requests
+actually sent. Every provider client makes one physical attempt per post
+(protocol-NACK retries are off); the fetch plane keeps its own documented policy.
 
 HTTP-date Retry-After is preserved without consulting a clock; only numeric
 seconds produce `retry_after_ms`. A malformed or unknown provider body cannot
@@ -286,8 +315,8 @@ reservations and catalog estimates, separate from invoices and Run consent.
 threads the same account into resolved providers. Exact endpoint/model binding,
 text-only serialized body ≤1 MiB, explicit positive output bounds and a kernel
 HTTP single-attempt capability are required before dispatch. Streaming refuses.
-The bounded path disables registry retry and redirects; the HTTP effect must
-disable protocol retries. Complete validated usage settles once, releasing only
+The bounded path disables redirects; the HTTP effect must disable protocol
+retries, as every provider client does. Complete validated usage settles once, releasing only
 the unused reservation. Dropped sent futures, errors, missing/partial usage and
 contradictions retain exposure and freeze the account. Over-bound observations
 remain in receipts. `billed` is unknown; catalog math never becomes an invoice.

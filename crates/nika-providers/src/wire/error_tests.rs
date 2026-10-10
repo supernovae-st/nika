@@ -13,7 +13,7 @@ fn quota_exhaustion_is_terminal_even_with_retry_after() {
         r#"{"error":{"type":"insufficient_quota"}}"#,
         r#"{"error":{"code":"credit_balance_exhausted"}}"#,
     ] {
-        let error = status_error(429, body.as_bytes(), Some("2.5"), "m");
+        let error = status_error(429, body.as_bytes(), Some("2.5"), None);
         assert!(!error.is_transient());
         assert!(!NikaErrorCode::is_transient(&error));
         assert_eq!(error.nika_code().num, 330);
@@ -37,7 +37,7 @@ fn transient_rate_limit_preserves_safe_evidence() {
         429,
         br#"{"error":{"code":"rate_limit_exceeded","type":"tokens","message":"wait"}}"#,
         Some("3"),
-        "m",
+        None,
     );
     assert!(error.is_transient());
     assert_eq!(error.nika_code().num, 332);
@@ -56,7 +56,7 @@ fn gemini_names_its_delay_in_the_body_and_its_status_as_the_type() {
     let body = br#"{"error":{"code":429,"message":"quota","status":"RESOURCE_EXHAUSTED",
         "details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"RATE_LIMIT_EXCEEDED"},
                    {"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"39s"}]}}"#;
-    let error = status_error(429, body, None, "gemini-2.5-flash");
+    let error = status_error(429, body, None, None);
     let ProviderError::HttpResponse { details } = &error else {
         panic!("{error:?}")
     };
@@ -68,30 +68,33 @@ fn gemini_names_its_delay_in_the_body_and_its_status_as_the_type() {
     assert!(error.is_transient());
     // A header still wins over the body; a fractional delay parses; a
     // hostile delay is dropped by the same bounded parser.
-    let with_header = status_error(429, body, Some("2"), "m");
+    let with_header = status_error(429, body, Some("2"), None);
     let ProviderError::HttpResponse { details } = &with_header else {
         panic!()
     };
     assert_eq!(details.retry_after_ms(), Some(2000));
     let fractional = br#"{"error":{"details":[{"retryDelay":"0.750s"}]}}"#;
-    let ProviderError::HttpResponse { details } = status_error(429, fractional, None, "m") else {
+    let ProviderError::HttpResponse { details } = status_error(429, fractional, None, None) else {
         panic!()
     };
     assert_eq!(details.retry_after_ms(), Some(750));
     let hostile = br#"{"error":{"details":[{"retryDelay":"\r\nAuthorization: x"}]}}"#;
-    let ProviderError::HttpResponse { details } = status_error(429, hostile, None, "m") else {
+    let ProviderError::HttpResponse { details } = status_error(429, hostile, None, None) else {
         panic!()
     };
     assert_eq!(details.retry_after(), None);
 }
 
+/// Hostile bodies never become decisions: the provider's words are relayed, its unknown
+/// identifiers dropped, and neither the key the call sent nor a credential shape survives.
 #[test]
-fn malformed_and_hostile_bodies_never_become_diagnostics() {
+fn malformed_and_hostile_bodies_never_become_decisions_or_leak_a_key() {
+    let key = Secret::new("private-model-key");
     for body in [
         "sk-secret-private-prompt",
         r#"{"error":{"code":"sk-secret-private-prompt","type":"private_intent","message":"sk-secret-private-prompt"}}"#,
         r#"{"error":{"code":{"nested":"sk-secret-private-prompt"},"type":12},"message":"sk-secret-private-prompt"}"#,
-        r#"{"error":{"message":"insufficient_quota"}}"#,
+        r#"{"error":{"message":"insufficient_quota private-model-key"}}"#,
         "null",
         "[]",
     ] {
@@ -100,7 +103,7 @@ fn malformed_and_hostile_bodies_never_become_diagnostics() {
                 status,
                 body.as_bytes(),
                 Some("Bearer sk-secret"),
-                "private-model",
+                Some(&key),
             );
             let ProviderError::HttpResponse { details } = &error else {
                 panic!("{error:?}")
@@ -112,12 +115,7 @@ fn malformed_and_hostile_bodies_never_become_diagnostics() {
             assert_eq!(details.retry_after_ms(), None);
             assert!(!details.is_quota_exhausted(), "never classify prose");
             for rendered in [error.to_string(), format!("{error:?}")] {
-                for secret in [
-                    "sk-secret",
-                    "private_intent",
-                    "private-model",
-                    "insufficient_quota",
-                ] {
+                for secret in ["sk-secret", "private_intent", "private-model-key"] {
                     assert!(!rendered.contains(secret), "{rendered}");
                 }
             }
@@ -159,7 +157,7 @@ async fn oversized_stream_body_is_capped_and_still_reports_status() {
         None,
         Box::pin(super::tests::Q([Ok(body)].into())),
     );
-    let error = stream_status_error(response, "m").await;
+    let error = stream_status_error(response, None).await;
     let ProviderError::HttpResponse { details } = error else {
         panic!("metadata missing")
     };

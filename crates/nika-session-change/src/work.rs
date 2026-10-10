@@ -31,10 +31,12 @@ use crate::outcome::{GateId, ProposalId, QuestionId, RefusalClass, ReviewId};
 use crate::world::World;
 
 mod conversation;
+mod queue;
 pub use conversation::{
-    AskedQuestion, AskedState, Binding, Delegation, Offer, OfferValue, Provenance, ProvenanceKind,
-    ValueRole,
+    AskedQuestion, AskedState, Binding, Delegation, ModelFacts, Offer, OfferValue, Provenance,
+    ProvenanceKind, UsdPerMillion, ValueRole,
 };
+pub use queue::{QueueMode, Queued, QueuedState};
 
 /// The version a host checks before reading a [`Work`].
 pub const CONTRACT: &str = "nika/session-work@0";
@@ -320,6 +322,9 @@ pub struct Work {
     /// The questions asked now, with their identities, open or after their prerequisites.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub questions: Vec<AskedQuestion>,
+    /// The lines the person sent while the last run was under way, and what became of each.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub queued: Vec<Queued>,
 }
 
 /// The request as the session keeps it: decisions, not chat.
@@ -1340,6 +1345,7 @@ impl Work {
             bindings: Vec::new(),
             delegations: Vec::new(),
             questions: Vec::new(),
+            queued: Vec::new(),
         }
     }
 
@@ -1355,6 +1361,13 @@ impl Work {
         self.bindings = bindings;
         self.delegations = delegations;
         self.questions = questions;
+        self
+    }
+
+    /// The same snapshot with the lines the person sent while the last run was under way.
+    #[must_use]
+    pub fn with_queued(mut self, queued: Vec<Queued>) -> Self {
+        self.queued = queued;
         self
     }
 

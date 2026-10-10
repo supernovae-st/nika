@@ -134,6 +134,56 @@ impl Model for AgentModel {
     }
 }
 
+/// What this machine's inventory says of `model` as a run's model: the route that serves it
+/// (a ready one first), how that route bills and the catalogue's output list price on a metered
+/// route. None when no route here offers it: a choice is never invented.
+#[must_use]
+pub fn model_facts(
+    probes: &[nika_providers::probe::ProviderProbe],
+    model: &str,
+) -> Option<nika_session_change::work::ModelFacts> {
+    use nika_providers::model_choice::{ModelInventory, ModelRole};
+    let inventory = ModelInventory::from_probes(probes);
+    let offers = inventory.offers(ModelRole::Run);
+    let named =
+        |ready: bool| (offers.iter()).find(|o| o.model == model && (!ready || o.route.configured));
+    let offer = named(true).or_else(|| named(false))?;
+    let route = &offer.route;
+    let words = (
+        route.access.clone(),
+        route.class.as_str().to_owned(),
+        route.billing.as_str().to_owned(),
+    );
+    Some(nika_session_change::work::ModelFacts::new(
+        "run",
+        &offer.model,
+        words,
+        route.configured,
+        offer.output_usd_per_million,
+    ))
+}
+
+/// The sink a turn's tool steps go to: each real step as the Session's typed activity, its
+/// call, its tool, where it is and the time it took (never its arguments or reply).
+#[must_use]
+pub fn tool_steps(hook: nika_onboard::activity::ActivityHook) -> nika_session_agent::StepSink {
+    use nika_onboard::activity::{ToolState, tool_activity};
+    use nika_session_agent::{StepState, ToolStep};
+    Arc::new(move |step: &ToolStep| {
+        let state = match step.state {
+            StepState::Started => ToolState::Started,
+            StepState::Finished => ToolState::Finished,
+            _ => ToolState::Failed,
+        };
+        hook(&tool_activity(
+            &step.call,
+            &step.name,
+            state,
+            step.elapsed_ms,
+        ));
+    })
+}
+
 /// The infer verb's gates on an answer: a priced route that reported no usage spent real money
 /// nobody can count, and a provider's explicit refusal is terminal.
 fn usable(model: &str, response: &InferResponse) -> Result<(), String> {
@@ -151,3 +201,7 @@ fn usable(model: &str, response: &InferResponse) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests;

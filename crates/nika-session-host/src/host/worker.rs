@@ -105,7 +105,7 @@ impl Turn<'_> {
         // A review answer continues a held run and arms no preparation, as the terminal doors.
         if !matches!(shown, Waiting::RunReview { .. }) {
             let token = runtime.begin_preparation_turn();
-            self.shared.arm(self.command, token);
+            self.shared.arm(self.command, token, runtime.steering());
         }
         let outcome = runtime.submit(line, shown);
         self.shared.checkpoint("returned");

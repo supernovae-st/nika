@@ -147,7 +147,7 @@ async fn a_stopping_server_cancels_and_joins_its_native_rounds_before_it_returns
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn an_authorized_503_resend_is_counted_as_a_second_physical_request() {
+async fn a_busy_answer_ends_the_round_and_the_callers_retry_is_a_new_counted_round() {
     let world = TestWorld::new();
     let script = vec![
         Reply::Busy,
@@ -155,24 +155,43 @@ async fn an_authorized_503_resend_is_counted_as_a_second_physical_request() {
         Reply::Text(JUDGE_APPROVES.to_owned()),
     ];
     let seat = Seat::start(script);
-    // The document (sent twice) and its judgment: three physical requests, the grant stated for
-    // this round alone.
+    // A three-request grant, stated for each round alone: the busy answer uses one of them and
+    // ends the round; nothing re-sends it.
     let (server, _backend) =
         start_native(&world, compile_limits(), operator(&seat).with_max_calls(3)).await;
     let response = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
+    assert_eq!(document["status"], "incomplete", "{document:#}");
+    assert_eq!(document["provenance"]["authoring"]["calls"], 1);
+    assert_eq!(
+        seat.bodies().len(),
+        1,
+        "one physical request, never re-sent"
+    );
+    let account = &document["provenance"]["authoring"]["backend"]["authority"];
+    assert_eq!(account["http_requests"]["sent"], 1);
+    assert_eq!(account["invocations"]["sent"], 1);
+    assert_eq!(account["max_calls"], 3);
+    let failure = provider_failure(&document);
+    assert!(
+        failure.contains("HTTP 503"),
+        "the busy answer is reported: {failure}"
+    );
+    // The caller's retry is a new round under its own grant: the document and its judgment,
+    // each counted where it was sent.
+    let response = server.request(&compile_request(&fresh(&json!({})))).await;
+    assert_eq!(response.status, 200, "{}", response.body);
+    let document = response.json();
     assert_eq!(document["status"], "ready", "{document:#}");
-    // The document and its judgment: two journaled calls.
     assert_eq!(document["provenance"]["authoring"]["calls"], 2);
+    let account = &document["provenance"]["authoring"]["backend"]["authority"];
+    assert_eq!(account["http_requests"]["sent"], 2);
+    assert_eq!(account["invocations"]["sent"], 2);
     assert_eq!(
         seat.bodies().len(),
         3,
-        "the explicit grant covers the resend and the judgment"
+        "every physical request reached the seat once"
     );
-    let account = &document["provenance"]["authoring"]["backend"]["authority"];
-    assert_eq!(account["http_requests"]["sent"], 3);
-    assert_eq!(account["invocations"]["sent"], 2);
-    assert_eq!(account["max_calls"], 3);
     server.stop().await.expect("clean stop");
 }

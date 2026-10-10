@@ -57,31 +57,6 @@ pub enum VerbInferError {
         spend: Box<SpendOnFailure>,
     },
 
-    /// The provider call failed AFTER the transport's own bounded backoff
-    /// (NIKA-430 · wire `NIKA-INFER-001`): the seat answered 429 · 503 ·
-    /// 529 on every round-trip the layer allowed itself. The numbers ride
-    /// the message so the receipt says what happened; the underlying
-    /// error keeps its transience, so an authored `retry:` may still fire
-    /// on top of the floor.
-    #[error(
-        "provider call failed during `infer` on `{model}` after {attempts} round-trips ({waited_ms} ms of backoff on a rate-limited or overloaded seat): {source}"
-    )]
-    #[diagnostic(code(nika::verb::infer_provider_call))]
-    ProviderCallExhausted {
-        /// The seat that kept asking for patience (`provider/name`).
-        model: String,
-        /// Round-trips sent, the first included.
-        attempts: u32,
-        /// Total backoff slept between them.
-        waited_ms: u64,
-        /// The last answer, as the provider named it.
-        #[source]
-        source: Box<ProviderError>,
-        /// The spend of the round-trips that DID answer before this task
-        /// (a schema-repair loop bills every answered round-trip).
-        spend: Box<SpendOnFailure>,
-    },
-
     /// The seat rejected a request that carried the task `schema:`
     /// natively — HTTP 400 or 422 at the door with `response_format` set
     /// (NIKA-430 · wire `NIKA-INFER-001`). Nothing was sampled; a retry
@@ -187,7 +162,6 @@ impl VerbInferError {
     pub fn spend(&self) -> Option<&SpendOnFailure> {
         match self {
             Self::ProviderCall { spend, .. }
-            | Self::ProviderCallExhausted { spend, .. }
             | Self::SchemaRefused { spend, .. }
             | Self::UsageUnmetered { spend, .. }
             | Self::EmptyAnswer { spend, .. }
@@ -203,10 +177,9 @@ impl VerbInferError {
 impl NikaErrorCode for VerbInferError {
     fn nika_code(&self) -> NikaCode {
         match self {
-            Self::ProviderCall { .. }
-            | Self::ProviderCallExhausted { .. }
-            | Self::SchemaRefused { .. }
-            | Self::HarnessAccess { .. } => codes::NIKA_430,
+            Self::ProviderCall { .. } | Self::SchemaRefused { .. } | Self::HarnessAccess { .. } => {
+                codes::NIKA_430
+            }
             Self::UsageUnmetered { .. } => codes::NIKA_434,
             Self::EmptyAnswer { .. } => codes::NIKA_435,
             Self::SchemaValidation { .. } => codes::NIKA_431,
@@ -227,7 +200,6 @@ impl NikaErrorCode for VerbInferError {
     fn spec_code(&self) -> String {
         match self {
             Self::ProviderCall { .. }
-            | Self::ProviderCallExhausted { .. }
             | Self::SchemaRefused { .. }
             | Self::HarnessAccess { .. }
             | Self::ModelResolution { .. } => "NIKA-INFER-001".to_owned(),
@@ -241,10 +213,9 @@ impl NikaErrorCode for VerbInferError {
     fn is_transient(&self) -> bool {
         match self {
             // Inherit the provider's own retry classification (rate limits
-            // and 5xx are transient; auth and model-not-found are not). A
-            // spent backoff keeps it: the floor is not the author's ceiling.
+            // and 5xx are transient; auth and model-not-found are not): the
+            // transport never re-sends, so the author's `retry:` decides.
             Self::ProviderCall { source, .. } => source.is_transient(),
-            Self::ProviderCallExhausted { source, .. } => source.as_ref().is_transient(),
             // Only a session death heals on retry — of the SAME route.
             Self::Harness { source } => source.is_transient(),
             // An empty answer at the SAME budget re-asks for the identical
@@ -294,31 +265,22 @@ mod tests {
         }
     }
 
-    /// The two readings of a failed call the verb adds over the provider's
-    /// own: both speak `NIKA-INFER-001`, both name the seat, only the spent
-    /// backoff stays transient (the author's `retry:` may still fire), and
-    /// the schema refusal names the next safe action.
+    /// The readings of a failed call: both speak `NIKA-INFER-001`; a
+    /// rate-limited call stays transient (the transport never re-sends, so
+    /// the author's `retry:` decides) and names the delay the seat asked
+    /// for; the schema refusal names the next safe action.
     #[test]
-    fn the_exhausted_backoff_and_the_schema_refusal_name_the_seat() {
-        let spent = VerbInferError::ProviderCallExhausted {
-            model: "gemini/gemini-2.5-flash".to_owned(),
-            attempts: 4,
-            waited_ms: 7000,
-            source: Box::new(rate_limited()),
+    fn a_rate_limited_call_stays_transient_and_the_schema_refusal_names_the_seat() {
+        let limited = VerbInferError::ProviderCall {
+            source: rate_limited(),
             spend: Box::default(),
         };
-        assert_eq!(spent.spec_code(), "NIKA-INFER-001");
-        assert!(
-            spent.is_transient(),
-            "the floor is not the author's ceiling"
-        );
-        let text = spent.to_string();
-        assert!(text.contains("on `gemini/gemini-2.5-flash`"), "{text}");
-        assert!(text.contains("after 4 round-trips"), "{text}");
-        assert!(text.contains("7000 ms of backoff"), "{text}");
+        assert_eq!(limited.spec_code(), "NIKA-INFER-001");
+        assert!(limited.is_transient(), "the author's retry: decides");
+        let text = limited.to_string();
         assert!(text.contains("rate limited (HTTP 429)"), "{text}");
         assert!(text.contains("Retry-After=2"), "{text}");
-        assert!(spent.spend().is_none(), "a refused answer bills nothing");
+        assert!(limited.spend().is_none(), "a refused answer bills nothing");
 
         let refused = VerbInferError::SchemaRefused {
             model: "openai/gpt-4o-mini".to_owned(),
@@ -385,16 +347,6 @@ mod tests {
                     spend: Box::default(),
                 },
                 codes::NIKA_435,
-            ),
-            (
-                VerbInferError::ProviderCallExhausted {
-                    model: "gemini/gemini-2.5-flash".to_owned(),
-                    attempts: 4,
-                    waited_ms: 7000,
-                    source: Box::new(rate_limited()),
-                    spend: Box::default(),
-                },
-                codes::NIKA_430,
             ),
             (
                 VerbInferError::SchemaRefused {

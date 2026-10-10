@@ -553,7 +553,9 @@ fn qualification(n: usize) -> Vec<ChoiceQuestion> {
 /// A 382-item qualification the service refuses as past its context capacity is asked again in
 /// its two halves, in item order: every original id exactly once across the halves, each
 /// question as it is asked alone, each answer bound to its own item, each half's usage counted
-/// once, and no request beyond the three (a resend would take the spare answer).
+/// once, and no request beyond the three (a resend would take the spare answer). The seat's model
+/// documents no capacity, so the batch leaves whole; a documented one is planned before it leaves
+/// (`a_batch_past_the_documented_capacity_leaves_in_requests_that_fit_never_whole`).
 #[test]
 fn a_capacity_refusal_asks_a_382_item_batch_again_in_ordered_halves() {
     let questions = qualification(382);
@@ -564,7 +566,8 @@ fn a_capacity_refusal_asks_a_382_item_batch_again_in_ordered_halves() {
         answering(&questions, 0..382, USAGE),
     ]);
     let batch = ChoiceBatch::of("foundry-qualification", &questions);
-    let exchange = block_on(seat(&peer).exchange_each(&batch));
+    let seat = TypesafeSeat::with_base(KEY.to_owned(), "jev-undocumented", &peer.base);
+    let exchange = block_on(seat.expect("seat").exchange_each(&batch));
     let bodies = peer.bodies();
     assert_eq!(bodies.len(), 3, "the refused request and its two halves");
     assert_eq!(asked(&bodies[0]), ids(&questions));
@@ -874,4 +877,48 @@ fn every_half_carries_each_question_exactly_as_it_is_asked_alone() {
         }
         assert!(exchange.answers.iter().all(Result::is_ok), "{states:?}");
     }
+}
+
+/// A seat of `jev-1.13.0` starts a batch past the capacity its model documents in the requests
+/// that capacity admits, never whole: the requests the partition law plans for the seat's
+/// capacity, each carrying exactly its items, every answer bound to its own item, the usage of
+/// each request counted once.
+#[test]
+fn a_batch_past_the_documented_capacity_leaves_in_requests_that_fit_never_whole() {
+    let text = "x".repeat(15_000);
+    let questions: Vec<ChoiceQuestion> = (0..36).map(|k| reference(k, &text)).collect();
+    let batch = ChoiceBatch::of("foundry-qualification", &questions);
+    let mut law = system_one::Capacity::of_model(MODEL).partition(&batch);
+    let (mut planned, mut script) = (Vec::new(), Vec::new());
+    while let Some((at, _)) = law.begin(&batch, MODEL) {
+        let mut asked_ids: Vec<String> = (law.attempts[at].items.iter())
+            .map(|k| batch.items[*k].question.id.clone())
+            .collect();
+        asked_ids.sort();
+        let answers: Vec<String> = (asked_ids.iter())
+            .map(|id| format!(r#""{id}": {}"#, choice("applies")))
+            .collect();
+        let body = format!(
+            r#"{{"model": "{MODEL}", "answers": {{{}}}, "usage": {USAGE}}}"#,
+            answers.join(", ")
+        );
+        law.responded(at, &batch, 200, body.as_bytes());
+        script.push(Reply::Status(200, body));
+        planned.push(asked_ids);
+    }
+    assert!(planned.len() > 1, "the fixture exceeds one request");
+    let peer = Peer::start(script);
+    let exchange = block_on(seat(&peer).exchange_each(&batch));
+    let sent: Vec<Vec<String>> = peer.bodies().iter().map(asked).collect();
+    assert_eq!(
+        sent, planned,
+        "the planned requests, in order, never the whole batch"
+    );
+    assert!(
+        exchange.outcomes.iter().all(|o| *o == "chosen"),
+        "{:?}",
+        exchange.outcomes
+    );
+    let per_request = 300 * u64::try_from(planned.len()).expect("a small count");
+    assert_eq!(exchange.usage.input_tokens, Some(per_request));
 }

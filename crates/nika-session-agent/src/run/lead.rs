@@ -16,10 +16,11 @@
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use nika_kernel::provider::{ContentBlock, StopReason};
+use nika_session_change::outcome::StopReach;
 use nika_session_change::tools::{SessionTools, ToolCall, ToolDef, ToolReply};
 use serde_json::{Value, json};
 
-use super::{Agent, AgentError, Outcome};
+use super::{Agent, AgentError, Outcome, pairs};
 use crate::event::AgentEvent;
 use crate::steer::QueueMode;
 use crate::tree::{EntryKind, Tree};
@@ -260,7 +261,9 @@ impl Agent<'_> {
         });
         let line = entry_text(text, &cite, answering);
         let prompt = opening.map_or_else(|| line.clone(), |opening| format!("{opening}\n\n{line}"));
+        self.steering.open();
         let outcome = self.led(prompt, conversant, relay, events);
+        self.steering.close();
         events(AgentEvent::AgentEnd { end: outcome.end() });
         outcome
     }
@@ -275,7 +278,7 @@ impl Agent<'_> {
         let mut turn: u32 = 0;
         loop {
             if self.cancel.is_cancelled() {
-                return self.stop();
+                return self.stop(StopReach::BetweenSteps);
             }
             turn = turn.saturating_add(1);
             events(AgentEvent::TurnStart { turn });
@@ -298,14 +301,20 @@ impl Agent<'_> {
             );
             let led = match self.settle_turn(relay.close(), led, &text, events) {
                 Ok(Settled::Parked(call, name)) => {
-                    let queued = self.steering.drain();
+                    let queued = pairs(&self.steering.drain());
                     return Outcome::Parked { call, name, queued };
                 }
                 Ok(Settled::Ended(led)) => led,
                 Err(error) => return Outcome::Failed { error },
             };
             if self.cancel.is_cancelled() {
-                return self.stop();
+                // The agent ended its turn on the cancel it was sent, or before reading it.
+                let reach = if led.end == LedEnd::Stopped {
+                    StopReach::AgentCancelled
+                } else {
+                    StopReach::BetweenSteps
+                };
+                return self.stop(reach);
             }
             let next = match &led.end {
                 LedEnd::Answered => match self.queued_lines(QueueMode::Steer, events) {
@@ -322,7 +331,7 @@ impl Agent<'_> {
                 Ok(lines) if lines.is_empty() && led.end == LedEnd::Answered => {
                     return Outcome::Answered { text };
                 }
-                Ok(lines) if lines.is_empty() => return self.stop(),
+                Ok(lines) if lines.is_empty() => return self.stop(StopReach::BetweenSteps),
                 Ok(lines) => {
                     let entered: Vec<String> = (lines.iter())
                         .map(|(line, cite)| entry_text(line, cite, false))

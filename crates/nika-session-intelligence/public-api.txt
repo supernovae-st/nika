@@ -347,6 +347,7 @@ pub fn nika_session_intelligence::authoring::compile_through(seat: &nika_session
 pub fn nika_session_intelligence::authoring::gateway_host(provider: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::authoring::openai_base_overridden() -> bool
 pub fn nika_session_intelligence::authoring::session_policy(model: &str, harness: bool, strategy: nika_compile::types::NativeMode) -> nika_compile::types::AuthoringPolicy
+pub fn nika_session_intelligence::authoring::verify_in(seat: &nika_session_intelligence::authoring::AuthoringSeat, context: &nika_session_intelligence::authoring::AuthoringContext, stated: &str, (candidate, selections): (&str, (&[nika_compile_fidelity::fidelity::resolution::Resolution], &[nika_compile_fidelity::fidelity::resolution::Resolution])), declined: alloc::vec::Vec<serde_json::value::Value>, account: core::option::Option<&nika_providers::admission::InferenceAdmission>, host: core::option::Option<&dyn nika_compile_seats::rehearse::Rehearse>) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session_intelligence::authoring::AuthoringError>
 pub mod nika_session_intelligence::intelligence
 pub use nika_session_intelligence::intelligence::DataLocus
 #[non_exhaustive] pub enum nika_session_intelligence::intelligence::IntelligenceKind
@@ -691,6 +692,8 @@ impl<T> tracing::instrument::Instrument for nika_session_intelligence::reasoner:
 impl<T> tracing::instrument::WithSubscriber for nika_session_intelligence::reasoner::agent_model::AgentModel
 impl<T> typenum::type_operators::Same for nika_session_intelligence::reasoner::agent_model::AgentModel
 pub type nika_session_intelligence::reasoner::agent_model::AgentModel::Output = T
+pub fn nika_session_intelligence::reasoner::agent_model::model_facts(probes: &[nika_providers::probe::ProviderProbe], model: &str) -> core::option::Option<nika_session_change::work::conversation::ModelFacts>
+pub fn nika_session_intelligence::reasoner::agent_model::tool_steps(hook: nika_display::activity::ActivityHook) -> nika_session_agent::observe::StepSink
 pub mod nika_session_intelligence::reasoner::agent_seat
 pub struct nika_session_intelligence::reasoner::agent_seat::SeatConversation
 impl nika_session_intelligence::reasoner::agent_seat::SeatConversation

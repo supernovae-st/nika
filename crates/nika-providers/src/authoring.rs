@@ -86,6 +86,11 @@ pub fn redact_authoring_error(
     admission_remedy: &str,
 ) -> nika_kernel::ai::provider::ProviderError {
     use nika_kernel::ai::provider::ProviderError;
+    // An observed failure (a dispatched call) is judged by its original error.
+    let mut error = error;
+    while let ProviderError::Observed { source, .. } = error {
+        error = *source;
+    }
     let reason = match error {
         ProviderError::AdmissionDenied { .. } => return ProviderError::AdmissionDenied {
             reason: admission_remedy.to_owned(),
@@ -152,6 +157,36 @@ mod tests {
         );
         assert!(
             matches!(failed, ProviderError::Other { reason } if reason == "the authoring provider call failed")
+        );
+    }
+
+    /// A failure the account observed (a dispatched call) is judged by its original error: a
+    /// busy seat's status and a local refusal's type reach the person, never the generic line.
+    #[test]
+    fn an_observed_failure_is_judged_by_its_original_error() {
+        use nika_kernel::ai::provider::{ProviderError, ProviderHttpError};
+        let observed = |source| ProviderError::Observed {
+            source: Box::new(source),
+            calls: Vec::new(),
+        };
+        let busy = redact_authoring_error(
+            observed(ProviderError::HttpResponse {
+                details: ProviderHttpError::new(503, None, None, Some("2")),
+            }),
+            "authorize max_calls",
+        );
+        assert!(
+            matches!(&busy, ProviderError::Other { reason } if reason == "the authoring provider answered HTTP 503"),
+            "{busy:?}"
+        );
+        let denied = redact_authoring_error(
+            observed(ProviderError::AdmissionDenied {
+                reason: "private-provider-text".to_owned(),
+            }),
+            "authorize max_calls",
+        );
+        assert!(
+            matches!(denied, ProviderError::AdmissionDenied { reason } if reason == "authorize max_calls")
         );
     }
 }

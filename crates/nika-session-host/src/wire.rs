@@ -9,8 +9,9 @@ use serde::Serialize;
 
 use nika_session::RunRequest;
 use nika_session::TurnOutcome;
-use nika_session::activity::{Activity, CallState, Phase};
+use nika_session::activity::{Activity, CallState, Phase, ToolState};
 use nika_session::outcome::ReviewId;
+use nika_session::steer::Queued;
 
 /// The version every command and frame carries.
 pub const CONTRACT: &str = "nika/session-host@1";
@@ -43,6 +44,20 @@ pub enum Command {
     Stop {
         /// The caller's identity for this command.
         command: String,
+    },
+    /// A line for the conversation's run under way: it enters after the calls under way.
+    Steer {
+        /// The caller's identity for this command.
+        command: String,
+        /// The line, exactly as typed.
+        line: String,
+    },
+    /// A line for the conversation's run under way: it enters when the run would end.
+    FollowUp {
+        /// The caller's identity for this command.
+        command: String,
+        /// The line, exactly as typed.
+        line: String,
     },
     /// End the Session.
     Close,
@@ -87,6 +102,15 @@ impl Command {
             ("stop", Some(command), None, None) => Ok(Self::Stop {
                 command: identity(command)?,
             }),
+            ("steer", Some(command), None, Some(line)) => Ok(Self::Steer {
+                command: identity(command)?,
+                line,
+            }),
+            ("follow_up", Some(command), None, Some(line)) => Ok(Self::FollowUp {
+                command: identity(command)?,
+                line,
+            }),
+            ("steer" | "follow_up", ..) => Err(format!("`{}` takes command and line", raw.op)),
             ("close", None, None, None) => Ok(Self::Close),
             ("snapshot", None, None, None) => Ok(Self::Snapshot),
             ("details", None, None, None) => Ok(Self::Details),
@@ -105,6 +129,8 @@ impl Command {
         let (op, snapshot, line) = match self {
             Self::Submit { snapshot, line, .. } => ("submit", snapshot.as_str(), line.as_str()),
             Self::Stop { .. } => ("stop", "", ""),
+            Self::Steer { line, .. } => ("steer", "", line.as_str()),
+            Self::FollowUp { line, .. } => ("follow_up", "", line.as_str()),
             Self::Close => ("close", "", ""),
             Self::Snapshot => ("snapshot", "", ""),
             Self::Details => ("details", "", ""),
@@ -193,12 +219,15 @@ impl TurnPhase {
     }
 }
 
-/// The turn under way, as a snapshot shows it.
+/// The turn under way, as a snapshot shows it: with the lines the person queued for the
+/// conversation's run while it reads them.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub(crate) struct Busy {
     command: String,
     phase: &'static str,
     stop_requested: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    queued: Vec<Queued>,
 }
 
 impl Busy {
@@ -207,7 +236,14 @@ impl Busy {
             command: command.to_owned(),
             phase: phase.word(),
             stop_requested,
+            queued: Vec::new(),
         }
+    }
+
+    /// The same turn with the lines its run reads now.
+    pub(crate) fn with_queued(mut self, queued: Vec<Queued>) -> Self {
+        self.queued = queued;
+        self
     }
 }
 
@@ -229,6 +265,19 @@ pub(crate) struct ActivityWire {
     done: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     call: Option<CallWire>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool: Option<ToolWire>,
+}
+
+/// One tool the conversation's intelligence called, as its run observed it: never its
+/// arguments or reply.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+struct ToolWire {
+    call: String,
+    name: String,
+    state: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    elapsed_ms: Option<u64>,
 }
 
 /// A physical compiler call an activity reported; `model` is the requested one.
@@ -262,11 +311,23 @@ impl ActivityWire {
                 _ => "other",
             },
         });
+        let tool = activity.tool.as_ref().map(|tool| ToolWire {
+            call: tool.call.clone(),
+            name: tool.name.clone(),
+            state: match tool.state {
+                ToolState::Started => "started",
+                ToolState::Finished => "finished",
+                ToolState::Failed => "failed",
+                _ => "other",
+            },
+            elapsed_ms: tool.elapsed_ms,
+        });
         Self {
             phase,
             note: activity.note.clone(),
             done: activity.done,
             call,
+            tool,
         }
     }
 
@@ -277,6 +338,7 @@ impl ActivityWire {
             note: line,
             done: false,
             call: None,
+            tool: None,
         }
     }
 }
@@ -304,6 +366,14 @@ pub(crate) enum Outcome {
         text: String,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         withdrawn: Vec<Outcome>,
+    },
+    Stopped {
+        reach: &'static str,
+        text: String,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        unsent: Vec<Queued>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        candidate: Option<u64>,
     },
     Quit,
     Refusal {
@@ -405,6 +475,12 @@ pub(crate) fn project(outcome: TurnOutcome, wire: &mut Vec<Outcome>, effects: &m
         TurnOutcome::Cancelled(text) => Outcome::Cancelled {
             text,
             withdrawn: Vec::new(),
+        },
+        TurnOutcome::Stopped(stopped) => Outcome::Stopped {
+            reach: stopped.reach.as_str(),
+            text: stopped.text(),
+            unsent: stopped.unsent,
+            candidate: stopped.candidate,
         },
         TurnOutcome::Quit => Outcome::Quit,
         TurnOutcome::Refusal(refusal) => Outcome::Refusal {
@@ -521,6 +597,16 @@ pub(crate) enum Body {
         target: Option<String>,
         snapshot: Snapshot,
     },
+    Queued {
+        command: String,
+        op: &'static str,
+        replayed: bool,
+        receipt: &'static str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        queued: Option<Queued>,
+        target: Option<String>,
+        snapshot: Snapshot,
+    },
     Closed {
         snapshot: Snapshot,
     },
@@ -552,7 +638,7 @@ impl Body {
             Self::Opened { .. } => "opened",
             Self::Accepted { .. } => "accepted",
             Self::Activity { .. } => "activity",
-            Self::Submitted { .. } | Self::Stopped { .. } => "result",
+            Self::Submitted { .. } | Self::Stopped { .. } | Self::Queued { .. } => "result",
             Self::Closed { .. } => "closed",
             Self::Refused { .. } => "refused",
             Self::Current { .. } => "snapshot",
@@ -601,7 +687,9 @@ impl Frame {
     pub(crate) fn replayed(&self) -> Self {
         let mut again = self.clone();
         match &mut again.body {
-            Body::Submitted { replayed, .. } | Body::Stopped { replayed, .. } => *replayed = true,
+            Body::Submitted { replayed, .. }
+            | Body::Stopped { replayed, .. }
+            | Body::Queued { replayed, .. } => *replayed = true,
             _ => {}
         }
         again

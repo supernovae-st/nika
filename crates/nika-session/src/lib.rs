@@ -35,6 +35,8 @@
 /// name the very same items (types, functions, constant).
 #[doc(inline)]
 pub use nika_onboard::{activity, identity};
+/// The person's lines queued while a conversation's run is under way (a host's door).
+pub use nika_session_agent::steer;
 /// The intelligence the session reasons, routes and authors with — the census and the human's
 /// choice ([`intelligence`]), the reasoners ([`reasoner`]), the router of a free line
 /// ([`turn`]) and the authoring door to the ONE compiler ([`authoring`]) — is owned by the

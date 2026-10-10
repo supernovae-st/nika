@@ -46,7 +46,7 @@ fn hello_scaffold_runs_offline_and_teaches_the_local_timeout_override() {
     let explain = call(&["explain", "NIKA-INFER-001"]);
     assert!(explain.status.success());
     let help = String::from_utf8(explain.stdout).expect("help");
-    for expected in ["300s local", "30s cloud", "timeout: 7m", "next to infer:"] {
+    for expected in ["600s, local or cloud", "timeout: 7m", "next to infer:"] {
         assert!(help.contains(expected), "{help}");
     }
 }

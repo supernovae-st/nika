@@ -39,7 +39,7 @@ enum Answer {
     Hang,
     /// Complete usage for the route that was asked.
     Serve,
-    /// HTTP 429 with no Retry-After: the provider backs off and re-sends.
+    /// HTTP 429 with no Retry-After: the call ends at it, never re-sent.
     Limit,
 }
 
@@ -710,22 +710,19 @@ async fn mixed_routes_keep_the_known_subtotal_and_every_unknown() {
     assert_eq!(statuses(&events), ["ok", "cancelled", "failed"]);
 }
 
-/// A provider-level retry: HTTP 429, a bounded backoff, then a re-send that
-/// hangs until the task's timeout drops it. Both physical requests count.
+/// A rate-limited call (HTTP 429) is one physical request: the provider layer
+/// never re-sends it, the task fails as the provider answered, and the ledger
+/// keeps that one request with its unknown charge.
 #[tokio::test]
-async fn a_provider_retry_keeps_both_physical_requests() {
-    let wires = Wires::unobserved(Held::new(
-        false,
-        &[("a", &[Answer::Limit, Answer::Hang])],
-        1,
-    ));
+async fn a_rate_limited_call_is_one_physical_request_on_the_ledger() {
+    let wires = Wires::unobserved(Held::new(false, &[("a", &[Answer::Limit])], 1));
     let (outcome, events) = run(&single(PAID, "    timeout: \"2500ms\"\n"), &wires).await;
     assert!(!outcome.ok);
-    assert_eq!(wires.normal.posts(), ["a", "a"], "the 429 and its re-send");
-    assert_eq!(wires.normal.dropped(), 1, "the re-send was dropped");
+    assert_eq!(wires.normal.posts(), ["a"], "the 429, never re-sent");
+    assert_eq!(wires.normal.dropped(), 0, "nothing was left in flight");
     assert_eq!(
         ledger(&events),
-        (Some(0), Some(2)),
+        (Some(0), Some(1)),
         "{:?}",
         terminal(&events)
     );
@@ -936,26 +933,22 @@ async fn siblings_read_the_snapshot_they_start_with_and_reserve_nothing() {
     }
 }
 
-/// A provider-level retry on a route only the run decides: the guard judges
-/// the dispatch ONCE, and both physical requests (the 429 and its served
-/// re-send) are on the ledger, as for a literal seat.
+/// A rate-limited call on a route only the run decides: the guard judges the
+/// dispatch once, the 429 is the one physical request sent (never re-sent),
+/// and the ledger keeps it, as for a literal seat.
 #[tokio::test]
-async fn a_provider_retry_after_the_guard_keeps_both_physical_requests() {
-    let wires = Wires::unobserved(Held::new(
-        false,
-        &[("a", &[Answer::Limit, Answer::Serve])],
-        1,
-    ));
+async fn a_rate_limited_call_after_the_guard_is_one_physical_request() {
+    let wires = Wires::unobserved(Held::new(false, &[("a", &[Answer::Limit])], 1));
     let source = format!(
         "nika: one\npermits: {{}}\ntasks:\n  ask:\n    for_each: {{ items: [{{n: 'a', m: '{PAID}'}}] }}\n    infer: {{ model: '${{{{ item.m }}}}', prompt: 'say ${{{{ item.n }}}}', max_tokens: 256 }}\n"
     );
     let (settled, events) = launch(&source, &wires, None, Some(paid_floor() * 1.5)).await;
     let outcome = settled.expect("no deadline").expect("the run settles");
-    assert!(outcome.ok, "{outcome:?}");
-    assert_eq!(wires.normal.posts(), ["a", "a"], "the 429 and its re-send");
+    assert!(!outcome.ok, "the 429 fails the item: {outcome:?}");
+    assert_eq!(wires.normal.posts(), ["a"], "the 429, never re-sent");
     assert_eq!(
         ledger(&events),
-        (Some(1), Some(1)),
+        (Some(0), Some(1)),
         "{:?}",
         terminal(&events)
     );
@@ -1026,29 +1019,26 @@ async fn a_fan_out_parent_records_every_completed_call_once_in_input_order() {
     }
 }
 
-/// A provider retry inside a fan-out: the 429 and its re-send are two physical
-/// requests, and the parent keeps both beside b's and c's. The 429's unknown
-/// charge is the parent's one unknown call, as it is the ledger's.
+/// A rate-limited item inside a fan-out: its 429 is one physical request, never
+/// re-sent, and the parent keeps it beside b's and c's completions. The 429's
+/// unknown charge is the parent's one unknown call, as it is the ledger's.
 #[tokio::test]
-async fn a_provider_retry_inside_a_fan_out_keeps_both_requests_on_the_parent() {
+async fn a_rate_limited_item_inside_a_fan_out_is_one_request_on_the_parent() {
     let wires = Wires::unobserved(Held::new(
         false,
-        &[
-            ("a", &[Answer::Limit, Answer::Serve]),
-            ("b", SERVE),
-            ("c", SERVE),
-        ],
+        &[("a", &[Answer::Limit]), ("b", SERVE), ("c", SERVE)],
         1,
     ));
-    let (outcome, events) = run(&fan("max_parallel: 1", PAID, ""), &wires).await;
-    assert!(outcome.ok, "{outcome:?}");
-    assert_eq!(wires.normal.posts(), ["a", "a", "b", "c"]);
+    let source = fan("max_parallel: 1, fail_fast: false", PAID, "");
+    let (outcome, events) = run(&source, &wires).await;
+    assert!(!outcome.ok, "item a still fails the task: {outcome:?}");
+    assert_eq!(wires.normal.posts(), ["a", "b", "c"]);
     let (calls, unknown) = parent_calls(&events);
-    assert_eq!(calls.len(), 4, "{calls:?}");
+    assert_eq!(calls.len(), 3, "{calls:?}");
     assert_eq!(unknown, Some(1), "{calls:?}");
     assert_eq!(
         ledger(&events),
-        (Some(3), Some(1)),
+        (Some(2), Some(1)),
         "{:?}",
         terminal(&events)
     );

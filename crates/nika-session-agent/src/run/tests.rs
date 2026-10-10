@@ -9,6 +9,7 @@ use nika_session_change::tools::ToolDef as SessionToolDef;
 use serde_json::json;
 
 use super::*;
+use crate::steer::QueuedState;
 use crate::tree::Entry;
 
 /// A model that answers from a script, records every request and may act while it answers
@@ -297,7 +298,9 @@ fn a_steering_line_enters_after_the_current_call_and_the_rest_wait() {
     let person = steering.clone();
     let tools = Tools::with_hook(move |call| {
         if call.meta.as_deref() == Some("c1") {
-            person.steer("use Le Monde too");
+            person
+                .steer("use Le Monde too")
+                .expect("the run reads its queue");
         }
     });
     let mut model = Script::new(vec![
@@ -332,6 +335,13 @@ fn a_steering_line_enters_after_the_current_call_and_the_rest_wait() {
             .iter()
             .any(|e| matches!(e, AgentEvent::ToolSkipped { call, .. } if call == "c2"))
     );
+    let records = steering.records();
+    assert_eq!(records[0].id, "l1");
+    assert_eq!(records[0].state, QueuedState::Entered { cite: "u2".into() });
+    assert!(
+        !steering.reading(),
+        "the run closed its queue when it ended"
+    );
 }
 
 #[test]
@@ -343,7 +353,9 @@ fn a_follow_up_waits_until_the_model_would_end() {
     let mut model =
         Script::new(vec![says("Here is the digest."), says("Summarized.")]).during(move |rank| {
             if rank == 0 {
-                person.follow_up("and summarize it in French");
+                person
+                    .follow_up("and summarize it in French")
+                    .expect("the run reads its queue");
             }
         });
     let outcome = Agent::new(&mut tree, &mut lines, &tools, &now)
@@ -367,17 +379,22 @@ fn stop_returns_the_queued_lines_unsent() {
     let (person, stop) = (steering.clone(), cancel.clone());
     let tools = Tools::new();
     let mut model = Script::new(vec![Err(ModelError::Stopped)]).during(move |_| {
-        person.steer("not this one");
+        person
+            .steer("not this one")
+            .expect("the run reads its queue");
         stop.cancel();
     });
     let mut events = Vec::new();
-    let outcome = Agent::new(&mut tree, &mut lines, &tools, &now)
+    let mut run = Agent::new(&mut tree, &mut lines, &tools, &now)
         .with_steering(&steering)
-        .with_cancel(&cancel)
-        .prompt("a digest", &mut model, &mut |e| events.push(e));
+        .with_cancel(&cancel);
+    let outcome = run.prompt("a digest", &mut model, &mut |e| events.push(e));
+    assert_eq!(run.stop_reach(), Some(StopReach::RequestDropped));
+    drop(run);
     let Outcome::Stopped { queued } = outcome else {
         panic!("stopped");
     };
+    assert_eq!(steering.records()[0].state, QueuedState::Returned);
     assert_eq!(queued, [(QueueMode::Steer, "not this one".to_owned())]);
     assert_eq!(kinds(tree.entries()), ["user", "stopped"]);
     assert_eq!(model.seen.len(), 1);
@@ -394,9 +411,10 @@ fn stop_during_a_call_leaves_the_next_calls_unrun() {
     let stop = cancel.clone();
     let tools = Tools::with_hook(move |_| stop.cancel());
     let mut model = Script::new(vec![calls_to(&[("c1", "read", "a"), ("c2", "read", "b")])]);
-    let outcome = Agent::new(&mut tree, &mut lines, &tools, &now)
-        .with_cancel(&cancel)
-        .prompt("read", &mut model, &mut |_| {});
+    let mut run = Agent::new(&mut tree, &mut lines, &tools, &now).with_cancel(&cancel);
+    let outcome = run.prompt("read", &mut model, &mut |_| {});
+    assert_eq!(run.stop_reach(), Some(StopReach::BetweenSteps));
+    drop(run);
     assert!(matches!(outcome, Outcome::Stopped { .. }));
     assert_eq!(tools.called().len(), 1);
     assert_eq!(

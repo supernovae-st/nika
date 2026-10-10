@@ -115,7 +115,7 @@ pub struct CompileArgs {
     pub no_knowledge: bool,
     /// Explicitly seat one bounded-decision capability (`typesafe/jev-1.13.0` or `provider/name`) for finite ambiguities.
     /// Its requests ride its own client, outside `--authoring-max-calls`: a `typesafe/<jev>` question is sent once
-    /// (no protocol retry); a `provider/name` seat keeps its client's protocol retries.
+    /// (no protocol retry); a `provider/name` seat's provider client sends each request once.
     #[arg(long, conflicts_with = "list")]
     pub decision_model: Option<String>,
     /// Replace the explicitly named destination.

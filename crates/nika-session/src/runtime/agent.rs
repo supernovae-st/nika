@@ -17,32 +17,34 @@
 //! [`DRIVER_ENV`] says `rounds`, read once when it opens the Session; a route that cannot lead a
 //! conversation (a seat over its native connection, no intelligence) keeps it too.
 
-mod conversation;
 mod desk;
 mod led;
 mod store;
 mod tools;
 
 use std::io;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use nika_fs::OwnedDir;
-use nika_session_agent::{Agent, AgentEvent, EntryKind, Outcome, QueueMode, Relay, Steering, Tree};
+use nika_providers::InferenceAdmission;
+use nika_session_agent::conversation::{Acts, Conversation};
+use nika_session_agent::{
+    Agent, AgentEvent, EntryKind, Observed, Outcome, QueueMode, QueuedState, Relay, Steering, Tree,
+};
 use nika_session_change::tools::SessionTools;
-use nika_session_intelligence::reasoner::agent_model::AgentModel;
+use nika_session_intelligence::reasoner::agent_model::{AgentModel, tool_steps};
 use nika_types::access::HarnessTransport;
 use nika_types::cancel::CancelCtx;
 use serde_json::Value;
 
-use self::conversation::{Acts, Conversation};
-use self::desk::SessionDesk;
+use self::desk::{SessionDesk, Verified, Verifier};
 use self::store::TreeFile;
 use self::tools::{Decided, Toolbox};
 use super::decision::{is_no, is_save_and_run, is_yes, local_command_of};
 use super::{SessionRuntime, TurnOutcome};
 use crate::change::{ProjectChangeSet, Witness};
-use crate::outcome::{ProposalId, QuestionId, Refusal, RefusalClass};
+use crate::outcome::{ProposalId, QuestionId, Refusal, RefusalClass, StopReach, Stopped};
 use crate::work::{AskedQuestion, AskedState, Waiting, Work};
 
 /// The name a host door reads once when it opens the Session: `rounds` keeps the round driver.
@@ -56,6 +58,7 @@ const SYSTEM: &str = include_str!("../../assets/author_system.md");
 /// leading it, when a seat's agent does.
 pub(super) struct Driver {
     toolbox: Arc<Toolbox>,
+    observed: Arc<Observed>,
     relay: Arc<Relay>,
     tree: Option<Tree>,
     store: TreeFile,
@@ -64,6 +67,9 @@ pub(super) struct Driver {
     steering: Steering,
     cancel: CancelCtx,
     leading: Option<led::Leading>,
+    /// What the conversation's verifications kept, shared with every turn's desk: the verdicts
+    /// that declined bytes and the last that made a document ready.
+    verified: Arc<Mutex<Verified>>,
 }
 
 impl Driver {
@@ -77,9 +83,12 @@ impl Driver {
 
     fn with_store(store: TreeFile) -> Self {
         let toolbox = Arc::new(Toolbox::new(Conversation::default(), store.citations()));
-        let relay = Arc::new(Relay::new(Arc::clone(&toolbox) as Arc<dyn SessionTools>));
+        // Both loops reach the tools through one observer: each real call is a tool step.
+        let observed = Arc::new(Observed::new(Arc::clone(&toolbox) as Arc<dyn SessionTools>));
+        let relay = Arc::new(Relay::new(Arc::clone(&observed) as Arc<dyn SessionTools>));
         Self {
             toolbox,
+            observed,
             relay,
             tree: None,
             store,
@@ -88,6 +97,7 @@ impl Driver {
             steering: Steering::new(),
             cancel: CancelCtx::new(),
             leading: None,
+            verified: Arc::default(),
         }
     }
 
@@ -308,10 +318,13 @@ impl SessionRuntime {
                 if let Some(effort) = effort {
                     model = model.with_effort(effort);
                 }
+                // The verifier's calls are admitted under the line's own dispatch, as the
+                // author's are.
+                let judged = account.clone();
                 if let Some(account) = account {
                     model = model.with_admission(account);
                 }
-                self.drive(&mut driver, line, &mut model)
+                self.drive(&mut driver, line, &mut model, judged)
             }
             (None, Some(seat)) => self.drive_led(&mut driver, line, &seat, effort),
             (None, None) => refusal(
@@ -326,8 +339,14 @@ impl SessionRuntime {
 
     /// A turn of the conversation begins: its tree started when none was, the tools given the
     /// turn's capabilities, and the questions a waiting run asked answered by the line about to
-    /// be cited. Returns the questions asked before the line.
-    fn agent_begin(&self, driver: &mut Driver, chosen: &str) -> Result<Vec<QuestionId>, String> {
+    /// be cited. The desk verifies a document under `account`, the line's admitted dispatch.
+    /// Returns the questions asked before the line.
+    fn agent_begin(
+        &self,
+        driver: &mut Driver,
+        chosen: &str,
+        account: Option<InferenceAdmission>,
+    ) -> Result<Vec<QuestionId>, String> {
         if driver.tree.is_none() {
             let started = start_tree(&mut driver.store, &self.snapshot.root, chosen)?;
             driver.tree = Some(started);
@@ -337,10 +356,19 @@ impl SessionRuntime {
             root: self.snapshot.root.clone(),
             probes: probes.unwrap_or_default(),
             knowledge: self.authoring_context.knowledge().cloned(),
+            verifier: Verifier {
+                seat: self.seat.clone(),
+                context: self.authoring_context.clone(),
+                account,
+                kept: Arc::clone(&driver.verified),
+            },
         };
         let asker = self.questions.asker();
         let mint = move |context: &str| QuestionId::new(Witness::of(context.as_bytes()).0, &asker);
         driver.toolbox.begin(Box::new(desk), Box::new(mint));
+        driver
+            .observed
+            .watch(self.progress.listener().map(tool_steps));
         let waiting = (driver.tree.as_ref())
             .filter(|tree| tree.parked().is_some())
             .map(Tree::next_cite);
@@ -355,16 +383,23 @@ impl SessionRuntime {
 
     /// The run over the selected API or local route, by Nika's own loop: a line that answers
     /// the call the conversation waits on, or a new prompt.
-    fn drive(&mut self, driver: &mut Driver, line: &str, model: &mut AgentModel) -> TurnOutcome {
+    fn drive(
+        &mut self,
+        driver: &mut Driver,
+        line: &str,
+        model: &mut AgentModel,
+        account: Option<InferenceAdmission>,
+    ) -> TurnOutcome {
         // A seat's agent no longer leads once the route is an API or a local one.
         driver.leading = None;
-        let before = match self.agent_begin(driver, model.model()) {
+        let before = match self.agent_begin(driver, model.model(), account) {
             Ok(before) => before,
             Err(why) => return could_not_start(&why),
         };
         let now = unix_ms;
         let Driver {
             toolbox,
+            observed,
             tree,
             store,
             steering,
@@ -377,7 +412,7 @@ impl SessionRuntime {
         };
         let parked = tree.parked().is_some();
         let mut events = |_: AgentEvent| {};
-        let mut agent = Agent::new(tree, store, &**toolbox, &now)
+        let mut agent = Agent::new(tree, store, &**observed, &now)
             .with_steering(steering)
             .with_cancel(cancel);
         let outcome = if parked {
@@ -385,8 +420,9 @@ impl SessionRuntime {
         } else {
             agent.prompt(line, model, &mut events)
         };
+        let reach = agent.stop_reach();
         drop(agent);
-        self.agent_end(driver, before, outcome)
+        self.agent_end(driver, before, (outcome, reach))
     }
 
     /// The turn ended: what it decided, the questions no longer asked closed, the request read
@@ -395,8 +431,9 @@ impl SessionRuntime {
         &mut self,
         driver: &mut Driver,
         before: Vec<QuestionId>,
-        outcome: Outcome,
+        (outcome, reach): (Outcome, Option<StopReach>),
     ) -> TurnOutcome {
+        driver.observed.watch(None);
         let decided = driver.toolbox.end();
         let (still, since) = driver
             .toolbox
@@ -408,14 +445,14 @@ impl SessionRuntime {
             .map(|c| c.stated(since))
             .unwrap_or_default();
         self.intent.goal = request.lines().next().map(str::to_owned);
-        self.settle_run(driver, outcome, decided)
+        self.settle_run(driver, (outcome, reach), decided)
     }
 
     /// The run's outcome as the Session's own.
     fn settle_run(
         &mut self,
         driver: &mut Driver,
-        outcome: Outcome,
+        (outcome, reach): (Outcome, Option<StopReach>),
         decided: Decided,
     ) -> TurnOutcome {
         let said = driver
@@ -447,12 +484,13 @@ impl SessionRuntime {
                     _ => TurnOutcome::Reply(text),
                 }
             }
-            Outcome::Stopped { queued } => {
-                let mut text = "preparation stopped · the conversation is kept · a request already sent may still be billed".to_owned();
-                if let Some(lines) = unsent(&queued) {
-                    text = format!("{text} · {lines}");
-                }
-                TurnOutcome::Cancelled(text)
+            Outcome::Stopped { .. } => {
+                let unsent = (driver.steering.records().into_iter())
+                    .filter(|queued| queued.state == QueuedState::Returned)
+                    .collect();
+                let candidate = driver.toolbox.with(|c| c.candidate().map(|c| c.number));
+                let reach = reach.unwrap_or(StopReach::BetweenSteps);
+                TurnOutcome::Stopped(Stopped::new(reach, unsent, candidate))
             }
             Outcome::Failed { error } => refusal(
                 RefusalClass::IntelligenceRefused,
@@ -497,6 +535,9 @@ impl SessionRuntime {
         let bytes = self.draft_preview(&set);
         let id = ProposalId::of(&bytes);
         self.bind_proposal_money(&id);
+        // The source basis of these bytes, bound to the identity the person reviews.
+        let seen = (driver.verified.lock()).map(|kept| kept.read().clone());
+        self.bind_read_basis(&id, &set, &seen.unwrap_or_default());
         self.pending = Some(set);
         driver.authorized = acts.map(|acts| (id.clone(), acts));
         TurnOutcome::Proposal {
@@ -555,13 +596,16 @@ impl SessionRuntime {
     /// The work snapshot with what the conversation holds.
     pub(super) fn with_agent(&self, work: Work) -> Work {
         match &self.agent {
-            Some(driver) => driver.toolbox.with(|conversation| {
-                work.with_conversation(
-                    conversation.bindings().to_vec(),
-                    conversation.delegations().to_vec(),
-                    conversation.questions().to_vec(),
-                )
-            }),
+            Some(driver) => driver
+                .toolbox
+                .with(|conversation| {
+                    work.with_conversation(
+                        conversation.bindings().to_vec(),
+                        conversation.delegations().to_vec(),
+                        conversation.questions().to_vec(),
+                    )
+                })
+                .with_queued(driver.steering.records()),
             None => work,
         }
     }

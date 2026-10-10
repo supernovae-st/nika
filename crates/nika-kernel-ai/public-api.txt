@@ -1717,10 +1717,12 @@ pub fn nika_kernel_ai::provider::ProviderHttpError::code(&self) -> core::option:
 pub fn nika_kernel_ai::provider::ProviderHttpError::error_type(&self) -> core::option::Option<&'static str>
 pub fn nika_kernel_ai::provider::ProviderHttpError::is_quota_exhausted(&self) -> bool
 pub fn nika_kernel_ai::provider::ProviderHttpError::is_transient(&self) -> bool
+pub fn nika_kernel_ai::provider::ProviderHttpError::message(&self) -> core::option::Option<&str>
 pub fn nika_kernel_ai::provider::ProviderHttpError::new(status: u16, code: core::option::Option<&str>, error_type: core::option::Option<&str>, retry_after: core::option::Option<&str>) -> Self
 pub fn nika_kernel_ai::provider::ProviderHttpError::retry_after(&self) -> core::option::Option<&str>
 pub fn nika_kernel_ai::provider::ProviderHttpError::retry_after_ms(&self) -> core::option::Option<u64>
 pub fn nika_kernel_ai::provider::ProviderHttpError::status(&self) -> u16
+pub fn nika_kernel_ai::provider::ProviderHttpError::with_message(self, message: &str, withheld: &[&str]) -> Self
 impl core::fmt::Debug for nika_kernel_ai::provider::ProviderHttpError
 pub fn nika_kernel_ai::provider::ProviderHttpError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::fmt::Display for nika_kernel_ai::provider::ProviderHttpError

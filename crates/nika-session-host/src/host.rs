@@ -32,6 +32,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
 use nika_session::SessionRuntime;
+use nika_session::steer::{QueueMode, Steering};
 use nika_session::work::{CONTRACT as WORK_CONTRACT, Waiting};
 use nika_types::cancel::CancelCtx;
 
@@ -98,7 +99,8 @@ enum Entry {
     Done([u8; 32], Box<Frame>),
 }
 
-/// The turn under way.
+/// The turn under way: its Stop token, the queue its conversation's run reads, and the Stop of
+/// the run it executes.
 struct Turn {
     command: String,
     phase: TurnPhase,
@@ -106,6 +108,8 @@ struct Turn {
     stop: bool,
     /// The Stop of the run the turn executes, armed while it runs, when its door can stop it.
     run: Option<Arc<dyn RunStop>>,
+    /// The queue the conversation's run reads, armed with the turn's Stop token.
+    steering: Option<Steering>,
 }
 
 impl Turn {
@@ -210,7 +214,12 @@ impl Custody {
         Snapshot {
             handle: self.current.handle.clone(),
             seq: self.current.seq,
-            busy: (self.turn.as_ref()).map(|turn| Busy::new(&turn.command, turn.phase, turn.stop)),
+            busy: (self.turn.as_ref()).map(|turn| {
+                // The lines the run reads now; a queue no run reads shows nothing stale.
+                let reading = turn.steering.as_ref().filter(|steering| steering.reading());
+                let queued = reading.map(Steering::records).unwrap_or_default();
+                Busy::new(&turn.command, turn.phase, turn.stop).with_queued(queued)
+            }),
             work: self.current.work.clone(),
         }
     }
@@ -299,14 +308,16 @@ impl Shared {
         self.wake();
     }
 
-    /// The turn's fresh Stop token; a Stop that already won cancels it at once.
-    fn arm(&self, command: &str, token: CancelCtx) {
+    /// The turn's fresh Stop token and its conversation's queue; a Stop that already won
+    /// cancels the token at once.
+    fn arm(&self, command: &str, token: CancelCtx, steering: Option<Steering>) {
         let mut custody = self.lock();
         if let Some(turn) = custody.turn_of(command) {
             if turn.stop {
                 token.cancel();
             }
             turn.token = Some(token);
+            turn.steering = steering;
         }
     }
 
@@ -546,6 +557,12 @@ impl SessionHost {
                 line,
             } => self.submit(digest, command, &snapshot, &line),
             Command::Stop { command } => self.stop(digest, command),
+            Command::Steer { command, line } => {
+                self.queue(digest, command, QueueMode::Steer, &line)
+            }
+            Command::FollowUp { command, line } => {
+                self.queue(digest, command, QueueMode::FollowUp, &line)
+            }
             Command::Close => self.close(),
             Command::Snapshot => Dispatch::Reply(self.snapshot()),
             Command::Details => Dispatch::Reply(self.details()),
@@ -618,6 +635,7 @@ impl SessionHost {
             token: None,
             stop: false,
             run: None,
+            steering: None,
         });
         let accepted = Body::Accepted {
             command: command.clone(),
@@ -672,6 +690,66 @@ impl SessionHost {
             op: "stop",
             replayed: false,
             receipt,
+            target,
+            snapshot,
+        };
+        let frame = custody.log(session, body);
+        custody
+            .ledger
+            .insert(command, Entry::Done(digest, Box::new(frame.clone())));
+        drop(custody);
+        self.shared.wake();
+        Dispatch::Logged(frame)
+    }
+
+    /// A line for the conversation's run under way, by its mode: queued with its identity while
+    /// that run reads its queue (`queued`); refused when a turn runs that no conversation's run
+    /// reads (`not_reading`), when nothing runs (`nothing_to_steer`: submit it as a line), when
+    /// it is blank (`blank`), or when the run took as many lines as it takes (`full`). The
+    /// receipt is logged and bound to the command's identity.
+    fn queue(&self, digest: [u8; 32], command: String, mode: QueueMode, line: &str) -> Dispatch {
+        let session = self.shared.session.as_str();
+        let mut custody = self.shared.lock();
+        if let Some(answer) = custody.recorded(session, &command, digest, Some(line)) {
+            return answer;
+        }
+        if custody.life == Life::Closed {
+            let snapshot = Some(custody.snapshot());
+            return Dispatch::Reply(Frame::refused(
+                session,
+                Refused::SessionNotFound,
+                "this Session is closed",
+                Some(&command),
+                Some(line),
+                snapshot,
+            ));
+        }
+        let (receipt, queued, target) = match custody.turn.as_ref() {
+            None => ("nothing_to_steer", None, None),
+            Some(turn) => {
+                let target = Some(turn.command.clone());
+                let reading = turn
+                    .steering
+                    .as_ref()
+                    .filter(|_| turn.phase == TurnPhase::Preparing);
+                let pushed = reading.map(|steering| match mode {
+                    QueueMode::Steer => steering.steer(line),
+                    _ => steering.follow_up(line),
+                });
+                match pushed {
+                    Some(Ok(queued)) => ("queued", Some(queued), target),
+                    Some(Err(refused)) => (refused.as_str(), None, target),
+                    None => ("not_reading", None, target),
+                }
+            }
+        };
+        let snapshot = custody.snapshot();
+        let body = Body::Queued {
+            command: command.clone(),
+            op: mode.as_str(),
+            replayed: false,
+            receipt,
+            queued,
             target,
             snapshot,
         };
@@ -823,3 +901,7 @@ impl SessionHost {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 pub(crate) mod tests;
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod steer_tests;

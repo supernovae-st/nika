@@ -147,6 +147,9 @@ The pure `activity` presentation owns `Phase`, `Activity` and the compatible tex
 They carry the producer's phase unchanged; no runtime, model call, execution state or authority
 is owned here. `nika_onboard::activity` and `nika_session::activity` preserve their old paths.
 
+`activity::ToolMark` (with `tool_activity`) carries one tool step of a conversation's run —
+its call identity, the tool, started, finished or failed and the milliseconds it took,
+never its arguments or reply; its phase follows the tool's family.
 `activity::CallMark` carries producer-reported call identity and lifecycle; the model is requested,
 not observed as served. Scoped presentation callbacks contain neither transport nor authority.
 `activity::call_activity` derives a compiler call's phase from its typed role alone: `repair`,

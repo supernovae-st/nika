@@ -69,7 +69,7 @@ pub(super) async fn infer<H: HttpPostDyn + Send + Sync + 'static>(
             response.status,
             &response.body,
             response.headers.get("retry-after").map(String::as_str),
-            &rp.wire_model,
+            rp.key.as_ref(),
         ));
     }
     let value = parse(&response.body)?;
@@ -118,7 +118,7 @@ pub(super) async fn infer_stream<H: HttpPostDyn + Send + Sync + 'static>(
         return Err(refused("stream endpoint changed; result not accepted"));
     }
     if !(200..300).contains(&response.status) {
-        return Err(super::stream_status_error(response, &rp.wire_model).await);
+        return Err(super::stream_status_error(response, rp.key.as_ref()).await);
     }
     Ok(Box::pin(stream::NativeStream::new(response.body, names)))
 }
@@ -148,7 +148,7 @@ fn build_request(
     request.body = Some(Bytes::from(
         serde_json::to_vec(&body).map_err(|_| refused("request serialization failed"))?,
     ));
-    request.timeout = super::transport_deadline(&rp.profile, req, stream);
+    request.timeout = super::transport_deadline(req, stream);
     request.follow_redirects = false;
     Ok(request)
 }

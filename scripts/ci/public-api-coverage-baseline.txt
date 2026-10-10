@@ -77,7 +77,9 @@ nika-secret
 nika-serve
 nika-service-execution
 nika-session
+nika-session-agent
 nika-session-change
+nika-session-host
 nika-session-intelligence
 nika-source
 nika-store

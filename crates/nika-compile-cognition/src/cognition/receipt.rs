@@ -114,23 +114,7 @@ async fn send<P: ProviderInferDyn>(
         let elapsed_ms = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
         receipt.elapsed_ms = receipt.elapsed_ms.saturating_add(elapsed_ms);
         if let Some(context) = receipt.context.last_mut() {
-            context["elapsed_ms"] = json!(elapsed_ms);
-            context["result"] = match observe::answered(&result) {
-                Ok(response) => json!({
-                    "stop_reason": format!("{:?}", response.stop_reason),
-                    "usage_reported": response.usage_reported,
-                    "input_tokens": response.usage_reported.then_some(response.usage.input_tokens),
-                    "output_tokens": response.usage_reported.then_some(response.usage.output_tokens),
-                }),
-                Err(observe::Failure::AdmissionRefused) => {
-                    json!({"failure_kind": "admission_refused"})
-                }
-                Err(observe::Failure::Timeout) => json!({"failure_kind": "timeout"}),
-                Err(_) => json!({"failure_kind": "provider_error"}),
-            };
-            let answered = result.as_ref().ok().and_then(|r| r.as_ref().ok());
-            context["reasoning"] = reasoning_record(policy.reasoning, answered);
-            context["response"] = answered.map_or(Value::Null, response_identity);
+            record_call(context, policy, &result, elapsed_ms);
         }
     }
     let response = match result {
@@ -165,6 +149,43 @@ async fn send<P: ProviderInferDyn>(
             Some(receipt.output_tokens.unwrap_or(0) + response.usage.output_tokens);
     }
     Some(response)
+}
+
+/// One call's journal entry after its answer: the time it took, its result, its reasoning, the
+/// response's identity and the requests that actually left for it.
+fn record_call(
+    context: &mut Value,
+    policy: &AuthoringPolicy,
+    result: &Result<Result<InferResponse, ProviderError>, tokio::time::error::Elapsed>,
+    elapsed_ms: u64,
+) {
+    context["elapsed_ms"] = json!(elapsed_ms);
+    context["result"] = match observe::answered(result) {
+        Ok(response) => json!({
+            "stop_reason": format!("{:?}", response.stop_reason),
+            "usage_reported": response.usage_reported,
+            "input_tokens": response.usage_reported.then_some(response.usage.input_tokens),
+            "output_tokens": response.usage_reported.then_some(response.usage.output_tokens),
+        }),
+        Err(observe::Failure::AdmissionRefused) => json!({"failure_kind": "admission_refused"}),
+        Err(observe::Failure::Timeout) => json!({"failure_kind": "timeout"}),
+        Err(_) => json!({"failure_kind": "provider_error"}),
+    };
+    let answered = result.as_ref().ok().and_then(|r| r.as_ref().ok());
+    context["reasoning"] = reasoning_record(policy.reasoning, answered);
+    context["response"] = answered.map_or(Value::Null, response_identity);
+    // What actually left for this call, from the provider's own per-dispatch record (the
+    // transport never re-sends one): a call cut by its deadline sent one; a harness counts its
+    // own invocations, its requests unknown here.
+    context["requests_sent"] = if nika_providers::authoring::policy::harness_route(&policy.model) {
+        Value::Null
+    } else {
+        json!(match result {
+            Ok(Ok(response)) => response.inference_calls.len(),
+            Ok(Err(error)) => error.inference_calls().len(),
+            Err(_) => 1,
+        })
+    };
 }
 
 /// The provider's answer within the policy's deadline, the call's activity told to a scope. A

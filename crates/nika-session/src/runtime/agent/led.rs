@@ -101,7 +101,8 @@ impl SessionRuntime {
         {
             return refused;
         }
-        let before = match self.agent_begin(driver, chosen) {
+        // A seat's agent rides its own subscription: the verifier admits no paid dispatch.
+        let before = match self.agent_begin(driver, chosen, None) {
             Ok(before) => before,
             Err(why) => return could_not_start(&why),
         };
@@ -127,12 +128,13 @@ impl SessionRuntime {
             .with_cancel(cancel);
         let agent = &mut *leading.agent;
         let outcome = run.lead(line, opening.as_deref(), agent, relay, &mut events);
+        let reach = run.stop_reach();
         drop(run);
         if leading.agent.ended() {
             // The agent's session is gone: the next line opens a new one with what was said.
             driver.leading = None;
         }
-        self.agent_end(driver, before, outcome)
+        self.agent_end(driver, before, (outcome, reach))
     }
 }
 

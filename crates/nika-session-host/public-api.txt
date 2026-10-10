@@ -1,0 +1,896 @@
+pub mod nika_session_host
+pub mod nika_session_host::host
+#[non_exhaustive] pub enum nika_session_host::host::Dispatch
+pub nika_session_host::host::Dispatch::Accepted
+pub nika_session_host::host::Dispatch::Accepted::command: alloc::string::String
+pub nika_session_host::host::Dispatch::Accepted::repeated: bool
+pub nika_session_host::host::Dispatch::Closing
+pub nika_session_host::host::Dispatch::Logged(nika_session_host::wire::Frame)
+pub nika_session_host::host::Dispatch::Reply(nika_session_host::wire::Frame)
+impl core::fmt::Debug for nika_session_host::host::Dispatch
+pub fn nika_session_host::host::Dispatch::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_session_host::host::Dispatch
+impl<T, U> core::convert::Into<U> for nika_session_host::host::Dispatch where U: core::convert::From<T>
+pub fn nika_session_host::host::Dispatch::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::host::Dispatch where U: core::convert::Into<T>
+pub type nika_session_host::host::Dispatch::Error = core::convert::Infallible
+pub fn nika_session_host::host::Dispatch::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::host::Dispatch where U: core::convert::TryFrom<T>
+pub type nika_session_host::host::Dispatch::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::host::Dispatch::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_session_host::host::Dispatch where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::host::Dispatch::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::host::Dispatch where T: ?core::marker::Sized
+pub fn nika_session_host::host::Dispatch::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::host::Dispatch where T: ?core::marker::Sized
+pub fn nika_session_host::host::Dispatch::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_session_host::host::Dispatch
+pub fn nika_session_host::host::Dispatch::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_session_host::host::Dispatch where T: 'static
+pub fn nika_session_host::host::Dispatch::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::host::Dispatch where T: ?core::marker::Sized
+pub fn nika_session_host::host::Dispatch::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::host::Dispatch::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::host::Dispatch
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::host::Dispatch
+impl<T> typenum::type_operators::Same for nika_session_host::host::Dispatch
+pub type nika_session_host::host::Dispatch::Output = T
+pub struct nika_session_host::host::SessionHost
+impl nika_session_host::host::SessionHost
+pub async fn nika_session_host::host::SessionHost::closed(&self) -> core::option::Option<nika_session_host::wire::Frame>
+pub fn nika_session_host::host::SessionHost::details(&self) -> nika_session_host::wire::Frame
+pub fn nika_session_host::host::SessionHost::dispatch(&self, command: nika_session_host::wire::Command) -> nika_session_host::host::Dispatch
+pub fn nika_session_host::host::SessionHost::events_after(&self, after: u64) -> (alloc::vec::Vec<nika_session_host::wire::Frame>, bool)
+pub fn nika_session_host::host::SessionHost::is_closed(&self) -> bool
+pub fn nika_session_host::host::SessionHost::last_event(&self) -> u64
+pub async fn nika_session_host::host::SessionHost::next_events(&self, after: u64) -> (alloc::vec::Vec<nika_session_host::wire::Frame>, bool)
+pub fn nika_session_host::host::SessionHost::opened(&self) -> core::option::Option<nika_session_host::wire::Frame>
+pub async fn nika_session_host::host::SessionHost::result(&self, command: &str) -> core::option::Option<nika_session_host::wire::Frame>
+pub fn nika_session_host::host::SessionHost::session(&self) -> &str
+pub fn nika_session_host::host::SessionHost::snapshot(&self) -> nika_session_host::wire::Frame
+pub fn nika_session_host::host::SessionHost::start(runtime: nika_session::runtime::SessionRuntime, door: alloc::boxed::Box<dyn nika_session_host::run::RunDoor>, notices: alloc::vec::Vec<alloc::string::String>) -> core::io::error::Result<Self>
+pub fn nika_session_host::host::SessionHost::wait_closed(&self) -> core::option::Option<nika_session_host::wire::Frame>
+pub fn nika_session_host::host::SessionHost::wait_events_after(&self, after: u64) -> (alloc::vec::Vec<nika_session_host::wire::Frame>, bool)
+pub fn nika_session_host::host::SessionHost::wait_result(&self, command: &str) -> core::option::Option<nika_session_host::wire::Frame>
+impl core::fmt::Debug for nika_session_host::host::SessionHost
+pub fn nika_session_host::host::SessionHost::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_session_host::host::SessionHost
+impl<T, U> core::convert::Into<U> for nika_session_host::host::SessionHost where U: core::convert::From<T>
+pub fn nika_session_host::host::SessionHost::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::host::SessionHost where U: core::convert::Into<T>
+pub type nika_session_host::host::SessionHost::Error = core::convert::Infallible
+pub fn nika_session_host::host::SessionHost::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::host::SessionHost where U: core::convert::TryFrom<T>
+pub type nika_session_host::host::SessionHost::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::host::SessionHost::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_session_host::host::SessionHost where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::host::SessionHost::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::host::SessionHost where T: ?core::marker::Sized
+pub fn nika_session_host::host::SessionHost::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::host::SessionHost where T: ?core::marker::Sized
+pub fn nika_session_host::host::SessionHost::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_session_host::host::SessionHost
+pub fn nika_session_host::host::SessionHost::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_session_host::host::SessionHost where T: 'static
+pub fn nika_session_host::host::SessionHost::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::host::SessionHost where T: ?core::marker::Sized
+pub fn nika_session_host::host::SessionHost::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::host::SessionHost::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::host::SessionHost
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::host::SessionHost
+impl<T> typenum::type_operators::Same for nika_session_host::host::SessionHost
+pub type nika_session_host::host::SessionHost::Output = T
+pub mod nika_session_host::http
+pub struct nika_session_host::http::Sessions
+impl nika_session_host::http::Sessions
+pub fn nika_session_host::http::Sessions::bare(root: std::path::PathBuf, doors: nika_session_host::http::Doors) -> Self
+pub fn nika_session_host::http::Sessions::new(opener: nika_session_host::http::Opener, doors: nika_session_host::http::Doors) -> Self
+pub async fn nika_session_host::http::Sessions::route(&self, method: &http::method::Method, path: &str, headers: &http::header::map::HeaderMap, body: bytes::bytes::Bytes) -> core::option::Option<http::response::Response<nika_session_host::http::ResponseBody>>
+impl core::fmt::Debug for nika_session_host::http::Sessions
+pub fn nika_session_host::http::Sessions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_session_host::http::Sessions
+impl<T, U> core::convert::Into<U> for nika_session_host::http::Sessions where U: core::convert::From<T>
+pub fn nika_session_host::http::Sessions::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::http::Sessions where U: core::convert::Into<T>
+pub type nika_session_host::http::Sessions::Error = core::convert::Infallible
+pub fn nika_session_host::http::Sessions::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::http::Sessions where U: core::convert::TryFrom<T>
+pub type nika_session_host::http::Sessions::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::http::Sessions::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_session_host::http::Sessions where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::http::Sessions::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::http::Sessions where T: ?core::marker::Sized
+pub fn nika_session_host::http::Sessions::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::http::Sessions where T: ?core::marker::Sized
+pub fn nika_session_host::http::Sessions::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_session_host::http::Sessions
+pub fn nika_session_host::http::Sessions::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_session_host::http::Sessions where T: 'static
+pub fn nika_session_host::http::Sessions::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::http::Sessions where T: ?core::marker::Sized
+pub fn nika_session_host::http::Sessions::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::http::Sessions::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::http::Sessions
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::http::Sessions
+impl<T> typenum::type_operators::Same for nika_session_host::http::Sessions
+pub type nika_session_host::http::Sessions::Output = T
+pub const nika_session_host::http::OPENAPI: &str
+pub async fn nika_session_host::http::job_id(response: http::response::Response<nika_session_host::http::ResponseBody>) -> core::result::Result<alloc::string::String, alloc::string::String>
+pub async fn nika_session_host::http::refusal_words(response: http::response::Response<nika_session_host::http::ResponseBody>) -> alloc::string::String
+pub type nika_session_host::http::Doors = alloc::boxed::Box<(dyn core::ops::function::Fn() -> alloc::boxed::Box<dyn nika_session_host::run::RunDoor> + core::marker::Send + core::marker::Sync)>
+pub type nika_session_host::http::Opener = alloc::sync::Arc<(dyn core::ops::function::Fn(core::option::Option<&str>) -> core::result::Result<(nika_session::runtime::SessionRuntime, alloc::vec::Vec<alloc::string::String>), alloc::string::String> + core::marker::Send + core::marker::Sync)>
+pub type nika_session_host::http::ResponseBody = http_body_util::combinators::box_body::UnsyncBoxBody<bytes::bytes::Bytes, core::convert::Infallible>
+pub mod nika_session_host::machine
+pub fn nika_session_host::machine::drive<R, W>(host: &alloc::sync::Arc<nika_session_host::host::SessionHost>, input: R, output: &alloc::sync::Arc<std::sync::poison::mutex::Mutex<W>>) -> core::io::error::Result<()> where R: alloc::io::buf_read::BufRead + core::marker::Send + 'static, W: core::io::write::Write + core::marker::Send + 'static
+pub mod nika_session_host::open
+pub fn nika_session_host::open::default_model(provider: &str) -> alloc::string::String
+pub fn nika_session_host::open::machine_selection(argv: &[std::ffi::os_str::OsString]) -> core::option::Option<core::option::Option<alloc::string::String>>
+pub fn nika_session_host::open::open_bare(cwd: &std::path::Path, home: core::option::Option<&std::path::Path>, jq: core::option::Option<nika_service_execution::rehearsal::isolated_jq::JqHelper>, selection: core::option::Option<&str>) -> core::result::Result<(nika_session::runtime::SessionRuntime, alloc::vec::Vec<alloc::string::String>), alloc::string::String>
+pub fn nika_session_host::open::reasoner_for(resolved: &nika_session_intelligence::intelligence::ResolvedSessionIntelligence) -> alloc::boxed::Box<dyn nika_session_intelligence::reasoner::SessionReasoner>
+pub fn nika_session_host::open::run_stdio(cwd: &std::path::Path, home: core::option::Option<&std::path::Path>, jq: core::option::Option<nika_service_execution::rehearsal::isolated_jq::JqHelper>, exe: core::option::Option<std::path::PathBuf>, selection: core::option::Option<&str>) -> core::result::Result<(), alloc::string::String>
+pub mod nika_session_host::run
+pub use nika_session_host::run::RunRequest
+pub use nika_session_host::run::RunSink
+#[non_exhaustive] pub enum nika_session_host::run::Admitted
+pub nika_session_host::run::Admitted::Job(alloc::string::String)
+pub nika_session_host::run::Admitted::Review
+pub nika_session_host::run::Admitted::Review::details: alloc::string::String
+pub nika_session_host::run::Admitted::Review::question: alloc::string::String
+pub nika_session_host::run::Admitted::Review::review: alloc::string::String
+impl core::fmt::Debug for nika_session_host::run::Admitted
+pub fn nika_session_host::run::Admitted::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_session_host::run::Admitted
+impl<T, U> core::convert::Into<U> for nika_session_host::run::Admitted where U: core::convert::From<T>
+pub fn nika_session_host::run::Admitted::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::run::Admitted where U: core::convert::Into<T>
+pub type nika_session_host::run::Admitted::Error = core::convert::Infallible
+pub fn nika_session_host::run::Admitted::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::run::Admitted where U: core::convert::TryFrom<T>
+pub type nika_session_host::run::Admitted::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::run::Admitted::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_session_host::run::Admitted where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::run::Admitted::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::run::Admitted where T: ?core::marker::Sized
+pub fn nika_session_host::run::Admitted::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::run::Admitted where T: ?core::marker::Sized
+pub fn nika_session_host::run::Admitted::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_session_host::run::Admitted
+pub fn nika_session_host::run::Admitted::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_session_host::run::Admitted where T: 'static
+pub fn nika_session_host::run::Admitted::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::run::Admitted where T: ?core::marker::Sized
+pub fn nika_session_host::run::Admitted::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::run::Admitted::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::run::Admitted
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::run::Admitted
+impl<T> typenum::type_operators::Same for nika_session_host::run::Admitted
+pub type nika_session_host::run::Admitted::Output = T
+#[non_exhaustive] pub enum nika_session_host::run::RunStep
+pub nika_session_host::run::RunStep::Declined
+pub nika_session_host::run::RunStep::NotStarted
+pub nika_session_host::run::RunStep::NotStarted::why: alloc::string::String
+pub nika_session_host::run::RunStep::Observed
+pub nika_session_host::run::RunStep::Observed::exit: u8
+pub nika_session_host::run::RunStep::Observed::leg: core::option::Option<nika_trace::run_view::kept::KeptRun>
+pub nika_session_host::run::RunStep::Observed::trace: core::option::Option<std::path::PathBuf>
+pub nika_session_host::run::RunStep::Review
+pub nika_session_host::run::RunStep::Review::details: alloc::string::String
+pub nika_session_host::run::RunStep::Review::question: alloc::string::String
+pub nika_session_host::run::RunStep::Unobserved
+pub nika_session_host::run::RunStep::Unobserved::why: alloc::string::String
+impl core::fmt::Debug for nika_session_host::run::RunStep
+pub fn nika_session_host::run::RunStep::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_session_host::run::RunStep
+impl<T, U> core::convert::Into<U> for nika_session_host::run::RunStep where U: core::convert::From<T>
+pub fn nika_session_host::run::RunStep::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::run::RunStep where U: core::convert::Into<T>
+pub type nika_session_host::run::RunStep::Error = core::convert::Infallible
+pub fn nika_session_host::run::RunStep::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::run::RunStep where U: core::convert::TryFrom<T>
+pub type nika_session_host::run::RunStep::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::run::RunStep::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_session_host::run::RunStep where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::run::RunStep::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::run::RunStep where T: ?core::marker::Sized
+pub fn nika_session_host::run::RunStep::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::run::RunStep where T: ?core::marker::Sized
+pub fn nika_session_host::run::RunStep::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_session_host::run::RunStep
+pub fn nika_session_host::run::RunStep::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_session_host::run::RunStep where T: 'static
+pub fn nika_session_host::run::RunStep::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::run::RunStep where T: ?core::marker::Sized
+pub fn nika_session_host::run::RunStep::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::run::RunStep::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::run::RunStep
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::run::RunStep
+impl<T> typenum::type_operators::Same for nika_session_host::run::RunStep
+pub type nika_session_host::run::RunStep::Output = T
+#[non_exhaustive] pub enum nika_session_host::run::Stopping
+pub nika_session_host::run::Stopping::Ended
+pub nika_session_host::run::Stopping::Pending
+pub nika_session_host::run::Stopping::Signalled
+impl core::clone::Clone for nika_session_host::run::Stopping
+pub fn nika_session_host::run::Stopping::clone(&self) -> nika_session_host::run::Stopping
+impl core::cmp::Eq for nika_session_host::run::Stopping
+impl core::cmp::PartialEq for nika_session_host::run::Stopping
+pub fn nika_session_host::run::Stopping::eq(&self, other: &nika_session_host::run::Stopping) -> bool
+impl core::fmt::Debug for nika_session_host::run::Stopping
+pub fn nika_session_host::run::Stopping::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session_host::run::Stopping
+impl core::marker::StructuralPartialEq for nika_session_host::run::Stopping
+impl<D> owo_colors::OwoColorize for nika_session_host::run::Stopping
+impl<Q, K> equivalent::Equivalent<K> for nika_session_host::run::Stopping where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_host::run::Stopping::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_host::run::Stopping where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_host::run::Stopping::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_host::run::Stopping where U: core::convert::From<T>
+pub fn nika_session_host::run::Stopping::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::run::Stopping where U: core::convert::Into<T>
+pub type nika_session_host::run::Stopping::Error = core::convert::Infallible
+pub fn nika_session_host::run::Stopping::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::run::Stopping where U: core::convert::TryFrom<T>
+pub type nika_session_host::run::Stopping::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::run::Stopping::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_host::run::Stopping where T: core::clone::Clone
+pub type nika_session_host::run::Stopping::Owned = T
+pub fn nika_session_host::run::Stopping::clone_into(&self, target: &mut T)
+pub fn nika_session_host::run::Stopping::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_host::run::Stopping where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::run::Stopping::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::run::Stopping where T: ?core::marker::Sized
+pub fn nika_session_host::run::Stopping::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::run::Stopping where T: ?core::marker::Sized
+pub fn nika_session_host::run::Stopping::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_host::run::Stopping where T: core::clone::Clone
+pub unsafe fn nika_session_host::run::Stopping::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_host::run::Stopping
+pub fn nika_session_host::run::Stopping::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_host::run::Stopping where T: core::clone::Clone
+pub fn nika_session_host::run::Stopping::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_host::run::Stopping where T: 'static
+pub fn nika_session_host::run::Stopping::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session_host::run::Stopping where T: core::marker::Copy
+pub fn nika_session_host::run::Stopping::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::run::Stopping where T: ?core::marker::Sized
+pub fn nika_session_host::run::Stopping::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::run::Stopping::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::run::Stopping
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::run::Stopping
+impl<T> typenum::type_operators::Same for nika_session_host::run::Stopping
+pub type nika_session_host::run::Stopping::Output = T
+pub struct nika_session_host::run::JobDoor
+impl nika_session_host::run::JobDoor
+pub fn nika_session_host::run::JobDoor::new(handle: tokio::runtime::handle::Handle, jobs: alloc::sync::Arc<dyn nika_session_host::run::Jobs>) -> Self
+impl core::fmt::Debug for nika_session_host::run::JobDoor
+pub fn nika_session_host::run::JobDoor::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::ops::drop::Drop for nika_session_host::run::JobDoor
+pub fn nika_session_host::run::JobDoor::drop(&mut self)
+impl nika_session_host::run::RunDoor for nika_session_host::run::JobDoor
+pub fn nika_session_host::run::JobDoor::answer_review(&mut self, approve: bool, sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::JobDoor::resume(&mut self, _root: &std::path::Path, _workflow: &std::path::Path, _trace: &std::path::Path, _answer: &str, _sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::JobDoor::run(&mut self, _root: &std::path::Path, run: &nika_session_change::change::RunRequest, sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::JobDoor::stopper(&mut self) -> core::option::Option<alloc::sync::Arc<dyn nika_session_host::run::RunStop>>
+impl<D> owo_colors::OwoColorize for nika_session_host::run::JobDoor
+impl<T, U> core::convert::Into<U> for nika_session_host::run::JobDoor where U: core::convert::From<T>
+pub fn nika_session_host::run::JobDoor::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::run::JobDoor where U: core::convert::Into<T>
+pub type nika_session_host::run::JobDoor::Error = core::convert::Infallible
+pub fn nika_session_host::run::JobDoor::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::run::JobDoor where U: core::convert::TryFrom<T>
+pub type nika_session_host::run::JobDoor::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::run::JobDoor::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_session_host::run::JobDoor where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::run::JobDoor::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::run::JobDoor where T: ?core::marker::Sized
+pub fn nika_session_host::run::JobDoor::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::run::JobDoor where T: ?core::marker::Sized
+pub fn nika_session_host::run::JobDoor::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_session_host::run::JobDoor
+pub fn nika_session_host::run::JobDoor::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_session_host::run::JobDoor where T: 'static
+pub fn nika_session_host::run::JobDoor::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::run::JobDoor where T: ?core::marker::Sized
+pub fn nika_session_host::run::JobDoor::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::run::JobDoor::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::run::JobDoor
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::run::JobDoor
+impl<T> typenum::type_operators::Same for nika_session_host::run::JobDoor
+pub type nika_session_host::run::JobDoor::Output = T
+#[non_exhaustive] pub struct nika_session_host::run::JobEnd
+pub nika_session_host::run::JobEnd::chain_head: core::option::Option<alloc::string::String>
+pub nika_session_host::run::JobEnd::execution: core::option::Option<alloc::string::String>
+pub nika_session_host::run::JobEnd::exit: u8
+pub nika_session_host::run::JobEnd::journal: core::option::Option<std::path::PathBuf>
+pub nika_session_host::run::JobEnd::trace: core::option::Option<alloc::string::String>
+impl nika_session_host::run::JobEnd
+pub fn nika_session_host::run::JobEnd::new(exit: u8, journal: core::option::Option<std::path::PathBuf>) -> Self
+pub fn nika_session_host::run::JobEnd::with_receipt(self, execution: core::option::Option<alloc::string::String>, trace: core::option::Option<alloc::string::String>, chain_head: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_session_host::run::JobEnd
+pub fn nika_session_host::run::JobEnd::clone(&self) -> nika_session_host::run::JobEnd
+impl core::cmp::Eq for nika_session_host::run::JobEnd
+impl core::cmp::PartialEq for nika_session_host::run::JobEnd
+pub fn nika_session_host::run::JobEnd::eq(&self, other: &nika_session_host::run::JobEnd) -> bool
+impl core::default::Default for nika_session_host::run::JobEnd
+pub fn nika_session_host::run::JobEnd::default() -> nika_session_host::run::JobEnd
+impl core::fmt::Debug for nika_session_host::run::JobEnd
+pub fn nika_session_host::run::JobEnd::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_host::run::JobEnd
+impl<D> owo_colors::OwoColorize for nika_session_host::run::JobEnd
+impl<Q, K> equivalent::Equivalent<K> for nika_session_host::run::JobEnd where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_host::run::JobEnd::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_host::run::JobEnd where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_host::run::JobEnd::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_host::run::JobEnd where U: core::convert::From<T>
+pub fn nika_session_host::run::JobEnd::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::run::JobEnd where U: core::convert::Into<T>
+pub type nika_session_host::run::JobEnd::Error = core::convert::Infallible
+pub fn nika_session_host::run::JobEnd::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::run::JobEnd where U: core::convert::TryFrom<T>
+pub type nika_session_host::run::JobEnd::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::run::JobEnd::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_host::run::JobEnd where T: core::clone::Clone
+pub type nika_session_host::run::JobEnd::Owned = T
+pub fn nika_session_host::run::JobEnd::clone_into(&self, target: &mut T)
+pub fn nika_session_host::run::JobEnd::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_host::run::JobEnd where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::run::JobEnd::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::run::JobEnd where T: ?core::marker::Sized
+pub fn nika_session_host::run::JobEnd::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::run::JobEnd where T: ?core::marker::Sized
+pub fn nika_session_host::run::JobEnd::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_host::run::JobEnd where T: core::clone::Clone
+pub unsafe fn nika_session_host::run::JobEnd::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_host::run::JobEnd
+pub fn nika_session_host::run::JobEnd::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_host::run::JobEnd where T: core::clone::Clone
+pub fn nika_session_host::run::JobEnd::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_host::run::JobEnd where T: 'static
+pub fn nika_session_host::run::JobEnd::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::run::JobEnd where T: ?core::marker::Sized
+pub fn nika_session_host::run::JobEnd::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::run::JobEnd::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::run::JobEnd
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::run::JobEnd
+impl<T> typenum::type_operators::Same for nika_session_host::run::JobEnd
+pub type nika_session_host::run::JobEnd::Output = T
+impl<T> zvariant::optional::NoneValue for nika_session_host::run::JobEnd where T: core::default::Default
+pub type nika_session_host::run::JobEnd::NoneType = T
+pub fn nika_session_host::run::JobEnd::null_value() -> T
+pub struct nika_session_host::run::LaneRunDoor
+impl nika_session_host::run::LaneRunDoor
+pub fn nika_session_host::run::LaneRunDoor::new(exe: std::path::PathBuf) -> Self
+pub fn nika_session_host::run::LaneRunDoor::slot(&self) -> nika_cli_host::lane::ChildSlot
+impl core::fmt::Debug for nika_session_host::run::LaneRunDoor
+pub fn nika_session_host::run::LaneRunDoor::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_session_host::run::RunDoor for nika_session_host::run::LaneRunDoor
+pub fn nika_session_host::run::LaneRunDoor::answer_review(&mut self, approve: bool, sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::LaneRunDoor::resume(&mut self, root: &std::path::Path, workflow: &std::path::Path, trace: &std::path::Path, answer: &str, sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::LaneRunDoor::run(&mut self, root: &std::path::Path, run: &nika_session_change::change::RunRequest, sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::LaneRunDoor::stopper(&mut self) -> core::option::Option<alloc::sync::Arc<dyn nika_session_host::run::RunStop>>
+impl<D> owo_colors::OwoColorize for nika_session_host::run::LaneRunDoor
+impl<T, U> core::convert::Into<U> for nika_session_host::run::LaneRunDoor where U: core::convert::From<T>
+pub fn nika_session_host::run::LaneRunDoor::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::run::LaneRunDoor where U: core::convert::Into<T>
+pub type nika_session_host::run::LaneRunDoor::Error = core::convert::Infallible
+pub fn nika_session_host::run::LaneRunDoor::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::run::LaneRunDoor where U: core::convert::TryFrom<T>
+pub type nika_session_host::run::LaneRunDoor::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::run::LaneRunDoor::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_session_host::run::LaneRunDoor where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::run::LaneRunDoor::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::run::LaneRunDoor where T: ?core::marker::Sized
+pub fn nika_session_host::run::LaneRunDoor::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::run::LaneRunDoor where T: ?core::marker::Sized
+pub fn nika_session_host::run::LaneRunDoor::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_session_host::run::LaneRunDoor
+pub fn nika_session_host::run::LaneRunDoor::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_session_host::run::LaneRunDoor where T: 'static
+pub fn nika_session_host::run::LaneRunDoor::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::run::LaneRunDoor where T: ?core::marker::Sized
+pub fn nika_session_host::run::LaneRunDoor::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::run::LaneRunDoor::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::run::LaneRunDoor
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::run::LaneRunDoor
+impl<T> typenum::type_operators::Same for nika_session_host::run::LaneRunDoor
+pub type nika_session_host::run::LaneRunDoor::Output = T
+pub struct nika_session_host::run::NoRunDoor
+impl nika_session_host::run::NoRunDoor
+pub fn nika_session_host::run::NoRunDoor::new(why: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::fmt::Debug for nika_session_host::run::NoRunDoor
+pub fn nika_session_host::run::NoRunDoor::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_session_host::run::RunDoor for nika_session_host::run::NoRunDoor
+pub fn nika_session_host::run::NoRunDoor::answer_review(&mut self, _approve: bool, _sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::NoRunDoor::resume(&mut self, _root: &std::path::Path, _workflow: &std::path::Path, _trace: &std::path::Path, _answer: &str, _sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::NoRunDoor::run(&mut self, _root: &std::path::Path, _run: &nika_session_change::change::RunRequest, _sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::NoRunDoor::stopper(&mut self) -> core::option::Option<alloc::sync::Arc<dyn nika_session_host::run::RunStop>>
+impl<D> owo_colors::OwoColorize for nika_session_host::run::NoRunDoor
+impl<T, U> core::convert::Into<U> for nika_session_host::run::NoRunDoor where U: core::convert::From<T>
+pub fn nika_session_host::run::NoRunDoor::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::run::NoRunDoor where U: core::convert::Into<T>
+pub type nika_session_host::run::NoRunDoor::Error = core::convert::Infallible
+pub fn nika_session_host::run::NoRunDoor::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::run::NoRunDoor where U: core::convert::TryFrom<T>
+pub type nika_session_host::run::NoRunDoor::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::run::NoRunDoor::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_session_host::run::NoRunDoor where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::run::NoRunDoor::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::run::NoRunDoor where T: ?core::marker::Sized
+pub fn nika_session_host::run::NoRunDoor::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::run::NoRunDoor where T: ?core::marker::Sized
+pub fn nika_session_host::run::NoRunDoor::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_session_host::run::NoRunDoor
+pub fn nika_session_host::run::NoRunDoor::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_session_host::run::NoRunDoor where T: 'static
+pub fn nika_session_host::run::NoRunDoor::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::run::NoRunDoor where T: ?core::marker::Sized
+pub fn nika_session_host::run::NoRunDoor::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::run::NoRunDoor::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::run::NoRunDoor
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::run::NoRunDoor
+impl<T> typenum::type_operators::Same for nika_session_host::run::NoRunDoor
+pub type nika_session_host::run::NoRunDoor::Output = T
+pub trait nika_session_host::run::Jobs: core::marker::Send + core::marker::Sync
+pub fn nika_session_host::run::Jobs::admit<'a>(&'a self, run: &'a nika_session_change::change::RunRequest) -> nika_session_host::run::JobFuture<'a, core::result::Result<nika_session_host::run::Admitted, alloc::string::String>>
+pub fn nika_session_host::run::Jobs::decide<'a>(&'a self, review: &'a str, approve: bool) -> nika_session_host::run::JobFuture<'a, core::result::Result<core::option::Option<alloc::string::String>, alloc::string::String>>
+pub fn nika_session_host::run::Jobs::settled<'a>(&'a self, id: &'a str) -> nika_session_host::run::JobFuture<'a, core::result::Result<nika_session_host::run::JobEnd, alloc::string::String>>
+pub trait nika_session_host::run::RunDoor: core::marker::Send
+pub fn nika_session_host::run::RunDoor::answer_review(&mut self, approve: bool, sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::RunDoor::resume(&mut self, root: &std::path::Path, workflow: &std::path::Path, trace: &std::path::Path, answer: &str, sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::RunDoor::run(&mut self, root: &std::path::Path, run: &nika_session_change::change::RunRequest, sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::RunDoor::stopper(&mut self) -> core::option::Option<alloc::sync::Arc<dyn nika_session_host::run::RunStop>>
+impl nika_session_host::run::RunDoor for nika_session_host::run::JobDoor
+pub fn nika_session_host::run::JobDoor::answer_review(&mut self, approve: bool, sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::JobDoor::resume(&mut self, _root: &std::path::Path, _workflow: &std::path::Path, _trace: &std::path::Path, _answer: &str, _sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::JobDoor::run(&mut self, _root: &std::path::Path, run: &nika_session_change::change::RunRequest, sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::JobDoor::stopper(&mut self) -> core::option::Option<alloc::sync::Arc<dyn nika_session_host::run::RunStop>>
+impl nika_session_host::run::RunDoor for nika_session_host::run::LaneRunDoor
+pub fn nika_session_host::run::LaneRunDoor::answer_review(&mut self, approve: bool, sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::LaneRunDoor::resume(&mut self, root: &std::path::Path, workflow: &std::path::Path, trace: &std::path::Path, answer: &str, sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::LaneRunDoor::run(&mut self, root: &std::path::Path, run: &nika_session_change::change::RunRequest, sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::LaneRunDoor::stopper(&mut self) -> core::option::Option<alloc::sync::Arc<dyn nika_session_host::run::RunStop>>
+impl nika_session_host::run::RunDoor for nika_session_host::run::NoRunDoor
+pub fn nika_session_host::run::NoRunDoor::answer_review(&mut self, _approve: bool, _sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::NoRunDoor::resume(&mut self, _root: &std::path::Path, _workflow: &std::path::Path, _trace: &std::path::Path, _answer: &str, _sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::NoRunDoor::run(&mut self, _root: &std::path::Path, _run: &nika_session_change::change::RunRequest, _sink: &dyn nika_display::run_story::RunSink) -> nika_session_host::run::RunStep
+pub fn nika_session_host::run::NoRunDoor::stopper(&mut self) -> core::option::Option<alloc::sync::Arc<dyn nika_session_host::run::RunStop>>
+pub trait nika_session_host::run::RunStop: core::marker::Send + core::marker::Sync
+pub fn nika_session_host::run::RunStop::stop(&self) -> nika_session_host::run::Stopping
+pub type nika_session_host::run::JobFuture<'a, T> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = T> + core::marker::Send + 'a)>>
+pub mod nika_session_host::wire
+#[non_exhaustive] pub enum nika_session_host::wire::Command
+pub nika_session_host::wire::Command::Close
+pub nika_session_host::wire::Command::Details
+pub nika_session_host::wire::Command::FollowUp
+pub nika_session_host::wire::Command::FollowUp::command: alloc::string::String
+pub nika_session_host::wire::Command::FollowUp::line: alloc::string::String
+pub nika_session_host::wire::Command::Snapshot
+pub nika_session_host::wire::Command::Steer
+pub nika_session_host::wire::Command::Steer::command: alloc::string::String
+pub nika_session_host::wire::Command::Steer::line: alloc::string::String
+pub nika_session_host::wire::Command::Stop
+pub nika_session_host::wire::Command::Stop::command: alloc::string::String
+pub nika_session_host::wire::Command::Submit
+pub nika_session_host::wire::Command::Submit::command: alloc::string::String
+pub nika_session_host::wire::Command::Submit::line: alloc::string::String
+pub nika_session_host::wire::Command::Submit::snapshot: alloc::string::String
+impl nika_session_host::wire::Command
+pub fn nika_session_host::wire::Command::parse(bytes: &[u8]) -> core::result::Result<Self, alloc::string::String>
+impl core::clone::Clone for nika_session_host::wire::Command
+pub fn nika_session_host::wire::Command::clone(&self) -> nika_session_host::wire::Command
+impl core::cmp::Eq for nika_session_host::wire::Command
+impl core::cmp::PartialEq for nika_session_host::wire::Command
+pub fn nika_session_host::wire::Command::eq(&self, other: &nika_session_host::wire::Command) -> bool
+impl core::fmt::Debug for nika_session_host::wire::Command
+pub fn nika_session_host::wire::Command::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_host::wire::Command
+impl<D> owo_colors::OwoColorize for nika_session_host::wire::Command
+impl<Q, K> equivalent::Equivalent<K> for nika_session_host::wire::Command where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_host::wire::Command::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_host::wire::Command where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_host::wire::Command::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_host::wire::Command where U: core::convert::From<T>
+pub fn nika_session_host::wire::Command::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::wire::Command where U: core::convert::Into<T>
+pub type nika_session_host::wire::Command::Error = core::convert::Infallible
+pub fn nika_session_host::wire::Command::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::wire::Command where U: core::convert::TryFrom<T>
+pub type nika_session_host::wire::Command::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::wire::Command::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_host::wire::Command where T: core::clone::Clone
+pub type nika_session_host::wire::Command::Owned = T
+pub fn nika_session_host::wire::Command::clone_into(&self, target: &mut T)
+pub fn nika_session_host::wire::Command::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_host::wire::Command where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::wire::Command::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::wire::Command where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Command::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::wire::Command where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Command::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_host::wire::Command where T: core::clone::Clone
+pub unsafe fn nika_session_host::wire::Command::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_host::wire::Command
+pub fn nika_session_host::wire::Command::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_host::wire::Command where T: core::clone::Clone
+pub fn nika_session_host::wire::Command::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_host::wire::Command where T: 'static
+pub fn nika_session_host::wire::Command::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::wire::Command where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Command::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::wire::Command::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::wire::Command
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::wire::Command
+impl<T> typenum::type_operators::Same for nika_session_host::wire::Command
+pub type nika_session_host::wire::Command::Output = T
+#[non_exhaustive] pub enum nika_session_host::wire::Refused
+pub nika_session_host::wire::Refused::Busy
+pub nika_session_host::wire::Refused::CommandConflict
+pub nika_session_host::wire::Refused::Malformed
+pub nika_session_host::wire::Refused::SessionLive
+pub nika_session_host::wire::Refused::SessionNotFound
+pub nika_session_host::wire::Refused::SessionUnavailable
+pub nika_session_host::wire::Refused::StaleSnapshot
+pub nika_session_host::wire::Refused::UnknownSnapshot
+impl nika_session_host::wire::Refused
+pub const fn nika_session_host::wire::Refused::word(self) -> &'static str
+impl core::clone::Clone for nika_session_host::wire::Refused
+pub fn nika_session_host::wire::Refused::clone(&self) -> nika_session_host::wire::Refused
+impl core::cmp::Eq for nika_session_host::wire::Refused
+impl core::cmp::PartialEq for nika_session_host::wire::Refused
+pub fn nika_session_host::wire::Refused::eq(&self, other: &nika_session_host::wire::Refused) -> bool
+impl core::fmt::Debug for nika_session_host::wire::Refused
+pub fn nika_session_host::wire::Refused::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session_host::wire::Refused
+impl core::marker::StructuralPartialEq for nika_session_host::wire::Refused
+impl<D> owo_colors::OwoColorize for nika_session_host::wire::Refused
+impl<Q, K> equivalent::Equivalent<K> for nika_session_host::wire::Refused where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_host::wire::Refused::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_host::wire::Refused where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_host::wire::Refused::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_host::wire::Refused where U: core::convert::From<T>
+pub fn nika_session_host::wire::Refused::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::wire::Refused where U: core::convert::Into<T>
+pub type nika_session_host::wire::Refused::Error = core::convert::Infallible
+pub fn nika_session_host::wire::Refused::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::wire::Refused where U: core::convert::TryFrom<T>
+pub type nika_session_host::wire::Refused::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::wire::Refused::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_host::wire::Refused where T: core::clone::Clone
+pub type nika_session_host::wire::Refused::Owned = T
+pub fn nika_session_host::wire::Refused::clone_into(&self, target: &mut T)
+pub fn nika_session_host::wire::Refused::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_host::wire::Refused where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::wire::Refused::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::wire::Refused where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Refused::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::wire::Refused where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Refused::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_host::wire::Refused where T: core::clone::Clone
+pub unsafe fn nika_session_host::wire::Refused::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_host::wire::Refused
+pub fn nika_session_host::wire::Refused::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_host::wire::Refused where T: core::clone::Clone
+pub fn nika_session_host::wire::Refused::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_host::wire::Refused where T: 'static
+pub fn nika_session_host::wire::Refused::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session_host::wire::Refused where T: core::marker::Copy
+pub fn nika_session_host::wire::Refused::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::wire::Refused where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Refused::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::wire::Refused::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::wire::Refused
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::wire::Refused
+impl<T> typenum::type_operators::Same for nika_session_host::wire::Refused
+pub type nika_session_host::wire::Refused::Output = T
+pub struct nika_session_host::wire::Frame
+impl nika_session_host::wire::Frame
+pub fn nika_session_host::wire::Frame::event(&self) -> core::option::Option<u64>
+pub fn nika_session_host::wire::Frame::kind(&self) -> &'static str
+pub fn nika_session_host::wire::Frame::refusal(&self) -> core::option::Option<&'static str>
+pub fn nika_session_host::wire::Frame::session(&self) -> &str
+pub fn nika_session_host::wire::Frame::status(&self) -> u16
+pub fn nika_session_host::wire::Frame::to_line(&self) -> alloc::string::String
+impl core::clone::Clone for nika_session_host::wire::Frame
+pub fn nika_session_host::wire::Frame::clone(&self) -> nika_session_host::wire::Frame
+impl core::cmp::PartialEq for nika_session_host::wire::Frame
+pub fn nika_session_host::wire::Frame::eq(&self, other: &nika_session_host::wire::Frame) -> bool
+impl core::fmt::Debug for nika_session_host::wire::Frame
+pub fn nika_session_host::wire::Frame::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_host::wire::Frame
+impl serde_core::ser::Serialize for nika_session_host::wire::Frame
+pub fn nika_session_host::wire::Frame::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_session_host::wire::Frame
+impl<T, U> core::convert::Into<U> for nika_session_host::wire::Frame where U: core::convert::From<T>
+pub fn nika_session_host::wire::Frame::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::wire::Frame where U: core::convert::Into<T>
+pub type nika_session_host::wire::Frame::Error = core::convert::Infallible
+pub fn nika_session_host::wire::Frame::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::wire::Frame where U: core::convert::TryFrom<T>
+pub type nika_session_host::wire::Frame::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::wire::Frame::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_host::wire::Frame where T: core::clone::Clone
+pub type nika_session_host::wire::Frame::Owned = T
+pub fn nika_session_host::wire::Frame::clone_into(&self, target: &mut T)
+pub fn nika_session_host::wire::Frame::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_host::wire::Frame where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::wire::Frame::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::wire::Frame where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Frame::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::wire::Frame where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Frame::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_host::wire::Frame where T: core::clone::Clone
+pub unsafe fn nika_session_host::wire::Frame::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_host::wire::Frame
+pub fn nika_session_host::wire::Frame::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_host::wire::Frame where T: core::clone::Clone
+pub fn nika_session_host::wire::Frame::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_host::wire::Frame where T: 'static
+pub fn nika_session_host::wire::Frame::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::wire::Frame where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Frame::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::wire::Frame::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::wire::Frame
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::wire::Frame
+impl<T> typenum::type_operators::Same for nika_session_host::wire::Frame
+pub type nika_session_host::wire::Frame::Output = T
+pub const nika_session_host::wire::CAPABILITY: &str
+pub const nika_session_host::wire::CONTRACT: &str
+pub const nika_session_host::wire::SELECTION_CAPABILITY: &str
+#[non_exhaustive] pub enum nika_session_host::Command
+pub nika_session_host::Command::Close
+pub nika_session_host::Command::Details
+pub nika_session_host::Command::FollowUp
+pub nika_session_host::Command::FollowUp::command: alloc::string::String
+pub nika_session_host::Command::FollowUp::line: alloc::string::String
+pub nika_session_host::Command::Snapshot
+pub nika_session_host::Command::Steer
+pub nika_session_host::Command::Steer::command: alloc::string::String
+pub nika_session_host::Command::Steer::line: alloc::string::String
+pub nika_session_host::Command::Stop
+pub nika_session_host::Command::Stop::command: alloc::string::String
+pub nika_session_host::Command::Submit
+pub nika_session_host::Command::Submit::command: alloc::string::String
+pub nika_session_host::Command::Submit::line: alloc::string::String
+pub nika_session_host::Command::Submit::snapshot: alloc::string::String
+impl nika_session_host::wire::Command
+pub fn nika_session_host::wire::Command::parse(bytes: &[u8]) -> core::result::Result<Self, alloc::string::String>
+impl core::clone::Clone for nika_session_host::wire::Command
+pub fn nika_session_host::wire::Command::clone(&self) -> nika_session_host::wire::Command
+impl core::cmp::Eq for nika_session_host::wire::Command
+impl core::cmp::PartialEq for nika_session_host::wire::Command
+pub fn nika_session_host::wire::Command::eq(&self, other: &nika_session_host::wire::Command) -> bool
+impl core::fmt::Debug for nika_session_host::wire::Command
+pub fn nika_session_host::wire::Command::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_host::wire::Command
+impl<D> owo_colors::OwoColorize for nika_session_host::wire::Command
+impl<Q, K> equivalent::Equivalent<K> for nika_session_host::wire::Command where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_host::wire::Command::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_host::wire::Command where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_host::wire::Command::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_host::wire::Command where U: core::convert::From<T>
+pub fn nika_session_host::wire::Command::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::wire::Command where U: core::convert::Into<T>
+pub type nika_session_host::wire::Command::Error = core::convert::Infallible
+pub fn nika_session_host::wire::Command::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::wire::Command where U: core::convert::TryFrom<T>
+pub type nika_session_host::wire::Command::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::wire::Command::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_host::wire::Command where T: core::clone::Clone
+pub type nika_session_host::wire::Command::Owned = T
+pub fn nika_session_host::wire::Command::clone_into(&self, target: &mut T)
+pub fn nika_session_host::wire::Command::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_host::wire::Command where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::wire::Command::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::wire::Command where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Command::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::wire::Command where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Command::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_host::wire::Command where T: core::clone::Clone
+pub unsafe fn nika_session_host::wire::Command::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_host::wire::Command
+pub fn nika_session_host::wire::Command::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_host::wire::Command where T: core::clone::Clone
+pub fn nika_session_host::wire::Command::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_host::wire::Command where T: 'static
+pub fn nika_session_host::wire::Command::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::wire::Command where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Command::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::wire::Command::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::wire::Command
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::wire::Command
+impl<T> typenum::type_operators::Same for nika_session_host::wire::Command
+pub type nika_session_host::wire::Command::Output = T
+#[non_exhaustive] pub enum nika_session_host::Dispatch
+pub nika_session_host::Dispatch::Accepted
+pub nika_session_host::Dispatch::Accepted::command: alloc::string::String
+pub nika_session_host::Dispatch::Accepted::repeated: bool
+pub nika_session_host::Dispatch::Closing
+pub nika_session_host::Dispatch::Logged(nika_session_host::wire::Frame)
+pub nika_session_host::Dispatch::Reply(nika_session_host::wire::Frame)
+impl core::fmt::Debug for nika_session_host::host::Dispatch
+pub fn nika_session_host::host::Dispatch::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_session_host::host::Dispatch
+impl<T, U> core::convert::Into<U> for nika_session_host::host::Dispatch where U: core::convert::From<T>
+pub fn nika_session_host::host::Dispatch::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::host::Dispatch where U: core::convert::Into<T>
+pub type nika_session_host::host::Dispatch::Error = core::convert::Infallible
+pub fn nika_session_host::host::Dispatch::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::host::Dispatch where U: core::convert::TryFrom<T>
+pub type nika_session_host::host::Dispatch::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::host::Dispatch::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_session_host::host::Dispatch where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::host::Dispatch::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::host::Dispatch where T: ?core::marker::Sized
+pub fn nika_session_host::host::Dispatch::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::host::Dispatch where T: ?core::marker::Sized
+pub fn nika_session_host::host::Dispatch::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_session_host::host::Dispatch
+pub fn nika_session_host::host::Dispatch::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_session_host::host::Dispatch where T: 'static
+pub fn nika_session_host::host::Dispatch::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::host::Dispatch where T: ?core::marker::Sized
+pub fn nika_session_host::host::Dispatch::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::host::Dispatch::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::host::Dispatch
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::host::Dispatch
+impl<T> typenum::type_operators::Same for nika_session_host::host::Dispatch
+pub type nika_session_host::host::Dispatch::Output = T
+#[non_exhaustive] pub enum nika_session_host::Refused
+pub nika_session_host::Refused::Busy
+pub nika_session_host::Refused::CommandConflict
+pub nika_session_host::Refused::Malformed
+pub nika_session_host::Refused::SessionLive
+pub nika_session_host::Refused::SessionNotFound
+pub nika_session_host::Refused::SessionUnavailable
+pub nika_session_host::Refused::StaleSnapshot
+pub nika_session_host::Refused::UnknownSnapshot
+impl nika_session_host::wire::Refused
+pub const fn nika_session_host::wire::Refused::word(self) -> &'static str
+impl core::clone::Clone for nika_session_host::wire::Refused
+pub fn nika_session_host::wire::Refused::clone(&self) -> nika_session_host::wire::Refused
+impl core::cmp::Eq for nika_session_host::wire::Refused
+impl core::cmp::PartialEq for nika_session_host::wire::Refused
+pub fn nika_session_host::wire::Refused::eq(&self, other: &nika_session_host::wire::Refused) -> bool
+impl core::fmt::Debug for nika_session_host::wire::Refused
+pub fn nika_session_host::wire::Refused::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session_host::wire::Refused
+impl core::marker::StructuralPartialEq for nika_session_host::wire::Refused
+impl<D> owo_colors::OwoColorize for nika_session_host::wire::Refused
+impl<Q, K> equivalent::Equivalent<K> for nika_session_host::wire::Refused where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_host::wire::Refused::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_host::wire::Refused where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_host::wire::Refused::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_host::wire::Refused where U: core::convert::From<T>
+pub fn nika_session_host::wire::Refused::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::wire::Refused where U: core::convert::Into<T>
+pub type nika_session_host::wire::Refused::Error = core::convert::Infallible
+pub fn nika_session_host::wire::Refused::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::wire::Refused where U: core::convert::TryFrom<T>
+pub type nika_session_host::wire::Refused::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::wire::Refused::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_host::wire::Refused where T: core::clone::Clone
+pub type nika_session_host::wire::Refused::Owned = T
+pub fn nika_session_host::wire::Refused::clone_into(&self, target: &mut T)
+pub fn nika_session_host::wire::Refused::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_host::wire::Refused where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::wire::Refused::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::wire::Refused where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Refused::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::wire::Refused where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Refused::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_host::wire::Refused where T: core::clone::Clone
+pub unsafe fn nika_session_host::wire::Refused::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_host::wire::Refused
+pub fn nika_session_host::wire::Refused::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_host::wire::Refused where T: core::clone::Clone
+pub fn nika_session_host::wire::Refused::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_host::wire::Refused where T: 'static
+pub fn nika_session_host::wire::Refused::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session_host::wire::Refused where T: core::marker::Copy
+pub fn nika_session_host::wire::Refused::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::wire::Refused where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Refused::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::wire::Refused::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::wire::Refused
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::wire::Refused
+impl<T> typenum::type_operators::Same for nika_session_host::wire::Refused
+pub type nika_session_host::wire::Refused::Output = T
+pub struct nika_session_host::Frame
+impl nika_session_host::wire::Frame
+pub fn nika_session_host::wire::Frame::event(&self) -> core::option::Option<u64>
+pub fn nika_session_host::wire::Frame::kind(&self) -> &'static str
+pub fn nika_session_host::wire::Frame::refusal(&self) -> core::option::Option<&'static str>
+pub fn nika_session_host::wire::Frame::session(&self) -> &str
+pub fn nika_session_host::wire::Frame::status(&self) -> u16
+pub fn nika_session_host::wire::Frame::to_line(&self) -> alloc::string::String
+impl core::clone::Clone for nika_session_host::wire::Frame
+pub fn nika_session_host::wire::Frame::clone(&self) -> nika_session_host::wire::Frame
+impl core::cmp::PartialEq for nika_session_host::wire::Frame
+pub fn nika_session_host::wire::Frame::eq(&self, other: &nika_session_host::wire::Frame) -> bool
+impl core::fmt::Debug for nika_session_host::wire::Frame
+pub fn nika_session_host::wire::Frame::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_host::wire::Frame
+impl serde_core::ser::Serialize for nika_session_host::wire::Frame
+pub fn nika_session_host::wire::Frame::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_session_host::wire::Frame
+impl<T, U> core::convert::Into<U> for nika_session_host::wire::Frame where U: core::convert::From<T>
+pub fn nika_session_host::wire::Frame::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::wire::Frame where U: core::convert::Into<T>
+pub type nika_session_host::wire::Frame::Error = core::convert::Infallible
+pub fn nika_session_host::wire::Frame::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::wire::Frame where U: core::convert::TryFrom<T>
+pub type nika_session_host::wire::Frame::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::wire::Frame::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_host::wire::Frame where T: core::clone::Clone
+pub type nika_session_host::wire::Frame::Owned = T
+pub fn nika_session_host::wire::Frame::clone_into(&self, target: &mut T)
+pub fn nika_session_host::wire::Frame::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_host::wire::Frame where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::wire::Frame::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::wire::Frame where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Frame::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::wire::Frame where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Frame::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_host::wire::Frame where T: core::clone::Clone
+pub unsafe fn nika_session_host::wire::Frame::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_host::wire::Frame
+pub fn nika_session_host::wire::Frame::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_host::wire::Frame where T: core::clone::Clone
+pub fn nika_session_host::wire::Frame::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_host::wire::Frame where T: 'static
+pub fn nika_session_host::wire::Frame::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::wire::Frame where T: ?core::marker::Sized
+pub fn nika_session_host::wire::Frame::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::wire::Frame::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::wire::Frame
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::wire::Frame
+impl<T> typenum::type_operators::Same for nika_session_host::wire::Frame
+pub type nika_session_host::wire::Frame::Output = T
+pub struct nika_session_host::SessionHost
+impl nika_session_host::host::SessionHost
+pub async fn nika_session_host::host::SessionHost::closed(&self) -> core::option::Option<nika_session_host::wire::Frame>
+pub fn nika_session_host::host::SessionHost::details(&self) -> nika_session_host::wire::Frame
+pub fn nika_session_host::host::SessionHost::dispatch(&self, command: nika_session_host::wire::Command) -> nika_session_host::host::Dispatch
+pub fn nika_session_host::host::SessionHost::events_after(&self, after: u64) -> (alloc::vec::Vec<nika_session_host::wire::Frame>, bool)
+pub fn nika_session_host::host::SessionHost::is_closed(&self) -> bool
+pub fn nika_session_host::host::SessionHost::last_event(&self) -> u64
+pub async fn nika_session_host::host::SessionHost::next_events(&self, after: u64) -> (alloc::vec::Vec<nika_session_host::wire::Frame>, bool)
+pub fn nika_session_host::host::SessionHost::opened(&self) -> core::option::Option<nika_session_host::wire::Frame>
+pub async fn nika_session_host::host::SessionHost::result(&self, command: &str) -> core::option::Option<nika_session_host::wire::Frame>
+pub fn nika_session_host::host::SessionHost::session(&self) -> &str
+pub fn nika_session_host::host::SessionHost::snapshot(&self) -> nika_session_host::wire::Frame
+pub fn nika_session_host::host::SessionHost::start(runtime: nika_session::runtime::SessionRuntime, door: alloc::boxed::Box<dyn nika_session_host::run::RunDoor>, notices: alloc::vec::Vec<alloc::string::String>) -> core::io::error::Result<Self>
+pub fn nika_session_host::host::SessionHost::wait_closed(&self) -> core::option::Option<nika_session_host::wire::Frame>
+pub fn nika_session_host::host::SessionHost::wait_events_after(&self, after: u64) -> (alloc::vec::Vec<nika_session_host::wire::Frame>, bool)
+pub fn nika_session_host::host::SessionHost::wait_result(&self, command: &str) -> core::option::Option<nika_session_host::wire::Frame>
+impl core::fmt::Debug for nika_session_host::host::SessionHost
+pub fn nika_session_host::host::SessionHost::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_session_host::host::SessionHost
+impl<T, U> core::convert::Into<U> for nika_session_host::host::SessionHost where U: core::convert::From<T>
+pub fn nika_session_host::host::SessionHost::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::host::SessionHost where U: core::convert::Into<T>
+pub type nika_session_host::host::SessionHost::Error = core::convert::Infallible
+pub fn nika_session_host::host::SessionHost::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::host::SessionHost where U: core::convert::TryFrom<T>
+pub type nika_session_host::host::SessionHost::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::host::SessionHost::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_session_host::host::SessionHost where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::host::SessionHost::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::host::SessionHost where T: ?core::marker::Sized
+pub fn nika_session_host::host::SessionHost::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::host::SessionHost where T: ?core::marker::Sized
+pub fn nika_session_host::host::SessionHost::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_session_host::host::SessionHost
+pub fn nika_session_host::host::SessionHost::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_session_host::host::SessionHost where T: 'static
+pub fn nika_session_host::host::SessionHost::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::host::SessionHost where T: ?core::marker::Sized
+pub fn nika_session_host::host::SessionHost::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::host::SessionHost::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::host::SessionHost
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::host::SessionHost
+impl<T> typenum::type_operators::Same for nika_session_host::host::SessionHost
+pub type nika_session_host::host::SessionHost::Output = T
+pub const nika_session_host::CAPABILITY: &str
+pub const nika_session_host::CONTRACT: &str
+pub const nika_session_host::SELECTION_CAPABILITY: &str

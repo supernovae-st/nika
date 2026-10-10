@@ -6,10 +6,14 @@
 //! closed choice, a one-shot document round, the bounded reading of a reply, or a plain reply —
 //! answers each from its own script, and keeps every request body it received with the kind it
 //! recognized. A double: it scripts what an intelligence answers, never what Nika decides.
+//! A held step keeps the author's request under way until the child's cue, so the child can
+//! act from a host's thread while it is.
 
 use std::io::{Read as _, Write as _};
 use std::net::{TcpListener, TcpStream};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
@@ -24,6 +28,9 @@ pub(crate) enum Step {
     },
     /// A reply that ends the agent's turn.
     Say(String),
+    /// Hold the request under way: leave the marker under the markers directory, wait (30 s
+    /// at most) for the child's cue `<marker>.go`, then answer it with the next step.
+    Hold(String),
 }
 
 /// A tool call.
@@ -49,11 +56,29 @@ pub(crate) fn say(text: &str) -> Step {
     Step::Say(text.to_owned())
 }
 
+/// Hold the next request until the child's cue.
+pub(crate) fn hold(marker: &str) -> Step {
+    Step::Hold(marker.to_owned())
+}
+
+/// Leave `marker` under `markers`, then wait (bounded) for the cue `<marker>.go`.
+fn held(markers: &Path, marker: &str) {
+    std::fs::write(markers.join(marker), b"").unwrap();
+    let cue = markers.join(format!("{marker}.go"));
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !cue.exists() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
 /// What the peer answers, per kind of request: the agent's steps in order, and the plain replies.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Script {
     pub(crate) agent: Vec<Step>,
     pub(crate) replies: Vec<String>,
+    /// What the verifier's judge answers the whole-request question, one per verdict asked
+    /// (`faithful` when the queue is empty); a doubt that follows is never located.
+    pub(crate) verdicts: Vec<String>,
 }
 
 /// The kinds of request the peer recognizes.
@@ -61,7 +86,7 @@ pub(crate) struct Script {
 pub(crate) enum Kind {
     /// A turn of the author agent: the request offers tools.
     Agent,
-    /// The verifier's closed choice (approved).
+    /// The verifier's closed choice (approved, unless the script rejects the whole request).
     Judge,
     /// A one-shot document round (the compile door's own call).
     Document,
@@ -125,6 +150,9 @@ const APPROVALS: [&str; 5] = [
     "no_task",
 ];
 
+/// The option a verifier's doubt question offers when its judge locates nothing.
+const UNLOCATED: &str = "unlocated";
+
 /// The kind of a request, read from its body.
 fn kind_of(body: &Value) -> Kind {
     if body["tools"]
@@ -135,7 +163,8 @@ fn kind_of(body: &Value) -> Kind {
     }
     let properties = &body["response_format"]["json_schema"]["schema"]["properties"];
     let choices = properties["choice"]["enum"].as_array();
-    if choices.is_some_and(|keys| keys.iter().any(|k| APPROVALS.iter().any(|a| k == a))) {
+    let judged = |k: &Value| k == UNLOCATED || APPROVALS.iter().any(|a| k == a);
+    if choices.is_some_and(|keys| keys.iter().any(judged)) {
         return Kind::Judge;
     }
     if properties.get("candidate").is_some() {
@@ -155,37 +184,54 @@ fn kind_of(body: &Value) -> Kind {
 struct Queues {
     agent: Vec<Step>,
     replies: Vec<String>,
+    verdicts: Vec<String>,
     calls: usize,
+    markers: PathBuf,
 }
 
 impl Queues {
+    fn next_step(&mut self) -> Step {
+        if self.agent.is_empty() {
+            say("(the scripted author has nothing more to say)")
+        } else {
+            self.agent.remove(0)
+        }
+    }
+
     fn answer(&mut self, kind: Kind, body: &Value) -> String {
         match kind {
-            Kind::Agent => {
-                let step = if self.agent.is_empty() {
-                    say("(the scripted author has nothing more to say)")
-                } else {
-                    self.agent.remove(0)
-                };
-                self.calls += 1;
-                match step {
-                    Step::Call { name, args, text } => completion(
+            Kind::Agent => match self.next_step() {
+                Step::Hold(marker) => {
+                    held(&self.markers, &marker);
+                    self.answer(kind, body)
+                }
+                Step::Call { name, args, text } => {
+                    self.calls += 1;
+                    completion(
                         &json!({"role": "assistant", "content": text, "tool_calls": [{
                             "id": format!("call_{}", self.calls), "type": "function",
                             "function": {"name": name, "arguments": args.to_string()}}]}),
                         "tool_calls",
-                    ),
-                    Step::Say(text) => text_completion(&text),
+                    )
                 }
-            }
+                Step::Say(text) => {
+                    self.calls += 1;
+                    text_completion(&text)
+                }
+            },
             Kind::Judge => {
                 let keys = &body["response_format"]["json_schema"]["schema"]["properties"]["choice"]
                     ["enum"];
-                let approve = APPROVALS
-                    .into_iter()
-                    .find(|a| keys.as_array().is_some_and(|k| k.iter().any(|k| k == a)))
-                    .unwrap_or("none");
-                text_completion(&json!({"choice": approve}).to_string())
+                let offers =
+                    |key: &str| keys.as_array().is_some_and(|k| k.iter().any(|k| k == key));
+                let choice = if offers("unfaithful") && !self.verdicts.is_empty() {
+                    self.verdicts.remove(0)
+                } else {
+                    let approve = APPROVALS.into_iter().find(|a| offers(a));
+                    let unlocated = offers(UNLOCATED).then_some(UNLOCATED);
+                    approve.or(unlocated).unwrap_or("none").to_owned()
+                };
+                text_completion(&json!({"choice": choice}).to_string())
             }
             // The one-shot door is not how these scenarios author: it gets no document.
             Kind::Document => text_completion(
@@ -226,17 +272,21 @@ pub(crate) struct Peer {
 }
 
 impl Peer {
-    pub(crate) fn start(script: Script) -> Self {
+    /// The peer answering `script`, its held steps marked under `markers`.
+    pub(crate) fn start(script: Script, markers: &Path) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         let seen = Arc::new(Mutex::new(Vec::new()));
         let stop = Arc::new(Mutex::new(false));
         let (kept, halt) = (Arc::clone(&seen), Arc::clone(&stop));
+        let markers = markers.to_path_buf();
         std::thread::spawn(move || {
             let mut queues = Queues {
                 agent: script.agent,
                 replies: script.replies,
+                verdicts: script.verdicts,
                 calls: 0,
+                markers,
             };
             for stream in listener.incoming() {
                 if *halt.lock().unwrap() {

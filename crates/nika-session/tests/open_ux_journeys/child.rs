@@ -4,12 +4,18 @@
 //! The child: the Session a host door opens on the scenario's project (`open_with`, the
 //! environment read once at open, the local engine route the parent's peer answers), driven
 //! through the public doors a host uses (`turn` · `submit` against what it shows ·
-//! `answer_question_for` with an identity it kept), with a snapshot of what the Session shows
-//! after every act: what waits, the work snapshot hosts render, and the identities pending.
+//! `answer_question_for` with an identity it kept · a line queued or Stop from a host's thread
+//! while the author's request is held), with a snapshot of what the Session shows after every
+//! act: what waits, the work snapshot hosts render, and the identities pending. The tool steps
+//! the Session reports are recorded as a host receives them.
 
 use std::path::Path;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
+use nika_session::activity::{Activity, ToolState};
 use nika_session::reasoner::{NoReasoner, ProviderReasoner};
+use nika_session::steer::{QueueRefused, Queued, Steering};
 use nika_session::turn::{
     RoutingMethod, SessionPhase, TurnAct, TurnClassifier, TurnContext, TurnDecision,
 };
@@ -20,7 +26,7 @@ use nika_session::{
 };
 use serde_json::{Value, json};
 
-use super::scenarios::{Act, SEAT, scenario};
+use super::scenarios::{Act, During, SEAT, scenario};
 
 /// A host's router: a line at a question answers it, a line at a proposal changes it, and a
 /// line while nothing waits is work. (An author that reads the conversation itself needs none.)
@@ -87,6 +93,9 @@ fn outcome(outcome: &TurnOutcome) -> Value {
         TurnOutcome::RunRequested { report, run } => {
             json!({"kind": "run_requested", "text": report, "run": format!("{run:?}")})
         }
+        TurnOutcome::Stopped(stopped) => json!({"kind": "stopped",
+            "reach": stopped.reach.as_str(), "unsent": stopped.unsent,
+            "candidate": stopped.candidate, "text": stopped.text()}),
         other => json!({"kind": "other", "text": format!("{other:?}")}),
     }
 }
@@ -126,16 +135,102 @@ fn files(root: &Path) -> Vec<String> {
     out
 }
 
+/// The tool steps a host received: `[call, tool, state, whether it was timed]`.
+type Tools = Arc<Mutex<Vec<Value>>>;
+
+/// Record into `tools` each tool step the Session reports, as a host receives it.
+fn watch_tools(session: &mut SessionRuntime, tools: &Tools) {
+    let seen = Arc::clone(tools);
+    session.on_activity(Arc::new(move |activity: &Activity| {
+        if let Some(tool) = &activity.tool {
+            let state = match tool.state {
+                ToolState::Started => "started",
+                ToolState::Finished => "finished",
+                ToolState::Failed => "failed",
+                _ => "other",
+            };
+            let step = json!([tool.call, tool.name, state, tool.elapsed_ms.is_some()]);
+            seen.lock().expect("the tool steps").push(step);
+        }
+    }));
+}
+
+/// A queue receipt, as a host shows it.
+fn receipt(queued: Result<Queued, QueueRefused>) -> Value {
+    match queued {
+        Ok(queued) => json!({"queued": queued}),
+        Err(refused) => json!({"refused": refused.as_str()}),
+    }
+}
+
+/// `line` in a turn the host can stop; once the author's request is held under `marker`, the
+/// person's act `during` from the host's thread. The cue lets the held request answer: right
+/// after a queued line, after the turn returned when Stop dropped the request.
+fn act_while(
+    session: &mut SessionRuntime,
+    markers: &Path,
+    (line, marker, during): (&str, &str, During),
+) -> (Value, Value) {
+    let queue: Steering = session
+        .steering()
+        .expect("the author leads this conversation");
+    let token = session.begin_preparation_turn();
+    let (seen, cue) = (markers.join(marker), markers.join(format!("{marker}.go")));
+    let go = cue.clone();
+    let host = std::thread::spawn(move || {
+        let deadline = Instant::now() + Duration::from_secs(60);
+        while !seen.exists() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        match during {
+            During::Steer(text) => {
+                let queued = receipt(queue.steer(text));
+                std::fs::write(&go, b"").expect("the cue is written");
+                queued
+            }
+            During::FollowUp(text) => {
+                let queued = receipt(queue.follow_up(text));
+                std::fs::write(&go, b"").expect("the cue is written");
+                queued
+            }
+            During::FollowUpThenStop(text) => {
+                let queued = receipt(queue.follow_up(text));
+                token.cancel();
+                queued
+            }
+        }
+    });
+    let result = outcome(&session.turn(line));
+    std::fs::write(&cue, b"").expect("the cue is written");
+    (result, host.join().expect("the host's thread"))
+}
+
 /// Drive the scenario `name` and return its report.
-pub(crate) fn drive(name: &str, root: &Path, home: &Path) -> Value {
+pub(crate) fn drive(name: &str, root: &Path, home: &Path, markers: &Path) -> Value {
     let scenario = scenario(name);
     let mut session = open(root, home, scenario.history);
+    let tools = Tools::default();
+    watch_tools(&mut session, &tools);
     let mut waited: Vec<Waiting> = Vec::new();
     let mut asked: Vec<Option<QuestionId>> = Vec::new();
     let mut steps = Vec::new();
     for act in scenario.acts {
         let (line, result) = match act {
             Act::Turn(line) => (line, outcome(&session.turn(line))),
+            Act::Stoppable(line) => {
+                let _ = session.begin_preparation_turn();
+                (line, outcome(&session.turn(line)))
+            }
+            Act::While(line, marker, during) => {
+                let (result, queued) = act_while(&mut session, markers, (line, marker, during));
+                steps.push(
+                    json!({"act": format!("{act:?}"), "line": line, "outcome": result,
+                    "receipt": queued, "shown": shown(&session)}),
+                );
+                waited.push(session.waiting());
+                asked.push(session.pending_question_id());
+                continue;
+            }
             Act::Submit(line) => {
                 let now = session.waiting();
                 (line, outcome(&session.submit(line, &now)))
@@ -165,9 +260,14 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path) -> Value {
                 asked.push(session.pending_question_id());
                 continue;
             }
+            Act::Edit(path, text) => {
+                std::fs::write(root.join(path), text).expect("the project file is edited");
+                (path, json!({"kind": "edited"}))
+            }
             Act::Reopen => {
                 drop(session);
                 session = open(root, home, scenario.history);
+                watch_tools(&mut session, &tools);
                 ("(reopen)", json!({"kind": "reopened"}))
             }
         };
@@ -178,5 +278,7 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path) -> Value {
         waited.push(session.waiting());
         asked.push(session.pending_question_id());
     }
-    json!({"steps": steps, "files": files(root)})
+    let late = (session.steering()).map(|queue| receipt(queue.steer("trop tard")));
+    let tools = tools.lock().expect("the tool steps").clone();
+    json!({"steps": steps, "files": files(root), "after_turn": late, "tools": tools})
 }

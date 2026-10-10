@@ -1338,13 +1338,26 @@ mod infer_deadline_tests {
         .await;
         assert_eq!(captured.len(), 1, "one provider round-trip");
         assert!(captured[0].url.ends_with("/api/chat"));
-        // 300s — nika-providers' LOCAL_DEFAULT_TIMEOUT (pub(crate) there ·
-        // the ≥300s F1 acceptance floor pinned at the consumer seam).
+        // 600s — nika-providers' BUFFERED_DEFAULT_TIMEOUT (pub(crate) there ·
+        // above the ≥300s F1 acceptance floor, pinned at the consumer seam).
         assert_eq!(
             captured[0].timeout,
-            Some(Duration::from_secs(300)),
-            "a local provider defaults to minutes, never the 30s cloud default"
+            Some(Duration::from_secs(600)),
+            "a local provider defaults to minutes"
         );
+    }
+
+    /// E1 run 2 (2026-10-10): a cloud `infer:` that declared no `timeout:` was cut at 30.0 s by
+    /// an implicit deadline and the Run failed. A cloud call gets the same minutes a local one
+    /// does: no hidden deadline shorter than the provider transport's own.
+    #[tokio::test]
+    async fn cloud_provider_without_task_timeout_gets_the_same_minutes() {
+        let captured = run_and_capture(
+            "nika: w\nmodel: openai/gpt-4o-mini\ntasks:\n  ask:\n    infer: { prompt: \"hello\" }\n",
+        )
+        .await;
+        assert_eq!(captured.len(), 1, "one provider round-trip");
+        assert_eq!(captured[0].timeout, Some(Duration::from_secs(600)));
     }
 }
 

@@ -169,3 +169,84 @@ fn outcomes_are_projected_word_for_word_and_runs_become_effects() {
     assert_eq!(value[2]["class"], "stale_revision");
     assert!(matches!(effects.as_slice(), [Effect::Run(run)] if run.vars.len() == 2));
 }
+
+/// A line for the conversation's run under way is a command of the contract, by its mode, with
+/// its identity and its line; its bytes bind it to its op as any command's do.
+#[test]
+fn steer_and_follow_up_are_commands_bound_to_their_line() {
+    for op in ["steer", "follow_up"] {
+        let text = format!(
+            r#"{{"contract":"{CONTRACT}","op":"{op}","command":"c-7","line":"use b instead"}}"#
+        );
+        let (command, line) = ("c-7".to_owned(), "use b instead".to_owned());
+        let expected = if op == "steer" {
+            Command::Steer { command, line }
+        } else {
+            Command::FollowUp { command, line }
+        };
+        assert_eq!(Command::parse(text.as_bytes()), Ok(expected));
+        let missing = format!(r#"{{"contract":"{CONTRACT}","op":"{op}","command":"c-7"}}"#);
+        assert!(
+            Command::parse(missing.as_bytes()).is_err(),
+            "{op} without a line"
+        );
+        let snapshot = format!(
+            r#"{{"contract":"{CONTRACT}","op":"{op}","command":"c","snapshot":"s","line":"x"}}"#
+        );
+        assert!(
+            Command::parse(snapshot.as_bytes()).is_err(),
+            "{op} with a snapshot"
+        );
+    }
+    let steer = Command::Steer {
+        command: "c".to_owned(),
+        line: "x".to_owned(),
+    };
+    let follow = Command::FollowUp {
+        command: "c".to_owned(),
+        line: "x".to_owned(),
+    };
+    let submitted = Command::Submit {
+        command: "c".to_owned(),
+        snapshot: String::new(),
+        line: "x".to_owned(),
+    };
+    assert_ne!(steer.digest(), follow.digest());
+    assert_ne!(steer.digest(), submitted.digest());
+}
+
+/// A stopped turn of a conversation is typed on the wire: how the stop reached the intelligence,
+/// the lines returned unsent with their identities, the draft kept; a tool step is typed beside
+/// its words, never with its arguments.
+#[test]
+fn a_stopped_turn_and_a_tool_step_are_typed_on_the_wire() {
+    use nika_session::outcome::{StopReach, Stopped};
+    use nika_session::steer::{QueueMode, Queued, QueuedState};
+
+    let mut unsent = Queued::new("l2", QueueMode::FollowUp, "and c");
+    unsent.state = QueuedState::Returned;
+    let stopped = Stopped::new(StopReach::AgentCancelled, vec![unsent], Some(2));
+    let (mut wire, mut effects) = (Vec::new(), Vec::new());
+    project(
+        TurnOutcome::Stopped(stopped.clone()),
+        &mut wire,
+        &mut effects,
+    );
+    assert!(effects.is_empty());
+    let expected = serde_json::json!([{
+        "kind": "stopped", "reach": "agent_cancelled", "text": stopped.text(),
+        "unsent": [{"id": "l2", "mode": "follow_up", "line": "and c", "state": "returned"}],
+        "candidate": 2
+    }]);
+    assert_eq!(serde_json::to_value(&wire).expect("outcomes"), expected);
+    let text = stopped.text();
+    assert!(text.contains("the agent was asked to stop") && text.contains("« and c »"));
+    let tool =
+        nika_session::activity::tool_activity("toolu_1", "verify", ToolState::Finished, Some(42));
+    let expected = serde_json::json!({
+        "phase": "checking", "note": "verify · 42 ms", "done": true,
+        "tool": {"call": "toolu_1", "name": "verify", "state": "finished", "elapsed_ms": 42}
+    });
+    let shown = serde_json::to_value(ActivityWire::of(&tool)).expect("activity");
+    assert_eq!(shown, expected);
+}

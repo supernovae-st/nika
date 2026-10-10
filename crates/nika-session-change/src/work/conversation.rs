@@ -166,6 +166,10 @@ pub struct OfferValue {
     /// What the person reads for it, when it differs from the value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// For a model, what this machine's inventory says of it; absent when the inventory offers
+    /// no such model (never invented).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub choice: Option<ModelFacts>,
 }
 
 impl OfferValue {
@@ -176,6 +180,73 @@ impl OfferValue {
             role,
             value: value.into(),
             name,
+            choice: None,
+        }
+    }
+
+    /// The same value with the inventory's facts about the model it names.
+    #[must_use]
+    pub fn with_choice(mut self, choice: Option<ModelFacts>) -> Self {
+        self.choice = choice;
+        self
+    }
+}
+
+/// A list price in USD per million output tokens, compared by its total order so the offers
+/// that carry it stay comparable.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct UsdPerMillion(pub f64);
+
+impl PartialEq for UsdPerMillion {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.total_cmp(&other.0).is_eq()
+    }
+}
+
+impl Eq for UsdPerMillion {}
+
+/// A model choice as this machine's inventory states it: the role it would serve, the model, the
+/// route that serves it (its id, class, whether it is ready, how it bills) and the catalogue's
+/// output list price on a metered route — unknown or unmetered is `None`, never free.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct ModelFacts {
+    /// The selection it serves: `run`, `author` or `decision`.
+    pub role: String,
+    /// The exact `provider/name`.
+    pub model: String,
+    /// The route's id (`run.access.via` names it).
+    pub via: String,
+    /// The route's class (`api` · `local` · `harness` …).
+    pub class: String,
+    /// Whether the route is ready here.
+    pub configured: bool,
+    /// How the route bills (`api_metered` · `included_quota` · `local` · `unknown` …).
+    pub billing: String,
+    /// The catalogue's output list price on a metered route.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_usd_per_million: Option<UsdPerMillion>,
+}
+
+impl ModelFacts {
+    /// The facts of `model` for `role` over the route `via` (INV-019).
+    #[must_use]
+    pub fn new(
+        role: impl Into<String>,
+        model: impl Into<String>,
+        (via, class, billing): (String, String, String),
+        configured: bool,
+        price: Option<f64>,
+    ) -> Self {
+        Self {
+            role: role.into(),
+            model: model.into(),
+            via,
+            class,
+            configured,
+            billing,
+            output_usd_per_million: price.map(UsdPerMillion),
         }
     }
 }

@@ -5578,7 +5578,6 @@ dependencies = [
  "nika-catalog",
  "nika-cli-host",
  "nika-compile",
- "nika-compile-cognition",
  "nika-compile-fidelity",
  "nika-compile-seats",
  "nika-dap",
@@ -5610,6 +5609,7 @@ name = "nika-session-agent"
 version = "0.123.0-preview.1"
 dependencies = [
  "blake3",
+ "nika-compile-fidelity",
  "nika-kernel",
  "nika-session-change",
  "proptest",
@@ -5668,6 +5668,7 @@ dependencies = [
  "nika-catalog",
  "nika-cli-host",
  "nika-compile-cognition",
+ "nika-compile-fidelity",
  "nika-compile-seats",
  "nika-display",
  "nika-error",

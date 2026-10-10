@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The transport's account of a metered call on the sealed trace (the
-//! product-convergence war room · L4): a seat that answered only after
-//! the provider layer's bounded backoff stamps `attempts` · `waited_ms`
-//! · `retried_on` on `task_completed`, and the wait rides the run's
-//! declared clock — a `run: { clock: virtual }` run waits zero wall
-//! seconds on a `Retry-After: 2`.
+//! The transport's account of a metered call on the sealed trace: one round-trip per call,
+//! never re-sent by the transport (the money admission's contract). A seat answering 429 ends
+//! the call at its first answer, with nothing waited and nothing re-sent (the author's `retry:`
+//! decides), and a first-time answer stamps `attempts: 1` on `task_completed`.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -42,9 +40,8 @@ const VIRTUAL_CLOCK_INFER: &str = "nika: transport-receipt\n\
      ask:\n    \
      infer: { prompt: \"hello\", max_tokens: 16 }\n";
 
-/// Run the fixture over a canned wire, the registry's backoff and the
-/// runtime's clock both taken from the SAME declared-clock seams the
-/// composition root uses (`RunSeams::backoff` · `RunSeams::clock`).
+/// Run the fixture over a canned wire, the runtime's clock taken from the SAME declared-clock
+/// seams the composition root uses (`RunSeams::clock`).
 async fn run_over(http: MockHttp) -> (RunOutcome, Vec<Event>) {
     let wf = nika_schema::parse(
         VIRTUAL_CLOCK_INFER,
@@ -56,13 +53,10 @@ async fn run_over(http: MockHttp) -> (RunOutcome, Vec<Event>) {
     assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
     let seams = crate::compose::RunSeams::of(Some(&RunDecl::new(None, Some(RunClock::Virtual))));
     assert!(seams.clock.as_virtual().is_some(), "the fixture's clock");
-    let registry = Arc::new(
-        ProviderRegistry::new(
-            Arc::new(http),
-            ProvidersConfig::new().with_key("openai", Secret::new("sk-test")),
-        )
-        .with_backoff(seams.backoff()),
-    );
+    let registry = Arc::new(ProviderRegistry::new(
+        Arc::new(http),
+        ProvidersConfig::new().with_key("openai", Secret::new("sk-test")),
+    ));
     let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
     let runtime = Runtime::new(
         ExecVerb::new(Arc::new(MockShell::new())),
@@ -115,38 +109,29 @@ fn text<'e>(frame: &'e Event, key: &str) -> Option<&'e str> {
         })
 }
 
-/// A 429 with `Retry-After: 2` then a 200: the task settles green, the
-/// frame says two round-trips, the 2000 ms the seat asked for, and the
-/// status waited on — and the whole run takes well under the 2 s a
-/// real sleep would cost, because the backoff rode the virtual clock.
+/// A 429 with `Retry-After: 2`, a 200 queued behind it: the call ends at its first answer.
+/// The wire saw ONE request (nothing re-sent), nothing was waited, and the task fails with
+/// the transient rejection instead of settling green on a request the admission never counted.
 #[tokio::test]
-async fn a_retried_call_stamps_its_transport_on_the_frame_without_sleeping() {
+async fn a_rate_limited_call_ends_at_its_first_answer_and_nothing_is_re_sent() {
     let http = MockHttp::new()
         .enqueue_ok_with_headers(429, [("Retry-After", "2")], RATE_LIMITED)
         .enqueue_ok(200, OPENAI_OK);
     let sent = http.clone();
-    let start = Instant::now(); // seam-bypass-ok: test-only wall-clock measure proving the backoff rode the virtual clock and never slept
+    let start = Instant::now(); // seam-bypass-ok: test-only wall-clock measure proving nothing was waited
     let (outcome, events) = run_over(http).await;
     let wall = start.elapsed();
-    assert!(outcome.ok, "the retried seat settles green: {outcome:?}");
-    assert_eq!(
-        sent.sent_requests().len(),
-        2,
-        "one re-send of the same call"
-    );
+    assert!(!outcome.ok, "the rejected call fails its task: {outcome:?}");
+    assert_eq!(sent.sent_requests().len(), 1, "nothing re-sent");
     assert!(
         wall < Duration::from_secs(1),
-        "the virtual clock never slept the 2 s Retry-After (took {wall:?})"
+        "nothing waited (took {wall:?})"
     );
-
-    let frame = completed(&events);
-    assert_eq!(int(frame, "attempts"), Some(2), "{:?}", frame.fields);
-    assert_eq!(int(frame, "waited_ms"), Some(2000), "{:?}", frame.fields);
-    assert_eq!(text(frame, "retried_on"), Some("429"), "{:?}", frame.fields);
-    // The meters still ride beside the transport facts.
-    assert_eq!(int(frame, "tokens_in"), Some(7));
-    assert_eq!(int(frame, "tokens_out"), Some(3));
-    assert_eq!(text(frame, "model_served"), Some("gpt-4o-mini-2024-07-18"));
+    assert!(
+        events.iter().any(|e| e.kind == EventKind::TaskFailed),
+        "{events:?}"
+    );
+    assert!(!events.iter().any(|e| e.kind == EventKind::TaskCompleted));
 }
 
 /// The common case — a seat that answers first time — reads

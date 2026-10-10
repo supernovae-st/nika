@@ -82,7 +82,7 @@ mod predicate;
 
 pub use cognition::{
     Cognition, NoProvider, compile_with_cognition, compile_with_cognition_composed,
-    compile_with_cognition_rehearsed, compile_with_provider, judge_document,
+    compile_with_cognition_rehearsed, compile_with_provider, judge_document, verify_document,
 };
 
 /// A host's scoped observation of its compile's authoring answers as received (slice C).

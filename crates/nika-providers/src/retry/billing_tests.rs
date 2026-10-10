@@ -172,15 +172,13 @@ fn s80_declared_observation_is_never_a_catalog_estimate() {
 
 #[tokio::test]
 async fn s80_kernel_failure_after_dispatch_retains_route_and_original_error() {
-    use crate::test_support::{FakeHttp, RecordingBackoff, resolved_with_backoff};
+    use crate::test_support::{FakeHttp, resolved_with};
     let fake = FakeHttp::with_sequence(&[(500, r#"{"error":{"message":"failed"}}"#, &[])]);
-    let clock = RecordingBackoff::new();
-    let rp = resolved_with_backoff(&fake, "deepseek/deepseek-v4-pro", "fake", clock.clone());
+    let rp = resolved_with(&fake, "deepseek/deepseek-v4-pro", "fake");
     let error = ProviderInferDyn::infer(&rp, InferRequest::new("deepseek-v4-pro", vec![]))
         .await
         .expect_err("500");
     assert_eq!(fake.captured().len(), 1);
-    assert!(clock.waits().is_empty());
     assert_eq!(error.nika_code().num, 330);
     assert!(error.is_transient());
     let calls = error.inference_calls();
@@ -195,15 +193,10 @@ async fn s80_kernel_failure_after_dispatch_retains_route_and_original_error() {
 
 #[tokio::test]
 async fn s80_kernel_success_carries_complete_wire_observation() {
-    use crate::test_support::{FakeHttp, RecordingBackoff, resolved_with_backoff};
+    use crate::test_support::{FakeHttp, resolved_with};
     let body = r#"{"id":"r1","model":"deepseek-v4-pro","choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"prompt_cache_hit_tokens":80,"prompt_cache_miss_tokens":20,"total_tokens":110}}"#;
     let fake = FakeHttp::with_sequence(&[(200, body, &[])]);
-    let rp = resolved_with_backoff(
-        &fake,
-        "deepseek/deepseek-v4-pro",
-        "fake",
-        RecordingBackoff::new(),
-    );
+    let rp = resolved_with(&fake, "deepseek/deepseek-v4-pro", "fake");
     let response = ProviderInferDyn::infer(&rp, InferRequest::new("deepseek-v4-pro", vec![]))
         .await
         .expect("wire");
@@ -216,14 +209,9 @@ async fn s80_kernel_success_carries_complete_wire_observation() {
 
 #[tokio::test]
 async fn s80_dispatch_without_http_response_keeps_request_endpoint_but_no_final_route() {
-    use crate::test_support::{FakeHttp, RecordingBackoff, resolved_with_backoff};
+    use crate::test_support::{FakeHttp, resolved_with};
     let fake = FakeHttp::with_sequence(&[]);
-    let rp = resolved_with_backoff(
-        &fake,
-        "deepseek/deepseek-v4-pro",
-        "fake",
-        RecordingBackoff::new(),
-    );
+    let rp = resolved_with(&fake, "deepseek/deepseek-v4-pro", "fake");
     let error = ProviderInferDyn::infer(&rp, InferRequest::new("deepseek-v4-pro", vec![]))
         .await
         .expect_err("no HTTP response");

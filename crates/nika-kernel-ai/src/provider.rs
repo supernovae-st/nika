@@ -543,7 +543,8 @@ pub enum ProviderError {
     /// Existing variants remain available for callers constructing errors.
     #[error("{details}")]
     HttpResponse {
-        /// Safe status, provider identifiers and retry hint; no response prose.
+        /// Safe status, provider identifiers, retry hint and the provider's own
+        /// message as one bounded line without secrets; never a raw body.
         details: ProviderHttpError,
     },
     /// A transport connection failed or ended before the response completed.

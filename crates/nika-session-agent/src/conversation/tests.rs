@@ -44,7 +44,12 @@ fn retained(value: &str, role: &str) -> Value {
 fn accepted(asker: &Arc<Incarnation>) -> (Conversation, Citations) {
     let mut conversation = Conversation::default();
     let mut mint = |context: &str| QuestionId::new(context.to_owned(), asker);
-    let reply = conversation.ask(&Citations::default(), &plan(), Some("c1"), &mut mint);
+    let reply = conversation.ask(
+        &Citations::default(),
+        &plan(),
+        Some("c1"),
+        (&mut mint, &mut |_: &str| None),
+    );
     assert!(reply.ends_turn, "{reply:?}");
     assert_eq!(conversation.asked_ids().len(), 1);
     let lines = citations(&[("u1", "un digest des news tech"), ("u2", "oui tout me va")]);
@@ -231,7 +236,7 @@ fn a_question_the_person_settled_is_answered_by_the_session() {
     let again = json!({"questions": [{"key": "output", "role": "output_path",
         "question": "Dans quel fichier ?", "options": []}]});
     let mut mint = |context: &str| QuestionId::new(context.to_owned(), &asker);
-    let reply = conversation.ask(&lines, &again, Some("c9"), &mut mint);
+    let reply = conversation.ask(&lines, &again, Some("c9"), (&mut mint, &mut |_: &str| None));
     assert!(!reply.ends_turn && !reply.is_error, "{reply:?}");
     assert!(reply.text.contains("news/digest.md"), "{reply:?}");
     assert!(conversation.questions().is_empty());
@@ -245,7 +250,12 @@ fn an_answer_the_author_reads_is_bound_by_its_question_and_the_rest_asked_again(
     let first = json!({"questions": [
         {"key": "team_webhook", "role": "value", "question": "Équipe ?", "options": []},
         {"key": "support_webhook", "role": "value", "question": "Support ?", "options": []}]});
-    conversation.ask(&Citations::default(), &first, Some("c1"), &mut mint);
+    conversation.ask(
+        &Citations::default(),
+        &first,
+        Some("c1"),
+        (&mut mint, &mut |_: &str| None),
+    );
     let before = conversation.asked_ids();
     conversation.answered_by("u2");
     let lines = citations(&[
@@ -259,7 +269,7 @@ fn an_answer_the_author_reads_is_bound_by_its_question_and_the_rest_asked_again(
             "message": "u2", "excerpt": "https://hooks.example.org/team"}],
         "questions": [{"key": "support_webhook", "role": "value", "question": "Support ?",
             "options": []}]});
-    let reply = conversation.ask(&lines, &rest, Some("c2"), &mut mint);
+    let reply = conversation.ask(&lines, &rest, Some("c2"), (&mut mint, &mut |_: &str| None));
     assert!(reply.ends_turn, "{reply:?}");
     let team = &conversation.bindings()[0];
     assert_eq!(team.key.as_deref(), Some("team_webhook"));
@@ -270,7 +280,12 @@ fn an_answer_the_author_reads_is_bound_by_its_question_and_the_rest_asked_again(
     // A value the cited line does not hold binds nothing.
     let forged = json!({"answered": [{"key": "support_webhook", "value": "https://evil.example",
         "message": "u2", "excerpt": "support"}]});
-    let reply = conversation.ask(&lines, &forged, Some("c3"), &mut mint);
+    let reply = conversation.ask(
+        &lines,
+        &forged,
+        Some("c3"),
+        (&mut mint, &mut |_: &str| None),
+    );
     assert!(reply.text.contains("not in the person's line"), "{reply:?}");
     assert_eq!(conversation.bindings().len(), 1);
 }

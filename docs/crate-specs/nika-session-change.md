@@ -56,7 +56,9 @@ those paths as an external consumer.
   the proposal a consent names (the witness of the exact preview), the gate or the question an
   answer names, the class of a refusal. A question's identity is held with the session
   incarnation that asked it; an answer naming it answers that question in that session, or
-  nothing.
+  nothing. `Stopped` is a conversation's turn stopped by the person: how the Stop reached the
+  intelligence (`StopReach`: between steps, a dropped request that may still be billed, an
+  agent asked once to stop), the queued lines returned unsent and the draft revision kept.
 - `reply` — the grammar of a human's reply to one compile question, pure over the question and
   the line: an offered key named alone or carried as whole tokens, a value as typed, the one
   bounded reading prompt for a value or a choice, and the verbatim whole-token copy a reading
@@ -157,3 +159,10 @@ prerequisites, its `Offer`s with the concrete `OfferValue`s accepting each binds
 a snapshot without a conversation serializes none of these keys, so its bytes are unchanged.
 Values, provenance and delegations also read back (`Deserialize`): a Session keeps them across a
 reopen as evidence; questions and offers never are.
+
+An offered value of role `run_model` carries `choice` (`ModelFacts`) when this machine's model
+inventory offers that model: the role it would serve, the model, the route (`via`, its class,
+whether it is ready, how it bills) and the catalogue's output list price on a metered route —
+none when the inventory offers no such model, never the author's words. `Work::with_queued`
+sets `queued`: the lines the person sent while the conversation's last run was under way, each
+with its identity, mode and state (`work::queue`).

@@ -161,6 +161,32 @@ async fn a_stopped_rejection_resumes_its_localization_in_a_later_round() {
     assert_eq!(route(&third).last().map(String::as_str), Some(CARRIED));
 }
 
+/// A rejection a trial run made stands in a later round with no run of those bytes, though its
+/// localization stopped: the answers it got over the run are never read back without that run,
+/// so it is repeated as it stood, with no call, never resumed into READY on the whole-request
+/// answer over the bytes alone (R6).
+#[tokio::test]
+async fn a_rejection_a_run_made_stands_in_a_round_without_that_run() {
+    // Round 1, over a whole run: the bytes carry the request, the run shows its one part
+    // missing, and the call that would name the task failing it gets no answer.
+    let judge = Script::new([Some("faithful"), Some("missing"), None]);
+    let request = CompileRequest::create(INTENT);
+    let sha = knowledge::sha256(ready().candidate.as_deref().unwrap());
+    let run = json!({"candidate_sha256": sha, "inputs": [], "outputs": [
+        {"path": "./out/result.txt", "text": "bye", "written": true, "read_whole": true}]});
+    let (first, stopped) = declined(verdict(&judge, &request, ready(), 0, Some(&run)).await);
+    assert_eq!((judge.calls(), judge.left()), (3, 0));
+    assert!(stopped.stopped && stopped.rejected());
+    let earlier = attempts(&first)[0].clone();
+    // Round 2, with no run: the rejection is repeated with no call.
+    let silent = Script::new([]);
+    let request = CompileRequest::create(INTENT).with_declined(vec![earlier]);
+    let (second, repeated) = declined(verdict(&silent, &request, ready(), 0, None).await);
+    assert_eq!(silent.calls(), 0, "no call");
+    assert!(repeated.carried && repeated.rejected());
+    assert_eq!(route(&second).last().map(String::as_str), Some(CARRIED));
+}
+
 /// A verdict that waited for a whole trial run of its bytes is resumed when this call has one
 /// (R6): every answer it got over the bytes is read back with no call, and the question over the
 /// run, the discriminating observation it waited for, is the only one asked. Consistent outputs

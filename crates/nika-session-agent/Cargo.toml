@@ -24,6 +24,7 @@ workspace = true
 
 [dependencies]
 nika-kernel         = { path = "../nika-kernel", version = "0.123.0-preview.1" }          # provider::{Message, ContentBlock, ToolDef, StopReason, TokenUsage} · CancelCtx · Clock — the seams a turn is made of
+nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.123.0-preview.1" }  # fidelity::resolution — the selections a conversation's candidate states, read and checked (the registry's « its selections » edge · lateral L4→L4, never back)
 nika-session-change = { path = "../nika-session-change", version = "0.123.0-preview.1" }  # tools::SessionTools — the ONE tool contract the Session serves (lateral L4→L4 · never back)
 
 blake3     = { workspace = true }  # the chain that binds each tree line to the one before it

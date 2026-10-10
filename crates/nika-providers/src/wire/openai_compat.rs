@@ -115,7 +115,7 @@ where
             resp.status,
             &resp.body,
             resp.headers.get("retry-after").map(String::as_str),
-            &rp.wire_model,
+            rp.key.as_ref(),
         ));
     }
     let mut response = parse_response(rp, &resp.body, &names)?;
@@ -183,7 +183,7 @@ where
         .await
         .map_err(|e| map_http_err(&e))?;
     if !(200..300).contains(&resp.status) {
-        return Err(super::stream_status_error(resp, &rp.wire_model).await);
+        return Err(super::stream_status_error(resp, rp.key.as_ref()).await);
     }
     Ok(Box::pin(SseEventStream::new(
         resp.body,
@@ -256,10 +256,10 @@ fn build_request(
     http_req.headers = headers;
     http_req.body = Some(Bytes::from(bytes));
     // The task `timeout:` governs the transport deadline (F1) — buffered
-    // calls always get one (per-provider default when undeclared · local
-    // servers get minutes, not the 30s cloud default); streaming carries
-    // only an explicit budget (the idle-read guard reaps stalls).
-    http_req.timeout = super::transport_deadline(&rp.profile, &req, stream);
+    // calls always get one (the buffered default when undeclared, local or
+    // cloud); streaming carries only an explicit budget (the idle-read guard
+    // reaps stalls).
+    http_req.timeout = super::transport_deadline(&req, stream);
     Ok(http_req)
 }
 

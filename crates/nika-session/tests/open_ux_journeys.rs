@@ -37,17 +37,21 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use peer::{Peer, Seen};
+use peer::{Kind, Peer, Seen};
 use scenarios::{
-    ACCEPT, ALREADY, DELEGATION, DIGEST, HACKER_NEWS, LE_MONDE, LE_MONDE_WORDS, OUTPUT_WORDS,
-    TEAM_HOOK, TECHCRUNCH, WHY, scenario,
+    ACCEPT, ALREADY, DELEGATION, DIGEST, FOLLOWED, HACKER_NEWS, LE_MONDE, LE_MONDE_WORDS,
+    OUTPUT_WORDS, STEER_B, STEERED, STILL_HERE, STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C,
+    THEN_STOP, WHY, scenario,
 };
-use serde_json::Value;
+use scenarios::{REPAIRING, UNRESOLVED};
+use serde_json::{Value, json};
 
 /// One scenario's report, and the requests the peer received while the child drove it.
 struct Journey {
     report: Value,
     agent: Vec<Seen>,
+    /// Every request the peer received, in order.
+    seen: Vec<Seen>,
     _dir: tempfile::TempDir,
 }
 
@@ -69,7 +73,9 @@ fn run(name: &str) -> Journey {
         std::fs::create_dir_all(file.parent().unwrap()).unwrap();
         std::fs::write(file, text).unwrap();
     }
-    let peer = Peer::start(scenario.script);
+    let markers = dir.path().join("markers");
+    std::fs::create_dir_all(&markers).unwrap();
+    let peer = Peer::start(scenario.script, &markers);
     let report = dir.path().join("report.json");
     let log = dir.path().join("child.log");
     let mut command = Command::new(std::env::current_exe().unwrap());
@@ -90,6 +96,7 @@ fn run(name: &str) -> Journey {
         .env("OPEN_UX_CHILD", name)
         .env("OPEN_UX_ROOT", &root)
         .env("OPEN_UX_REPORT", &report)
+        .env("OPEN_UX_MARKERS", &markers)
         .stdin(Stdio::null())
         .stdout(Stdio::from(std::fs::File::create(&log).unwrap()))
         .stderr(Stdio::from(
@@ -113,11 +120,12 @@ fn run(name: &str) -> Journey {
         std::fs::read_to_string(&log).unwrap_or_default()
     );
     let report = serde_json::from_str(&std::fs::read_to_string(&report).unwrap()).unwrap();
-    let agent = peer.agent();
+    let (agent, seen) = (peer.agent(), peer.seen());
     peer.shutdown();
     Journey {
         report,
         agent,
+        seen,
         _dir: dir,
     }
 }
@@ -131,7 +139,8 @@ fn child() {
     };
     let root = PathBuf::from(std::env::var_os("OPEN_UX_ROOT").unwrap());
     let home = PathBuf::from(std::env::var_os("HOME").unwrap());
-    let report = child::drive(&name.to_string_lossy(), &root, &home);
+    let markers = PathBuf::from(std::env::var_os("OPEN_UX_MARKERS").unwrap());
+    let report = child::drive(&name.to_string_lossy(), &root, &home, &markers);
     std::fs::write(
         std::env::var_os("OPEN_UX_REPORT").unwrap(),
         serde_json::to_string_pretty(&report).unwrap(),
@@ -623,4 +632,178 @@ fn save_and_run_words_never_cover_a_candidate_whose_effects_changed() {
         "the changed candidate asks its own consent"
     );
     assert_ne!(proposal(said), proposal(before));
+}
+
+/// One line queued for the run under way, as a receipt or the work shows it.
+fn queued(id: &str, mode: &str, line: &str, state: &str) -> Value {
+    json!({"id": id, "mode": mode, "line": line, "state": state})
+}
+
+/// The text of a reply step (a note may follow the author's words).
+fn reply(step: &Value) -> &str {
+    assert_eq!(outcome_kind(step), "reply", "{step:#}");
+    step["outcome"]["text"].as_str().unwrap_or_default()
+}
+
+/// Whether a request ends with the person's line `line`, cited as `cite`.
+fn cites(seen: &Seen, line: &str, cite: &str) -> bool {
+    let last = seen.last();
+    last.contains(line) && last.contains(&format!("(cited as {cite})"))
+}
+
+#[test]
+fn a_line_steered_into_the_run_enters_after_the_calls_under_way() {
+    let journey = run("steer_mid_run");
+    let step = journey.step(0);
+    let waiting = queued("l1", "steer", STEER_B, "waiting");
+    assert_eq!(step["receipt"], json!({"queued": waiting}));
+    assert!(reply(step).starts_with(STEERED), "{step:#}");
+    let mut entered = queued("l1", "steer", STEER_B, "entered");
+    entered["cite"] = json!("u2");
+    assert_eq!(work(step)["queued"], json!([entered]));
+    // The first call ran; the call answered once the line arrived did not, and the author read
+    // the line, cited, right after that call's reply.
+    assert_eq!(journey.agent.len(), 3, "{:#?}", journey.agent);
+    assert!(
+        journey.agent[..2]
+            .iter()
+            .all(|s| !s.text().contains(STEER_B))
+    );
+    let next = &journey.agent[2];
+    assert!(cites(next, STEER_B, "u2"), "{}", next.last());
+    let messages = next.body["messages"].as_array().unwrap();
+    let skipped = &messages[messages.len() - 2];
+    assert_eq!(skipped["role"], "tool", "{messages:#?}");
+    assert_eq!(skipped["tool_call_id"], "call_2", "{messages:#?}");
+    let said = serde_json::to_string(&skipped["content"]).unwrap();
+    assert!(
+        said.contains("Not run: the person wrote meanwhile"),
+        "{said}"
+    );
+    let steps = json!([
+        ["call_1", "models", "started", false],
+        ["call_1", "models", "finished", true]
+    ]);
+    assert_eq!(journey.report["tools"], steps, "the skipped call never ran");
+    let late = json!({"refused": "not_reading"});
+    assert_eq!(journey.report["after_turn"], late);
+}
+
+#[test]
+fn a_follow_up_line_waits_for_the_end_of_the_run() {
+    let journey = run("follow_up_after_run");
+    let step = journey.step(0);
+    let waiting = queued("l1", "follow_up", THEN_C, "waiting");
+    assert_eq!(step["receipt"], json!({"queued": waiting}));
+    assert!(reply(step).starts_with(FOLLOWED), "{step:#}");
+    let mut entered = queued("l1", "follow_up", THEN_C, "entered");
+    entered["cite"] = json!("u2");
+    assert_eq!(work(step)["queued"], json!([entered]));
+    // The failed call did not end the run; its answer did, and only then the line entered.
+    assert_eq!(journey.agent.len(), 3, "{:#?}", journey.agent);
+    assert!(!journey.agent[1].text().contains(THEN_C));
+    let last = &journey.agent[2];
+    assert!(cites(last, THEN_C, "u2"), "{}", last.last());
+    let steps = json!([
+        ["call_1", "models", "started", false],
+        ["call_1", "models", "failed", true]
+    ]);
+    assert_eq!(journey.report["tools"], steps);
+}
+
+#[test]
+fn stop_drops_the_request_under_way_and_returns_the_queued_line() {
+    let journey = run("stop_mid_request");
+    let step = journey.step(0);
+    let waiting = queued("l1", "follow_up", THEN_STOP, "waiting");
+    assert_eq!(step["receipt"], json!({"queued": waiting}));
+    let returned = json!([queued("l1", "follow_up", THEN_STOP, "returned")]);
+    let text = format!(
+        "stopped by you · the request under way was dropped; a request already sent may still \
+         be billed · the conversation and its draft are kept · not sent: « {THEN_STOP} »"
+    );
+    let stopped = json!({"kind": "stopped", "reach": "request_dropped", "unsent": returned,
+        "candidate": null, "text": text});
+    assert_eq!(step["outcome"], stopped, "{step:#}");
+    assert_eq!(work(step)["queued"], returned);
+    // The next line goes on, cited u2: the unsent line never became the person's line.
+    let next = journey.step(1);
+    assert!(reply(next).starts_with(STILL_HERE), "{next:#}");
+    assert_eq!(journey.agent.len(), 2, "{:#?}", journey.agent);
+    let last = &journey.agent[1];
+    assert!(cites(last, STILL_THERE, "u2"), "{}", last.last());
+    assert!(
+        !reached_the_author(&journey, THEN_STOP),
+        "the unsent line never reached the author"
+    );
+    assert_eq!(journey.report["tools"], json!([]));
+}
+
+/// Lane B's verifier on the conversation's candidate: a judge that rejects the request as a
+/// whole and locates nothing holds it, so nothing is proposed and the author repairs from the
+/// findings; the same bytes verified again ask the judge nothing (R6).
+#[test]
+fn a_candidate_its_judge_doubts_goes_back_to_the_author_and_is_not_asked_again() {
+    let journey = run("doubted_candidate");
+    let step = journey.step(0);
+    assert_eq!(step["outcome"]["kind"], "reply", "{step}");
+    assert_eq!(step["outcome"]["text"], REPAIRING, "{step}");
+    assert!(step["shown"]["proposal"].is_null(), "{step}");
+    // The author read the held verdict after `propose`, then again after `verify`.
+    let held: Vec<usize> = (journey.seen.iter().enumerate())
+        .filter(|(_, seen)| seen.kind == Kind::Agent && seen.last().contains(UNRESOLVED))
+        .map(|(at, _)| at)
+        .collect();
+    assert_eq!(held.len(), 2, "{held:?}");
+    let judged = |from: usize, to: usize| {
+        (journey.seen[from..to].iter())
+            .filter(|seen| seen.kind == Kind::Judge)
+            .count()
+    };
+    assert!(judged(0, held[0]) > 0, "the judge was asked");
+    assert_eq!(
+        judged(held[0], held[1]),
+        0,
+        "the same bytes ask the judge nothing"
+    );
+}
+
+/// P0: an agent-led proposal that reads a project file is saved after the person's yes; its
+/// sources are judged by the exact bytes it was shown over, never by a compile it never had.
+#[test]
+fn an_agent_proposal_that_reads_a_project_file_is_saved_after_the_yes() {
+    let journey = run("reads_a_project_file");
+    assert_eq!(journey.step(0)["outcome"]["kind"], "proposal");
+    let yes = journey.step(1);
+    assert_ne!(yes["outcome"]["kind"], "refusal", "{yes}");
+    let text = yes["outcome"]["text"].as_str().unwrap();
+    assert!(
+        text.contains("the exact bytes it was shown over still hold for `./data/ventes.csv`"),
+        "{text}"
+    );
+    let files = journey.report["files"].as_array().unwrap();
+    assert!(
+        files.iter().any(|f| f.as_str().is_some_and(is_workflow)),
+        "{files:?}"
+    );
+}
+
+/// P0: a project file changed after the proposal withdraws it at the yes, as stale.
+#[test]
+fn a_file_changed_after_the_proposal_withdraws_it_at_the_yes() {
+    let journey = run("a_read_file_changes");
+    let yes = journey.step(2);
+    assert_eq!(yes["outcome"]["kind"], "refusal", "{yes}");
+    let text = yes["outcome"]["text"].as_str().unwrap();
+    assert!(
+        text.contains(
+            "the files this proposal reads changed since it was shown: `./data/ventes.csv`"
+        ),
+        "{text}"
+    );
+    let files = journey.report["files"].as_array().unwrap();
+    assert!(
+        !files.iter().any(|f| f.as_str().is_some_and(is_workflow)),
+        "{files:?}"
+    );
 }
