@@ -301,6 +301,44 @@ fn assert_asked(asked: &Value, author: &Author) {
     }
 }
 
+/// The tools the contract fixes (`nika/author-tools@0`), in the order a session lists them.
+const AUTHOR_TOOLS: [&str; 17] = [
+    "read",
+    "candidate_read",
+    "candidate_write",
+    "candidate_edit",
+    "check",
+    "inspect",
+    "explain",
+    "language",
+    "models",
+    "knowledge",
+    "observe",
+    "compose",
+    "verify",
+    "trial",
+    "ask",
+    "propose",
+    "new_request",
+];
+
+/// The Session's authority stays the person's: every request that leads the conversation offers
+/// exactly the contract's tools, and none of them saves, runs or consents.
+fn assert_no_authority_door(author: &Author) {
+    for body in author.bodies() {
+        let Some(tools) = body["tools"].as_array().filter(|t| !t.is_empty()) else {
+            continue;
+        };
+        let names: Vec<&str> = (tools.iter())
+            .filter_map(|t| t["function"]["name"].as_str())
+            .collect();
+        assert_eq!(names, AUTHOR_TOOLS, "the offered tools are the contract's");
+        for door in ["save", "run", "consent", "approve", "activate", "schedule"] {
+            assert!(!names.contains(&door), "{door} is the person's: {names:?}");
+        }
+    }
+}
+
 /// The accepted offer's candidate proposed with each value's provenance, its exact bytes shown
 /// and nothing written; returns where it lands.
 fn assert_proposed(proposed: &Value, author: &Author, project: &Path) -> String {
@@ -363,5 +401,6 @@ fn the_agent_asks_writes_proposes_and_the_yes_saves_through_the_machine_door() {
         !project.path().join("news/digest.md").exists(),
         "Save is never a Run"
     );
+    assert_no_authority_door(&author);
     door.close();
 }
