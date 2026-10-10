@@ -38,8 +38,16 @@ impl Reference {
     }
 }
 
+/// What a feed's dates are, which the stdlib pages show only by example: the engine normalizes
+/// every feed date to RFC 3339 with an explicit offset (`nika-extract`'s feed mode), whatever
+/// format the feed used. Stated here until the extract-modes page states it (amended 2026-10-10:
+/// an author filtered `published` as RSS text and kept nothing; an item dated only by its
+/// revision carries `updated`).
+const FEED_DATES: &str = "Feed dates (the feed's `updated`, each item's `published`, and an item's `updated` when the source dates a revision of its own) are RFC 3339 instants with an explicit offset (`2026-05-22T10:00:00+00:00`), whatever format the feed itself used (an RSS `pubDate`, Atom, JSON Feed). An Atom entry or a JSON Feed item may carry only `updated`, and an item without a date carries neither: read an item's date as `published // updated`. Compare them as instants: jq's `fromdateiso8601` reads them, and `nika:date` computes a bound (`op: now`, then `op: format` with `%Y-%m-%d`, or `op: subtract` with an ISO 8601 `duration`).";
+
 /// The stdlib sections of the callables a candidate may reach: the builtins named in the
-/// references plus the everyday set, each cut from the embedded page at its own heading.
+/// references plus the everyday set, each cut from the embedded page at its own heading;
+/// `nika:fetch` with what each mode returns (`fetch_outputs`).
 #[must_use]
 pub fn callables(names: &[String]) -> Vec<Reference> {
     let Some(page) = nika_pack::doc("stdlib/builtins-v0.1.md") else {
@@ -58,14 +66,35 @@ pub fn callables(names: &[String]) -> Vec<Reference> {
             .map_or(rest.len(), |at| at + heading.len());
         // The whole section: an argument table cut mid-way reads complete and is not.
         let section = rest[..end].trim();
-        out.push(Reference::new(format!("nika:{name}"), "callable", section));
+        let text = if name == "fetch" {
+            fetch_outputs(section)
+        } else {
+            section.to_owned()
+        };
+        out.push(Reference::new(format!("nika:{name}"), "callable", text));
     }
     out
 }
 
+/// The `nika:fetch` contract with what each `mode:` returns, which its section only points to:
+/// the extract-modes page's table and its whole feed section, then the feed dates' format.
+fn fetch_outputs(section: &str) -> String {
+    let Some(page) = nika_pack::doc("stdlib/extract-modes-v0.1.md") else {
+        return format!("{section}\n\n{FEED_DATES}");
+    };
+    let cut = |start: &str, end: &str| {
+        let at = page.find(start)?;
+        let stop = page[at..].find(end).map_or(page.len(), |len| at + len);
+        Some(page[at..stop].trim())
+    };
+    let table = cut("| Mode | Output type | Use case |", "\n\n").unwrap_or_default();
+    let feed = cut("### `feed`", "\n---").unwrap_or_default();
+    format!("{section}\n\n#### What each `mode:` returns\n\n{table}\n\n{feed}\n\n{FEED_DATES}")
+}
+
 /// The everyday builtins every native call receives, before the ones the references name.
 pub const EVERYDAY: &[&str] = &[
-    "read", "write", "glob", "jq", "convert", "prompt", "fetch", "notify",
+    "read", "write", "glob", "jq", "convert", "prompt", "fetch", "notify", "date",
 ];
 
 /// The references recall returns for the request, expanded just in time: the lean source of
@@ -230,5 +259,38 @@ impl crate::foundry::ComponentCatalog for Templates {
             id: id.to_owned(),
             text: nika_pack::lean(source).to_owned(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{EVERYDAY, callables};
+
+    /// The `nika:fetch` contract carries what each mode returns and the feed dates' format: an
+    /// author reading it knows a feed item's `published` is an RFC 3339 instant, never the
+    /// feed's own text; `nika:date` is among the everyday contracts that compute a bound.
+    #[test]
+    fn the_fetch_contract_carries_each_mode_s_output_and_the_feed_dates() {
+        let cut = callables(&["fetch".to_owned(), "date".to_owned()]);
+        let fetch = &cut[0].text;
+        assert!(fetch.starts_with("### `nika:fetch`"), "{fetch}");
+        assert!(
+            fetch.contains("| `feed` | object (parsed feed) |"),
+            "{fetch}"
+        );
+        assert!(fetch.contains("\"published\": "), "{fetch}");
+        assert!(fetch.contains("`published // updated`"), "{fetch}");
+        assert!(
+            fetch.contains(
+                "RFC 3339 instants with an explicit offset (`2026-05-22T10:00:00+00:00`)"
+            ),
+            "{fetch}"
+        );
+        assert!(
+            cut[1].text.starts_with("### `nika:date`"),
+            "{}",
+            cut[1].text
+        );
+        assert!(EVERYDAY.contains(&"date"));
     }
 }

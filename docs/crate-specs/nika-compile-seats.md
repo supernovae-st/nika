@@ -219,7 +219,11 @@ as an external consumer.
   `Objects`, `answer_shaped`, `syntax_target`), descended from the doors on 2026-10-07.
 - `shelf` — the references an authoring seat reads beside its card (`Reference`, `references`:
   the embedded recall's skeletons and families; `callables` and `builtins_of`: the stdlib
-  contracts they name; `rendered`), receipted by digest.
+  contracts they name, after the everyday set `EVERYDAY`; `rendered`), receipted by digest.
+  Amended 2026-10-10: the everyday set includes `nika:date`, and the `nika:fetch` contract
+  carries what each `mode:` returns (the extract-modes page's table and feed section, which its
+  section only points to) and the format of a feed's dates, RFC 3339 with an explicit offset as
+  the engine normalizes them, until that page states it.
 - `foundry` — recalled Foundry knowledge qualified by a decision seat before an author reads it
   (R3 · A1): `question` (one closed choice per reference, `applies` · `unrelated` · NONE),
   `verdict`, `qualify` (all references asked together; the unrelated leave the pack, the
