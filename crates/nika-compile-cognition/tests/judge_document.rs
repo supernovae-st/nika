@@ -148,6 +148,11 @@ outputs:
   summary: ${{ tasks.summarize.output }}
 "#;
 
+/// [`NOTES`] with the room its reasoning model needs for the answer (the core's reasoning cap).
+fn roomy() -> String {
+    NOTES.replace("max_tokens: 4096", "max_tokens: 16384")
+}
+
 /// The files a person typed are theirs as written, `./` aside: the document stands with no
 /// selection, and with each file stated as answered in its role (the source read, the output
 /// written). A source stated as named is the author's choice of a public address, and the
@@ -156,22 +161,43 @@ outputs:
 /// values.
 #[test]
 fn the_files_a_person_typed_stand_as_written_or_stated_as_answered() {
-    assert!(judge_document(TYPED, NOTES, (&[], &[]), None).is_empty());
+    let notes = roomy();
+    assert!(judge_document(TYPED, &notes, (&[], &[]), None).is_empty());
     let answered = rows(&[
         json!({"value": "./notes.txt", "kind": "answered", "role": "read_source",
             "excerpt": "notes.txt", "message": "u1"}),
         json!({"value": "./summary.md", "kind": "answered", "role": "output_path",
             "excerpt": "summary.md", "message": "u1"}),
     ]);
-    let refusals = judge_document(TYPED, NOTES, (&answered, &[]), None);
+    let refusals = judge_document(TYPED, &notes, (&answered, &[]), None);
     assert!(refusals.is_empty(), "{refusals:?}");
     let named = rows(&[json!({"value": "./notes.txt", "kind": "named",
         "role": "read_source", "excerpt": "notes.txt", "message": "u1"})]);
-    let refusals = judge_document(TYPED, NOTES, (&named, &[]), None);
+    let refusals = judge_document(TYPED, &notes, (&named, &[]), None);
     assert_eq!(refusals.len(), 1, "{refusals:?}");
     assert!(
         refusals[0].starts_with("OUT OF SCOPE: `./notes.txt` is not a public address")
             && refusals[0].contains("is stated as answered"),
+        "{refusals:?}"
+    );
+}
+
+/// The document three authors wrote for a digest: a summary on `deepseek/deepseek-flash`, a model
+/// the catalog records as reasoning, capped at 4096 output tokens with no effort and thinking left
+/// on. Its reasoning spent the whole cap and the run ended with no answer, or with one cut short:
+/// the cap is refused before any proposal, with the repairs that reach its route (the cap, the
+/// low effort its model documents), never thinking off, which its route does not map.
+#[test]
+fn a_reasoning_model_s_cap_too_small_for_its_answer_is_refused() {
+    let refusals = judge_document(TYPED, NOTES, (&[], &[]), None);
+    assert_eq!(refusals.len(), 1, "{refusals:?}");
+    assert!(
+        refusals[0]
+            .starts_with("REASONING BUDGET: task `summarize` asks `deepseek/deepseek-flash`")
+            && refusals[0].contains("at most 4096 output tokens")
+            && refusals[0]
+                .contains("Raise `max_tokens` to 16384, or set `run.reasoning.effort: low`")
+            && !refusals[0].contains("thinking"),
         "{refusals:?}"
     );
 }

@@ -1412,6 +1412,14 @@ admitted on the person's own words; the ones the host verified itself (an offer 
 value an accepted revision bound) have their scope and use judged only. It calls, reads and
 writes nothing. These are the laws only.
 
+The conversation laws also judge each `infer:` task's reasoning budget (amended 2026-10-10):
+`nika-compile-fidelity`'s `budget::reasoning` law, fed each seat's facts as
+`nika_compile::surface::output_caps` reports them (`budget::ReasoningFacts::of_caps`: the room
+the core gives its own caps, bounded by the known output limit, and the effort levels the exact
+model documents). A conversation's author states its own caps, so the native door's sizing never
+reaches them: a reasoning seat's cap that cannot cover the reasoning plus the answer, or no cap
+at all, is refused before any proposal, with the remedies that reach its route.
+
 `verify_document(request, candidate, (authored, host), cognition, host)` is what a conversation's
 document is proposed on: it is verified exactly as a native door verifies its own candidate, and
 settled READY only on the verifier's verdict. `request` is what a compile round of the same

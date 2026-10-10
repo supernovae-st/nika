@@ -834,6 +834,11 @@ pub(super) fn document_refusals(
         let plan = crate::lexicon::read(stated).plan;
         let words = (&[][..], &covered[..]);
         fidelity::laws_resolved(stated, &plan, &doc, words, &[], &[], observed, &mut out);
+        let facts = |model: &str| {
+            let caps = nika_compile::surface::output_caps(model)?;
+            Some(fidelity::budget::ReasoningFacts::of_caps(&caps))
+        };
+        fidelity::budget::reasoning(stated, &doc, &facts, &mut out);
     }
     out.dedup();
     out
