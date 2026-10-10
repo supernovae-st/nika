@@ -51,6 +51,7 @@ trips the `env ` wrapper pattern; route via `pre_validated`).
 | no pipe-buffer deadlock on large output | concurrent stdout/stderr drain + exit observation via `try_join!` (INV-012) |
 | out-of-band kill | `cancel(pid)` — registry-backed (ADR-016 · unknown/dead pid = idempotent `Ok`) |
 | deadline | `tokio::time::timeout` → `ShellError::Timeout` |
+| forced end before an exit without destructors | Linux/macOS: `terminate_owned_groups(grace, then)` — every group still owned gets SIGTERM, a bounded grace, SIGKILL, then a bounded reap; a group whose leader the process can no longer wait for is never signalled, nothing spawns after, and `then` (where the CLI exits) runs before any owner may go on |
 
 Linux/macOS use rustix 1.1.4's safe `waitid(WNOWAIT)` wrapper to observe
 exit without releasing the process-group identity while a descendant holds
@@ -60,9 +61,11 @@ future-drop as well as normal return. An old registration cannot erase a
 new generation that reused the PID.
 
 A sent signal is **not a cleanup acknowledgement**. Descendants that leave
-the group, uninterruptible processes, abrupt engine termination and
-successful background commands that close their pipes remain outside this
-guarantee. Embedders must not reap the executor's children independently.
+the group, uninterruptible processes, an engine that ends without calling
+`terminate_owned_groups` (a crash, SIGKILL) and successful background
+commands that close their pipes remain outside this guarantee; the forced
+end's report names the groups whose end it did not see. Embedders must not
+reap the executor's children independently.
 The pre-spawn sandbox-confinement error path has its own scratch lifecycle.
 
 ## Surface

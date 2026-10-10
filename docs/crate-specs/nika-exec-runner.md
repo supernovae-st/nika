@@ -51,6 +51,10 @@ pub struct EgressDecision { pub host, pub port, pub allowed }  // one proxy verd
 pub type EgressObserver = Arc<dyn Fn(&EgressDecision) + Send + Sync>;
 impl ShellRunDyn    for TokioShell { run }
 impl ShellCancelDyn for TokioShell { cancel }
+
+// §3.6 · for a process about to exit without destructors
+pub fn terminate_owned_groups(grace: Duration, then: impl FnOnce(&Terminated));
+pub struct Terminated { /* ended · killed · unconfirmed · spared · Display */ }
 ```
 
 Targets the `*Dyn` trait-variant companions (`Send` futures · base traits +
@@ -102,9 +106,15 @@ basename-dequoted) so a pattern hidden behind any one transform is caught.
 
 ### 3.3 Process safety (kernel CANCEL SAFETY contract · INV-011/012)
 
-- **`kill_on_drop(true)`** on the `tokio::process::Command` (INV-011) — dropping
-  the `run()` future sends SIGKILL to the child · no orphan/zombie processes.
-  This IS the PRIMARY cancellation per ADR-016 (future-drop · the common case).
+- **Drop-time termination** (INV-011) — on Linux/macOS every spawn gets a
+  dedicated process group, and dropping the `run()` future sends SIGKILL to that
+  group while its unreaped leader still reserves the group number; other
+  platforms keep `kill_on_drop(true)` on the direct child. This IS the PRIMARY
+  cancellation per ADR-016 (future-drop · the common case). It is a termination
+  request, not a receipt: it acts only when destructors run, and a descendant
+  that left its group (`setsid`, `setpgid`) is outside it. A process that exits
+  without running destructors (`std::process::exit`, the CLI's second Ctrl-C)
+  never reaches it: see §3.6.
 - **Concurrent stdout/stderr drain with `wait()` via `tokio::try_join!`**
   (INV-012) — a child writing > the OS pipe buffer (~64 KB Linux / ~16 KB macOS)
   would deadlock if we waited-then-read · all three futures poll in parallel.
@@ -120,7 +130,7 @@ class · the OS kills." The id is the **OS pid** (string · matching the trait
 doc "signalling an already dead pid is a harmless no-op"). `TokioShell` holds
 an `Arc<Mutex<BTreeMap<pid, Notify>>>`; `run()` registers the spawned child's
 pid after spawn and `select!`s its wait against the registered `Notify`;
-`cancel(pid)` notifies it → the child is killed (kill_on_drop fires).
+`cancel(pid)` notifies it → the spawn is dropped and its group killed (§3.3).
 Unknown/dead pid → `Ok(())` (idempotent · trait-compliant). Deregisters on
 exit. (`run()`'s future-drop remains the primary path; this is the explicit
 out-of-band kill the daemon/engine will use.)
@@ -136,13 +146,57 @@ AND stderr) is therefore capped at **64 MiB** (`MAX_OUTPUT_BYTES`):
   makes overflow detectable while never buffering more than one byte past the
   cap (no OOM even on an infinite stream).
 - On overflow `drain` returns an `OutputCapExceeded` marker through
-  `tokio::io::Error`; `try_join!` short-circuits, the child future drops, and
-  `kill_on_drop` (INV-011) SIGKILLs the writer — so the bounded read does NOT
+  `tokio::io::Error`; `try_join!` short-circuits, the spawn drops, and its
+  group receives SIGKILL (§3.3 · INV-011) — so the bounded read does NOT
   reintroduce the INV-012 pipe-fill deadlock.
 - The marker maps to `ShellError::OutputTooLarge { limit_bytes }` (`NIKA-054`)
   at the single exit site. Fail-closed, aligned with the `nika:read` 50 MB
   cap precedent. Commands needing larger output redirect to a file in-command
   and read it back (or go through `pre_validated` policy with its own limits).
+
+### 3.6 Forced end of every owned group
+
+A process that exits without running destructors never reaches §3.3: before
+this the CLI's second Ctrl-C called `std::process::exit(130)` and every exec
+child, alone in its own group, kept running and writing after the CLI was gone.
+
+- On Linux/macOS every spawn (the `run()` path and `collect`) is listed
+  process-wide from its spawn until its owner releases it, and every owner
+  releases **before** the leader is reaped. A listed group's number is therefore
+  still reserved by its unreaped leader. The spawn itself runs under the list's
+  lock, so a forced end never misses a group.
+- `terminate_owned_groups(grace, then)` takes the list and holds its lock to the
+  end: SIGTERM to each group whose leader is still this process's child, up to
+  `grace` for those leaders to exit, SIGKILL to every one of those groups (an
+  exited leader can leave members behind), then up to `grace` again to reap each
+  leader and see its group empty (`kill(-pgid, 0)` → ESRCH). Once it began,
+  nothing new spawns ("this process is ending"). `then` receives the report
+  while the lock is still held, so an owner whose group ended cannot reap it or
+  report its end before `then` returns: the CLI exits inside `then`, and no run
+  goes on past the end it reports (no late task terminal, no sealed trace).
+- PID reuse: a listed leader this process can no longer wait for (ECHILD: an
+  outside reaper took it) is spared and never signalled; a group an owner
+  released is never signalled again; after its leader is reaped only the null
+  signal reaches a group number. Drop and the bounded collection signal a group
+  only while it is still listed.
+- The report (`Terminated`) counts groups seen to end, those that needed
+  SIGKILL, those whose end was not seen (by number: they may still run) and
+  those spared. It never claims a rollback: what already ran stays done, and an
+  effect in flight has an unknown outcome.
+- Linux jail (`nika-sandbox-landlock`): the group the runner owns is the
+  `bwrap` launcher's. `--new-session` moves the jailed command into a session
+  and a group of its own, so neither SIGTERM nor SIGKILL reaches it directly.
+  Ending the launcher ends it all the same: under `--die-with-parent`, bwrap
+  SIGKILLs every sandbox process when bwrap or its parent dies, and the
+  sandbox's PID namespace dies with its pid 1. A jailed command therefore gets
+  no SIGTERM grace on a forced end (it is SIGKILLed), and the group-empty check
+  proves the launcher's group, not the jailed tree, which the kernel tears
+  down. The CLI's end-to-end abort tests prove the jailed tree's end directly
+  (a FIFO that no process of the leaf holds any more, whatever its pid
+  namespace).
+- Limits: members an exited leader left behind get SIGKILL as soon as no leader
+  runs (the grace is measured on leaders), a descendant that left its group is
+  outside it, and other platforms track no group (the report says so).
 
 ## 4. The 12 gates
 

@@ -20,8 +20,10 @@
    ships `ShellCommand` (program · args · env · env_remove · cwd · timeout ·
    stdin · shell · pre_validated · all `#[non_exhaustive]`) · `ShellResult`
    (status · stdout · stderr · duration) · `ShellRunDyn` / `ShellCancelDyn`
-   atomic traits (+ `ShellExecutor` blanket). CANCEL SAFETY rides INV-011
-   `kill_on_drop` (the s7 runner sets it).
+   atomic traits (+ `ShellExecutor` blanket). CANCEL SAFETY rides INV-011:
+   dropping the run asks the s7 runner to kill the child's process group; a
+   process exiting without destructors relies on the runner's forced end
+   (`terminate_owned_groups`) instead.
 2. **The effect is injected, never owned.** The verb takes `Arc<S>` with
    `S: ShellRunDyn` — production wiring injects `nika-exec-runner::TokioShell`
    (s7 · admitted · NFKC/zero-width/quote-bypass blocklist + concurrent drain
@@ -82,7 +84,7 @@ pub struct ExecOutput {
 
 impl<S: ShellRunDyn + Send + Sync + 'static> ExecVerb<S> {
     pub fn new(shell: Arc<S>) -> Self;
-    /// CANCEL SAFETY: cancel-safe via the runner's kill_on_drop (INV-011).
+    /// CANCEL SAFETY: cancel-safe via the runner's drop contract (INV-011).
     pub async fn run(&self, input: ExecInput) -> Result<ExecOutput, VerbExecError>;
 }
 ```

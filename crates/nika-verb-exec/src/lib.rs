@@ -249,8 +249,10 @@ where
 {
     /// Execute the `exec` task.
     ///
-    /// CANCEL SAFETY: cancel-safe via the runner's `kill_on_drop`
-    /// contract (INV-011) — dropping the future SIGKILLs the child.
+    /// CANCEL SAFETY: cancel-safe via the runner's drop contract (INV-011):
+    /// dropping the future asks the runner to kill the child's process group.
+    /// A process that exits without running destructors never drops it, and
+    /// must end the runner's owned groups first.
     ///
     /// # Errors
     ///
