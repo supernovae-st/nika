@@ -182,6 +182,16 @@ needs keeps its default.
   authorize is stated with those words. A value the author may derive visibly never becomes a
   question, and the stated selection is then admitted or refused like any other. The laws' own
   messages are unchanged at every other door.
+- Added 2026-10-10, the canonical key of a finding (`fidelity::keys::finding`,
+  `Diagnostic::key`): what a host compares across two revisions to know whether the same defect
+  still stands. A key joins three parts with `:`, each only when the message carries it:
+  - the finding's kind, or the target a compile outcome's finding carries;
+  - its law's head (`invented-literal`, or a check code such as `NIKA-SEC-004`);
+  - the first value its message quotes (a literal, a path, a task, the request's words).
+  Wording around the subject and an appended remedy change nothing; another subject or another
+  law is another key. A host keys any outcome finding by its target and message, so no target
+  changes: `conversation:invented-literal:./news/digest.md`,
+  `semantic_verification:write the digest`.
 - Added after the move, Law 22b (`fidelity::unnamed_writes`, private, run by `laws`): a
   planned write whose target names no single file must be carried by a `nika:write` task. Such
   a write comes from the reader's unnamed-destination floor or from an unsettled copy. A

@@ -22,6 +22,8 @@ mod asked;
 pub mod budget;
 mod final_gate;
 mod instants;
+/// The canonical key of a finding, what a host compares across revisions.
+pub mod keys;
 mod record_scope;
 mod records;
 /// The selections an author states rather than copies, and the law that admits them.
