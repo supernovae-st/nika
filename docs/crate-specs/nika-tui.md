@@ -43,7 +43,7 @@ become typed beats, and the CLI door injects the runners. The
 The roles remain the engine's closed set, `nika_display::theme::Role`
 (the accent, the three verdicts, dim, strong and the four verb chips).
 `visual::role::style` resolves them to the workspace's RGB product palette:
-a violet accent and selection fill on dark navy surfaces, blue for infer, cyan
+an electric-blue accent and selection fill on dark navy surfaces, blue for infer, cyan
 for invoke, lavender for agent, amber for exec and attention, green success,
 red failure, and readable secondary text. The renderer and viewer share the
 viewer's pure visual owner through compatibility paths (ADR-143). The CLI retains
@@ -114,9 +114,20 @@ resize clamps the rendered geometry without changing the chosen proportions.
 The Live host keeps only settled display choices in a versioned HOME preference
 file through `OwnedDir`. Painting performs no I/O; restoring an arrangement
 restores no Session authority. The command chooser names the conversation's
-supported commands and their effect/scope; selecting a slash command inserts
-it without submitting. `Ctrl+O` (or `Tab` in an empty composer) opens the
-palette, and `F2` opens a read-only reader of the Session's complete words for
+supported commands and their effect/scope. `Enter` runs the selected command
+once (the palette's without touching the draft; while a turn works it waits
+in the box instead) and `Tab` inserts it without submitting; a repeated
+`Enter` after a surface's activation counts once (taken while that turn works,
+and for half a second after it returns unless another key comes first).
+`Ctrl+O` (or `Tab` in an empty composer) opens the palette. The palette, the slash list and a typed choice's offers open as one
+opaque surface above the composer (`render::surface`, its plan in
+`nika_tui_view::workspace::surface`): a band from the transcript's first row
+down to the composer, joined to its box, sized from facts at rest, so
+opening, searching or closing it moves no row and the transcript keeps its
+rows and reading position under it. The band takes every pointer event over
+it (a press selects, the wheel moves the selection), nothing under it takes a
+key, and only an inline frame grows for it. `F2` opens a read-only reader of
+the Session's complete words for
 the typed question at the answer line, the current proposal under review or the
 latest summarized refusal. The [workspace guide](../terminal-workspace.md) owns
 every gesture and describes the distinction between inspection, Save and Run.
@@ -357,25 +368,49 @@ runtime-local presentation scope; matching serialized words from another live
 Session cannot substitute for the strong identity, whose equality also includes
 its incarnation. Untyped Run/cost questions keep their existing owners and doors.
 
-In the fitting workspace, while the latest question block carries the witness of
-the typed question waiting, the live card above the answer line is the
-question's home: `Question` in the accent, its shape, `required` and the offer
-window, then the Session's exact words under one frame-aware cap
-(`question::word_cap`: six rows, or a quarter of the frame's rows when that is
-more), then the offers. `Share` gives the words every row while they pass the
-cap by at most one row and the card has the room; otherwise it shows the rows
-that fit, at most the cap, then a `… the whole question: F2` row, so that row
-always stands for at least two unread rows; a card with room for one word row
-ends it with `… F2`. Painting, measuring, the offers' hits and a decision's
+A typed choice opens the continuous surface above the line (choice mode):
+`Question`, `required` and the page of offers when they do not all show, then
+what the Session keeps of the request the question serves, from the same
+`Work` snapshot (`model::Retained`: the goal as kept, then the other questions
+still open; it grants nothing), then the Session's exact words under one
+frame-aware cap (`question::word_cap`: six rows, or a quarter of the frame's
+rows when that is more, past it a `… the whole question: F2` row), then the
+offers on whole pages. The ordinary draft waits out of view, untouched with
+its caret and selection, and the line shows the choice's own reply field. The
+offers take keys whatever the draft holds (`Up`, `Down`, `Home`, `End`);
+`Enter` sends the own reply when it holds words, else the selected offer's
+exact key, once, and the offers are inert while that answer is in flight; a
+press selects without sending. An own reply not taken comes back to its
+field. The palette opened over a typed choice suspends it and `Esc` restores
+it, selection and own reply kept; no slash list opens over it. Keys other than
+the shell's own (`Ctrl+C`, `Ctrl+O`, `Ctrl+T`, `Ctrl+L`, `Shift+Tab`, the
+function keys) are the choice's, so none reaches the hidden transcript or
+leaves the workspace.
+
+A line the Session holds because the knowledge the configuration names was
+refused (`Waiting::Knowledge`, from `work::Waiting::KnowledgeChoice`) opens
+the same surface: `Knowledge · your message waits`, the held line as the
+request kept, the refusal in the Session's words (its source, layer, code and
+cause), then its two acts as offers, `/knowledge embedded` (resumes the line
+once with the release built into Nika) and `cancel` (drops it). Each act is
+sent as the exact ordinary line the Session reads; no identity is bound.
+
+A typed question that offers nothing (a text, an exact value) keeps its card
+above the answer line. In the fitting workspace, while the latest question
+block carries the witness of the typed question waiting, that card is the
+question's home: `Question` in the accent, its shape and `required`, then the
+Session's words under the same cap. `Share` gives the words every row while
+they pass the cap by at most one row and the card has the room; otherwise it
+shows the rows that fit, at most the cap, then a `… the whole question: F2`
+row, so that row always stands for at least two unread rows; a card with room
+for one word row ends it with `… F2`. Painting, measuring and a decision's
 rest demand read that one cap and share. The transcript reads one quiet row
 (`↓ the question waits below`) where that block stands, the block untouched.
-While a turn works or the chooser lists, in inline and focus, with too few rows,
-for an untagged, stale or other-identity block, or when a summarized block
-follows it, the transcript keeps every word. Offers take keys only from an
-empty composer that holds them (`Up`, `Down`, `Home`, `End`, then `Enter`
-once); a press selects without sending, and offers are inert while an answer is
-in flight. Every line sent while a typed question is painted, a command or an
-empty line included, takes the identity door; the Session refuses an empty
+While a turn works, in inline and focus, with too few rows, for an untagged,
+stale or other-identity block, or when a summarized block follows it, the
+transcript keeps every word; a surface over the card hides it and moves none
+of its rows. Every line sent while a typed question is painted, a command or
+an empty line included, takes the identity door; the Session refuses an empty
 line unless the question offers a default.
 
 While that card is painted, it takes over only the live rows that repeat it

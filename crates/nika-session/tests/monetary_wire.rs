@@ -91,6 +91,7 @@ fn child_run(root: &Path, home: &Path, seat: &LoopbackSeat, scenario: &str) {
         .env("PATH", "/usr/bin:/bin")
         .env("HOME", home)
         .env("NIKA_KEYCHAIN", "off")
+        .env("NIKA_SESSION_DRIVER", "rounds")
         .env("NIKA_VLLM_BASE_URL", seat.base())
         .env("S17_ROOT", root)
         .env("S17_SCENARIO", scenario)

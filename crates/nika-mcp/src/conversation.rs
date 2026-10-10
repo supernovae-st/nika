@@ -14,19 +14,21 @@
 //!
 //! [`ToolServer`] is the Streamable HTTP transport of [`crate::HttpServer`] under its own law:
 //! bound to `127.0.0.1` on an ephemeral port, its bearer minted for this conversation alone
-//! (256 bits from the OS) and always required, the same origin gate, body bounds and one
-//! request per connection. It serves sequentially until its [`Closer`] closes it: a call holds
-//! the next request for as long as its tool runs. For an agent that cannot mount an HTTP
-//! server, [`bridge`] relays a stdio MCP session to the same server, line by line, with the
-//! same bearer.
+//! (256 bits from the OS) and always required, the same origin gate, body bounds, deadlines and
+//! connection cap, one request per connection. It serves connections side by side until its
+//! [`Closer`] closes it, and hands the session one call at a time: a call holds the next call
+//! for as long as its tool runs. For an agent that cannot mount an HTTP server, [`bridge`]
+//! relays a stdio MCP session to the same server, line by line, with the same bearer.
 
 use std::fmt::Write as _;
 use std::io::{BufRead, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::sync::Arc;
+use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
+use std::time::Duration;
 
-use nika_session_change::tools::{SessionTools, ToolCall, ToolDef};
+use nika_session_change::tools::{SessionTools, ToolCall, ToolDef, ToolReply};
 use serde_json::{Value, json};
 
 use crate::{MAX_MSG_BYTES, McpError, http, protocol};
@@ -36,6 +38,12 @@ pub const SERVER_NAME: &str = "nika";
 
 /// Where Claude Code names its tool-use id in a call's `_meta`.
 const TOOL_USE_ID: &str = "/_meta/claudecode~1toolUseId";
+
+/// How long the bridge waits on each read of the server's reply.
+const BRIDGE_READ_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How long [`Closer::close`] tries to wake the accept loop.
+const WAKE_TIMEOUT: Duration = Duration::from_secs(1);
 
 /// Answer one MCP message for `tools`: `initialize`, `tools/list`, `tools/call` and `ping`;
 /// a notification gets no reply, and a batch is refused (MCP removed them in 2025-06-18).
@@ -99,6 +107,31 @@ fn call(tools: &dyn SessionTools, id: &Value, params: Option<&Value>) -> Value {
     protocol::ok(id, protocol::tool_content(&reply.text, reply.is_error))
 }
 
+/// The session behind a turn lock: the server reads and answers connections side by side, and
+/// the session receives one call at a time.
+struct OneAtATime<'a> {
+    tools: &'a dyn SessionTools,
+    turn: Mutex<()>,
+}
+
+impl SessionTools for OneAtATime<'_> {
+    fn tools(&self) -> Vec<ToolDef> {
+        self.tools.tools()
+    }
+
+    /// A session that panics breaks its contract; the agent still reads an error reply and the
+    /// server keeps serving, where the panic would otherwise end the connection unanswered and
+    /// resurface when the server closes. The payload stays in the panic hook's report.
+    fn call(&self, call: ToolCall) -> ToolReply {
+        let name = call.name.clone();
+        // The lock guards no state of its own: a poisoned one holds nothing to distrust.
+        let _turn = self.turn.lock().unwrap_or_else(PoisonError::into_inner);
+        std::panic::catch_unwind(AssertUnwindSafe(|| self.tools.call(call))).unwrap_or_else(|_| {
+            ToolReply::error(format!("the session's `{name}` tool failed unexpectedly"))
+        })
+    }
+}
+
 /// One conversation's MCP tool server over Streamable HTTP: loopback, an ephemeral port and a
 /// bearer minted for this conversation alone.
 pub struct ToolServer {
@@ -155,21 +188,26 @@ impl ToolServer {
         })
     }
 
-    /// Serve until closed, sequentially: one connection, one request, one response. Blocking:
-    /// run it on a thread of its own. A failed accept is skipped, never fatal.
+    /// Serve until closed: one request and one response per connection, each connection on a
+    /// thread of its own, at most eight at once, under the HTTP door's deadlines (a request has
+    /// 30 s in all to arrive, its response 30 s to leave), so a slow or silent client holds one
+    /// connection for a bounded time. The session receives one call at a time: a call holds the
+    /// next call, not the next request, for as long as its tool runs. Blocking: run it on a thread
+    /// of its own; it returns once closed and every connection in hand is answered. A failed accept
+    /// is skipped, never fatal.
     pub fn serve(&self) {
-        let tools = &*self.tools;
-        let answer = |msg: &Value| dispatch(tools, msg);
-        while !self.closed.load(Ordering::Acquire) {
-            let Ok((stream, _)) = self.listener.accept() else {
-                continue;
-            };
-            if self.closed.load(Ordering::Acquire) {
-                return;
-            }
-            let _ = stream.set_read_timeout(Some(http::READ_TIMEOUT));
-            http::handle_conn(stream, Some(&self.bearer), &answer);
-        }
+        let session = OneAtATime {
+            tools: &*self.tools,
+            turn: Mutex::new(()),
+        };
+        let answer = |msg: &Value| dispatch(&session, msg);
+        http::serve_bounded(
+            || http::accept(&self.listener),
+            Some(&self.bearer),
+            &answer,
+            &self.closed,
+            http::Limits::SERVE,
+        );
     }
 }
 
@@ -182,7 +220,8 @@ impl std::fmt::Debug for ToolServer {
     }
 }
 
-/// Ends a [`ToolServer::serve`] loop: the request in hand completes, then the loop returns.
+/// Ends a [`ToolServer::serve`] loop: no connection is taken after it, and `serve` returns once
+/// the connections in hand are answered.
 #[derive(Debug)]
 pub struct Closer {
     addr: SocketAddr,
@@ -190,11 +229,12 @@ pub struct Closer {
 }
 
 impl Closer {
-    /// Close the server; a later call does nothing.
+    /// Close the server; a later call does nothing. It never waits long: when the listener's
+    /// backlog is full, the loop sees the close at the next connection it takes.
     pub fn close(&self) {
         if !self.closed.swap(true, Ordering::AcqRel) {
             // Wake an accept that waits for a connection.
-            let _ = TcpStream::connect(self.addr);
+            let _ = TcpStream::connect_timeout(&self.addr, WAKE_TIMEOUT);
         }
     }
 }
@@ -287,7 +327,7 @@ fn post(
     body: &[u8],
 ) -> Result<(u16, Vec<u8>), McpError> {
     let mut stream = TcpStream::connect(authority)?;
-    stream.set_read_timeout(Some(http::READ_TIMEOUT))?;
+    stream.set_read_timeout(Some(BRIDGE_READ_TIMEOUT))?;
     write!(
         stream,
         "POST {path} HTTP/1.1\r\nHost: {authority}\r\nContent-Type: application/json\r\n\

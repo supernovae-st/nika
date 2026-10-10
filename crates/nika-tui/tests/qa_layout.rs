@@ -170,7 +170,7 @@ fn with_colour_the_gate_wears_the_warning_slot() {
         "no warning hue at the gate: {hues:?}"
     );
     assert!(
-        hues.contains("38;2;182;154;255"),
+        hues.contains("38;2;76;163;255"),
         "no accent on the busy marker: {hues:?}"
     );
     leave(&mut term);

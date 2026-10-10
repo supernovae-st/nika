@@ -1,43 +1,36 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The typed question's card in the live area, in the flow directly above the
-//! line that answers it. In the workspace, while the latest question block
-//! carries the witness of the typed question waiting ([`asked_block`]), the
-//! card is the question's live home: an accent title, quiet facts (the shape
-//! of the answer, whether it is required), the Session's exact words (wrapped
-//! by cells under their own indent, every row the frame's cap holds; a row
-//! that says where the whole question is read, `F2`, only where at least two
-//! rows stay unread), then the offers; the transcript reads one quiet
-//! row in their place ([`carried`]). Anywhere else, while a turn works or the
-//! chooser lists, or with too few rows, the card keeps its header and offers
-//! and the transcript every word. Offers page whole, so a press never moves
-//! the window under the pointer; the selection is a glyph, reversed while the
-//! offers take keys, never a hue alone. Painting, measuring and hit-testing
-//! read one geometry: the live area's rows (`live_areas`) and [`Share`].
+//! The card of a typed question that offers nothing (a text, an exact value)
+//! in the live area, in the flow directly above the line that answers it; a
+//! typed choice opens the surface above the line instead (`super::surface`),
+//! which reads the words and the cap from here. In the workspace, while the
+//! latest question block carries the witness of the typed question waiting
+//! ([`asked_block`]), the card is the question's live home: an accent title,
+//! quiet facts (the shape of the answer, whether it is required), then the
+//! Session's exact words (wrapped by cells under their own indent, every row
+//! the frame's cap holds; a row that says where the whole question is read,
+//! `F2`, only where at least two rows stay unread); the transcript reads one
+//! quiet row in their place ([`carried`]). Anywhere else, while a turn works
+//! or with too few rows, the card keeps its header and the transcript every
+//! word. A surface open above the line hides the card and moves none of its
+//! rows. Painting and measuring read one geometry: the live area's rows
+//! (`live_areas`) and [`Share`].
 
 use std::fmt::Write as _;
-use std::ops::Range;
 
 use nika_display::theme::Role;
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Position, Rect};
-use ratatui::style::{Modifier, Style};
+use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use super::chooser::fit;
 use super::{accent, own};
 use crate::composer::Composer;
-use crate::model::{Asked, Kind, Offer, Presentation, Shape, UiState, Waiting};
+use crate::model::{Asked, Kind, Presentation, Shape, UiState, Waiting};
 use crate::visual::role;
 use crate::workspace::cards::diagnostics::{Shown, shown};
-
-/// At most this many offers show at once; the selection pages through more.
-pub(crate) const SHOWN: usize = 6;
-
-/// The widest key column; a longer key pushes its label along.
-const KEY_COLUMN: usize = 16;
 
 /// The fewest rows of the Session's words the card may show ([`word_cap`]):
 /// past its cap the whole question is read in the reader (`F2`), never
@@ -46,8 +39,8 @@ pub(crate) const WORD_ROWS: usize = 6;
 
 /// The rows of the Session's words the card may show on `state`'s frame:
 /// [`WORD_ROWS`], or a quarter of a taller frame's rows, so the words a tall
-/// frame has room for are read where they are answered. One cap for painting,
-/// measuring, the offers' hits and a decision's demand.
+/// frame has room for are read where they are answered. One cap for the
+/// card, the typed choice's surface and a decision's demand.
 pub(crate) fn word_cap(state: &UiState) -> usize {
     WORD_ROWS.max(usize::from(state.size.1) / 4)
 }
@@ -56,22 +49,22 @@ pub(crate) fn word_cap(state: &UiState) -> usize {
 pub(crate) const WHOLE: &str = "… the whole question: F2";
 
 /// The typed question the card paints: the one [`waiting`], while no turn
-/// works and the chooser lists nothing.
-fn painted<'a>(state: &'a UiState, composer: &Composer) -> Option<&'a Asked> {
-    if state.busy.is_some() || composer.listing().is_some() {
+/// works, whatever a surface shows over it.
+fn painted(state: &UiState) -> Option<&Asked> {
+    if state.busy.is_some() {
         return None;
     }
     waiting(state)
 }
 
-/// The typed question waiting, when it has a card: a choice that offers
-/// nothing has none.
+/// The typed question waiting, when it has a card: a text or an exact value.
+/// A typed choice opens the surface instead, and one that offers nothing has
+/// neither.
 fn waiting(state: &UiState) -> Option<&Asked> {
     let Waiting::QuestionDocument { asked, .. } = &state.waiting else {
         return None;
     };
-    let nothing = matches!(&asked.shape, Shape::Choice(offers) if offers.is_empty());
-    (!nothing).then_some(asked)
+    matches!(asked.shape, Shape::Text | Shape::Literal).then_some(asked)
 }
 
 /// The transcript block tied to the typed question waiting, by index: in the
@@ -99,8 +92,8 @@ pub(crate) fn asked_block(state: &UiState) -> Option<usize> {
 /// Whether the card stands as the question's live home: a typed question tied
 /// to its block is painted in the workspace. The boxed composer then needs no
 /// caption: the card names the question right above its line.
-pub(crate) fn homed(state: &UiState, composer: &Composer) -> bool {
-    painted(state, composer).is_some() && asked_block(state).is_some()
+pub(crate) fn homed(state: &UiState) -> bool {
+    painted(state).is_some() && asked_block(state).is_some()
 }
 
 /// How the card's words end.
@@ -115,13 +108,12 @@ pub(crate) enum Whole {
     Inline,
 }
 
-/// How a card shares its rows under its title: the word rows it shows, how
-/// those words end, and the offer rows.
+/// How a card shares its rows under its title: the word rows it shows and
+/// how those words end.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Share {
     pub(crate) words: usize,
     pub(crate) whole: Whole,
-    pub(crate) offers: usize,
 }
 
 impl Share {
@@ -133,22 +125,18 @@ impl Share {
         words.min(cap + 1)
     }
 
-    /// The share of `rows` rows for words that wrap to `words` rows beside
-    /// `offers` offers, under a cap of `cap` word rows. Under the title, the
-    /// first word row and an offer row come first; then the offers take their
-    /// page and the words what is left, the first of them always. `None` when
-    /// even the first rows do not fit: the card cannot carry the words.
-    pub(crate) fn of(rows: usize, words: usize, offers: usize, cap: usize) -> Option<Self> {
+    /// The share of `rows` rows for words that wrap to `words` rows under a
+    /// cap of `cap` word rows: under the title, the first word row always,
+    /// then the words what is left. `None` when even the first rows do not
+    /// fit: the card cannot carry the words.
+    pub(crate) fn of(rows: usize, words: usize, cap: usize) -> Option<Self> {
         if words == 0 {
             return None;
         }
-        let page = offers.min(SHOWN);
-        let room = rows.checked_sub(1)?;
-        if room < 1 + usize::from(page > 0) {
+        let left = rows.checked_sub(1)?;
+        if left < 1 {
             return None;
         }
-        let offers = page.min(room - 1);
-        let left = room - offers;
         let (words, whole) = if left >= Self::asks(words, cap) {
             if words <= cap + 1 {
                 (words, Whole::Shown)
@@ -160,33 +148,24 @@ impl Share {
         } else {
             (1, Whole::Inline)
         };
-        Some(Self {
-            words,
-            whole,
-            offers,
-        })
+        Some(Self { words, whole })
     }
 }
 
 /// Where a card's rows go: the word rows it paints (none unless it carries
-/// the Session's words) and how they end, then its first offer row and how
-/// many offer rows.
+/// the Session's words) and how they end.
 struct Rows {
     words: Vec<String>,
     whole: Whole,
-    offers_at: u16,
-    offers: usize,
     home: bool,
 }
 
-/// The rows of the card `asked` paints in `card`: the home's when the card
-/// carries the Session's words there, else the header and the offers.
-fn layout(state: &UiState, asked: &Asked, card: Rect) -> Rows {
+/// The rows the card paints in `card`: the home's when it carries the
+/// Session's words there, else the header alone.
+fn layout(state: &UiState, card: Rect) -> Rows {
     let header_only = Rows {
         words: Vec::new(),
         whole: Whole::Shown,
-        offers_at: card.y.saturating_add(1),
-        offers: usize::from(card.height.saturating_sub(1)),
         home: false,
     };
     let Some(block) = asked_block(state).and_then(|index| state.transcript.get(index)) else {
@@ -195,18 +174,13 @@ fn layout(state: &UiState, asked: &Asked, card: Rect) -> Rows {
     let mut words = hang(&block.text, usize::from(card.width));
     let height = usize::from(card.height);
     let cap = word_cap(state);
-    let Some(share) = Share::of(height, words.len(), offers(asked).len(), cap) else {
+    let Some(share) = Share::of(height, words.len(), cap) else {
         return header_only;
     };
     words.truncate(share.words);
-    let above = 1 + share.words + usize::from(share.whole == Whole::Row);
     Rows {
         words,
         whole: share.whole,
-        offers_at: card
-            .y
-            .saturating_add(u16::try_from(above).unwrap_or(u16::MAX)),
-        offers: share.offers,
         home: true,
     }
 }
@@ -235,34 +209,25 @@ pub(crate) fn carried(
     live: Rect,
     boxed: bool,
 ) -> Option<usize> {
-    let asked = painted(state, composer)?;
+    painted(state)?;
     let card = super::live_areas(state, composer, live, boxed).card;
-    if layout(state, asked, card).home {
+    if layout(state, card).home {
         asked_block(state)
     } else {
         None
     }
 }
 
-/// The offers of `asked` (none for a text or a literal answer).
-fn offers(asked: &Asked) -> &[Offer] {
-    match &asked.shape {
-        Shape::Choice(offers) => offers.as_slice(),
-        Shape::Text | Shape::Literal => &[],
-    }
-}
-
-/// The rows the card asks for on a live area `width` wide: its title, the
-/// Session's words when it may carry them (a bounded prefix), and up to
-/// [`SHOWN`] offers.
-pub(crate) fn rows(state: &UiState, composer: &Composer, width: u16) -> u16 {
-    painted(state, composer).map_or(0, |asked| card_rows(state, asked, width))
+/// The rows the card asks for on a live area `width` wide: its title and the
+/// Session's words when it may carry them (a bounded prefix).
+pub(crate) fn rows(state: &UiState, width: u16) -> u16 {
+    painted(state).map_or(0, |_| card_rows(state, width))
 }
 
 /// [`rows`] at rest, whatever a turn works or the chooser lists: what a
 /// decision's demand reads.
 pub(crate) fn rest_rows(state: &UiState, width: u16) -> u16 {
-    waiting(state).map_or(0, |asked| card_rows(state, asked, width))
+    waiting(state).map_or(0, |_| card_rows(state, width))
 }
 
 /// [`homed`] at rest, whatever a turn works or the chooser lists: the card
@@ -272,57 +237,21 @@ pub(crate) fn rest_homed(state: &UiState) -> bool {
     waiting(state).is_some() && asked_block(state).is_some()
 }
 
-/// The rows the card of `asked` asks for at `width` ([`rows`]).
-fn card_rows(state: &UiState, asked: &Asked, width: u16) -> u16 {
+/// The rows the card asks for at `width` ([`rows`]).
+fn card_rows(state: &UiState, width: u16) -> u16 {
     let cap = word_cap(state);
     let words = (asked_block(state))
         .and_then(|index| state.transcript.get(index))
         .map_or(0, |block| {
             Share::asks(hang(&block.text, usize::from(width)).len(), cap)
         });
-    let page = offers(asked).len().min(SHOWN);
-    u16::try_from(1 + words + page).unwrap_or(u16::MAX)
+    u16::try_from(1 + words).unwrap_or(u16::MAX)
 }
 
-/// The offers a window of `rows` shows out of `count`: the whole page that
-/// holds `selected`, the first page while nothing is selected.
-pub(crate) fn window(selected: Option<usize>, count: usize, rows: usize) -> Range<usize> {
-    if rows == 0 || count == 0 {
-        return 0..0;
-    }
-    let first = selected.map_or(0, |at| at.min(count - 1) / rows * rows);
-    first..count.min(first + rows)
-}
-
-/// The offer a press at `point` lands on, for the live area `live` painted
-/// `boxed` or not: the same rows and the same window the card paints.
-pub(crate) fn offer_at(
-    state: &UiState,
-    composer: &Composer,
-    live: Rect,
-    boxed: bool,
-    point: Position,
-) -> Option<usize> {
-    let asked = painted(state, composer)?;
-    let card = super::live_areas(state, composer, live, boxed).card;
-    if !card.contains(point) {
-        return None;
-    }
-    let rows = layout(state, asked, card);
-    if point.y < rows.offers_at {
-        return None;
-    }
-    let count = offers(asked).len();
-    let selected = composer.offer_selected(&state.waiting);
-    let shown = window(selected, count, rows.offers);
-    let index = shown.start + usize::from(point.y - rows.offers_at);
-    shown.contains(&index).then_some(index)
-}
-
-/// Paint the card into `area`: the header row, the Session's words when the
-/// card carries them, then the offers the window shows, one a row.
-pub(crate) fn render(state: &UiState, composer: &Composer, area: Rect, buf: &mut Buffer) {
-    let Some(asked) = painted(state, composer) else {
+/// Paint the card into `area`: the header row, then the Session's words
+/// when the card carries them.
+pub(crate) fn render(state: &UiState, area: Rect, buf: &mut Buffer) {
+    let Some(asked) = painted(state) else {
         return;
     };
     if area.height == 0 || area.width == 0 {
@@ -330,18 +259,8 @@ pub(crate) fn render(state: &UiState, composer: &Composer, area: Rect, buf: &mut
     }
     let (ascii, color) = (state.ascii, state.color);
     let width = usize::from(area.width);
-    let listed = offers(asked);
-    let selected = composer.offer_selected(&state.waiting);
-    let rows = layout(state, asked, area);
-    let shown = window(selected, listed.len(), rows.offers);
-    let line = header(
-        asked,
-        listed.len(),
-        &shown,
-        width,
-        rows.home,
-        (ascii, color),
-    );
+    let rows = layout(state, area);
+    let line = header(asked, width, rows.home, (ascii, color));
     buf.set_line(area.x, area.y, &line, area.width);
     let mut y = area.y;
     let last = rows.words.len().saturating_sub(1);
@@ -360,35 +279,12 @@ pub(crate) fn render(state: &UiState, composer: &Composer, area: Rect, buf: &mut
         let whole = Line::styled(whole, role::style(Role::Dim, color));
         buf.set_line(area.x, y, &whole, area.width);
     }
-    let armed = composer.offers_armed(&state.waiting);
-    let column = (listed.iter().map(|offer| offer.key.width()).max())
-        .unwrap_or(0)
-        .clamp(1, KEY_COLUMN);
-    for (y, index) in (rows.offers_at..).zip(shown) {
-        let Some(offer) = listed.get(index) else {
-            break;
-        };
-        let mark = Mark {
-            selected: selected == Some(index),
-            armed,
-        };
-        let line = offer_line(offer, mark, column, width, (ascii, color));
-        buf.set_line(area.x, y, &line, area.width);
-    }
 }
 
 /// What the header says: the question in the accent and the shape of the
 /// answer when the card carries the Session's words (`home`), else the shape
-/// alone; whether it is required; and which offers the window shows when it
-/// cannot show them all.
-fn header(
-    asked: &Asked,
-    count: usize,
-    shown: &Range<usize>,
-    width: usize,
-    home: bool,
-    (ascii, color): (bool, bool),
-) -> Line<'static> {
+/// alone; and whether it is required.
+fn header(asked: &Asked, width: usize, home: bool, (ascii, color): (bool, bool)) -> Line<'static> {
     let shape = match &asked.shape {
         Shape::Choice(_) => "Offered answers",
         Shape::Text => "A text answer",
@@ -408,11 +304,6 @@ fn header(
     }
     if asked.mandatory {
         facts.push_str(" · required");
-    }
-    if shown.is_empty() && count > 0 {
-        let _ = write!(facts, " · {count} offers");
-    } else if shown.len() < count {
-        let _ = write!(facts, " · {}-{} of {count}", shown.start + 1, shown.end);
     }
     let facts = own(&facts, ascii);
     let room = width - title.width();
@@ -487,51 +378,4 @@ fn words(text: &str) -> impl Iterator<Item = (&str, &str)> {
         rest = tail;
         Some((gap, word))
     })
-}
-
-/// How an offer's row marks the selection.
-#[derive(Clone, Copy)]
-struct Mark {
-    /// This offer is the one selected.
-    selected: bool,
-    /// The offers take keys now: the selection is also reversed.
-    armed: bool,
-}
-
-/// One offer's row: the selection mark, its key (the exact answer, padded to
-/// `column` cells), then what it means; a label that only repeats the key is
-/// not said twice.
-fn offer_line(
-    offer: &Offer,
-    mark: Mark,
-    column: usize,
-    width: usize,
-    (ascii, color): (bool, bool),
-) -> Line<'static> {
-    let glyph = match (mark.selected, ascii) {
-        (true, false) => "› ",
-        (true, true) => "> ",
-        (false, _) => "  ",
-    };
-    let pad = " ".repeat(column.saturating_sub(offer.key.width()));
-    let head = fit(&format!("{glyph}{}{pad}", offer.key), width, ascii);
-    let said = if offer.label.trim().is_empty() || offer.label == offer.key {
-        String::new()
-    } else {
-        format!("{}{}", own(" · ", ascii), offer.label)
-    };
-    let rest = fit(&said, width.saturating_sub(head.width()), ascii);
-    let reverse = Style::default().add_modifier(Modifier::REVERSED);
-    let (head_style, rest_style) = match (mark.selected, mark.armed) {
-        (true, true) => (
-            role::style(Role::Strong, color).patch(reverse),
-            Style::default().patch(reverse),
-        ),
-        (true, false) => (role::style(Role::Strong, color), Style::default()),
-        (false, _) => (role::style(Role::Accent, color), Style::default()),
-    };
-    Line::from(vec![
-        Span::styled(head, head_style),
-        Span::styled(rest, rest_style),
-    ])
 }

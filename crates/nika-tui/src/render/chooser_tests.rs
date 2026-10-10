@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The chooser as drawn in the live area: exact rows at the qualified
-//! widths, what waits said above the list, the selection kept in view, and
-//! the ASCII column.
+//! The chooser as drawn on its surface above the line: exact rows at the
+//! qualified widths, the Session's status facts and what waits said above
+//! the list, a draft set aside named there too, the selection kept on its
+//! page, the palette's search in the composer's own row, and the ASCII
+//! column.
 
 #![allow(clippy::expect_used)]
 
@@ -12,7 +14,7 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
 
-use super::{draw_inline, live_rows, render_live};
+use super::{draw_focus, draw_inline};
 use crate::composer::Composer;
 use crate::composer::chooser::Entry;
 use crate::model::{Presentation, UiState, Waiting};
@@ -70,12 +72,24 @@ fn rows(buffer: &Buffer) -> Vec<String> {
         .collect()
 }
 
+/// An inline frame `width` cells wide and twelve rows tall: the line on row
+/// 10, the hint on row 11, the surface's band above.
 fn inline(state: &UiState, composer: &Composer, width: u16) -> Vec<String> {
     let mut terminal = Terminal::new(TestBackend::new(width, 12)).expect("terminal");
     let _ = terminal.draw(|frame| draw_inline(frame, state, composer));
     rows(terminal.backend().buffer())
 }
 
+/// An entry's row as the surface paints it: the selection glyph, the name
+/// padded to the list's column, then what it does.
+fn entry(selected: bool, name: &str, column: usize, does: &str) -> String {
+    let glyph = if selected { "›" } else { " " };
+    format!("{glyph} {name:<column$} · {does}")
+}
+
+/// An open chooser keeps the Session's status facts, above the list on its
+/// surface, without the presentation's key instructions; closed, the status
+/// row says both again.
 #[test]
 fn an_open_chooser_keeps_status_facts_without_competing_key_instructions() {
     for presentation in [Presentation::Focus, Presentation::Workspace] {
@@ -89,11 +103,12 @@ fn an_open_chooser_keeps_status_facts_without_competing_key_instructions() {
                 composer.paste("/");
             }
             let shown = inline(&state, &composer, 120);
+            assert!(shown[0].starts_with("Commands"), "{shown:#?}");
             assert_eq!(
-                shown[0], "Ready for review",
+                shown[1], "Ready for review",
                 "{presentation:?}, palette {palette}"
             );
-            assert!(shown.last().expect("hint row").contains("Esc"));
+            assert!(shown[11].contains("Esc"), "{shown:#?}");
             composer.choose(key(KeyCode::Esc));
             let shown = inline(&state, &composer, 120);
             let mode = match presentation {
@@ -105,40 +120,54 @@ fn an_open_chooser_keeps_status_facts_without_competing_key_instructions() {
     }
 }
 
+/// A slash lists the commands above the line, the selection marked and its
+/// scope and help under the list; the line keeps its row.
 #[test]
-fn a_slash_lists_the_commands_under_the_line_with_the_selection_and_its_detail() {
+fn a_slash_lists_the_commands_above_the_line_with_the_selection_and_its_detail() {
     let state = UiState::new(Presentation::Inline, false, (80, 12));
     let mut composer = composer();
     composer.paste("/");
     composer.choose(key(KeyCode::Down));
     let shown = inline(&state, &composer, 80);
+    assert!(
+        shown[0].starts_with("Commands · beginning with what you typed"),
+        "{shown:#?}"
+    );
+    assert!(shown[0].ends_with("Esc"), "{shown:#?}");
     assert_eq!(
-        shown[..8],
+        shown[1..6],
         [
-            "",
-            "nika › /",
-            "  /help          What you can ask, and every command",
-            "› /status        Where you are",
-            "  /show          The proposal's exact bytes",
-            "  /intelligence  Choose the AI this session reasons with",
-            "any time · reads only · Project root, intelligence, authoring seat.",
-            "",
+            entry(false, "/help", 13, "What you can ask, and every command"),
+            entry(true, "/status", 13, "Where you are"),
+            entry(false, "/show", 13, "The proposal's exact bytes"),
+            entry(
+                false,
+                "/intelligence",
+                13,
+                "Choose the AI this session reasons with"
+            ),
+            "any time · reads only · Project root, intelligence, authoring seat.".to_owned(),
         ]
     );
+    assert_eq!(shown[10], "nika › /");
     assert_eq!(
         shown[11],
-        "↑↓ choose · Tab or Enter inserts · Esc hides the list"
+        "↑↓ choose · Enter runs · Tab inserts · Esc hides the list"
     );
 }
 
+/// A whole command says `Enter` sends it, and each waiting state says above
+/// the list that no command answers it; while Nika works the command waits
+/// in the box.
 #[test]
 fn a_whole_command_says_enter_sends_it_and_waiting_states_say_nothing_answers() {
     let mut state = UiState::new(Presentation::Inline, false, (80, 12));
     let mut composer = composer();
     composer.paste("/show");
     let shown = inline(&state, &composer, 80);
-    // A name column of six cells at least, then two spaces.
-    assert_eq!(shown[2], "› /show   The proposal's exact bytes");
+    // A name column of six cells at least.
+    let whole = entry(true, "/show", 6, "The proposal's exact bytes");
+    assert_eq!(shown[1], whole);
     assert_eq!(
         shown[11],
         "Enter sends /show · ↑↓ choose · Esc hides the list"
@@ -166,12 +195,9 @@ fn a_whole_command_says_enter_sends_it_and_waiting_states_say_nothing_answers() 
         state.waiting = waiting;
         let shown = inline(&state, &composer, 80);
         let context = shown.iter().position(|row| row == said);
-        // (The choice screen's own prompt is `› `: the entry is found whole.)
-        let entry = shown
-            .iter()
-            .position(|row| row == "› /show   The proposal's exact bytes");
+        let listed = shown.iter().position(|row| *row == whole);
         assert!(
-            context.is_some_and(|at| entry == Some(at + 1)),
+            context.is_some_and(|at| listed == Some(at + 1)),
             "{said}: {shown:#?}"
         );
     }
@@ -193,6 +219,8 @@ fn a_whole_command_says_enter_sends_it_and_waiting_states_say_nothing_answers() 
     );
 }
 
+/// The palette's search takes the composer's own row while the draft waits
+/// out of view; `Esc` brings the draft back on that row.
 #[test]
 fn the_palette_takes_the_composer_row_and_keeps_the_draft_out_of_view() {
     let state = UiState::new(Presentation::Inline, false, (80, 12));
@@ -203,22 +231,29 @@ fn the_palette_takes_the_composer_row_and_keeps_the_draft_out_of_view() {
         composer.choose(key(KeyCode::Char(c)));
     }
     let shown = inline(&state, &composer, 80);
-    assert_eq!(shown[1], "commands › model");
-    assert_eq!(shown[2], "› /status        Where you are");
+    assert_eq!(shown[10], "commands › model");
+    assert_eq!(shown[1], entry(true, "/status", 13, "Where you are"));
     assert_eq!(
-        shown[3],
-        "  /intelligence  Choose the AI this session reasons with"
+        shown[2],
+        entry(
+            false,
+            "/intelligence",
+            13,
+            "Choose the AI this session reasons with"
+        )
     );
     assert!(!shown.iter().any(|row| row.contains("my draft stays")));
     assert_eq!(
         shown[11],
-        "↑↓ choose · Enter inserts, never sends · Esc: back to your draft"
+        "↑↓ choose · Enter runs · Tab inserts · Esc: back to your draft"
     );
     composer.choose(key(KeyCode::Esc));
     let back = inline(&state, &composer, 80);
-    assert_eq!(back[1], "nika › my draft stays");
+    assert_eq!(back[10], "nika › my draft stays");
 }
 
+/// Words the palette set aside to insert a command are named on the surface
+/// the command's own slash list opens, above it, until they return.
 #[test]
 fn a_draft_set_aside_is_named_until_it_returns() {
     let state = UiState::new(Presentation::Inline, false, (80, 12));
@@ -228,15 +263,16 @@ fn a_draft_set_aside_is_named_until_it_returns() {
     for c in "status".chars() {
         composer.choose(key(KeyCode::Char(c)));
     }
-    composer.choose(key(KeyCode::Enter));
+    composer.choose(key(KeyCode::Tab));
     let shown = inline(&state, &composer, 80);
     assert_eq!(
         shown[1],
         "set aside: « read ./notes and digest… » · back once this line is sent · Esc: now"
     );
-    assert_eq!(shown[2], "nika › /status");
+    assert_eq!(shown[10], "nika › /status");
 }
 
+/// Every row the chooser's surface paints stays ASCII in the ASCII column.
 #[test]
 fn the_ascii_column_draws_every_chooser_row_in_ascii() {
     let mut state = UiState::new(Presentation::Inline, false, (80, 12));
@@ -249,57 +285,40 @@ fn the_ascii_column_draws_every_chooser_row_in_ascii() {
         assert!(row.is_ascii(), "{row:?}");
     }
     assert!(
-        shown.contains(&"> /status  Where you are".to_owned()),
+        shown.contains(&"> /status - Where you are".to_owned()),
         "{shown:#?}"
     );
     assert!(
-        shown.contains(&"Up/Down choose - Tab or Enter inserts - Esc hides the list".to_owned()),
+        shown
+            .contains(&"Up/Down choose - Enter runs - Tab inserts - Esc hides the list".to_owned()),
         "{shown:#?}"
     );
 }
 
-/// The live area grows for the chooser, never past all but two rows of what
-/// it is given; closed, it keeps its half.
+/// A short band pages its list whole around the selection: the selected
+/// entry stays in view and the facts above it stay whole.
 #[test]
-fn the_live_area_grows_for_the_chooser_and_keeps_two_rows_for_the_transcript() {
-    let state = UiState::new(Presentation::Focus, false, (80, 24));
-    let mut composer = composer();
-    let closed = live_rows(&state, &composer, 80, 24);
-    composer.paste("/");
-    let open = live_rows(&state, &composer, 80, 24);
-    // status, line, four entries, two detail rows at most, hint.
-    assert!(open > closed, "{open} > {closed}");
-    assert!(open <= 9, "{open}");
-    for height in [6, 8, 10] {
-        assert!(live_rows(&state, &composer, 80, height) <= height - 2);
-    }
-    composer.choose(key(KeyCode::Esc));
-    assert_eq!(live_rows(&state, &composer, 80, 24), closed);
-}
-
-/// A short live area (a stacked workspace panel) keeps the selected entry in
-/// view as the selection moves past the rows it holds.
-#[test]
-fn a_short_area_scrolls_the_list_with_the_selection() {
-    let mut state = UiState::new(Presentation::Workspace, false, (80, 24));
+fn a_short_band_pages_the_list_with_the_selection() {
+    let mut state = UiState::new(Presentation::Focus, false, (60, 8));
     state.waiting = Waiting::Proposal;
     let mut composer = composer();
     composer.paste("/");
     for _ in 0..3 {
         composer.choose(key(KeyCode::Down));
     }
-    let mut terminal = Terminal::new(TestBackend::new(60, 6)).expect("terminal");
-    let _ = terminal.draw(|frame| render_live(frame, &state, &composer, frame.area()));
+    let mut terminal = Terminal::new(TestBackend::new(60, 8)).expect("terminal");
+    let _ = terminal.draw(|frame| draw_focus(frame, &state, &composer));
     let shown = rows(terminal.backend().buffer());
+    assert!(shown[0].starts_with("Commands"), "{shown:#?}");
+    assert_eq!(shown[1], "Not saved yet · yes means Save only");
+    // Sixty cells: the context fits its row whole.
     assert_eq!(
-        shown,
-        [
-            "Not saved yet · yes means Save only",
-            "Save? › /",
-            "A proposal waits · no command answers it · yes + Enter: Save",
-            "› /intelligence  Choose the AI this session reasons with",
-            "this session · your next line chooses · Shows the",
-            "↑↓ choose · Tab or Enter inserts · Esc hides the list",
-        ]
+        shown[2],
+        "A proposal waits · no command answers it · yes + Enter: Save"
     );
+    assert!(
+        shown[3].starts_with("› /intelligence · Choose the AI"),
+        "{shown:#?}"
+    );
+    assert!(!shown.iter().any(|row| row.contains("/help")), "{shown:#?}");
 }

@@ -6,8 +6,11 @@
 //! through the same infer-grade adapter `nika run` uses), an API or a
 //! local engine (through the same provider registry and the same one-shot
 //! infer verb), a scripted reasoner (the tests' stand-in, which records
-//! exactly what it was given), or none.
+//! exactly what it was given), or none. [`agent_model`] asks the same API or
+//! local route with a whole conversation and the Session's tools, for the
+//! conversation the selected intelligence leads.
 
+pub mod agent_model;
 #[cfg(test)]
 mod label_tests;
 #[cfg(any(test, feature = "test-support"))]
@@ -166,6 +169,14 @@ pub trait SessionReasoner: Send {
     /// words only, and no path at all, name none. Subscription capability
     /// is declared separately by `authoring_harness`.
     fn authoring_model(&self) -> Option<String> {
+        None
+    }
+
+    /// The model that leads the Session's conversation with its tools on this path, when it can:
+    /// an API or a local route asked with the whole conversation ([`agent_model::AgentModel`]).
+    /// A path that answers prompts only, a subscription seat and no path lead none; the Session
+    /// then keeps its round driver.
+    fn agent_model(&self) -> Option<agent_model::AgentModel> {
         None
     }
 }
@@ -393,6 +404,10 @@ impl SessionReasoner for ProviderReasoner {
 
     fn authoring_model(&self) -> Option<String> {
         Some(self.model.clone())
+    }
+
+    fn agent_model(&self) -> Option<agent_model::AgentModel> {
+        Some(agent_model::AgentModel::new(self.model.clone()))
     }
 
     fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError> {

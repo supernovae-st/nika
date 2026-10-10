@@ -6,18 +6,19 @@
 //! Two doors open one list. A one-line draft that starts with `/` lists the
 //! Session commands that begin with what is typed; the palette (`Ctrl+O`, or
 //! `Tab` in an empty box) lists every command and view key, searched by its
-//! own query while the draft waits untouched and out of view. The arrows and
-//! `Tab` choose. Choosing a command INSERTS its words into the draft and
-//! never sends them: `Enter` stays the human's own act, and on a whole
-//! command it sends as it always did. A view key chosen in the palette goes
-//! back to the shell, which presses it once the palette has closed. `Esc`
-//! closes the innermost thing: the palette (the draft as it was), the slash
-//! list (until the draft changes), then a draft the palette set aside.
+//! own query while the draft waits untouched and out of view. The arrows
+//! choose. `Tab` INSERTS the selected command's words into the draft and
+//! never sends them. `Enter` is the one deliberate act: on a command it runs
+//! it once (the palette's without touching the draft, the slash list's as
+//! the line it completes); on a view key the shell presses that key once the
+//! palette has closed. `Esc` closes the innermost thing: the palette (the
+//! draft as it was), the slash list (until the draft changes), then a draft
+//! the palette set aside.
 //!
-//! A command takes a whole line, so a palette choice over words already in
-//! the box sets those words aside: never lost and never sent, they return to
-//! the box once the line that replaced them is taken (sent, or queued as a
-//! correction), or at once with `Esc`.
+//! A command inserts as a whole line, so `Tab` in the palette over words
+//! already in the box sets those words aside: never lost and never sent, they
+//! return to the box once the line that replaced them is taken (sent, or
+//! queued as a correction), or at once with `Esc`.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -109,9 +110,12 @@ pub(crate) enum Chosen {
     /// The chooser read it: the selection, the query, the list or the
     /// draft's words changed, and nothing was sent.
     Read,
-    /// The palette closed on a command it put in the draft: the keys stay on
-    /// the composer, so the `Enter` that sends it is the human's own.
+    /// The palette closed on a command it put in the draft (`Tab`): the keys
+    /// stay on the composer, so the `Enter` that sends it is the human's own.
     Inserted,
+    /// `Enter` on a command in the palette, which closed: the shell runs the
+    /// command once, the draft untouched.
+    Run(String),
     /// A view key chosen in the palette, which closed: the shell presses it.
     Press(KeyEvent),
 }
@@ -131,9 +135,17 @@ pub(crate) struct Chooser {
     query: Option<String>,
     /// The composer holds the keys; the slash list shows and reads only then.
     focused: bool,
+    /// A typed choice holds the line: the slash list never opens over it,
+    /// whatever the draft waiting out of view holds.
+    held: bool,
 }
 
 impl Chooser {
+    /// Whether a typed choice holds the line ([`Chooser::held`]).
+    pub(super) fn hold(&mut self, held: bool) {
+        self.held = held;
+    }
+
     /// The commands whose name begins with `word`, case aside.
     fn beginning(&self, word: &str) -> Vec<&Entry> {
         let word = word.to_lowercase();
@@ -214,6 +226,7 @@ impl Composer {
             self.area.cursor_line_style()
         };
         self.area.set_cursor_style(cursor);
+        self.answer.focus(focused);
     }
 
     /// Whether the composer holds the keys ([`Self::set_focused`]).
@@ -292,6 +305,7 @@ impl Composer {
     fn typed_command(&self) -> Option<String> {
         let text = self.text();
         let open = self.chooser.focused
+            && !self.chooser.held
             && command_word(&text)
             && !self.recalled(&text)
             && self.chooser.closed_for.as_deref() != Some(text.as_str());
@@ -352,7 +366,13 @@ impl Composer {
             KeyCode::PageDown => self.page(true),
             // `Enter` on the whole command is the composer's own: it sends.
             KeyCode::Enter if self.listing().is_some_and(|listing| listing.whole) => Chosen::Pass,
-            KeyCode::Tab | KeyCode::Enter => self.insert_selected(),
+            KeyCode::Tab => self.insert_selected(),
+            // `Enter` completes the line with the selected command, then the
+            // composer's own `Enter` sends it: one press, one line.
+            KeyCode::Enter => {
+                self.insert_selected();
+                Chosen::Pass
+            }
             _ => Chosen::Pass,
         }
     }
@@ -374,7 +394,8 @@ impl Composer {
             KeyCode::PageDown => self.page(true),
             KeyCode::Home => self.step_to(0),
             KeyCode::End => self.step_to(usize::MAX),
-            KeyCode::Tab | KeyCode::Enter => self.pick(),
+            KeyCode::Tab => self.pick(false),
+            KeyCode::Enter => self.pick(true),
             KeyCode::Backspace => {
                 if let Some(query) = self.chooser.query.as_mut() {
                     query.pop();
@@ -393,6 +414,15 @@ impl Composer {
                 self.close_palette();
                 Chosen::Pass
             }
+        }
+    }
+
+    /// A press on the listed entry at `index`: it is selected, nothing else.
+    pub(crate) fn select_entry(&mut self, index: usize) {
+        let name = (self.listing())
+            .and_then(|listing| listing.entries.get(index).map(|entry| entry.name.clone()));
+        if name.is_some() {
+            self.chooser.picked = name;
         }
     }
 
@@ -454,9 +484,10 @@ impl Composer {
         Chosen::Read
     }
 
-    /// The palette's choice: a command goes into the box, a view key back to
-    /// the shell. With nothing listed the palette stays open.
-    fn pick(&mut self) -> Chosen {
+    /// The palette's choice: a command runs (`run`, the shell sends it) or
+    /// goes into the box, a view key back to the shell. With nothing listed
+    /// the palette stays open.
+    fn pick(&mut self, run: bool) -> Chosen {
         let Some(act) = self
             .listing()
             .and_then(|listing| listing.current().map(|entry| entry.act.clone()))
@@ -465,12 +496,19 @@ impl Composer {
         };
         self.close_palette();
         match act {
+            Act::Insert(words) if run => Chosen::Run(words),
             Act::Insert(words) => {
                 self.put(&words);
                 Chosen::Inserted
             }
             Act::Press(key) => Chosen::Press(key),
         }
+    }
+
+    /// A command the palette chose put in the box after all, as `Tab` puts
+    /// it (while Nika works it waits there for the human's turn).
+    pub(crate) fn insert_command(&mut self, words: &str) {
+        self.put(words);
     }
 
     /// Put a command chosen in the palette in the box. Words already there

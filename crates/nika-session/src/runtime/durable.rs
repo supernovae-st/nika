@@ -116,6 +116,7 @@ impl SessionRuntime {
         }
         // Its own knowledge choice resumes with it too, for it alone.
         self.restore_knowledge(history.state.knowledge.clone());
+        self.resume_agent(history.store_dir(), history.state.agent.as_ref());
         self.restored_draft = history.state.pending.clone().map(Restored::from_raw);
         self.money.reconfirm |= history.restored && history.monetary_seen;
         if self.money.reconfirm {
@@ -181,13 +182,19 @@ impl SessionRuntime {
         } else {
             Operation::Turn
         };
-        self.recorded(operation, input, |s| {
+        let outcome = self.recorded(operation, input, |s| {
             if s.waiting_cost_choice() {
                 s.cost_answer(input)
             } else {
                 s.turn_unrecorded(input)
             }
-        })
+        });
+        // The person's own words authorized the acts for the proposal this turn made: the
+        // consent door performs them, by its identity, as for a consent typed at it.
+        match self.agent_authorized() {
+            Some((proposal, word)) => self.consent_to(&proposal, word),
+            None => outcome,
+        }
     }
 
     /// Answer the current intelligence choice through the same durable boundary.
@@ -890,6 +897,7 @@ impl SessionRuntime {
             last_run: self.kept_run.clone(),
             selection: (self.conversation.as_ref()).and_then(super::ConversationChoice::value),
             knowledge: self.knowledge.conversation.clone(),
+            agent: self.agent_kept(),
         }
     }
 

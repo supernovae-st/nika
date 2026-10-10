@@ -734,6 +734,8 @@ pub type nika_tui::model::Stopping::Output = T
 pub nika_tui::model::Waiting::Choosing
 pub nika_tui::model::Waiting::Free
 pub nika_tui::model::Waiting::Gate
+#[non_exhaustive] pub nika_tui::model::Waiting::Knowledge
+pub nika_tui::model::Waiting::Knowledge::asked: nika_tui::model::Asked
 pub nika_tui::model::Waiting::Proposal
 pub nika_tui::model::Waiting::Question
 pub nika_tui::model::Waiting::Question::key: alloc::string::String
@@ -743,6 +745,7 @@ pub nika_tui::model::Waiting::QuestionDocument::key: alloc::string::String
 impl nika_tui::model::Waiting
 pub fn nika_tui::model::Waiting::asked(key: impl core::convert::Into<alloc::string::String>, asked: nika_tui::model::Asked) -> Self
 pub fn nika_tui::model::Waiting::hint(&self) -> &'static str
+pub fn nika_tui::model::Waiting::knowledge(asked: nika_tui::model::Asked) -> Self
 pub fn nika_tui::model::Waiting::prompt(&self) -> &'static str
 impl core::clone::Clone for nika_tui::model::Waiting
 pub fn nika_tui::model::Waiting::clone(&self) -> nika_tui::model::Waiting
@@ -800,11 +803,13 @@ pub fn nika_tui::model::Waiting::null_value() -> T
 pub nika_tui::model::Asked::epoch: u64
 pub nika_tui::model::Asked::label: alloc::string::String
 pub nika_tui::model::Asked::mandatory: bool
+pub nika_tui::model::Asked::retained: core::option::Option<nika_tui::model::Retained>
 pub nika_tui::model::Asked::shape: nika_tui::model::Shape
 pub nika_tui::model::Asked::why: alloc::string::String
 pub nika_tui::model::Asked::witness: alloc::string::String
 impl nika_tui::model::Asked
 pub fn nika_tui::model::Asked::new(label: impl core::convert::Into<alloc::string::String>, why: impl core::convert::Into<alloc::string::String>, mandatory: bool, shape: nika_tui::model::Shape, witness: impl core::convert::Into<alloc::string::String>, epoch: u64) -> Self
+pub fn nika_tui::model::Asked::retaining(self, retained: nika_tui::model::Retained) -> Self
 impl core::clone::Clone for nika_tui::model::Asked
 pub fn nika_tui::model::Asked::clone(&self) -> nika_tui::model::Asked
 impl core::cmp::Eq for nika_tui::model::Asked
@@ -1006,6 +1011,58 @@ impl<T> tracing::instrument::Instrument for nika_tui::model::Offer
 impl<T> tracing::instrument::WithSubscriber for nika_tui::model::Offer
 impl<T> typenum::type_operators::Same for nika_tui::model::Offer
 pub type nika_tui::model::Offer::Output = T
+#[non_exhaustive] pub struct nika_tui::model::Retained
+pub nika_tui::model::Retained::goal: core::option::Option<alloc::string::String>
+pub nika_tui::model::Retained::open: alloc::vec::Vec<alloc::string::String>
+impl nika_tui::model::Retained
+pub const fn nika_tui::model::Retained::new(goal: core::option::Option<alloc::string::String>, open: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_tui::model::Retained
+pub fn nika_tui::model::Retained::clone(&self) -> nika_tui::model::Retained
+impl core::cmp::Eq for nika_tui::model::Retained
+impl core::cmp::PartialEq for nika_tui::model::Retained
+pub fn nika_tui::model::Retained::eq(&self, other: &nika_tui::model::Retained) -> bool
+impl core::fmt::Debug for nika_tui::model::Retained
+pub fn nika_tui::model::Retained::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui::model::Retained
+impl<D> owo_colors::OwoColorize for nika_tui::model::Retained
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::model::Retained where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::model::Retained::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::model::Retained where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::model::Retained::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::model::Retained where U: core::convert::From<T>
+pub fn nika_tui::model::Retained::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::model::Retained where U: core::convert::Into<T>
+pub type nika_tui::model::Retained::Error = core::convert::Infallible
+pub fn nika_tui::model::Retained::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::model::Retained where U: core::convert::TryFrom<T>
+pub type nika_tui::model::Retained::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::model::Retained::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::model::Retained where T: core::clone::Clone
+pub type nika_tui::model::Retained::Owned = T
+pub fn nika_tui::model::Retained::clone_into(&self, target: &mut T)
+pub fn nika_tui::model::Retained::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::model::Retained where T: 'static + ?core::marker::Sized
+pub fn nika_tui::model::Retained::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::model::Retained where T: ?core::marker::Sized
+pub fn nika_tui::model::Retained::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::model::Retained where T: ?core::marker::Sized
+pub fn nika_tui::model::Retained::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::model::Retained where T: core::clone::Clone
+pub unsafe fn nika_tui::model::Retained::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::model::Retained
+pub fn nika_tui::model::Retained::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::model::Retained where T: core::clone::Clone
+pub fn nika_tui::model::Retained::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::model::Retained
+impl<T> nika_error::traits::AsAny for nika_tui::model::Retained where T: 'static
+pub fn nika_tui::model::Retained::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::model::Retained where T: ?core::marker::Sized
+pub fn nika_tui::model::Retained::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::model::Retained::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::model::Retained
+impl<T> tracing::instrument::WithSubscriber for nika_tui::model::Retained
+impl<T> typenum::type_operators::Same for nika_tui::model::Retained
+pub type nika_tui::model::Retained::Output = T
 #[non_exhaustive] pub struct nika_tui::model::Script
 impl nika_tui::model::Script
 pub fn nika_tui::model::Script::demo() -> Self

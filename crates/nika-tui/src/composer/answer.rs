@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The offers of the typed choice on screen, and which one the human
-//! selected: presentation only. A selection is never an answer and grants
-//! nothing. Only `Enter` on a selection sends its key, exactly once, and the
-//! shell binds it to the question painted at that moment.
+//! The offers of the typed choice on screen, which one the human selected,
+//! and the human's own reply: presentation only. A selection is never an
+//! answer and grants nothing. Only `Enter` sends, exactly once: the own reply
+//! when it holds words, else the selected offer's key, and the shell binds it
+//! to the question painted at that moment.
 //!
-//! The offers take keys only while the composer holds them, nothing lists
-//! commands, the draft is blank, nothing works and no answer is in flight.
-//! `Up`, `Down`, `Home` and `End` select: nothing is preselected, and the first
-//! `Down` selects the first offer. The offers never write the draft. A draft,
-//! typed or pasted, is the answer instead. Typeahead never reaches them,
-//! because the typeahead law drops `Enter` and the arrows typed while Nika
-//! works, and `Home` and `End` only edit the draft. `PgUp` and `PgDn` keep
-//! paging the transcript, where a long question is read.
+//! The typed choice opens as the surface above the line (choice mode): the
+//! ordinary draft waits out of view, untouched, its caret and selection
+//! with it, and the line shows the own reply's field instead
+//! ([`Answer::own`]). The offers take keys while the composer holds them,
+//! nothing lists commands, nothing works and no answer is in flight. `Up`,
+//! `Down`, `Home` and `End` select: nothing is preselected, and the first
+//! `Down` selects the first offer. The offers never write a field. Typeahead
+//! never reaches them, because the typeahead law drops `Enter` and the arrows
+//! typed while Nika works.
 //!
 //! A selection belongs to one logical question: the epoch of the session that
 //! asked it, its key and its exact offers (keys and labels, in order). That
@@ -22,7 +24,12 @@
 //! binds the identity painted now. Another scope, a question that no longer
 //! waits, or a selection already sent and taken starts with nothing selected.
 
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
+use ratatui::style::Style;
+use ratatui::widgets::Widget;
+use ratatui_textarea::{Input, Key, TextArea};
 
 use super::Composer;
 use crate::model::{Asked, Offer, Shape, Waiting};
@@ -33,8 +40,10 @@ use crate::model::{Asked, Offer, Shape, Waiting};
 pub(crate) enum Sent {
     /// The selected offer's key.
     Offer,
-    /// The draft: the human's own words.
+    /// The draft: the human's own words, under a question with no offers.
     Draft,
+    /// The own reply typed in the typed choice's own field.
+    Own,
 }
 
 /// What a key did to the offers.
@@ -48,16 +57,20 @@ pub(crate) enum Offered {
     Answer(String),
 }
 
+/// The key a selection of the knowledge decision belongs to.
+const KNOWLEDGE: &str = "knowledge";
+
 /// The typed choice `waiting` paints: its key, its question and its offers
-/// (at least one).
+/// (at least one). A typed question's, or the knowledge decision a held line
+/// waits for, whose offers are the exact lines the Session reads.
 pub(crate) fn choice(waiting: &Waiting) -> Option<(&str, &Asked, &[Offer])> {
-    let Waiting::QuestionDocument { key, asked } = waiting else {
-        return None;
+    let (key, asked) = match waiting {
+        Waiting::QuestionDocument { key, asked } => (key.as_str(), asked),
+        Waiting::Knowledge { asked } => (KNOWLEDGE, asked),
+        _ => return None,
     };
     match &asked.shape {
-        Shape::Choice(offers) if !offers.is_empty() => {
-            Some((key.as_str(), asked, offers.as_slice()))
-        }
+        Shape::Choice(offers) if !offers.is_empty() => Some((key, asked, offers.as_slice())),
         Shape::Choice(_) | Shape::Text | Shape::Literal => None,
     }
 }
@@ -93,6 +106,38 @@ pub(crate) struct Answer {
     scope: Option<Scope>,
     selected: Option<usize>,
     sent: Option<Sent>,
+    /// The human's own reply to the typed choice: a field of its own, so the
+    /// ordinary draft never changes under a question. It belongs to the
+    /// logical question, as the selection does.
+    own: TextArea<'static>,
+}
+
+/// The own reply's field, empty: wrapped and marked as the line is, its
+/// cursor shown only while the composer holds the keys.
+fn own_field(focused: bool) -> TextArea<'static> {
+    let mut own = TextArea::default();
+    own.set_wrap_mode(super::WRAP);
+    own.set_cursor_line_style(Style::default());
+    own.set_cursor_style(if focused {
+        super::CURSOR
+    } else {
+        Style::default()
+    });
+    own.set_placeholder_text("or type your own reply");
+    own.set_placeholder_style(super::PLACEHOLDER);
+    own
+}
+
+impl Answer {
+    /// The own reply's cursor follows the keys, as the line's does.
+    pub(super) fn focus(&mut self, focused: bool) {
+        let cursor = if focused {
+            super::CURSOR
+        } else {
+            self.own.cursor_line_style()
+        };
+        self.own.set_cursor_style(cursor);
+    }
 }
 
 impl Answer {
@@ -122,15 +167,18 @@ impl Answer {
         if !kept {
             self.scope = chosen.map(|(key, asked, offers)| Scope::of(key, asked, offers));
             self.selected = None;
+            self.own = own_field(true);
         }
     }
 }
 
 impl Composer {
     /// A wait the shell applies, in order: the selection follows the logical
-    /// question it belongs to ([`Answer`]'s rules).
+    /// question it belongs to ([`Answer`]'s rules), and a typed choice holds
+    /// the line while it waits.
     pub(crate) fn follow(&mut self, waiting: &Waiting) {
         self.answer.follow(waiting);
+        self.chooser.hold(choice(waiting).is_some());
     }
 
     /// The offer selected for the typed choice `waiting` paints, if any.
@@ -139,14 +187,81 @@ impl Composer {
     }
 
     /// Whether the offers of `waiting` take a selection now: a typed choice is
-    /// painted, nothing lists commands, the draft is blank and no answer is in
-    /// flight. A press may select then; keys also need the composer to hold
-    /// them ([`Self::offers_armed`]).
+    /// painted, nothing lists commands and no answer is in flight; the
+    /// ordinary draft waits out of view whatever it holds. A press may select
+    /// then; keys also need the composer to hold them
+    /// ([`Self::offers_armed`]).
     pub(crate) fn offers_open(&self, waiting: &Waiting) -> bool {
-        choice(waiting).is_some()
-            && self.listing().is_none()
-            && self.is_blank()
-            && self.answer.sent.is_none()
+        choice(waiting).is_some() && self.listing().is_none() && self.answer.sent.is_none()
+    }
+
+    /// Whether `waiting`'s typed choice holds the line (choice mode): nothing
+    /// lists commands, and the own reply's field stands in the draft's place.
+    pub(crate) fn choosing(&self, waiting: &Waiting) -> bool {
+        choice(waiting).is_some() && self.listing().is_none()
+    }
+
+    /// The own reply as typed, exactly.
+    pub(crate) fn own_reply(&self) -> String {
+        self.answer.own.lines().join("\n")
+    }
+
+    /// One key for the own reply's field: a character, a correction, a move
+    /// along the line, or a line break (`Alt+Enter`, `Ctrl+J`). `false` when
+    /// the key is not an edit (the shell's keys, the offers' keys, `Enter`).
+    pub(crate) fn own_key(&mut self, key: KeyEvent) -> bool {
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        let alt = key.modifiers.contains(KeyModifiers::ALT);
+        let shift = key.modifiers.contains(KeyModifiers::SHIFT);
+        let own = &mut self.answer.own;
+        let typed = match key.code {
+            KeyCode::Enter if alt || shift || ctrl => {
+                own.insert_newline();
+                return true;
+            }
+            KeyCode::Char('j') if ctrl => {
+                own.insert_newline();
+                return true;
+            }
+            KeyCode::Char(c) if ctrl && matches!(c, 'c' | 't' | 'o' | 'l' | 'd' | 'z') => {
+                return false;
+            }
+            KeyCode::Char(c) => Key::Char(c),
+            KeyCode::Backspace => Key::Backspace,
+            KeyCode::Delete => Key::Delete,
+            KeyCode::Left => Key::Left,
+            KeyCode::Right => Key::Right,
+            _ => return false,
+        };
+        own.input(Input {
+            key: typed,
+            ctrl,
+            alt,
+            shift,
+        });
+        true
+    }
+
+    /// Pasted text into the own reply's field, as data.
+    pub(crate) fn paste_own(&mut self, text: &str) {
+        (self.answer.own).insert_str(text.replace("\r\n", "\n").replace('\r', "\n"));
+    }
+
+    /// Words of an own reply that was not taken back in its field, first,
+    /// before whatever it holds now.
+    pub(crate) fn put_back_own(&mut self, words: &str) {
+        let rest = self.own_reply();
+        self.answer.own = own_field(self.focused());
+        self.paste_own(words);
+        if !rest.trim().is_empty() {
+            self.paste_own("\n");
+            self.paste_own(&rest);
+        }
+    }
+
+    /// Draw the own reply's field into `area`.
+    pub(crate) fn render_own(&self, area: Rect, buf: &mut Buffer) {
+        (&self.answer.own).render(area, buf);
     }
 
     /// Whether the offers of `waiting` take keys now: they are open and the
@@ -174,7 +289,15 @@ impl Composer {
             KeyCode::Home => 0,
             KeyCode::End => last,
             KeyCode::Enter => {
-                // Nothing selected: `Enter` is the composer's, the draft the answer.
+                // The own reply's words first, kept in history as any line sent.
+                let own = self.own_reply();
+                if !own.trim().is_empty() {
+                    self.answer.own = own_field(true);
+                    self.history.push(own.clone());
+                    self.answer.sent = Some(Sent::Own);
+                    return Offered::Answer(own);
+                }
+                // Nothing selected and no words: nothing is sent.
                 let Some(offer) = at.and_then(|at| offers.get(at)) else {
                     return Offered::Pass;
                 };
@@ -224,6 +347,7 @@ mod tests {
     use crossterm::event::KeyModifiers;
 
     use super::*;
+    use crate::composer::ComposerAction;
 
     fn key(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::NONE)
@@ -403,19 +527,30 @@ mod tests {
         }
     }
 
-    /// The offers are inert while the draft holds words (typed or pasted),
-    /// while the chooser lists, and for keys while the composer does not
-    /// hold them; a press still selects there, never into the draft.
+    /// The offers take keys whatever the draft waiting out of view holds
+    /// (typed or pasted words never make them inert, and a slash draft opens
+    /// no list over the typed choice), never while the palette lists, and for
+    /// keys only while the composer holds them; a press still selects there,
+    /// and nothing writes the draft.
     #[test]
-    fn the_offers_take_keys_only_from_an_empty_draft_that_holds_the_keys() {
+    fn the_offers_take_keys_whatever_the_hidden_draft_holds() {
         let painted = choosing("w1");
         let mut composer = composer(&painted);
         composer.paste("eur");
         assert_eq!(
             composer.offer_key(&painted, key(KeyCode::Down)),
-            Offered::Pass
+            Offered::Moved,
+            "words in the draft change nothing"
         );
-        assert!(!composer.select_offer(&painted, 0));
+        assert!(composer.select_offer(&painted, 1));
+        assert_eq!(composer.text(), "eur", "the draft stays exact");
+        composer.clear();
+        composer.paste("/s");
+        assert!(
+            composer.listing().is_none(),
+            "no slash list over the choice"
+        );
+        assert!(composer.offers_open(&painted));
         composer.clear();
         composer.toggle_palette();
         assert_eq!(
@@ -423,9 +558,6 @@ mod tests {
             Offered::Pass
         );
         composer.close_palette();
-        composer.paste("/s");
-        assert!(!composer.offers_open(&painted), "a slash draft");
-        composer.clear();
         composer.set_focused(false);
         assert_eq!(
             composer.offer_key(&painted, key(KeyCode::Down)),
@@ -439,6 +571,65 @@ mod tests {
             assert!(!composer.offers_open(&waiting), "{waiting:?}");
             assert_eq!(composer.offer_selected(&waiting), None);
         }
+    }
+
+    /// The own reply has its own field: typed words, corrections and pastes
+    /// land there and never in the draft; `Enter` sends them before any
+    /// selection, empties the field, keeps them in history and puts the
+    /// offers in flight; with no words and no selection it sends nothing.
+    #[test]
+    fn the_own_reply_is_sent_before_a_selection_and_never_touches_the_draft() {
+        let painted = choosing("w1");
+        let mut composer = composer(&painted);
+        composer.paste("my draft");
+        assert_eq!(
+            composer.offer_key(&painted, key(KeyCode::Enter)),
+            Offered::Pass,
+            "nothing to send"
+        );
+        composer.offer_key(&painted, key(KeyCode::Down));
+        for c in "two currencies".chars() {
+            assert!(composer.own_key(key(KeyCode::Char(c))));
+        }
+        assert!(composer.own_key(key(KeyCode::Backspace)));
+        composer.paste_own("s");
+        assert_eq!(composer.own_reply(), "two currencies");
+        assert!(!composer.own_key(key(KeyCode::Enter)), "Enter is no edit");
+        let stop = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+        assert!(!composer.own_key(stop), "Ctrl+C keeps its place");
+        let sent = composer.offer_key(&painted, key(KeyCode::Enter));
+        assert_eq!(sent, Offered::Answer("two currencies".to_owned()));
+        assert!(composer.own_reply().is_empty(), "the field is taken");
+        assert!(!composer.offers_open(&painted), "in flight");
+        assert_eq!(composer.text(), "my draft", "the draft never changed");
+        assert_eq!(composer.answer_returned(false), Some(Sent::Own));
+        // Kept in history, as any line `Enter` sends.
+        composer.clear();
+        assert_eq!(composer.handle(key(KeyCode::Up)), ComposerAction::Edited);
+        assert_eq!(composer.text(), "two currencies");
+    }
+
+    /// An own reply that was not taken comes back to its field first, before
+    /// what it holds now; the same logical question keeps the field under a
+    /// new identity, and another question starts it empty.
+    #[test]
+    fn an_own_reply_comes_back_to_its_field_and_follows_its_question() {
+        let painted = choosing("w1");
+        let mut composer = composer(&painted);
+        for c in "later words".chars() {
+            composer.own_key(key(KeyCode::Char(c)));
+        }
+        composer.put_back_own("first words");
+        assert_eq!(composer.own_reply(), "first words\nlater words");
+        composer.follow(&choosing("w2"));
+        assert_eq!(
+            composer.own_reply(),
+            "first words\nlater words",
+            "the same question"
+        );
+        let other = asked("const.other", offers(), "w3", 7);
+        composer.follow(&other);
+        assert!(composer.own_reply().is_empty(), "another question");
     }
 
     /// A question in prose (a legacy key, a cost decision) is never a typed

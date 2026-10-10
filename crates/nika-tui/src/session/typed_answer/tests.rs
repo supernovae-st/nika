@@ -138,6 +138,22 @@ fn painting_lends_the_same_question_document_and_strong_identity() {
     assert!(!room.0.join("compiled-workflow.nika").exists());
 }
 
+/// The question carries what the real Session keeps of its request, from the
+/// same snapshot: the goal as kept. The Session keeps the question it asks as
+/// its open question; beside that question it is not repeated.
+#[test]
+fn the_question_carries_the_request_the_session_keeps() {
+    let room = Room::new();
+    let mut live = live(&room.0);
+    let (_, _, asked) = question(&mut live);
+    let request = live.runtime.as_ref().expect("runtime").work().request;
+    assert_eq!(request.goal.as_deref(), Some("aggregate-by-key"));
+    assert_eq!(request.unresolved, std::slice::from_ref(&asked.label));
+    let retained = asked.retained.expect("the request is kept");
+    assert_eq!(retained.goal, request.goal);
+    assert!(retained.open.is_empty(), "{retained:?}");
+}
+
 #[test]
 fn a_different_painted_witness_refuses_before_any_session_change_and_returns_exact_text() {
     let room = Room::new();

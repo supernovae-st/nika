@@ -7,11 +7,12 @@
 //! expands or restores it as `F4` does, a region the folded header names takes
 //! the keys as `F6` moves them, a separator follows the pointer while its
 //! button is held (within its bounds), and the marker of a transcript scrolled
-//! back returns it to its latest row as `End` does. A press on an offer of the
-//! typed choice painted selects it and gives the conversation the keys, at
-//! rest only; it never answers: `Enter` does. A press on a block the
-//! conversation shows short of whole opens its full words, as `F2` at that
-//! row does. While the full words cover the frame, nothing under them takes
+//! back returns it to its latest row as `End` does. On an open surface's band
+//! a press selects the command or the offer under it (the conversation takes
+//! the keys) and never sends or answers (`Enter` does), the wheel moves the
+//! selection, and nothing under the band takes the pointer. A press on a
+//! block the conversation shows short of whole opens its full words, as `F2`
+//! at that row does. While the full words cover the frame, nothing under them takes
 //! the pointer. Hold Shift for the terminal's own selection/copy where
 //! supported; F4, F6, the separator keys, arrows, PageUp/PageDown, End and
 //! Enter remain the complete keyboard path.
@@ -27,6 +28,7 @@ use super::{
     Busy, Composer, ComposerAction, Conversation, Desk, Exit, Heard, LEAVE_WAITS, Presentation,
     Route, Shell, Signal, UiEvent, UiState, busy_key, is_ctrl_c,
 };
+use crate::render::surface::Hit;
 use crate::workspace::screen;
 use crate::workspace::{
     aside, focus::Region, geometry::Geometry, live::RunFace, object::Object, project::Target,
@@ -137,51 +139,73 @@ fn pressed(mouse: MouseEvent) -> Option<Position> {
         .then(|| Position::new(mouse.column, mouse.row))
 }
 
-/// The offer of the typed choice painted that a plain left press lands on,
-/// read from the rectangles the frame painted: the conversation's live area
-/// in the workspace, the foot of the focus view (also where it stands in for
-/// a workspace too small). Inline leaves the pointer to the terminal.
-fn offer_at_press(
-    state: &UiState,
-    desk: &Desk,
-    composer: &Composer,
-    mouse: MouseEvent,
-) -> Option<usize> {
-    let point = pressed(mouse)?;
+/// The band an open surface paints over, read from the rectangles the frame
+/// painted: the conversation's in the workspace, the focus view's (also where
+/// it stands in for a workspace too small). Inline leaves the pointer to the
+/// terminal.
+fn painted_band(state: &UiState, desk: &Desk, composer: &Composer) -> Option<(Rect, bool)> {
     let workspace = (state.presentation == Presentation::Workspace)
         .then(|| desk.geometry(state.size))
         .flatten();
-    let (live, boxed) = match (state.presentation, workspace) {
-        (Presentation::Inline, _) => return None,
-        (_, Some(geometry)) => {
-            let shown = desk.screen(state.ascii);
-            let areas = screen::panel_areas(&geometry, state, composer, &shown);
-            (areas[3], screen::boxed(&geometry))
-        }
+    match (state.presentation, workspace) {
+        (Presentation::Inline, _) => None,
+        (_, Some(geometry)) => screen::band(&geometry, state, composer, &desk.screen(state.ascii)),
         (_, None) => {
             let frame = Rect::new(0, 0, state.size.0, state.size.1);
-            (crate::render::focus_areas(frame, state, composer)[2], false)
+            let [transcript, _, live] = crate::render::focus_areas(frame, state, composer);
+            let panel = crate::render::Panel::default();
+            crate::render::band(state, composer, transcript.y, live, panel)
         }
-    };
-    crate::render::question::offer_at(state, composer, live, boxed, point)
+    }
 }
 
-/// A press on an offer of the typed choice painted, while the offers take a
-/// selection: that offer is selected and the conversation takes the keys.
-/// Nothing else changes and nothing is sent; `Enter` answers. `None` leaves
-/// the press to the regions (a focus click, as before).
-fn press_offer(
+/// A pointer event on an open surface's band: a plain press selects the
+/// command or the offer under it (the conversation takes the keys), the
+/// wheel moves the selection, and anything else there is taken and does
+/// nothing, so no transcript row, marker or block under the band takes it.
+/// Nothing is sent: `Enter` sends. `None` outside the band, or with no
+/// surface open.
+fn band_pointer(
     state: &UiState,
     desk: &mut Desk,
     composer: &mut Composer,
     mouse: MouseEvent,
 ) -> Option<Route> {
-    let index = offer_at_press(state, desk, composer, mouse)?;
-    if !composer.select_offer(&state.waiting, index) {
-        return None;
-    }
-    desk.focus.region = Region::Conversation;
-    Some(Route::Repaint)
+    let band = painted_band(state, desk, composer)?;
+    let point = Position::new(mouse.column, mouse.row);
+    let hit = crate::render::surface::hit(state, composer, band, point)?;
+    let listed = composer.listing().is_some();
+    let moved = match (mouse.kind, hit) {
+        (MouseEventKind::ScrollUp | MouseEventKind::ScrollDown, _) => {
+            let code = if mouse.kind == MouseEventKind::ScrollUp {
+                KeyCode::Up
+            } else {
+                KeyCode::Down
+            };
+            if listed {
+                composer.choose(key(code));
+            } else {
+                composer.offer_key(&state.waiting, key(code));
+            }
+            true
+        }
+        (MouseEventKind::Down(MouseButton::Left), Hit::Item(index))
+            if mouse.modifiers == KeyModifiers::NONE =>
+        {
+            if listed {
+                composer.select_entry(index);
+            } else if composer.select_offer(&state.waiting, index) {
+                desk.focus.region = Region::Conversation;
+            }
+            true
+        }
+        _ => false,
+    };
+    Some(if moved {
+        Route::Repaint
+    } else {
+        Route::Nothing
+    })
 }
 
 /// A press on the chrome rather than on a region's content: a region the
@@ -390,7 +414,7 @@ impl<C: Conversation + 'static> Shell<C> {
             self.desk.release();
             return Route::Nothing;
         }
-        let routed = match (self.offer_pressed(mouse)).or_else(|| self.block_pressed(mouse)) {
+        let routed = match (self.band_pointed(mouse)).or_else(|| self.block_pressed(mouse)) {
             Some(routed) => routed,
             None => route(&mut self.state, &mut self.desk, &self.composer, mouse),
         };
@@ -413,13 +437,9 @@ impl<C: Conversation + 'static> Shell<C> {
         routed
     }
 
-    /// A press on an offer of the typed choice painted ([`press_offer`]), at
-    /// rest only: while a turn holds the conversation the offers are inert.
-    fn offer_pressed(&mut self, mouse: MouseEvent) -> Option<Route> {
-        if self.conversation.is_none() || self.state.busy.is_some() {
-            return None;
-        }
-        press_offer(&self.state, &mut self.desk, &mut self.composer, mouse)
+    /// A pointer event on an open surface's band ([`band_pointer`]).
+    fn band_pointed(&mut self, mouse: MouseEvent) -> Option<Route> {
+        band_pointer(&self.state, &mut self.desk, &mut self.composer, mouse)
     }
 
     /// A plain press on a block the conversation shows short of whole opens
@@ -482,7 +502,8 @@ impl<C: Conversation + 'static> Shell<C> {
                 return Heard::Nothing;
             }
         };
-        if crate::scroll::end(&mut self.state, &self.desk, key) {
+        let hidden = crate::render::surface::open(&self.state, &self.composer);
+        if !hidden && crate::scroll::end(&mut self.state, &self.desk, key) {
             return Heard::Redraw;
         }
         match busy_key(&self.state, &mut self.desk, key) {
@@ -495,6 +516,11 @@ impl<C: Conversation + 'static> Shell<C> {
                 {
                     self.state.completion = Some(list.join("  "));
                 }
+                Heard::Redraw
+            }
+            // The repeat of a surface's activation queues nothing.
+            Busy::Hold if self.guard.working => {
+                self.state.completion = Some(super::ENTER_WAITS.to_owned());
                 Heard::Redraw
             }
             Busy::Hold => {
@@ -1182,11 +1208,31 @@ mod tests {
         (terminal.backend().buffer().clone(), live)
     }
 
-    /// Every offer row the frame paints is the one a press there selects, in
+    /// The columns the band's rows read: inside the frame when it stands
+    /// framed, one cell of air after its side.
+    fn inner(band: Rect, framed: bool) -> (u16, u16) {
+        if framed {
+            (band.x + 2, band.right() - 2)
+        } else {
+            (band.x, band.right())
+        }
+    }
+
+    /// The offer a press at row `y` of the band lands on, if any.
+    fn offer_at(state: &UiState, composer: &Composer, band: (Rect, bool), y: u16) -> Option<usize> {
+        let point = Position::new(band.0.x + 3, y);
+        match crate::render::surface::hit(state, composer, band, point) {
+            Some(Hit::Item(index)) => Some(index),
+            Some(Hit::Band) | None => None,
+        }
+    }
+
+    /// Every offer row the band paints is the one a press there selects, in
     /// the workspace (stacked and beside) and in the focus view, in both glyph
     /// columns. The press selects only: the conversation takes the keys, the
-    /// draft, the transcript and its reading place stay, nothing is sent (no
-    /// conversation is reachable from here); the next frame marks the offer.
+    /// draft, the own reply, the transcript and its reading place stay,
+    /// nothing is sent (no conversation is reachable from here); the next
+    /// frame marks the offer.
     #[test]
     fn a_press_on_a_painted_offer_selects_it_only_and_gives_the_conversation_the_keys() {
         for (presentation, size) in [
@@ -1198,32 +1244,35 @@ mod tests {
             for ascii in [false, true] {
                 let at = format!("{presentation:?} {size:?} ascii={ascii}");
                 let (state, mut desk, mut composer) = offered(presentation, size, ascii);
-                let (buffer, live) = live_frame(&state, &desk, &composer);
+                let (buffer, _) = live_frame(&state, &desk, &composer);
+                let band = painted_band(&state, &desk, &composer).expect("the band");
+                let (from, to) = inner(band.0, band.1);
                 let sep = if ascii { " - " } else { " · " };
                 let mut first = None;
-                for y in live.y..live.bottom() {
-                    let text = cells(&buffer, live.x, live.right(), y);
+                for y in band.0.y..band.0.bottom() {
+                    let text = cells(&buffer, from, to, y);
                     let shown =
                         (0..9).find(|n| text.trim_end() == format!("  opt-{n}{sep}label {n}"));
-                    let hit = offer_at_press(&state, &desk, &composer, press(live.x + 3, y));
+                    let hit = offer_at(&state, &composer, band, y);
                     assert_eq!(hit, shown, "{at} row {y}: {text:?}");
                     first = first.or(hit.map(|index| (index, y)));
                 }
                 let (index, y) = first.expect("an offer is painted");
                 desk.focus.region = Region::Object;
                 let blocks = state.transcript.len();
-                let pressed = press_offer(&state, &mut desk, &mut composer, press(live.x + 3, y));
+                let event = press(band.0.x + 3, y);
+                let pressed = band_pointer(&state, &mut desk, &mut composer, event);
                 assert_eq!(pressed, Some(Route::Repaint), "{at}");
                 assert_eq!(composer.offer_selected(&state.waiting), Some(index), "{at}");
                 assert_eq!(desk.focus.region, Region::Conversation, "{at}");
                 assert!(
-                    composer.text().is_empty(),
-                    "{at}: a press never writes the draft"
+                    composer.text().is_empty() && composer.own_reply().is_empty(),
+                    "{at}: a press never writes the draft or the own reply"
                 );
                 assert_eq!((state.transcript.len(), state.focus_scroll), (blocks, 0));
                 let (buffer, _) = live_frame(&state, &desk, &composer);
                 let mark = if ascii { "> " } else { "› " };
-                let row = cells(&buffer, live.x, live.right(), y);
+                let row = cells(&buffer, from, to, y);
                 assert!(
                     row.starts_with(&format!("{mark}opt-{index}")),
                     "{at}: {row}"
@@ -1232,34 +1281,41 @@ mod tests {
         }
     }
 
-    /// A press selects nothing while the box holds words, with another button
-    /// or a modifier, off the offers' rows, or inline: the regions take it as
-    /// before, and the draft stays exact.
+    /// The band takes a press with another button or a modifier, or off the
+    /// offers' rows, and selects nothing; words waiting in the draft never
+    /// make the offers inert; inline leaves the pointer to the terminal.
     #[test]
-    fn a_press_selects_no_offer_with_words_in_the_box_or_off_its_rows() {
+    fn a_press_off_an_offer_row_selects_nothing_and_the_band_takes_it() {
         let (mut state, mut desk, mut composer) =
             offered(Presentation::Workspace, (120, 40), false);
-        let (_, live) = live_frame(&state, &desk, &composer);
-        let y = (live.y..live.bottom())
-            .find(|y| offer_at_press(&state, &desk, &composer, press(live.x + 3, *y)).is_some())
-            .expect("an offer row");
         composer.paste("my own words");
-        let pressed = press_offer(&state, &mut desk, &mut composer, press(live.x + 3, y));
-        assert_eq!(pressed, None, "inert with words in the box");
-        assert_eq!(composer.offer_selected(&state.waiting), None);
-        assert_eq!(composer.text(), "my own words");
-        composer.clear();
-        let mut right = press(live.x + 3, y);
+        let band = painted_band(&state, &desk, &composer).expect("the band");
+        let y = (band.0.y..band.0.bottom())
+            .find(|y| offer_at(&state, &composer, band, *y).is_some())
+            .expect("an offer row");
+        let mut right = press(band.0.x + 3, y);
         right.kind = MouseEventKind::Down(MouseButton::Right);
-        let mut shifted = press(live.x + 3, y);
+        let mut shifted = press(band.0.x + 3, y);
         shifted.modifiers = KeyModifiers::SHIFT;
-        for event in [right, shifted, press(live.x + 3, live.y)] {
-            let pressed = press_offer(&state, &mut desk, &mut composer, event);
-            assert_eq!(pressed, None, "{event:?}");
+        for event in [right, shifted, press(band.0.x + 3, band.0.y)] {
+            let pressed = band_pointer(&state, &mut desk, &mut composer, event);
+            assert_eq!(
+                pressed,
+                Some(Route::Nothing),
+                "{event:?}: the band takes it"
+            );
         }
         assert_eq!(composer.offer_selected(&state.waiting), None);
+        let pressed = band_pointer(&state, &mut desk, &mut composer, press(band.0.x + 3, y));
+        assert_eq!(
+            pressed,
+            Some(Route::Repaint),
+            "words in the draft change nothing"
+        );
+        assert!(composer.offer_selected(&state.waiting).is_some());
+        assert_eq!(composer.text(), "my own words");
         state.presentation = Presentation::Inline;
-        let inline = offer_at_press(&state, &desk, &composer, press(live.x + 3, y));
+        let inline = painted_band(&state, &desk, &composer);
         assert_eq!(inline, None, "inline leaves the pointer to the terminal");
     }
 }

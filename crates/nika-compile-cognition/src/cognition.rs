@@ -45,6 +45,7 @@ mod backstops;
 mod forensic;
 pub(super) mod knowledge;
 mod native;
+pub use native::judge_document;
 mod proposal;
 pub(crate) mod receipt;
 mod rehearsal;

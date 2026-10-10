@@ -5,7 +5,9 @@
 
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
+use std::time::{Duration, Instant};
 
 use nika_session_change::tools::{SessionTools, ToolCall, ToolDef, ToolReply};
 use serde_json::{Value, json};
@@ -159,9 +161,18 @@ fn each_server_mints_its_own_bearer_and_never_shows_it() {
     assert_eq!(first.tool_names(), vec!["candidate_read", "ask"]);
 }
 
+fn authority(url: &str) -> &str {
+    url.trim_start_matches("http://").trim_end_matches("/mcp")
+}
+
+/// One POST answered in full; a server that holds the reply past 10 s fails the test, never
+/// hangs it.
 fn post(url: &str, bearer: Option<&str>, body: &str) -> String {
-    let authority = url.trim_start_matches("http://").trim_end_matches("/mcp");
+    let authority = authority(url);
     let mut stream = TcpStream::connect(authority).expect("connects");
+    stream
+        .set_read_timeout(Some(Duration::from_secs(10)))
+        .expect("a read bound");
     let auth = bearer
         .map(|b| format!("Authorization: Bearer {b}\r\n"))
         .unwrap_or_default();
@@ -199,6 +210,168 @@ fn the_server_requires_its_bearer_and_stops_when_closed() {
             .expect("the serving loop returns once closed");
     });
     assert_eq!(tools.calls.lock().expect("calls").len(), 1);
+}
+
+/// A local client without the bearer that opens a request and goes silent holds one connection,
+/// never the server: the agent's call is answered at once, long before the silent client's
+/// deadline, and only the agent's call reaches the session.
+#[test]
+fn a_stalled_client_cannot_hold_the_server_from_the_agent() {
+    let tools = Arc::new(Recorder::default());
+    let server = ToolServer::start(Arc::clone(&tools) as Arc<dyn SessionTools>).expect("binds");
+    let (url, bearer) = (server.url().expect("url"), server.bearer().to_owned());
+    std::thread::scope(|scope| {
+        // Owned here, so a failed assertion still closes the server and the scope can end.
+        let closer = server.closer().expect("a closer");
+        let serving = scope.spawn(|| server.serve());
+        let mut stalled = TcpStream::connect(authority(&url)).expect("connects");
+        stalled
+            .write_all(b"POST /mcp HTTP/1.1\r\nHost: x\r\n")
+            .expect("sends");
+        let started = Instant::now();
+        let call = r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"ask"}}"#;
+        let answered = post(&url, Some(&bearer), call);
+        let waited = started.elapsed();
+        assert!(answered.starts_with("HTTP/1.1 200"), "{answered}");
+        assert!(
+            waited < Duration::from_secs(10),
+            "held behind the silent client: {waited:?}"
+        );
+        drop(stalled);
+        closer.close();
+        serving.join().expect("returns once closed");
+    });
+    assert_eq!(tools.calls.lock().expect("calls").len(), 1);
+}
+
+/// A session whose `check` waits at a gate the test opens, counting the calls inside at once.
+#[derive(Default)]
+struct Gated {
+    listed: AtomicUsize,
+    inside: AtomicUsize,
+    most: AtomicUsize,
+    passes: Mutex<usize>,
+    granted: Condvar,
+}
+
+impl Gated {
+    /// Let `calls` more calls through the gate.
+    fn open(&self, calls: usize) {
+        *self.passes.lock().expect("gate") += calls;
+        self.granted.notify_all();
+    }
+}
+
+impl SessionTools for Gated {
+    fn tools(&self) -> Vec<ToolDef> {
+        self.listed.fetch_add(1, Ordering::SeqCst);
+        let schema = json!({"type": "object"});
+        vec![ToolDef::new("check", "Check the candidate.", schema, true)]
+    }
+
+    fn call(&self, _call: ToolCall) -> ToolReply {
+        let now = self.inside.fetch_add(1, Ordering::SeqCst) + 1;
+        self.most.fetch_max(now, Ordering::SeqCst);
+        let mut passes = self.passes.lock().expect("gate");
+        while *passes == 0 {
+            passes = self.granted.wait(passes).expect("gate");
+        }
+        *passes -= 1;
+        drop(passes);
+        self.inside.fetch_sub(1, Ordering::SeqCst);
+        ToolReply::ok("checked")
+    }
+}
+
+/// Opens the gate wide when dropped, so a failed assertion leaves no call parked at it.
+struct Release<'a>(&'a Gated);
+
+impl Drop for Release<'_> {
+    fn drop(&mut self) {
+        self.0.open(64);
+    }
+}
+
+/// Wait, bounded, until `ready` holds.
+fn until(ready: &dyn Fn() -> bool) {
+    let started = Instant::now();
+    while !ready() {
+        assert!(started.elapsed() < Duration::from_secs(10), "never ready");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// Connections are answered side by side — a ping while a call holds the session — but the
+/// session receives one call at a time: a second call waits for the first.
+#[test]
+fn the_session_receives_one_call_at_a_time_while_requests_are_served_side_by_side() {
+    let gated = Arc::new(Gated::default());
+    let server = ToolServer::start(Arc::clone(&gated) as Arc<dyn SessionTools>).expect("binds");
+    let (url, bearer) = (server.url().expect("url"), server.bearer().to_owned());
+    let call = r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"check"}}"#;
+    std::thread::scope(|scope| {
+        // Dropped in reverse on a failed assertion: the gate opens, then the server closes.
+        let closer = server.closer().expect("a closer");
+        let release = Release(&gated);
+        let serving = scope.spawn(|| server.serve());
+        let first = scope.spawn(|| post(&url, Some(&bearer), call));
+        until(&|| gated.inside.load(Ordering::SeqCst) == 1);
+        let ping = post(
+            &url,
+            Some(&bearer),
+            r#"{"jsonrpc":"2.0","id":2,"method":"ping"}"#,
+        );
+        assert!(ping.starts_with("HTTP/1.1 200"), "{ping}");
+        let second = scope.spawn(|| post(&url, Some(&bearer), call));
+        // The second call has been checked against the listing; were it not held, it would
+        // enter the session within this pause.
+        until(&|| gated.listed.load(Ordering::SeqCst) == 2);
+        std::thread::sleep(Duration::from_millis(100));
+        assert_eq!(gated.inside.load(Ordering::SeqCst), 1, "one call inside");
+        gated.open(2);
+        for answered in [first.join().expect("first"), second.join().expect("second")] {
+            assert!(answered.contains("checked"), "{answered}");
+        }
+        drop(release);
+        closer.close();
+        serving.join().expect("returns once closed");
+    });
+    assert_eq!(gated.most.load(Ordering::SeqCst), 1);
+}
+
+/// A session whose one tool panics, breaking its contract.
+struct Exploding;
+
+impl SessionTools for Exploding {
+    fn tools(&self) -> Vec<ToolDef> {
+        let schema = json!({"type": "object"});
+        vec![ToolDef::new("explode", "Fail.", schema, false)]
+    }
+
+    fn call(&self, _call: ToolCall) -> ToolReply {
+        panic!("a session bug");
+    }
+}
+
+/// A session call that panics still answers the agent an error, the server keeps serving, and
+/// closing returns rather than re-raising the session's panic.
+#[test]
+fn a_panicking_session_call_answers_an_error_and_the_server_keeps_serving() {
+    let server = ToolServer::start(Arc::new(Exploding)).expect("binds");
+    let (url, bearer) = (server.url().expect("url"), server.bearer().to_owned());
+    let call = r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"explode"}}"#;
+    std::thread::scope(|scope| {
+        let closer = server.closer().expect("a closer");
+        let serving = scope.spawn(|| server.serve());
+        for _ in 0..2 {
+            let answered = post(&url, Some(&bearer), call);
+            assert!(answered.starts_with("HTTP/1.1 200"), "{answered}");
+            assert!(answered.contains(r#""isError":true"#), "{answered}");
+            assert!(answered.contains("`explode` tool failed"), "{answered}");
+        }
+        closer.close();
+        serving.join().expect("returns once closed");
+    });
 }
 
 /// A dropped closer stops the server too: a session that forgets to close leaks no loop.

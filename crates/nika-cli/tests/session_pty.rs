@@ -534,6 +534,9 @@ impl LoopbackSeat {
                 format!("http://127.0.0.1:{}/v1", self.port),
             ),
             ("NIKA_AUTHORING_STRATEGY".to_owned(), "sketch".to_owned()),
+            // This seat answers the sketch door's schema-shaped rounds: the round driver's
+            // conversation, kept during the transition (the agent's is `open_ux_journeys`).
+            ("NIKA_SESSION_DRIVER".to_owned(), "rounds".to_owned()),
         ]
     }
 }

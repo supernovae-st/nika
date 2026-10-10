@@ -17,6 +17,8 @@
 //! - [`authoring`] — the session's door to the ONE compiler: the seat the human's choice
 //!   permits, the authoring context pinned when the session opened, and the round (the answers
 //!   by stable key, the replayed plan, the questions still open).
+//! - [`observe`] — one public page a conversation's intelligence looks at while it prepares,
+//!   through the fetch client's guard.
 //!
 //! The session owns the conversation, the runtime, the durability of its rounds and the money
 //! gate; it reaches this member downward and keeps these modules at their historical
@@ -26,5 +28,6 @@
 
 pub mod authoring;
 pub mod intelligence;
+pub mod observe;
 pub mod reasoner;
 pub mod turn;

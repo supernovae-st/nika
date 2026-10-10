@@ -26,6 +26,7 @@ use crate::outcome::{GateId, ProposalId, Refusal, RefusalClass, ReviewId};
 use crate::reasoner::{ReasonError, SessionReasoner};
 use crate::snapshot::ProjectSnapshot;
 
+mod agent;
 mod answer;
 mod aside;
 mod authoring;
@@ -324,6 +325,7 @@ pub struct SessionRuntime {
     revising: Option<(ProjectChangeSet, Option<CompileOutcome>)>,
     /// Who asks that question and which ones were answered (memory only).
     questions: question::Identities,
+    agent: Option<agent::Driver>,
     /// The cognition the compiler may use, derived from the reasoner.
     seat: AuthoringSeat,
     /// The strategy and the knowledge snapshot a provider seat authors
@@ -452,6 +454,7 @@ impl SessionRuntime {
             authoring: None,
             revising: None,
             questions: question::Identities::default(),
+            agent: None,
             seat: AuthoringSeat::Deterministic { why: None },
             authoring_context,
             progress: crate::activity::Progress::default(),
@@ -719,6 +722,7 @@ impl SessionRuntime {
         session.census = Some(census);
         session.home = home.map(Path::to_path_buf);
         session.factory = Some(factory);
+        session.agent = agent::Driver::from_env();
         session
     }
 
@@ -889,7 +893,9 @@ impl SessionRuntime {
         let input = input.trim();
         // Read-only lines answer first, from the machine's own state: nothing
         // is spent or changed — a read-only line never discards a proposal.
-        if let Some(outcome) = self.read_only_turn(input) {
+        // Then the intelligence that leads the conversation reads a free line;
+        // a proposal it does not replace keeps waiting (`agent.rs`).
+        if let Some(outcome) = (self.read_only_turn(input)).or_else(|| self.agent_turn(original)) {
             return outcome;
         }
         // A new turn discards a pending proposal: consent is the NEXT line

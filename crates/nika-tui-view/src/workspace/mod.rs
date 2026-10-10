@@ -5,8 +5,9 @@
 //! the screen (`nika-tui`, ADR-143): where each region stands ([`geometry`]),
 //! the header ([`header`]) and its composition ([`masthead`]), the project
 //! aside ([`aside`]) and the project it lists ([`project`]), the pinned run
-//! ([`pinned`]), the object in view ([`object`]) and the conversation's own
-//! rows ([`conversation`]), with the fitting of words into cells they share
+//! ([`pinned`]), the object in view ([`object`]), the conversation's own rows
+//! ([`conversation`]) and the continuous surface above its composer
+//! ([`surface`]), with the fitting of words into cells they share
 //! ([`text`]).
 //!
 //! Each is a pure function of what it is handed: facts the Session projected,
@@ -26,5 +27,6 @@ pub mod masthead;
 pub mod object;
 pub mod pinned;
 pub mod project;
+pub mod surface;
 pub mod text;
 pub mod wrapped;

@@ -70,6 +70,8 @@ impl SessionRuntime {
             Waiting::Consent { proposal }
         } else if let Some(gate) = self.waiting_gate() {
             Waiting::Gate { gate }
+        } else if let Some(asked) = self.agent_waiting() {
+            asked
         } else if let (Some(question), Some(id)) =
             (self.pending_question(), self.pending_question_id())
         {
@@ -123,7 +125,17 @@ impl SessionRuntime {
             },
             Waiting::IntelligenceChoice => self.choose(line.trim()),
             Waiting::KnowledgeChoice { .. } => self.choose_knowledge(line),
-            Waiting::Consent { .. } => match shown {
+            Waiting::Consent { proposal: waiting } => match shown {
+                // Open language at a proposal is the conversation's to read, for the proposal
+                // shown; the consent protocol keeps its door.
+                Waiting::Consent { proposal } if self.agent_reads_at_consent(line) => {
+                    if *proposal == waiting {
+                        self.turn(line)
+                    } else {
+                        let text = "this line was typed for an earlier proposal · nothing was read or sent · read the proposal shown now";
+                        TurnOutcome::Refusal(Refusal::new(RefusalClass::StaleRevision, text))
+                    }
+                }
                 Waiting::Consent { proposal } => self.consent_to(proposal, line.trim()),
                 _ if declines(line) => self.consent(line.trim()),
                 _ => TurnOutcome::Refusal(Refusal::new(RefusalClass::WrongState, NOTHING_SHOWN)),
@@ -136,6 +148,15 @@ impl SessionRuntime {
                 }
             },
             Waiting::Question { .. } => match shown {
+                Waiting::Question { id, .. } => self.answer_question_for(id, line),
+                _ if beside_any_answer(line) => self.turn(line),
+                _ => {
+                    TurnOutcome::Refusal(Refusal::new(RefusalClass::StaleRevision, VALUE_NOT_SHOWN))
+                }
+            },
+            // Several questions asked together take the line typed for them as one answer.
+            Waiting::Questions { ids } => match shown {
+                Waiting::Questions { ids: seen } if *seen == ids => self.turn(line),
                 Waiting::Question { id, .. } => self.answer_question_for(id, line),
                 _ if beside_any_answer(line) => self.turn(line),
                 _ => {
@@ -202,7 +223,7 @@ impl SessionRuntime {
                 kept.chain_len,
             )
         });
-        Work::new(
+        let work = Work::new(
             self.snapshot.root.clone(),
             Request::new(
                 self.intent.goal.clone(),
@@ -220,7 +241,8 @@ impl SessionRuntime {
         .with_intelligence(Some(self.intelligence_work()))
         .with_knowledge(Some(self.knowledge_work()))
         .with_question(self.pending_question())
-        .with_answered(self.last_answer.clone())
+        .with_answered(self.last_answer.clone());
+        self.with_agent(work)
     }
 
     /// Who prepares with this session, as selected and resolved here: the configured facts a

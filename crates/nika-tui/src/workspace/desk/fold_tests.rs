@@ -18,9 +18,7 @@ use ratatui::layout::Rect;
 
 use super::{Desk, Route, draw, layout::DECISION_CONTEXT};
 use crate::composer::Composer;
-use crate::model::{
-    Asked, Committed, Kind, Offer, Presentation, Shape, UiState, Waiting, demo_project,
-};
+use crate::model::{Asked, Committed, Kind, Presentation, Shape, UiState, Waiting, demo_project};
 use crate::render::question;
 use crate::visual::logomark::REVEAL_ENDS;
 use crate::workspace::cards;
@@ -426,20 +424,16 @@ fn f4_expands_the_strip_and_restores_to_it() {
     }
 }
 
-/// A long typed question folds the object at 60x18 and 80x24: at rest its
-/// first words, the line that answers it and where the whole question is
-/// read show together. Where a short one folds is measured, not assumed
+/// A long typed question that keeps its card (a text; a typed choice opens
+/// the surface over the conversation instead) folds the object at 60x18 and
+/// 80x24: at rest its first words, the line that answers it and where the
+/// whole question is read show together. Where a short one folds is measured, not assumed
 /// ([`a_homed_question_keeps_three_rows_of_its_exchange_in_view`]).
 #[test]
 fn the_live_question_keeps_its_first_words_and_the_reader_cue() {
     let witness = "3:q-currency";
     let long: Vec<String> = (1..=10).map(|n| format!("question line {n}")).collect();
     let text = format!("first words of the question\n{}", long.join("\n"));
-    let offers = vec![
-        Offer::new("eur", "Euro"),
-        Offer::new("usd", "US dollar"),
-        Offer::new("gbp", "Pound sterling"),
-    ];
     let asking = |size, text: &str, shape: Shape| {
         let mut state = UiState::new(Presentation::Workspace, false, size);
         state
@@ -453,7 +447,7 @@ fn the_live_question_keeps_its_first_words_and_the_reader_cue() {
     for size in [(60, 18), (80, 24)] {
         for ascii in [false, true] {
             let at = format!("{size:?} ascii={ascii}");
-            let mut state = asking(size, text.as_str(), Shape::Choice(offers.clone()));
+            let mut state = asking(size, text.as_str(), Shape::Text);
             state.ascii = ascii;
             let mut desk = Desk::new();
             desk.view = Some(demo_project());

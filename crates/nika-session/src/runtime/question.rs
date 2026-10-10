@@ -50,6 +50,11 @@ impl Identities {
     fn is_closed(&self, id: &QuestionId) -> bool {
         self.closed.contains(id)
     }
+
+    /// The session that asks: a question it mints is answered here only.
+    pub(super) fn asker(&self) -> Arc<Incarnation> {
+        Arc::clone(&self.asker)
+    }
 }
 
 impl SessionRuntime {
@@ -62,6 +67,9 @@ impl SessionRuntime {
     /// identity.
     #[must_use]
     pub fn pending_question_id(&self) -> Option<QuestionId> {
+        if let Some(asked) = self.agent_question_id() {
+            return Some(asked);
+        }
         self.question_id_of(self.authoring.as_ref()?)
     }
 
@@ -97,8 +105,9 @@ impl SessionRuntime {
             );
         }
         let elsewhere = !id.asked_by(&self.questions.asker);
+        let asked = self.agent_asks(id);
         match self.pending_question_id() {
-            Some(waiting) if waiting == *id => {
+            Some(waiting) if waiting == *id || asked => {
                 if self.waiting_review().is_some()
                     || self.pending_choice
                     || self.knowledge.held.is_some()

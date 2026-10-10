@@ -450,3 +450,52 @@ proptest! {
         }
     }
 }
+
+/// A host that keeps the file reads each line it just made durable: its place, and the
+/// person's line it records, with the citation the tree minted and the call it answers.
+#[test]
+fn a_written_line_says_its_place_and_the_persons_words() {
+    let (mut tree, mut lines) = open();
+    assert_eq!(tree.next_cite(), "u1");
+    assert_eq!(
+        read_line(&lines[0]).unwrap(),
+        LineFacts { n: 0, person: None }
+    );
+    say(&mut tree, &mut lines, "un digest des news");
+    add(&mut tree, &mut lines, message(vec![call("c1", "ask")]));
+    assert_eq!(tree.next_cite(), "u2");
+    let answered = tree.append_user("oui", Some("c1".into()), None, 3_000, |l| {
+        Store::append(&mut lines, l)
+    });
+    assert!(answered.is_ok());
+    let first = read_line(&lines[1]).unwrap();
+    assert_eq!(first.n, 1);
+    let person = first.person.unwrap();
+    assert_eq!(
+        (person.cite.as_str(), person.text.as_str()),
+        ("u1", "un digest des news")
+    );
+    assert_eq!(read_line(&lines[2]).unwrap().person, None);
+    let reply = read_line(&lines[3]).unwrap().person.unwrap();
+    assert_eq!(
+        (reply.cite.as_str(), reply.answers.as_deref()),
+        ("u2", Some("c1"))
+    );
+    assert!(read_line("not a tree line").is_none());
+}
+
+/// What the model said last is the text of its last message, its calls aside.
+#[test]
+fn the_last_words_are_the_text_of_the_last_message() {
+    let (mut tree, mut lines) = open();
+    assert_eq!(tree.last_said(), "");
+    say(&mut tree, &mut lines, "un digest");
+    add(
+        &mut tree,
+        &mut lines,
+        message(vec![text("D'abord une question."), call("c1", "ask")]),
+    );
+    assert_eq!(tree.last_said(), "D'abord une question.");
+    add(&mut tree, &mut lines, message(vec![call("c2", "ask")]));
+    assert_eq!(tree.last_said(), "");
+}

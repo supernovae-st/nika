@@ -298,7 +298,7 @@ fn misplaced(stated: &str, selection: &Resolution) -> Option<String> {
             selection.role == ResolutionRole::ReadSource
         }
         ResolutionKind::Derived => selection.role == ResolutionRole::OutputPath,
-        ResolutionKind::Answered => anchored(stated, value),
+        ResolutionKind::Answered => typed(stated, value),
         ResolutionKind::Offered | ResolutionKind::Retained => true,
     };
     (!fits).then(|| match selection.kind {
@@ -311,17 +311,44 @@ fn misplaced(stated: &str, selection: &Resolution) -> Option<String> {
     })
 }
 
-/// Whether `excerpt` is verbatim in `stated`, spacing and typographic quotes aside.
-fn anchored(stated: &str, excerpt: &str) -> bool {
-    let fold = |text: &str| {
-        text.replace(['\u{2019}', '\u{2018}'], "'")
-            .replace(['\u{201c}', '\u{201d}'], "\"")
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ")
-    };
+/// Whether the person typed `value`: one of their words is the value, up to the leading `./` or
+/// trailing `/` two spellings of one path or address differ by ([`same_literal`]); a value of
+/// several words is those words in order, glued to no letter or digit at either end. Never a part
+/// of another word: `x.md` is not typed by `box.md`, nor `digest.md` by `news/digest.md`. Spacing
+/// and typographic quotes aside, as [`anchored`] reads them.
+#[must_use]
+pub fn typed(stated: &str, value: &str) -> bool {
+    let (stated, value) = (fold(stated), fold(value));
+    if value.is_empty() {
+        return false;
+    }
+    if value.contains(' ') {
+        let glued = |c: Option<char>| c.is_some_and(char::is_alphanumeric);
+        return stated.match_indices(value.as_str()).any(|(at, _)| {
+            !glued(stated[..at].chars().next_back())
+                && !glued(stated[at + value.len()..].chars().next())
+        });
+    }
+    (stated.split(|c: char| c.is_whitespace() || ",;()[]{}<>«»\"'`".contains(c)))
+        .map(|word| word.trim_end_matches(['.', '!', '?', ':']))
+        .any(|word| same_literal(word, &value))
+}
+
+/// Whether `excerpt` is verbatim in `stated`, spacing and typographic quotes aside: the one
+/// reading of a person's words every check of a citation makes.
+#[must_use]
+pub fn anchored(stated: &str, excerpt: &str) -> bool {
     let excerpt = fold(excerpt);
     !excerpt.is_empty() && fold(stated).contains(&excerpt)
+}
+
+/// A person's words as every check reads them: typographic quotes straightened, spacing folded.
+fn fold(text: &str) -> String {
+    text.replace(['\u{2019}', '\u{2018}'], "'")
+        .replace(['\u{201c}', '\u{201d}'], "\"")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// A read source is a public http(s) address the workflow reads with GET, and nothing else.
@@ -845,5 +872,28 @@ mod tests {
             "https://news.ycombinator.co"
         ));
         assert!(!same_literal("", ""));
+    }
+
+    /// A path or address the person typed without its `./` or trailing `/` is the value they
+    /// gave, as a whole word of their text; the same characters inside another word are not, and
+    /// a value of several words is a whole phrase.
+    #[test]
+    fn a_typed_value_is_a_whole_word_one_spelling_aside() {
+        let stated = "utilise https://news.ycombinator.com et ecris dans news/digest.md.";
+        assert!(typed(stated, "./news/digest.md"));
+        assert!(typed(stated, "https://news.ycombinator.com/"));
+        assert!(typed(stated, "news/digest.md"));
+        assert!(typed(
+            "equipe : https://hooks.example.org/team, le reste",
+            "https://hooks.example.org/team"
+        ));
+        assert!(!typed("mets le dans box.md", "x.md"));
+        assert!(!typed("mets le dans box.md", "./x.md"));
+        assert!(!typed(stated, "digest.md"));
+        assert!(!typed("ecris dans news/digest.md.bak", "./news/digest.md"));
+        assert!(!typed(stated, "./news/other.md"));
+        assert!(typed("le canal Equipe Produit, merci", "Equipe Produit"));
+        assert!(!typed("le canal Equipe Produits", "Equipe Produit"));
+        assert!(!typed(stated, ""));
     }
 }

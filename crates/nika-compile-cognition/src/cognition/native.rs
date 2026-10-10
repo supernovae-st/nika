@@ -792,6 +792,35 @@ pub(super) fn judge_resolved(
     out
 }
 
+/// The judge of a document an intelligence wrote in a Session's conversation, outside a compile
+/// round: the strict parser, the pure Check, then the fidelity laws against everything the
+/// person `stated` in the request it answers. The selections the author states (`authored`)
+/// are admitted on the person's own words; the ones the Session verified itself (`host`: an
+/// offer it showed and the person accepted, a value an accepted revision bound) have their
+/// scope and use judged, never their words read again. Returns each refusal's message; none
+/// when the document stands. Nothing is called, read or written.
+#[must_use]
+pub fn judge_document(
+    stated: &str,
+    candidate: &str,
+    (authored, host): (
+        &[fidelity::resolution::Resolution],
+        &[fidelity::resolution::Resolution],
+    ),
+    observed: Option<&Value>,
+) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some(doc) = admit(candidate, &[], &mut out) {
+        let selected = (authored, host);
+        let covered = fidelity::resolution::admitted(stated, &doc, selected, observed, &mut out);
+        let plan = crate::lexicon::read(stated).plan;
+        let words = (&[][..], &covered[..]);
+        fidelity::laws_resolved(stated, &plan, &doc, words, &[], &[], observed, &mut out);
+    }
+    out.dedup();
+    out.into_iter().map(|d| d.message).collect()
+}
+
 /// The strict parser and the pure Check (its refusals become diagnostics, the laws still
 /// run), then the literal projection the laws read; None when nothing can be read. A
 /// `nika:fetch` whose URL rides a placeholder the seat asks for (`const.<slug>` declared

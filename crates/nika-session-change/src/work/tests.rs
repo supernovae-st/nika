@@ -950,3 +950,97 @@ fn the_waiting_question_travels_as_the_compiler_asks_it() {
         assert!(json.get("question").is_none(), "{json}");
     }
 }
+
+/// A conversation led by an intelligence reaches every host with the values it binds and their
+/// provenance, the person's delegations, and the questions asked with their identities (each a
+/// witness on the wire); a snapshot without one carries none of these keys, so every earlier
+/// snapshot keeps its bytes.
+#[test]
+fn a_conversation_reaches_hosts_with_provenance_delegations_and_identities() {
+    use super::{
+        AskedQuestion, Binding, Delegation, Offer, OfferValue, Provenance, ProvenanceKind,
+        ValueRole,
+    };
+    let asker = std::sync::Arc::new(Incarnation);
+    let blank = || {
+        let request = Request::new(Some("digest".to_owned()), Vec::new(), Vec::new());
+        let rail = Rail {
+            draft: Stage::Pending,
+            saved: Stage::Pending,
+            checked: Stage::Pending,
+            active: Stage::Pending,
+            run: Stage::Pending,
+        };
+        Work::new(
+            PathBuf::from("/p"),
+            request,
+            Waiting::Free,
+            None,
+            None,
+            None,
+            None,
+            rail,
+        )
+    };
+    let plain = serde_json::to_value(blank()).expect("serializes");
+    for key in ["bindings", "delegations", "questions"] {
+        assert!(plain.get(key).is_none(), "{key}: {plain}");
+    }
+
+    let offered = Provenance::new(ProvenanceKind::Offered, "u2")
+        .with_offer("plan", Some("recommended".to_owned()));
+    let delegated = Provenance::new(ProvenanceKind::Delegated, "u1").with_excerpt("tu les choisis");
+    let bindings = vec![
+        Binding::new(ValueRole::OutputPath, "./news/digest.md", offered),
+        Binding::new(ValueRole::ReadSource, "https://www.lemonde.fr/", delegated),
+    ];
+    let delegations = vec![Delegation::new(
+        "u1",
+        "tu les choisis",
+        ValueRole::ReadSource,
+    )];
+    let id = QuestionId::new("witness-plan".to_owned(), &asker);
+    let option = Offer::new("recommended", "Oui", true).with_values(vec![OfferValue::new(
+        ValueRole::OutputPath,
+        "./news/digest.md",
+        None,
+    )]);
+    let held = QuestionId::new("witness-token".to_owned(), &asker);
+    let questions = vec![
+        AskedQuestion::new(id.clone(), "plan", "Ça te va ?").with_options(
+            vec![option],
+            true,
+            false,
+        ),
+        AskedQuestion::new(held.clone(), "token", "Un jeton ?").after(vec!["plan".to_owned()]),
+    ];
+    let mut work = blank().with_conversation(bindings, delegations, questions);
+    work.waiting = Waiting::Questions { ids: vec![id] };
+    let json = serde_json::to_value(&work).expect("serializes");
+    assert_eq!(
+        json["waiting"],
+        serde_json::json!({"kind": "questions", "ids": ["witness-plan"]})
+    );
+    assert_eq!(
+        json["bindings"][0],
+        serde_json::json!({"role": "output_path", "value": "./news/digest.md",
+            "provenance": {"kind": "offered", "message": "u2", "question": "plan",
+                "option": "recommended"}})
+    );
+    assert_eq!(
+        json["bindings"][1]["provenance"]["excerpt"],
+        "tu les choisis"
+    );
+    assert_eq!(
+        json["delegations"],
+        serde_json::json!([{"message": "u1", "excerpt": "tu les choisis", "scope": "read_source"}])
+    );
+    assert_eq!(json["questions"][0]["id"], "witness-plan");
+    assert_eq!(json["questions"][0]["state"], "open");
+    assert_eq!(
+        json["questions"][0]["options"][0]["values"][0]["value"],
+        "./news/digest.md"
+    );
+    assert_eq!(json["questions"][1]["state"], "after");
+    assert_eq!(json["questions"][1]["after"], serde_json::json!(["plan"]));
+}

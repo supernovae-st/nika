@@ -1698,6 +1698,60 @@ impl<T> tracing::instrument::Instrument for nika_session_change::work::AnswerAct
 impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::AnswerAct
 impl<T> typenum::type_operators::Same for nika_session_change::work::AnswerAct
 pub type nika_session_change::work::AnswerAct::Output = T
+#[non_exhaustive] pub enum nika_session_change::work::AskedState
+pub nika_session_change::work::AskedState::After
+pub nika_session_change::work::AskedState::Open
+impl core::clone::Clone for nika_session_change::work::AskedState
+pub fn nika_session_change::work::AskedState::clone(&self) -> nika_session_change::work::AskedState
+impl core::cmp::Eq for nika_session_change::work::AskedState
+impl core::cmp::PartialEq for nika_session_change::work::AskedState
+pub fn nika_session_change::work::AskedState::eq(&self, other: &nika_session_change::work::AskedState) -> bool
+impl core::fmt::Debug for nika_session_change::work::AskedState
+pub fn nika_session_change::work::AskedState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session_change::work::AskedState
+impl core::marker::StructuralPartialEq for nika_session_change::work::AskedState
+impl serde_core::ser::Serialize for nika_session_change::work::AskedState
+pub fn nika_session_change::work::AskedState::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_session_change::work::AskedState
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::AskedState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::AskedState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::AskedState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::AskedState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::AskedState where U: core::convert::From<T>
+pub fn nika_session_change::work::AskedState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::AskedState where U: core::convert::Into<T>
+pub type nika_session_change::work::AskedState::Error = core::convert::Infallible
+pub fn nika_session_change::work::AskedState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::AskedState where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::AskedState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::AskedState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::AskedState where T: core::clone::Clone
+pub type nika_session_change::work::AskedState::Owned = T
+pub fn nika_session_change::work::AskedState::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::AskedState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::AskedState where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::AskedState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::AskedState where T: ?core::marker::Sized
+pub fn nika_session_change::work::AskedState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::AskedState where T: ?core::marker::Sized
+pub fn nika_session_change::work::AskedState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::AskedState where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::AskedState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::AskedState
+pub fn nika_session_change::work::AskedState::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::AskedState where T: core::clone::Clone
+pub fn nika_session_change::work::AskedState::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::AskedState where T: 'static
+pub fn nika_session_change::work::AskedState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session_change::work::AskedState where T: core::marker::Copy
+pub fn nika_session_change::work::AskedState::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::AskedState where T: ?core::marker::Sized
+pub fn nika_session_change::work::AskedState::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::AskedState::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::AskedState
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::AskedState
+impl<T> typenum::type_operators::Same for nika_session_change::work::AskedState
+pub type nika_session_change::work::AskedState::Output = T
 #[non_exhaustive] pub enum nika_session_change::work::AuthoringStatus
 pub nika_session_change::work::AuthoringStatus::Incomplete
 pub nika_session_change::work::AuthoringStatus::Other
@@ -1931,6 +1985,67 @@ impl<T> tracing::instrument::Instrument for nika_session_change::work::NoteKind
 impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::NoteKind
 impl<T> typenum::type_operators::Same for nika_session_change::work::NoteKind
 pub type nika_session_change::work::NoteKind::Output = T
+#[non_exhaustive] pub enum nika_session_change::work::ProvenanceKind
+pub nika_session_change::work::ProvenanceKind::Answered
+pub nika_session_change::work::ProvenanceKind::Delegated
+pub nika_session_change::work::ProvenanceKind::Derived
+pub nika_session_change::work::ProvenanceKind::Named
+pub nika_session_change::work::ProvenanceKind::Offered
+pub nika_session_change::work::ProvenanceKind::Retained
+impl core::clone::Clone for nika_session_change::work::ProvenanceKind
+pub fn nika_session_change::work::ProvenanceKind::clone(&self) -> nika_session_change::work::ProvenanceKind
+impl core::cmp::Eq for nika_session_change::work::ProvenanceKind
+impl core::cmp::PartialEq for nika_session_change::work::ProvenanceKind
+pub fn nika_session_change::work::ProvenanceKind::eq(&self, other: &nika_session_change::work::ProvenanceKind) -> bool
+impl core::fmt::Debug for nika_session_change::work::ProvenanceKind
+pub fn nika_session_change::work::ProvenanceKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session_change::work::ProvenanceKind
+impl core::marker::StructuralPartialEq for nika_session_change::work::ProvenanceKind
+impl serde_core::ser::Serialize for nika_session_change::work::ProvenanceKind
+pub fn nika_session_change::work::ProvenanceKind::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session_change::work::ProvenanceKind
+pub fn nika_session_change::work::ProvenanceKind::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session_change::work::ProvenanceKind
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::ProvenanceKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::ProvenanceKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::ProvenanceKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::ProvenanceKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::ProvenanceKind where U: core::convert::From<T>
+pub fn nika_session_change::work::ProvenanceKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::ProvenanceKind where U: core::convert::Into<T>
+pub type nika_session_change::work::ProvenanceKind::Error = core::convert::Infallible
+pub fn nika_session_change::work::ProvenanceKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::ProvenanceKind where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::ProvenanceKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::ProvenanceKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::ProvenanceKind where T: core::clone::Clone
+pub type nika_session_change::work::ProvenanceKind::Owned = T
+pub fn nika_session_change::work::ProvenanceKind::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::ProvenanceKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::ProvenanceKind where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::ProvenanceKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::ProvenanceKind where T: ?core::marker::Sized
+pub fn nika_session_change::work::ProvenanceKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::ProvenanceKind where T: ?core::marker::Sized
+pub fn nika_session_change::work::ProvenanceKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::ProvenanceKind where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::ProvenanceKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::ProvenanceKind
+pub fn nika_session_change::work::ProvenanceKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::ProvenanceKind where T: core::clone::Clone
+pub fn nika_session_change::work::ProvenanceKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::ProvenanceKind where T: 'static
+pub fn nika_session_change::work::ProvenanceKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session_change::work::ProvenanceKind where T: core::marker::Copy
+pub fn nika_session_change::work::ProvenanceKind::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> serde_core::de::DeserializeOwned for nika_session_change::work::ProvenanceKind where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::ProvenanceKind where T: ?core::marker::Sized
+pub fn nika_session_change::work::ProvenanceKind::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::ProvenanceKind::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::ProvenanceKind
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::ProvenanceKind
+impl<T> typenum::type_operators::Same for nika_session_change::work::ProvenanceKind
+pub type nika_session_change::work::ProvenanceKind::Output = T
 #[non_exhaustive] pub enum nika_session_change::work::RunEnd
 pub nika_session_change::work::RunEnd::Failed
 pub nika_session_change::work::RunEnd::Interrupted
@@ -2055,6 +2170,65 @@ impl<T> tracing::instrument::Instrument for nika_session_change::work::Stage
 impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::Stage
 impl<T> typenum::type_operators::Same for nika_session_change::work::Stage
 pub type nika_session_change::work::Stage::Output = T
+#[non_exhaustive] pub enum nika_session_change::work::ValueRole
+pub nika_session_change::work::ValueRole::OutputPath
+pub nika_session_change::work::ValueRole::ReadSource
+pub nika_session_change::work::ValueRole::RunModel
+pub nika_session_change::work::ValueRole::Value
+impl core::clone::Clone for nika_session_change::work::ValueRole
+pub fn nika_session_change::work::ValueRole::clone(&self) -> nika_session_change::work::ValueRole
+impl core::cmp::Eq for nika_session_change::work::ValueRole
+impl core::cmp::PartialEq for nika_session_change::work::ValueRole
+pub fn nika_session_change::work::ValueRole::eq(&self, other: &nika_session_change::work::ValueRole) -> bool
+impl core::fmt::Debug for nika_session_change::work::ValueRole
+pub fn nika_session_change::work::ValueRole::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_session_change::work::ValueRole
+impl core::marker::StructuralPartialEq for nika_session_change::work::ValueRole
+impl serde_core::ser::Serialize for nika_session_change::work::ValueRole
+pub fn nika_session_change::work::ValueRole::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session_change::work::ValueRole
+pub fn nika_session_change::work::ValueRole::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session_change::work::ValueRole
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::ValueRole where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::ValueRole::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::ValueRole where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::ValueRole::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::ValueRole where U: core::convert::From<T>
+pub fn nika_session_change::work::ValueRole::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::ValueRole where U: core::convert::Into<T>
+pub type nika_session_change::work::ValueRole::Error = core::convert::Infallible
+pub fn nika_session_change::work::ValueRole::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::ValueRole where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::ValueRole::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::ValueRole::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::ValueRole where T: core::clone::Clone
+pub type nika_session_change::work::ValueRole::Owned = T
+pub fn nika_session_change::work::ValueRole::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::ValueRole::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::ValueRole where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::ValueRole::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::ValueRole where T: ?core::marker::Sized
+pub fn nika_session_change::work::ValueRole::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::ValueRole where T: ?core::marker::Sized
+pub fn nika_session_change::work::ValueRole::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::ValueRole where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::ValueRole::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::ValueRole
+pub fn nika_session_change::work::ValueRole::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::ValueRole where T: core::clone::Clone
+pub fn nika_session_change::work::ValueRole::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::ValueRole where T: 'static
+pub fn nika_session_change::work::ValueRole::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_session_change::work::ValueRole where T: core::marker::Copy
+pub fn nika_session_change::work::ValueRole::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> serde_core::de::DeserializeOwned for nika_session_change::work::ValueRole where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::ValueRole where T: ?core::marker::Sized
+pub fn nika_session_change::work::ValueRole::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::ValueRole::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::ValueRole
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::ValueRole
+impl<T> typenum::type_operators::Same for nika_session_change::work::ValueRole
+pub type nika_session_change::work::ValueRole::Output = T
 #[non_exhaustive] pub enum nika_session_change::work::ValueSource
 pub nika_session_change::work::ValueSource::AsTyped
 pub nika_session_change::work::ValueSource::ModelRead
@@ -2128,6 +2302,8 @@ pub nika_session_change::work::Waiting::KnowledgeChoice::line: alloc::string::St
 pub nika_session_change::work::Waiting::Question
 pub nika_session_change::work::Waiting::Question::id: nika_session_change::outcome::QuestionId
 pub nika_session_change::work::Waiting::Question::key: alloc::string::String
+pub nika_session_change::work::Waiting::Questions
+pub nika_session_change::work::Waiting::Questions::ids: alloc::vec::Vec<nika_session_change::outcome::QuestionId>
 pub nika_session_change::work::Waiting::RunReview
 pub nika_session_change::work::Waiting::RunReview::review: nika_session_change::outcome::ReviewId
 impl nika_session_change::work::Waiting
@@ -2233,6 +2409,71 @@ impl<T> tracing::instrument::Instrument for nika_session_change::work::Answered
 impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::Answered
 impl<T> typenum::type_operators::Same for nika_session_change::work::Answered
 pub type nika_session_change::work::Answered::Output = T
+#[non_exhaustive] pub struct nika_session_change::work::AskedQuestion
+pub nika_session_change::work::AskedQuestion::after: alloc::vec::Vec<alloc::string::String>
+pub nika_session_change::work::AskedQuestion::free_text: bool
+pub nika_session_change::work::AskedQuestion::id: nika_session_change::outcome::QuestionId
+pub nika_session_change::work::AskedQuestion::key: alloc::string::String
+pub nika_session_change::work::AskedQuestion::multi_select: bool
+pub nika_session_change::work::AskedQuestion::options: alloc::vec::Vec<nika_session_change::work::Offer>
+pub nika_session_change::work::AskedQuestion::question: alloc::string::String
+pub nika_session_change::work::AskedQuestion::role: core::option::Option<nika_session_change::work::ValueRole>
+pub nika_session_change::work::AskedQuestion::state: nika_session_change::work::AskedState
+pub nika_session_change::work::AskedQuestion::why: core::option::Option<alloc::string::String>
+impl nika_session_change::work::AskedQuestion
+pub fn nika_session_change::work::AskedQuestion::after(self, after: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_session_change::work::AskedQuestion::new(id: nika_session_change::outcome::QuestionId, key: impl core::convert::Into<alloc::string::String>, question: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_session_change::work::AskedQuestion::with_options(self, options: alloc::vec::Vec<nika_session_change::work::Offer>, free_text: bool, multi_select: bool) -> Self
+pub fn nika_session_change::work::AskedQuestion::with_role(self, role: nika_session_change::work::ValueRole) -> Self
+pub fn nika_session_change::work::AskedQuestion::with_why(self, why: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_session_change::work::AskedQuestion
+pub fn nika_session_change::work::AskedQuestion::clone(&self) -> nika_session_change::work::AskedQuestion
+impl core::cmp::Eq for nika_session_change::work::AskedQuestion
+impl core::cmp::PartialEq for nika_session_change::work::AskedQuestion
+pub fn nika_session_change::work::AskedQuestion::eq(&self, other: &nika_session_change::work::AskedQuestion) -> bool
+impl core::fmt::Debug for nika_session_change::work::AskedQuestion
+pub fn nika_session_change::work::AskedQuestion::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_change::work::AskedQuestion
+impl serde_core::ser::Serialize for nika_session_change::work::AskedQuestion
+pub fn nika_session_change::work::AskedQuestion::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_session_change::work::AskedQuestion
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::AskedQuestion where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::AskedQuestion::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::AskedQuestion where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::AskedQuestion::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::AskedQuestion where U: core::convert::From<T>
+pub fn nika_session_change::work::AskedQuestion::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::AskedQuestion where U: core::convert::Into<T>
+pub type nika_session_change::work::AskedQuestion::Error = core::convert::Infallible
+pub fn nika_session_change::work::AskedQuestion::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::AskedQuestion where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::AskedQuestion::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::AskedQuestion::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::AskedQuestion where T: core::clone::Clone
+pub type nika_session_change::work::AskedQuestion::Owned = T
+pub fn nika_session_change::work::AskedQuestion::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::AskedQuestion::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::AskedQuestion where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::AskedQuestion::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::AskedQuestion where T: ?core::marker::Sized
+pub fn nika_session_change::work::AskedQuestion::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::AskedQuestion where T: ?core::marker::Sized
+pub fn nika_session_change::work::AskedQuestion::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::AskedQuestion where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::AskedQuestion::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::AskedQuestion
+pub fn nika_session_change::work::AskedQuestion::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::AskedQuestion where T: core::clone::Clone
+pub fn nika_session_change::work::AskedQuestion::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::AskedQuestion where T: 'static
+pub fn nika_session_change::work::AskedQuestion::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::AskedQuestion where T: ?core::marker::Sized
+pub fn nika_session_change::work::AskedQuestion::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::AskedQuestion::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::AskedQuestion
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::AskedQuestion
+impl<T> typenum::type_operators::Same for nika_session_change::work::AskedQuestion
+pub type nika_session_change::work::AskedQuestion::Output = T
 #[non_exhaustive] pub struct nika_session_change::work::Audit
 pub nika_session_change::work::Audit::clean: bool
 pub nika_session_change::work::Audit::findings: alloc::vec::Vec<alloc::string::String>
@@ -2569,6 +2810,65 @@ impl<T> tracing::instrument::Instrument for nika_session_change::work::Authoring
 impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::AuthoringNote
 impl<T> typenum::type_operators::Same for nika_session_change::work::AuthoringNote
 pub type nika_session_change::work::AuthoringNote::Output = T
+#[non_exhaustive] pub struct nika_session_change::work::Binding
+pub nika_session_change::work::Binding::key: core::option::Option<alloc::string::String>
+pub nika_session_change::work::Binding::provenance: nika_session_change::work::Provenance
+pub nika_session_change::work::Binding::role: nika_session_change::work::ValueRole
+pub nika_session_change::work::Binding::value: alloc::string::String
+impl nika_session_change::work::Binding
+pub fn nika_session_change::work::Binding::new(role: nika_session_change::work::ValueRole, value: impl core::convert::Into<alloc::string::String>, provenance: nika_session_change::work::Provenance) -> Self
+pub fn nika_session_change::work::Binding::with_key(self, key: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_session_change::work::Binding
+pub fn nika_session_change::work::Binding::clone(&self) -> nika_session_change::work::Binding
+impl core::cmp::Eq for nika_session_change::work::Binding
+impl core::cmp::PartialEq for nika_session_change::work::Binding
+pub fn nika_session_change::work::Binding::eq(&self, other: &nika_session_change::work::Binding) -> bool
+impl core::fmt::Debug for nika_session_change::work::Binding
+pub fn nika_session_change::work::Binding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_change::work::Binding
+impl serde_core::ser::Serialize for nika_session_change::work::Binding
+pub fn nika_session_change::work::Binding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session_change::work::Binding
+pub fn nika_session_change::work::Binding::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session_change::work::Binding
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::Binding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::Binding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::Binding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::Binding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::Binding where U: core::convert::From<T>
+pub fn nika_session_change::work::Binding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::Binding where U: core::convert::Into<T>
+pub type nika_session_change::work::Binding::Error = core::convert::Infallible
+pub fn nika_session_change::work::Binding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::Binding where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::Binding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::Binding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::Binding where T: core::clone::Clone
+pub type nika_session_change::work::Binding::Owned = T
+pub fn nika_session_change::work::Binding::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::Binding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::Binding where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::Binding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::Binding where T: ?core::marker::Sized
+pub fn nika_session_change::work::Binding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::Binding where T: ?core::marker::Sized
+pub fn nika_session_change::work::Binding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::Binding where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::Binding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::Binding
+pub fn nika_session_change::work::Binding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::Binding where T: core::clone::Clone
+pub fn nika_session_change::work::Binding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::Binding where T: 'static
+pub fn nika_session_change::work::Binding::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_session_change::work::Binding where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::Binding where T: ?core::marker::Sized
+pub fn nika_session_change::work::Binding::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::Binding::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::Binding
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::Binding
+impl<T> typenum::type_operators::Same for nika_session_change::work::Binding
+pub type nika_session_change::work::Binding::Output = T
 #[non_exhaustive] pub struct nika_session_change::work::Bound
 pub nika_session_change::work::Bound::path: alloc::string::String
 pub nika_session_change::work::Bound::value: serde_json::value::Value
@@ -2823,6 +3123,63 @@ impl<T> tracing::instrument::Instrument for nika_session_change::work::DecisionS
 impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::DecisionSeat
 impl<T> typenum::type_operators::Same for nika_session_change::work::DecisionSeat
 pub type nika_session_change::work::DecisionSeat::Output = T
+#[non_exhaustive] pub struct nika_session_change::work::Delegation
+pub nika_session_change::work::Delegation::excerpt: alloc::string::String
+pub nika_session_change::work::Delegation::message: alloc::string::String
+pub nika_session_change::work::Delegation::scope: nika_session_change::work::ValueRole
+impl nika_session_change::work::Delegation
+pub fn nika_session_change::work::Delegation::new(message: impl core::convert::Into<alloc::string::String>, excerpt: impl core::convert::Into<alloc::string::String>, scope: nika_session_change::work::ValueRole) -> Self
+impl core::clone::Clone for nika_session_change::work::Delegation
+pub fn nika_session_change::work::Delegation::clone(&self) -> nika_session_change::work::Delegation
+impl core::cmp::Eq for nika_session_change::work::Delegation
+impl core::cmp::PartialEq for nika_session_change::work::Delegation
+pub fn nika_session_change::work::Delegation::eq(&self, other: &nika_session_change::work::Delegation) -> bool
+impl core::fmt::Debug for nika_session_change::work::Delegation
+pub fn nika_session_change::work::Delegation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_change::work::Delegation
+impl serde_core::ser::Serialize for nika_session_change::work::Delegation
+pub fn nika_session_change::work::Delegation::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session_change::work::Delegation
+pub fn nika_session_change::work::Delegation::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session_change::work::Delegation
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::Delegation where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::Delegation::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::Delegation where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::Delegation::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::Delegation where U: core::convert::From<T>
+pub fn nika_session_change::work::Delegation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::Delegation where U: core::convert::Into<T>
+pub type nika_session_change::work::Delegation::Error = core::convert::Infallible
+pub fn nika_session_change::work::Delegation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::Delegation where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::Delegation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::Delegation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::Delegation where T: core::clone::Clone
+pub type nika_session_change::work::Delegation::Owned = T
+pub fn nika_session_change::work::Delegation::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::Delegation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::Delegation where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::Delegation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::Delegation where T: ?core::marker::Sized
+pub fn nika_session_change::work::Delegation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::Delegation where T: ?core::marker::Sized
+pub fn nika_session_change::work::Delegation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::Delegation where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::Delegation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::Delegation
+pub fn nika_session_change::work::Delegation::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::Delegation where T: core::clone::Clone
+pub fn nika_session_change::work::Delegation::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::Delegation where T: 'static
+pub fn nika_session_change::work::Delegation::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_session_change::work::Delegation where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::Delegation where T: ?core::marker::Sized
+pub fn nika_session_change::work::Delegation::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::Delegation::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::Delegation
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::Delegation
+impl<T> typenum::type_operators::Same for nika_session_change::work::Delegation
+pub type nika_session_change::work::Delegation::Output = T
 #[non_exhaustive] pub struct nika_session_change::work::DocumentRevision
 pub nika_session_change::work::DocumentRevision::base_sha256: core::option::Option<alloc::string::String>
 pub nika_session_change::work::DocumentRevision::candidate_sha256: alloc::string::String
@@ -2930,6 +3287,177 @@ impl<T> tracing::instrument::Instrument for nika_session_change::work::Intellige
 impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::Intelligence
 impl<T> typenum::type_operators::Same for nika_session_change::work::Intelligence
 pub type nika_session_change::work::Intelligence::Output = T
+#[non_exhaustive] pub struct nika_session_change::work::Offer
+pub nika_session_change::work::Offer::key: alloc::string::String
+pub nika_session_change::work::Offer::label: alloc::string::String
+pub nika_session_change::work::Offer::recommended: bool
+pub nika_session_change::work::Offer::values: alloc::vec::Vec<nika_session_change::work::OfferValue>
+impl nika_session_change::work::Offer
+pub fn nika_session_change::work::Offer::new(key: impl core::convert::Into<alloc::string::String>, label: impl core::convert::Into<alloc::string::String>, recommended: bool) -> Self
+pub fn nika_session_change::work::Offer::with_values(self, values: alloc::vec::Vec<nika_session_change::work::OfferValue>) -> Self
+impl core::clone::Clone for nika_session_change::work::Offer
+pub fn nika_session_change::work::Offer::clone(&self) -> nika_session_change::work::Offer
+impl core::cmp::Eq for nika_session_change::work::Offer
+impl core::cmp::PartialEq for nika_session_change::work::Offer
+pub fn nika_session_change::work::Offer::eq(&self, other: &nika_session_change::work::Offer) -> bool
+impl core::fmt::Debug for nika_session_change::work::Offer
+pub fn nika_session_change::work::Offer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_change::work::Offer
+impl serde_core::ser::Serialize for nika_session_change::work::Offer
+pub fn nika_session_change::work::Offer::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_session_change::work::Offer
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::Offer where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::Offer::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::Offer where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::Offer::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::Offer where U: core::convert::From<T>
+pub fn nika_session_change::work::Offer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::Offer where U: core::convert::Into<T>
+pub type nika_session_change::work::Offer::Error = core::convert::Infallible
+pub fn nika_session_change::work::Offer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::Offer where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::Offer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::Offer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::Offer where T: core::clone::Clone
+pub type nika_session_change::work::Offer::Owned = T
+pub fn nika_session_change::work::Offer::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::Offer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::Offer where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::Offer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::Offer where T: ?core::marker::Sized
+pub fn nika_session_change::work::Offer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::Offer where T: ?core::marker::Sized
+pub fn nika_session_change::work::Offer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::Offer where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::Offer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::Offer
+pub fn nika_session_change::work::Offer::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::Offer where T: core::clone::Clone
+pub fn nika_session_change::work::Offer::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::Offer where T: 'static
+pub fn nika_session_change::work::Offer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::Offer where T: ?core::marker::Sized
+pub fn nika_session_change::work::Offer::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::Offer::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::Offer
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::Offer
+impl<T> typenum::type_operators::Same for nika_session_change::work::Offer
+pub type nika_session_change::work::Offer::Output = T
+#[non_exhaustive] pub struct nika_session_change::work::OfferValue
+pub nika_session_change::work::OfferValue::name: core::option::Option<alloc::string::String>
+pub nika_session_change::work::OfferValue::role: nika_session_change::work::ValueRole
+pub nika_session_change::work::OfferValue::value: alloc::string::String
+impl nika_session_change::work::OfferValue
+pub fn nika_session_change::work::OfferValue::new(role: nika_session_change::work::ValueRole, value: impl core::convert::Into<alloc::string::String>, name: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_session_change::work::OfferValue
+pub fn nika_session_change::work::OfferValue::clone(&self) -> nika_session_change::work::OfferValue
+impl core::cmp::Eq for nika_session_change::work::OfferValue
+impl core::cmp::PartialEq for nika_session_change::work::OfferValue
+pub fn nika_session_change::work::OfferValue::eq(&self, other: &nika_session_change::work::OfferValue) -> bool
+impl core::fmt::Debug for nika_session_change::work::OfferValue
+pub fn nika_session_change::work::OfferValue::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_change::work::OfferValue
+impl serde_core::ser::Serialize for nika_session_change::work::OfferValue
+pub fn nika_session_change::work::OfferValue::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_session_change::work::OfferValue
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::OfferValue where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::OfferValue::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::OfferValue where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::OfferValue::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::OfferValue where U: core::convert::From<T>
+pub fn nika_session_change::work::OfferValue::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::OfferValue where U: core::convert::Into<T>
+pub type nika_session_change::work::OfferValue::Error = core::convert::Infallible
+pub fn nika_session_change::work::OfferValue::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::OfferValue where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::OfferValue::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::OfferValue::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::OfferValue where T: core::clone::Clone
+pub type nika_session_change::work::OfferValue::Owned = T
+pub fn nika_session_change::work::OfferValue::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::OfferValue::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::OfferValue where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::OfferValue::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::OfferValue where T: ?core::marker::Sized
+pub fn nika_session_change::work::OfferValue::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::OfferValue where T: ?core::marker::Sized
+pub fn nika_session_change::work::OfferValue::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::OfferValue where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::OfferValue::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::OfferValue
+pub fn nika_session_change::work::OfferValue::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::OfferValue where T: core::clone::Clone
+pub fn nika_session_change::work::OfferValue::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::OfferValue where T: 'static
+pub fn nika_session_change::work::OfferValue::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::OfferValue where T: ?core::marker::Sized
+pub fn nika_session_change::work::OfferValue::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::OfferValue::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::OfferValue
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::OfferValue
+impl<T> typenum::type_operators::Same for nika_session_change::work::OfferValue
+pub type nika_session_change::work::OfferValue::Output = T
+#[non_exhaustive] pub struct nika_session_change::work::Provenance
+pub nika_session_change::work::Provenance::excerpt: core::option::Option<alloc::string::String>
+pub nika_session_change::work::Provenance::kind: nika_session_change::work::ProvenanceKind
+pub nika_session_change::work::Provenance::message: alloc::string::String
+pub nika_session_change::work::Provenance::option: core::option::Option<alloc::string::String>
+pub nika_session_change::work::Provenance::question: core::option::Option<alloc::string::String>
+impl nika_session_change::work::Provenance
+pub fn nika_session_change::work::Provenance::new(kind: nika_session_change::work::ProvenanceKind, message: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_session_change::work::Provenance::with_excerpt(self, excerpt: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_session_change::work::Provenance::with_offer(self, question: impl core::convert::Into<alloc::string::String>, option: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_session_change::work::Provenance
+pub fn nika_session_change::work::Provenance::clone(&self) -> nika_session_change::work::Provenance
+impl core::cmp::Eq for nika_session_change::work::Provenance
+impl core::cmp::PartialEq for nika_session_change::work::Provenance
+pub fn nika_session_change::work::Provenance::eq(&self, other: &nika_session_change::work::Provenance) -> bool
+impl core::fmt::Debug for nika_session_change::work::Provenance
+pub fn nika_session_change::work::Provenance::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_change::work::Provenance
+impl serde_core::ser::Serialize for nika_session_change::work::Provenance
+pub fn nika_session_change::work::Provenance::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_session_change::work::Provenance
+pub fn nika_session_change::work::Provenance::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_session_change::work::Provenance
+impl<Q, K> equivalent::Equivalent<K> for nika_session_change::work::Provenance where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::Provenance::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_change::work::Provenance where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_change::work::Provenance::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_change::work::Provenance where U: core::convert::From<T>
+pub fn nika_session_change::work::Provenance::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_change::work::Provenance where U: core::convert::Into<T>
+pub type nika_session_change::work::Provenance::Error = core::convert::Infallible
+pub fn nika_session_change::work::Provenance::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_change::work::Provenance where U: core::convert::TryFrom<T>
+pub type nika_session_change::work::Provenance::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_change::work::Provenance::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_change::work::Provenance where T: core::clone::Clone
+pub type nika_session_change::work::Provenance::Owned = T
+pub fn nika_session_change::work::Provenance::clone_into(&self, target: &mut T)
+pub fn nika_session_change::work::Provenance::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_change::work::Provenance where T: 'static + ?core::marker::Sized
+pub fn nika_session_change::work::Provenance::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_change::work::Provenance where T: ?core::marker::Sized
+pub fn nika_session_change::work::Provenance::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_change::work::Provenance where T: ?core::marker::Sized
+pub fn nika_session_change::work::Provenance::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_change::work::Provenance where T: core::clone::Clone
+pub unsafe fn nika_session_change::work::Provenance::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_change::work::Provenance
+pub fn nika_session_change::work::Provenance::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_change::work::Provenance where T: core::clone::Clone
+pub fn nika_session_change::work::Provenance::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_change::work::Provenance where T: 'static
+pub fn nika_session_change::work::Provenance::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_session_change::work::Provenance where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_change::work::Provenance where T: ?core::marker::Sized
+pub fn nika_session_change::work::Provenance::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_change::work::Provenance::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_change::work::Provenance
+impl<T> tracing::instrument::WithSubscriber for nika_session_change::work::Provenance
+impl<T> typenum::type_operators::Same for nika_session_change::work::Provenance
+pub type nika_session_change::work::Provenance::Output = T
 #[non_exhaustive] pub struct nika_session_change::work::Question
 pub nika_session_change::work::Question::answer_type: &'static str
 pub nika_session_change::work::Question::key: alloc::string::String
@@ -3490,11 +4018,14 @@ pub type nika_session_change::work::TrialTime::Output = T
 #[non_exhaustive] pub struct nika_session_change::work::Work
 pub nika_session_change::work::Work::answered: core::option::Option<nika_session_change::work::Answered>
 pub nika_session_change::work::Work::authoring: core::option::Option<nika_session_change::work::Authoring>
+pub nika_session_change::work::Work::bindings: alloc::vec::Vec<nika_session_change::work::Binding>
 pub nika_session_change::work::Work::candidate: core::option::Option<nika_session_change::work::Candidate>
 pub nika_session_change::work::Work::contract: &'static str
+pub nika_session_change::work::Work::delegations: alloc::vec::Vec<nika_session_change::work::Delegation>
 pub nika_session_change::work::Work::intelligence: core::option::Option<nika_session_change::work::Intelligence>
 pub nika_session_change::work::Work::knowledge: core::option::Option<nika_session_change::work::Knowledge>
 pub nika_session_change::work::Work::question: core::option::Option<nika_session_change::work::Question>
+pub nika_session_change::work::Work::questions: alloc::vec::Vec<nika_session_change::work::AskedQuestion>
 pub nika_session_change::work::Work::rail: nika_session_change::work::Rail
 pub nika_session_change::work::Work::request: nika_session_change::work::Request
 pub nika_session_change::work::Work::requested: core::option::Option<nika_session_change::work::RequestedRun>
@@ -3506,6 +4037,7 @@ impl nika_session_change::work::Work
 pub fn nika_session_change::work::Work::new(root: std::path::PathBuf, request: nika_session_change::work::Request, waiting: nika_session_change::work::Waiting, candidate: core::option::Option<nika_session_change::work::Candidate>, saved: core::option::Option<nika_session_change::work::Saved>, requested: core::option::Option<nika_session_change::work::RequestedRun>, run: core::option::Option<nika_session_change::work::Run>, rail: nika_session_change::work::Rail) -> Self
 pub fn nika_session_change::work::Work::with_answered(self, answered: core::option::Option<nika_session_change::work::Answered>) -> Self
 pub fn nika_session_change::work::Work::with_authoring(self, authoring: core::option::Option<nika_session_change::work::Authoring>) -> Self
+pub fn nika_session_change::work::Work::with_conversation(self, bindings: alloc::vec::Vec<nika_session_change::work::Binding>, delegations: alloc::vec::Vec<nika_session_change::work::Delegation>, questions: alloc::vec::Vec<nika_session_change::work::AskedQuestion>) -> Self
 pub fn nika_session_change::work::Work::with_intelligence(self, intelligence: core::option::Option<nika_session_change::work::Intelligence>) -> Self
 pub fn nika_session_change::work::Work::with_knowledge(self, knowledge: core::option::Option<nika_session_change::work::Knowledge>) -> Self
 pub fn nika_session_change::work::Work::with_question(self, question: core::option::Option<&nika_compile::types::CompileQuestion>) -> Self

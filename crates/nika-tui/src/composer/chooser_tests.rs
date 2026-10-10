@@ -109,7 +109,7 @@ fn a_slash_lists_the_commands_and_the_arrows_move_without_editing() {
 }
 
 #[test]
-fn tab_and_enter_insert_the_selection_and_only_a_whole_command_is_sent() {
+fn tab_inserts_the_selection_and_enter_sends_the_selected_command_once() {
     let mut c = composer();
     type_text(&mut c, "/s");
     assert_eq!(
@@ -122,8 +122,8 @@ fn tab_and_enter_insert_the_selection_and_only_a_whole_command_is_sent() {
         ))
     );
     c.choose(key(KeyCode::Down));
-    // Enter on a partial name inserts the selection: nothing is sent.
-    assert_eq!(c.choose(key(KeyCode::Enter)), Chosen::Read);
+    // Tab on a partial name inserts the selection: nothing is sent.
+    assert_eq!(c.choose(key(KeyCode::Tab)), Chosen::Read);
     assert_eq!(c.text(), "/show");
     assert_eq!(
         listed(&c),
@@ -134,6 +134,16 @@ fn tab_and_enter_insert_the_selection_and_only_a_whole_command_is_sent() {
     assert_eq!(
         c.handle(key(KeyCode::Enter)),
         ComposerAction::Submit("/show".to_owned())
+    );
+    // Enter on a partial name completes the line with the selection, and the
+    // composer's own Enter sends it: one press, one line.
+    let mut p = composer();
+    type_text(&mut p, "/st");
+    assert_eq!(p.choose(key(KeyCode::Enter)), Chosen::Pass);
+    assert_eq!(p.text(), "/status");
+    assert_eq!(
+        p.handle(key(KeyCode::Enter)),
+        ComposerAction::Submit("/status".to_owned())
     );
     let mut t = composer();
     type_text(&mut t, "/INT");
@@ -230,11 +240,22 @@ fn the_palette_searches_apart_and_esc_returns_the_exact_draft() {
 }
 
 #[test]
-fn choosing_in_the_palette_inserts_a_command_or_hands_back_a_key() {
+fn choosing_in_the_palette_runs_or_inserts_a_command_or_hands_back_a_key() {
     let mut c = composer();
+    c.paste("my draft");
     c.toggle_palette();
     type_query(&mut c, "inspect");
-    assert_eq!(c.choose(key(KeyCode::Enter)), Chosen::Inserted);
+    assert_eq!(
+        c.choose(key(KeyCode::Enter)),
+        Chosen::Run("/show".to_owned())
+    );
+    assert!(!c.palette_open());
+    assert_eq!(c.text(), "my draft", "run once, the draft untouched");
+    assert_eq!(c.aside(), None, "nothing set aside");
+    c.clear();
+    c.toggle_palette();
+    type_query(&mut c, "inspect");
+    assert_eq!(c.choose(key(KeyCode::Tab)), Chosen::Inserted);
     assert!(!c.palette_open());
     assert_eq!(c.text(), "/show", "inserted, never sent");
     assert_eq!(c.aside(), None, "an empty box sets nothing aside");
@@ -270,7 +291,7 @@ fn a_draft_set_aside_by_the_palette_returns_unsent() {
     c.paste("use the CSV export\nnot the JSON one");
     c.toggle_palette();
     type_query(&mut c, "status");
-    c.choose(key(KeyCode::Enter));
+    c.choose(key(KeyCode::Tab));
     assert_eq!(c.text(), "/status");
     assert_eq!(c.aside(), Some("use the CSV export\nnot the JSON one"));
     // Ordinary buffer clearing keeps it aside; fresh answers use an explicit discard.
@@ -286,7 +307,7 @@ fn a_draft_set_aside_by_the_palette_returns_unsent() {
     // Esc brings it back at once, the command dropped, nothing sent.
     c.toggle_palette();
     type_query(&mut c, "help");
-    c.choose(key(KeyCode::Enter));
+    c.choose(key(KeyCode::Tab));
     assert_eq!(c.text(), "/help");
     assert_eq!(
         c.choose(key(KeyCode::Esc)),
@@ -298,7 +319,7 @@ fn a_draft_set_aside_by_the_palette_returns_unsent() {
     // Taken as a correction, the line leaves and the aside returns too.
     c.toggle_palette();
     type_query(&mut c, "status");
-    c.choose(key(KeyCode::Enter));
+    c.choose(key(KeyCode::Tab));
     assert_eq!(c.take(), "/status");
     assert_eq!(c.text(), "use the CSV export\nnot the JSON one");
 }
@@ -313,14 +334,14 @@ fn the_unsent_draft_behind_a_recalled_line_is_what_is_set_aside() {
     assert_eq!(c.text(), "sent earlier");
     c.toggle_palette();
     type_query(&mut c, "status");
-    c.choose(key(KeyCode::Enter));
+    c.choose(key(KeyCode::Tab));
     assert_eq!(c.aside(), Some("my unsent words"));
     // A second command over typed words keeps both, earliest first.
     c.clear();
     c.paste("more words");
     c.toggle_palette();
     type_query(&mut c, "help");
-    c.choose(key(KeyCode::Enter));
+    c.choose(key(KeyCode::Tab));
     assert_eq!(c.aside(), Some("my unsent words\nmore words"));
 }
 
@@ -346,7 +367,8 @@ fn a_fresh_answer_takes_palette_words_whole_and_never_restores_them() {
     c.paste("yes\nkeep every original character");
     c.toggle_palette();
     type_query(&mut c, "status");
-    c.choose(key(KeyCode::Enter));
+    // `Tab` inserts (`Enter` would run the command, the draft untouched).
+    c.choose(key(KeyCode::Tab));
     assert_eq!(
         c.discard_before_question(),
         "yes\nkeep every original character\n/status"
@@ -401,7 +423,7 @@ fn the_cursor_shows_only_while_the_composer_holds_the_keys() {
     c.paste("my words");
     c.toggle_palette();
     type_query(&mut c, "status");
-    assert_eq!(c.choose(key(KeyCode::Enter)), Chosen::Inserted);
+    assert_eq!(c.choose(key(KeyCode::Tab)), Chosen::Inserted);
     c.set_focused(false);
     assert_eq!(c.take(), "/status");
     assert_eq!(c.text(), "my words", "the words set aside are back");

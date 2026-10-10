@@ -337,10 +337,12 @@ fn the_inline_frame_shows_the_prompt_that_names_what_waits() {
         .draw(|frame| draw_inline(frame, &state, &composer))
         .expect("draw");
     let buffer = terminal.backend().buffer();
+    // The line stands right above its hint; a frame taller than the live
+    // area leaves its spare rows above the line, never under it.
     assert!(
-        row(buffer, 1).starts_with("reply ›"),
+        row(buffer, 3).starts_with("reply ›"),
         "{:?}",
-        row(buffer, 1)
+        row(buffer, 3)
     );
     assert!(
         row(buffer, 4).contains("answer the question"),
@@ -374,9 +376,9 @@ fn the_rail_sits_above_the_status_row() {
         row(buffer, 0)
     );
     assert!(
-        row(buffer, 2).starts_with("reply ›"),
+        row(buffer, 4).starts_with("reply ›"),
         "{:?}",
-        row(buffer, 2)
+        row(buffer, 4)
     );
 }
 
@@ -788,14 +790,14 @@ fn spans(line: &Line<'_>) -> String {
 
 /// The hint's one row, where it takes one.
 fn hint_line(state: &UiState, composer: &Composer, width: u16) -> Line<'static> {
-    let mut lines = hint_lines(state, composer, width, None);
+    let mut lines = hint_lines(state, composer, width, (None, true));
     assert_eq!(lines.len(), 1, "one hint row at {width}");
     lines.remove(0)
 }
 
 /// The hint's rows, each row's words, a `\n` between rows.
 fn hint_text(state: &UiState, composer: &Composer, width: u16) -> String {
-    let lines = hint_lines(state, composer, width, None);
+    let lines = hint_lines(state, composer, width, (None, true));
     lines.iter().map(spans).collect::<Vec<_>>().join("\n")
 }
 
@@ -861,7 +863,7 @@ fn a_decision_keeps_each_key_with_its_effect_on_narrow_rows() {
         for width in [35_u16, 44, 92] {
             let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
             state.waiting = waiting.clone();
-            let hint = hint_lines(&state, &composer, width, None);
+            let hint = hint_lines(&state, &composer, width, (None, true));
             let text = hint_text(&state, &composer, width);
             let at = format!("{waiting:?} {width}: {text}");
             // Every row holds whole: none wraps.
@@ -1097,7 +1099,7 @@ fn a_reviewed_proposal_names_every_consent_word_on_its_row() {
             (36, 4),
         ] {
             let at = format!("{width} ascii={ascii}");
-            let hint = hint_lines(&state, &composer, width, Some(&review));
+            let hint = hint_lines(&state, &composer, width, (Some(&review), true));
             assert_eq!(hint.len(), 1, "{at}");
             let text = spans(&hint[0]);
             assert_eq!(text, own(SAVE_RUN_HINTS[form], ascii), "{at}");
@@ -1110,11 +1112,15 @@ fn a_reviewed_proposal_names_every_consent_word_on_its_row() {
         }
         let refused = reviewed_candidate(false, ascii);
         for width in [44_u16, 92] {
-            let hint = hint_lines(&state, &composer, width, Some(&refused));
+            let hint = hint_lines(&state, &composer, width, (Some(&refused), true));
             let text = spans(&hint[0]);
             assert!(text.starts_with("yes + Enter: Save"), "{width}: {text}");
             assert!(!text.contains("save & run"), "{width}: {text}");
-            assert_eq!(hint_lines(&state, &composer, width, None), hint, "{width}");
+            assert_eq!(
+                hint_lines(&state, &composer, width, (None, true)),
+                hint,
+                "{width}"
+            );
         }
     }
 }

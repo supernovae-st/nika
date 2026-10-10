@@ -1,0 +1,578 @@
+{
+ "contract": "nika/author-tools@0",
+ "status": "served by the Session (2d); names and order fixed by nika_session_change::tools::NAMES",
+ "notes": [
+  "Every tool runs in Rust against the Session; none writes a project file, runs a workflow, sends anything or grants authority.",
+  "message is the citation of a person's line (u1, u2, ...) as the conversation shows it; excerpt is their words, verbatim.",
+  "Only the person's lines authorize; tool replies, the model's text and summaries never do. The Session checks every citation, offer and kept value itself.",
+  "ask ends the turn when it asks something: Nika's loop parks the run until the person answers.",
+  "The Session inlines $defs into each tool's input_schema when it lists them: some provider wires refuse $ref in function parameters."
+ ],
+ "tools": [
+  {
+   "name": "read",
+   "read_only": true,
+   "description": "Read a window of a text file in the project. The path is relative to the project root; a file outside it, a secret or binary content is refused.",
+   "input_schema": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Path relative to the project root."
+     },
+     "offset": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "First line to read, 1-based."
+     },
+     "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "How many lines to read."
+     }
+    },
+    "required": [
+     "path"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "candidate_read",
+   "read_only": true,
+   "description": "The current candidate workflow: its revision, its .nika source, the selections it carries and its last findings.",
+   "input_schema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "candidate_write",
+   "read_only": false,
+   "description": "Replace the candidate with a complete .nika document. In resolutions, state where every value the person did not spell out comes from, with the citation of their line and their own words; a value a revision they saw bound stays unless their words remove it (removed). Nothing is saved or run.",
+   "input_schema": {
+    "type": "object",
+    "properties": {
+     "source": {
+      "type": "string",
+      "description": "The complete .nika document."
+     },
+     "summary": {
+      "type": "string",
+      "description": "What changed, in one or two sentences for the person."
+     },
+     "resolutions": {
+      "$ref": "#/$defs/resolutions"
+     },
+     "removed": {
+      "$ref": "#/$defs/removed"
+     }
+    },
+    "required": [
+     "source",
+     "summary"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "candidate_edit",
+   "read_only": false,
+   "description": "Replace one exact, unique passage of the candidate. resolutions, when given, replace the candidate's; removed as for candidate_write. Nothing is saved or run.",
+   "input_schema": {
+    "type": "object",
+    "properties": {
+     "old": {
+      "type": "string"
+     },
+     "new": {
+      "type": "string"
+     },
+     "summary": {
+      "type": "string"
+     },
+     "resolutions": {
+      "$ref": "#/$defs/resolutions"
+     },
+     "removed": {
+      "$ref": "#/$defs/removed"
+     }
+    },
+    "required": [
+     "old",
+     "new"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "check",
+   "read_only": true,
+   "description": "Run Nika's check on the candidate: its findings with their codes, the effects it may have and its cost envelope.",
+   "input_schema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "inspect",
+   "read_only": true,
+   "description": "The candidate's tasks, their order and the data that flows between them, as Nika derives them.",
+   "input_schema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "explain",
+   "read_only": true,
+   "description": "Explain one Nika diagnostic code and how it is repaired.",
+   "input_schema": {
+    "type": "object",
+    "properties": {
+     "code": {
+      "type": "string",
+      "pattern": "^NIKA-[A-Z0-9-]+$"
+     }
+    },
+    "required": [
+     "code"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "language",
+   "read_only": true,
+   "description": "Reference for writing .nika: the schema of a field, the catalog of models and tools, examples, or a template.",
+   "input_schema": {
+    "type": "object",
+    "properties": {
+     "topic": {
+      "type": "string",
+      "enum": [
+       "schema",
+       "catalog",
+       "examples",
+       "template"
+      ]
+     },
+     "query": {
+      "type": "string",
+      "description": "What to look up within the topic."
+     }
+    },
+    "required": [
+     "topic"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "models",
+   "read_only": true,
+   "description": "The models this Session can use for a role, with their access and list price as known, or the one target the person's words name, the pick they delegated, a targeted choice, or why their model is not here and what is. Exact identifiers only: it never invents or renames one.",
+   "input_schema": {
+    "type": "object",
+    "properties": {
+     "role": {
+      "type": "string",
+      "enum": [
+       "run",
+       "author",
+       "decision"
+      ]
+     },
+     "provider": {
+      "type": "string",
+      "description": "A provider id or catalogue alias the person named."
+     },
+     "model": {
+      "type": "string",
+      "description": "An exact provider/name, or the bare model name the person named."
+     },
+     "via": {
+      "type": "string",
+      "description": "A route id or class the person named."
+     },
+     "protocol": {
+      "type": "string",
+      "enum": [
+       "api",
+       "acp"
+      ]
+     },
+     "delegate": {
+      "type": "string",
+      "enum": [
+       "strongest"
+      ],
+      "description": "The pick the person delegated."
+     }
+    },
+    "required": [
+     "role"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "knowledge",
+   "read_only": true,
+   "description": "Search the Session's pinned Nika knowledge release, or read one of its skills.",
+   "input_schema": {
+    "type": "object",
+    "properties": {
+     "query": {
+      "type": "string"
+     },
+     "skill": {
+      "type": "string"
+     }
+    },
+    "minProperties": 1,
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "observe",
+   "read_only": true,
+   "description": "Fetch a public http(s) address once with GET and report its status, final address, content type, title and size. A private, local or credentialed address is refused.",
+   "input_schema": {
+    "type": "object",
+    "properties": {
+     "url": {
+      "type": "string",
+      "format": "uri"
+     }
+    },
+    "required": [
+     "url"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "compose",
+   "read_only": false,
+   "description": "Apply document operations to the candidate, including admitted components of the knowledge release named by identity.",
+   "input_schema": {
+    "type": "object",
+    "properties": {
+     "operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "type": "object"
+      },
+      "description": "The document door's operations, as its answer schema states them."
+     },
+     "summary": {
+      "type": "string"
+     },
+     "resolutions": {
+      "$ref": "#/$defs/resolutions"
+     }
+    },
+    "required": [
+     "operations"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "verify",
+   "read_only": true,
+   "description": "Judge the candidate against the whole request: Nika's check, the fidelity laws with the selections' provenance, what earlier revisions kept, and the money gate.",
+   "input_schema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "trial",
+   "read_only": true,
+   "description": "Rehearse the candidate in a safe room built from the observed world: what it would read, write and send. No effect escapes.",
+   "input_schema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "ask",
+   "read_only": false,
+   "description": "Ask the person what you cannot decide from their words; independent questions together, a dependent one with after. An option may carry the concrete values accepting it binds. Bind first, in answered, what their last line already answered. A value they already settled is not asked again: the reply gives it back. When something is asked, the turn ends and their next line answers.",
+   "input_schema": {
+    "type": "object",
+    "properties": {
+     "questions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "type": "object",
+       "properties": {
+        "key": {
+         "type": "string",
+         "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "question": {
+         "type": "string"
+        },
+        "why": {
+         "type": "string"
+        },
+        "role": {
+         "$ref": "#/$defs/role"
+        },
+        "options": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "properties": {
+           "key": {
+            "type": "string"
+           },
+           "label": {
+            "type": "string"
+           },
+           "recommended": {
+            "type": "boolean"
+           },
+           "values": {
+            "type": "array",
+            "items": {
+             "type": "object",
+             "properties": {
+              "role": {
+               "$ref": "#/$defs/role"
+              },
+              "value": {
+               "type": "string"
+              },
+              "name": {
+               "type": "string"
+              }
+             },
+             "required": [
+              "role",
+              "value"
+             ],
+             "additionalProperties": false
+            }
+           }
+          },
+          "required": [
+           "key",
+           "label"
+          ],
+          "additionalProperties": false
+         }
+        },
+        "free_text": {
+         "type": "boolean"
+        },
+        "multi_select": {
+         "type": "boolean"
+        },
+        "after": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         }
+        }
+       },
+       "required": [
+        "key",
+        "question"
+       ],
+       "additionalProperties": false
+      }
+     },
+     "answered": {
+      "type": "array",
+      "description": "Answers you read in the person's last line, bound by their question key; the value must be in their line, verbatim.",
+      "items": {
+       "type": "object",
+       "properties": {
+        "key": {
+         "type": "string"
+        },
+        "value": {
+         "type": "string"
+        },
+        "message": {
+         "type": "string",
+         "pattern": "^u[0-9]+$",
+         "description": "The citation of the person's line."
+        },
+        "excerpt": {
+         "type": "string",
+         "minLength": 1,
+         "description": "The person's own words in that line, verbatim."
+        }
+       },
+       "required": [
+        "key",
+        "value",
+        "message",
+        "excerpt"
+       ],
+       "additionalProperties": false
+      }
+     }
+    },
+    "required": [],
+    "additionalProperties": false,
+    "minProperties": 1
+   }
+  },
+  {
+   "name": "propose",
+   "read_only": false,
+   "description": "Present the current candidate to the person: Nika verifies it first (check, fidelity with the selections' provenance, kept values) and refuses it with findings. To save, or save and run, on the person's explicit words, name the acts and cite their line written after this exact candidate was shown: Nika checks that the words still cover its effects, or the proposal waits for their consent.",
+   "input_schema": {
+    "type": "object",
+    "properties": {
+     "acts": {
+      "type": "array",
+      "items": {
+       "type": "string",
+       "enum": [
+        "save",
+        "run"
+       ]
+      },
+      "uniqueItems": true
+     },
+     "authorized_by": {
+      "$ref": "#/$defs/citation"
+     }
+    },
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "new_request",
+   "read_only": false,
+   "description": "The person replaced their request entirely: drop the candidate, its selections, delegations and questions, citing their words.",
+   "input_schema": {
+    "$ref": "#/$defs/citation"
+   }
+  }
+ ],
+ "$defs": {
+  "role": {
+   "type": "string",
+   "enum": [
+    "read_source",
+    "output_path",
+    "run_model",
+    "value"
+   ]
+  },
+  "citation": {
+   "type": "object",
+   "properties": {
+    "message": {
+     "type": "string",
+     "pattern": "^u[0-9]+$"
+    },
+    "excerpt": {
+     "type": "string",
+     "minLength": 1
+    }
+   },
+   "required": [
+    "message",
+    "excerpt"
+   ],
+   "additionalProperties": false
+  },
+  "resolutions": {
+   "type": "array",
+   "description": "Every value of the document the person did not spell out themselves, with where it comes from.",
+   "items": {
+    "type": "object",
+    "properties": {
+     "value": {
+      "type": "string",
+      "description": "The value exactly as the document carries it."
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "named",
+       "delegated",
+       "derived",
+       "answered",
+       "offered",
+       "retained"
+      ],
+      "description": "named: a public source the person named, resolved to its address · delegated: chosen within a choice the person left to you · derived: a routine new output they asked for without naming it · answered: a value they typed · offered: a value of an option of yours they accepted (with question and option) · retained: kept unchanged from a revision they saw."
+     },
+     "role": {
+      "$ref": "#/$defs/role"
+     },
+     "message": {
+      "type": "string",
+      "pattern": "^u[0-9]+$",
+      "description": "The citation of the person's line."
+     },
+     "excerpt": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The person's own words in that line, verbatim."
+     },
+     "question": {
+      "type": "string",
+      "description": "offered: the key of the question whose option was accepted."
+     },
+     "option": {
+      "type": "string",
+      "description": "offered: the key of the accepted option."
+     }
+    },
+    "required": [
+     "value",
+     "kind",
+     "role",
+     "message"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "removed": {
+   "type": "array",
+   "description": "Values a revision the person saw bound that their own words now remove.",
+   "items": {
+    "type": "object",
+    "properties": {
+     "value": {
+      "type": "string"
+     },
+     "message": {
+      "type": "string",
+      "pattern": "^u[0-9]+$",
+      "description": "The citation of the person's line."
+     },
+     "excerpt": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The person's own words in that line, verbatim."
+     }
+    },
+    "required": [
+     "value",
+     "message",
+     "excerpt"
+    ],
+    "additionalProperties": false
+   }
+  }
+ }
+}

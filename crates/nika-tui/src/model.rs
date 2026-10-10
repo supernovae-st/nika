@@ -218,6 +218,30 @@ pub struct Asked {
     /// The conversation's own token of the session that asked it: a
     /// presentation scope, never an identity an answer names.
     pub epoch: u64,
+    /// What the Session keeps of the request this question serves, when it
+    /// keeps anything ([`Asked::retaining`]).
+    pub retained: Option<Retained>,
+}
+
+/// What the Session keeps of a request, read with the question it asks: the
+/// goal as first stated (with the corrections the Session joined to it) and
+/// the questions still open. Shown beside the question so nothing already
+/// understood is asked or typed again; it grants and answers nothing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Retained {
+    /// The goal, as the Session keeps it.
+    pub goal: Option<String>,
+    /// The questions still open, other than the one asked with it.
+    pub open: Vec<String>,
+}
+
+impl Retained {
+    /// The request kept as `goal`, with `open` questions.
+    #[must_use]
+    pub const fn new(goal: Option<String>, open: Vec<String>) -> Self {
+        Self { goal, open }
+    }
 }
 
 impl Asked {
@@ -238,7 +262,15 @@ impl Asked {
             shape,
             witness: witness.into(),
             epoch,
+            retained: None,
         }
+    }
+
+    /// This question, with what the Session keeps of its request.
+    #[must_use]
+    pub fn retaining(mut self, retained: Retained) -> Self {
+        self.retained = Some(retained);
+        self
     }
 }
 
@@ -273,6 +305,18 @@ pub enum Waiting {
         /// answer to it names.
         asked: Asked,
     },
+    /// A line the Session holds, sent nowhere, because the knowledge the
+    /// configuration names was refused ([`Waiting::knowledge`]): its one
+    /// action, `/knowledge embedded`, resumes it once, and `cancel` drops it.
+    /// It is painted as a typed choice whose offers are those two exact
+    /// lines. It names no identity: whatever is sent while it waits is an
+    /// ordinary line.
+    #[non_exhaustive]
+    Knowledge {
+        /// The decision as this shell paints it: the refusal in the
+        /// Session's words, the held line as the request kept, the two acts.
+        asked: Asked,
+    },
     /// Consent on the exact bytes of a candidate.
     Proposal,
     /// A human gate inside a run.
@@ -290,13 +334,22 @@ impl Waiting {
         }
     }
 
+    /// The knowledge decision a held line waits for, painted as `asked`
+    /// ([`Waiting::Knowledge`]).
+    #[must_use]
+    pub fn knowledge(asked: Asked) -> Self {
+        Self::Knowledge { asked }
+    }
+
     /// The prompt naming the same waiting state as the plain loop.
     #[must_use]
     pub fn prompt(&self) -> &'static str {
         match self {
             Self::Free => "nika › ",
             Self::Choosing => "› ",
-            Self::Question { .. } | Self::QuestionDocument { .. } => "reply › ",
+            Self::Question { .. } | Self::QuestionDocument { .. } | Self::Knowledge { .. } => {
+                "reply › "
+            }
             Self::Proposal => "Save? › ",
             Self::Gate => "answer › ",
         }
@@ -321,6 +374,7 @@ impl Waiting {
             // The typed question's card stands right above the line: keys
             // only, `cancel` in the Session's own verb.
             Self::QuestionDocument { .. } => "Enter answers · cancel drops it",
+            Self::Knowledge { .. } => "↑↓ choose · Enter acts · cancel drops your message",
             Self::Question { .. } => "answer the question above · cancel to stop",
             Self::Proposal => "yes + Enter: Save · no: cancel · /show: inspect",
             Self::Gate => "approve or refuse · nothing else answers a gate",

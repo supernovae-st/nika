@@ -641,7 +641,56 @@ pub type nika_session_intelligence::intelligence::UserIntelligencePreference::Ou
 pub fn nika_session_intelligence::intelligence::annotated_keys(keys: &[alloc::string::String], host_of: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> alloc::string::String
 pub fn nika_session_intelligence::intelligence::now_rfc3339() -> alloc::string::String
 pub fn nika_session_intelligence::intelligence::seat_answers_here(seat: &str) -> bool
+pub mod nika_session_intelligence::observe
+pub fn nika_session_intelligence::observe::observe(url: &str) -> core::result::Result<serde_json::value::Value, alloc::string::String>
 pub mod nika_session_intelligence::reasoner
+pub mod nika_session_intelligence::reasoner::agent_model
+pub struct nika_session_intelligence::reasoner::agent_model::AgentModel
+impl nika_session_intelligence::reasoner::agent_model::AgentModel
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::model(&self) -> &str
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::new(model: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::with_admission(self, admission: nika_providers::admission::InferenceAdmission) -> Self
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::with_effort(self, effort: nika_compile::types::AuthoringReasoning) -> Self
+impl core::clone::Clone for nika_session_intelligence::reasoner::agent_model::AgentModel
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::clone(&self) -> nika_session_intelligence::reasoner::agent_model::AgentModel
+impl core::fmt::Debug for nika_session_intelligence::reasoner::agent_model::AgentModel
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_session_agent::run::Model for nika_session_intelligence::reasoner::agent_model::AgentModel
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::complete(&mut self, request: &nika_session_agent::run::Request, _events: &mut dyn core::ops::function::FnMut(nika_session_agent::event::AgentEvent)) -> core::result::Result<nika_session_agent::run::Reply, nika_session_agent::run::ModelError>
+impl<D> owo_colors::OwoColorize for nika_session_intelligence::reasoner::agent_model::AgentModel
+impl<T, U> core::convert::Into<U> for nika_session_intelligence::reasoner::agent_model::AgentModel where U: core::convert::From<T>
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_intelligence::reasoner::agent_model::AgentModel where U: core::convert::Into<T>
+pub type nika_session_intelligence::reasoner::agent_model::AgentModel::Error = core::convert::Infallible
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_intelligence::reasoner::agent_model::AgentModel where U: core::convert::TryFrom<T>
+pub type nika_session_intelligence::reasoner::agent_model::AgentModel::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_intelligence::reasoner::agent_model::AgentModel where T: core::clone::Clone
+pub type nika_session_intelligence::reasoner::agent_model::AgentModel::Owned = T
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::clone_into(&self, target: &mut T)
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_intelligence::reasoner::agent_model::AgentModel where T: 'static + ?core::marker::Sized
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_intelligence::reasoner::agent_model::AgentModel where T: ?core::marker::Sized
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_intelligence::reasoner::agent_model::AgentModel where T: ?core::marker::Sized
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_intelligence::reasoner::agent_model::AgentModel where T: core::clone::Clone
+pub unsafe fn nika_session_intelligence::reasoner::agent_model::AgentModel::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_intelligence::reasoner::agent_model::AgentModel
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_intelligence::reasoner::agent_model::AgentModel where T: core::clone::Clone
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_intelligence::reasoner::agent_model::AgentModel where T: 'static
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_intelligence::reasoner::agent_model::AgentModel where T: ?core::marker::Sized
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_intelligence::reasoner::agent_model::AgentModel::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_intelligence::reasoner::agent_model::AgentModel
+impl<T> tracing::instrument::WithSubscriber for nika_session_intelligence::reasoner::agent_model::AgentModel
+impl<T> typenum::type_operators::Same for nika_session_intelligence::reasoner::agent_model::AgentModel
+pub type nika_session_intelligence::reasoner::agent_model::AgentModel::Output = T
 #[non_exhaustive] pub enum nika_session_intelligence::reasoner::ReasonError
 pub nika_session_intelligence::reasoner::ReasonError::Cancelled
 pub nika_session_intelligence::reasoner::ReasonError::NoIntelligence
@@ -693,6 +742,7 @@ pub fn nika_session_intelligence::reasoner::HarnessReasoner::clone(&self) -> nik
 impl core::fmt::Debug for nika_session_intelligence::reasoner::HarnessReasoner
 pub fn nika_session_intelligence::reasoner::HarnessReasoner::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl nika_session_intelligence::reasoner::SessionReasoner for nika_session_intelligence::reasoner::HarnessReasoner
+pub fn nika_session_intelligence::reasoner::HarnessReasoner::agent_model(&self) -> core::option::Option<nika_session_intelligence::reasoner::agent_model::AgentModel>
 pub fn nika_session_intelligence::reasoner::HarnessReasoner::authoring_harness(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::HarnessReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::HarnessReasoner::harness_transport(&self) -> nika_types::access::HarnessTransport
@@ -741,6 +791,7 @@ pub struct nika_session_intelligence::reasoner::NoReasoner
 impl core::fmt::Debug for nika_session_intelligence::reasoner::NoReasoner
 pub fn nika_session_intelligence::reasoner::NoReasoner::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl nika_session_intelligence::reasoner::SessionReasoner for nika_session_intelligence::reasoner::NoReasoner
+pub fn nika_session_intelligence::reasoner::NoReasoner::agent_model(&self) -> core::option::Option<nika_session_intelligence::reasoner::agent_model::AgentModel>
 pub fn nika_session_intelligence::reasoner::NoReasoner::authoring_harness(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::NoReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::NoReasoner::harness_transport(&self) -> nika_types::access::HarnessTransport
@@ -783,6 +834,7 @@ pub nika_session_intelligence::reasoner::ProviderReasoner::model: alloc::string:
 impl core::fmt::Debug for nika_session_intelligence::reasoner::ProviderReasoner
 pub fn nika_session_intelligence::reasoner::ProviderReasoner::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl nika_session_intelligence::reasoner::SessionReasoner for nika_session_intelligence::reasoner::ProviderReasoner
+pub fn nika_session_intelligence::reasoner::ProviderReasoner::agent_model(&self) -> core::option::Option<nika_session_intelligence::reasoner::agent_model::AgentModel>
 pub fn nika_session_intelligence::reasoner::ProviderReasoner::authoring_harness(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::ProviderReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::ProviderReasoner::harness_transport(&self) -> nika_types::access::HarnessTransport
@@ -877,6 +929,7 @@ pub fn nika_session_intelligence::reasoner::ScriptedReasoner::new(replies: alloc
 impl core::fmt::Debug for nika_session_intelligence::reasoner::ScriptedReasoner
 pub fn nika_session_intelligence::reasoner::ScriptedReasoner::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl nika_session_intelligence::reasoner::SessionReasoner for nika_session_intelligence::reasoner::ScriptedReasoner
+pub fn nika_session_intelligence::reasoner::ScriptedReasoner::agent_model(&self) -> core::option::Option<nika_session_intelligence::reasoner::agent_model::AgentModel>
 pub fn nika_session_intelligence::reasoner::ScriptedReasoner::authoring_harness(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::ScriptedReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::ScriptedReasoner::harness_transport(&self) -> nika_types::access::HarnessTransport
@@ -914,6 +967,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_session_intelligence::reaso
 impl<T> typenum::type_operators::Same for nika_session_intelligence::reasoner::ScriptedReasoner
 pub type nika_session_intelligence::reasoner::ScriptedReasoner::Output = T
 pub trait nika_session_intelligence::reasoner::SessionReasoner: core::marker::Send
+pub fn nika_session_intelligence::reasoner::SessionReasoner::agent_model(&self) -> core::option::Option<nika_session_intelligence::reasoner::agent_model::AgentModel>
 pub fn nika_session_intelligence::reasoner::SessionReasoner::authoring_harness(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::SessionReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::SessionReasoner::harness_transport(&self) -> nika_types::access::HarnessTransport
@@ -925,6 +979,7 @@ pub fn nika_session_intelligence::reasoner::SessionReasoner::reason_label_with_a
 pub fn nika_session_intelligence::reasoner::SessionReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session_intelligence::reasoner::Reply, nika_session_intelligence::reasoner::ReasonError>
 pub fn nika_session_intelligence::reasoner::SessionReasoner::supports_admission(&self) -> bool
 impl nika_session_intelligence::reasoner::SessionReasoner for nika_session_intelligence::reasoner::HarnessReasoner
+pub fn nika_session_intelligence::reasoner::HarnessReasoner::agent_model(&self) -> core::option::Option<nika_session_intelligence::reasoner::agent_model::AgentModel>
 pub fn nika_session_intelligence::reasoner::HarnessReasoner::authoring_harness(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::HarnessReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::HarnessReasoner::harness_transport(&self) -> nika_types::access::HarnessTransport
@@ -936,6 +991,7 @@ pub fn nika_session_intelligence::reasoner::HarnessReasoner::reason_label_with_a
 pub fn nika_session_intelligence::reasoner::HarnessReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session_intelligence::reasoner::Reply, nika_session_intelligence::reasoner::ReasonError>
 pub fn nika_session_intelligence::reasoner::HarnessReasoner::supports_admission(&self) -> bool
 impl nika_session_intelligence::reasoner::SessionReasoner for nika_session_intelligence::reasoner::NoReasoner
+pub fn nika_session_intelligence::reasoner::NoReasoner::agent_model(&self) -> core::option::Option<nika_session_intelligence::reasoner::agent_model::AgentModel>
 pub fn nika_session_intelligence::reasoner::NoReasoner::authoring_harness(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::NoReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::NoReasoner::harness_transport(&self) -> nika_types::access::HarnessTransport
@@ -947,6 +1003,7 @@ pub fn nika_session_intelligence::reasoner::NoReasoner::reason_label_with_admiss
 pub fn nika_session_intelligence::reasoner::NoReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session_intelligence::reasoner::Reply, nika_session_intelligence::reasoner::ReasonError>
 pub fn nika_session_intelligence::reasoner::NoReasoner::supports_admission(&self) -> bool
 impl nika_session_intelligence::reasoner::SessionReasoner for nika_session_intelligence::reasoner::ProviderReasoner
+pub fn nika_session_intelligence::reasoner::ProviderReasoner::agent_model(&self) -> core::option::Option<nika_session_intelligence::reasoner::agent_model::AgentModel>
 pub fn nika_session_intelligence::reasoner::ProviderReasoner::authoring_harness(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::ProviderReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::ProviderReasoner::harness_transport(&self) -> nika_types::access::HarnessTransport
@@ -958,6 +1015,7 @@ pub fn nika_session_intelligence::reasoner::ProviderReasoner::reason_label_with_
 pub fn nika_session_intelligence::reasoner::ProviderReasoner::reason_with_admission(&mut self, prompt: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session_intelligence::reasoner::Reply, nika_session_intelligence::reasoner::ReasonError>
 pub fn nika_session_intelligence::reasoner::ProviderReasoner::supports_admission(&self) -> bool
 impl nika_session_intelligence::reasoner::SessionReasoner for nika_session_intelligence::reasoner::ScriptedReasoner
+pub fn nika_session_intelligence::reasoner::ScriptedReasoner::agent_model(&self) -> core::option::Option<nika_session_intelligence::reasoner::agent_model::AgentModel>
 pub fn nika_session_intelligence::reasoner::ScriptedReasoner::authoring_harness(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::ScriptedReasoner::authoring_model(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::reasoner::ScriptedReasoner::harness_transport(&self) -> nika_types::access::HarnessTransport
