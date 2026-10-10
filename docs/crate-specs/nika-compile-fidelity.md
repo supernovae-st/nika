@@ -154,11 +154,17 @@ needs keeps its default.
   relative path under the project, never absolute, hidden or above it, and for `derived` absent
   from the observed world) and the document uses it in that role alone (a source only as a
   `nika:fetch` URL read with GET or HEAD; an output only as a `nika:write` path, directly or
-  through a bare `${{ const.<name> }}`). Only a read source and a new output can stand for
-  words the person did not spell: a named or delegated selection is a read source, a derived
-  one a new output, and an answered value is one the person typed verbatim, in any role. A
-  derived name is plain ASCII and never matches an observed file, letter case aside (a
-  case-insensitive file system holds both spellings as one file). A host made of numbers that
+  through a bare `${{ const.<name> }}`). Only what the person's words scope can stand for
+  words they did not spell: a named selection is a read source, a delegated one a read source
+  or a new output, a derived one a new output, and an answered value is one the person typed
+  verbatim, in any role. Amended 2026-10-10, within the scope the person stated: a delegated
+  output name is a new file as a derived one is; a derived `read_source` may be a file read
+  under a folder the person typed (the folder of a path of theirs, as a glob or a read scope:
+  `world/pages/*.json`, `world/**` under `world/source.json`), only read and inside the
+  project; a derived `value` may be the exact host of an http(s) address the person typed
+  (`127.0.0.1` of `http://127.0.0.1:55546`). A derived or delegated name is plain ASCII and
+  never matches an observed file, letter case aside (a case-insensitive file system holds
+  both spellings as one file). A host made of numbers that
   is no canonical address (`127.1`, `0x7f.0.0.1`) is refused. Each refusal is one `resolution`
   diagnostic (`UNAUTHORIZED SELECTION`, `OUT OF SCOPE`). `laws_resolved` is `laws_observed`
   with the admitted literals covered by
