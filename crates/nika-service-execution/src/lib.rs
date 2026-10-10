@@ -54,6 +54,7 @@ pub mod run_cost;
 use closure::admitted_closure_digests;
 
 pub use nika_providers::ExecutionAccessPlan;
+pub use rehearsal::replay;
 pub use rehearsal::{ADMITTED_TOOLS, DeniedEffects, DeniedTally, RehearsalPlanRefusal};
 pub use rehearsal::{IsolatedJq, JqBound, JqHelper};
 

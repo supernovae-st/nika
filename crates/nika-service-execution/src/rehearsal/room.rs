@@ -6,8 +6,11 @@
 //! workflow's own `permits.fs`, behind a gate that lets only [`ADMITTED_TOOLS`] through. Every
 //! other capability is denied, and counted when the runtime reaches for it: the shell spawns
 //! nothing, the fetch plane opens no socket, the provider registry has no transport, a secret
-//! never resolves and a nested run never starts. The runtime, the workflow and its report are
-//! the admitted ones: nothing here interprets the candidate.
+//! never resolves and a nested run never starts. A replay trial lends the fetch plane captures
+//! ([`Captures`]): a plain `nika:fetch` GET of exactly a captured address is answered with that
+//! capture, and every other request is refused as before, with no socket opened and no name
+//! resolved. The runtime, the workflow and its report are the admitted ones: nothing here
+//! interprets the candidate.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -19,7 +22,7 @@ use nika_kernel::ai::provider::{ProviderInferDyn, ProviderMeta, ToolDef};
 use nika_kernel::ai::tool_defs::{ToolDefinitionProviderDyn, ToolDefsError};
 use nika_kernel::fs::{FsListDyn, FsMetaDyn, FsReadDyn, FsWriteDyn};
 use nika_kernel::http::{
-    HttpError, HttpGetDyn, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse,
+    HttpError, HttpGetDyn, HttpMethod, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse,
 };
 use nika_kernel::process::{ShellCommand, ShellError, ShellResult, ShellRunDyn};
 use nika_kernel::provider::{InferRequest, InferResponse, ProviderError};
@@ -28,9 +31,10 @@ use nika_providers::{ExecutionAccessPlan, ProviderRegistry, ProvidersConfig};
 use nika_runtime::child::{ChildCall, ChildOutcome, ChildRunRefusal, ChildRunner};
 use nika_runtime::compose::fs_boundary_of_permits;
 use nika_runtime::{
-    RunOutcome, RunSeams, Runtime, RuntimeConfig, RuntimeError, SecretResolveError,
+    RunOutcome, RunSeams, Runtime, RuntimeConfig, RuntimeError, SecretResolveError, TaskStatus,
     WorkflowSecretResolver,
 };
+use nika_schema::raw::{RawAction, RawInvokeTarget, RawTask};
 use nika_schema::types::SecretRef;
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;
@@ -38,6 +42,7 @@ use nika_verb_infer::InferVerb;
 use nika_verb_invoke::InvokeVerb;
 
 use super::isolated_jq::IsolatedJq;
+use super::replay::{self, Capture, Captures};
 use crate::{ServiceExecutionDriver, SilentSink};
 
 /// The builtins a rehearsal runs: the room's file reads and writes, the run's clock, its logs
@@ -57,7 +62,7 @@ pub const ADMITTED_TOOLS: &[&str] = &[
 ];
 
 /// The sentence every denied capability of a rehearsal speaks.
-const OUTSIDE: &str = "a rehearsal runs its room's files and pure tools only";
+pub(super) const OUTSIDE: &str = "a rehearsal runs its room's files and pure tools only";
 
 /// What a rehearsal run's denied capabilities saw attempted.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -114,6 +119,23 @@ impl DeniedTally {
             _ => None,
         }
     }
+
+    /// The refusal of a step the trial names not run taken back, never below none: the trial's
+    /// view excuses `task`, so its step's one attempt is no effect the room denied.
+    fn excuse(&self, task: &RawTask) {
+        let counter = match &task.action {
+            RawAction::Infer(_) | RawAction::Agent(_) => Some(&self.provider),
+            RawAction::Exec(_) => Some(&self.spawn),
+            RawAction::Invoke(invoke) => match &invoke.target {
+                RawInvokeTarget::Tool(tool) => self.reached(tool.value.as_str()),
+                RawInvokeTarget::Workflow(_) => None,
+            },
+            _ => None,
+        };
+        if let Some(counter) = counter {
+            let _ = counter.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1));
+        }
+    }
 }
 
 /// One more attempt on `counter`.
@@ -159,16 +181,46 @@ impl ServiceExecutionDriver {
     where
         F: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn + Send + Sync + 'static,
     {
+        self.rehearse_over_replaying(fs, plan, tally, jq, None)
+            .await
+    }
+
+    /// [`Self::rehearse_over_with`] as a replay trial when `captures` are lent: a plain
+    /// `nika:fetch` GET (no crawl, no jq extraction) reaches a fetch plane that answers exactly a
+    /// captured address with its capture and refuses every other request, counted, with no
+    /// socket opened and no name resolved. Under [`Self::replay_plan`] a model step fails where
+    /// it stands: the registry has no transport and no key, the agent's seat refuses every turn.
+    /// The outcome is the trial's view of the run ([`replay::settle_into`]), screened as
+    /// [`replay::screen`] names it.
+    ///
+    /// # Errors
+    /// As [`Self::rehearse_over`].
+    pub async fn rehearse_over_replaying<F>(
+        &self,
+        fs: Arc<F>,
+        plan: ExecutionAccessPlan,
+        tally: Arc<DeniedTally>,
+        jq: Option<Arc<IsolatedJq>>,
+        captures: Option<Arc<Captures>>,
+    ) -> Result<RunOutcome, RuntimeError>
+    where
+        F: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn + Send + Sync + 'static,
+    {
         let seams = RunSeams::of(self.workflow.run.as_ref().map(|run| &run.value));
+        let held = Arc::clone(&tally);
         let model = self
             .workflow
             .model
             .as_ref()
             .map_or("", |model| model.value.as_str());
         let permits = self.workflow.permits.as_ref().map(|permits| &permits.value);
+        let http = RoomHttp {
+            tally: Arc::clone(&tally),
+            captures: captures.clone(),
+        };
         let plane = BuiltinDispatcher::new(
             fs,
-            Arc::new(DeniedHttp(Arc::clone(&tally))),
+            Arc::new(http),
             Arc::new(seams.clock.clone()),
             Arc::new(NullEmitter::default()),
             Arc::new(NonInteractive::default()),
@@ -179,6 +231,7 @@ impl ServiceExecutionDriver {
             inner: Arc::new(plane),
             tally: Arc::clone(&tally),
             jq,
+            replays: captures.is_some(),
         });
         let invoke = Arc::new(InvokeVerb::new(Arc::clone(&gate)));
         let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::new()));
@@ -195,19 +248,50 @@ impl ServiceExecutionDriver {
         .with_child_runner(Arc::new(DeniedChild(tally)))
         .with_access_plan(plan);
         let (mut stamper, mut sink) = (seams.stamper(), SilentSink);
-        runtime
+        let mut outcome = runtime
             .run(&self.workflow, &self.report, stamper.as_mut(), &mut sink)
-            .await
+            .await?;
+        if let Some(captures) = &captures {
+            let screen = replay::screen(&self.workflow, captures);
+            let order: Vec<String> = (self.workflow.tasks.iter())
+                .map(|task| task.value.id.value.clone())
+                .collect();
+            let failed: Vec<String> = (outcome.records.iter())
+                .filter(|(_, record)| record.status == TaskStatus::Failure)
+                .map(|(task, _)| task.clone())
+                .collect();
+            replay::settle_into(&mut outcome, &order, &screen);
+            for task in &self.workflow.tasks {
+                let id = &task.value.id.value;
+                let excused = failed.contains(id)
+                    && (outcome.records.get(id)).is_some_and(|r| r.status == TaskStatus::Skipped);
+                if excused {
+                    held.excuse(&task.value);
+                }
+            }
+        }
+        Ok(outcome)
     }
 }
 
 /// The tool plane of a rehearsal: the admitted surface reaches the builtin dispatcher, `nika:jq`
-/// the isolated evaluator when the host gave one, every other tool is refused before it, and one
-/// that reaches beyond the room is counted.
+/// the isolated evaluator when the host gave one, a plain `nika:fetch` GET the replaying fetch
+/// plane when the trial replays, every other tool is refused before it, and one that reaches
+/// beyond the room is counted.
 struct Gate<D> {
     inner: Arc<D>,
     tally: Arc<DeniedTally>,
     jq: Option<Arc<IsolatedJq>>,
+    replays: bool,
+}
+
+/// Whether a `nika:fetch` call is a plain GET a replay may answer, as its arguments read at run
+/// time: no crawl, no jq extraction (it would run in this process, unbounded), no other method.
+fn replayable(input: &serde_json::Value) -> bool {
+    let text = |field: &str| input.get(field).and_then(serde_json::Value::as_str);
+    let get = text("method").is_none_or(|method| method.eq_ignore_ascii_case("GET"));
+    let extraction = input.get("jq").is_some() || text("mode") == Some("jq");
+    get && !extraction && input.get("traverse").is_none()
 }
 
 impl<D> ToolExecuteDyn for Gate<D>
@@ -219,6 +303,9 @@ where
             return jq.evaluate(&call).await;
         }
         if ADMITTED_TOOLS.contains(&call.name.as_str()) {
+            return self.inner.execute(call).await;
+        }
+        if self.replays && call.name == "nika:fetch" && replayable(&call.input) {
             return self.inner.execute(call).await;
         }
         if let Some(counter) = self.tally.reached(&call.name) {
@@ -251,25 +338,42 @@ impl ShellRunDyn for DeniedShell {
     }
 }
 
-/// The fetch plane of a rehearsal: every request is refused before a socket opens.
-struct DeniedHttp(Arc<DeniedTally>);
+/// The fetch plane of a rehearsal: every request is refused before a socket opens, but a GET of
+/// exactly an address a replay trial lent a capture of, answered with that capture.
+struct RoomHttp {
+    tally: Arc<DeniedTally>,
+    captures: Option<Arc<Captures>>,
+}
 
-impl DeniedHttp {
+impl RoomHttp {
     fn refuse(&self) -> HttpError {
-        count(&self.0.network);
+        count(&self.tally.network);
         HttpError::Unsupported {
             reason: format!("{OUTSIDE} · a request was refused"),
         }
     }
 }
 
-impl HttpGetDyn for DeniedHttp {
-    async fn get(&self, _request: HttpRequest) -> Result<HttpResponse, HttpError> {
-        Err(self.refuse())
+/// The response a capture replays: its status, its content type and its exact bytes, at the
+/// address it was taken at.
+fn replayed(capture: &Capture) -> HttpResponse {
+    let mut headers = std::collections::BTreeMap::new();
+    if let Some(kind) = capture.content_type() {
+        headers.insert("content-type".to_owned(), kind.to_owned());
+    }
+    HttpResponse::new(capture.status(), headers, capture.served(), capture.url())
+}
+
+impl HttpGetDyn for RoomHttp {
+    async fn get(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
+        let held = (self.captures.as_ref())
+            .filter(|_| request.method == HttpMethod::Get)
+            .and_then(|captures| captures.get(&request.url));
+        held.map(replayed).ok_or_else(|| self.refuse())
     }
 }
 
-impl HttpPostDyn for DeniedHttp {
+impl HttpPostDyn for RoomHttp {
     async fn post(&self, _request: HttpRequest) -> Result<HttpResponse, HttpError> {
         Err(self.refuse())
     }
