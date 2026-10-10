@@ -2,8 +2,9 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! A trial run as a judge is shown it: the JSON observation of a completed run of one candidate
-//! ([`trial_shown`]: `candidate_sha256`, each input the run read as `{path, text, read_whole}`
-//! and each output it read back as `{path, text, written, read_whole}`), whether it proves
+//! ([`trial_shown`]: `candidate_sha256`, each input the run read as `{path, text, read_whole}`,
+//! each output it read back as `{path, text, written, read_whole}` and, when the host counted
+//! it, each task's flow `{task, received, returned, emptied}`), whether it proves
 //! whole outputs ([`trial_whole`]), and the receipts a question over it keeps, never the texts
 //! again ([`trial_receipts`]). Descended from `nika-compile-cognition`'s verifier and rehearsal
 //! journal at its crate-size cap (2026-10-07, ADR-146): the semantics are unchanged.
@@ -30,8 +31,20 @@ pub fn trial_shown(candidate_sha256: &str, run: &Run) -> Value {
                 "read_whole": !written.truncated})
         })
         .collect();
-    json!({"candidate_sha256": candidate_sha256, "inputs": inputs, "outputs": outputs})
+    let mut shown =
+        json!({"candidate_sha256": candidate_sha256, "inputs": inputs, "outputs": outputs});
+    if !run.flow.is_empty() {
+        let flow: Vec<Value> = (run.flow.iter())
+            .map(|step| json!({"task": step.task, "received": step.received, "returned": step.returned, "emptied": step.emptied()}))
+            .collect();
+        shown["flow"] = Value::Array(flow);
+        shown["flow_means"] = json!(FLOW);
+    }
+    shown
 }
+
+/// What a run's flow is, told beside it: a fact of the run, never a verdict on a part.
+const FLOW: &str = "`flow` lists, in the run's order, how many items each task received and returned (a JSON array counts its items, any other value one). `emptied` marks a task that returned nothing from a non-empty input: a fact of this run to weigh against the part of the request that task serves.";
 
 /// Whether a trial run proves whole outputs: at least one output, each written by the run
 /// itself, and every input and output read whole. A skipped or unwritten output proves nothing

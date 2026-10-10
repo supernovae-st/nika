@@ -3445,6 +3445,7 @@ pub fn nika_compile_seats::reasoning::response_identity(response: &nika_kernel_a
 pub fn nika_compile_seats::reasoning::stamp_references(out: &mut nika_compile::types::CompileOutcome, before: usize, receipts: &serde_json::value::Value)
 pub fn nika_compile_seats::reasoning::withheld(text: &str, known: &[&str], reason: &str) -> serde_json::value::Value
 pub mod nika_compile_seats::rehearse
+pub use nika_compile_seats::rehearse::StepFlow
 pub mod nika_compile_seats::rehearse::arguments
 pub fn nika_compile_seats::rehearse::arguments::evaluated(workflow: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<(), alloc::string::String>
 pub mod nika_compile_seats::rehearse::record
@@ -4257,12 +4258,14 @@ pub nika_compile_seats::rehearse::RehearsalReport::admitted_digest: alloc::strin
 pub nika_compile_seats::rehearse::RehearsalReport::attempt: nika_compile_seats::rehearse::Attempt
 pub nika_compile_seats::rehearse::RehearsalReport::candidate_sha256: alloc::string::String
 pub nika_compile_seats::rehearse::RehearsalReport::effects: nika_compile_seats::rehearse::EffectCounts
+pub nika_compile_seats::rehearse::RehearsalReport::flow: alloc::vec::Vec<nika_compile_behavior::behavior::StepFlow>
 pub nika_compile_seats::rehearse::RehearsalReport::observation: nika_compile_seats::rehearse::Observation
 pub nika_compile_seats::rehearse::RehearsalReport::outcome: nika_compile_seats::rehearse::Rehearsal
 pub nika_compile_seats::rehearse::RehearsalReport::room: nika_compile_seats::rehearse::RoomEvidence
 impl nika_compile_seats::rehearse::RehearsalReport
 pub fn nika_compile_seats::rehearse::RehearsalReport::new(outcome: nika_compile_seats::rehearse::Rehearsal, attempt: nika_compile_seats::rehearse::Attempt, effects: nika_compile_seats::rehearse::EffectCounts, candidate_sha256: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_compile_seats::rehearse::RehearsalReport::with_admitted_digest(self, admitted_digest: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_compile_seats::rehearse::RehearsalReport::with_flow(self, flow: alloc::vec::Vec<nika_compile_behavior::behavior::StepFlow>) -> Self
 pub fn nika_compile_seats::rehearse::RehearsalReport::with_observation(self, observation: nika_compile_seats::rehearse::Observation) -> Self
 pub fn nika_compile_seats::rehearse::RehearsalReport::with_room(self, room: nika_compile_seats::rehearse::RoomEvidence) -> Self
 impl core::clone::Clone for nika_compile_seats::rehearse::RehearsalReport

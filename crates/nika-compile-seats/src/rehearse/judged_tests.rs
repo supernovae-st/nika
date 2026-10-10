@@ -16,7 +16,7 @@ use nika_compile_fidelity::behavior::{
 use super::{
     Attempt, Bounds, CopyReceipt, Digest, EffectCounts, FailureRecord, FinalReceipt, FinalState,
     Held, LedgerFacts, Observation, RecordedCause, Refusal, Rehearsal, RehearsalReport,
-    RoomEvidence, Spent, judged_run, targets_of,
+    RoomEvidence, Spent, StepFlow, judged_run, targets_of, trial_shown,
 };
 
 const INPUT: &str = "./data/input.csv";
@@ -716,4 +716,46 @@ fn every_spelling_the_contract_gives_one_file_finds_the_one_observation() {
         .collect();
     assert_eq!(shown, [RESULT, alias, "logs/run.txt"]);
     assert_eq!(verdict(&contract, &[run]), Verdict::Certified);
+}
+
+/// What the host counted each task receiving and returning rides with the judged run and is
+/// shown to the judge beside the run's texts, a task that returned nothing from a non-empty
+/// input marked: a fact of the run, never a verdict. A host that counted nothing shows none.
+#[test]
+fn the_flow_a_host_counted_rides_with_the_run_and_is_shown_to_the_judge() {
+    let contract = counted();
+    let targets: Vec<String> = targets_of(&contract).collect();
+    let world = || {
+        observed(
+            vec![copy(INPUT, TWO_PAID)],
+            vec![file(RESULT, COUNT_TWO)],
+            &[RESULT],
+        )
+    };
+    let flow = vec![
+        StepFlow::new("load", None, Some(3)),
+        StepFlow::new("keep_paid", Some(3), Some(0)),
+    ];
+    let report = completed(passed(), world()).with_flow(flow.clone());
+    let run = judged_run("observed", &report, &inputs(), &targets, &outputs());
+    assert_eq!(run.flow, flow);
+    assert!(run.flow[1].emptied() && !run.flow[0].emptied());
+    let shown = trial_shown("candidate", &run);
+    assert_eq!(shown["flow"][1]["task"], "keep_paid");
+    assert_eq!(shown["flow"][1]["emptied"], true);
+    assert_eq!(shown["flow"][0]["received"], serde_json::Value::Null);
+    let means = shown["flow_means"].as_str().unwrap_or_default();
+    assert!(means.contains("`emptied` marks a task"), "{means}");
+    let bare = judged_run(
+        "observed",
+        &completed(passed(), world()),
+        &inputs(),
+        &targets,
+        &outputs(),
+    );
+    let shown = trial_shown("candidate", &bare);
+    assert!(
+        shown.get("flow").is_none() && shown.get("flow_means").is_none(),
+        "{shown}"
+    );
 }

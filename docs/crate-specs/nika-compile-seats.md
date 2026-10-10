@@ -72,7 +72,10 @@ as an external consumer.
   judge's run (`targets_of` names the results a contract reads back). A completed run as a
   verifier is shown it (`shown`, descended from the cognition's verifier at its size cap):
   `trial_shown` (the candidate's sha256, each input read and output read back with its text,
-  `read_whole` and `written`), `trial_whole` (at least one output, each written by the run, every
+  `read_whole` and `written`, and, when the host counted it, the run's `flow` with what it means:
+  amended 2026-10-10, `RehearsalReport::with_flow` carries each task's items received and
+  returned into the judged run and a host's card reads a passing trial's flow from the report),
+  `trial_whole` (at least one output, each written by the run, every
   text read whole) and `trial_receipts` (each text's role, path, size and sha256, never the text).
   A host may also offer a read-only composition check, `Rehearse::compose`. It answers
   `Composed`: `Unoffered` (the default), `Unresolved` or `Refused` with the reason, or a clean
