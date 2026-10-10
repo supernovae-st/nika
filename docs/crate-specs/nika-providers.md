@@ -765,6 +765,22 @@ refuse another review. The original exposure remains visible when later evidence
 The account's dispatch note and post-dispatch refusal are projections owned here; their
 host still owns recording the boundary before transport.
 
+## Reasoning state round-trip
+
+A provider that asks for its own reasoning state back receives it on the turn it came
+with. The Anthropic wire keeps each signed `thinking` block and each `redacted_thinking`
+block as `ContentBlock::Reasoning { wire: "anthropic", state }` (the block, whole) beside
+the readable `Thinking` text, and sends them back verbatim, in place. The Gemini wire keeps
+a part's `thoughtSignature` as `Reasoning { wire: "gemini" }` just before that part's
+block and puts it back on the same part; a signature that came after the last part goes
+back after it. The DeepSeek profile reads `reasoning_content` as `Thinking` and returns it
+on the assistant message of a request that carries tools, as its thinking-mode tool calls
+require. Streams emit `InferEvent::Reasoning` in arrival order.
+
+The state is opaque: a wire reads only its own, skips another's, and never sends a turn
+made of reasoning state alone (a caller that strips a tool call keeps none of it on the
+wire). Unsigned thinking text is never sent back.
+
 ## Ollama native chat and context preservation
 
 The Ollama profile uses native `/api/chat` inside its existing provider owner,
