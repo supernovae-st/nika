@@ -52,8 +52,14 @@ as an external consumer.
   was split under, `split_below`). `Capacity` keeps what a seat's batches learned for as long as
   the seat lives: one more than the most items a refused batch got answered at once, never at or
   above a refused size (`Partition::learned`), which only lowers and seeds its later batches
-  (`Partition::seeded`); a batch that never met the capacity teaches nothing. The partition reads
-  no clock: the host measures each request's transport (`Partition::timed`, `elapsed_ms`).
+  (`Partition::seeded`); a batch that never met the capacity teaches nothing. It also keeps the
+  smallest body of several items refused for capacity, and `Capacity::of_model` adds what the
+  service documents for the model (`jev-1.13.0`: 64k tokens per request, planned at 85% and 3.2
+  bytes per token, the rate measured on real Foundry-qualification bodies, plus 48 tokens per
+  answer): a waiting request whose exact body is past either is split in halves before it leaves
+  (`split_bytes` in its record), so a batch never starts with a request known to fail. A seat
+  of a model with no documented capacity starts whole, as before. The partition reads no clock:
+  the host measures each request's transport (`Partition::timed`, `elapsed_ms`).
 - `compose` — the candidate composer (ADR-147): the distinct admissible
   COLD plans in first-seen order, each judged by the deterministic `feasibility` filter against
   the reading's floor and the request before any seat sees it, the topology dimensions recalled

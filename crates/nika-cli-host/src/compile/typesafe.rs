@@ -38,7 +38,8 @@ pub struct TypesafeSeat {
     name: String,
     base: String,
     timeout: Duration,
-    /// What its batches learned of its capacity: each later batch starts under it.
+    /// What its model documents and its batches learned of its capacity: each batch starts
+    /// under them.
     capacity: system_one::Capacity,
 }
 
@@ -129,7 +130,7 @@ impl TypesafeSeat {
             name: format!("typesafe/{model}"),
             base: base.trim_end_matches('/').to_owned(),
             timeout: TIMEOUT,
-            capacity: system_one::Capacity::default(),
+            capacity: system_one::Capacity::of_model(model),
         })
     }
 

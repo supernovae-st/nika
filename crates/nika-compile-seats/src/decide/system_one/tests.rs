@@ -8,7 +8,7 @@
 use serde_json::{Value, json};
 
 use super::super::{ChoiceBatch, ChoiceOption, ChoiceQuestion};
-use super::{Capacity, Partition, Refusal, read, refusal, request};
+use super::{Capacity, Declared, Partition, Refusal, read, refusal, request};
 
 /// The refusal of a request past the context capacity, for many questions or one alone.
 const MAX_TOKENS: &str = r#"{"detail": {"error_type": "max_tokens_exceeded"}}"#;
@@ -506,4 +506,124 @@ fn a_record_names_each_physical_request_without_its_text() {
     assert_eq!(settled["usage"]["input_tokens"], 9);
     assert_eq!(settled["items"][0]["choice"], "applies");
     assert!(settled.get("refusal").is_none() && settled.get("halved").is_none());
+}
+
+/// A question whose reference text is `bytes` long.
+fn sized(k: usize, bytes: usize) -> ChoiceQuestion {
+    ChoiceQuestion::new(
+        format!("item-{k}"),
+        "Decide whether the reference serves the request.",
+        json!({"request": "r", "reference": {"id": format!("ref:{k}"), "text": "x".repeat(bytes)}}),
+        vec![ChoiceOption::new("applies", "it serves it")],
+    )
+}
+
+fn sized_batch(sizes: &[usize]) -> ChoiceBatch {
+    let questions: Vec<ChoiceQuestion> = (sizes.iter().enumerate())
+        .map(|(k, bytes)| sized(k, *bytes))
+        .collect();
+    ChoiceBatch::of("b", &questions)
+}
+
+/// Every request `partition` begins, each answered in full: the items and body size of each.
+fn begun(partition: &mut Partition, batch: &ChoiceBatch) -> Vec<(Vec<usize>, usize)> {
+    let mut sent = Vec::new();
+    while let Some((at, _)) = partition.begin(batch, "jev-1.13.0") {
+        let (items, bytes) = (
+            partition.attempts[at].items.clone(),
+            partition.attempts[at].bytes,
+        );
+        partition.responded(at, batch, 200, &answering(batch, &items, 10));
+        sent.push((items, bytes));
+    }
+    sent
+}
+
+/// A seat of `jev-1.13.0` starts a batch past the capacity its documentation states in
+/// requests that capacity admits, split before they leave: every item asked once, in order,
+/// and each split request names the body size found too large.
+#[test]
+fn a_batch_past_its_documented_capacity_starts_in_requests_the_documentation_admits() {
+    let batch = sized_batch(&[15_000; 36]);
+    let mut partition = Capacity::of_model("jev-1.13.0").partition(&batch);
+    let sent = begun(&mut partition, &batch);
+    assert!(sent.len() > 1, "{sent:?}");
+    let declared = Declared::of("jev-1.13.0").expect("documented");
+    for (items, bytes) in &sent {
+        assert!(
+            declared.fits(*bytes, items.len()),
+            "{bytes} bytes for {} items",
+            items.len()
+        );
+    }
+    let flat: Vec<usize> = sent.iter().flat_map(|(items, _)| items.clone()).collect();
+    assert_eq!(flat, (0..36).collect::<Vec<_>>());
+    assert!(partition.outcomes.iter().all(|o| *o == "chosen"));
+    assert!((partition.attempts.iter()).all(|a| !a.halved && a.split_below.is_none()));
+    let first = &partition.attempts[0];
+    assert!(
+        first.split_bytes.is_some_and(|b| b > first.bytes),
+        "split from a larger body"
+    );
+    let record = partition.record(0, &batch, &[]);
+    assert_eq!(record["split_bytes"], json!(first.split_bytes));
+}
+
+/// A model whose capacity is not documented starts its batch whole, as before.
+#[test]
+fn a_batch_for_an_undocumented_model_starts_whole() {
+    let batch = sized_batch(&[15_000; 36]);
+    for capacity in [Capacity::default(), Capacity::of_model("jev-test")] {
+        let mut partition = capacity.partition(&batch);
+        let (at, _) = partition.begin(&batch, "jev-test").expect("a request");
+        assert_eq!(partition.attempts[at].items.len(), 36);
+        assert_eq!(partition.attempts[at].split_bytes, None);
+    }
+}
+
+/// A body of several items refused for capacity bounds the seat's later batches by size: a
+/// batch whose whole body is that large starts split, though it asks fewer items than the
+/// learned item bound, so the size known to fail is never sent again.
+#[test]
+fn a_body_size_refused_for_capacity_is_never_begun_again_by_the_seat() {
+    let capacity = Capacity::default();
+    let first = sized_batch(&[6_000; 20]);
+    let mut partition = capacity.partition(&first);
+    let (at, _) = partition
+        .begin(&first, "jev-1.13.0")
+        .expect("the whole batch");
+    let refused = partition.attempts[at].bytes;
+    partition.responded(at, &first, 400, MAX_TOKENS.as_bytes());
+    assert_eq!(begun(&mut partition, &first).len(), 2, "its two halves");
+    capacity.learn(&partition);
+    assert_eq!(capacity.below(), Some(11));
+    let second = sized_batch(&[40_000; 4]);
+    let mut later = capacity.partition(&second);
+    let sent = begun(&mut later, &second);
+    assert!(sent.len() > 1, "{sent:?}");
+    assert!(
+        sent.iter().all(|(_, bytes)| *bytes < refused),
+        "{sent:?} against {refused}"
+    );
+    assert!(later.outcomes.iter().all(|o| *o == "chosen"));
+    assert_eq!(
+        later.attempts[0].split_bytes.map(|b| b >= refused),
+        Some(true)
+    );
+}
+
+/// The planned rate never counts short what the service counted on real Foundry-qualification
+/// bodies (2026-10-10), and the documented share is 85% of 64k tokens.
+#[test]
+fn the_planned_rate_never_counts_a_measured_body_short() {
+    for (bytes, counted) in [(4_755, 1_453), (21_334, 5_839), (52_568, 14_104)] {
+        assert!(
+            Declared::planned(bytes, 0) >= counted,
+            "{bytes} bytes: {counted} counted"
+        );
+    }
+    let declared = Declared::of("jev-1.13.0").expect("documented");
+    assert!(declared.fits(174_080, 0));
+    assert!(!declared.fits(174_096, 0));
+    assert_eq!(Declared::of("jev-test"), None);
 }

@@ -437,6 +437,7 @@ pub nika_compile_seats::decide::system_one::Attempt::refusal: core::option::Opti
 pub nika_compile_seats::decide::system_one::Attempt::sent: bool
 pub nika_compile_seats::decide::system_one::Attempt::sha256: alloc::string::String
 pub nika_compile_seats::decide::system_one::Attempt::split_below: core::option::Option<usize>
+pub nika_compile_seats::decide::system_one::Attempt::split_bytes: core::option::Option<usize>
 pub nika_compile_seats::decide::system_one::Attempt::status: core::option::Option<u16>
 pub nika_compile_seats::decide::system_one::Attempt::unasked: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_seats::decide::system_one::Attempt::usage: nika_compile_seats::decide::system_one::Usage
@@ -480,6 +481,7 @@ pub type nika_compile_seats::decide::system_one::Attempt::Output = T
 impl nika_compile_seats::decide::system_one::Capacity
 pub fn nika_compile_seats::decide::system_one::Capacity::below(&self) -> core::option::Option<usize>
 pub fn nika_compile_seats::decide::system_one::Capacity::learn(&self, partition: &nika_compile_seats::decide::system_one::Partition)
+pub fn nika_compile_seats::decide::system_one::Capacity::of_model(model: &str) -> Self
 pub fn nika_compile_seats::decide::system_one::Capacity::partition(&self, batch: &nika_compile_seats::decide::ChoiceBatch) -> nika_compile_seats::decide::system_one::Partition
 impl core::default::Default for nika_compile_seats::decide::system_one::Capacity
 pub fn nika_compile_seats::decide::system_one::Capacity::default() -> Self
