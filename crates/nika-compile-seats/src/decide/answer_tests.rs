@@ -19,6 +19,28 @@ fn response(content: Vec<ContentBlock>) -> InferResponse {
     InferResponse::new(content, TokenUsage::new(12, 34), StopReason::EndTurn)
 }
 
+/// The reasoning state a Gemini answer carries beside its text, shaped like an answer.
+fn kept() -> ContentBlock {
+    ContentBlock::Reasoning {
+        wire: "gemini".into(),
+        state: json!({"thoughtSignature": r#"{"choice":"none"}"#}),
+    }
+}
+
+#[test]
+fn reasoning_state_kept_for_the_provider_is_neither_an_answer_nor_a_second_block() {
+    for content in [
+        vec![kept(), text("answer")],
+        vec![thinking(), kept(), text("answer")],
+        vec![text("answer"), kept()],
+    ] {
+        assert_eq!(answer_text(&response(content)), Some("answer"));
+    }
+    for content in [vec![kept()], vec![thinking(), kept()]] {
+        assert_eq!(answer_text(&response(content)), None, "state never answers");
+    }
+}
+
 #[test]
 fn final_text_is_borrowed_without_reading_or_mutating_separate_thinking() {
     for content in [
