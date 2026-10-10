@@ -636,7 +636,10 @@ fn session(world: &World, home: &Path, seat: &LoopbackSeat) -> LoggedSession {
             "NIKA_OLLAMA_BASE_URL",
             format!("http://127.0.0.1:{}/v1", seat.port),
         )
-        .env("NIKA_AUTHORING_STRATEGY", "sketch");
+        .env("NIKA_AUTHORING_STRATEGY", "sketch")
+        // The seat answers the sketch door's schema-shaped rounds: the round driver's
+        // conversation, kept during the transition (the agent's is `open_ux_journeys`).
+        .env("NIKA_SESSION_DRIVER", "rounds");
     let raw = expectrl::session::OsSession::spawn(command).unwrap();
     let mut session = expectrl::session::log(raw, std::io::stderr()).unwrap();
     session.set_expect_timeout(Some(Duration::from_secs(90)));
@@ -838,7 +841,10 @@ fn tui_session(world: &World, home: &Path, seat: &LoopbackSeat) -> LoggedSession
             "NIKA_OLLAMA_BASE_URL",
             format!("http://127.0.0.1:{}/v1", seat.port),
         )
-        .env("NIKA_AUTHORING_STRATEGY", "sketch");
+        .env("NIKA_AUTHORING_STRATEGY", "sketch")
+        // The seat answers the sketch door's schema-shaped rounds: the round driver's
+        // conversation, kept during the transition (the agent's is `open_ux_journeys`).
+        .env("NIKA_SESSION_DRIVER", "rounds");
     let raw = expectrl::session::OsSession::spawn(command).unwrap();
     let mut session = expectrl::session::log(raw, std::io::stderr()).unwrap();
     session.set_expect_timeout(Some(Duration::from_secs(120)));
