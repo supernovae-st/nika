@@ -3,8 +3,10 @@
 
 //! The removal claims of a conversation's revision, put to its judge before the whole request
 //! is: a value a proposal the person saw bound stays theirs unless the judge reads the person's
-//! cited words as removing it ([`Removal::question`]). Every question and answer is recorded
-//! (`decision.removals`) as the verdict's own are; a provider's calls are journaled.
+//! cited words as removing it
+//! ([`Removal::question`](nika_compile_seats::judge::Removal::question)). Every question and
+//! answer is recorded (`decision.removals`) as the verdict's own are; a provider's calls are
+//! journaled.
 
 use nika_compile_seats::judge::Removal;
 use nika_kernel::ai::provider::ProviderInferDyn;
