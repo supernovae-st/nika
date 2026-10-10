@@ -178,12 +178,16 @@ impl SessionTools for Relay {
 }
 
 /// A person's entry as the agent reads it: their words with their citation, or their answer to
-/// what the run waited on.
-fn entry_text(text: &str, cite: &str, answering: bool) -> String {
-    if answering {
+/// what the run waited on, followed by what the Session read it to pick.
+fn entry_text(text: &str, cite: &str, (answering, nika): (bool, Option<&str>)) -> String {
+    let entry = if answering {
         format!("The person answered, cited as {cite}:\n{text}")
     } else {
         format!("{text}\n\n(cited as {cite})")
+    };
+    match nika {
+        Some(nika) => format!("{entry}\n\nNika (not the person):\n{nika}"),
+        None => entry,
     }
 }
 
@@ -252,6 +256,11 @@ impl Agent<'_> {
     ) -> Outcome {
         let answers = self.tree.parked().map(|(call, _)| call.to_owned());
         let answering = answers.is_some();
+        let reading = self.reading.clone().filter(|_| answering);
+        let nika = match (self.note.clone(), reading) {
+            (Some(note), Some(reading)) => Some(format!("{note}\n\n{reading}")),
+            (note, reading) => note.or(reading),
+        };
         let (entry, cite) = match self.user(text, answers, None) {
             Ok(user) => user,
             Err(error) => return Outcome::Failed { error },
@@ -259,7 +268,35 @@ impl Agent<'_> {
         events(AgentEvent::AgentStart {
             entry: entry.to_string(),
         });
-        let line = entry_text(text, &cite, answering);
+        let line = entry_text(text, &cite, (answering, nika.as_deref()));
+        let prompt = opening.map_or_else(|| line.clone(), |opening| format!("{opening}\n\n{line}"));
+        self.steering.open();
+        let outcome = self.led(prompt, conversant, relay, events);
+        self.steering.close();
+        events(AgentEvent::AgentEnd { end: outcome.end() });
+        outcome
+    }
+
+    /// Nika's own `note` (a failed run's facts) goes to the agent as one prompt with no person's
+    /// line; `opening` precedes it in the first prompt of the agent's session.
+    pub fn lead_note(
+        &mut self,
+        note: &str,
+        opening: Option<&str>,
+        conversant: &mut dyn Conversant,
+        relay: &Relay,
+        events: &mut dyn FnMut(AgentEvent),
+    ) -> Outcome {
+        let entry = match self.record(EntryKind::Note {
+            text: note.to_owned(),
+        }) {
+            Ok(entry) => entry,
+            Err(error) => return Outcome::Failed { error },
+        };
+        events(AgentEvent::AgentStart {
+            entry: entry.to_string(),
+        });
+        let line = format!("Nika (not the person):\n{note}");
         let prompt = opening.map_or_else(|| line.clone(), |opening| format!("{opening}\n\n{line}"));
         self.steering.open();
         let outcome = self.led(prompt, conversant, relay, events);
@@ -334,7 +371,7 @@ impl Agent<'_> {
                 Ok(lines) if lines.is_empty() => return self.stop(StopReach::BetweenSteps),
                 Ok(lines) => {
                     let entered: Vec<String> = (lines.iter())
-                        .map(|(line, cite)| entry_text(line, cite, false))
+                        .map(|(line, cite)| entry_text(line, cite, (false, None)))
                         .collect();
                     prompt = entered.join("\n\n");
                 }

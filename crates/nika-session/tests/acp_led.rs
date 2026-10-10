@@ -41,8 +41,9 @@ const TECHCRUNCH: &str = "https://techcrunch.com";
 const DIGEST: &str = "./news/digest.md";
 /// The ordinary request: sources and output left open.
 pub(crate) const REQUEST: &str = "fais moi un workflow tres simple qui recupere les news tech recentes, les resume et ecrit le resultat en markdown dans un dossier du projet";
-/// The acceptance of the agent's recommendation.
-pub(crate) const ACCEPT: &str = "oui tout me va, je suis tes recos";
+/// The acceptance of the agent's recommendation: the consent word, a pick by protocol (a
+/// sentence would be read by the seat's own one-shot, which this fixture does not script).
+pub(crate) const ACCEPT: &str = "oui";
 /// The person asks which model runs their workflow.
 pub(crate) const CHOOSE: &str = "which model should run my workflow?";
 /// A model no route on this machine offers.
@@ -383,8 +384,21 @@ fn assert_agent_read(world: &World) {
         first.ends_with(&format!("{REQUEST}\n\n(cited as u1)")),
         "{first}"
     );
-    let answer = format!("The person answered, cited as u2:\n{ACCEPT}");
-    assert_eq!(prompts[1], answer);
+    // The answer, then what Nika read it to pick: the recommended offer, bound by Nika.
+    let answer = format!("The person answered, cited as u2:\n{ACCEPT}\n\nNika (not the person):\n");
+    assert!(
+        prompts[1].as_str().unwrap().starts_with(&answer),
+        "{}",
+        prompts[1]
+    );
+    assert!(
+        prompts[1]
+            .as_str()
+            .unwrap()
+            .contains("the person picked `recommended`"),
+        "{}",
+        prompts[1]
+    );
     let names = nika_session_change::tools::NAMES.len();
     assert_eq!(world.observed("tools")[0].as_array().unwrap().len(), names);
     let replies = world.observed("replies");

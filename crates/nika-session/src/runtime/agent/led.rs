@@ -18,7 +18,7 @@ use nika_session_change::tools::SessionTools;
 use serde_json::{Value, json};
 
 use super::{
-    Driver, SessionRuntime, TurnOutcome, could_not_start, instructions, refusal, start_tree,
+    Driver, Said, SessionRuntime, TurnOutcome, could_not_start, instructions, refusal, start_tree,
     unix_ms,
 };
 use crate::outcome::RefusalClass;
@@ -71,10 +71,14 @@ impl SessionRuntime {
     pub(super) fn drive_led(
         &mut self,
         driver: &mut Driver,
-        line: &str,
+        said: Said<'_>,
         seat: &str,
         effort: Option<AuthoringReasoning>,
     ) -> TurnOutcome {
+        let line = match said {
+            Said::Line(line) => line,
+            Said::Note(_) => "",
+        };
         let model = self.intelligence.model.clone();
         let effort_word = effort.map_or("", |level| level.word());
         let key = format!(
@@ -101,9 +105,10 @@ impl SessionRuntime {
         {
             return refused;
         }
+        let run_note = driver.run_note.take().filter(|_| !line.is_empty());
         // A seat's agent rides its own subscription: the verifier admits no paid dispatch.
-        let before = match self.agent_begin(driver, chosen, None) {
-            Ok(before) => before,
+        let (before, read) = match self.agent_begin(driver, chosen, line, None) {
+            Ok(begun) => begun,
             Err(why) => return could_not_start(&why),
         };
         let now = unix_ms;
@@ -125,9 +130,14 @@ impl SessionRuntime {
         let mut events = |_: AgentEvent| {};
         let mut run = Agent::new(tree, store, &**relay, &now)
             .with_steering(steering)
-            .with_cancel(cancel);
+            .with_cancel(cancel)
+            .with_reading(&read)
+            .with_note(run_note);
         let agent = &mut *leading.agent;
-        let outcome = run.lead(line, opening.as_deref(), agent, relay, &mut events);
+        let outcome = match said {
+            Said::Note(note) => run.lead_note(note, opening.as_deref(), agent, relay, &mut events),
+            Said::Line(line) => run.lead(line, opening.as_deref(), agent, relay, &mut events),
+        };
         let reach = run.stop_reach();
         drop(run);
         if leading.agent.ended() {

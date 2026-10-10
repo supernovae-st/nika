@@ -76,6 +76,9 @@ fn held(markers: &Path, marker: &str) {
 pub(crate) struct Script {
     pub(crate) agent: Vec<Step>,
     pub(crate) replies: Vec<String>,
+    /// What the Session's reading of an answer picks, one per reading: an offered key,
+    /// `DELEGATE` or `NONE` (the default when the queue is empty).
+    pub(crate) picks: Vec<String>,
     /// What the verifier's judge answers the whole-request question, one per verdict asked
     /// (`faithful` when the queue is empty); a doubt that follows is never located.
     pub(crate) verdicts: Vec<String>,
@@ -92,6 +95,8 @@ pub(crate) enum Kind {
     Document,
     /// The bounded reading of a reply (« copy the value or say NONE »).
     Reading,
+    /// The Session's reading of which offer an answer picks (« one word only »).
+    Pick,
     /// Anything else: a plain reply.
     Reply,
 }
@@ -177,6 +182,9 @@ fn kind_of(body: &Value) -> Kind {
     if last.contains("asked a human for one value") || last.contains("asked a human to choose") {
         return Kind::Reading;
     }
+    if last.contains("One word only, nothing else.") {
+        return Kind::Pick;
+    }
     Kind::Reply
 }
 
@@ -184,6 +192,7 @@ fn kind_of(body: &Value) -> Kind {
 struct Queues {
     agent: Vec<Step>,
     replies: Vec<String>,
+    picks: Vec<String>,
     verdicts: Vec<String>,
     calls: usize,
     markers: PathBuf,
@@ -240,6 +249,14 @@ impl Queues {
                 .to_string(),
             ),
             Kind::Reading => text_completion("NONE"),
+            Kind::Pick => {
+                let pick = if self.picks.is_empty() {
+                    "NONE".to_owned()
+                } else {
+                    self.picks.remove(0)
+                };
+                text_completion(&pick)
+            }
             Kind::Reply => {
                 let text = if self.replies.is_empty() {
                     "D'accord.".to_owned()
@@ -284,6 +301,7 @@ impl Peer {
             let mut queues = Queues {
                 agent: script.agent,
                 replies: script.replies,
+                picks: script.picks,
                 verdicts: script.verdicts,
                 calls: 0,
                 markers,

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use nika_session_change::outcome::Incarnation;
@@ -53,7 +54,10 @@ fn accepted(asker: &Arc<Incarnation>) -> (Conversation, Citations) {
     assert!(reply.ends_turn, "{reply:?}");
     assert_eq!(conversation.asked_ids().len(), 1);
     let lines = citations(&[("u1", "un digest des news tech"), ("u2", "oui tout me va")]);
-    conversation.answered_by("u2");
+    // A sentence picks by the Session's reading: here, the recommended offer.
+    let read = BTreeMap::from([("plan".to_owned(), Pick::Offer("recommended".to_owned()))]);
+    let said = conversation.answered_by("u2", "oui tout me va", &read);
+    assert!(said[0].contains("picked `recommended`"), "{said:?}");
     assert!(conversation.asked_ids().is_empty());
     (conversation, lines)
 }
@@ -243,6 +247,44 @@ fn a_question_the_person_settled_is_answered_by_the_session() {
 }
 
 #[test]
+fn a_settled_value_is_asked_again_only_on_the_persons_later_words() {
+    let asker = Arc::new(Incarnation);
+    let (mut conversation, _) = accepted(&asker);
+    let lines = citations(&[
+        ("u1", "un digest des news tech"),
+        ("u2", "oui tout me va"),
+        ("u3", "garde le même résultat, mais change le nom"),
+    ]);
+    let rows = json!([
+        offered(HN, "read_source", "u2"),
+        offered(DIGEST, "output_path", "u2")
+    ]);
+    write(&mut conversation, &lines, &format!("{HN} {DIGEST}"), rows);
+    let mut mint = |context: &str| QuestionId::new(context.to_owned(), &asker);
+    let name = |reopens: Value| {
+        json!({"questions": [{"key": "new_name", "role": "output_path",
+            "question": "Quel nouveau nom ?", "options": [], "reopens": reopens}]})
+    };
+    // Words from before the value was settled, or not in the cited line, reopen nothing.
+    let unsettling = [
+        json!({"message": "u1", "excerpt": "un digest"}),
+        json!({"message": "u3", "excerpt": "change la source"}),
+    ];
+    for reopens in unsettling {
+        let args = name(reopens);
+        let reply = conversation.ask(&lines, &args, Some("c8"), (&mut mint, &mut |_: &str| None));
+        assert!(!reply.ends_turn, "a settled value stays settled");
+        assert!(reply.text.contains("already settled"), "given back");
+    }
+    let args = name(json!({"message": "u3", "excerpt": "change le nom"}));
+    let reply = conversation.ask(&lines, &args, Some("c9"), (&mut mint, &mut |_: &str| None));
+    assert!(reply.ends_turn, "the person's later words reopen the value");
+    assert_eq!(conversation.questions().len(), 1);
+    let released = !(conversation.bindings().iter()).any(|b| b.value == DIGEST);
+    assert!(released, "the old name is the question's now");
+}
+
+#[test]
 fn an_answer_the_author_reads_is_bound_by_its_question_and_the_rest_asked_again() {
     let asker = Arc::new(Incarnation);
     let mut conversation = Conversation::default();
@@ -257,7 +299,8 @@ fn an_answer_the_author_reads_is_bound_by_its_question_and_the_rest_asked_again(
         (&mut mint, &mut |_: &str| None),
     );
     let before = conversation.asked_ids();
-    conversation.answered_by("u2");
+    let line = "equipe : https://hooks.example.org/team, support je sais pas";
+    conversation.answered_by("u2", line, &BTreeMap::new());
     let lines = citations(&[
         ("u1", "envoie aux webhooks"),
         (
@@ -316,6 +359,10 @@ fn words_cover_only_the_revision_whose_proposal_they_answered() {
             run: true
         }))
     );
+    // Those words ran that revision: a repair proposed on them, whatever it changed, is not theirs.
+    let again = conversation.propose(&lines, &said, "S2".into());
+    let stale = again.is_err_and(|why| why.contains("`u3` does not authorize it"));
+    assert!(stale, "stale words authorize nothing");
     // Words written before the proposal was shown authorize nothing.
     let (mut conversation, lines) = proposed(&asker);
     let early =
@@ -365,4 +412,257 @@ fn a_reopen_keeps_the_evidence_and_no_authority() {
     let reply = write(&mut restored, &lines, &format!("{HN} {TC} {DIGEST}"), rows);
     assert!(!reply.is_error, "{reply:?}");
     assert!(Conversation::restored(&json!({"version": 9})).is_none());
+}
+
+const YC: &str = "https://www.ycombinator.com/blog/";
+
+/// « Which source for Y Combinator? » asked after the request u1, Hacker News recommended.
+fn ask_source(conversation: &mut Conversation, lines: &Citations, asker: &Arc<Incarnation>) {
+    let source = json!({"questions": [{"key": "yc_source", "role": "read_source",
+        "question": "Pour « Y Combinator », quelle source ?", "options": [
+            {"key": "hackernews", "label": "Hacker News", "recommended": true,
+             "values": [{"role": "read_source", "value": HN, "name": "Hacker News"}]},
+            {"key": "yc_blog", "label": "Le blog YC",
+             "values": [{"role": "read_source", "value": YC, "name": "Le blog YC"}]}]}]});
+    let mut mint = |context: &str| QuestionId::new(context.to_owned(), asker);
+    let reply = conversation.ask(lines, &source, Some("c1"), (&mut mint, &mut |_: &str| None));
+    assert!(reply.ends_turn, "{reply:?}");
+}
+
+fn source_offered(value: &str, option: &str, message: &str) -> Value {
+    json!({"value": value, "kind": "offered", "role": "read_source", "message": message,
+        "question": "yc_source", "option": option})
+}
+
+/// F2: a refusal picks no offer, so no value of any offer is admitted as offered from it.
+#[test]
+fn a_refusal_picks_no_offer_and_admits_none() {
+    let asker = Arc::new(Incarnation);
+    let mut conversation = Conversation::default();
+    let lines = citations(&[("u1", "les news de Y Combinator"), ("u2", "non")]);
+    ask_source(&mut conversation, &lines, &asker);
+    let said = conversation.answered_by("u2", "non", &BTreeMap::new());
+    assert!(said[0].contains("declined"), "{said:?}");
+    assert!(conversation.bindings().is_empty());
+    for (value, option) in [(HN, "hackernews"), (YC, "yc_blog")] {
+        let reply = write(
+            &mut conversation,
+            &lines,
+            value,
+            json!([source_offered(value, option, "u2")]),
+        );
+        assert!(
+            reply.is_error && reply.text.contains("declined the offers"),
+            "{reply:?}"
+        );
+    }
+    // A sentence the reading finds no offer in admits none either.
+    let mut conversation = Conversation::default();
+    let lines = citations(&[
+        ("u1", "les news de Y Combinator"),
+        ("u2", "non merci, autre chose"),
+    ]);
+    ask_source(&mut conversation, &lines, &asker);
+    let read = BTreeMap::from([("yc_source".to_owned(), Pick::Nothing)]);
+    conversation.answered_by("u2", "non merci, autre chose", &read);
+    let reply = write(
+        &mut conversation,
+        &lines,
+        YC,
+        json!([source_offered(YC, "yc_blog", "u2")]),
+    );
+    assert!(
+        reply.is_error && reply.text.contains("picked none"),
+        "{reply:?}"
+    );
+}
+
+/// F2: the Session binds the offer the person picked, and only that offer is admitted.
+#[test]
+fn only_the_offer_the_person_picked_is_admitted() {
+    let asker = Arc::new(Incarnation);
+    let mut conversation = Conversation::default();
+    let lines = citations(&[("u1", "les news de Y Combinator"), ("u2", "le blog yc stp")]);
+    ask_source(&mut conversation, &lines, &asker);
+    let read = BTreeMap::from([("yc_source".to_owned(), Pick::Offer("yc_blog".to_owned()))]);
+    conversation.answered_by("u2", "le blog yc stp", &read);
+    let bound = kinds(&conversation);
+    assert_eq!(
+        bound,
+        [(YC.to_owned(), ProvenanceKind::Offered, "u2".to_owned())]
+    );
+    let other = json!([source_offered(HN, "hackernews", "u2")]);
+    let reply = write(&mut conversation, &lines, HN, other);
+    assert!(
+        reply.is_error && reply.text.contains("picked `yc_blog`"),
+        "{reply:?}"
+    );
+    let picked = json!([source_offered(YC, "yc_blog", "u2")]);
+    let reply = write(&mut conversation, &lines, YC, picked);
+    assert!(!reply.is_error, "{reply:?}");
+}
+
+/// Item 4(a): a reply that deflects takes the recommendation, visibly delegated.
+#[test]
+fn a_deflection_takes_the_recommendation_as_delegated() {
+    let asker = Arc::new(Incarnation);
+    let mut conversation = Conversation::default();
+    let deflects = "Je t'ai déjà donné les sources.";
+    let lines = citations(&[("u1", "les news de Y Combinator"), ("u2", deflects)]);
+    ask_source(&mut conversation, &lines, &asker);
+    let read = BTreeMap::from([("yc_source".to_owned(), Pick::Delegated)]);
+    let said = conversation.answered_by("u2", deflects, &read);
+    assert!(said[0].contains("recommended `hackernews`"), "{said:?}");
+    let binding = &conversation.bindings()[0];
+    assert_eq!(
+        (
+            binding.value.as_str(),
+            binding.provenance.kind,
+            binding.key.as_deref()
+        ),
+        (HN, ProvenanceKind::Delegated, Some("yc_source"))
+    );
+    assert_eq!(binding.provenance.excerpt.as_deref(), Some(deflects));
+    assert_eq!(binding.provenance.option.as_deref(), Some("hackernews"));
+    let delegation = &conversation.delegations()[0];
+    assert_eq!(
+        (delegation.message.as_str(), delegation.scope),
+        ("u2", ValueRole::ReadSource)
+    );
+    // The non-recommended offer is not the person's: refused as offered.
+    let reply = write(
+        &mut conversation,
+        &lines,
+        YC,
+        json!([source_offered(YC, "yc_blog", "u2")]),
+    );
+    assert!(
+        reply.is_error && reply.text.contains("left the choice to Nika"),
+        "{reply:?}"
+    );
+}
+
+/// Item 4(b): a value left to the author is chosen once, bound delegated, never asked again.
+#[test]
+fn a_value_left_to_the_author_is_never_asked_again() {
+    let asker = Arc::new(Incarnation);
+    let mut conversation = Conversation::default();
+    let lines = citations(&[
+        ("u1", "un digest des news tech"),
+        ("u2", "change le nom"),
+        ("u3", "Oui, fais au mieux."),
+    ]);
+    let name = json!({"questions": [{"key": "new_name", "role": "output_path",
+        "question": "Quel nouveau nom ?", "options": []}]});
+    let mut mint = |context: &str| QuestionId::new(context.to_owned(), &asker);
+    conversation.ask(&lines, &name, Some("c1"), (&mut mint, &mut |_: &str| None));
+    let read = BTreeMap::from([("new_name".to_owned(), Pick::Delegated)]);
+    let said = conversation.answered_by("u3", "Oui, fais au mieux.", &read);
+    assert!(said[0].contains("never ask it again"), "{said:?}");
+    let reply = conversation.ask(&lines, &name, Some("c2"), (&mut mint, &mut |_: &str| None));
+    assert!(
+        !reply.ends_turn && reply.text.contains("left it to you"),
+        "{reply:?}"
+    );
+    let chosen = json!([{"value": "./news/actualites-tech.md", "kind": "delegated",
+        "role": "output_path", "message": "u3", "excerpt": "fais au mieux"}]);
+    let reply = write(
+        &mut conversation,
+        &lines,
+        "./news/actualites-tech.md",
+        chosen,
+    );
+    assert!(!reply.is_error, "{reply:?}");
+}
+
+/// Item 4(d): a question whose every offered value is already bound is not asked.
+#[test]
+fn a_question_over_values_already_bound_is_not_asked() {
+    let asker = Arc::new(Incarnation);
+    let (mut conversation, lines) = accepted(&asker);
+    let confirm = json!({"questions": [{"key": "confirm", "question": "C'est bon ?",
+        "options": [{"key": "ok", "label": "Oui", "recommended": true,
+            "values": [{"role": "read_source", "value": HN}, {"role": "output_path", "value": DIGEST}]}]}]});
+    let mut mint = |context: &str| QuestionId::new(context.to_owned(), &asker);
+    let reply = conversation.ask(
+        &lines,
+        &confirm,
+        Some("c9"),
+        (&mut mint, &mut |_: &str| None),
+    );
+    assert!(
+        !reply.ends_turn && reply.text.contains("already bound"),
+        "{reply:?}"
+    );
+}
+
+/// Addendum to F2: words Nika had to ask about never name the value they were ambiguous about;
+/// a later line that names it does.
+#[test]
+fn words_nika_asked_about_never_name_the_value() {
+    let asker = Arc::new(Incarnation);
+    let mut conversation = Conversation::default();
+    let mut lines = citations(&[("u1", "les dernières actualités tech de Y Combinator")]);
+    ask_source(&mut conversation, &lines, &asker);
+    lines.record(
+        4,
+        Some(("u2".into(), "Je t'ai déjà donné les sources.".into())),
+    );
+    conversation.answered_by("u2", "Je t'ai déjà donné les sources.", &BTreeMap::new());
+    let named = |message: &str, excerpt: &str| {
+        json!([{"value": YC, "kind": "named", "role": "read_source", "message": message,
+            "excerpt": excerpt}])
+    };
+    let reply = write(&mut conversation, &lines, YC, named("u1", "Y Combinator"));
+    assert!(
+        reply.is_error && reply.text.contains("answers `yc_source`"),
+        "{reply:?}"
+    );
+    lines.record(7, Some(("u3".into(), "prends le blog YC".into())));
+    let reply = write(&mut conversation, &lines, YC, named("u3", "le blog YC"));
+    assert!(!reply.is_error, "{reply:?}");
+}
+
+/// Lane B's T3: a removal must cite words that name the value, and a kept value must still be
+/// in the document.
+#[test]
+fn a_removal_names_the_value_and_a_kept_value_is_in_the_document() {
+    let asker = Arc::new(Incarnation);
+    let (mut conversation, mut lines) = proposed(&asker);
+    lines.record(
+        20,
+        Some((
+            "u3".into(),
+            "En fait je voulais les articles d'aujourd'hui.".into(),
+        )),
+    );
+    let rows = json!([retained(TC, "read_source"), retained(DIGEST, "output_path")]);
+    let unnamed = json!([{"value": HN, "message": "u3", "excerpt": "les articles d'aujourd'hui"}]);
+    let reply = write_removing(
+        &mut conversation,
+        &lines,
+        &format!("{TC} {DIGEST}"),
+        (rows, unnamed),
+    );
+    assert!(
+        reply.is_error && reply.text.contains("does not name"),
+        "{reply:?}"
+    );
+    lines.record(23, Some(("u4".into(), "enleve hacker news".into())));
+    let rows = json!([retained(TC, "read_source"), retained(DIGEST, "output_path")]);
+    let named = json!([{"value": HN, "message": "u4", "excerpt": "hacker news"}]);
+    let reply = write_removing(
+        &mut conversation,
+        &lines,
+        &format!("{TC} {DIGEST}"),
+        (rows, named),
+    );
+    assert!(!reply.is_error, "{reply:?}");
+    // A value stated as kept that the document no longer carries.
+    let gone = json!([retained(TC, "read_source"), retained(DIGEST, "output_path")]);
+    let reply = write(&mut conversation, &lines, DIGEST, gone);
+    assert!(
+        reply.is_error && reply.text.contains("no longer carries"),
+        "{reply:?}"
+    );
 }

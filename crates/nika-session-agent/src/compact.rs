@@ -80,8 +80,10 @@ impl Window {
 /// About how many tokens `entry` weighs when the model reads it: four characters a token.
 fn weight(entry: &Entry) -> u64 {
     let chars = match &entry.kind {
-        EntryKind::System { text } => text.len(),
-        EntryKind::User { text, .. } => text.len() + 24,
+        EntryKind::System { text } | EntryKind::Note { text } => text.len(),
+        EntryKind::User { text, nika, .. } => {
+            text.len() + 24 + nika.as_ref().map_or(0, String::len)
+        }
         EntryKind::Assistant { content, .. } => content.iter().map(block_len).sum(),
         EntryKind::ToolResult { reply, .. } | EntryKind::Parked { reply, .. } => reply.text.len(),
         EntryKind::Compaction { summary, .. } => summary.len(),
@@ -234,6 +236,7 @@ fn transcribe(entry: &Entry) -> Vec<Value> {
         EntryKind::Stopped { .. } => {
             vec![json!({"from": "session", "text": "The person stopped the run."})]
         }
+        EntryKind::Note { text } => vec![json!({"from": "session", "text": text})],
         _ => Vec::new(),
     }
 }

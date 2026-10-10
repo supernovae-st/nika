@@ -204,6 +204,7 @@ fn a_citation_is_never_reused() {
         text: "again".into(),
         answers: None,
         queued: None,
+        nika: None,
     };
     let refused = tree.append(second_u1, 2_000, |l| Store::append(&mut lines, l));
     assert!(matches!(refused, Err(TreeError::Damaged { line: 3, .. })));

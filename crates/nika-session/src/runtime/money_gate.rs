@@ -706,10 +706,17 @@ impl SessionRuntime {
 
 fn preview_with_money(set: &ProjectChangeSet, decision: Option<&MonetaryDecision>) -> String {
     match decision {
+        // The words the decision binds: money input only when they stated an amount, the
+        // request otherwise (a default ceiling read no money from them).
         Some(decision) => format!(
-            "{}\n{}\nmonetary input: «{}»\n",
+            "{}\n{}\n{}: «{}»\n",
             set.preview(),
             scoped_money_line(decision),
+            if decision.explicit_amount.is_some() {
+                "monetary input"
+            } else {
+                "request"
+            },
             decision.input
         ),
         None => set.preview(),

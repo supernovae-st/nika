@@ -39,11 +39,10 @@ use std::time::{Duration, Instant};
 
 use peer::{Kind, Peer, Seen};
 use scenarios::{
-    ACCEPT, ALREADY, DELEGATION, DIGEST, FOLLOWED, HACKER_NEWS, LE_MONDE, LE_MONDE_WORDS,
-    OUTPUT_WORDS, STEER_B, STEERED, STILL_HERE, STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C,
-    THEN_STOP, WHY, scenario,
+    ACCEPT, ALGOLIA, ALREADY, DEFLECT, DELEGATION, DIGEST, EMPTY, FOLLOWED, HACKER_NEWS, LE_MONDE,
+    LE_MONDE_WORDS, OUTPUT_WORDS, RENAMED, REPAIRING, REQUEST, STEER_B, STEERED, STILL_HERE,
+    STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C, THEN_STOP, UNRESOLVED, WHY, YC_BLOG, scenario,
 };
-use scenarios::{REPAIRING, UNRESOLVED};
 use serde_json::{Value, json};
 
 /// One scenario's report, and the requests the peer received while the child drove it.
@@ -737,6 +736,172 @@ fn stop_drops_the_request_under_way_and_returns_the_queued_line() {
         "the unsent line never reached the author"
     );
     assert_eq!(journey.report["tools"], json!([]));
+}
+
+/// The text of a step's outcome.
+fn said(step: &Value) -> &str {
+    step["outcome"]["text"].as_str().unwrap_or_default()
+}
+
+/// F2: a refusal picks no offer, and the author's claim that the person accepted one binds
+/// nothing.
+#[test]
+fn a_refusal_binds_no_offer_the_author_claims() {
+    let journey = run("refused_offer");
+    let refused = journey.step(1);
+    assert_ne!(outcome_kind(refused), "proposal", "{refused:#}");
+    assert!(rows(refused, "bindings").is_empty(), "{:#}", work(refused));
+    let answer = &journey.agent[1];
+    assert!(
+        answer.text().contains("declined the offers"),
+        "{}",
+        answer.text()
+    );
+    let claim = &journey.agent[2];
+    assert!(
+        claim.last().contains("declined the offers"),
+        "{}",
+        claim.last()
+    );
+}
+
+/// Item 4(a), E1 machine-1: a deflection takes the recommended offer, delegated and visible.
+#[test]
+fn a_deflection_takes_the_recommendation_visibly() {
+    let journey = run("deflection_takes_the_recommendation");
+    assert_eq!(outcome_kind(journey.step(0)), "question");
+    let proposed = journey.step(1);
+    assert_eq!(outcome_kind(proposed), "proposal", "{proposed:#}");
+    let hn = binding(proposed, HACKER_NEWS).expect("Hacker News is bound");
+    let delegated = json!({"kind": "delegated", "message": "u2", "excerpt": DEFLECT,
+        "question": "yc_source", "option": "hackernews"});
+    assert_eq!(hn["provenance"], delegated, "{hn:#}");
+    assert!(
+        binding(proposed, YC_BLOG).is_none(),
+        "never the offer not picked"
+    );
+    let delegations = rows(proposed, "delegations");
+    assert!(
+        delegations
+            .iter()
+            .any(|d| d["message"] == "u2" && d["scope"] == "read_source"),
+        "{delegations:?}"
+    );
+    let read = &journey.agent[1];
+    assert!(
+        read.text().contains("recommended `hackernews`"),
+        "{}",
+        read.text()
+    );
+}
+
+/// Item 4(b), E1 machine-2: a value left to the author is chosen once and never asked again.
+#[test]
+fn a_name_left_to_the_author_is_never_asked_again() {
+    let journey = run("delegated_name");
+    assert_eq!(outcome_kind(journey.step(2)), "question");
+    let named = journey.step(3);
+    assert_eq!(outcome_kind(named), "proposal", "{named:#}");
+    let refused =
+        (journey.agent.iter()).any(|s| s.last().contains(r#""delegated":{"message":"u4"}"#));
+    assert!(refused, "the second `ask` was refused, not asked");
+    assert_eq!(
+        provenance(named, RENAMED),
+        ("derived".to_owned(), "u4".to_owned())
+    );
+    let delegations = rows(named, "delegations");
+    assert!(
+        delegations
+            .iter()
+            .any(|d| d["message"] == "u4" && d["scope"] == "output_path"),
+        "{delegations:?}"
+    );
+    let changed = format!("output `{DIGEST}` replaced by `{RENAMED}`");
+    assert!(said(named).contains(&changed), "{}", said(named));
+}
+
+/// Item 4(e) and lane B's T3, E1 TUI: « today » removes no source, and a replacement in words
+/// that name the source is said under the proposal.
+#[test]
+fn a_source_is_replaced_only_by_words_that_name_it_and_the_change_is_said() {
+    let journey = run("source_swap");
+    assert_ne!(outcome_kind(journey.step(2)), "proposal");
+    let unnamed = format!("does not name `{HACKER_NEWS}`");
+    let refused = (journey.agent.iter()).any(|s| s.last().contains(&unnamed));
+    assert!(refused, "« today » removed nothing");
+    let swapped = journey.step(3);
+    assert_eq!(outcome_kind(swapped), "proposal", "{swapped:#}");
+    let changed = format!(
+        "Changed from the proposal you saw: source `{HACKER_NEWS}` replaced by `{ALGOLIA}`"
+    );
+    assert!(said(swapped).contains(&changed), "{}", said(swapped));
+}
+
+/// Item 4(f), E1 TUI: the folder typed at a proposal is a revision; the card never files it as
+/// money input.
+#[test]
+fn a_folder_line_at_a_proposal_is_never_money_input() {
+    let journey = run("folder_line");
+    let moved = journey.step(2);
+    assert_eq!(outcome_kind(moved), "proposal", "{moved:#}");
+    assert!(!said(moved).contains("monetary input"), "{}", said(moved));
+    let request = format!("request: «{REQUEST}»");
+    assert!(said(moved).contains(&request), "{}", said(moved));
+}
+
+/// Item 5, E1 machine-2: a failed Run goes back to its author at once with the run's facts; the
+/// repaired revision never runs on the words that ran the failed one, and runs on new words.
+#[test]
+fn a_failed_run_is_repaired_and_runs_again_only_on_new_words() {
+    let journey = run("failed_run_repaired");
+    assert_eq!(outcome_kind(journey.step(2)), "run_requested");
+    let repaired = journey.step(3);
+    assert_eq!(outcome_kind(repaired), "proposal", "{repaired:#}");
+    let text = said(repaired);
+    assert!(
+        text.starts_with("Failed · `") && text.contains("`summarize` failed"),
+        "{text}"
+    );
+    assert!(text.contains("NIKA-INFER-001"), "{text}");
+    let note = (journey.agent.iter())
+        .find(|s| s.text().contains("The run the person asked for failed"))
+        .expect("the author read the run's facts");
+    assert!(
+        note.text().contains("Nika (not the person):") && note.text().contains("NIKA-INFER-001"),
+        "{}",
+        note.text()
+    );
+    let stale = (journey.agent.iter()).any(|s| s.last().contains("`u3` does not authorize it"));
+    assert!(
+        stale,
+        "the words that ran the failed revision authorize nothing more"
+    );
+    assert_eq!(waiting(repaired), "consent", "{repaired:#}");
+    let again = journey.step(4);
+    assert_eq!(outcome_kind(again), "run_requested", "{again:#}");
+}
+
+/// Item 5, the evaluator's repair cell: a complaint about a successful Run reaches the author
+/// with the run's facts, and the repair runs on those words.
+#[test]
+fn a_complaint_about_a_run_reaches_the_author_with_its_facts() {
+    let journey = run("complaint_after_success");
+    assert_eq!(
+        outcome_kind(journey.step(3)),
+        "facts",
+        "{:#}",
+        journey.step(3)
+    );
+    let complaint = (journey.agent.iter())
+        .find(|s| s.last().contains(EMPTY))
+        .expect("the complaint reached the author");
+    let last = complaint.last();
+    assert!(
+        last.contains("The last run the person asked for:") && last.contains("Done ·"),
+        "{last}"
+    );
+    let again = journey.step(4);
+    assert_eq!(outcome_kind(again), "run_requested", "{again:#}");
 }
 
 /// Lane B's verifier on the conversation's candidate: a judge that rejects the request as a

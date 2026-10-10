@@ -134,14 +134,19 @@ const APPROVALS: [&str; 5] = [
 ];
 
 /// What the loopback answers a request that offers no tools: the verifier's closed choice
-/// approved; anything else gets a plain word.
+/// approved, the Session's reading of the accepting answer as the recommended offer; anything
+/// else gets a plain word.
 fn reply(body: &Value) -> Value {
     let keys = &body["response_format"]["json_schema"]["schema"]["properties"]["choice"]["enum"];
     let offered = |key: &&str| keys.as_array().is_some_and(|k| k.iter().any(|k| k == *key));
-    let content = match APPROVALS.into_iter().find(offered) {
-        Some(approve) => json!({"choice": approve}).to_string(),
-        None => "D'accord.".to_owned(),
-    };
+    if let Some(approve) = APPROVALS.into_iter().find(offered) {
+        let choice = json!({"choice": approve}).to_string();
+        return json!({"role": "assistant", "content": choice});
+    }
+    let last = (body["messages"].as_array().into_iter().flatten()).next_back();
+    let reading = (last.and_then(|message| message["content"].as_str()))
+        .is_some_and(|text| text.contains("One word only, nothing else."));
+    let content = if reading { "recommended" } else { "D'accord." };
     json!({"role": "assistant", "content": content})
 }
 

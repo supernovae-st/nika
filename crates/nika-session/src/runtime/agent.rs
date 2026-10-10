@@ -22,13 +22,14 @@ mod led;
 mod store;
 mod tools;
 
+use std::collections::BTreeMap;
 use std::io;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use nika_fs::OwnedDir;
 use nika_providers::InferenceAdmission;
-use nika_session_agent::conversation::{Acts, Conversation};
+use nika_session_agent::conversation::{Acts, Conversation, Pick};
 use nika_session_agent::{
     Agent, AgentEvent, EntryKind, Observed, Outcome, QueueMode, QueuedState, Relay, Steering, Tree,
 };
@@ -67,10 +68,23 @@ pub(super) struct Driver {
     steering: Steering,
     cancel: CancelCtx,
     leading: Option<led::Leading>,
+    /// The last run of the candidate, for the author with the person's next line.
+    run_note: Option<String>,
     /// What the conversation's verifications kept, shared with every turn's desk: the verdicts
     /// that declined bytes and the last that made a document ready.
     verified: Arc<Mutex<Verified>>,
 }
+
+/// What starts a turn of the conversation: the person's line, or Nika's own note to the author
+/// (a failed run's facts), which no person wrote and which authorizes nothing.
+#[derive(Clone, Copy)]
+pub(super) enum Said<'a> {
+    Line(&'a str),
+    Note(&'a str),
+}
+
+/// What Nika tells the author of a failed run of its candidate.
+const REPAIR: &str = "The run the person asked for failed; its facts follow. Read the document and what it wrote, write the repaired revision and propose it, saying in the person's language what failed and what you changed. It runs again only when the person says so.";
 
 impl Driver {
     /// The driver a host door opens, unless the environment keeps the round driver.
@@ -97,6 +111,7 @@ impl Driver {
             steering: Steering::new(),
             cancel: CancelCtx::new(),
             leading: None,
+            run_note: None,
             verified: Arc::default(),
         }
     }
@@ -250,19 +265,57 @@ impl SessionRuntime {
         let answering = (self.agent.as_ref())
             .and_then(|d| d.tree.as_ref())
             .is_some_and(|tree| tree.parked().is_some());
-        if let Err(refused) = self.admit_money(line, answering, false) {
+        // A line at a proposal continues the work it shows: it amends the money decision only
+        // with an amount of its own, never replacing the request the decision binds.
+        let continuing = answering || self.pending.is_some();
+        if let Err(refused) = self.admit_money(line, continuing, false) {
             return Some(refused);
         }
         if let Some(held) = self.hold_for_knowledge(line, true) {
             return Some(held);
         }
-        Some(self.agent_line(line))
+        Some(self.agent_said(Said::Line(line)))
+    }
+
+    /// Nika's own note to the conversation's author, as a turn with no person's line: none when
+    /// no conversation leads or a question waits for the person.
+    fn agent_note(&mut self, note: &str) -> Option<TurnOutcome> {
+        let tree = self.agent.as_ref().and_then(|d| d.tree.as_ref());
+        if !self.agent_leads() || tree.is_none_or(|tree| tree.parked().is_some()) {
+            return None;
+        }
+        Some(self.agent_said(Said::Note(note)))
+    }
+
+    /// What a finished run of the conversation's candidate leaves its author (`said`: the run's
+    /// facts as the person reads them): a failure goes back to it at once, the repaired revision
+    /// proposed beside the facts; a success is noted for the person's next line.
+    pub(super) fn after_run(&mut self, exit: u8, said: String) -> TurnOutcome {
+        let candidate = |d: &Driver| d.toolbox.with(|c| c.candidate().is_some());
+        if !self.agent_leads() || !self.agent.as_ref().is_some_and(candidate) {
+            return TurnOutcome::Facts(said);
+        }
+        if exit == 0 {
+            if let Some(driver) = self.agent.as_mut() {
+                driver.run_note = Some(format!("The last run the person asked for:\n{said}"));
+            }
+            return TurnOutcome::Facts(said);
+        }
+        match self.agent_note(&format!("{REPAIR}\n{said}")) {
+            Some(TurnOutcome::Proposal { id, preview }) => TurnOutcome::Proposal {
+                id,
+                preview: format!("{said}\n\n{preview}"),
+            },
+            Some(TurnOutcome::Reply(text)) => TurnOutcome::Reply(format!("{said}\n\n{text}")),
+            Some(other) => other,
+            None => TurnOutcome::Facts(said),
+        }
     }
 
     /// One line through the conversation, under the same gates a reasoner call meets: the money
     /// that blocks cognition, an intelligence that reads, the effort the route can carry, and
     /// one admitted dispatch around the whole run (a seat's dispatch rides the subscription).
-    fn agent_line(&mut self, line: &str) -> TurnOutcome {
+    fn agent_said(&mut self, said: Said<'_>) -> TurnOutcome {
         if let Some(why) = self.agent.as_ref().and_then(|d| d.damaged.clone()) {
             return refusal(
                 RefusalClass::Io,
@@ -324,9 +377,9 @@ impl SessionRuntime {
                 if let Some(account) = account {
                     model = model.with_admission(account);
                 }
-                self.drive(&mut driver, line, &mut model, judged)
+                self.drive(&mut driver, said, &mut model, judged)
             }
-            (None, Some(seat)) => self.drive_led(&mut driver, line, &seat, effort),
+            (None, Some(seat)) => self.drive_led(&mut driver, said, &seat, effort),
             (None, None) => refusal(
                 RefusalClass::WrongState,
                 "this intelligence does not lead a conversation",
@@ -338,15 +391,16 @@ impl SessionRuntime {
     }
 
     /// A turn of the conversation begins: its tree started when none was, the tools given the
-    /// turn's capabilities, and the questions a waiting run asked answered by the line about to
-    /// be cited. The desk verifies a document under `account`, the line's admitted dispatch.
-    /// Returns the questions asked before the line.
+    /// turn's capabilities, and the questions a waiting run asked answered by `line`, about to be
+    /// cited. The desk verifies a document under `account`, the line's admitted dispatch.
+    /// Returns the questions asked before the line and what the Session read it to pick.
     fn agent_begin(
-        &self,
+        &mut self,
         driver: &mut Driver,
         chosen: &str,
+        line: &str,
         account: Option<InferenceAdmission>,
-    ) -> Result<Vec<QuestionId>, String> {
+    ) -> Result<(Vec<QuestionId>, Vec<String>), String> {
         if driver.tree.is_none() {
             let started = start_tree(&mut driver.store, &self.snapshot.root, chosen)?;
             driver.tree = Some(started);
@@ -372,13 +426,39 @@ impl SessionRuntime {
         let waiting = (driver.tree.as_ref())
             .filter(|tree| tree.parked().is_some())
             .map(Tree::next_cite);
+        let read = match waiting {
+            Some(_) => self.read_answers(driver, line),
+            None => BTreeMap::new(),
+        };
         Ok(driver.toolbox.with(|conversation| {
             let before = conversation.asked_ids();
-            if let Some(cite) = waiting {
-                conversation.answered_by(&cite);
-            }
-            before
+            let said = (waiting.map(|cite| conversation.answered_by(&cite, line, &read)))
+                .unwrap_or_default();
+            (before, said)
         }))
+    }
+
+    /// The Session's own reading of `line` against each waiting question no whole-line protocol
+    /// settles: one bounded label call each, metered as every reading is; a reading that cannot
+    /// run picks nothing.
+    fn read_answers(&mut self, driver: &Driver, line: &str) -> BTreeMap<String, Pick> {
+        let questions = driver
+            .toolbox
+            .with(|conversation| conversation.to_read(line));
+        let mut read = BTreeMap::new();
+        for question in questions {
+            let phase = crate::activity::Phase::Understanding;
+            self.activity(&crate::activity::Activity::now(
+                phase,
+                "reading your answer",
+            ));
+            let pick = match self.reason_with_money(&Pick::prompt(&question, line), true) {
+                Ok(reply) => Pick::read(&reply.text, &question),
+                Err(_) => Pick::Unread,
+            };
+            read.insert(question.key, pick);
+        }
+        read
     }
 
     /// The run over the selected API or local route, by Nika's own loop: a line that answers
@@ -386,14 +466,19 @@ impl SessionRuntime {
     fn drive(
         &mut self,
         driver: &mut Driver,
-        line: &str,
+        said: Said<'_>,
         model: &mut AgentModel,
         account: Option<InferenceAdmission>,
     ) -> TurnOutcome {
         // A seat's agent no longer leads once the route is an API or a local one.
         driver.leading = None;
-        let before = match self.agent_begin(driver, model.model(), account) {
-            Ok(before) => before,
+        let line = match said {
+            Said::Line(line) => line,
+            Said::Note(_) => "",
+        };
+        let run_note = driver.run_note.take().filter(|_| !line.is_empty());
+        let (before, read) = match self.agent_begin(driver, model.model(), line, account) {
+            Ok(begun) => begun,
             Err(why) => return could_not_start(&why),
         };
         let now = unix_ms;
@@ -414,11 +499,13 @@ impl SessionRuntime {
         let mut events = |_: AgentEvent| {};
         let mut agent = Agent::new(tree, store, &**observed, &now)
             .with_steering(steering)
-            .with_cancel(cancel);
-        let outcome = if parked {
-            agent.answer(line, model, &mut events)
-        } else {
-            agent.prompt(line, model, &mut events)
+            .with_cancel(cancel)
+            .with_reading(&read)
+            .with_note(run_note);
+        let outcome = match (said, parked) {
+            (Said::Note(note), _) => agent.note(note, model, &mut events),
+            (Said::Line(line), true) => agent.answer(line, model, &mut events),
+            (Said::Line(line), false) => agent.prompt(line, model, &mut events),
         };
         let reach = agent.stop_reach();
         drop(agent);
@@ -540,6 +627,13 @@ impl SessionRuntime {
         self.bind_read_basis(&id, &set, &seen.unwrap_or_default());
         self.pending = Some(set);
         driver.authorized = acts.map(|acts| (id.clone(), acts));
+        // A value the person saw bound and this revision changes is said in words.
+        let changed = driver.toolbox.with(|c| c.changed().join(" · "));
+        let said = if changed.is_empty() {
+            said.to_owned()
+        } else {
+            format!("{said}\n\nChanged from the proposal you saw: {changed}.")
+        };
         TurnOutcome::Proposal {
             id,
             preview: format!("{said}\n\n{bytes}"),

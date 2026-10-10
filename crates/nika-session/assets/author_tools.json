@@ -306,7 +306,7 @@
   {
    "name": "ask",
    "read_only": false,
-   "description": "Ask the person what you cannot decide from their words; independent questions together, a dependent one with after. An option may carry the concrete values accepting it binds. Bind first, in answered, what their last line already answered. A value they already settled is not asked again: the reply gives it back. When something is asked, the turn ends and their next line answers.",
+   "description": "Ask the person what you cannot decide from their words; independent questions together, a dependent one with after. An option may carry the concrete values accepting it binds. Bind first, in answered, what their last line already answered. A value they already settled is not asked again: the reply gives it back, unless the question cites in `reopens` their later words that ask to change it. When something is asked, the turn ends and their next line answers.",
    "input_schema": {
     "type": "object",
     "properties": {
@@ -384,6 +384,25 @@
          "items": {
           "type": "string"
          }
+        },
+        "reopens": {
+         "type": "object",
+         "description": "The person's own words, in a line written after they settled this value, that ask to change it: only then is a settled value asked again.",
+         "properties": {
+          "message": {
+           "type": "string",
+           "pattern": "^u[0-9]+$"
+          },
+          "excerpt": {
+           "type": "string",
+           "minLength": 1
+          }
+         },
+         "required": [
+          "message",
+          "excerpt"
+         ],
+         "additionalProperties": false
         }
        },
        "required": [
