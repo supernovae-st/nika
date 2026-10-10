@@ -1374,3 +1374,12 @@ and after the composition a lexical `trace` of which shown code the candidate ke
 qualification, the shelf of references and the JSON-object scan of a seat's text descended to
 `nika-compile-seats` (`foundry`, `shelf`, `objects`; ADR-146 precedent) and keep their paths
 here.
+
+## A document written outside a compile round (2d)
+
+`judge_document(stated, candidate, (authored, host), observed)` is the door's judge over a
+candidate a Session conversation wrote: the strict parser, the pure Check, then the fidelity laws
+against everything the person stated in the request it answers. The author's selections are
+admitted on the person's own words; the ones the host verified itself (an offer it showed, a
+value an accepted revision bound) have their scope and use judged only. It calls, reads and
+writes nothing.
