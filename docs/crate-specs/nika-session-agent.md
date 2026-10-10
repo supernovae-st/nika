@@ -29,7 +29,9 @@ Session's tools act on the Session, and only the Session's doors save, run or re
   call the run waits on; `Agent::compact` folds the branch on request. A run ends as
   `Outcome::Answered` (the model answered without a call), `Outcome::Parked` (a call's reply
   ended the turn: the run waits for the person), `Outcome::Stopped` (Stop; the queued lines
-  return unsent) or `Outcome::Failed` (the model or the tree failed; what was recorded stays).
+  return unsent, and `Agent::stop_reach` says how the Stop reached the run: between steps, a
+  dropped request, or an agent asked once to stop) or `Outcome::Failed` (the model or the tree
+  failed; what was recorded stays).
   No step, turn, token or time quota ends a run. While a call waits, a new line answers it:
   `prompt` refuses with `AgentError::Parked`. The calls of one message run in order; the calls
   after a call that ends the turn, or after a steering line arrived, are recorded as not run,
@@ -44,9 +46,17 @@ Session's tools act on the Session, and only the Session's doors save, run or re
   parked), the transport's record (`Fact` `led_turn`) and the answer. The relay refuses a call
   between turns and after a call that ended the turn; `transcript` gives an agent whose own
   session did not see the conversation its cited lines and what the author said and asked.
-- `steer` — `Steering`, shared by the host and the run: `steer` lines enter after the current
-  calls, `follow_up` lines when the model would end, `drain` returns both at Stop. A blank line
-  is no line.
+- `steer` — `Steering`, shared by the host and the run: an identified ledger. Each queued line
+  has an identity (`l1`, `l2`, … for the conversation) and a state a host shows: `waiting`,
+  `entered` with the citation it became, or `returned` (unsent). `steer` lines enter after the
+  current calls, `follow_up` lines when the model would end, `drain` returns both at Stop. A
+  line is accepted only while a run reads the queue (the run opens it and closes it; what it
+  did not read returns), so a line is never kept for a later run: `QueueRefused::NotReading`,
+  `Blank` for a blank line, and `Full` once the run took `MAX_QUEUED` lines.
+- `observe` — `Observed`, the Session's tools as both loops reach them (the relay wraps it for
+  an agent with its own loop): each real call reports a `ToolStep` (its identity, the tool,
+  started, finished or failed, the milliseconds it took) to the turn's sink, never its
+  arguments or reply.
 - `tree` — `Tree`: the header (`nika/session-tree@0`, the Session, the project's storage digest,
   never a path), then one entry per line (`System`, `User`, `Assistant`, `ToolResult`, `Parked`,
   `Compaction`, `Stopped`, `Fact`), each with its parent and time, each line bound to the one

@@ -5,132 +5,212 @@
 //! the current calls, and the calls not yet run are skipped so the model reads it first; a
 //! follow-up line waits until the model would end the run. Stop returns every queued line
 //! unsent. The handle is shared: a host queues from its own thread while the run takes.
+//!
+//! Each line gets an identity (`l1`, `l2`, … within the conversation) and a state a host shows:
+//! waiting, entered as the person's cited line, or returned unsent. The queue takes lines only
+//! while a run reads it — the run opens it when it starts and closes it when it ends, returning
+//! the lines it did not read — so a line is never left for a later run to read.
 
-use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use serde::{Deserialize, Serialize};
+pub use nika_session_change::work::{QueueMode, Queued, QueuedState};
 
-/// How a line waits for a run under way.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+/// The lines one run takes at most, whatever became of them: a further line is refused, so
+/// neither the queue nor the snapshot that shows it grows without bound.
+pub const MAX_QUEUED: usize = 32;
+
+/// Why a line was not queued: a receipt a host shows, never an error of the run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum QueueMode {
-    /// It enters after the current calls.
-    Steer,
-    /// It enters when the run would end.
-    FollowUp,
+pub enum QueueRefused {
+    /// A blank line is no line.
+    Blank,
+    /// No run reads the queue now: nothing is under way, or what runs is not a conversation's
+    /// run; the line is sent as the next turn instead.
+    NotReading,
+    /// The run took as many lines as it takes ([`MAX_QUEUED`]): the line is sent once it ends.
+    Full,
+}
+
+impl QueueRefused {
+    /// The receipt's word on the wire.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Blank => "blank",
+            Self::NotReading => "not_reading",
+            Self::Full => "full",
+        }
+    }
+}
+
+/// One line in the ledger, and whether a run has taken it to record.
+#[derive(Debug)]
+struct Slot {
+    queued: Queued,
+    taken: bool,
+}
+
+#[derive(Debug, Default)]
+struct Ledger {
+    open: bool,
+    minted: u64,
+    slots: Vec<Slot>,
 }
 
 /// The lines queued for one conversation, shared by the host and the run.
 #[derive(Clone, Debug, Default)]
 pub struct Steering {
-    queue: Arc<Mutex<VecDeque<(QueueMode, String)>>>,
+    ledger: Arc<Mutex<Ledger>>,
 }
 
 impl Steering {
-    /// An empty queue.
+    /// An empty, closed queue.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Queue a line that enters after the current calls. A blank line is no line.
-    pub fn steer(&self, line: impl Into<String>) {
-        self.push(QueueMode::Steer, line.into());
+    /// Queue a line that enters after the current calls.
+    ///
+    /// # Errors
+    ///
+    /// [`QueueRefused`]: the line is blank, no run reads the queue now, or the run took
+    /// [`MAX_QUEUED`] lines.
+    pub fn steer(&self, line: impl Into<String>) -> Result<Queued, QueueRefused> {
+        self.push(QueueMode::Steer, line.into())
     }
 
-    /// Queue a line that enters when the run would end. A blank line is no line.
-    pub fn follow_up(&self, line: impl Into<String>) {
-        self.push(QueueMode::FollowUp, line.into());
+    /// Queue a line that enters when the run would end.
+    ///
+    /// # Errors
+    ///
+    /// [`QueueRefused`]: the line is blank, no run reads the queue now, or the run took
+    /// [`MAX_QUEUED`] lines.
+    pub fn follow_up(&self, line: impl Into<String>) -> Result<Queued, QueueRefused> {
+        self.push(QueueMode::FollowUp, line.into())
+    }
+
+    /// A run starts reading the queue: the lines of the run before it are forgotten.
+    pub fn open(&self) {
+        let mut ledger = self.lock();
+        ledger.open = true;
+        ledger.slots.clear();
+    }
+
+    /// The run ended: the queue takes no more lines, and every line it did not read comes back
+    /// unsent (`returned` in [`Steering::records`]).
+    pub fn close(&self) {
+        let mut ledger = self.lock();
+        ledger.open = false;
+        return_waiting(&mut ledger);
+    }
+
+    /// Whether a run reads the queue now.
+    #[must_use]
+    pub fn reading(&self) -> bool {
+        self.lock().open
     }
 
     /// Whether a line of `mode` waits.
     #[must_use]
     pub fn pending(&self, mode: QueueMode) -> bool {
-        self.lock().iter().any(|(queued, _)| *queued == mode)
+        self.lock().slots.iter().any(|slot| fresh(slot, mode))
     }
 
-    /// Take the lines of `mode`, oldest first; the others stay queued.
+    /// Take the waiting lines of `mode`, oldest first, for the run to record; the others wait.
     #[must_use]
-    pub fn take(&self, mode: QueueMode) -> Vec<String> {
-        let mut queue = self.lock();
-        let (taken, kept): (VecDeque<_>, VecDeque<_>) =
-            queue.drain(..).partition(|(queued, _)| *queued == mode);
-        *queue = kept;
-        taken.into_iter().map(|(_, line)| line).collect()
+    pub fn take(&self, mode: QueueMode) -> Vec<Queued> {
+        let mut ledger = self.lock();
+        let slots = ledger.slots.iter_mut().filter(|slot| fresh(slot, mode));
+        slots
+            .map(|slot| {
+                slot.taken = true;
+                slot.queued.clone()
+            })
+            .collect()
     }
 
-    /// Take every queued line, oldest first: what Stop returns unsent.
-    #[must_use]
-    pub fn drain(&self) -> Vec<(QueueMode, String)> {
-        self.lock().drain(..).collect()
-    }
-
-    /// Put lines back at the front, in their order: lines taken that never entered.
-    pub fn requeue(&self, lines: Vec<(QueueMode, String)>) {
-        let mut queue = self.lock();
-        for line in lines.into_iter().rev() {
-            queue.push_front(line);
+    /// The line `id` entered the conversation as the person's line `cite`.
+    pub fn entered(&self, id: &str, cite: &str) {
+        let mut ledger = self.lock();
+        if let Some(slot) = ledger.slots.iter_mut().find(|s| s.queued.id == id) {
+            slot.queued.state = QueuedState::Entered {
+                cite: cite.to_owned(),
+            };
         }
     }
 
-    fn push(&self, mode: QueueMode, line: String) {
-        if !line.trim().is_empty() {
-            self.lock().push_back((mode, line));
+    /// Lines taken that never entered wait again, in their place.
+    pub fn requeue(&self, ids: &[String]) {
+        let mut ledger = self.lock();
+        for slot in &mut ledger.slots {
+            if ids.contains(&slot.queued.id) {
+                slot.taken = false;
+                slot.queued.state = QueuedState::Waiting;
+            }
         }
     }
 
-    fn lock(&self) -> MutexGuard<'_, VecDeque<(QueueMode, String)>> {
-        self.queue.lock().unwrap_or_else(PoisonError::into_inner)
+    /// Every waiting line comes back unsent, oldest first: what Stop and a parked run return.
+    #[must_use]
+    pub fn drain(&self) -> Vec<Queued> {
+        return_waiting(&mut self.lock())
     }
+
+    /// The lines of the current or last run, with their states, in the order they came.
+    #[must_use]
+    pub fn records(&self) -> Vec<Queued> {
+        let ledger = self.lock();
+        ledger
+            .slots
+            .iter()
+            .map(|slot| slot.queued.clone())
+            .collect()
+    }
+
+    fn push(&self, mode: QueueMode, line: String) -> Result<Queued, QueueRefused> {
+        if line.trim().is_empty() {
+            return Err(QueueRefused::Blank);
+        }
+        let mut ledger = self.lock();
+        if !ledger.open {
+            return Err(QueueRefused::NotReading);
+        }
+        if ledger.slots.len() >= MAX_QUEUED {
+            return Err(QueueRefused::Full);
+        }
+        ledger.minted += 1;
+        let queued = Queued::new(format!("l{}", ledger.minted), mode, line);
+        ledger.slots.push(Slot {
+            queued: queued.clone(),
+            taken: false,
+        });
+        Ok(queued)
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Ledger> {
+        self.ledger.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// A line of `mode` that waits and no run has taken.
+fn fresh(slot: &Slot, mode: QueueMode) -> bool {
+    !slot.taken && slot.queued.mode == mode && slot.queued.state == QueuedState::Waiting
+}
+
+/// Every waiting line returned unsent, oldest first.
+fn return_waiting(ledger: &mut Ledger) -> Vec<Queued> {
+    let waiting = ledger.slots.iter_mut();
+    let waiting = waiting.filter(|slot| slot.queued.state == QueuedState::Waiting);
+    waiting
+        .map(|slot| {
+            slot.taken = false;
+            slot.queued.state = QueuedState::Returned;
+            slot.queued.clone()
+        })
+        .collect()
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn each_mode_is_taken_in_order_and_leaves_the_other_queued() {
-        let steering = Steering::new();
-        steering.follow_up("then summarize");
-        steering.steer("use Le Monde too");
-        steering.steer("   ");
-        steering.steer("and TechCrunch");
-        assert!(steering.pending(QueueMode::Steer));
-        assert_eq!(
-            steering.take(QueueMode::Steer),
-            ["use Le Monde too", "and TechCrunch"]
-        );
-        assert!(!steering.pending(QueueMode::Steer));
-        assert!(steering.pending(QueueMode::FollowUp));
-        assert_eq!(steering.take(QueueMode::FollowUp), ["then summarize"]);
-        assert!(steering.drain().is_empty());
-    }
-
-    /// A host queues from its own thread; the run sees the line through its clone.
-    #[test]
-    fn a_line_queued_on_another_thread_reaches_the_run() {
-        let steering = Steering::new();
-        let host = steering.clone();
-        std::thread::scope(|scope| {
-            scope.spawn(move || host.steer("stop reading the RSS feed"));
-        });
-        assert_eq!(
-            steering.drain(),
-            [(QueueMode::Steer, "stop reading the RSS feed".to_owned())]
-        );
-    }
-
-    #[test]
-    fn lines_put_back_keep_their_place_before_newer_ones() {
-        let steering = Steering::new();
-        steering.steer("newer");
-        steering.requeue(vec![
-            (QueueMode::Steer, "first".to_owned()),
-            (QueueMode::FollowUp, "second".to_owned()),
-        ]);
-        let drained: Vec<String> = steering.drain().into_iter().map(|(_, l)| l).collect();
-        assert_eq!(drained, ["first", "second", "newer"]);
-    }
-}
+mod tests;

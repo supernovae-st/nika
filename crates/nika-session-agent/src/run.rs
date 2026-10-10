@@ -15,12 +15,13 @@ use std::io;
 
 use nika_kernel::CancelCtx;
 use nika_kernel::provider::{ContentBlock, Message, StopReason, TokenUsage, ToolDef};
+use nika_session_change::outcome::StopReach;
 use nika_session_change::tools::{SessionTools, ToolCall, ToolReply};
 use serde_json::Value;
 
 use crate::compact::{self, Window};
 use crate::event::{AgentEvent, End};
-use crate::steer::{QueueMode, Steering};
+use crate::steer::{QueueMode, Queued, Steering};
 use crate::tree::{EntryId, EntryKind, Tree, TreeError, calls};
 
 mod lead;
@@ -223,6 +224,7 @@ pub struct Agent<'a> {
     steering: Steering,
     cancel: CancelCtx,
     window: Option<Window>,
+    stopped: Option<StopReach>,
 }
 
 impl<'a> Agent<'a> {
@@ -243,7 +245,14 @@ impl<'a> Agent<'a> {
             steering: Steering::new(),
             cancel: CancelCtx::new(),
             window: None,
+            stopped: None,
         }
+    }
+
+    /// How the person's Stop reached the last run, when it stopped one.
+    #[must_use]
+    pub const fn stop_reach(&self) -> Option<StopReach> {
+        self.stopped
     }
 
     /// The person's queued lines this loop takes.
@@ -361,7 +370,10 @@ impl<'a> Agent<'a> {
         events(AgentEvent::AgentStart {
             entry: start.to_string(),
         });
+        // The run reads the person's queue while it lasts; what it did not read comes back.
+        self.steering.open();
         let outcome = self.turns(model, events);
+        self.steering.close();
         events(AgentEvent::AgentEnd { end: outcome.end() });
         outcome
     }
@@ -371,18 +383,18 @@ impl<'a> Agent<'a> {
         let mut last: Option<(String, Value, String)> = None;
         loop {
             if self.cancel.is_cancelled() {
-                return self.stop();
+                return self.stop(StopReach::BetweenSteps);
             }
             match self.fit(model, events) {
                 Ok(()) => {}
-                Err(AgentError::Stopped) => return self.stop(),
+                Err(AgentError::Stopped) => return self.stop(StopReach::RequestDropped),
                 Err(error) => return Outcome::Failed { error },
             }
             turn = turn.saturating_add(1);
             events(AgentEvent::TurnStart { turn });
             let reply = match model.complete(&self.request(), events) {
                 Ok(reply) => reply,
-                Err(ModelError::Stopped) => return self.stop(),
+                Err(ModelError::Stopped) => return self.stop(StopReach::RequestDropped),
                 Err(ModelError::Failed(why)) => {
                     return Outcome::Failed {
                         error: AgentError::Model(why),
@@ -395,7 +407,7 @@ impl<'a> Agent<'a> {
             };
             if calls.is_empty() {
                 if self.cancel.is_cancelled() {
-                    return self.stop();
+                    return self.stop(StopReach::BetweenSteps);
                 }
                 let entered = match self.dequeue(QueueMode::Steer, events) {
                     Ok(false) => self.dequeue(QueueMode::FollowUp, events),
@@ -409,14 +421,14 @@ impl<'a> Agent<'a> {
             }
             match self.run_calls(&calls, &mut last, events) {
                 Ok(Some((call, name))) => {
-                    let queued = self.steering.drain();
+                    let queued = pairs(&self.steering.drain());
                     return Outcome::Parked { call, name, queued };
                 }
                 Ok(None) => {}
                 Err(error) => return Outcome::Failed { error },
             }
             if self.cancel.is_cancelled() {
-                return self.stop();
+                return self.stop(StopReach::BetweenSteps);
             }
             if let Err(error) = self.dequeue(QueueMode::Steer, events) {
                 return Outcome::Failed { error };
@@ -557,18 +569,18 @@ impl<'a> Agent<'a> {
     ) -> Result<Vec<(String, String)>, AgentError> {
         let lines = self.steering.take(mode);
         let mut entered = Vec::with_capacity(lines.len());
-        for (k, line) in lines.iter().enumerate() {
-            match self.user(line, None, Some(mode)) {
+        for (k, queued) in lines.iter().enumerate() {
+            match self.user(&queued.line, None, Some(mode)) {
                 Ok((entry, cite)) => {
+                    self.steering.entered(&queued.id, &cite);
                     events(AgentEvent::Dequeued {
                         mode,
                         entry: entry.to_string(),
                     });
-                    entered.push((line.clone(), cite));
+                    entered.push((queued.line.clone(), cite));
                 }
                 Err(error) => {
-                    let rest = lines[k..].iter().map(|l| (mode, l.clone())).collect();
-                    self.steering.requeue(rest);
+                    self.steering.requeue(&ids(&lines[k..]));
                     return Err(error);
                 }
             }
@@ -576,14 +588,18 @@ impl<'a> Agent<'a> {
         Ok(entered)
     }
 
-    /// Stop: the queued lines return unsent, and the tree records that the person stopped.
-    fn stop(&mut self) -> Outcome {
-        let queued = self.steering.drain();
-        let lines = queued.iter().map(|(_, line)| line.clone()).collect();
+    /// Stop, as it reached the run: the queued lines return unsent, and the tree records that
+    /// the person stopped.
+    fn stop(&mut self, reach: StopReach) -> Outcome {
+        self.stopped = Some(reach);
+        let returned = self.steering.drain();
+        let lines = returned.iter().map(|queued| queued.line.clone()).collect();
         match self.record(EntryKind::Stopped { queued: lines }) {
-            Ok(_) => Outcome::Stopped { queued },
+            Ok(_) => Outcome::Stopped {
+                queued: pairs(&returned),
+            },
             Err(error) => {
-                self.steering.requeue(queued);
+                self.steering.requeue(&ids(&returned));
                 Outcome::Failed { error }
             }
         }
@@ -608,6 +624,18 @@ impl<'a> Agent<'a> {
             .tree
             .append_user(text, answers, queued, at, |line| store.append(line))?)
     }
+}
+
+/// Queued lines as an outcome returns them: each with how it waited.
+fn pairs(queued: &[Queued]) -> Vec<(QueueMode, String)> {
+    (queued.iter())
+        .map(|queued| (queued.mode, queued.line.clone()))
+        .collect()
+}
+
+/// The identities of queued lines.
+fn ids(queued: &[Queued]) -> Vec<String> {
+    queued.iter().map(|queued| queued.id.clone()).collect()
 }
 
 /// The answer text of a message: its text blocks, in order.

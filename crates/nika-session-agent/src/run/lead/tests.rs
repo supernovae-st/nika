@@ -9,7 +9,7 @@ use serde_json::json;
 use super::*;
 use crate::event::End;
 use crate::run::Store;
-use crate::steer::Steering;
+use crate::steer::{QueuedState, Steering};
 use crate::tree::Entry;
 
 /// The Session's tools as a test serves them: `read` answers, `ask` ends the turn.
@@ -236,7 +236,7 @@ fn stop_asks_the_agent_once_and_returns_the_queued_lines() {
     let counted = Arc::clone(&asked);
     let (_, relay, mut agent) = world(vec![turn(move |relay, _, stop| {
         call(relay, "read", "a.nika", "toolu_1");
-        queue.follow_up("then c");
+        queue.follow_up("then c").expect("the run reads its queue");
         on_stop.cancel();
         for _ in 0..3 {
             if stop() {
@@ -246,12 +246,15 @@ fn stop_asks_the_agent_once_and_returns_the_queued_lines() {
         }
         led(LedEnd::Stopped)
     })]);
-    let outcome = Agent::new(&mut tree, &mut lines, &*relay, &now)
+    let mut run = Agent::new(&mut tree, &mut lines, &*relay, &now)
         .with_cancel(&cancel)
-        .with_steering(&steering)
-        .lead("read a", None, &mut agent, &relay, &mut |_| {});
+        .with_steering(&steering);
+    let outcome = run.lead("read a", None, &mut agent, &relay, &mut |_| {});
+    assert_eq!(run.stop_reach(), Some(StopReach::AgentCancelled));
+    drop(run);
     assert!(matches!(&outcome, Outcome::Stopped { queued }
         if *queued == [(QueueMode::FollowUp, "then c".to_owned())]));
+    assert_eq!(steering.records()[0].state, QueuedState::Returned);
     assert_eq!(*asked.lock().unwrap(), 1);
     assert_eq!(
         kinds(tree.entries()),
@@ -268,7 +271,9 @@ fn a_steering_line_stops_the_turn_and_enters_as_the_next_prompt() {
     let (_, relay, mut agent) = world(vec![
         turn(move |_, beats, stop| {
             beats(Beat::Answer("Using a".into()));
-            queue.steer("use b instead");
+            queue
+                .steer("use b instead")
+                .expect("the run reads its queue");
             assert!(stop(), "a steering line stops the turn");
             led(LedEnd::Stopped)
         }),
@@ -284,6 +289,8 @@ fn a_steering_line_stops_the_turn_and_enters_as_the_next_prompt() {
         .lead("use a", None, &mut agent, &relay, &mut |e| events.push(e));
     assert!(matches!(&outcome, Outcome::Answered { text } if text == "Using b."));
     assert_eq!(agent.prompts[1], "use b instead\n\n(cited as u2)");
+    let entered = QueuedState::Entered { cite: "u2".into() };
+    assert_eq!(steering.records()[0].state, entered);
     assert!(tree.entries().iter().any(|e| matches!(&e.kind,
         EntryKind::User { cite, queued: Some(QueueMode::Steer), .. } if cite == "u2")));
     assert_eq!(
@@ -307,7 +314,7 @@ fn a_follow_up_line_enters_when_the_agent_ends_its_turn() {
     let queue = steering.clone();
     let (_, relay, mut agent) = world(vec![
         turn(move |_, beats, stop| {
-            queue.follow_up("and c");
+            queue.follow_up("and c").expect("the run reads its queue");
             assert!(!stop(), "a follow-up line waits for the end of the turn");
             beats(Beat::Answer("a done".into()));
             led(LedEnd::Answered)
