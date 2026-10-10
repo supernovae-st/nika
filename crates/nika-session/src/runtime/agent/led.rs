@@ -101,7 +101,8 @@ impl SessionRuntime {
         {
             return refused;
         }
-        let before = match self.agent_begin(driver, chosen) {
+        // A seat's agent rides its own subscription: the verifier admits no paid dispatch.
+        let before = match self.agent_begin(driver, chosen, None) {
             Ok(before) => before,
             Err(why) => return could_not_start(&why),
         };

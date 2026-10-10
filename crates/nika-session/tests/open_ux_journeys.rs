@@ -37,18 +37,21 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use peer::{Peer, Seen};
+use peer::{Kind, Peer, Seen};
 use scenarios::{
     ACCEPT, ALREADY, DELEGATION, DIGEST, FOLLOWED, HACKER_NEWS, LE_MONDE, LE_MONDE_WORDS,
     OUTPUT_WORDS, STEER_B, STEERED, STILL_HERE, STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C,
     THEN_STOP, WHY, scenario,
 };
+use scenarios::{REPAIRING, UNRESOLVED};
 use serde_json::{Value, json};
 
 /// One scenario's report, and the requests the peer received while the child drove it.
 struct Journey {
     report: Value,
     agent: Vec<Seen>,
+    /// Every request the peer received, in order.
+    seen: Vec<Seen>,
     _dir: tempfile::TempDir,
 }
 
@@ -117,11 +120,12 @@ fn run(name: &str) -> Journey {
         std::fs::read_to_string(&log).unwrap_or_default()
     );
     let report = serde_json::from_str(&std::fs::read_to_string(&report).unwrap()).unwrap();
-    let agent = peer.agent();
+    let (agent, seen) = (peer.agent(), peer.seen());
     peer.shutdown();
     Journey {
         report,
         agent,
+        seen,
         _dir: dir,
     }
 }
@@ -733,4 +737,33 @@ fn stop_drops_the_request_under_way_and_returns_the_queued_line() {
         "the unsent line never reached the author"
     );
     assert_eq!(journey.report["tools"], json!([]));
+}
+
+/// Lane B's verifier on the conversation's candidate: a judge that rejects the request as a
+/// whole and locates nothing holds it, so nothing is proposed and the author repairs from the
+/// findings; the same bytes verified again ask the judge nothing (R6).
+#[test]
+fn a_candidate_its_judge_doubts_goes_back_to_the_author_and_is_not_asked_again() {
+    let journey = run("doubted_candidate");
+    let step = journey.step(0);
+    assert_eq!(step["outcome"]["kind"], "reply", "{step}");
+    assert_eq!(step["outcome"]["text"], REPAIRING, "{step}");
+    assert!(step["shown"]["proposal"].is_null(), "{step}");
+    // The author read the held verdict after `propose`, then again after `verify`.
+    let held: Vec<usize> = (journey.seen.iter().enumerate())
+        .filter(|(_, seen)| seen.kind == Kind::Agent && seen.last().contains(UNRESOLVED))
+        .map(|(at, _)| at)
+        .collect();
+    assert_eq!(held.len(), 2, "{held:?}");
+    let judged = |from: usize, to: usize| {
+        (journey.seen[from..to].iter())
+            .filter(|seen| seen.kind == Kind::Judge)
+            .count()
+    };
+    assert!(judged(0, held[0]) > 0, "the judge was asked");
+    assert_eq!(
+        judged(held[0], held[1]),
+        0,
+        "the same bytes ask the judge nothing"
+    );
 }

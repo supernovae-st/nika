@@ -38,6 +38,7 @@ nika-display   = { path = "../nika-display", version = "0.123.0-preview.1" } # f
 nika-session-change = { path = "../nika-session-change", version = "0.123.0-preview.1" }  # change::Witness — the base a revision round compiled (lateral L4→L4 · never back)
 nika-session-agent = { path = "../nika-session-agent", version = "0.123.0-preview.1" }  # Model · Request · Reply — the conversation's model seam a selected API or local route answers (lateral L4→L4 · never back)
 nika-compile-cognition = { path = "../nika-compile-cognition", version = "0.123.0-preview.1" }  # compile_with_cognition_composed — the same compile, the pinned release lent as components (lateral L4→L4 · never back)
+nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.123.0-preview.1" }  # resolution::Resolution — the selections a conversation's document states, handed to verify_document (lateral L4→L4 · never back)
 nika-compile-seats = { path = "../nika-compile-seats", version = "0.123.0-preview.1" }  # foundry::ComponentCatalog — the trait the pinned knowledge snapshot lends (lateral L4→L4 · never back)
 
 blake3     = { workspace = true }   # the routed line's digest a route record keeps, never the line

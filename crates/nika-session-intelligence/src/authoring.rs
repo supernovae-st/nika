@@ -33,11 +33,12 @@ use std::collections::BTreeMap;
 mod money_restatement_tests;
 use std::sync::Arc;
 
-use nika_compile_cognition::compile_with_cognition_composed;
+use nika_compile_cognition::{compile_with_cognition_composed, verify_document};
+use nika_compile_fidelity::fidelity::resolution::Resolution;
 use nika_compile_seats::foundry::ComponentCatalog;
 use nika_onboard::compile::{
-    AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome, CompileQuestion,
-    CompileRequest, NativeMode, compile, revise_intent, round,
+    AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome,
+    CompileQuestion, CompileRequest, NativeMode, compile, revise_intent, round,
 };
 // The records a compile outcome carries live beside the snapshot door (C7 · D1).
 use nika_onboard::compile::rehearse::Rehearse;
@@ -646,6 +647,30 @@ pub fn compile_in_rehearsed(
     )
 }
 
+/// Verify the document the Session's conversation wrote for what the person `stated`, as a
+/// compile round of the same request would face it: the files the words name observed as for
+/// any compile, the same seat and decision model, the verdicts the conversation kept
+/// (`declined`: a judge is never asked again on bytes it rejected). READY only on the verdict;
+/// it never grants Save or Run.
+///
+/// # Errors
+/// As [`compile_in`], plus local admission refusal.
+#[allow(clippy::too_many_arguments)] // the conversation's document, its words and its seats
+pub fn verify_in(
+    seat: &AuthoringSeat,
+    context: &AuthoringContext,
+    stated: &str,
+    (candidate, selections): (&str, (&[Resolution], &[Resolution])),
+    declined: Vec<Value>,
+    account: Option<&nika_providers::InferenceAdmission>,
+    host: Option<&dyn Rehearse>,
+) -> Result<CompileOutcome, AuthoringError> {
+    let request = CompileRequest::create(stated).with_declined(declined);
+    let attach = Attach::Carried(None, stated);
+    let work = Work::Verify(candidate, selections);
+    attached(seat, context, &request, attach, (account, host), work)
+}
+
 /// What knowledge one seated compile attaches: a pack composed for an
 /// intent, or the record carried from the round that authored a replayed
 /// candidate (a replay presents nothing) — with the intent the compiler reads,
@@ -654,6 +679,15 @@ pub fn compile_in_rehearsed(
 enum Attach<'a> {
     Compose(&'a str),
     Carried(Option<&'a Value>, &'a str),
+}
+
+/// What one seated call does with its request: compile it, or verify the document a
+/// conversation wrote for it with its selections ([`verify_document`]: the laws over the
+/// observed world, then the whole-request verdict of the judge a compile round faces).
+#[derive(Clone, Copy)]
+pub(crate) enum Work<'a> {
+    Compile,
+    Verify(&'a str, (&'a [Resolution], &'a [Resolution])),
 }
 
 /// A subscription seat's preflight. It holds no billed-provider admission, and a direct seat
@@ -714,6 +748,22 @@ fn compile_attached(
     admission: Option<&nika_providers::InferenceAdmission>,
     host: Option<&dyn Rehearse>,
 ) -> Result<CompileOutcome, AuthoringError> {
+    let seats = (admission, host);
+    attached(seat, context, request, attach, seats, Work::Compile)
+}
+
+/// One seated call doing `work` over `request`, with what it attaches.
+fn attached(
+    seat: &AuthoringSeat,
+    context: &AuthoringContext,
+    request: &CompileRequest,
+    attach: Attach<'_>,
+    (admission, host): (
+        Option<&nika_providers::InferenceAdmission>,
+        Option<&dyn Rehearse>,
+    ),
+    work: Work<'_>,
+) -> Result<CompileOutcome, AuthoringError> {
     // The project as it is NOW, for the intent the compiler reads (a fresh request, its
     // answers' round, a revision's request with its change), on every seat (R4 S1): the files
     // it names, observed by the shared bounded observer under the root — never outside it.
@@ -730,7 +780,8 @@ fn compile_attached(
     }
     let model = match seat {
         AuthoringSeat::Deterministic { .. } => {
-            return Ok(observed_in(compile(&request)?, observed.as_ref()));
+            let out = unseated(context, &request, work, (admission, host))?;
+            return Ok(observed_in(out, observed.as_ref()));
         }
         AuthoringSeat::Unavailable { why } => return Err(AuthoringError::Seat(why.clone())),
         AuthoringSeat::Provider { model } => model.clone(),
@@ -780,6 +831,7 @@ fn compile_attached(
                 .decision()
                 .map(|s| s.consult(decision::admit(admission))),
             (host, lent),
+            work,
         )?,
         _ => seated(
             &model,
@@ -787,20 +839,54 @@ fn compile_attached(
             admission,
             context.decision(),
             (host, lent),
+            work,
         )?,
     };
-    let knowledge = match (attach, &pack, context.knowledge()) {
-        (Attach::Compose(_), Some(pack), Some(pin)) => Some(composed_record(pin, pack, &out)),
+    stamped(&mut out, attach, pack.as_ref(), context);
+    Ok(observed_in(out, observed.as_ref()))
+}
+
+/// The deterministic seat doing `work`: the compiler alone, or a verification that only a
+/// decision model can judge (with none, the request stays pending).
+fn unseated(
+    context: &AuthoringContext,
+    request: &CompileRequest,
+    work: Work<'_>,
+    (admission, host): (
+        Option<&nika_providers::InferenceAdmission>,
+        Option<&dyn Rehearse>,
+    ),
+) -> Result<CompileOutcome, AuthoringError> {
+    let (candidate, selections) = match work {
+        Work::Compile => return Ok(compile(request)?),
+        Work::Verify(candidate, selections) => (candidate, selections),
+    };
+    let consulted = (context.decision()).map(|s| s.consult(decision::admit(admission)));
+    let judge = Cognition::<nika_compile_cognition::NoProvider> {
+        provider: None,
+        seat: (consulted.as_ref()).map(|s| s as &dyn nika_onboard::compile::decide::DecisionSeat),
+    };
+    let verified = verify_document(request, candidate, selections, judge, host);
+    let mut out = complete(Box::pin(verified))??;
+    decision::finish(&mut out, request, consulted);
+    Ok(out)
+}
+
+/// The knowledge record a call keeps (the composition it was lent, or the record it carried),
+/// stamped on its outcome with the session's strategy and source.
+fn stamped(
+    out: &mut CompileOutcome,
+    attach: Attach<'_>,
+    pack: Option<&AuthoringKnowledge>,
+    context: &AuthoringContext,
+) {
+    let knowledge = match (attach, pack, context.knowledge()) {
+        (Attach::Compose(_), Some(pack), Some(pin)) => Some(composed_record(pin, pack, out)),
         (Attach::Carried(record, _), _, _) => record.map(carried_record),
         _ => None,
     };
-    stamp(
-        &mut out,
-        context.strategy().word(),
-        context.source(),
-        knowledge.as_ref(),
-    );
-    Ok(observed_in(out, observed.as_ref()))
+    let (strategy, source) = (context.strategy().word(), context.source());
+    stamp(out, strategy, source, knowledge.as_ref());
 }
 
 /// One request on the provider seat the human chose: the provider plane's
@@ -812,6 +898,7 @@ fn seated(
     admission: Option<&nika_providers::InferenceAdmission>,
     selected: Option<&DecisionSetup>,
     (host, catalog): (Option<&dyn Rehearse>, Option<&dyn ComponentCatalog>),
+    work: Work<'_>,
 ) -> Result<CompileOutcome, AuthoringError> {
     // The operator-selected decision seat for this ONE compile: consulted by the compiler only
     // for a finite ambiguity (WARM), charged only on the no-budget observation; a need met under
@@ -831,17 +918,20 @@ fn seated(
         .map_err(|e| AuthoringError::Seat(e.to_string()))?;
     // The compile future carries a whole `CompileOutcome`: boxed so this
     // frame stays small (clippy::large_futures), as the CLI host does.
-    let mut out = complete(Box::pin(compile_with_cognition_composed(
-        request,
-        Cognition {
-            provider: Some(&provider),
-            seat: consulted
-                .as_ref()
-                .map(|seat| seat as &dyn nika_onboard::compile::decide::DecisionSeat),
-        },
-        host,
-        catalog,
-    )))??;
+    let cognition = Cognition {
+        provider: Some(&provider),
+        seat: consulted
+            .as_ref()
+            .map(|seat| seat as &dyn nika_onboard::compile::decide::DecisionSeat),
+    };
+    let mut out = match work {
+        Work::Compile => complete(Box::pin(compile_with_cognition_composed(
+            request, cognition, host, catalog,
+        )))??,
+        Work::Verify(candidate, selections) => complete(Box::pin(verify_document(
+            request, candidate, selections, cognition, host,
+        )))??,
+    };
     decision::finish(&mut out, request, consulted);
     // The receipt names its backend as the CLI's does, with the host the
     // calls really went to (an overridden base URL is a gateway: said).

@@ -276,6 +276,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "steer_mid_run" => steer_mid_run(),
         "follow_up_after_run" => follow_up_after_run(),
         "stop_mid_request" => stop_mid_request(),
+        "doubted_candidate" => doubted_candidate(),
         other => panic!("unknown scenario {other}"),
     }
 }
@@ -292,6 +293,7 @@ fn accept_offer() -> Scenario {
         script: Script {
             agent: accepted_steps(),
             replies: Vec::new(),
+            verdicts: Vec::new(),
         },
     }
 }
@@ -321,6 +323,7 @@ fn delegated_sources() -> Scenario {
                 ),
             ],
             replies: Vec::new(),
+            verdicts: Vec::new(),
         },
     }
 }
@@ -356,6 +359,7 @@ fn partial_correction() -> Scenario {
         script: Script {
             agent,
             replies: Vec::new(),
+            verdicts: Vec::new(),
         },
     }
 }
@@ -407,6 +411,7 @@ fn already_given() -> Scenario {
                 say("Oui, c'est noté : le résumé va déjà dans ./news/digest.md."),
             ],
             replies: Vec::new(),
+            verdicts: Vec::new(),
         },
     }
 }
@@ -430,6 +435,7 @@ fn reopen() -> Scenario {
         script: Script {
             agent,
             replies: Vec::new(),
+            verdicts: Vec::new(),
         },
     }
 }
@@ -453,6 +459,7 @@ fn question_about_the_question() -> Scenario {
                 ),
             ],
             replies: Vec::new(),
+            verdicts: Vec::new(),
         },
     }
 }
@@ -489,6 +496,7 @@ fn grouped_questions() -> Scenario {
                 call_saying("Merci, il me manque l'adresse du support.", "ask", rest),
             ],
             replies: Vec::new(),
+            verdicts: Vec::new(),
         },
     }
 }
@@ -514,6 +522,7 @@ fn stale_answers() -> Scenario {
                 call("ask", plan_offer(&le_monde)),
             ],
             replies: Vec::new(),
+            verdicts: Vec::new(),
         },
     }
 }
@@ -546,6 +555,7 @@ fn complete_replacement() -> Scenario {
         script: Script {
             agent,
             replies: Vec::new(),
+            verdicts: Vec::new(),
         },
     }
 }
@@ -571,6 +581,7 @@ fn save_and_run_in_words() -> Scenario {
         script: Script {
             agent,
             replies: Vec::new(),
+            verdicts: Vec::new(),
         },
     }
 }
@@ -607,6 +618,7 @@ fn save_and_run_scope_changed() -> Scenario {
         script: Script {
             agent,
             replies: Vec::new(),
+            verdicts: Vec::new(),
         },
     }
 }
@@ -627,6 +639,7 @@ fn steer_mid_run() -> Scenario {
                 say(STEERED),
             ],
             replies: Vec::new(),
+            verdicts: Vec::new(),
         },
     }
 }
@@ -646,6 +659,7 @@ fn follow_up_after_run() -> Scenario {
                 say(FOLLOWED),
             ],
             replies: Vec::new(),
+            verdicts: Vec::new(),
         },
     }
 }
@@ -667,6 +681,43 @@ fn stop_mid_request() -> Scenario {
                 say(STILL_HERE),
             ],
             replies: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+/// The counting request in one line: every path stated by the person.
+pub(crate) const COUNT_REQUEST: &str =
+    "compte les lignes de ./data/ventes.csv et ecris le total dans ./out/total.txt";
+/// The sales the counting journeys read.
+const SALES: &str = "date,montant\n2026-10-01,12\n2026-10-02,30\n";
+/// What the author says once its candidate was held: it repairs, nothing is proposed.
+pub(crate) const REPAIRING: &str =
+    "Le vérificateur doute de ce workflow : je le corrige avant de te le proposer.";
+/// The words a candidate held on a doubt nothing located opens with.
+pub(crate) const UNRESOLVED: &str =
+    "The verifier doubted the request as a whole but located nothing";
+
+/// The counting workflow, written for the counting request.
+fn count_write() -> Value {
+    json!({"source": COUNT, "resolutions": [], "summary": "compte les lignes de ./data/ventes.csv"})
+}
+
+/// A candidate its judge rejects as a whole, locating nothing: held, never proposed; the
+/// author verifies the same bytes again, then says it repairs.
+fn doubted_candidate() -> Scenario {
+    Scenario {
+        files: vec![("data/ventes.csv", SALES)],
+        history: false,
+        acts: vec![Act::Turn(COUNT_REQUEST)],
+        script: Script {
+            agent: vec![
+                call("candidate_write", count_write()),
+                call("propose", json!({})),
+                call("verify", json!({})),
+                say(REPAIRING),
+            ],
+            replies: Vec::new(),
+            verdicts: vec!["unfaithful".to_owned()],
         },
     }
 }

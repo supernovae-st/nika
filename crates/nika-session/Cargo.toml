@@ -31,7 +31,6 @@ nika-compile-seats = { path = "../nika-compile-seats", version = "0.123.0-previe
 nika-compile  = { path = "../nika-compile", version = "0.123.0-preview.1" }      # surface::sha256 — the digest a document revision record binds its candidate by (lateral L4→L4 · never back)
 nika-session-agent = { path = "../nika-session-agent", version = "0.123.0-preview.1" }  # Agent · Tree · Store — the loop the selected intelligence leads over the Session's tools, and its tree (lateral L4→L4 · never back)
 nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.123.0-preview.1" }  # fidelity::resolution — the selections a conversation's candidate states, read and checked (lateral L4→L4 · never back)
-nika-compile-cognition = { path = "../nika-compile-cognition", version = "0.123.0-preview.1" }  # judge_document — the door's judge over a candidate the conversation wrote (lateral L4→L4 · never back)
 nika-pack     = { path = "../nika-pack", version = "0.123.0-preview.1" }       # schema · examples · templates — the language pages a conversation reads (L0)
 
 blake3      = { workspace = true }   # the witness of the bytes a preview was built over

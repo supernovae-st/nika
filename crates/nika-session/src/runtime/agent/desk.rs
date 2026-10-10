@@ -8,15 +8,20 @@
 //! run's tools never borrow the Session they serve; none of it writes, runs or sends a workflow.
 
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use nika_cli_host::Theme;
 use nika_cli_host::oracle::{AuditOptions, Lanes};
 use nika_compile_fidelity::fidelity::resolution::Resolution;
 use nika_compile_seats::foundry::document;
 use nika_fs::OwnedDir;
+use nika_onboard::compile::{CompileOutcome, CompileStatus};
 use nika_onboard::knowledge::pin::KnowledgePin;
+use nika_providers::InferenceAdmission;
 use nika_providers::probe::ProviderProbe;
 use serde_json::{Value, json};
+
+use crate::authoring::{AuthoringContext, AuthoringSeat};
 
 use super::tools::Desk;
 use crate::change::ProjectChangeSet;
@@ -30,12 +35,63 @@ const PAGE_CHARS: usize = 24_000;
 /// Plain text for every page an intelligence reads.
 const PLAIN: Theme = Theme::new(false, false, false);
 
-/// What the desk reads, owned: the project root, this machine's provider probes and the
-/// pinned knowledge release.
+/// What the desk reads, owned: the project root, this machine's provider probes, the pinned
+/// knowledge release and the conversation's verifier.
 pub(crate) struct SessionDesk {
     pub(crate) root: PathBuf,
     pub(crate) probes: Vec<ProviderProbe>,
     pub(crate) knowledge: Option<KnowledgePin>,
+    pub(crate) verifier: Verifier,
+}
+
+/// The judge a conversation's document faces: the seat and decision model a compile round of
+/// the same request would face, the account the line's dispatch admitted, and what the
+/// conversation's verifications kept.
+pub(crate) struct Verifier {
+    pub(crate) seat: AuthoringSeat,
+    pub(crate) context: AuthoringContext,
+    pub(crate) account: Option<InferenceAdmission>,
+    pub(crate) kept: Arc<Mutex<Verified>>,
+}
+
+/// What a conversation's verifications keep across its lines: every verdict that declined its
+/// bytes (a judge is never asked again on bytes it rejected) and the last verdict that made a
+/// document ready (its key and scope), so `propose` after `verify` asks nothing.
+#[derive(Default)]
+pub(crate) struct Verified {
+    verdicts: Vec<Value>,
+    ready: Option<(String, String)>,
+}
+
+/// The verdicts `verifier` shares with its conversation, or why they cannot be read.
+fn kept(verifier: &Verifier) -> Result<MutexGuard<'_, Verified>, String> {
+    (verifier.kept.lock()).map_err(|_| "the conversation's verdicts cannot be read".to_owned())
+}
+
+impl Verified {
+    /// Keep every verdict `out` recorded that declined its bytes, once.
+    fn keep(&mut self, out: &CompileOutcome) {
+        let attempts = (out.provenance.decision.as_ref())
+            .and_then(|decision| decision["semantic_verification"].as_array());
+        for attempt in attempts.into_iter().flatten() {
+            if attempt["declined"] == true && !self.verdicts.contains(attempt) {
+                self.verdicts.push(attempt.clone());
+            }
+        }
+    }
+}
+
+/// What the author repairs from when a document is not ready: each finding of the verification
+/// (the laws' refusals, the verifier's defects, doubts and held words) and each open question.
+fn findings(out: &CompileOutcome) -> String {
+    let mut lines: Vec<String> = (out.diagnostics.iter())
+        .map(|d| format!("{}: {}", d.target, d.message))
+        .collect();
+    lines.extend((out.questions.iter()).map(|q| format!("question `{}`: {}", q.key, q.label)));
+    if lines.is_empty() {
+        lines.push("the verifier did not settle the candidate".to_owned());
+    }
+    lines.join("\n")
 }
 
 /// `text` cut at `PAGE_CHARS`, saying so.
@@ -258,9 +314,37 @@ impl Desk for SessionDesk {
         stated: &str,
         selections: (&[Resolution], &[Resolution]),
     ) -> Result<String, String> {
-        let refusals = nika_compile_cognition::judge_document(stated, source, selections, None);
-        if !refusals.is_empty() {
-            return Err(refusals.join("\n"));
+        // The same bytes against the same words and selections: the verdict stands.
+        let rows = |s: &[Resolution]| s.iter().map(Resolution::to_json).collect::<Vec<_>>();
+        let said = json!([source, stated, rows(selections.0), rows(selections.1)]);
+        let key = blake3::hash(said.to_string().as_bytes())
+            .to_hex()
+            .to_string();
+        let declined = {
+            let kept = kept(&self.verifier)?;
+            if let Some((done, scope)) = &kept.ready
+                && *done == key
+            {
+                return Ok(scope.clone());
+            }
+            kept.verdicts.clone()
+        };
+        // The same verification a compile round of the request faces: the files its words name
+        // observed, the laws, then the whole-request verdict; ready only on that verdict.
+        let verifier = &self.verifier;
+        let out = crate::authoring::verify_in(
+            &verifier.seat,
+            &verifier.context,
+            stated,
+            (source, selections),
+            declined,
+            verifier.account.as_ref(),
+            None,
+        )
+        .map_err(|e| e.to_string())?;
+        kept(verifier)?.keep(&out);
+        if out.status != CompileStatus::Ready {
+            return Err(findings(&out));
         }
         let path = (crate::review::destination(&self.root, source))
             .ok_or("the candidate has no representable destination in the project")?;
@@ -269,9 +353,11 @@ impl Desk for SessionDesk {
             .map_err(|e| e.to_string())?;
         let audit = set.audits.first().ok_or("the candidate was not audited")?;
         let reach = json!({"effects": audit.effects, "world": audit.world});
-        Ok(blake3::hash(reach.to_string().as_bytes())
+        let scope = blake3::hash(reach.to_string().as_bytes())
             .to_hex()
-            .to_string())
+            .to_string();
+        kept(&self.verifier)?.ready = Some((key, scope.clone()));
+        Ok(scope)
     }
 
     fn trial(&mut self, _source: &str) -> Result<String, String> {

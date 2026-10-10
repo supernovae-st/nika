@@ -444,6 +444,10 @@ fn an_acp_agent_leads_the_session_with_nikas_tools() {
     let steps = report["steps"].as_array().unwrap();
     assert_asked(&steps[0]);
     assert_proposed(&steps[1]);
+    // Verified before it was shown: the seat's own one-shot judged the whole request.
+    let judged = world.observed("oneshots");
+    let asked = |text: &Value| text.as_str().is_some_and(|text| text.contains("faithful"));
+    assert!(judged.iter().any(asked), "{judged:?}");
     // The person's `yes` saved exactly the candidate the agent wrote.
     assert_ne!(kind(&steps[2]), "refusal", "{:#}", steps[2]);
     let written = workflows(&world.path("project"));

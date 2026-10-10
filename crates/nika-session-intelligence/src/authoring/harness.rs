@@ -16,23 +16,29 @@ pub(super) fn compile(
         Option<&dyn nika_onboard::compile::rehearse::Rehearse>,
         Option<&dyn nika_compile_seats::foundry::ComponentCatalog>,
     ),
+    work: super::Work<'_>,
 ) -> Result<CompileOutcome, AuthoringError> {
     let harness =
         nika_harness::authoring::HarnessAuthoring::meet_with_transport(adapter, model, transport)
             .map_err(AuthoringError::Seat)?;
-    let mut out = super::complete(Box::pin(
-        nika_compile_cognition::compile_with_cognition_composed(
-            request,
-            nika_onboard::compile::Cognition {
-                provider: Some(&harness),
-                seat: decision
-                    .as_ref()
-                    .map(|s| s as &dyn nika_onboard::compile::decide::DecisionSeat),
-            },
-            host,
-            catalog,
-        ),
-    ))??;
+    let cognition = nika_onboard::compile::Cognition {
+        provider: Some(&harness),
+        seat: decision
+            .as_ref()
+            .map(|s| s as &dyn nika_onboard::compile::decide::DecisionSeat),
+    };
+    let mut out = match work {
+        super::Work::Compile => super::complete(Box::pin(
+            nika_compile_cognition::compile_with_cognition_composed(
+                request, cognition, host, catalog,
+            ),
+        ))??,
+        super::Work::Verify(candidate, selections) => {
+            super::complete(Box::pin(nika_compile_cognition::verify_document(
+                request, candidate, selections, cognition, host,
+            )))??
+        }
+    };
     super::decision::finish(&mut out, request, decision);
     if let Some(receipt) = out.provenance.authoring.as_mut() {
         receipt.backend = Some(harness.descriptor().map_err(AuthoringError::Seat)?);
@@ -51,6 +57,7 @@ pub(super) fn compile(
         Option<&dyn nika_onboard::compile::rehearse::Rehearse>,
         Option<&dyn nika_compile_seats::foundry::ComponentCatalog>,
     ),
+    _: super::Work<'_>,
 ) -> Result<CompileOutcome, AuthoringError> {
     Err(AuthoringError::Seat(format!(
         "subscription authoring `{adapter}` requires access-harness in this build"

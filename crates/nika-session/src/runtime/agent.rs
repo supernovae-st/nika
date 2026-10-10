@@ -23,10 +23,11 @@ mod store;
 mod tools;
 
 use std::io;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use nika_fs::OwnedDir;
+use nika_providers::InferenceAdmission;
 use nika_session_agent::conversation::{Acts, Conversation};
 use nika_session_agent::{
     Agent, AgentEvent, EntryKind, Observed, Outcome, QueueMode, QueuedState, Relay, Steering, Tree,
@@ -37,7 +38,7 @@ use nika_types::access::HarnessTransport;
 use nika_types::cancel::CancelCtx;
 use serde_json::Value;
 
-use self::desk::SessionDesk;
+use self::desk::{SessionDesk, Verified, Verifier};
 use self::store::TreeFile;
 use self::tools::{Decided, Toolbox};
 use super::decision::{is_no, is_save_and_run, is_yes, local_command_of};
@@ -66,6 +67,9 @@ pub(super) struct Driver {
     steering: Steering,
     cancel: CancelCtx,
     leading: Option<led::Leading>,
+    /// What the conversation's verifications kept, shared with every turn's desk: the verdicts
+    /// that declined bytes and the last that made a document ready.
+    verified: Arc<Mutex<Verified>>,
 }
 
 impl Driver {
@@ -93,6 +97,7 @@ impl Driver {
             steering: Steering::new(),
             cancel: CancelCtx::new(),
             leading: None,
+            verified: Arc::default(),
         }
     }
 
@@ -313,10 +318,13 @@ impl SessionRuntime {
                 if let Some(effort) = effort {
                     model = model.with_effort(effort);
                 }
+                // The verifier's calls are admitted under the line's own dispatch, as the
+                // author's are.
+                let judged = account.clone();
                 if let Some(account) = account {
                     model = model.with_admission(account);
                 }
-                self.drive(&mut driver, line, &mut model)
+                self.drive(&mut driver, line, &mut model, judged)
             }
             (None, Some(seat)) => self.drive_led(&mut driver, line, &seat, effort),
             (None, None) => refusal(
@@ -331,8 +339,14 @@ impl SessionRuntime {
 
     /// A turn of the conversation begins: its tree started when none was, the tools given the
     /// turn's capabilities, and the questions a waiting run asked answered by the line about to
-    /// be cited. Returns the questions asked before the line.
-    fn agent_begin(&self, driver: &mut Driver, chosen: &str) -> Result<Vec<QuestionId>, String> {
+    /// be cited. The desk verifies a document under `account`, the line's admitted dispatch.
+    /// Returns the questions asked before the line.
+    fn agent_begin(
+        &self,
+        driver: &mut Driver,
+        chosen: &str,
+        account: Option<InferenceAdmission>,
+    ) -> Result<Vec<QuestionId>, String> {
         if driver.tree.is_none() {
             let started = start_tree(&mut driver.store, &self.snapshot.root, chosen)?;
             driver.tree = Some(started);
@@ -342,6 +356,12 @@ impl SessionRuntime {
             root: self.snapshot.root.clone(),
             probes: probes.unwrap_or_default(),
             knowledge: self.authoring_context.knowledge().cloned(),
+            verifier: Verifier {
+                seat: self.seat.clone(),
+                context: self.authoring_context.clone(),
+                account,
+                kept: Arc::clone(&driver.verified),
+            },
         };
         let asker = self.questions.asker();
         let mint = move |context: &str| QuestionId::new(Witness::of(context.as_bytes()).0, &asker);
@@ -363,10 +383,16 @@ impl SessionRuntime {
 
     /// The run over the selected API or local route, by Nika's own loop: a line that answers
     /// the call the conversation waits on, or a new prompt.
-    fn drive(&mut self, driver: &mut Driver, line: &str, model: &mut AgentModel) -> TurnOutcome {
+    fn drive(
+        &mut self,
+        driver: &mut Driver,
+        line: &str,
+        model: &mut AgentModel,
+        account: Option<InferenceAdmission>,
+    ) -> TurnOutcome {
         // A seat's agent no longer leads once the route is an API or a local one.
         driver.leading = None;
-        let before = match self.agent_begin(driver, model.model()) {
+        let before = match self.agent_begin(driver, model.model(), account) {
             Ok(before) => before,
             Err(why) => return could_not_start(&why),
         };

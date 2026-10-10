@@ -7,7 +7,9 @@
 //! and plays its scenario (`scenario.json` beside it): one list of steps per prompt — a call of
 //! one of Nika's tools after asking its permission, a foreign tool whose permission it asks,
 //! words, a wait for `session/cancel`, a marker it leaves or one it waits for (the child's cue
-//! to queue a line mid-turn). Everything it sees is noted under `observed/`.
+//! to queue a line mid-turn). Opened with no tool server, it is the seat's one-shot completion
+//! (the verifier's closed choice, its schema in the prompt): it approves and notes the question
+//! under `oneshots`. Everything it sees is noted under `observed/`.
 
 /// The script, installed as `bin/claude-agent-acp`.
 pub(crate) const AGENT: &str = r#"#!/usr/bin/env python3
@@ -41,6 +43,39 @@ send({"jsonrpc": "2.0", "id": init["id"], "result": {"protocolVersion": 1,
 new = recv()
 if new is None:
     sys.exit(0)
+
+APPROVALS = ["faithful", "carried", "consistent", "only_requested", "no_task"]
+
+def choice(text):
+    tail = text.partition("matching this schema:")[2]
+    try:
+        schema = json.loads(tail)
+    except ValueError:
+        schema = {}
+    keys = []
+    if isinstance(schema, dict):
+        properties = schema.get("properties") or schema.get("schema", {}).get("properties") or {}
+        keys = properties.get("choice", {}).get("enum") or []
+    picked = next((key for key in APPROVALS if key in keys), "none")
+    return json.dumps({"choice": picked})
+
+if not new["params"].get("mcpServers"):
+    send({"jsonrpc": "2.0", "id": new["id"], "result": {"sessionId": "s-once"}})
+    line = recv()
+    while line is not None:
+        if line.get("method") == "session/prompt":
+            text = "".join(part.get("text", "") for part in line["params"]["prompt"])
+            note("oneshots", text[-600:])
+            send({"jsonrpc": "2.0", "method": "session/update",
+                  "params": {"sessionId": "s-once", "update": {
+                      "sessionUpdate": "agent_message_chunk",
+                      "content": {"type": "text", "text": choice(text)}}}})
+            send({"jsonrpc": "2.0", "id": line["id"], "result": {"stopReason": "end_turn"}})
+        elif "id" in line and "method" in line:
+            send({"jsonrpc": "2.0", "id": line["id"], "result": {}})
+        line = recv()
+    sys.exit(0)
+
 note("spawned", os.getpid())
 servers = new["params"]["mcpServers"]
 assert len(servers) == 1 and servers[0]["type"] == "http" and servers[0]["name"] == "nika", servers

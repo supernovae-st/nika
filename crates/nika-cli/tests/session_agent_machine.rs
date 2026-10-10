@@ -83,6 +83,7 @@ impl Author {
                     continue;
                 };
                 let agent = body["tools"].as_array().is_some_and(|t| !t.is_empty());
+                let plain = reply(&body);
                 seen.lock().expect("author log").push(body);
                 let scripted = if agent { steps.next() } else { None };
                 let message = match scripted {
@@ -91,7 +92,7 @@ impl Author {
                         "tool_calls": [{"id": format!("call_{calls}"), "type": "function",
                             "function": {"name": call["tool"], "arguments": call["args"].to_string()}}]}),
                     Some(said) => json!({"role": "assistant", "content": said["say"]}),
-                    None => json!({"role": "assistant", "content": "D'accord."}),
+                    None => plain,
                 };
                 answer(&mut stream, &message);
             }
@@ -121,6 +122,27 @@ impl Drop for Author {
             let _ = server.join();
         }
     }
+}
+
+/// The options a verifier question offers when it approves.
+const APPROVALS: [&str; 5] = [
+    "faithful",
+    "carried",
+    "consistent",
+    "only_requested",
+    "no_task",
+];
+
+/// What the loopback answers a request that offers no tools: the verifier's closed choice
+/// approved; anything else gets a plain word.
+fn reply(body: &Value) -> Value {
+    let keys = &body["response_format"]["json_schema"]["schema"]["properties"]["choice"]["enum"];
+    let offered = |key: &&str| keys.as_array().is_some_and(|k| k.iter().any(|k| k == *key));
+    let content = match APPROVALS.into_iter().find(offered) {
+        Some(approve) => json!({"choice": approve}).to_string(),
+        None => "D'accord.".to_owned(),
+    };
+    json!({"role": "assistant", "content": content})
 }
 
 /// One request's JSON body: the head up to its blank line, then `content-length` bytes.
