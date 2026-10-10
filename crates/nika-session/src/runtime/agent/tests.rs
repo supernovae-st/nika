@@ -2,6 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 use nika_session_agent::Store;
+use nika_session_change::tools::ToolCall;
 use serde_json::json;
 
 use super::store::TREE_FILE;
@@ -54,8 +55,28 @@ fn kept_evidence_resumes_without_a_question() {
     let kept = json!({"version": 1, "request": 0, "since": 0, "candidate": null,
         "bindings": [binding], "accepted": [binding], "delegations": []});
     let driver = Driver::resumed(OwnedDir::open(dir.path()), Some(&kept));
-    assert_eq!(driver.conversation.bindings().len(), 1);
+    assert_eq!(driver.toolbox.with(|c| c.bindings().len()), 1);
     assert!(driver.open().is_empty() && driver.tree.is_none());
     let unread = Driver::resumed(OwnedDir::open(dir.path()), Some(&json!({"version": 7})));
-    assert!(unread.conversation.bindings().is_empty());
+    assert!(unread.toolbox.with(|c| c.bindings().is_empty()));
+}
+
+/// The tools live as long as the conversation, and between turns no call reaches a capability:
+/// an ACP agent's call that arrives after its turn is refused, and nothing is asked or written.
+#[test]
+fn a_call_between_turns_reaches_no_capability() {
+    let toolbox = Toolbox::new(Conversation::default(), Arc::default());
+    let asked = json!({"questions": [{"key": "out", "question": "Which file?"}]});
+    for call in [
+        ToolCall::new("read", json!({"path": "a.md"})),
+        ToolCall::new("ask", asked),
+    ] {
+        let reply = toolbox.call(call);
+        assert!(
+            reply.is_error && reply.text.starts_with("No turn is under way"),
+            "{reply:?}"
+        );
+    }
+    assert!(toolbox.with(|c| c.questions().is_empty()));
+    assert_eq!(toolbox.end(), Decided::default());
 }

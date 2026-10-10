@@ -5,9 +5,11 @@
 //! (`nika/author-tools@0`). A tool reads or changes the conversation ([`Conversation`]) and asks
 //! the Session's own capabilities ([`Desk`]: the project, the oracle, the judge); it never writes
 //! a project file, runs a workflow or grants anything. `ask` ends the turn when it asks; every
-//! other reply is text the model reads.
+//! other reply is text the model reads. The tools live as long as the conversation: Nika's own
+//! loop calls them during a turn, an ACP agent reaches them over MCP on the tool server's
+//! thread, and between turns no call reaches a capability.
 
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use nika_compile_fidelity::fidelity::resolution::Resolution;
 use nika_session_change::outcome::QuestionId;
@@ -67,45 +69,70 @@ pub(crate) struct Decided {
 }
 
 /// A question's identity, from the context it was asked in.
-pub(crate) type Mint<'a> = dyn FnMut(&str) -> QuestionId + Send + 'a;
+pub(crate) type Mint = dyn FnMut(&str) -> QuestionId + Send;
 
-/// One run's tools: the conversation, the person's citations as the tree made them durable,
-/// the Session's capabilities, and how a question gets its identity.
-pub(crate) struct Toolbox<'a> {
-    parts: Mutex<Parts<'a>>,
+/// What a call reaching the tools between the Session's turns reads.
+const NO_TURN: &str = "No turn is under way: nothing runs until the person writes.";
+
+/// The conversation's tools: the conversation, the person's citations as the tree made them
+/// durable, and, while a turn is under way, the Session's capabilities and how a question gets
+/// its identity.
+pub(crate) struct Toolbox {
+    state: Mutex<State>,
 }
 
-struct Parts<'a> {
-    conversation: &'a mut Conversation,
+struct State {
+    conversation: Conversation,
     citations: Arc<Mutex<Citations>>,
-    desk: &'a mut dyn Desk,
-    mint: &'a mut Mint<'a>,
+    turn: Option<(Box<dyn Desk>, Box<Mint>)>,
     decided: Decided,
 }
 
-impl<'a> Toolbox<'a> {
-    pub(crate) fn new(
-        conversation: &'a mut Conversation,
-        citations: Arc<Mutex<Citations>>,
-        desk: &'a mut dyn Desk,
-        mint: &'a mut Mint<'a>,
-    ) -> Self {
+/// One call's view of the tools.
+struct Parts<'a> {
+    conversation: &'a mut Conversation,
+    citations: &'a Arc<Mutex<Citations>>,
+    desk: &'a mut dyn Desk,
+    mint: &'a mut Mint,
+    decided: &'a mut Decided,
+}
+
+impl Toolbox {
+    /// The tools of `conversation`, whose person's lines `citations` indexes.
+    pub(crate) fn new(conversation: Conversation, citations: Arc<Mutex<Citations>>) -> Self {
+        let state = State {
+            conversation,
+            citations,
+            turn: None,
+            decided: Decided::default(),
+        };
         Self {
-            parts: Mutex::new(Parts {
-                conversation,
-                citations,
-                desk,
-                mint,
-                decided: Decided::default(),
-            }),
+            state: Mutex::new(state),
         }
     }
 
-    /// What the run decided, read once it ended.
-    pub(crate) fn decided(&self) -> Decided {
-        (self.parts.lock())
-            .unwrap_or_else(PoisonError::into_inner)
-            .decided
+    fn state(&self) -> MutexGuard<'_, State> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// A turn begins: the tools reach `desk`, and a question asked gets its identity from
+    /// `mint`.
+    pub(crate) fn begin(&self, desk: Box<dyn Desk>, mint: Box<Mint>) {
+        let mut state = self.state();
+        state.turn = Some((desk, mint));
+        state.decided = Decided::default();
+    }
+
+    /// The turn ended: what it decided. No call reaches a capability until the next turn.
+    pub(crate) fn end(&self) -> Decided {
+        let mut state = self.state();
+        state.turn = None;
+        state.decided
+    }
+
+    /// Read or change the conversation.
+    pub(crate) fn with<R>(&self, act: impl FnOnce(&mut Conversation) -> R) -> R {
+        act(&mut self.state().conversation)
     }
 }
 
@@ -154,13 +181,29 @@ fn reply(result: Result<String, String>) -> ToolReply {
     }
 }
 
-impl SessionTools for Toolbox<'_> {
+impl SessionTools for Toolbox {
     fn tools(&self) -> Vec<ToolDef> {
         definitions()
     }
 
     fn call(&self, call: ToolCall) -> ToolReply {
-        let mut parts = self.parts.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut state = self.state();
+        let State {
+            conversation,
+            citations,
+            turn,
+            decided,
+        } = &mut *state;
+        let Some((desk, mint)) = turn.as_mut() else {
+            return ToolReply::error(NO_TURN);
+        };
+        let mut parts = Parts {
+            conversation,
+            citations,
+            desk: &mut **desk,
+            mint: &mut **mint,
+            decided,
+        };
         let args = &call.arguments;
         let text = |field: &str| args[field].as_str().map(str::to_owned);
         match call.name.as_str() {
@@ -317,7 +360,7 @@ impl Parts<'_> {
         let citations = self.citations();
         let authorized = self.conversation.propose(&citations, args, scope);
         let acts = authorized.as_ref().ok().copied().flatten();
-        self.decided = Decided {
+        *self.decided = Decided {
             proposed: revision,
             acts,
         };

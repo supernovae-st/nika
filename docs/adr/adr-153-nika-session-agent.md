@@ -19,7 +19,7 @@ inv: ["INV-019", "INV-025", "INV-027"]
 shadow_zones: []
 nika_codes: []
 timeline: "v0.123"
-follow_ups: ["done (2d): the Session serves its tools through `nika_session_change::tools::SessionTools` and drives this loop for an API or local route; `NIKA_SESSION_DRIVER=rounds` keeps the round driver during the transition; an ACP agent leading over MCP remains to wire", "done (2d): the Session's history owner keeps the tree beside its journal, keyed by the project like the history itself, so no project pointer is written", "admission with the nika-session unit: mutation floor, canary through the Session, three-perspective review"]
+follow_ups: ["done (2d): the Session serves its tools through `nika_session_change::tools::SessionTools` and drives this loop for an API or local route; `NIKA_SESSION_DRIVER=rounds` keeps the round driver during the transition; an ACP agent leading over MCP remains to wire", "done (ACP-led): a seat chosen over ACP leads with its agent's own loop (`run::lead`: `Agent::lead` over a `Conversant`, the tools reached through a `Relay` the conversation's MCP tool server serves); the tree, citations, identities, Stop and steering are the same as Nika's loop's", "done (2d): the Session's history owner keeps the tree beside its journal, keyed by the project like the history itself, so no project pointer is written", "admission with the nika-session unit: mutation floor, canary through the Session, three-perspective review"]
 ---
 
 # ADR-153: nika-session-agent, the conversation the Session's selected intelligence leads
@@ -54,6 +54,11 @@ ADR-144 pattern), owns the conversation and nothing else:
   ends the turn, or a failure does. A call that waits for the person (`ask`) parks the run; the
   person's next line answers that call, and the run goes on. A call that repeats the previous
   one exactly, reply included, is said so to the model, never stopped.
+  An agent with its own loop (an ACP agent) leads under the same contract (`run::lead`): each
+  person's entry is one prompt, its calls reach the Session's tools through a `Relay` that
+  refuses them between turns and after a call that waits for the person, and the tree records
+  them as Nika's loop records its own; a steering line stops the agent's turn once and becomes
+  its next prompt.
 - `steer` — the person's lines while a run is under way: a steering line enters after the
   current calls, the calls not yet run are skipped so the model reads it first; a follow-up
   line enters when the model would end; Stop returns both unsent.
