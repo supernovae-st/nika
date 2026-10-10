@@ -23,6 +23,7 @@
 //! nothing, never reset inside it. Authoring calls and their costs keep their own account.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use nika_event::source_id::sha256_hex;
 use nika_onboard::compile::copy::{
@@ -35,6 +36,7 @@ use nika_onboard::compile::room::{JqHelper, ObservedRoom};
 
 use super::{SessionRuntime, TurnOutcome};
 use crate::authoring::{AuthoringError, AuthoringRound};
+use crate::trial::{self, Capture, Observer};
 use nika_onboard::compile::{CompileOutcome, CompileRequest, CompileStatus};
 
 use crate::change::ProjectChangeSet;
@@ -65,6 +67,8 @@ pub(super) struct Rehearsals {
     saved: Option<(PathBuf, Result<Witness, String>)>,
     /// The helper the host named to run `nika:jq` in the observed room.
     jq: Option<JqHelper>,
+    /// How the host observes the pages a conversation's trial runs on, when it named a way.
+    observer: Option<Observer>,
     #[cfg(test)]
     host: Option<std::sync::Arc<TestHost>>,
 }
@@ -556,6 +560,60 @@ impl SessionRuntime {
     /// that hosts this session, named by that host. Without one a jq step is never rehearsed.
     pub fn with_jq_helper(&mut self, helper: JqHelper) {
         self.rehearsals.jq = Some(helper);
+    }
+
+    /// Observe the public pages a conversation's trial runs on with `observe` (pages the host
+    /// already holds, a suite's own feeds) in place of the guarded GET: what it answers is all a
+    /// trial reads of them, and its words say when each was observed.
+    pub fn with_trial_observer(
+        &mut self,
+        observe: impl Fn(&str) -> Result<Capture, String> + Send + Sync + 'static,
+    ) {
+        self.rehearsals.observer = Some(Arc::new(observe));
+    }
+
+    /// What a conversation's trial is lent: the jq helper, and the observer of its pages.
+    pub(super) fn trial_lent(&self) -> (Option<JqHelper>, Observer) {
+        let observer = self.rehearsals.observer.clone();
+        (
+            self.rehearsals.jq.clone(),
+            observer.unwrap_or_else(trial::guarded),
+        )
+    }
+
+    /// Bind the conversation's trial of exactly `set`'s bytes to the proposal `id`, as a native
+    /// rehearsal binds: its words (`words` after the room's own) in `preview`, its proof kept
+    /// with the proposal and checked again at the yes. A trial of other bytes binds nothing.
+    pub(super) fn bind_trial(
+        &mut self,
+        (id, set): (&ProposalId, &ProjectChangeSet),
+        (tried, words): (native::Preview, String),
+        preview: &mut String,
+    ) {
+        let digest = tried.candidate_sha256().to_owned();
+        if !(set.changes.iter()).any(|c| sha256_hex(c.content().as_bytes()) == digest) {
+            return;
+        }
+        let (witness, lines) = tried.into_parts();
+        let lines = format!("{lines}{words}");
+        if preview.contains(crate::review::NOTHING_RAN) {
+            *preview = preview.replacen(crate::review::NOTHING_RAN, &lines, 1);
+        } else {
+            // An agent's card has no « nothing ran » line: the trial comes before its question.
+            let at = preview.find("apply this?").unwrap_or(preview.len());
+            preview.insert_str(at, &lines);
+        }
+        self.rehearsals.pending = witness.map(|witness| {
+            let origin = ProofOrigin::Native;
+            (
+                id.clone(),
+                Proof {
+                    origin,
+                    witness,
+                    lines,
+                },
+            )
+        });
     }
 
     /// A test's rehearsal host in place of the observed room.

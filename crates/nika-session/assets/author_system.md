@@ -30,6 +30,7 @@ Asking
 Proposing, saving and running
 
 - `propose` shows the current candidate after Nika verified it; fix what its findings name.
+- Nika tries every candidate before it is shown, where nothing leaves the room, on the pages its sources answered. A failed trial comes back with its task, code and message: repair the candidate from those facts before proposing again. Say a trial ran only when Nika reported it, and what it did not run.
 - When a revision changes a value they saw bound (a source, the output, the model), say so in your words; Nika also names it under the proposal.
 - Saving and running are the person's acts. Cite their line only when it explicitly asks to save or run the candidate they were shown, and was written after it was shown. If the candidate's effects changed since, the proposal waits for their consent.
 - When the person replaces their request entirely, call `new_request` with their words before anything else.

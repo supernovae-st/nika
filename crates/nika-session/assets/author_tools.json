@@ -286,7 +286,7 @@
   {
    "name": "verify",
    "read_only": true,
-   "description": "Judge the candidate against the whole request: Nika's check, the fidelity laws with the selections' provenance, what earlier revisions kept, and the money gate.",
+   "description": "Judge the candidate against the whole request: Nika's check, the fidelity laws with the selections' provenance, what earlier revisions kept, a trial where nothing leaves the room (on the pages its public GET sources answer, each observed once, and the project files it reads; a model step, a request other than GET and any effect outside the room are not run), the whole-request verdict and the money gate. A failed trial comes back with its facts (task, code, message): repair the candidate, then verify again.",
    "input_schema": {
     "type": "object",
     "properties": {},
@@ -296,7 +296,7 @@
   {
    "name": "trial",
    "read_only": true,
-   "description": "Rehearse the candidate in a safe room built from the observed world: what it would read, write and send. No effect escapes.",
+   "description": "Nika tries the candidate within verify and propose, where nothing leaves the room: call verify to try it. This tool runs nothing itself.",
    "input_schema": {
     "type": "object",
     "properties": {},
@@ -453,7 +453,7 @@
   {
    "name": "propose",
    "read_only": false,
-   "description": "Present the current candidate to the person: Nika verifies it first (check, fidelity with the selections' provenance, kept values) and refuses it with findings. To save, or save and run, on the person's explicit words, name the acts and cite their line written after this exact candidate was shown: Nika checks that the words still cover its effects, or the proposal waits for their consent.",
+   "description": "Present the current candidate to the person: Nika verifies it first (check, fidelity with the selections' provenance, kept values, its trial) and refuses it with findings. To save, or save and run, on the person's explicit words, name the acts and cite their line written after this exact candidate was shown: Nika checks that the words still cover its effects, or the proposal waits for their consent.",
    "input_schema": {
     "type": "object",
     "properties": {

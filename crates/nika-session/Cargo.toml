@@ -53,3 +53,4 @@ tokio = { workspace = true } # the suites' own current-thread runtimes
 nika-error = { path = "../nika-error", version = "0.123.0-preview.1" } # cost::Cost — the reasoning-effort tests assert the typed cost
 nika-onboard = { path = "../nika-onboard", version = "0.123.0-preview.1", features = ["test-support"] } # the synthetic release the strict knowledge door admits
 tempfile = { workspace = true }
+nika-builtin = { path = "../nika-builtin", version = "0.123.0-preview.1" } # data::jq_serve — the journeys' own jq helper serves the engine's evaluator as `nika __nika-jq-eval` does

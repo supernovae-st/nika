@@ -233,7 +233,9 @@ impl Queues {
                     ["enum"];
                 let offers =
                     |key: &str| keys.as_array().is_some_and(|k| k.iter().any(|k| k == key));
-                let choice = if offers("unfaithful") && !self.verdicts.is_empty() {
+                // A scripted verdict answers the first question that offers it.
+                let scripted = (self.verdicts.first()).is_some_and(|verdict| offers(verdict));
+                let choice = if scripted {
                     self.verdicts.remove(0)
                 } else {
                     let approve = APPROVALS.into_iter().find(|a| offers(a));

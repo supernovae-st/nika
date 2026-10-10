@@ -415,6 +415,7 @@ impl SessionRuntime {
                 context: self.authoring_context.clone(),
                 account,
                 kept: Arc::clone(&driver.verified),
+                trial: self.trial_lent(),
             },
         };
         let asker = self.questions.asker();
@@ -619,8 +620,15 @@ impl SessionRuntime {
             Ok(set) => set,
             Err(error) => return TurnOutcome::Refusal(Refusal::from_change(&error)),
         };
-        let bytes = self.draft_preview(&set);
+        let mut bytes = self.draft_preview(&set);
         let id = ProposalId::of(&bytes);
+        // The trial of these very bytes, bound to the proposal that shows them.
+        let tried = (driver.verified.lock())
+            .ok()
+            .and_then(|mut kept| kept.take_tried());
+        if let Some(tried) = tried {
+            self.bind_trial((&id, &set), tried, &mut bytes);
+        }
         self.bind_proposal_money(&id);
         // The source basis of these bytes, bound to the identity the person reviews.
         let seen = (driver.verified.lock()).map(|kept| kept.read().clone());

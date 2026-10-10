@@ -33,6 +33,7 @@ mod peer;
 #[path = "open_ux_journeys/scenarios.rs"]
 mod scenarios;
 
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -41,7 +42,8 @@ use peer::{Kind, Peer, Seen};
 use scenarios::{
     ACCEPT, ALGOLIA, ALREADY, DEFLECT, DELEGATION, DIGEST, EMPTY, FOLLOWED, HACKER_NEWS, LE_MONDE,
     LE_MONDE_WORDS, OUTPUT_WORDS, RENAMED, REPAIRING, REQUEST, STEER_B, STEERED, STILL_HERE,
-    STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C, THEN_STOP, UNRESOLVED, WHY, YC_BLOG, scenario,
+    STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C, THEN_STOP, TRIED_ON, UNRESOLVED, WHY, YC_BLOG,
+    scenario,
 };
 use serde_json::{Value, json};
 
@@ -75,6 +77,15 @@ fn run(name: &str) -> Journey {
     let markers = dir.path().join("markers");
     std::fs::create_dir_all(&markers).unwrap();
     let peer = Peer::start(scenario.script, &markers);
+    // The suite's own jq helper: this binary's `jq_helper`, its answer on descriptor 3.
+    let helper = dir.path().join("jq-helper");
+    let exe = std::env::current_exe().unwrap();
+    let wrapper = format!(
+        "#!/bin/sh\nexec /usr/bin/env OPEN_UX_JQ=1 '{}' --exact jq_helper --ignored --test-threads=1 -q 3>&1 1>/dev/null 2>/dev/null\n",
+        exe.display()
+    );
+    std::fs::write(&helper, wrapper).unwrap();
+    std::fs::set_permissions(&helper, std::fs::Permissions::from_mode(0o755)).unwrap();
     let report = dir.path().join("report.json");
     let log = dir.path().join("child.log");
     let mut command = Command::new(std::env::current_exe().unwrap());
@@ -96,6 +107,7 @@ fn run(name: &str) -> Journey {
         .env("OPEN_UX_ROOT", &root)
         .env("OPEN_UX_REPORT", &report)
         .env("OPEN_UX_MARKERS", &markers)
+        .env("OPEN_UX_JQ_HELPER", &helper)
         .stdin(Stdio::null())
         .stdout(Stdio::from(std::fs::File::create(&log).unwrap()))
         .stderr(Stdio::from(
@@ -127,6 +139,23 @@ fn run(name: &str) -> Journey {
         seen,
         _dir: dir,
     }
+}
+
+/// The suite's own jq helper, as `nika __nika-jq-eval` serves one evaluation: the engine's
+/// evaluator over the framed request on stdin, its framed answer on descriptor 3 (the wrapper
+/// sends libtest's own words elsewhere).
+#[test]
+#[ignore = "run by the journeys' jq helper wrapper"]
+fn jq_helper() {
+    if std::env::var_os("OPEN_UX_JQ").is_none() {
+        return;
+    }
+    let mut answer = std::fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/fd/3")
+        .unwrap();
+    let mut request = std::io::stdin().lock();
+    nika_builtin::data::jq_serve(&mut request, &mut answer, 4 * 1024 * 1024).unwrap();
 }
 
 /// The child: drive the scenario its parent named, write the report.
@@ -933,6 +962,70 @@ fn a_candidate_its_judge_doubts_goes_back_to_the_author_and_is_not_asked_again()
     );
 }
 
+/// The author's request after its `n`-th tool call returned: what that call answered.
+fn answered(journey: &Journey, n: usize) -> String {
+    journey.agent.get(n).map(Seen::last).unwrap_or_default()
+}
+
+/// Item 2: a candidate is tried before it is proposed, on the pages its sources answered. A jq
+/// step that refuses a date without an offset fails the trial: nothing is proposed, the author
+/// reads the trial's facts (the task, its code, its message) and proposes the repaired
+/// revision, whose trial passes and binds to the proposal that shows what it ran on.
+#[test]
+fn a_trial_catches_a_date_without_an_offset_before_any_proposal() {
+    let journey = run("trial_offset");
+    let step = journey.step(0);
+    assert_eq!(step["outcome"]["kind"], "proposal", "{step}");
+    let failed = answered(&journey, 2);
+    assert!(
+        failed.contains("run_failure") && failed.contains("\"today\""),
+        "{failed}"
+    );
+    assert!(
+        !failed.contains("shown to the person"),
+        "nothing was proposed: {failed}"
+    );
+    let text = step["outcome"]["text"].as_str().unwrap();
+    assert!(text.contains(TRIED_ON), "{text}");
+    assert_eq!(
+        step["shown"]["work"]["candidate"]["rehearsed"], true,
+        "{step}"
+    );
+}
+
+/// Item 2, the repair cell: a filter that keeps nothing of the items an RFC 3339 feed gives
+/// fails the trial with what came in, so the author repairs it before any proposal.
+#[test]
+fn a_trial_catches_a_filter_that_keeps_nothing_before_any_proposal() {
+    let journey = run("trial_kept_nothing");
+    let step = journey.step(0);
+    assert_eq!(step["outcome"]["kind"], "proposal", "{step}");
+    let failed = answered(&journey, 2);
+    assert!(failed.contains("NIKA-REHEARSAL-EMPTY"), "{failed}");
+    assert!(
+        failed.contains("2 items in from stories.items, 0 out"),
+        "{failed}"
+    );
+    assert!(
+        failed.contains("published: string (2026-10-10T08:00:00+00:00)"),
+        "{failed}"
+    );
+    let text = step["outcome"]["text"].as_str().unwrap();
+    assert!(text.contains(TRIED_ON), "{text}");
+}
+
+/// Item 2: what a trial does not run is said to the person: the model step and the POST.
+#[test]
+fn a_trial_names_the_steps_it_did_not_run() {
+    let journey = run("trial_names_what_it_skips");
+    let step = journey.step(0);
+    assert_eq!(step["outcome"]["kind"], "proposal", "{step}");
+    let text = step["outcome"]["text"].as_str().unwrap();
+    assert!(text.contains(TRIED_ON), "{text}");
+    let skipped = "not run: the model step (summarize) · a request other than GET (send) · any effect outside the room";
+    assert!(text.contains(skipped), "{text}");
+}
+
 /// P0: an agent-led proposal that reads a project file is saved after the person's yes; its
 /// sources are judged by the exact bytes it was shown over, never by a compile it never had.
 #[test]
@@ -960,10 +1053,11 @@ fn a_file_changed_after_the_proposal_withdraws_it_at_the_yes() {
     let yes = journey.step(2);
     assert_eq!(yes["outcome"]["kind"], "refusal", "{yes}");
     let text = yes["outcome"]["text"].as_str().unwrap();
+    // The trial's proof judges first (the rehearsed world moved), else the read basis.
+    let moved = text.contains("the files this proposal was rehearsed on changed")
+        || text.contains("the files this proposal reads changed since it was shown");
     assert!(
-        text.contains(
-            "the files this proposal reads changed since it was shown: `./data/ventes.csv`"
-        ),
+        moved && text.contains("ventes.csv") && text.contains("withdrawn"),
         "{text}"
     );
     let files = journey.report["files"].as_array().unwrap();

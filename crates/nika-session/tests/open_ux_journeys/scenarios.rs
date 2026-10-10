@@ -313,6 +313,9 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "failed_run_repaired" => failed_run_repaired(),
         "complaint_after_success" => complaint_after_success(),
         "doubted_candidate" => doubted_candidate(),
+        "trial_offset" => tried("raw", OFFSET_BROKEN, OFFSET_FIXED),
+        "trial_kept_nothing" => tried("feed", RFC_822_BROKEN, RFC_822_FIXED),
+        "trial_names_what_it_skips" => trial_names_what_it_skips(),
         "reads_a_project_file" => reads_sales(false),
         "a_read_file_changes" => reads_sales(true),
         other => panic!("unknown scenario {other}"),
@@ -341,7 +344,7 @@ fn doubted_candidate() -> Scenario {
             ],
             replies: Vec::new(),
             picks: Vec::new(),
-            verdicts: vec!["unfaithful".to_owned()],
+            verdicts: vec!["unfaithful".to_owned(), "unexercised".to_owned()],
         },
     }
 }
@@ -1068,6 +1071,98 @@ fn complaint_after_success() -> Scenario {
             agent,
             replies: Vec::new(),
             picks: accepted_pick(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+/// When every journey's pages were observed: 2026-10-10 08:00 UTC.
+pub(crate) const OBSERVED_AT: u64 = 1_791_619_200_000;
+/// The feed the trial journeys read.
+pub(crate) const STORIES: &str = "https://feed.example/stories";
+/// Its stories dated without an offset: the E1 shape `fromdateiso8601` refuses.
+const NO_OFFSET: &str = r#"{"hits": [{"title": "A", "created_at": "2026-10-10T08:00:00"}, {"title": "B", "created_at": "2026-10-10T09:30:00"}]}"#;
+/// Its stories as an RSS feed, whose `feed` mode gives each item an RFC 3339 `published`.
+const STORIES_RSS: &str = "<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><title>Stories</title><item><title>A</title><link>https://feed.example/a</link><pubDate>Sat, 10 Oct 2026 08:00:00 GMT</pubDate></item><item><title>B</title><link>https://feed.example/b</link><pubDate>Sat, 10 Oct 2026 09:30:00 GMT</pubDate></item></channel></rss>";
+/// The request of the trial journeys: the feed and the file, both named.
+pub(crate) const STORIES_REQUEST: &str =
+    "recupere https://feed.example/stories et garde les stories du jour dans ./news/today.json";
+/// The request that sends a summary of the feed to a hook.
+pub(crate) const SEND_REQUEST: &str = "recupere https://feed.example/stories, resume les et envoie le resume a https://hooks.example/team";
+/// A filter that refuses a date without an offset, and its repair.
+const OFFSET_BROKEN: &str = "fromjson | [.hits[] | select((.created_at | fromdateiso8601) >= 0)]";
+/// The repair keeps the civil date the request means, never inventing an offset.
+const OFFSET_FIXED: &str =
+    "fromjson | [.hits[] | select(.created_at | startswith(\"2026-10-10\"))]";
+/// A filter that reads RFC 822 dates out of an RFC 3339 feed (it keeps nothing), and its repair.
+const RFC_822_BROKEN: &str = "[.items[] | select(.published | test(\"^[A-Z][a-z]{2}, \"))]";
+const RFC_822_FIXED: &str = "[.items[] | select(.published | startswith(\"2026-10-10\"))]";
+/// What the author says once its repaired candidate is shown.
+pub(crate) const TRIED: &str = "Voici le workflow corrigé : il garde les stories du jour.";
+/// The words a proposal's trial opens with.
+pub(crate) const TRIED_ON: &str =
+    "tried on the pages observed at 08:00 UTC: https://feed.example/stories";
+
+/// The pages a scenario's trials observe, by address: every other page is none of the journey's.
+pub(crate) fn feeds(name: &str) -> Vec<(&'static str, &'static str)> {
+    match name {
+        "trial_offset" => vec![(STORIES, NO_OFFSET)],
+        "trial_kept_nothing" | "trial_names_what_it_skips" => vec![(STORIES, STORIES_RSS)],
+        _ => Vec::new(),
+    }
+}
+
+/// The stories of the day the jq `filter` keeps of the page read in `mode`, written to
+/// `./news/today.json`.
+fn stories(mode: &str, filter: &str) -> Value {
+    let source = format!(
+        "nika: today-stories\npermits:\n  tools: [\"nika:fetch\", \"nika:jq\", \"nika:write\"]\n  net:\n    http: [\"feed.example\"]\n  fs:\n    write: [\"./news/today.json\"]\ntasks:\n  stories:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"{STORIES}\", mode: {mode} }}\n  today:\n    with: {{ stories: \"${{{{ tasks.stories.output }}}}\" }}\n    invoke:\n      tool: \"nika:jq\"\n      args: {{ input: \"${{{{ with.stories }}}}\", expression: '{filter}' }}\n  keep:\n    with: {{ kept: \"${{{{ tasks.today.output }}}}\" }}\n    invoke:\n      tool: \"nika:write\"\n      args: {{ path: \"./news/today.json\", content: \"${{{{ with.kept }}}}\" }}\n"
+    );
+    json!({"source": source, "resolutions": [],
+        "summary": "les stories du jour dans ./news/today.json"})
+}
+
+/// A candidate whose `broken` filter fails its trial, then its `fixed` revision.
+fn tried(mode: &str, broken: &str, fixed: &str) -> Scenario {
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(STORIES_REQUEST)],
+        script: Script {
+            agent: vec![
+                call("candidate_write", stories(mode, broken)),
+                call("propose", json!({})),
+                call("candidate_write", stories(mode, fixed)),
+                call("propose", json!({})),
+                say(TRIED),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// The feed summarized by the session's model and sent to a hook: a trial runs neither.
+fn trial_names_what_it_skips() -> Scenario {
+    let source = format!(
+        "nika: stories-digest\nmodel: {SEAT}\npermits:\n  tools: [\"nika:fetch\"]\n  net:\n    http: [\"feed.example\", \"hooks.example\"]\ntasks:\n  stories:\n    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"{STORIES}\", mode: feed }} }}\n  summarize:\n    with: {{ stories: \"${{{{ tasks.stories.output }}}}\" }}\n    infer: {{ prompt: \"Résume ces stories : ${{{{ with.stories }}}}\", max_tokens: 400 }}\n  send:\n    with: {{ digest: \"${{{{ tasks.summarize.output }}}}\" }}\n    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://hooks.example/team\", method: POST, body: \"${{{{ with.digest }}}}\" }} }}\n"
+    );
+    let write = json!({"source": source, "resolutions": [],
+        "summary": "le résumé des stories envoyé à https://hooks.example/team"});
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(SEND_REQUEST)],
+        script: Script {
+            agent: vec![
+                call("candidate_write", write),
+                call("propose", json!({})),
+                say("Voici le workflow : il résume les stories et envoie le résumé."),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
             verdicts: Vec::new(),
         },
     }

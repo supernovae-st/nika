@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 use nika_session::activity::{Activity, ToolState};
 use nika_session::reasoner::{NoReasoner, ProviderReasoner};
 use nika_session::steer::{QueueRefused, Queued, Steering};
+use nika_session::trial::Capture;
 use nika_session::turn::{
     RoutingMethod, SessionPhase, TurnAct, TurnClassifier, TurnContext, TurnDecision,
 };
@@ -26,7 +27,7 @@ use nika_session::{
 };
 use serde_json::{Value, json};
 
-use super::scenarios::{Act, During, Ran, SEAT, scenario};
+use super::scenarios::{Act, During, OBSERVED_AT, Ran, SEAT, feeds, scenario};
 
 /// A host's router: a line at a question answers it, a line at a proposal changes it, and a
 /// line while nothing waits is work. (An author that reads the conversation itself needs none.)
@@ -65,6 +66,28 @@ fn open(root: &Path, home: &Path, history: bool) -> SessionRuntime {
     );
     let mut session = SessionRuntime::open_with(root, census, &pref, Some(home), factory);
     session.with_classifier(Box::new(Routes));
+    // No page leaves these journeys: a trial observes the scenario's own feeds, nothing else.
+    let fed = feeds(&std::env::var("OPEN_UX_CHILD").unwrap_or_default());
+    session.with_trial_observer(move |url| {
+        let body = (fed.iter())
+            .find(|(at, _)| *at == url)
+            .map(|(_, body)| *body);
+        let rss = body.is_some_and(|body| body.starts_with('<'));
+        let kind = Some(
+            if rss {
+                "application/rss+xml"
+            } else {
+                "application/json"
+            }
+            .to_owned(),
+        );
+        body.map(|body| Capture::new(url, 200, kind, body.as_bytes().to_vec(), OBSERVED_AT))
+            .ok_or_else(|| format!("`{url}` is no page of this journey"))
+    });
+    // The suite's own jq helper, when the parent wrote one.
+    if let Some(helper) = std::env::var_os("OPEN_UX_JQ_HELPER") {
+        session.with_jq_helper(nika_session::JqHelper::new(helper));
+    }
     if history {
         session.enable_history(home).expect("history opens");
         session.restore_state();

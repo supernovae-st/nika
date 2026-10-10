@@ -56,6 +56,8 @@ fn open(root: &Path, home: &Path, metered: bool) -> (SessionRuntime, Tools) {
         },
     );
     let mut session = SessionRuntime::open_with(root, census, &pref, Some(home), factory);
+    // No page leaves these suites: a trial observes nothing.
+    session.with_trial_observer(|url| Err(format!("`{url}` is no page of these suites")));
     session.enable_history(home).expect("history opens");
     session.restore_state();
     let tools = Tools::default();

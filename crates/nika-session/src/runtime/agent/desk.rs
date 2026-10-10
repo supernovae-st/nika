@@ -16,6 +16,8 @@ use nika_cli_host::oracle::{AuditOptions, Lanes};
 use nika_compile_fidelity::fidelity::resolution::Resolution;
 use nika_compile_seats::foundry::document;
 use nika_fs::OwnedDir;
+use nika_onboard::compile::copy::native;
+use nika_onboard::compile::room::JqHelper;
 use nika_onboard::compile::{CompileOutcome, CompileStatus};
 use nika_onboard::knowledge::pin::KnowledgePin;
 use nika_providers::InferenceAdmission;
@@ -23,6 +25,7 @@ use nika_providers::probe::ProviderProbe;
 use serde_json::{Value, json};
 
 use crate::authoring::{AuthoringContext, AuthoringSeat};
+use crate::trial::{Observed, Observer, Trial};
 
 use super::tools::Desk;
 use crate::change::{ProjectChangeSet, Witness};
@@ -53,11 +56,14 @@ pub(crate) struct Verifier {
     pub(crate) context: AuthoringContext,
     pub(crate) account: Option<InferenceAdmission>,
     pub(crate) kept: Arc<Mutex<Verified>>,
+    /// What a trial is lent: the jq helper, and the observer of the pages it runs on.
+    pub(crate) trial: (Option<JqHelper>, Observer),
 }
 
 /// What a conversation's verifications keep across its lines: every verdict that declined its
-/// bytes (a judge is never asked again on bytes it rejected) and the last verdict that made a
-/// document ready (its key and scope), so `propose` after `verify` asks nothing.
+/// bytes (a judge is never asked again on bytes it rejected), the last verdict that made a
+/// document ready (its key and scope), so `propose` after `verify` asks nothing, the pages its
+/// trials ran on (observed once each) and the trial of the last ready document with its words.
 #[derive(Default)]
 pub(crate) struct Verified {
     verdicts: Vec<Value>,
@@ -65,6 +71,8 @@ pub(crate) struct Verified {
     /// The project files the author read through the desk, by the path a workflow names, each
     /// with the witness of the bytes it read: what its proposal's basis keeps.
     read: BTreeMap<String, Witness>,
+    observed: Observed,
+    tried: Option<(native::Preview, String)>,
 }
 
 /// The verdicts `verifier` shares with its conversation, or why they cannot be read.
@@ -76,6 +84,11 @@ impl Verified {
     /// The files the author read, each with the witness of the bytes it read.
     pub(crate) fn read(&self) -> &BTreeMap<String, Witness> {
         &self.read
+    }
+
+    /// The trial of the last ready document and its words, taken once by the proposal of it.
+    pub(crate) fn take_tried(&mut self) -> Option<(native::Preview, String)> {
+        self.tried.take()
     }
 
     /// Keep every verdict `out` recorded that declined its bytes, once.
@@ -343,9 +356,18 @@ impl Desk for SessionDesk {
             }
             kept.verdicts.clone()
         };
-        // The same verification a compile round of the request faces: the files its words name
-        // observed, the laws, then the whole-request verdict; ready only on that verdict.
+        // Tried where nothing leaves: the pages its public GET sources answer, observed once for
+        // the conversation, lent to the observed room as a replay trial of these bytes.
         let verifier = &self.verifier;
+        let (jq, observe) = &verifier.trial;
+        let lent = (self.root.clone(), jq.clone());
+        let Trial { scoped, words, .. } = {
+            let mut kept = kept(verifier)?;
+            crate::trial::prepare(source, stated, lent, &mut kept.observed, observe)
+        };
+        // The same verification a compile round of the request faces: the files its words name
+        // observed, the laws, the trial, then the whole-request verdict; ready only on that
+        // verdict, and never on a failed trial.
         let out = crate::authoring::verify_in(
             &verifier.seat,
             &verifier.context,
@@ -353,13 +375,15 @@ impl Desk for SessionDesk {
             (source, selections),
             declined,
             verifier.account.as_ref(),
-            None,
+            Some(&scoped),
         )
         .map_err(|e| e.to_string())?;
+        let (_, tried) = scoped.finish().into_parts();
         kept(verifier)?.keep(&out);
         if out.status != CompileStatus::Ready {
             return Err(findings(&out));
         }
+        kept(verifier)?.tried = tried.ok().flatten().map(|tried| (tried, words));
         let path = (crate::review::destination(&self.root, source))
             .ok_or("the candidate has no representable destination in the project")?;
         let at = path.display().to_string();
@@ -375,7 +399,7 @@ impl Desk for SessionDesk {
     }
 
     fn trial(&mut self, _source: &str) -> Result<String, String> {
-        Err("the rehearsal room is not open to a conversation's candidate yet: check and verify judge it".to_owned())
+        Err("the trial runs within `verify`: verify the candidate to try it, where nothing leaves the room, on the pages its sources answer".to_owned())
     }
 
     fn model_facts(&mut self, model: &str) -> Option<nika_session_change::work::ModelFacts> {
