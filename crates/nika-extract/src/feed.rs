@@ -106,6 +106,14 @@ pub fn feed_from_bytes(body: &[u8]) -> Result<serde_json::Value, ExtractError> {
             if let Some(published) = entry.published {
                 item.insert("published".to_owned(), published.to_rfc3339().into());
             }
+            // The source's own revision date (Atom `<updated>`, JSON Feed
+            // `date_modified`): an item may carry only that, so a date
+            // filter reads `published // updated`. feed-rs copies an RSS
+            // `pubDate` into `updated`; a date equal to `published` dates
+            // nothing new and stays out.
+            if let Some(updated) = entry.updated.filter(|at| entry.published != Some(*at)) {
+                item.insert("updated".to_owned(), updated.to_rfc3339().into());
+            }
             if !entry.categories.is_empty() {
                 let cats: Vec<serde_json::Value> = entry
                     .categories
@@ -254,5 +262,53 @@ mod tests {
                 .is_none(),
             "text-only item has no media key: {out}"
         );
+    }
+
+    #[test]
+    fn an_item_dated_only_by_its_revision_carries_updated() {
+        // Atom `<updated>` alone and JSON Feed `date_modified` alone are the item's one date:
+        // without `updated`, a « today » filter drops the item as undated (red before
+        // 2026-10-10). A revision distinct from the publication rides beside it.
+        let atom = r#"<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>T</title>
+  <entry><title>a</title><updated>2026-10-10T09:30:00+02:00</updated></entry>
+  <entry><title>b</title><published>2026-10-09T08:00:00Z</published>
+    <updated>2026-10-10T08:00:00Z</updated></entry>
+</feed>"#;
+        let out = feed(atom).expect("atom parses");
+        assert_eq!(
+            out["items"][0]["updated"], "2026-10-10T07:30:00+00:00",
+            "{out}"
+        );
+        assert!(out["items"][0].get("published").is_none(), "{out}");
+        assert_eq!(
+            out["items"][1]["published"], "2026-10-09T08:00:00+00:00",
+            "{out}"
+        );
+        assert_eq!(
+            out["items"][1]["updated"], "2026-10-10T08:00:00+00:00",
+            "{out}"
+        );
+
+        let json_feed = r#"{"version": "https://jsonfeed.org/version/1.1", "title": "T",
+  "items": [{"id": "1", "content_text": "x", "date_modified": "2026-10-10T07:30:00Z"}]}"#;
+        let out = feed(json_feed).expect("json feed parses");
+        assert_eq!(
+            out["items"][0]["updated"], "2026-10-10T07:30:00+00:00",
+            "{out}"
+        );
+        assert!(out["items"][0].get("published").is_none(), "{out}");
+
+        // feed-rs copies an RSS `pubDate` into `updated`: the copy dates nothing new.
+        let rss = r#"<?xml version="1.0"?>
+<rss version="2.0"><channel><title>T</title>
+  <item><title>x</title><pubDate>Sat, 10 Oct 2026 07:30:00 GMT</pubDate></item>
+</channel></rss>"#;
+        let out = feed(rss).expect("rss parses");
+        assert_eq!(
+            out["items"][0]["published"], "2026-10-10T07:30:00+00:00",
+            "{out}"
+        );
+        assert!(out["items"][0].get("updated").is_none(), "{out}");
     }
 }
