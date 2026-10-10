@@ -16,6 +16,7 @@ use nika_kernel::ai::provider::{
 };
 use nika_kernel::ai::provider::{ResponseFormat, TokenUsage};
 use nika_kernel::http::{HttpPostDyn, HttpRequest};
+use nika_kernel::secret::Secret;
 use serde_json::{Value, json};
 
 use super::{
@@ -67,7 +68,7 @@ where
             resp.status,
             &resp.body,
             resp.headers.get("retry-after").map(String::as_str),
-            &rp.wire_model,
+            rp.key.as_ref(),
         ));
     }
     let response = parse_response(rp, &resp.body, &names)?;
@@ -102,12 +103,13 @@ where
         .await
         .map_err(|e| map_http_err(&e))?;
     if !(200..300).contains(&resp.status) {
-        return Err(super::stream_status_error(resp, &rp.wire_model).await);
+        return Err(super::stream_status_error(resp, rp.key.as_ref()).await);
     }
-    Ok(Box::pin(SseEventStream::new(
-        resp.body,
-        AnthropicMapper::new(names),
-    )))
+    let mapper = AnthropicMapper {
+        key: rp.key.clone(),
+        ..AnthropicMapper::new(names)
+    };
+    Ok(Box::pin(SseEventStream::new(resp.body, mapper)))
 }
 
 fn wiring_bug() -> ProviderError {
@@ -551,6 +553,8 @@ struct AnthropicMapper {
     /// model echoes back in its sanitized form · NIKA-463).
     names: ToolNameMap,
     done_sent: bool,
+    /// The credential the call sent, withheld from an in-band error's message.
+    key: Option<Secret>,
 }
 
 impl AnthropicMapper {
@@ -651,7 +655,7 @@ impl EventMapper for AnthropicMapper {
                     status,
                     payload.as_bytes(),
                     None,
-                    "anthropic",
+                    self.key.as_ref(),
                 )));
             }
             _ => {}

@@ -594,8 +594,11 @@ fn a_judge_call_refused_while_locating_keeps_the_held_words() {
         .collect();
     assert_eq!(
         provider,
-        ["provider API error (HTTP 400); usage and billing unknown"],
-        "the refused call is named"
+        [concat!(
+            "provider API error (HTTP 400); the provider said: ",
+            "\"synthetic judge refused\"; usage and billing unknown"
+        )],
+        "the refused call is named, in the provider's own words"
     );
     assert_eq!(held_findings(held), [HELD_STOPPED]);
     let attempts = &held.provenance.decision.as_ref().expect("decision")["semantic_verification"];

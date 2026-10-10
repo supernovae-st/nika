@@ -689,9 +689,45 @@ async fn every_wire_keeps_connection_failures_transient_and_streams_fused() {
     }
 }
 
+/// A refusal a provider explains only in prose (an exhausted Anthropic balance answers
+/// HTTP 400): every wired profile shows the person the provider's own words, never the
+/// key the call sent, and never classifies them.
+#[tokio::test]
+async fn every_wired_profile_relays_the_provider_message_without_the_key() {
+    const BODY: &str = r#"{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low (key parity-test-key)."}}"#;
+    for (id, _wire, requires_key) in wired_http_profiles() {
+        for streaming in [false, true] {
+            let fake = if streaming {
+                FakeHttp::with_stream(400, BODY, 16)
+            } else {
+                FakeHttp::with_json(400, BODY)
+            };
+            let rp = resolve_on(&fake, id, requires_key);
+            let error = if streaming {
+                rp.infer_stream(request())
+                    .await
+                    .err()
+                    .expect("a 400 fails before a stream")
+            } else {
+                rp.infer(request())
+                    .await
+                    .expect_err("a 400 returns no response")
+            };
+            let shown = error.to_string();
+            assert!(
+                shown.contains("Your credit balance is too low"),
+                "{id}: {shown}"
+            );
+            let key_shown = shown.contains("parity-test-key");
+            assert_eq!(key_shown, !requires_key, "{id}: {shown}");
+            assert!(!error.is_transient(), "{id}: prose is never classified");
+        }
+    }
+}
+
 #[tokio::test]
 async fn every_wired_profile_preserves_quota_failure_without_usage_or_retry() {
-    const BODY: &str = r#"{"error":{"code":"credit_balance_exhausted","type":"insufficient_quota","message":"private prompt sk-secret"}}"#;
+    const BODY: &str = r#"{"error":{"code":"credit_balance_exhausted","type":"insufficient_quota","message":"private prompt sk-secret parity-test-key"}}"#;
     for (id, _wire, requires_key) in wired_http_profiles() {
         for streaming in [false, true] {
             let fake = if streaming {
@@ -729,8 +765,13 @@ async fn every_wired_profile_preserves_quota_failure_without_usage_or_retry() {
             );
             let diagnostic = format!("{error} {error:?}");
             assert!(diagnostic.contains("usage and billing unknown"));
-            assert!(!diagnostic.contains("private prompt"));
+            assert!(
+                diagnostic.contains("said: \"private prompt [withheld]"),
+                "{id}: {diagnostic}"
+            );
             assert!(!diagnostic.contains("sk-secret"));
+            let key_shown = diagnostic.contains("parity-test-key");
+            assert_eq!(key_shown, !requires_key, "{id}: {diagnostic}");
         }
     }
 }

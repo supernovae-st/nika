@@ -25,6 +25,7 @@ use nika_kernel::ai::provider::{
     ProviderError, ResponseFormat, Role, StopReason, TokenUsage, ToolChoice,
 };
 use nika_kernel::http::{HttpPostDyn, HttpRequest};
+use nika_kernel::secret::Secret;
 use serde_json::{Value, json};
 
 use super::{EventMapper, SseEventStream, gen_ai_system, map_http_err, status_error, str_at};
@@ -65,7 +66,7 @@ where
             resp.status,
             &resp.body,
             resp.headers.get("retry-after").map(String::as_str),
-            &rp.wire_model,
+            rp.key.as_ref(),
         ));
     }
     let response = parse_response(rp, &resp.body)?;
@@ -99,12 +100,13 @@ where
         .await
         .map_err(|e| map_http_err(&e))?;
     if !(200..300).contains(&resp.status) {
-        return Err(super::stream_status_error(resp, &rp.wire_model).await);
+        return Err(super::stream_status_error(resp, rp.key.as_ref()).await);
     }
-    Ok(Box::pin(SseEventStream::new(
-        resp.body,
-        GeminiMapper::default(),
-    )))
+    let mapper = GeminiMapper {
+        key: rp.key.clone(),
+        ..GeminiMapper::default()
+    };
+    Ok(Box::pin(SseEventStream::new(resp.body, mapper)))
 }
 
 fn wiring_bug() -> ProviderError {
@@ -514,6 +516,8 @@ struct GeminiMapper {
     usage_sent: bool,
     call_n: u32,
     done_sent: bool,
+    /// The credential the call sent, withheld from an in-band error's message.
+    key: Option<Secret>,
 }
 
 impl GeminiMapper {
@@ -553,7 +557,7 @@ impl EventMapper for GeminiMapper {
                 u16::try_from(status).unwrap_or(400),
                 payload.as_bytes(),
                 None,
-                "gemini",
+                self.key.as_ref(),
             )));
             return out;
         }

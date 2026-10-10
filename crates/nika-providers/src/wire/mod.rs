@@ -32,6 +32,7 @@ use futures_core::Stream;
 use nika_kernel::ai::provider::{InferEvent, ProviderError, ProviderHttpError};
 use nika_kernel::genai::GenAiSystem;
 use nika_kernel::http::HttpError;
+use nika_kernel::secret::Secret;
 
 use crate::sse::SseParser;
 
@@ -129,11 +130,11 @@ pub(crate) fn map_http_err(e: &HttpError) -> ProviderError {
 }
 
 /// Non-2xx on a streaming open: drain the (effect-capped) error body so the
-/// provider's safe identifiers + retry-after survive into the same typed
-/// mapping as the non-streaming path. Raw response prose is never retained.
+/// provider's safe identifiers + retry-after (and its message, as the kernel
+/// reduces it) survive into the same typed mapping as the non-streaming path.
 pub(crate) async fn stream_status_error(
     resp: nika_kernel::http::HttpStreamResponse,
-    model: &str,
+    key: Option<&Secret>,
 ) -> ProviderError {
     const ERROR_BODY_CAP: usize = 64 * 1024;
     let mut body = resp.body;
@@ -154,20 +155,23 @@ pub(crate) async fn stream_status_error(
         resp.status,
         &buf,
         resp.headers.get("retry-after").map(String::as_str),
-        model,
+        key,
     )
 }
 
-/// Non-2xx status + body → sanitized metadata. Do not retain response prose,
-/// request identifiers, credentials, or arbitrary identifier-shaped strings.
+/// Non-2xx status + body → sanitized metadata. Do not retain raw bodies,
+/// request identifiers, credentials, or arbitrary identifier-shaped strings:
+/// the provider's own message reaches the person only as the kernel reduces it,
+/// with `key` (the credential the call sent) withheld, and nothing classifies it.
 pub(crate) fn status_error(
     status: u16,
     body: &[u8],
     retry_after: Option<&str>,
-    _model: &str,
+    key: Option<&Secret>,
 ) -> ProviderError {
     let value = serde_json::from_slice::<serde_json::Value>(body).ok();
     let field = |name| value.as_ref()?.get("error")?.get(name)?.as_str();
+    let top = |name| value.as_ref()?.get(name)?.as_str();
     // The Gemini API names its delay in the BODY (`google.rpc.RetryInfo`
     // · `error.details[].retryDelay = "39s"`), not in a header — the
     // backoff reads it through the same bounded parser as `Retry-After`.
@@ -179,20 +183,30 @@ pub(crate) fn status_error(
     // HTTP 402 is a billing refusal by status alone: filed under the existing
     // `credit_balance_exhausted` identifier. A provider that answers an
     // exhausted balance with a 400 and the reason in prose (Anthropic) stays
-    // an ordinary 400 here: prose is never classified (the hostile-body law);
-    // the infer verb names both readings of such a 400.
+    // an ordinary 400 here: prose is never classified (the hostile-body law),
+    // only relayed for the person to read; the infer verb names both readings.
     let code = if status == 402 {
         Some("credit_balance_exhausted")
     } else {
         field("code")
     };
+    let details = ProviderHttpError::new(
+        status,
+        code,
+        field("type").or_else(|| field("status")),
+        retry_after,
+    );
+    // `error.message` (most wires), else a bare `error`, `message` or `detail` string.
+    let message = field("message")
+        .or_else(|| top("error"))
+        .or_else(|| top("message"))
+        .or_else(|| top("detail"));
+    let withheld = key.map(Secret::expose);
     ProviderError::HttpResponse {
-        details: ProviderHttpError::new(
-            status,
-            code,
-            field("type").or_else(|| field("status")),
-            retry_after,
-        ),
+        details: match message {
+            Some(message) => details.with_message(message, withheld.as_slice()),
+            None => details,
+        },
     }
 }
 
@@ -430,9 +444,9 @@ mod tests {
         ] {
             let error = status_error(
                 status,
-                br#"{"error":{"message":"private"}}"#,
+                br#"{"error":{"message":"refused"}}"#,
                 Some("2"),
-                "m",
+                None,
             );
             assert_eq!(error.nika_code().num, code);
             assert_eq!(error.is_transient(), transient);
@@ -441,19 +455,21 @@ mod tests {
             };
             assert_eq!(details.status(), status);
             assert_eq!(details.retry_after_ms(), Some(2000));
-            assert!(!error.to_string().contains("private"));
+            let shown = error.to_string();
+            assert!(shown.contains("the provider said: \"refused\""), "{shown}");
         }
-        let auth = status_error(401, b"{}", None, "m");
+        let auth = status_error(401, b"{}", None, None);
         assert!(auth.to_string().contains("does not probe present keys"));
     }
 
     /// HTTP 402 is a billing refusal by status: the credit class, no retry,
-    /// the label names the top-up, and no prose survives. A 400 that carries
-    /// the reason only in prose (Anthropic's exhausted balance) stays an
-    /// ordinary 400: prose is never classified.
+    /// the label names the top-up. A 400 that carries the reason only in prose
+    /// (Anthropic's exhausted balance) stays an ordinary 400, since prose is
+    /// never classified; the person reads the provider's own words, not the key.
     #[test]
     fn a_payment_required_status_is_billing_by_status_alone() {
-        let error = status_error(402, br#"{"error":{"message":"private"}}"#, None, "m");
+        let body = br#"{"error":{"message":"Insufficient Balance"}}"#;
+        let error = status_error(402, body, None, None);
         let ProviderError::HttpResponse { details } = &error else {
             panic!("{error:?}")
         };
@@ -462,13 +478,18 @@ mod tests {
         let text = error.to_string();
         assert!(text.contains("quota exhausted (credit balance)"), "{text}");
         assert!(text.contains("top up"), "{text}");
-        assert!(!text.contains("private"), "{text}");
-        let body = br#"{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}"#;
-        let plain = status_error(400, body, None, "anthropic/claude-sonnet-5");
+        assert!(text.contains("said: \"Insufficient Balance\""), "{text}");
+        let body = br#"{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API with sk-ant-test."}}"#;
+        let key = Secret::new("sk-ant-test");
+        let plain = status_error(400, body, None, Some(&key));
         let ProviderError::HttpResponse { details } = &plain else {
             panic!("{plain:?}")
         };
         assert!(!details.is_quota_exhausted(), "prose is never classified");
+        assert_eq!(
+            details.message(),
+            Some("Your credit balance is too low to access the Anthropic API with [withheld].")
+        );
     }
 
     #[test]
@@ -544,7 +565,7 @@ mod tests {
             None,
             Box::pin(Q(chunks.into())),
         );
-        let err = stream_status_error(resp, "m").await;
+        let err = stream_status_error(resp, None).await;
         match err {
             ProviderError::HttpResponse { details } => {
                 assert_eq!(details.status(), 500);

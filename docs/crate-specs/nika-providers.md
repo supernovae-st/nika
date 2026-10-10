@@ -258,10 +258,25 @@ The shared buffered and stream-open non-2xx boundary returns the additive,
 in-process `ProviderError::HttpResponse` variant. Its `ProviderHttpError`
 metadata retains the status, recognized provider `error.code`/`error.type`,
 and a bounded Retry-After (numeric seconds or preferred HTTP-date form).
-Response messages, raw bodies, request IDs, unknown identifiers, and invalid
-headers are omitted. The identifier vocabulary is deliberately closed: even
-an identifier-shaped value can contain a credential. New provider codes need
-an explicit vocabulary update before they become visible diagnostics.
+Raw bodies, request IDs, unknown identifiers, and invalid headers are
+omitted. The identifier vocabulary is deliberately closed: even an
+identifier-shaped value can contain a credential. New provider codes need an
+explicit vocabulary update before any decision reads them.
+
+The provider's own message reaches the person: `error.message`, or else a
+bare `error`, `message` or `detail` string, attached with
+`ProviderHttpError::with_message` and shown as `the provider said: "…"`. The
+kernel keeps one line of at most 400 characters. It removes control and
+invisible formatting characters (direction overrides, zero-width, tag
+characters), withholds the key the call sent by value (also when invisible
+characters split it), and replaces credential-shaped words (known key
+prefixes, long letter-and-digit runs, UUIDs, values labelled as a key or token)
+with `[withheld]`. The shape filter is not a general secret detector. Neither
+this crate nor the kernel classifies the message: transience, quota and retry
+read only the status and the closed vocabulary. An exhausted balance
+explained in prose (an Anthropic 400) therefore stays an ordinary 400, which
+the person can now read. The compile server's `redact_authoring_error` still
+keeps provider text from remote clients.
 
 `insufficient_quota` or `credit_balance_exhausted` makes the failure terminal,
 even when the provider includes Retry-After. Other 429 responses remain
