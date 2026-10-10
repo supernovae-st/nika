@@ -174,6 +174,14 @@ needs keeps its default.
   feasibility filter (`nika-compile-seats::compose`, policy `off`) and the sketch door's
   structural laws do not read provenance yet: the assembler they feed would have to carry the
   resolved bindings (`nika-compile`, at its size cap), a documented limitation.
+  Amended 2026-10-10, `resolution::selection_remedies`: for an author who answers with
+  `resolutions` (the document door; a Session's author through `judge_document`), each
+  `UNWRITTEN DESTINATION` and `INVENTED LITERAL` finding names the selection that answers it.
+  A file the request asks for without naming it is derived, granted and stated as `derived`
+  `output_path`, asked only when the person's words leave its name to them; a value their words
+  authorize is stated with those words. A value the author may derive visibly never becomes a
+  question, and the stated selection is then admitted or refused like any other. The laws' own
+  messages are unchanged at every other door.
 - Added after the move, Law 22b (`fidelity::unnamed_writes`, private, run by `laws`): a
   planned write whose target names no single file must be carried by a `nika:write` task. Such
   a write comes from the reader's unnamed-destination floor or from an unsettled copy. A
