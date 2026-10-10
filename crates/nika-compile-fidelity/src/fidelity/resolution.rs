@@ -448,16 +448,18 @@ fn reads_with_get(tool: &str, method: Option<&str>, field: &str) -> bool {
 }
 
 /// Each effectful use of `value` by a task: `(task, tool, method, argument)`. A task's words
-/// (a prompt, an instruction) are text, not a use; a tool argument holding the value, directly
-/// or through a bare `${{ const.<name> }}`, is one, and so is an `exec` command naming it.
+/// (a prompt, an instruction) are text, not a use; a tool argument holding the value, directly,
+/// through a bare `${{ const.<name> }}` or through a `with:` binding of its own task that holds
+/// it, is one, and so is an `exec` command naming it.
 fn uses(doc: &Value, value: &str) -> Vec<(String, String, Option<String>, String)> {
     let mut found = Vec::new();
     let Some(tasks) = doc.get("tasks").and_then(Value::as_object) else {
         return found;
     };
     for (id, task) in tasks {
+        let holds = |node: &Value| mentions(doc, node, value) || binds(doc, task, node, value);
         if let Some(command) = task.get("exec") {
-            if mentions(doc, command, value) {
+            if holds(command) {
                 found.push((id.clone(), "exec".to_owned(), None, "command".to_owned()));
             }
             continue;
@@ -468,12 +470,35 @@ fn uses(doc: &Value, value: &str) -> Vec<(String, String, Option<String>, String
         let tool = invoke["tool"].as_str().unwrap_or_default().to_owned();
         let method = invoke["args"]["method"].as_str().map(str::to_owned);
         for (field, arg) in invoke["args"].as_object().into_iter().flatten() {
-            if mentions(doc, arg, value) {
+            if holds(arg) {
                 found.push((id.clone(), tool.clone(), method.clone(), field.clone()));
             }
         }
     }
     found
+}
+
+/// Whether `node` reads a `with:` binding of `task` that holds `value`: an expression whose path
+/// is `with.<name>`, a field or a filter of it aside.
+fn binds(doc: &Value, task: &Value, node: &Value, value: &str) -> bool {
+    let bindings = task.get("with").and_then(Value::as_object);
+    (bindings.into_iter().flatten())
+        .filter(|(_, binding)| mentions(doc, binding, value))
+        .any(|(name, _)| reads(node, &format!("with.{name}")))
+}
+
+/// Whether a string of `node` holds an expression that reads `path`, spacing aside.
+fn reads(node: &Value, path: &str) -> bool {
+    match node {
+        Value::String(text) => (text.split("${{").skip(1)).any(|rest| {
+            let expression = rest.split_once("}}").map_or(rest, |(inner, _)| inner);
+            (expression.trim().strip_prefix(path))
+                .is_some_and(|tail| !tail.starts_with(|c: char| c.is_alphanumeric() || c == '_'))
+        }),
+        Value::Array(items) => items.iter().any(|item| reads(item, path)),
+        Value::Object(map) => map.values().any(|item| reads(item, path)),
+        _ => false,
+    }
 }
 
 /// Whether `node` holds `value`: a string carrying it, a bare `${{ const.<name> }}` whose
@@ -940,6 +965,65 @@ mod tests {
         assert!(typed("le canal Equipe Produit, merci", "Equipe Produit"));
         assert!(!typed("le canal Equipe Produits", "Equipe Produit"));
         assert!(!typed(stated, ""));
+    }
+
+    /// A source used through a `with:` binding of its task is judged as that use: a public address
+    /// sent with POST through a binding, or a file the person typed written through one, is
+    /// refused as when the argument holds it, and a file read through its binding stands. A value
+    /// naming a scheme is an address, never a file of the project.
+    #[test]
+    fn a_source_used_through_a_task_binding_is_judged_as_that_use() {
+        const TYPED: &str = "Summarize notes.txt in three bullet points";
+        fn judged(stated: &str, doc: &Value, authored: &[Resolution]) -> Vec<String> {
+            let mut out = Vec::new();
+            let covered = admitted(stated, doc, (authored, &[]), None, &mut out);
+            assert_eq!(
+                covered.len() + out.len(),
+                authored.len(),
+                "{covered:?} {out:?}"
+            );
+            out.into_iter().map(|d| d.message).collect()
+        }
+        let hn = "https://news.ycombinator.com";
+        let posted = json!({"tasks": {"send": {"with": {"target": hn}, "invoke": {
+            "tool": "nika:fetch", "args": {"url": "${{ with.target }}", "method": "POST"}}}}});
+        let refused = judged(REQUEST, &posted, &[delegated(hn)]);
+        assert!(
+            refused.len() == 1 && refused[0].contains("task `send` uses it otherwise"),
+            "{refused:?}"
+        );
+        let answered = Resolution::new(
+            "./notes.txt",
+            ResolutionKind::Answered,
+            ResolutionRole::ReadSource,
+        )
+        .with_excerpt("notes.txt");
+        let written = json!({"tasks": {
+            "load": {"invoke": {"tool": "nika:read", "args": {"path": "./notes.txt"}}},
+            "save": {"with": {"target": "./notes.txt"}, "invoke": {"tool": "nika:write",
+                "args": {"path": "${{ with.target | trim }}", "content": "x"}}}}});
+        let refused = judged(TYPED, &written, std::slice::from_ref(&answered));
+        assert!(
+            refused.len() == 1 && refused[0].contains("only read; task `save`"),
+            "{refused:?}"
+        );
+        let read = json!({"tasks": {"load": {"with": {"notes": "./notes.txt"}, "invoke": {
+            "tool": "nika:read", "args": {"path": "${{ with.notes }}"}}}}});
+        let refused = judged(TYPED, &read, &[answered]);
+        assert!(refused.is_empty(), "{refused:?}");
+        let schemed = Resolution::new(
+            "file:/etc/hosts",
+            ResolutionKind::Answered,
+            ResolutionRole::ReadSource,
+        )
+        .with_excerpt("file:/etc/hosts");
+        let hosts = json!({"tasks": {"load": {"invoke": {"tool": "nika:read",
+            "args": {"path": "file:/etc/hosts"}}}}});
+        let refused = judged("Summarize file:/etc/hosts", &hosts, &[schemed]);
+        assert!(
+            refused.len() == 1 && refused[0].contains("is not a public address"),
+            "{refused:?}"
+        );
     }
 
     /// A file of the project the person typed is a source of their own: stated as answered (or

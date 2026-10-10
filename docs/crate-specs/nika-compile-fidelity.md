@@ -148,7 +148,9 @@ needs keeps its default.
   `retained`), a file inside the project: a relative path naming no scheme, never absolute,
   hidden or above it, used only to be read by `nika:read` or `nika:grep` at `path` or
   `nika:glob` at `pattern`; a named or delegated local path is refused with how to state the
-  file instead (amended 2026-10-10); `output_path`: a
+  file instead (amended 2026-10-10). A use is read through the task's own `with:` binding too:
+  an argument reading `${{ with.<name> }}` of a binding that holds the value uses it, as one
+  holding it directly does (amended 2026-10-10); `output_path`: a
   relative path under the project, never absolute, hidden or above it, and for `derived` absent
   from the observed world) and the document uses it in that role alone (a source only as a
   `nika:fetch` URL read with GET or HEAD; an output only as a `nika:write` path, directly or
