@@ -29,6 +29,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
+use nika_providers::model_choice::{ModelInventory, ModelRole};
+use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+use nika_types::access::AccessClass;
 use serde_json::{Value, json};
 
 /// The workflow model the candidate names.
@@ -40,6 +43,10 @@ const DIGEST: &str = "./news/digest.md";
 pub(crate) const REQUEST: &str = "fais moi un workflow tres simple qui recupere les news tech recentes, les resume et ecrit le resultat en markdown dans un dossier du projet";
 /// The acceptance of the agent's recommendation.
 pub(crate) const ACCEPT: &str = "oui tout me va, je suis tes recos";
+/// The person asks which model runs their workflow.
+pub(crate) const CHOOSE: &str = "which model should run my workflow?";
+/// A model no route on this machine offers.
+const INVENTED: &str = "acme/imaginary-1";
 
 /// The digest workflow over two news sites: one GET each, one summary, one write.
 fn digest() -> String {
@@ -108,6 +115,72 @@ fn accepted_digest() -> Value {
         ],
         "summary": "Hacker News et TechCrunch, résumé dans ./news/digest.md"
     })
+}
+
+/// A metered vendor route whose key is present: the probe's facts only, no call, no network.
+pub(crate) fn deepseek_probe() -> ProviderProbe {
+    let readiness = ProviderReadiness::new(
+        true,
+        true,
+        None,
+        None,
+        true,
+        ExecutionLocus::Cloud,
+        AccessClass::Api,
+    );
+    ProviderProbe::new(
+        "deepseek",
+        true,
+        true,
+        "DEEPSEEK_API_KEY",
+        true,
+        readiness,
+        "https://api.deepseek.com",
+    )
+}
+
+/// A model the metered route offers for a run, and its facts as the inventory states them.
+fn offered_model() -> (String, Value) {
+    let inventory = ModelInventory::from_probes(&[deepseek_probe()]);
+    let offer = (inventory.offers(ModelRole::Run).iter())
+        .find(|offer| offer.model.starts_with("deepseek/"))
+        .expect("the route offers the catalogue's models");
+    let route = &offer.route;
+    let mut facts = json!({"role": "run", "model": offer.model, "via": route.access,
+        "class": route.class.as_str(), "configured": route.configured,
+        "billing": route.billing.as_str()});
+    if let Some(price) = offer.output_usd_per_million {
+        facts["output_usd_per_million"] = json!(price);
+    }
+    (offer.model.clone(), facts)
+}
+
+/// The agent asks which model runs the workflow: one the inventory offers, one it does not.
+fn model_offer(model: &str) -> Value {
+    let option = |key: &str, value: &str, recommended: bool| {
+        json!({"key": key, "label": value, "recommended": recommended,
+            "values": [{"role": "run_model", "value": value}]})
+    };
+    json!({"questions": [{
+        "key": "model",
+        "role": "run_model",
+        "question": "Which model runs the workflow?",
+        "options": [option("offered", model, true), option("invented", INVENTED, false)],
+        "free_text": false
+    }]})
+}
+
+/// One line queued for the run under way, as a receipt or the Work shows it.
+fn queued(id: &str, mode: &str, line: &str, state: &str) -> Value {
+    json!({"id": id, "mode": mode, "line": line, "state": state})
+}
+
+/// A tool step a host received: its start, then its end with the time it took.
+fn tool_step(call: &str, tool: &str) -> [Value; 2] {
+    [
+        json!([call, tool, "started", false]),
+        json!([call, tool, "finished", true]),
+    ]
 }
 
 fn call(id: &str, tool: &str, args: &Value) -> Value {
@@ -378,6 +451,15 @@ fn an_acp_agent_leads_the_session_with_nikas_tools() {
     assert_eq!(written[0].1, digest());
     assert_agent_read(&world);
     assert_tree_kept(&world);
+    // Each call of Nika's tools reached the host as a tool step, in order; the foreign tool,
+    // refused at its permission, never ran.
+    let steps_seen = [
+        tool_step("toolu_ask", "ask"),
+        tool_step("toolu_write", "candidate_write"),
+        tool_step("toolu_propose", "propose"),
+    ]
+    .concat();
+    assert_eq!(report["tools"], json!(steps_seen));
     assert_eq!(world.observed("spawned").len(), 1, "one agent session");
     assert_eq!(
         report["agent_alive_after_close"], false,
@@ -391,7 +473,16 @@ fn stop_cancels_the_agent_turn_once_and_the_conversation_goes_on() {
     let world = World::new(Some(&turns));
     let report = world.run("stop");
     let steps = report["steps"].as_array().unwrap();
-    assert_eq!(kind(&steps[0]), "cancelled", "{steps:#?}");
+    let waiting = queued("l1", "follow_up", "then c", "waiting");
+    assert_eq!(report["receipts"], json!([{"queued": waiting}]));
+    // A typed stop: how it reached the agent, the queued line returned unsent, no draft.
+    let returned = json!([queued("l1", "follow_up", "then c", "returned")]);
+    let text = "stopped by you · the agent was asked to stop and ended its turn · the \
+        conversation and its draft are kept · not sent: « then c »";
+    let stopped = json!({"kind": "stopped", "reach": "agent_cancelled", "unsent": returned,
+        "candidate": null, "text": text});
+    assert_eq!(steps[0]["outcome"], stopped, "{steps:#?}");
+    assert_eq!(steps[0]["shown"]["work"]["queued"], returned);
     assert_eq!(world.observed("cancels"), [json!("session/cancel")]);
     assert!(
         !world.observed("after").contains(&json!("session/cancel")),
@@ -406,12 +497,112 @@ fn stop_cancels_the_agent_turn_once_and_the_conversation_goes_on() {
         1,
         "the line after Stop rides the same agent session"
     );
+    let next_work = steps[1]["shown"]["work"].as_object().unwrap();
+    assert!(
+        !next_work.contains_key("queued"),
+        "the next run starts with no queued line"
+    );
     let tree = world.tree();
-    assert_eq!(entries(&tree, "stopped").len(), 1);
+    let recorded = entries(&tree, "stopped");
+    assert_eq!(recorded.len(), 1);
+    assert_eq!(recorded[0]["kind"]["queued"], json!(["then c"]));
+    assert_eq!(report["after_turn"], json!({"refused": "not_reading"}));
     assert_eq!(
         report["agent_alive_after_close"], false,
         "the agent ends with the Session"
     );
+}
+
+/// The person's cited lines in the tree, with how each waited.
+fn users(world: &World) -> Vec<(Value, Value)> {
+    (entries(&world.tree(), "user").into_iter())
+        .map(|u| (u["kind"]["cite"].clone(), u["kind"]["queued"].clone()))
+        .collect()
+}
+
+#[test]
+fn a_steering_line_enters_the_agent_turn_under_way() {
+    let turns = json!([[{"await_cancel": true}], [{"say": "Using b."}]]);
+    let world = World::new(Some(&turns));
+    let report = world.run("steer");
+    let waiting = queued("l1", "steer", "use b instead", "waiting");
+    assert_eq!(report["receipts"], json!([{"queued": waiting}]));
+    let step = &report["steps"][0];
+    let reply = json!({"kind": "reply", "text": "Using b."});
+    assert_eq!(step["outcome"], reply, "{step:#}");
+    let mut entered = queued("l1", "steer", "use b instead", "entered");
+    entered["cite"] = json!("u2");
+    assert_eq!(step["shown"]["work"]["queued"], json!([entered]));
+    // The agent was asked once to stop its turn, and read the line as its next prompt.
+    assert_eq!(world.observed("cancels"), [json!("session/cancel")]);
+    let prompts = world.observed("prompts");
+    assert_eq!(prompts.len(), 2);
+    assert_eq!(prompts[1], "use b instead\n\n(cited as u2)");
+    let cited = [(json!("u1"), Value::Null), (json!("u2"), json!("steer"))];
+    assert_eq!(users(&world), cited);
+    assert_eq!(report["after_turn"], json!({"refused": "not_reading"}));
+    assert_eq!(world.observed("spawned").len(), 1, "one agent session");
+    assert_eq!(report["agent_alive_after_close"], false);
+}
+
+#[test]
+fn a_follow_up_line_enters_when_the_agent_ends_its_turn() {
+    let turns = json!([
+        [{"mark": "turn-open"}, {"await_marker": "queued"}, {"say": "a done"}],
+        [{"say": "c done"}]
+    ]);
+    let world = World::new(Some(&turns));
+    let report = world.run("follow");
+    let waiting = queued("l1", "follow_up", "and c", "waiting");
+    assert_eq!(report["receipts"], json!([{"queued": waiting}]));
+    let step = &report["steps"][0];
+    let reply = json!({"kind": "reply", "text": "c done"});
+    assert_eq!(step["outcome"], reply, "{step:#}");
+    let mut entered = queued("l1", "follow_up", "and c", "entered");
+    entered["cite"] = json!("u2");
+    assert_eq!(step["shown"]["work"]["queued"], json!([entered]));
+    assert!(
+        world.observed("cancels").is_empty(),
+        "a follow-up never stops the agent"
+    );
+    assert_eq!(world.observed("prompts")[1], "and c\n\n(cited as u2)");
+    let tree = world.tree();
+    let said: Vec<&Value> = (entries(&tree, "assistant").into_iter())
+        .map(|a| &a["kind"]["content"][0]["text"])
+        .collect();
+    assert_eq!(said, [&json!("a done"), &json!("c done")]);
+    let cited = [
+        (json!("u1"), Value::Null),
+        (json!("u2"), json!("follow_up")),
+    ];
+    assert_eq!(users(&world), cited);
+    assert_eq!(report["after_turn"], json!({"refused": "not_reading"}));
+}
+
+#[test]
+fn a_model_the_agent_offers_carries_the_inventorys_facts() {
+    let (model, facts) = offered_model();
+    let turns = json!([[
+        call("toolu_model", "ask", &model_offer(&model)),
+        {"say": "Which model runs it?"}
+    ]]);
+    let world = World::new(Some(&turns));
+    let report = world.run("choices");
+    let step = &report["steps"][0];
+    assert_eq!(kind(step), "question", "{step:#}");
+    let options = &step["shown"]["work"]["questions"][0]["options"];
+    let offered = &options[0]["values"][0];
+    assert_eq!(offered["value"], model.as_str());
+    assert_eq!(offered["choice"], facts, "{options:#}");
+    let typed = (&facts["class"], &facts["billing"], &facts["configured"]);
+    assert_eq!(typed, (&json!("api"), &json!("api_metered"), &json!(true)));
+    let invented = options[1]["values"][0].as_object().unwrap();
+    assert_eq!(invented["value"], INVENTED);
+    assert!(
+        !invented.contains_key("choice"),
+        "a choice is never invented"
+    );
+    assert_eq!(report["tools"], json!(tool_step("toolu_model", "ask")));
 }
 
 #[test]

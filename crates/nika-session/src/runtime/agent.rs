@@ -28,9 +28,11 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use nika_fs::OwnedDir;
-use nika_session_agent::{Agent, AgentEvent, EntryKind, Outcome, QueueMode, Relay, Steering, Tree};
+use nika_session_agent::{
+    Agent, AgentEvent, EntryKind, Observed, Outcome, QueueMode, QueuedState, Relay, Steering, Tree,
+};
 use nika_session_change::tools::SessionTools;
-use nika_session_intelligence::reasoner::agent_model::AgentModel;
+use nika_session_intelligence::reasoner::agent_model::{AgentModel, tool_steps};
 use nika_types::access::HarnessTransport;
 use nika_types::cancel::CancelCtx;
 use serde_json::Value;
@@ -42,7 +44,7 @@ use self::tools::{Decided, Toolbox};
 use super::decision::{is_no, is_save_and_run, is_yes, local_command_of};
 use super::{SessionRuntime, TurnOutcome};
 use crate::change::{ProjectChangeSet, Witness};
-use crate::outcome::{ProposalId, QuestionId, Refusal, RefusalClass};
+use crate::outcome::{ProposalId, QuestionId, Refusal, RefusalClass, StopReach, Stopped};
 use crate::work::{AskedQuestion, AskedState, Waiting, Work};
 
 /// The name a host door reads once when it opens the Session: `rounds` keeps the round driver.
@@ -56,6 +58,7 @@ const SYSTEM: &str = include_str!("../../assets/author_system.md");
 /// leading it, when a seat's agent does.
 pub(super) struct Driver {
     toolbox: Arc<Toolbox>,
+    observed: Arc<Observed>,
     relay: Arc<Relay>,
     tree: Option<Tree>,
     store: TreeFile,
@@ -77,9 +80,12 @@ impl Driver {
 
     fn with_store(store: TreeFile) -> Self {
         let toolbox = Arc::new(Toolbox::new(Conversation::default(), store.citations()));
-        let relay = Arc::new(Relay::new(Arc::clone(&toolbox) as Arc<dyn SessionTools>));
+        // Both loops reach the tools through one observer: each real call is a tool step.
+        let observed = Arc::new(Observed::new(Arc::clone(&toolbox) as Arc<dyn SessionTools>));
+        let relay = Arc::new(Relay::new(Arc::clone(&observed) as Arc<dyn SessionTools>));
         Self {
             toolbox,
+            observed,
             relay,
             tree: None,
             store,
@@ -341,6 +347,9 @@ impl SessionRuntime {
         let asker = self.questions.asker();
         let mint = move |context: &str| QuestionId::new(Witness::of(context.as_bytes()).0, &asker);
         driver.toolbox.begin(Box::new(desk), Box::new(mint));
+        driver
+            .observed
+            .watch(self.progress.listener().map(tool_steps));
         let waiting = (driver.tree.as_ref())
             .filter(|tree| tree.parked().is_some())
             .map(Tree::next_cite);
@@ -365,6 +374,7 @@ impl SessionRuntime {
         let now = unix_ms;
         let Driver {
             toolbox,
+            observed,
             tree,
             store,
             steering,
@@ -377,7 +387,7 @@ impl SessionRuntime {
         };
         let parked = tree.parked().is_some();
         let mut events = |_: AgentEvent| {};
-        let mut agent = Agent::new(tree, store, &**toolbox, &now)
+        let mut agent = Agent::new(tree, store, &**observed, &now)
             .with_steering(steering)
             .with_cancel(cancel);
         let outcome = if parked {
@@ -385,8 +395,9 @@ impl SessionRuntime {
         } else {
             agent.prompt(line, model, &mut events)
         };
+        let reach = agent.stop_reach();
         drop(agent);
-        self.agent_end(driver, before, outcome)
+        self.agent_end(driver, before, (outcome, reach))
     }
 
     /// The turn ended: what it decided, the questions no longer asked closed, the request read
@@ -395,8 +406,9 @@ impl SessionRuntime {
         &mut self,
         driver: &mut Driver,
         before: Vec<QuestionId>,
-        outcome: Outcome,
+        (outcome, reach): (Outcome, Option<StopReach>),
     ) -> TurnOutcome {
+        driver.observed.watch(None);
         let decided = driver.toolbox.end();
         let (still, since) = driver
             .toolbox
@@ -408,14 +420,14 @@ impl SessionRuntime {
             .map(|c| c.stated(since))
             .unwrap_or_default();
         self.intent.goal = request.lines().next().map(str::to_owned);
-        self.settle_run(driver, outcome, decided)
+        self.settle_run(driver, (outcome, reach), decided)
     }
 
     /// The run's outcome as the Session's own.
     fn settle_run(
         &mut self,
         driver: &mut Driver,
-        outcome: Outcome,
+        (outcome, reach): (Outcome, Option<StopReach>),
         decided: Decided,
     ) -> TurnOutcome {
         let said = driver
@@ -447,12 +459,13 @@ impl SessionRuntime {
                     _ => TurnOutcome::Reply(text),
                 }
             }
-            Outcome::Stopped { queued } => {
-                let mut text = "preparation stopped · the conversation is kept · a request already sent may still be billed".to_owned();
-                if let Some(lines) = unsent(&queued) {
-                    text = format!("{text} · {lines}");
-                }
-                TurnOutcome::Cancelled(text)
+            Outcome::Stopped { .. } => {
+                let unsent = (driver.steering.records().into_iter())
+                    .filter(|queued| queued.state == QueuedState::Returned)
+                    .collect();
+                let candidate = driver.toolbox.with(|c| c.candidate().map(|c| c.number));
+                let reach = reach.unwrap_or(StopReach::BetweenSteps);
+                TurnOutcome::Stopped(Stopped::new(reach, unsent, candidate))
             }
             Outcome::Failed { error } => refusal(
                 RefusalClass::IntelligenceRefused,
@@ -555,13 +568,16 @@ impl SessionRuntime {
     /// The work snapshot with what the conversation holds.
     pub(super) fn with_agent(&self, work: Work) -> Work {
         match &self.agent {
-            Some(driver) => driver.toolbox.with(|conversation| {
-                work.with_conversation(
-                    conversation.bindings().to_vec(),
-                    conversation.delegations().to_vec(),
-                    conversation.questions().to_vec(),
-                )
-            }),
+            Some(driver) => driver
+                .toolbox
+                .with(|conversation| {
+                    work.with_conversation(
+                        conversation.bindings().to_vec(),
+                        conversation.delegations().to_vec(),
+                        conversation.questions().to_vec(),
+                    )
+                })
+                .with_queued(driver.steering.records()),
             None => work,
         }
     }

@@ -6,11 +6,12 @@
 //! included). It mounts the one MCP server `session/new` names, with the bearer it was given,
 //! and plays its scenario (`scenario.json` beside it): one list of steps per prompt — a call of
 //! one of Nika's tools after asking its permission, a foreign tool whose permission it asks,
-//! words, or a wait for `session/cancel`. Everything it sees is noted under `observed/`.
+//! words, a wait for `session/cancel`, a marker it leaves or one it waits for (the child's cue
+//! to queue a line mid-turn). Everything it sees is noted under `observed/`.
 
 /// The script, installed as `bin/claude-agent-acp`.
 pub(crate) const AGENT: &str = r#"#!/usr/bin/env python3
-import json, os, sys, urllib.request
+import json, os, sys, time, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OBSERVED = os.path.join(os.path.dirname(HERE), "observed")
@@ -115,6 +116,14 @@ for turn in TURNS:
             cancel = recv()
             note("cancels", cancel["method"])
             stop = "cancelled"
+        elif "mark" in step:
+            open(os.path.join(OBSERVED, step["mark"]), "w").close()
+        elif "await_marker" in step:
+            marker = os.path.join(OBSERVED, step["await_marker"])
+            for _ in range(3000):
+                if os.path.exists(marker):
+                    break
+                time.sleep(0.02)
     send({"jsonrpc": "2.0", "id": prompt["id"], "result": {"stopReason": stop}})
 
 line = recv()

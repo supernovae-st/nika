@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use nika_compile_fidelity::fidelity::resolution::Resolution;
 use nika_session_change::outcome::QuestionId;
 use nika_session_change::tools::{SessionTools, ToolCall, ToolDef, ToolReply};
+use nika_session_change::work::ModelFacts;
 use serde_json::{Value, json};
 
 use super::conversation::{Acts, Citations, Conversation};
@@ -56,6 +57,8 @@ pub(crate) trait Desk: Send {
     ) -> Result<String, String>;
     /// The candidate rehearsed where no effect escapes: what it would read, write and send.
     fn trial(&mut self, source: &str) -> Result<String, String>;
+    /// What this machine's inventory says of `model` as a run's model; none when it offers none.
+    fn model_facts(&mut self, model: &str) -> Option<ModelFacts>;
 }
 
 /// What a run decided that the Session acts on after it: a proposal shown, and the acts the
@@ -346,8 +349,10 @@ impl Parts<'_> {
 
     fn ask(&mut self, args: &Value, call: Option<&str>) -> ToolReply {
         let citations = self.citations();
-        let mint = &mut *self.mint;
-        (self.conversation).ask(&citations, args, call, &mut |context| mint(context))
+        let (mint, desk) = (&mut *self.mint, &mut *self.desk);
+        let mut mint = |context: &str| mint(context);
+        let mut facts = |model: &str| desk.model_facts(model);
+        (self.conversation).ask(&citations, args, call, (&mut mint, &mut facts))
     }
 
     /// Judge the candidate, then show it; with the person's words, the acts they authorize.

@@ -11,7 +11,7 @@ use std::fmt::Write as _;
 
 use serde_json::{Value, json};
 
-use super::peer::{Script, Step, call, call_saying, say};
+use super::peer::{Script, Step, call, call_saying, hold, say};
 
 /// The workflow model the human chose for the session (a local engine's route).
 pub(crate) const SEAT: &str = "vllm/oux-author";
@@ -57,6 +57,25 @@ pub(crate) const REPLACE: &str = "non laisse tomber tout ca, je veux plutot comp
 pub(crate) const SAVE_AND_RUN: &str = "parfait, enregistre-le puis lance-le";
 /// The words of `SAVE_AND_RUN` that ask for both acts.
 pub(crate) const SAVE_AND_RUN_WORDS: &str = "enregistre-le puis lance-le";
+/// A request the author starts on.
+pub(crate) const START_A: &str = "resume moi les news tech de hacker news";
+/// A line steered into the run under way.
+pub(crate) const STEER_B: &str = "non prend plutot techcrunch";
+/// A line queued for after the run.
+pub(crate) const THEN_C: &str = "et apres dis moi combien ca coute";
+/// A line queued, then the run stopped.
+pub(crate) const THEN_STOP: &str = "et ecris le dans news/digest.md";
+/// A line after a stopped run.
+pub(crate) const STILL_THERE: &str = "t'es toujours la ?";
+/// What the author says once it read the steered line.
+pub(crate) const STEERED: &str = "D'accord, je prends TechCrunch.";
+/// What the author says at the end of its first run, then once it read the follow-up.
+pub(crate) const FIRST_DONE: &str = "Voici le resume de Hacker News.";
+pub(crate) const FOLLOWED: &str = "Ca ne coute rien de plus ici.";
+/// What the author says after a stopped run.
+pub(crate) const STILL_HERE: &str = "Oui, je suis la.";
+/// The marker of the author's held request.
+pub(crate) const HELD: &str = "held";
 
 /// One act of the person, in order.
 #[derive(Clone, Copy, Debug)]
@@ -74,6 +93,22 @@ pub(crate) enum Act {
     AnswerElsewhere(usize, &'static str),
     /// The Session closes and a new one opens on the same project and home.
     Reopen,
+    /// A line typed while nothing is shown, in a turn the host can stop (the host begins it).
+    Stoppable(&'static str),
+    /// `Stoppable`, and while the author's request is held under the marker, the person acts
+    /// from the host's thread.
+    While(&'static str, &'static str, During),
+}
+
+/// What the person does from the host's thread while the author's request is under way.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum During {
+    /// A line that enters after the calls under way.
+    Steer(&'static str),
+    /// A line that enters when the run would end.
+    FollowUp(&'static str),
+    /// A line queued for after the run, then Stop.
+    FollowUpThenStop(&'static str),
 }
 
 /// One journey: the project files, whether the Session keeps history, the person's acts, and
@@ -238,6 +273,9 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "complete_replacement" => complete_replacement(),
         "save_and_run_in_words" => save_and_run_in_words(),
         "save_and_run_scope_changed" => save_and_run_scope_changed(),
+        "steer_mid_run" => steer_mid_run(),
+        "follow_up_after_run" => follow_up_after_run(),
+        "stop_mid_request" => stop_mid_request(),
         other => panic!("unknown scenario {other}"),
     }
 }
@@ -568,6 +606,66 @@ fn save_and_run_scope_changed() -> Scenario {
         ],
         script: Script {
             agent,
+            replies: Vec::new(),
+        },
+    }
+}
+
+/// A line steered while the author's second request is under way: the call of its first step
+/// ran; the call it answers with once the line arrived is not run, and it reads the line, cited,
+/// before it answers.
+fn steer_mid_run() -> Scenario {
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        acts: vec![Act::While(START_A, HELD, During::Steer(STEER_B))],
+        script: Script {
+            agent: vec![
+                call("models", json!({"role": "run"})),
+                hold(HELD),
+                call("models", json!({"role": "author"})),
+                say(STEERED),
+            ],
+            replies: Vec::new(),
+        },
+    }
+}
+
+/// A line queued for after the run: the author's failed call does not end the run, its answer
+/// does, and the line enters then.
+fn follow_up_after_run() -> Scenario {
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        acts: vec![Act::While(START_A, HELD, During::FollowUp(THEN_C))],
+        script: Script {
+            agent: vec![
+                hold(HELD),
+                call("models", json!({"role": "chef"})),
+                say(FIRST_DONE),
+                say(FOLLOWED),
+            ],
+            replies: Vec::new(),
+        },
+    }
+}
+
+/// Stop while the author's request is under way, a line queued: the request is dropped, the
+/// line comes back unsent, and the next line goes on.
+fn stop_mid_request() -> Scenario {
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        acts: vec![
+            Act::While(START_A, HELD, During::FollowUpThenStop(THEN_STOP)),
+            Act::Stoppable(STILL_THERE),
+        ],
+        script: Script {
+            agent: vec![
+                hold(HELD),
+                say("(the dropped request's answer: never read)"),
+                say(STILL_HERE),
+            ],
             replies: Vec::new(),
         },
     }

@@ -277,4 +277,8 @@ impl Desk for SessionDesk {
     fn trial(&mut self, _source: &str) -> Result<String, String> {
         Err("the rehearsal room is not open to a conversation's candidate yet: check and verify judge it".to_owned())
     }
+
+    fn model_facts(&mut self, model: &str) -> Option<nika_session_change::work::ModelFacts> {
+        nika_session_intelligence::reasoner::agent_model::model_facts(&self.probes, model)
+    }
 }

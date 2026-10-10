@@ -92,6 +92,10 @@ pub enum TurnOutcome {
     Facts(String),
     /// Preparation stopped; the conversation remains open and no new result is accepted.
     Cancelled(String),
+    /// The person stopped a turn of the conversation the selected intelligence leads: how the
+    /// stop reached it, the lines returned unsent and the draft kept
+    /// ([`crate::outcome::Stopped::text`]).
+    Stopped(crate::outcome::Stopped),
     /// The help card.
     Help(String),
     /// The human closed the session.

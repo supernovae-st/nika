@@ -25,6 +25,12 @@ use nika_session_change::work::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+/// How a question gets its identity from its context.
+type Mint<'a> = &'a mut dyn FnMut(&str) -> QuestionId;
+
+/// What this machine's inventory says of a model an option offers.
+type Facts<'a> = &'a mut dyn FnMut(&str) -> Option<nika_session_change::work::ModelFacts>;
+
 /// One of the person's lines, as the tree made it durable.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Cited {
@@ -235,7 +241,7 @@ impl Conversation {
         citations: &Citations,
         args: &Value,
         call: Option<&str>,
-        mint: &mut dyn FnMut(&str) -> QuestionId,
+        (mint, facts): (Mint<'_>, Facts<'_>),
     ) -> ToolReply {
         let mut bound = Vec::new();
         let mut refused = Vec::new();
@@ -248,7 +254,7 @@ impl Conversation {
         let mut asked = Vec::new();
         let questions = args["questions"].as_array().into_iter().flatten();
         for (ordinal, question) in questions.enumerate() {
-            match self.question(question, call, ordinal, mint) {
+            match self.question(question, (call, ordinal), mint, facts) {
                 Ok(question) => asked.push(question),
                 Err(settled) => refused.push(settled),
             }
@@ -293,9 +299,9 @@ impl Conversation {
     fn question(
         &self,
         question: &Value,
-        call: Option<&str>,
-        ordinal: usize,
-        mint: &mut dyn FnMut(&str) -> QuestionId,
+        (call, ordinal): (Option<&str>, usize),
+        mint: Mint<'_>,
+        facts: Facts<'_>,
     ) -> Result<AskedQuestion, Value> {
         let key = question["key"].as_str().unwrap_or_default();
         let role = question["role"].as_str().and_then(role_word);
@@ -319,7 +325,12 @@ impl Conversation {
                     .filter_map(|v| {
                         let role = role_word(v["role"].as_str()?)?;
                         let name = v["name"].as_str().map(str::to_owned);
-                        Some(OfferValue::new(role, v["value"].as_str()?, name))
+                        let value = v["value"].as_str()?;
+                        // A model offered carries the inventory's facts, never the author's.
+                        let choice = (role == ValueRole::RunModel)
+                            .then(|| facts(value))
+                            .flatten();
+                        Some(OfferValue::new(role, value, name).with_choice(choice))
                     })
                     .collect();
                 let recommended = option["recommended"].as_bool().unwrap_or(false);

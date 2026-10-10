@@ -730,7 +730,8 @@ impl SessionRuntime {
         ) || matches!(
             outcome,
             TurnOutcome::RunRequested { .. } | TurnOutcome::ResumeRequested { .. }
-        ) || (!matches!(outcome, TurnOutcome::Cancelled(_)) && !PreparationCosts::interrupted())
+        ) || matches!(outcome, TurnOutcome::Stopped(_))
+            || (!matches!(outcome, TurnOutcome::Cancelled(_)) && !PreparationCosts::interrupted())
         {
             return outcome;
         }
@@ -923,6 +924,7 @@ fn outcome_kind(outcome: &TurnOutcome) -> &'static str {
         TurnOutcome::Reply(_) => "reply",
         TurnOutcome::Facts(_) => "facts",
         TurnOutcome::Cancelled(_) => "cancelled",
+        TurnOutcome::Stopped(_) => "stopped",
         TurnOutcome::Help(_) => "help",
         TurnOutcome::Quit => "quit",
         TurnOutcome::Refusal(_) => "refusal",
@@ -979,6 +981,7 @@ fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
             outcome: Box::new(with_note(*outcome, note)),
         },
         other @ (TurnOutcome::Quit
+        | TurnOutcome::Stopped(_)
         | TurnOutcome::ResumeRequested { .. }
         | TurnOutcome::RunReviewed { .. }) => other,
     }

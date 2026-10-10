@@ -51,6 +51,7 @@ pub use nika_session::lifecycle
 pub use nika_session::outcome
 pub use nika_session::reasoner
 pub use nika_session::review
+pub use nika_session::steer
 pub use nika_session::turn
 pub use nika_session::work
 pub use nika_session::world
@@ -584,6 +585,7 @@ pub nika_session::runtime::TurnOutcome::RunRequested::run: nika_session_change::
 pub nika_session::runtime::TurnOutcome::RunReviewed
 pub nika_session::runtime::TurnOutcome::RunReviewed::approve: bool
 pub nika_session::runtime::TurnOutcome::RunReviewed::review: nika_session_change::outcome::ReviewId
+pub nika_session::runtime::TurnOutcome::Stopped(nika_session_change::outcome::Stopped)
 impl core::clone::Clone for nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::TurnOutcome::clone(&self) -> nika_session::runtime::TurnOutcome
 impl core::cmp::PartialEq for nika_session::runtime::TurnOutcome
@@ -1173,6 +1175,7 @@ pub nika_session::TurnOutcome::RunRequested::run: nika_session_change::change::R
 pub nika_session::TurnOutcome::RunReviewed
 pub nika_session::TurnOutcome::RunReviewed::approve: bool
 pub nika_session::TurnOutcome::RunReviewed::review: nika_session_change::outcome::ReviewId
+pub nika_session::TurnOutcome::Stopped(nika_session_change::outcome::Stopped)
 impl core::clone::Clone for nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::TurnOutcome::clone(&self) -> nika_session::runtime::TurnOutcome
 impl core::cmp::PartialEq for nika_session::runtime::TurnOutcome
