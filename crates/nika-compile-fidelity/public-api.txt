@@ -173,7 +173,9 @@ pub fn nika_compile_fidelity::fidelity::resolution::Resolution::as_any(&self) ->
 impl<T> typenum::type_operators::Same for nika_compile_fidelity::fidelity::resolution::Resolution
 pub type nika_compile_fidelity::fidelity::resolution::Resolution::Output = T
 pub fn nika_compile_fidelity::fidelity::resolution::admitted(stated: &str, doc: &serde_json::value::Value, (authored, host): (&[nika_compile_fidelity::fidelity::resolution::Resolution], &[nika_compile_fidelity::fidelity::resolution::Resolution]), world: core::option::Option<&serde_json::value::Value>, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_fidelity::fidelity::resolution::anchored(stated: &str, excerpt: &str) -> bool
 pub fn nika_compile_fidelity::fidelity::resolution::same_literal(a: &str, b: &str) -> bool
+pub fn nika_compile_fidelity::fidelity::resolution::typed(stated: &str, value: &str) -> bool
 pub struct nika_compile_fidelity::fidelity::Diagnostic
 pub nika_compile_fidelity::fidelity::Diagnostic::kind: &'static str
 pub nika_compile_fidelity::fidelity::Diagnostic::message: alloc::string::String

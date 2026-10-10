@@ -432,3 +432,10 @@ and matching a shape validates neither a calendar nor a timezone. Law 25 is unch
 Temporal metadata remains inside the source's kinds and the whole observed-world digest,
 so replay never substitutes changed context for retained evidence. The native author's
 existing observed-world input receives the metadata with parsing and timezone guidance.
+
+## The person's words, read once (2d)
+
+`resolution::anchored` is public: the one reading of a person's words every citation check
+makes (verbatim, spacing and typographic quotes aside). An `answered` selection is a value the
+person typed, verbatim or without the leading `./` or trailing `/` two spellings of one path or
+address differ by, as a whole word of their text.
