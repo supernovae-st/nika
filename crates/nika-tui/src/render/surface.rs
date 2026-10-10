@@ -125,8 +125,10 @@ impl<'a> Held<'a> {
 /// The rows of a head, top first, `width` cells wide, and how many of the
 /// first ones show whole or not at all (the rest give way first): beside the
 /// commands, the Session's status facts, the words the palette set aside and
-/// what waits; under a typed choice, the question's own words, cut at the
-/// frame's cap with a last row saying where the whole question is read.
+/// what waits; under a typed choice, what the Session keeps of the request
+/// (its goal, the questions still open), then the question's own words, cut
+/// at the frame's cap with a last row saying where the whole question is
+/// read.
 fn head_rows(held: &Held<'_>, state: &UiState, width: u16) -> (Vec<Line<'static>>, u16) {
     let (ascii, color) = (state.ascii, state.color);
     match held {
@@ -152,6 +154,7 @@ fn head_rows(held: &Held<'_>, state: &UiState, width: u16) -> (Vec<Line<'static>
             (rows, whole)
         }
         Held::Choice { asked, .. } => {
+            let mut rows = retained_rows(asked, width, (ascii, color));
             let block = asked_block(state).and_then(|index| state.transcript.get(index));
             let text = block.map_or_else(|| asked.label.clone(), |block| block.text.clone());
             let mut words: Vec<Line<'static>> = (hang(&text, usize::from(width)).into_iter())
@@ -162,9 +165,37 @@ fn head_rows(held: &Held<'_>, state: &UiState, width: u16) -> (Vec<Line<'static>
                 words.truncate(cap);
                 words.push(whole_row(width, (ascii, color)));
             }
-            (words, 1)
+            // The kept request and the question's first row show whole.
+            let whole = u16::try_from(rows.len() + 1).unwrap_or(u16::MAX);
+            rows.extend(words);
+            (rows, whole)
         }
     }
+}
+
+/// What the Session keeps of the request beside a typed choice, one quiet
+/// labelled row each: its goal, then the questions still open.
+fn retained_rows(asked: &Asked, width: u16, (ascii, color): (bool, bool)) -> Vec<Line<'static>> {
+    let Some(retained) = &asked.retained else {
+        return Vec::new();
+    };
+    let width = usize::from(width);
+    let quiet = role::style(Role::Dim, color);
+    let row = |label: &str, words: &str| {
+        let label = own(label, ascii);
+        let words = words.split_whitespace().collect::<Vec<_>>().join(" ");
+        let words = fit(&words, width.saturating_sub(label.width()), ascii);
+        Line::from(vec![Span::styled(label, quiet), Span::raw(words)])
+    };
+    let mut rows = Vec::new();
+    if let Some(goal) = &retained.goal {
+        rows.push(row("Request · ", goal.as_str()));
+    }
+    if !retained.open.is_empty() {
+        let open = retained.open.join(" · ");
+        rows.push(row("Open · ", open.as_str()));
+    }
+    rows
 }
 
 /// The row that says where the whole question is read.

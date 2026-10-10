@@ -14,7 +14,7 @@
 //! surface above the line (`surface`): a band from the transcript's first
 //! row down to the composer. The live area is sized by facts at rest, so
 //! opening, searching or closing a surface moves no row and the transcript
-//! keeps its reading position under the band ([`band`]); an inline frame
+//! keeps its reading position under the band (`band`); an inline frame
 //! grows for its band instead. The card of a typed question that offers
 //! nothing stands above the line (`question`): it may take all but two rows
 //! of what it is given, and it gives way first, so the line that answers

@@ -20,7 +20,9 @@ use super::surface::{Hit, hit};
 use super::{Panel, band, draw_focus, draw_inline, focus_areas, live_rows, panel_rows};
 use crate::composer::Composer;
 use crate::composer::chooser::Entry;
-use crate::model::{Asked, Committed, Kind, Offer, Presentation, Shape, UiState, Waiting};
+use crate::model::{
+    Asked, Committed, Kind, Offer, Presentation, Retained, Shape, UiState, Waiting,
+};
 
 const LABEL: &str = "Which currency do the amounts use?";
 
@@ -389,4 +391,38 @@ fn only_an_inline_frame_grows_for_its_band() {
             assert_eq!(open, closed);
         }
     }
+}
+
+/// Beside a typed choice the surface shows what the Session keeps of the
+/// request, above the question: its goal on one quiet row, the questions
+/// still open on the next, both whole; none when it keeps nothing.
+#[test]
+fn a_typed_choice_shows_the_request_the_session_keeps() {
+    let kept = Retained::new(
+        Some("sum the amounts\nof the monday export".to_owned()),
+        vec!["which currency".to_owned(), "keep the header".to_owned()],
+    );
+    let shape = Shape::Choice(offers(3));
+    let asked = Asked::new(LABEL, "one currency", true, shape, "w-1", 1).retaining(kept);
+    let waiting = Waiting::asked("const.currency", asked);
+    let state = state(Presentation::Focus, (80, 24), waiting, false);
+    let composer = composer(&state.waiting, "");
+    let buffer = draw(&state, &composer);
+    let (band, _) = band_of(&state, &composer).expect("the band");
+    let top = usize::from(band.y);
+    let shown: Vec<String> = (0..24).map(|y| row(&buffer, y)).collect();
+    assert_eq!(shown[top], "Question · required");
+    assert_eq!(
+        shown[top + 1],
+        "Request · sum the amounts of the monday export"
+    );
+    assert_eq!(shown[top + 2], "Open · which currency · keep the header");
+    assert_eq!(shown[top + 3], LABEL);
+    let bare = self::state(Presentation::Focus, (80, 24), choice(3, true), false);
+    let buffer = draw(&bare, &composer);
+    assert_eq!(
+        row(&buffer, band.y + 1),
+        LABEL,
+        "nothing kept, nothing shown"
+    );
 }

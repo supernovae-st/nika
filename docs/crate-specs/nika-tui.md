@@ -370,19 +370,22 @@ its incarnation. Untyped Run/cost questions keep their existing owners and doors
 
 A typed choice opens the continuous surface above the line (choice mode):
 `Question`, `required` and the page of offers when they do not all show, then
-the Session's exact words under one frame-aware cap (`question::word_cap`: six
-rows, or a quarter of the frame's rows when that is more, past it a
-`… the whole question: F2` row), then the offers on whole pages. The ordinary
-draft waits out of view, untouched with its caret and selection, and the line
-shows the choice's own reply field. The offers take keys whatever the draft
-holds (`Up`, `Down`, `Home`, `End`); `Enter` sends the own reply when it holds
-words, else the selected offer's exact key, once, and the offers are inert
-while that answer is in flight; a press selects without sending. An own reply
-not taken comes back to its field. The palette opened over a typed choice
-suspends it and `Esc` restores it, selection and own reply kept; no slash list
-opens over it. Keys other than the shell's own (`Ctrl+C`, `Ctrl+O`, `Ctrl+T`,
-`Ctrl+L`, `Shift+Tab`, the function keys) are the choice's, so none reaches
-the hidden transcript or leaves the workspace.
+what the Session keeps of the request the question serves, from the same
+`Work` snapshot (`model::Retained`: the goal as kept, then the other questions
+still open; it grants nothing), then the Session's exact words under one
+frame-aware cap (`question::word_cap`: six rows, or a quarter of the frame's
+rows when that is more, past it a `… the whole question: F2` row), then the
+offers on whole pages. The ordinary draft waits out of view, untouched with
+its caret and selection, and the line shows the choice's own reply field. The
+offers take keys whatever the draft holds (`Up`, `Down`, `Home`, `End`);
+`Enter` sends the own reply when it holds words, else the selected offer's
+exact key, once, and the offers are inert while that answer is in flight; a
+press selects without sending. An own reply not taken comes back to its
+field. The palette opened over a typed choice suspends it and `Esc` restores
+it, selection and own reply kept; no slash list opens over it. Keys other than
+the shell's own (`Ctrl+C`, `Ctrl+O`, `Ctrl+T`, `Ctrl+L`, `Shift+Tab`, the
+function keys) are the choice's, so none reaches the hidden transcript or
+leaves the workspace.
 
 A typed question that offers nothing (a text, an exact value) keeps its card
 above the answer line. In the fitting workspace, while the latest question

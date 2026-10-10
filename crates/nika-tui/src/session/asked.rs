@@ -19,7 +19,20 @@ pub(super) fn witness(id: &QuestionId, epoch: u64) -> String {
     format!("{epoch}:{}", id.as_str())
 }
 
-use crate::model::{Asked, Committed, Kind, Offer, Shape, Waiting};
+use crate::model::{Asked, Committed, Kind, Offer, Retained, Shape, Waiting};
+
+/// What the Session keeps of `request`, read beside the question `asked`:
+/// its goal and the questions still open other than this one (the Session
+/// keeps the question it asks as open, and the surface shows it already);
+/// nothing when neither remains.
+fn retained(request: &work::Request, asked: &str) -> Option<Retained> {
+    let open: Vec<String> = (request.unresolved.iter())
+        .filter(|open| open.trim() != asked.trim())
+        .cloned()
+        .collect();
+    let kept = request.goal.is_some() || !open.is_empty();
+    kept.then(|| Retained::new(request.goal.clone(), open))
+}
 
 pub(super) fn capture(snapshot: &work::Work, epoch: u64) -> Waiting {
     match &snapshot.waiting {
@@ -55,6 +68,7 @@ pub(super) fn capture(snapshot: &work::Work, epoch: u64) -> Waiting {
                         shape,
                         witness: witness(id, epoch),
                         epoch,
+                        retained: retained(&snapshot.request, &q.label),
                     })
                 });
             asked.map_or_else(|| plain(key), |asked| Waiting::asked(key.clone(), asked))

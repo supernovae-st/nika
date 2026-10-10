@@ -218,6 +218,30 @@ pub struct Asked {
     /// The conversation's own token of the session that asked it: a
     /// presentation scope, never an identity an answer names.
     pub epoch: u64,
+    /// What the Session keeps of the request this question serves, when it
+    /// keeps anything ([`Asked::retaining`]).
+    pub retained: Option<Retained>,
+}
+
+/// What the Session keeps of a request, read with the question it asks: the
+/// goal as first stated (with the corrections the Session joined to it) and
+/// the questions still open. Shown beside the question so nothing already
+/// understood is asked or typed again; it grants and answers nothing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Retained {
+    /// The goal, as the Session keeps it.
+    pub goal: Option<String>,
+    /// The questions still open, other than the one asked with it.
+    pub open: Vec<String>,
+}
+
+impl Retained {
+    /// The request kept as `goal`, with `open` questions.
+    #[must_use]
+    pub const fn new(goal: Option<String>, open: Vec<String>) -> Self {
+        Self { goal, open }
+    }
 }
 
 impl Asked {
@@ -238,7 +262,15 @@ impl Asked {
             shape,
             witness: witness.into(),
             epoch,
+            retained: None,
         }
+    }
+
+    /// This question, with what the Session keeps of its request.
+    #[must_use]
+    pub fn retaining(mut self, retained: Retained) -> Self {
+        self.retained = Some(retained);
+        self
     }
 }
 
