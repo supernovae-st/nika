@@ -5680,6 +5680,7 @@ dependencies = [
  "nika-onboard",
  "nika-providers",
  "nika-runtime",
+ "nika-service-execution",
  "nika-session-agent",
  "nika-session-change",
  "nika-types",
