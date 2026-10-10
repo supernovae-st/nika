@@ -3334,6 +3334,53 @@ impl<T> nika_error::traits::AsAny for nika_compile_seats::judge::Effects where T
 pub fn nika_compile_seats::judge::Effects::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_seats::judge::Effects
 pub type nika_compile_seats::judge::Effects::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::judge::Removal
+pub nika_compile_seats::judge::Removal::value: alloc::string::String
+pub nika_compile_seats::judge::Removal::words: alloc::string::String
+impl nika_compile_seats::judge::Removal
+pub fn nika_compile_seats::judge::Removal::new(value: impl core::convert::Into<alloc::string::String>, words: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_compile_seats::judge::Removal::question(&self, k: usize, stated: &str) -> nika_compile_seats::decide::ChoiceQuestion
+impl core::clone::Clone for nika_compile_seats::judge::Removal
+pub fn nika_compile_seats::judge::Removal::clone(&self) -> nika_compile_seats::judge::Removal
+impl core::cmp::Eq for nika_compile_seats::judge::Removal
+impl core::cmp::PartialEq for nika_compile_seats::judge::Removal
+pub fn nika_compile_seats::judge::Removal::eq(&self, other: &nika_compile_seats::judge::Removal) -> bool
+impl core::fmt::Debug for nika_compile_seats::judge::Removal
+pub fn nika_compile_seats::judge::Removal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::judge::Removal
+impl<D> owo_colors::OwoColorize for nika_compile_seats::judge::Removal
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::judge::Removal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::judge::Removal::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::judge::Removal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::judge::Removal::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::judge::Removal where U: core::convert::From<T>
+pub fn nika_compile_seats::judge::Removal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::judge::Removal where U: core::convert::Into<T>
+pub type nika_compile_seats::judge::Removal::Error = core::convert::Infallible
+pub fn nika_compile_seats::judge::Removal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::judge::Removal where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::judge::Removal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::judge::Removal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::judge::Removal where T: core::clone::Clone
+pub type nika_compile_seats::judge::Removal::Owned = T
+pub fn nika_compile_seats::judge::Removal::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::judge::Removal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::judge::Removal where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::judge::Removal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::judge::Removal where T: ?core::marker::Sized
+pub fn nika_compile_seats::judge::Removal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::judge::Removal where T: ?core::marker::Sized
+pub fn nika_compile_seats::judge::Removal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::judge::Removal where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::judge::Removal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::judge::Removal
+pub fn nika_compile_seats::judge::Removal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::judge::Removal where T: core::clone::Clone
+pub fn nika_compile_seats::judge::Removal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::judge::Removal where T: 'static
+pub fn nika_compile_seats::judge::Removal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::judge::Removal
+pub type nika_compile_seats::judge::Removal::Output = T
 pub const nika_compile_seats::judge::CREATED: &str
 pub const nika_compile_seats::judge::REVISED: &str
 pub const nika_compile_seats::judge::REVISED_APPENDED: &str

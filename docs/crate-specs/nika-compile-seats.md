@@ -185,8 +185,11 @@ as an external consumer.
   question that localizes a whole-request rejection nothing else located when no run of the
   bytes exists (`verify-doubt`): it shows the request's parts with their answers and the
   facts, and offers each part (`part-<k>`), each open task (`task-<id>`) and `unlocated`;
-  `Located` reads the answer as a part, a task, or nothing. The verifier that asks the
-  questions and weighs the answers stays in `nika-compile-cognition`.
+  `Located` reads the answer as a part, a task, or nothing. `Removal { value, words }`
+  (`#[non_exhaustive]`, `new`) is a claim that the person's cited words remove a value a
+  proposal they saw bound; `Removal::question(k, stated)` is the closed question whether they do
+  (`verify-removed-<k>`: `removed`, `kept`, NONE; amended 2026-10-10). The
+  verifier that asks the questions and weighs the answers stays in `nika-compile-cognition`.
 - `repairs` — the laws that end the verifier's work: `progressed` (a defect set is progress
   when it names a new part or narrows the last set) and `carry_declined` (the record of bytes a
   judge rejected keeps each rejection of them once per judge, context and request, so every
