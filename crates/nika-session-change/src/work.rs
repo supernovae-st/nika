@@ -1205,6 +1205,11 @@ pub struct Run {
     pub chain_head: Option<String>,
     /// The journal length its receipt named.
     pub chain_len: Option<u64>,
+    /// Whether the run sealed its journal: its settlement's receipt named the chain head. An
+    /// interrupted run that sealed stopped at a wave boundary (a Stop, the first Ctrl-C) and its
+    /// trace verifies; one that did not was cut mid-flight (an abort or a crash) and its trace is
+    /// incomplete.
+    pub sealed: bool,
 }
 
 impl Run {
@@ -1228,6 +1233,7 @@ impl Run {
             trace,
             execution,
             workflow_sha256,
+            sealed: chain_head.is_some(),
             chain_head,
             chain_len,
         }

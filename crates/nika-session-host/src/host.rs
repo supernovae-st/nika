@@ -19,7 +19,9 @@
 //! turn it found and is linearized with that turn's settlement under the custody lock: if it
 //! wins, the stopped preparation's late result is withdrawn before any snapshot is published and
 //! the run it requested is never admitted; if the settlement wins, it reports that there was
-//! nothing left to stop.
+//! nothing left to stop. While the turn's run executes, its door's Stop handle is armed and
+//! disarmed with the phase under the same lock: a Stop asks that run once to stop at its next
+//! wave boundary, before its child even exists if need be, and a second Stop sends nothing more.
 
 mod worker;
 
@@ -33,7 +35,7 @@ use nika_session::SessionRuntime;
 use nika_session::work::{CONTRACT as WORK_CONTRACT, Waiting};
 use nika_types::cancel::CancelCtx;
 
-use crate::run::RunDoor;
+use crate::run::{RunDoor, RunStop, Stopping};
 use crate::wire::{
     ActivityWire, Body, Busy, Command, Frame, Outcome, Refused, Snapshot, TurnPhase,
 };
@@ -102,6 +104,36 @@ struct Turn {
     phase: TurnPhase,
     token: Option<CancelCtx>,
     stop: bool,
+    /// The Stop of the run the turn executes, armed while it runs, when its door can stop it.
+    run: Option<Arc<dyn RunStop>>,
+}
+
+impl Turn {
+    /// A Stop for the run the turn executes: one request through its door's handle; a later
+    /// Stop is told where that request stands and sends nothing more (never an abort).
+    fn stop_run(&mut self) -> &'static str {
+        let Some(run) = &self.run else {
+            return "run_underway";
+        };
+        if self.stop {
+            return match self.phase {
+                TurnPhase::Stopping => "run_stopping",
+                _ => "stop_requested",
+            };
+        }
+        match run.stop() {
+            Stopping::Signalled => {
+                self.stop = true;
+                self.phase = TurnPhase::Stopping;
+                "run_stopping"
+            }
+            Stopping::Pending => {
+                self.stop = true;
+                "stop_requested"
+            }
+            Stopping::Ended => "nothing_to_stop",
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -288,6 +320,53 @@ impl Shared {
         drop(custody);
         self.wake();
         stopped
+    }
+
+    /// The turn's run starts executing, its door's Stop handle armed in the same step: a Stop
+    /// that finds the run under way finds the handle too, before any child exists. A Stop the
+    /// turn already took applies to this run at once.
+    fn running(&self, command: &str, run: Option<Arc<dyn RunStop>>) {
+        let mut custody = self.lock();
+        if let Some(turn) = custody.turn_of(command) {
+            turn.phase = TurnPhase::Running;
+            if turn.stop
+                && let Some(run) = &run
+            {
+                let _pending = run.stop();
+            }
+            turn.run = run;
+        }
+        drop(custody);
+        self.wake();
+    }
+
+    /// The run reported its start: a Stop that waited for it has reached it now (its door sends
+    /// a waiting Stop as the run starts).
+    fn run_started(&self, command: &str) {
+        let mut custody = self.lock();
+        let Some(turn) = custody.turn_of(command) else {
+            return;
+        };
+        if turn.stop && turn.run.is_some() && turn.phase == TurnPhase::Running {
+            turn.phase = TurnPhase::Stopping;
+            drop(custody);
+            self.wake();
+        }
+    }
+
+    /// The run returned: the turn settles and its Stop handle is disarmed in one step. Answers
+    /// whether a Stop was taken for that run, and whether it reached it.
+    fn ran(&self, command: &str) -> (bool, bool) {
+        let mut custody = self.lock();
+        let stop = custody.turn_of(command).map_or((false, false), |turn| {
+            let stop = (turn.stop, turn.phase == TurnPhase::Stopping);
+            turn.phase = TurnPhase::Settling;
+            turn.run = None;
+            stop
+        });
+        drop(custody);
+        self.wake();
+        stop
     }
 
     /// Publish the turn's result: the new snapshot, the command's recorded result, its event.
@@ -538,6 +617,7 @@ impl SessionHost {
             phase,
             token: None,
             stop: false,
+            run: None,
         });
         let accepted = Body::Accepted {
             command: command.clone(),
@@ -573,7 +653,7 @@ impl SessionHost {
             None => ("nothing_to_stop", None),
             Some(turn) => {
                 let receipt = match turn.phase {
-                    TurnPhase::Running => "run_underway",
+                    TurnPhase::Running | TurnPhase::Stopping => turn.stop_run(),
                     TurnPhase::Settling => "nothing_to_stop",
                     TurnPhase::Preparing => {
                         turn.stop = true;

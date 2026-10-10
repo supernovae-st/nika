@@ -4,14 +4,16 @@
 //! The one thread that owns the runtime: a turn through [`SessionRuntime::submit`] with the
 //! published `Waiting`, the Session's Stop token armed before it, the withdrawal of a stopped
 //! preparation's late result before anything is published, then what the turn asked of the run
-//! door (nothing once a Stop won: its run is not started), then one publication.
+//! door (nothing once a Stop won: its run is not started), with that door's Stop armed while it
+//! runs, then one publication.
 
 use std::sync::mpsc;
 
+use nika_cli_host::display::run_story::{EventKind, RunFrame};
 use nika_cli_host::lane::RunSink;
 use nika_session::SessionRuntime;
 use nika_session::outcome::ReviewId;
-use nika_session::work::Waiting;
+use nika_session::work::{RunEnd, Waiting};
 
 use super::{Job, Shared, publish};
 use crate::run::{RunDoor, RunStep};
@@ -20,6 +22,19 @@ use crate::wire::{ActivityWire, Effect, Outcome, TurnPhase, project};
 /// Why a run a stopped turn requested was not started.
 const STOPPED: &str =
     "the Stop accepted while this turn prepared ended it before its run was admitted · nothing ran";
+
+/// What a Stop that reached the run came to when the run sealed its trace as cancelled.
+const RUN_STOPPED: &str = "the Stop reached the run: it stopped at a wave boundary · the work in \
+     flight completed and is counted · unstarted tasks were cancelled · its trace is sealed";
+
+/// What a Stop that reached the run came to when the run ended without sealing its trace.
+const RUN_ABORTED: &str = "the run took the Stop but ended without sealing its trace: it was cut \
+     mid-flight (an abort or a crash) · its trace is incomplete · nothing was rolled back and the \
+     work in flight has an unknown outcome";
+
+/// Why a run whose Stop came before it started was left at its cost review, declined.
+const STOPPED_AT_REVIEW: &str =
+    "a Stop arrived before this run started: its cost review was declined · nothing ran";
 
 /// Closes the log when the worker ends, however it ends.
 struct Finish<'a>(&'a Shared);
@@ -68,6 +83,12 @@ struct Turn<'a> {
 impl RunSink for Turn<'_> {
     fn said(&self, line: String) {
         self.shared.activity(ActivityWire::run(line));
+    }
+
+    fn frame(&self, frame: RunFrame) {
+        if matches!(&frame, RunFrame::Event(event) if event.kind == EventKind::WorkflowStarted) {
+            self.shared.run_started(self.command);
+        }
     }
 }
 
@@ -134,7 +155,8 @@ impl Turn<'_> {
         let step = match effect {
             Effect::Run(run) => {
                 *held = None;
-                self.shared.phase(self.command, TurnPhase::Running);
+                self.shared.running(self.command, door.stopper());
+                self.shared.checkpoint("running");
                 door.run(&root, &run, self)
             }
             Effect::Resume {
@@ -142,7 +164,8 @@ impl Turn<'_> {
                 trace,
                 answer,
             } => {
-                self.shared.phase(self.command, TurnPhase::Running);
+                self.shared.running(self.command, door.stopper());
+                self.shared.checkpoint("running");
                 door.resume(&root, &workflow, &trace, &answer, self)
             }
             Effect::Reviewed { review, approve } => {
@@ -151,12 +174,15 @@ impl Turn<'_> {
                     return;
                 }
                 *held = None;
+                self.shared.running(self.command, door.stopper());
                 door.answer_review(approve, self)
             }
         };
-        self.shared.phase(self.command, TurnPhase::Settling);
+        let (stop_taken, stop_reached) = self.shared.ran(self.command);
         match step {
             RunStep::Observed { exit, trace, leg } => {
+                // A run sealed its trace when its settlement's receipt named the chain head.
+                let sealed = leg.as_ref().is_some_and(|leg| leg.chain_head.is_some());
                 // What the run named of itself rides the observation (its trace kept when the
                 // door names one): the Session keeps it as the run's identity.
                 let observed = match leg {
@@ -170,6 +196,16 @@ impl Turn<'_> {
                         text: "the observation asked for another run; it was not started · request it again".to_owned(),
                     });
                 }
+                if stop_reached {
+                    wire.extend(stopped(exit, sealed));
+                }
+            }
+            RunStep::Review { .. } if stop_taken => {
+                // The run waits at its cost review, the Stop taken before it started: declined.
+                let _declined = door.answer_review(false, self);
+                wire.push(Outcome::RunNotStarted {
+                    text: STOPPED_AT_REVIEW.to_owned(),
+                });
             }
             RunStep::Review { question, details } => {
                 let review = runtime.run_review_asked(&question, &details);
@@ -183,5 +219,20 @@ impl Turn<'_> {
             RunStep::Unobserved { why } => wire.push(Outcome::RunUnobserved { text: why }),
             _ => {}
         }
+    }
+}
+
+/// What a Stop that reached the run came to, by the run's observed end: stopped at a wave
+/// boundary with its trace sealed, or cut before sealing it. A run that reached an end of its own
+/// (no wave was left to stop) says how through its own observation, sealed or not.
+pub(super) fn stopped(exit: u8, sealed: bool) -> Option<Outcome> {
+    match (RunEnd::of(exit), sealed) {
+        (RunEnd::Interrupted, true) => Some(Outcome::RunStopped {
+            text: RUN_STOPPED.to_owned(),
+        }),
+        (RunEnd::Succeeded | RunEnd::Failed | RunEnd::Paused, _) | (_, true) => None,
+        _ => Some(Outcome::RunAborted {
+            text: RUN_ABORTED.to_owned(),
+        }),
     }
 }

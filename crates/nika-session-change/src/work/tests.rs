@@ -154,6 +154,38 @@ fn a_kept_run_is_not_the_current_result_and_names_only_what_was_observed() {
     );
 }
 
+/// Exit 130 alone cannot tell a Stop from an abort: the sealed journal does. A run whose
+/// settlement named its chain head stopped at a wave boundary; one that named none was cut.
+#[test]
+fn an_interrupted_run_that_sealed_its_journal_is_told_from_one_cut_mid_flight() {
+    let observed = |chain_head: Option<&str>| {
+        let run = Run::new(
+            true,
+            Some("held.nika".to_owned()),
+            Some(130),
+            None,
+            Some("01a0ef11-0212-70de-a8b3-99de9427fccc".to_owned()),
+            None,
+            chain_head.map(str::to_owned),
+            chain_head.map(|_| 7),
+        );
+        serde_json::to_value(&run).expect("serializes")
+    };
+    let stopped = observed(Some("c0ffee"));
+    let cut = observed(None);
+    for run in [&stopped, &cut] {
+        assert_eq!(run["end"], serde_json::json!({"end": "interrupted"}));
+    }
+    assert_eq!(stopped["sealed"], true, "{stopped}");
+    assert_eq!(cut["sealed"], false, "{cut}");
+    assert_eq!(
+        serde_json::to_value(Run::new(true, None, Some(0), None, None, None, None, None))
+            .expect("serializes")["sealed"],
+        false,
+        "a run that named no receipt sealed nothing this host saw"
+    );
+}
+
 #[test]
 fn waiting_states_carry_the_identity_an_answer_names() {
     let consent = Waiting::Consent {
