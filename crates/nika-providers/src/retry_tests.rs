@@ -1,25 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The transport backoff through the wire: a fake transport answers 429
-//! then 200, a recording clock proves what was waited, the captured
-//! requests prove what was re-sent.
+//! A provider call is never re-sent by the transport (the money admission's contract): a fake
+//! transport answers a 429 · 503 · 529 and would then answer 200; the captured requests prove
+//! nothing was re-sent, the typed rejection carries the delay the provider named, and the report
+//! counts exactly the requests sent.
 
 use std::time::Duration;
 
 use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, Message, ProviderError, ProviderInferDyn, ProviderStreamDyn, Role,
+    InferRequest, Message, ProviderError, ProviderInferDyn, ProviderStreamDyn, Role,
 };
-use nika_kernel::prelude::NikaErrorCode;
 use serde_json::json;
 
-use crate::retry::{MAX_RETRIES, MAX_RETRY_AFTER};
-use crate::test_support::{Answer, FakeHttp, RecordingBackoff, resolved_with_backoff};
-
-/// `MAX_RETRIES` as a count of things.
-fn max_retries() -> usize {
-    usize::try_from(MAX_RETRIES).expect("a small constant")
-}
+use crate::retry::{TransientRejection, transient_rejection};
+use crate::test_support::{FakeHttp, resolved_with};
 
 fn ok_body() -> String {
     json!({"choices":[{"message":{"content":"fine"},"finish_reason":"stop"}],
@@ -37,116 +32,69 @@ fn ask() -> InferRequest {
 }
 
 #[tokio::test]
-async fn a_429_then_200_answers_once_after_one_exponential_wait() {
+async fn a_429_503_or_529_ends_the_call_at_its_first_answer_and_nothing_is_re_sent() {
     let ok = ok_body();
-    let fake = FakeHttp::with_sequence(&[(429, RATE_LIMITED, &[]), (200, &ok, &[])]);
-    let clock = RecordingBackoff::new();
-    let rp = resolved_with_backoff(&fake, "openai/gpt-4o-mini", "sk-test", clock.clone());
-
-    let (response, report) = rp.infer_reported(ask()).await.expect("the second answer");
-    assert!(matches!(&response.content[0], ContentBlock::Text { text } if text == "fine"));
-    assert_eq!(report.attempts, 2);
-    assert_eq!(report.statuses, vec![429]);
-    assert_eq!(report.waited, Duration::from_secs(1));
-    assert_eq!(clock.waits(), vec![Duration::from_secs(1)]);
-    assert_eq!(
-        report.summary().as_deref(),
-        Some("retried 1× on HTTP 429 (waited 1.0 s)")
-    );
-    // The re-send is the IDENTICAL request: same body both times.
-    let sent = fake.captured();
-    assert_eq!(sent.len(), 2);
-    assert_eq!(sent[0].body, sent[1].body);
-    assert_eq!(sent[0].url, sent[1].url);
+    let named: &[(&str, &str)] = &[("retry-after", "2")];
+    let cases = [
+        (
+            "openai/gpt-4o-mini",
+            "sk-test",
+            429,
+            RATE_LIMITED,
+            named,
+            Some(Duration::from_secs(2)),
+        ),
+        (
+            "deepseek/deepseek-chat",
+            "sk-test",
+            503,
+            "{}",
+            &[][..],
+            None,
+        ),
+        ("anthropic", "sk-ant-test", 529, OVERLOADED, &[][..], None),
+    ];
+    for (model, key, status, body, headers, delay) in cases {
+        let fake = FakeHttp::with_sequence(&[(status, body, headers), (200, &ok, &[])]);
+        let rp = resolved_with(&fake, model, key);
+        let (err, report) = (rp.infer_reported(ask()).await).expect_err("its first answer");
+        assert_eq!(fake.captured().len(), 1, "{model}: nothing is re-sent");
+        assert_eq!(
+            report.attempts, 1,
+            "{model}: the report counts the request sent"
+        );
+        assert!(!report.retried(), "{model}");
+        assert_eq!(report.waited, Duration::ZERO, "{model}");
+        assert!(err.is_transient(), "{model}: {err}");
+        let rejection = Some(TransientRejection::new(status, delay));
+        assert_eq!(transient_rejection(&err), rejection, "{model}");
+    }
 }
 
 #[tokio::test]
-async fn retry_after_governs_the_wait_when_the_seat_names_it() {
+async fn the_kernel_infer_ends_at_the_first_answer_and_its_error_carries_the_one_dispatch() {
     let ok = ok_body();
-    let fake = FakeHttp::with_sequence(&[
-        (429, RATE_LIMITED, &[("Retry-After", "3")]),
-        (429, RATE_LIMITED, &[("retry-after", "0.5")]),
-        (200, &ok, &[]),
-    ]);
-    let clock = RecordingBackoff::new();
-    let rp = resolved_with_backoff(&fake, "xai/grok-3", "xai-test", clock.clone());
-    let (_, report) = rp.infer_reported(ask()).await.expect("third answer");
-    assert_eq!(report.attempts, 3);
-    assert_eq!(report.statuses, vec![429, 429]);
+    let fake = FakeHttp::with_sequence(&[(503, "{}", &[]), (200, &ok, &[])]);
+    let rp = resolved_with(&fake, "deepseek/deepseek-chat", "sk-test");
+    let err = (ProviderInferDyn::infer(&rp, ask()).await).expect_err("never re-sent");
+    assert_eq!(fake.captured().len(), 1);
     assert_eq!(
-        clock.waits(),
-        vec![Duration::from_secs(3), Duration::from_millis(500)],
-        "the header wins over the schedule, case-insensitively"
+        err.inference_calls().len(),
+        1,
+        "a receipt reads the one dispatch sent"
     );
-    assert_eq!(report.waited, Duration::from_millis(3500));
+    assert_eq!(transient_rejection(&err).map(|r| r.status), Some(503));
 }
 
 #[tokio::test]
-async fn the_backoff_is_bounded_and_the_typed_error_survives() {
-    // Four 429s: the initial call + MAX_RETRIES re-sends, then the last
-    // error surfaces UNCHANGED (still transient, so an authored `retry:`
-    // may still fire on top of the floor) with the report beside it.
-    let fake = FakeHttp::with_sequence(&[
-        (429, RATE_LIMITED, &[]),
-        (429, RATE_LIMITED, &[]),
-        (429, RATE_LIMITED, &[]),
-        (429, RATE_LIMITED, &[]),
-        (200, "never reached", &[]),
-    ]);
-    let clock = RecordingBackoff::new();
-    let rp = resolved_with_backoff(&fake, "openai/gpt-4o-mini", "sk-test", clock.clone());
-    let (err, report) = rp.infer_reported(ask()).await.expect_err("spent");
-    assert_eq!(fake.captured().len(), 1 + max_retries());
-    assert_eq!(report.attempts, 1 + MAX_RETRIES);
-    assert_eq!(report.statuses, vec![429; max_retries()]);
-    assert_eq!(
-        clock.waits(),
-        vec![
-            Duration::from_secs(1),
-            Duration::from_secs(2),
-            Duration::from_secs(4)
-        ]
-    );
-    assert!(matches!(err, ProviderError::HttpResponse { .. }));
-    assert!(
-        err.is_transient(),
-        "the author's retry: still sees a transient"
-    );
-    assert_eq!(err.nika_code().num, 332);
-    assert!(err.to_string().contains("rate limited (HTTP 429)"));
-}
-
-#[tokio::test]
-async fn a_retry_after_past_the_cap_surfaces_at_once_with_the_header() {
-    let fake = FakeHttp::with_sequence(&[
-        (429, RATE_LIMITED, &[("retry-after", "120")]),
-        (200, "never reached", &[]),
-    ]);
-    let clock = RecordingBackoff::new();
-    let rp = resolved_with_backoff(&fake, "openai/gpt-4o-mini", "sk-test", clock.clone());
-    let (err, report) = rp
-        .infer_reported(ask())
-        .await
-        .expect_err("the human decides");
-    assert!(
-        clock.waits().is_empty(),
-        "never waits past {MAX_RETRY_AFTER:?}"
-    );
-    assert_eq!(report.attempts, 1);
-    assert!(!report.retried());
-    assert!(err.to_string().contains("Retry-After=120"), "{err}");
-}
-
-#[tokio::test]
-async fn exhausted_quota_and_a_wrong_request_are_never_re_sent() {
+async fn exhausted_quota_and_a_wrong_request_end_the_call_as_no_transient_rejection() {
     for (status, body) in [(429, QUOTA), (400, RATE_LIMITED), (401, "{}"), (500, "{}")] {
         let fake = FakeHttp::with_sequence(&[(status, body, &[]), (200, "never", &[])]);
-        let clock = RecordingBackoff::new();
-        let rp = resolved_with_backoff(&fake, "openai/gpt-4o-mini", "sk-test", clock.clone());
+        let rp = resolved_with(&fake, "openai/gpt-4o-mini", "sk-test");
         let (err, report) = rp.infer_reported(ask()).await.expect_err("terminal");
         assert_eq!(fake.captured().len(), 1, "{status} {body}");
-        assert!(clock.waits().is_empty());
         assert_eq!(report.attempts, 1);
+        assert_eq!(transient_rejection(&err), None, "{status} {body}");
         let ProviderError::HttpResponse { details } = &err else {
             panic!("{err:?}")
         };
@@ -155,77 +103,22 @@ async fn exhausted_quota_and_a_wrong_request_are_never_re_sent() {
 }
 
 #[tokio::test]
-async fn anthropic_overloaded_and_a_503_back_off_like_a_429() {
-    let ok = json!({"id":"msg","type":"message","role":"assistant","model":"claude",
-        "content":[{"type":"text","text":"fine"}],"stop_reason":"end_turn",
-        "usage":{"input_tokens":7,"output_tokens":3}})
-    .to_string();
-    let fake =
-        FakeHttp::with_sequence(&[(529, OVERLOADED, &[]), (503, "{}", &[]), (200, &ok, &[])]);
-    let clock = RecordingBackoff::new();
-    let rp = resolved_with_backoff(&fake, "anthropic", "sk-ant-test", clock.clone());
-    let (_, report) = rp.infer_reported(ask()).await.expect("third answer");
-    assert_eq!(report.statuses, vec![529, 503]);
-    assert_eq!(
-        clock.waits(),
-        vec![Duration::from_secs(1), Duration::from_secs(2)]
-    );
-}
-
-#[tokio::test]
-async fn the_kernel_infer_rides_the_same_floor() {
-    let ok = ok_body();
-    let fake = FakeHttp::with_sequence(&[(503, "{}", &[]), (200, &ok, &[])]);
-    let clock = RecordingBackoff::new();
-    let rp = resolved_with_backoff(&fake, "deepseek/deepseek-chat", "sk-test", clock.clone());
-    let response = ProviderInferDyn::infer(&rp, ask())
-        .await
-        .expect("the trait form retries too");
-    assert!(matches!(&response.content[0], ContentBlock::Text { text } if text == "fine"));
-    assert_eq!(clock.waits(), vec![Duration::from_secs(1)]);
-}
-
-#[tokio::test]
-async fn a_streaming_open_refused_with_a_429_is_reopened_after_the_wait() {
-    // The open is refused once (429 with a Retry-After), then the SSE
-    // stream flows: nothing was consumed, so the re-open is the identical
-    // request and the events arrive as if the first open had succeeded.
-    let sse = "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"},\"finish_reason\":null}]}\n\n\
-               data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1}}\n\n\
-               data: [DONE]\n\n";
+async fn a_streaming_open_refused_with_a_429_is_never_re_opened() {
     let fake = FakeHttp::with_refusals_then_stream(
         &[(429, RATE_LIMITED, &[("retry-after", "2")])],
         200,
-        sse,
+        "data: [DONE]\n\n",
         64,
     );
-    let clock = RecordingBackoff::new();
-    let rp = resolved_with_backoff(&fake, "openai/gpt-4o-mini", "sk-test", clock.clone());
-    let stream = match ProviderStreamDyn::infer_stream(&rp, ask()).await {
-        Ok(stream) => stream,
-        Err(err) => panic!("the re-open must succeed: {err}"),
-    };
-    let events = crate::test_support::collect(stream).await;
-    assert!(
-        events.iter().any(|e| matches!(e, Ok(nika_kernel::ai::provider::InferEvent::Delta { text }) if text == "hi")),
-        "{events:?}"
-    );
-    assert_eq!(clock.waits(), vec![Duration::from_secs(2)]);
-    assert_eq!(fake.captured().len(), 2);
-}
-
-#[tokio::test]
-async fn a_streaming_open_stops_re_opening_at_the_bound() {
-    let refusals: Vec<Answer<'_>> = vec![(429, RATE_LIMITED, &[]); 1 + max_retries()];
-    let fake = FakeHttp::with_refusals_then_stream(&refusals, 200, "data: [DONE]\n\n", 64);
-    let clock = RecordingBackoff::new();
-    let rp = resolved_with_backoff(&fake, "openai/gpt-4o-mini", "sk-test", clock.clone());
+    let rp = resolved_with(&fake, "openai/gpt-4o-mini", "sk-test");
     let Err(err) = ProviderStreamDyn::infer_stream(&rp, ask()).await else {
-        panic!("every open was refused");
+        panic!("the refused open ends the call");
     };
-    assert_eq!(clock.waits().len(), max_retries());
-    assert_eq!(fake.captured().len(), 1 + max_retries());
-    assert!(err.is_transient(), "{err}");
+    assert_eq!(fake.captured().len(), 1);
+    assert_eq!(
+        transient_rejection(&err),
+        Some(TransientRejection::new(429, Some(Duration::from_secs(2))))
+    );
 }
 
 #[tokio::test]

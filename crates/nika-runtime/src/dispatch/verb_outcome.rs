@@ -55,9 +55,8 @@ pub(super) fn infer_success(out: InferOutput, access: Option<AccessPlan>) -> Dis
     // number, with the responder's own identity (`gen_ai.response.model`
     // / `.id` — captured at the wire since ADR-112's precondition was
     // met, dropped at this seam until now) and the TRANSPORT's account
-    // of the call (round-trips · backoff waited · statuses retried on —
-    // the provider layer's bounded retry, reported by the verb since the
-    // product-convergence war room and dropped at this seam until now).
+    // of the call (the round-trips sent, reported by the verb since the
+    // product-convergence war room and dropped at this seam until then).
     let split = UsageSplit::of(&out.usage)
         .served_by(
             out.response.gen_ai.response_model.clone(),

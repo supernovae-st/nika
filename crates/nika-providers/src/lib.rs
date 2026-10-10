@@ -83,7 +83,7 @@ pub use resolve_access::{
     AccessCandidate, AccessRefusal, PinRefusal, access_plan_map, candidates_for,
     first_ready_harness, provider_of, refuse_pin, refuse_pin_for_verbs, resolve_access,
 };
-pub use retry::{Backoff, ClockBackoff, MAX_RETRIES, MAX_RETRY_AFTER, TransportReport};
+pub use retry::{TransientRejection, TransportReport, transient_rejection};
 pub use route_identity::{
     canonical_endpoint, durable_calls, durable_pricing, project_observation, project_route,
     route_label, route_origin,

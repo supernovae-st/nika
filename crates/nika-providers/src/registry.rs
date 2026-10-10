@@ -30,7 +30,7 @@ use nika_kernel::secret::Secret;
 use nika_types::access::AccessClass;
 
 use crate::profile::{Profile, WireFormat, seed};
-use crate::retry::{self, Backoff, TransportReport};
+use crate::retry::TransportReport;
 use crate::wire;
 
 /// Operator-owned configuration (overrides on top of the profile defaults).
@@ -108,9 +108,6 @@ pub struct ProviderRegistry<H = NoHttp> {
     http: Option<Arc<H>>,
     profiles: Vec<Profile>,
     config: ProvidersConfig,
-    /// The sleep seam of the transport backoff (`retry`) — the system
-    /// clock unless the composition injects its own.
-    backoff: Arc<dyn Backoff>,
     pub(crate) admission: Option<crate::InferenceAdmission>,
     admission_http: Option<Arc<H>>,
 }
@@ -124,7 +121,6 @@ impl ProviderRegistry<NoHttp> {
             http: None,
             profiles: seed(),
             config,
-            backoff: retry::system_backoff(),
             admission: None,
             admission_http: None,
         }
@@ -154,15 +150,6 @@ impl<H> ProviderRegistry<H> {
     ) -> Self {
         self.admission = Some(admission);
         self.admission_http = Some(http);
-        self
-    }
-
-    /// Inject the clock the transport backoff sleeps on (the composer's
-    /// declared clock · a test's recorder). Every provider resolved after
-    /// this call rides it; the default is the system clock.
-    #[must_use]
-    pub fn with_backoff(mut self, backoff: Arc<dyn Backoff>) -> Self {
-        self.backoff = backoff;
         self
     }
 
@@ -220,7 +207,6 @@ where
             http: Some(http),
             profiles: seed(),
             config,
-            backoff: retry::system_backoff(),
             admission: None,
             admission_http: None,
         }
@@ -333,7 +319,6 @@ where
             base_url,
             key,
             http,
-            backoff: Arc::clone(&self.backoff),
             admission,
         })
     }
@@ -369,7 +354,6 @@ pub struct ResolvedProvider<H = NoHttp> {
     pub(crate) base_url: String,
     pub(crate) key: Option<Secret>,
     pub(crate) http: Option<Arc<H>>,
-    pub(crate) backoff: Arc<dyn Backoff>,
     pub(crate) admission: Option<crate::InferenceAdmission>,
 }
 
@@ -409,19 +393,16 @@ impl<H> ResolvedProvider<H>
 where
     H: HttpPostDyn + Send + Sync + 'static,
 {
-    /// One inference WITH the transport's own account of it: the same
-    /// bounded backoff the kernel `infer` rides (a 429 · 503 · 529 is
-    /// re-sent after the seat's `Retry-After` or 1 s · 2 s · 4 s, at most
-    /// [`retry::MAX_RETRIES`] times), plus the [`TransportReport`] a verb
-    /// folds into its receipt. On failure the typed error stays intact —
-    /// its transience still drives the author's `retry:` — and the report
-    /// rides beside it.
+    /// One inference WITH the transport's own account of it: one round-trip, never re-sent
+    /// (a 429 · 503 · 529 ends the call with its typed transient rejection,
+    /// [`crate::retry::transient_rejection`]), plus the [`TransportReport`] a verb folds into
+    /// its receipt. On failure the typed error stays intact — its transience drives the author's
+    /// `retry:` or the Session's own counted policy — and the report rides beside it.
     ///
     /// # Errors
     ///
-    /// The last provider error once the backoff is spent or the error is
-    /// not one the layer waits on (a wrong request · a dead key · an
-    /// exhausted quota · a dropped connection).
+    /// The provider's error for that one round-trip (a transient rejection · a wrong request · a
+    /// dead key · an exhausted quota · a dropped connection).
     pub async fn infer_reported(
         &self,
         request: InferRequest,
@@ -453,39 +434,27 @@ where
                 })
                 .map_err(|e| (e, Box::new(report)));
         }
-        loop {
-            let mut call = None;
-            let mut route = None;
-            // The attempt is boxed: the loop's state machine would otherwise
-            // carry the largest wire future inline, and a nested run (a
-            // workflow invoking a workflow) polls it from a deeper stack than
-            // a 2 MiB thread affords (the pre-push gate's child-run test).
-            let entry = crate::dispatch_journal::open();
-            let result = Box::pin(self.infer_once(request.clone(), &mut route, &mut call)).await;
-            if let Some(entry) = entry {
-                entry.settle(call.as_ref(), result.is_ok());
+        let mut call = None;
+        let mut route = None;
+        // The attempt is boxed: its state machine would otherwise carry the largest wire future
+        // inline, and a nested run (a workflow invoking a workflow) polls it from a deeper stack
+        // than a 2 MiB thread affords (the pre-push gate's child-run test).
+        let entry = crate::dispatch_journal::open();
+        let result = Box::pin(self.infer_once(request, &mut route, &mut call)).await;
+        if let Some(entry) = entry {
+            entry.settle(call.as_ref(), result.is_ok());
+        }
+        report.record(call);
+        match result {
+            Ok(mut response) => {
+                response.inference_calls.clone_from(&report.inference_calls);
+                Ok((response, report))
             }
-            report.record(call);
-            let err = match result {
-                Ok(mut response) => {
-                    response.inference_calls.clone_from(&report.inference_calls);
-                    return Ok((response, report));
-                }
-                Err(err) => err,
-            };
-            let retries = u32::try_from(report.statuses.len()).unwrap_or(u32::MAX);
-            let Some(delay) = retry::retry_delay(&err, retries) else {
-                return Err((err, Box::new(report)));
-            };
-            report
-                .statuses
-                .push(retry::status_of(&err).unwrap_or_default());
-            self.backoff.sleep(delay).await;
-            report.waited = report.waited.saturating_add(delay);
+            Err(err) => Err((err, Box::new(report))),
         }
     }
 
-    /// One round-trip on the profile's wire — no backoff.
+    /// One round-trip on the profile's wire.
     async fn infer_once(
         &self,
         request: InferRequest,
@@ -504,7 +473,7 @@ where
         }
     }
 
-    /// One streaming open on the profile's wire — no backoff.
+    /// One streaming open on the profile's wire.
     async fn infer_stream_once(
         &self,
         request: InferRequest,
@@ -522,8 +491,8 @@ impl<H> ProviderInferDyn for ResolvedProvider<H>
 where
     H: HttpPostDyn + Send + Sync + 'static,
 {
-    /// The kernel contract over [`Self::infer_reported`]: the same
-    /// bounded backoff. Per-dispatch monetary observations survive both results.
+    /// The kernel contract over [`Self::infer_reported`]: one round-trip, never re-sent.
+    /// Per-dispatch monetary observations survive both results.
     async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
         match self.infer_reported(request).await {
             Ok((response, _)) => Ok(response),
@@ -536,25 +505,13 @@ impl<H> ProviderStreamDyn for ResolvedProvider<H>
 where
     H: HttpPostDyn + Send + Sync + 'static,
 {
-    /// A streaming open refused with a 429 · 503 · 529 is re-opened
-    /// under the same bounded backoff — nothing was consumed yet, so the
-    /// re-send is the identical request.
+    /// One streaming open, never re-sent: an open refused with a 429 · 503 · 529 ends the call
+    /// with its typed transient rejection ([`crate::retry::transient_rejection`]).
     async fn infer_stream(&self, request: InferRequest) -> Result<InferEventStream, ProviderError> {
         if let Some(a) = &self.admission {
             return Err(a.refuse("streaming has no qualified aggregate admission settlement"));
         }
-        let mut retries = 0u32;
-        loop {
-            let err = match self.infer_stream_once(request.clone()).await {
-                Ok(stream) => return Ok(stream),
-                Err(err) => err,
-            };
-            let Some(delay) = retry::retry_delay(&err, retries) else {
-                return Err(err);
-            };
-            retries = retries.saturating_add(1);
-            self.backoff.sleep(delay).await;
-        }
+        self.infer_stream_once(request).await
     }
 }
 

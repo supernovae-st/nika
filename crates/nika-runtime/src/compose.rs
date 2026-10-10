@@ -589,16 +589,14 @@ const PROVIDER_TRANSPORT_CEILING: std::time::Duration = std::time::Duration::fro
 // `HttpConfig` is `#[non_exhaustive]`, so the struct-literal/FRU form clippy
 // would suggest is a cross-crate compile error — field assignment is the only
 // way (the same idiom nika-http's own tests use).
-pub fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
-    provider_http_for_admission(false)
-}
-
 #[allow(clippy::field_reassign_with_default)]
-fn provider_http_for_admission(bounded: bool) -> Result<ReqwestHttp, nika_kernel::HttpError> {
+pub fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
     let mut config = HttpConfig::default();
     config.ssrf = SsrfMode::Disabled;
     config.timeout = PROVIDER_TRANSPORT_CEILING;
-    config.retry_protocol_nacks = !bounded;
+    // One physical attempt per post: a provider call is never re-sent by the transport (the
+    // money admission's contract), not even on a protocol NACK. The fetch plane keeps its own.
+    config.retry_protocol_nacks = false;
     ReqwestHttp::with_config(config)
 }
 
@@ -759,10 +757,10 @@ pub fn production_runtime_with_emitter(
     // Providers use their own client (see `provider_http`); fetch retains SSRF checks.
     let runtime_config = host_config.unwrap_or_else(|| RuntimeConfig::new(None, seams.jitter_seed));
     // A declared-free observer bounds only the routes it observes; every
-    // other route keeps this client and its protocol retries.
+    // other route keeps this client (one attempt per post, as every provider client).
     let account = runtime_config.inference_admission.clone();
     let scoped = matches!(&account, Some(a) if a.observes_declared_free_only());
-    let provider_http = Arc::new(provider_http_for_admission(account.is_some() && !scoped)?);
+    let provider_http = Arc::new(provider_http()?);
     let config = config_from_env();
     let access_probes = nika_providers::probe::collect_access_probes_env(config.clone());
 
@@ -780,12 +778,11 @@ pub fn production_runtime_with_emitter(
     let invoke = Arc::new(InvokeVerb::new(Arc::clone(&dispatcher)));
 
     // The provider registry (real http + env keys) drives infer directly
-    // and the agent via the per-call RegistryProvider bridge. Its
-    // transport backoff sleeps on the run's declared clock.
-    let registry = ProviderRegistry::new(provider_http, config).with_backoff(seams.backoff());
+    // and the agent via the per-call RegistryProvider bridge.
+    let registry = ProviderRegistry::new(provider_http, config);
     let registry = Arc::new(match account {
         Some(a) if scoped => {
-            registry.with_inference_admission_http(a, Arc::new(provider_http_for_admission(true)?))
+            registry.with_inference_admission_http(a, Arc::new(self::provider_http()?))
         }
         Some(a) => registry.with_inference_admission(a),
         None => registry,
@@ -928,9 +925,7 @@ pub fn simulated_runtime(
     // The provider registry (real http + env keys) drives infer directly
     // and the agent via the per-call RegistryProvider bridge — under
     // `nika test` the default model is `mock/echo` (keyless · offline).
-    // The same declared-clock backoff as production (shape parity).
-    let registry =
-        Arc::new(ProviderRegistry::new(provider_http, config).with_backoff(seams.backoff()));
+    let registry = Arc::new(ProviderRegistry::new(provider_http, config));
     let agent_provider = Arc::new(RegistryProvider::new(Arc::clone(&registry), default_model));
 
     Ok(Runtime::new(

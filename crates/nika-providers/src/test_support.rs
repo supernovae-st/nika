@@ -185,46 +185,6 @@ pub(crate) fn resolved_with(
     provider: &str,
     key: &str,
 ) -> ResolvedProvider<FakeHttp> {
-    resolved_with_backoff(fake, provider, key, crate::retry::system_backoff())
-}
-
-/// A sleep seam that records every wait and never sleeps — the transport
-/// backoff's test clock.
-#[derive(Debug, Default)]
-pub(crate) struct RecordingBackoff {
-    waits: Mutex<Vec<std::time::Duration>>,
-}
-
-impl RecordingBackoff {
-    pub(crate) fn new() -> Arc<Self> {
-        Arc::new(Self::default())
-    }
-
-    /// Every wait the backoff asked for, in order.
-    pub(crate) fn waits(&self) -> Vec<std::time::Duration> {
-        self.waits.lock().map(|w| w.clone()).unwrap_or_default()
-    }
-}
-
-impl crate::retry::Backoff for RecordingBackoff {
-    fn sleep(
-        &self,
-        duration: std::time::Duration,
-    ) -> Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
-        if let Ok(mut waits) = self.waits.lock() {
-            waits.push(duration);
-        }
-        Box::pin(std::future::ready(()))
-    }
-}
-
-/// [`resolved_with`] over an injected backoff seam.
-pub(crate) fn resolved_with_backoff(
-    fake: &Arc<FakeHttp>,
-    provider: &str,
-    key: &str,
-    backoff: Arc<dyn crate::retry::Backoff>,
-) -> ResolvedProvider<FakeHttp> {
     let model = if provider.contains('/') {
         provider.to_owned()
     } else if provider == "anthropic" {
@@ -238,7 +198,6 @@ pub(crate) fn resolved_with_backoff(
         config = config.with_key(provider_id, Secret::new(key));
     }
     ProviderRegistry::new(Arc::clone(fake), config)
-        .with_backoff(backoff)
         .resolve(&model)
         .expect("test provider resolves")
 }

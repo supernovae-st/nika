@@ -55,12 +55,6 @@ pub nika_verb_infer::VerbInferError::ModelResolution::source: nika_kernel_ai::pr
 pub nika_verb_infer::VerbInferError::ProviderCall
 pub nika_verb_infer::VerbInferError::ProviderCall::source: nika_kernel_ai::provider::ProviderError
 pub nika_verb_infer::VerbInferError::ProviderCall::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
-pub nika_verb_infer::VerbInferError::ProviderCallExhausted
-pub nika_verb_infer::VerbInferError::ProviderCallExhausted::attempts: u32
-pub nika_verb_infer::VerbInferError::ProviderCallExhausted::model: alloc::string::String
-pub nika_verb_infer::VerbInferError::ProviderCallExhausted::source: alloc::boxed::Box<nika_kernel_ai::provider::ProviderError>
-pub nika_verb_infer::VerbInferError::ProviderCallExhausted::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
-pub nika_verb_infer::VerbInferError::ProviderCallExhausted::waited_ms: u64
 pub nika_verb_infer::VerbInferError::SchemaRefused
 pub nika_verb_infer::VerbInferError::SchemaRefused::model: alloc::string::String
 pub nika_verb_infer::VerbInferError::SchemaRefused::source: alloc::boxed::Box<nika_kernel_ai::provider::ProviderError>

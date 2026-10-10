@@ -30,11 +30,10 @@
 //!
 //! Streaming passthrough (`verb-agent`/engine surface) · CAS vision
 //! staging (`nika-media-*` · deferred; file/url refs ARE wired) ·
-//! `${{ }}` resolution (upstream binding) · transport retry/backoff
-//! (the provider layer's bounded floor on a rate-limited or overloaded
-//! seat lives in `nika_providers::retry`; the authored `retry:` is the
-//! runtime's — only the schema-validation retry lives here, and the
-//! transport's own account rides [`InferOutput::transport`]).
+//! `${{ }}` resolution (upstream binding) · transport retry (the provider
+//! layer never re-sends a call; the authored `retry:` is the runtime's —
+//! only the schema-validation retry lives here, and the transport's own
+//! account rides [`InferOutput::transport`]).
 //!
 //! ## Example (mock · zero key · zero network)
 //!
@@ -177,9 +176,8 @@ pub struct InferOutput {
     /// alone — the task total lives in `self.usage`.
     pub response: InferResponse,
     /// What the transport did across EVERY round-trip of this task: the
-    /// round-trips sent, the backoff waited on a rate-limited or
-    /// overloaded seat, the statuses waited on — the receipt's account of
-    /// a call that answered only after the provider layer's bounded retry.
+    /// round-trips sent (the transport never re-sends one, so each is a
+    /// call this verb made) — the receipt's account of the task.
     pub transport: TransportReport,
     /// How the authored selection travelled (`access_selection`) — set
     /// only when the input carried a requirement.
@@ -426,9 +424,8 @@ where
     /// [`VerbInferError::ModelResolution`] when the model string resolves
     /// to no profile · [`VerbInferError::ProviderCall`]
     /// when the provider round-trip fails
-    /// ([`VerbInferError::ProviderCallExhausted`] when it failed after the
-    /// transport's bounded backoff · [`VerbInferError::SchemaRefused`] when
-    /// the seat refused a request carrying the `schema:` natively) ·
+    /// ([`VerbInferError::SchemaRefused`] when the seat refused a request
+    /// carrying the `schema:` natively) ·
     /// [`VerbInferError::SchemaValidation`] when a `schema:` task exhausts
     /// the retry budget without a conforming reply ·
     /// [`VerbInferError::EmptyAnswer`] when the provider spent tokens yet
@@ -508,7 +505,6 @@ where
                     return Err(provider_failure(
                         model,
                         source,
-                        &report,
                         wire,
                         incurred(&usage_total, &transport_total),
                     ));
@@ -670,29 +666,18 @@ fn finish_text_lane(
     )
 }
 
-/// The verb's reading of a failed provider call — three shapes, one spec
-/// code (`NIKA-INFER-001`): the transport's bounded backoff spent on a
-/// rate-limited or overloaded seat (the attempts and the wait ride the
-/// message; the transience survives for an authored `retry:`); the seat
-/// refusing a request that carried the task `schema:` natively (a 400 or
-/// 422 at the door — the fix is the schema or the seat, never a retry);
-/// every other failure as the provider named it.
+/// The verb's reading of a failed provider call — two shapes, one spec
+/// code (`NIKA-INFER-001`): the seat refusing a request that carried the
+/// task `schema:` natively (a 400 or 422 at the door — the fix is the
+/// schema or the seat, never a retry); every other failure as the provider
+/// named it, a rate-limited or overloaded seat included (the transport
+/// never re-sends; the transience survives for an authored `retry:`).
 fn provider_failure(
     model: &str,
     source: ProviderError,
-    report: &TransportReport,
     wire: SchemaWire,
     spend: Box<SpendOnFailure>,
 ) -> VerbInferError {
-    if report.retried() {
-        return VerbInferError::ProviderCallExhausted {
-            model: model.to_owned(),
-            attempts: report.attempts,
-            waited_ms: u64::try_from(report.waited.as_millis()).unwrap_or(u64::MAX),
-            source: Box::new(source),
-            spend,
-        };
-    }
     let native = match wire {
         SchemaWire::Strict => Some("json_schema"),
         SchemaWire::JsonMode => Some("json_object"),

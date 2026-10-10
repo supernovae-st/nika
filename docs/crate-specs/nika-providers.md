@@ -270,6 +270,15 @@ seam and NIKA code ranges: exhausted quota maps to the existing API-error
 code, transient 429 to the existing rate-limit code. Authentication failures
 retain their operator guidance. Legacy error variants remain constructible.
 
+The transport never re-sends a provider call: the money admission counts the
+requests a call may send (the author's `retry:` and the schema re-asks only).
+A 429, 503 or 529 ends the call at its first answer; `retry::transient_rejection`
+reads its status and the delay the provider named (`Retry-After`, or Gemini's
+`retryDelay`) for the author's `retry:` or the Session, which decide by their
+own counted policy. Each `TransportReport` and each receipt counts the requests
+actually sent. Every provider client makes one physical attempt per post
+(protocol-NACK retries are off); the fetch plane keeps its own documented policy.
+
 HTTP-date Retry-After is preserved without consulting a clock; only numeric
 seconds produce `retry_after_ms`. A malformed or unknown provider body cannot
 prove quota exhaustion: its status classification remains the fallback.
@@ -291,8 +300,8 @@ reservations and catalog estimates, separate from invoices and Run consent.
 threads the same account into resolved providers. Exact endpoint/model binding,
 text-only serialized body ≤1 MiB, explicit positive output bounds and a kernel
 HTTP single-attempt capability are required before dispatch. Streaming refuses.
-The bounded path disables registry retry and redirects; the HTTP effect must
-disable protocol retries. Complete validated usage settles once, releasing only
+The bounded path disables redirects; the HTTP effect must disable protocol
+retries, as every provider client does. Complete validated usage settles once, releasing only
 the unused reservation. Dropped sent futures, errors, missing/partial usage and
 contradictions retain exposure and freeze the account. Over-bound observations
 remain in receipts. `billed` is unknown; catalog math never becomes an invoice.

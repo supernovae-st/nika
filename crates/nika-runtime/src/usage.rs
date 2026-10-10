@@ -18,12 +18,10 @@
 //! a fabricated zero (the ledger's fake-zero law).
 //!
 //! The same carrier rides the TRANSPORT's account of the call (the
-//! product-convergence war room · L4): a seat that answered only after
-//! the provider layer's bounded backoff (429 · 503 · 529 · `Retry-After`)
-//! used to be invisible in the sealed trace — the verb reported it, the
-//! frame did not. `attempts` · `waited_ms` · `retried_on` now ride the
-//! terminal beside the meters they explain (a 3-second task with one
-//! completion token is a rate-limited seat, not a slow one).
+//! product-convergence war room · L4): `attempts` (the round-trips sent)
+//! rides the terminal beside the meters it explains. The transport never
+//! re-sends a provider call, so `waited_ms` and `retried_on` stay absent
+//! on a current record; they still read an older record that carries them.
 
 use nika_providers::TransportReport;
 
@@ -64,11 +62,11 @@ pub(crate) struct UsageSplit {
     /// like the meters). `None` = the verb reported no transport (a
     /// harness seat · an agent loop · a builtin).
     pub attempts: Option<u32>,
-    /// Backoff slept between round-trips, in milliseconds — the seat's
-    /// `Retry-After` or the layer's 1 s · 2 s · 4 s schedule.
+    /// Wait between round-trips, in milliseconds: none on a current record,
+    /// since the transport never re-sends a provider call.
     pub waited_ms: Option<u64>,
-    /// The HTTP status of every answer the transport waited on, in
-    /// order (`[429, 429]` = two rate-limits before the answer).
+    /// The HTTP status of every answer the transport waited on, in order:
+    /// empty on a current record, since the transport never re-sends.
     pub retried_on: Vec<u16>,
 }
 
