@@ -52,7 +52,8 @@ pub(super) enum Reply {
     Status(u16, String),
     /// Signal arrival, wait for the release, then answer this text.
     Parked(String),
-    /// 503 with `Retry-After: 0`: the transport resends the same request at once.
+    /// 503 with `Retry-After: 0`: a transient rejection that ends the call; the provider
+    /// layer never re-sends it.
     Busy,
 }
 
@@ -186,6 +187,19 @@ fn completion(text: &str) -> String {
         "usage": {"prompt_tokens": 1000, "completion_tokens": 200, "total_tokens": 1200},
     })
     .to_string()
+}
+
+/// The provider failure a document states: its `authoring_provider` diagnostic's message.
+pub(super) fn provider_failure(document: &Value) -> String {
+    document["diagnostics"]
+        .as_array()
+        .expect("diagnostics")
+        .iter()
+        .find(|d| d["target"] == "authoring_provider")
+        .expect("the provider failure is stated")["message"]
+        .as_str()
+        .expect("message")
+        .to_owned()
 }
 
 fn busy(stream: &mut std::net::TcpStream) {

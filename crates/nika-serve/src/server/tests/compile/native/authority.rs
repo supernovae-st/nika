@@ -202,7 +202,7 @@ async fn unidentified_responses_remain_visible_beside_named_responses() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn continuous_preparation_never_hides_a_transport_retry() {
+async fn continuous_preparation_sends_a_busy_seat_one_request_and_reports_it() {
     let world = TestWorld::new();
     let seat = Seat::start(vec![Reply::Busy, Reply::Text(open_document(""))]);
     let operator = NativeAuthoring::new(SEAT, seat.providers()).with_repairs(0);
@@ -210,27 +210,37 @@ async fn continuous_preparation_never_hides_a_transport_retry() {
     let response = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
-    let bodies = seat.bodies();
-    assert_eq!(bodies.len(), 2, "the transient retry reached the seat");
-    assert_eq!(bodies[0], bodies[1], "the retry sends the same request");
+    assert_eq!(
+        seat.bodies().len(),
+        1,
+        "a busy answer ends the call: the provider layer never re-sends it"
+    );
     assert_eq!(document["provenance"]["authoring"]["calls"], 1);
-    assert_eq!(roles(&document), [("document".to_owned(), Value::Null)]);
+    assert_eq!(
+        roles(&document),
+        [("document".to_owned(), json!("provider_error"))],
+        "the call is journaled as ended by the provider error"
+    );
     let account = authority(&document);
     assert_eq!(account["max_calls"], Value::Null);
     assert_eq!(account["invocations"], json!({"sent": 1, "refused": 0}));
     assert_eq!(
         account["http_requests"],
-        json!({"sent": 2, "refused": 0, "unknown": null}),
-        "a physical retry remains visible beside its logical invocation"
+        json!({"sent": 1, "refused": 0, "unknown": null}),
+        "one physical request for its one invocation"
     );
     assert_eq!(document["status"], "incomplete", "{document:#}");
     assert!(document["candidate"].is_null(), "{document:#}");
-    assert_eq!(document["questions"][0]["key"], OPEN_KEY);
+    let failure = provider_failure(&document);
+    assert!(
+        failure.contains("HTTP 503"),
+        "the busy answer is reported: {failure}"
+    );
     server.stop().await.expect("clean stop");
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn an_explicit_one_request_limit_refuses_a_transport_retry() {
+async fn under_a_one_request_limit_a_busy_answer_ends_the_call_with_nothing_to_refuse() {
     let world = TestWorld::new();
     let seat = Seat::start(vec![Reply::Busy, Reply::Text(document_answer(DRAFT))]);
     let operator = NativeAuthoring::new(SEAT, seat.providers())
@@ -240,21 +250,22 @@ async fn an_explicit_one_request_limit_refuses_a_transport_retry() {
     let response = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
-    assert_eq!(
-        seat.calls(),
-        1,
-        "no retry exceeds the explicit request limit"
-    );
+    assert_eq!(seat.calls(), 1, "one physical request, never re-sent");
     let account = authority(&document);
     assert_eq!(account["max_calls"], 1);
     assert_eq!(account["invocations"], json!({"sent": 1, "refused": 0}));
     assert_eq!(
         account["http_requests"],
-        json!({"sent": 1, "refused": 1, "unknown": null})
+        json!({"sent": 1, "refused": 0, "unknown": null}),
+        "no re-send was attempted, so the limit had nothing to refuse"
     );
     assert_ne!(document["status"], "ready", "{document:#}");
     assert!(document["candidate"].is_null(), "{document:#}");
-    assert!(document.to_string().contains("max_calls"), "{document:#}");
+    let failure = provider_failure(&document);
+    assert!(
+        failure.contains("HTTP 503"),
+        "the busy answer is reported: {failure}"
+    );
     server.stop().await.expect("clean stop");
 }
 

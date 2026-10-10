@@ -533,8 +533,8 @@ fn the_recorder_sees_the_request_a_named_seat_is_sent() {
     let doc = seated(room.path(), FREE, &recorder, &[]);
     let (accepts, bodies) = recorder.counts();
     assert!(accepts >= 1 && bodies >= 1, "{accepts}/{bodies}: {doc}");
-    // A 503 can resend the same logical call. Every physical body stays counted;
-    // a timeout or provider failure never starts a new authoring round.
+    // A 503 ends the call: its one physical body is counted, and a timeout or provider
+    // failure never starts a new authoring round.
     assert_eq!(
         prepared(&doc),
         bodies as u64,

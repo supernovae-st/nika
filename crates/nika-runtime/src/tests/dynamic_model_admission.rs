@@ -497,7 +497,7 @@ async fn unsupported_free_shapes_and_unknown_cost_routes_never_reach_the_wire() 
 }
 
 /// Paid, local and mock values keep today's transport and pricing under the
-/// same observer: the normal client, protocol retries, no receipt attempt.
+/// same observer: the normal client (one attempt per request), no receipt attempt.
 #[tokio::test]
 async fn run_time_paid_local_and_mock_routes_keep_their_composition() {
     let local = owned_local_engine();
