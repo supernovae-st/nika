@@ -393,7 +393,7 @@ fn the_palette_returns_to_the_exact_draft_and_its_focus() {
 }
 
 /// The same proof with the terminal read in 64-byte slices at the size whose
-/// workspace palette frame moves the composer box up and outgrows the
+/// workspace palette frame (its band over the conversation) outgrows the
 /// process's line buffer: the draft is judged on the frame the palette
 /// paints, never between its writes, whatever the scheduling.
 #[test]
@@ -422,9 +422,10 @@ fn palette_returns_to_the_draft(term: &mut Term, at: &str, workspace: bool) {
     }
     term.send(CTRL_O);
     if workspace {
-        // The palette's frame moves the composer box up and reaches the
-        // terminal in more than one write: one complete native frame says
-        // where the draft is, never the rows a first write leaves stale.
+        // The palette's frame paints its band over the conversation and
+        // reaches the terminal in more than one write: one complete native
+        // frame says where the draft is, never the rows a first write leaves
+        // stale.
         term.wait_workspace_frame(&format!("{at}: the palette"), |screen| {
             screen.contains("commands ›")
         });

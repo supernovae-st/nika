@@ -92,6 +92,13 @@ the header's composition (`workspace::masthead`) and the project's data and
 pure projections (`workspace::project`). The renderer keeps the audit fold,
 the aside routing over the live run and the review's place in the transcript.
 
+The continuous surface's plan lives here too (`workspace::surface`, same
+day): where the title, the head, the list and the tail of a surface stand in
+its band, the whole pages of its list, the item a row maps back to, an item's
+row and the title row, and the clearing of the band. The renderer decides
+what a surface holds (the chooser's commands, a typed choice's offers) and
+routes its keys and pointer.
+
 - Nothing here reads a file, a clock or the environment, spawns, blocks or stores. The faces
   tests are the only callers of `nika_cli_host::oracle::audit_source`, as the owner's stand-in,
   once per fixture.

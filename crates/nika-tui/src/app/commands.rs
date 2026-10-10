@@ -33,6 +33,7 @@ pub(super) mod diagnostic;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+use super::said::Said;
 use super::{Heard, Shell, is_ctrl_c};
 use crate::composer::chooser::Chosen;
 use crate::events::UiEvent;
@@ -166,7 +167,7 @@ fn is_palette_key(key: &KeyEvent) -> bool {
 }
 
 /// What the shell's own readers did with a key.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum Caught {
     /// A reader took it: only the view, the selection, the search or the
     /// draft's words changed; nothing was sent, answered or stopped.
@@ -174,6 +175,9 @@ pub(super) enum Caught {
     /// The palette chose this view key: it takes the ordinary path, as if
     /// it had been pressed.
     Press(KeyEvent),
+    /// The typed choice holding the line sent this, bound to the question
+    /// painted ([`super::surface`]).
+    Sent(Said),
 }
 
 impl<C: Conversation + 'static> Shell<C> {
@@ -279,6 +283,10 @@ impl<C: Conversation + 'static> Shell<C> {
         if self.open_diagnostic(key) {
             return Some(self.caught(Caught::Read));
         }
+        // The typed choice holding the line reads its keys before the chooser.
+        if let Some(caught) = self.choice_key(key) {
+            return Some(caught);
+        }
         if !self.composer.palette_open() && !self.composer_has_keys() {
             return None;
         }
@@ -369,7 +377,9 @@ impl<C: Conversation + 'static> Shell<C> {
         match event {
             UiEvent::Key(key) => match self.catch(key) {
                 None => Err(UiEvent::Key(key)),
-                Some(Caught::Read) => {
+                // A typed choice holds no line while a turn works: nothing
+                // is sent here.
+                Some(Caught::Read | Caught::Sent(_)) => {
                     self.typed_live = true;
                     Ok(Heard::Redraw)
                 }
@@ -384,10 +394,16 @@ impl<C: Conversation + 'static> Shell<C> {
         }
     }
 
-    /// A paste at rest: the open palette's search takes it, else the draft;
-    /// data either way, never a key.
+    /// A paste at rest: the open palette's search takes it, else the own
+    /// reply of a typed choice holding the line, else the draft; data every
+    /// way, never a key.
     pub(super) fn paste(&mut self, text: &str) {
-        if !self.composer.paste_query(text) {
+        if self.composer.paste_query(text) {
+            return;
+        }
+        if self.state.busy.is_none() && self.composer.choosing(&self.state.waiting) {
+            self.composer.paste_own(text);
+        } else {
             self.composer.paste(text);
         }
     }

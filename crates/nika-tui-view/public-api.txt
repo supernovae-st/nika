@@ -1461,6 +1461,185 @@ pub fn nika_tui_view::workspace::project::run_object(run: &nika_tui_view::worksp
 pub fn nika_tui_view::workspace::project::thread(view: core::option::Option<&nika_tui_view::workspace::project::ProjectView>, on_screen: core::option::Option<&str>) -> nika_tui_view::workspace::conversation::Thread
 pub fn nika_tui_view::workspace::project::welcome(view: core::option::Option<&nika_tui_view::workspace::project::ProjectView>, _ascii: bool) -> nika_tui_view::workspace::object::Object
 pub fn nika_tui_view::workspace::project::workflow_object(workflow: &nika_tui_view::workspace::project::WorkflowView) -> nika_tui_view::workspace::object::Object
+pub mod nika_tui_view::workspace::surface
+#[non_exhaustive] pub struct nika_tui_view::workspace::surface::Ask
+pub nika_tui_view::workspace::surface::Ask::head: u16
+pub nika_tui_view::workspace::surface::Ask::items: usize
+pub nika_tui_view::workspace::surface::Ask::more: u16
+pub nika_tui_view::workspace::surface::Ask::tail: u16
+impl nika_tui_view::workspace::surface::Ask
+pub const fn nika_tui_view::workspace::surface::Ask::headed(self, head: u16, more: u16) -> Self
+pub const fn nika_tui_view::workspace::surface::Ask::new(items: usize) -> Self
+pub const fn nika_tui_view::workspace::surface::Ask::tailed(self, tail: u16) -> Self
+impl core::clone::Clone for nika_tui_view::workspace::surface::Ask
+pub fn nika_tui_view::workspace::surface::Ask::clone(&self) -> nika_tui_view::workspace::surface::Ask
+impl core::cmp::Eq for nika_tui_view::workspace::surface::Ask
+impl core::cmp::PartialEq for nika_tui_view::workspace::surface::Ask
+pub fn nika_tui_view::workspace::surface::Ask::eq(&self, other: &nika_tui_view::workspace::surface::Ask) -> bool
+impl core::fmt::Debug for nika_tui_view::workspace::surface::Ask
+pub fn nika_tui_view::workspace::surface::Ask::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui_view::workspace::surface::Ask
+impl core::marker::StructuralPartialEq for nika_tui_view::workspace::surface::Ask
+impl<D> owo_colors::OwoColorize for nika_tui_view::workspace::surface::Ask
+impl<Q, K> equivalent::Equivalent<K> for nika_tui_view::workspace::surface::Ask where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Ask::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui_view::workspace::surface::Ask where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Ask::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui_view::workspace::surface::Ask where U: core::convert::From<T>
+pub fn nika_tui_view::workspace::surface::Ask::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_view::workspace::surface::Ask where U: core::convert::Into<T>
+pub type nika_tui_view::workspace::surface::Ask::Error = core::convert::Infallible
+pub fn nika_tui_view::workspace::surface::Ask::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_view::workspace::surface::Ask where U: core::convert::TryFrom<T>
+pub type nika_tui_view::workspace::surface::Ask::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_view::workspace::surface::Ask::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_view::workspace::surface::Ask where T: core::clone::Clone
+pub type nika_tui_view::workspace::surface::Ask::Owned = T
+pub fn nika_tui_view::workspace::surface::Ask::clone_into(&self, target: &mut T)
+pub fn nika_tui_view::workspace::surface::Ask::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_view::workspace::surface::Ask where T: 'static + ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Ask::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_view::workspace::surface::Ask where T: ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Ask::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_view::workspace::surface::Ask where T: ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Ask::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_view::workspace::surface::Ask where T: core::clone::Clone
+pub unsafe fn nika_tui_view::workspace::surface::Ask::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_view::workspace::surface::Ask
+pub fn nika_tui_view::workspace::surface::Ask::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui_view::workspace::surface::Ask where T: core::clone::Clone
+pub fn nika_tui_view::workspace::surface::Ask::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui_view::workspace::surface::Ask
+impl<T> nika_error::traits::AsAny for nika_tui_view::workspace::surface::Ask where T: 'static
+pub fn nika_tui_view::workspace::surface::Ask::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_tui_view::workspace::surface::Ask where T: core::marker::Copy
+pub fn nika_tui_view::workspace::surface::Ask::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui_view::workspace::surface::Ask where T: ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Ask::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui_view::workspace::surface::Ask::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui_view::workspace::surface::Ask
+impl<T> tracing::instrument::WithSubscriber for nika_tui_view::workspace::surface::Ask
+impl<T> typenum::type_operators::Same for nika_tui_view::workspace::surface::Ask
+pub type nika_tui_view::workspace::surface::Ask::Output = T
+#[non_exhaustive] pub struct nika_tui_view::workspace::surface::Mark
+pub nika_tui_view::workspace::surface::Mark::active: bool
+pub nika_tui_view::workspace::surface::Mark::selected: bool
+impl nika_tui_view::workspace::surface::Mark
+pub const fn nika_tui_view::workspace::surface::Mark::new(selected: bool, active: bool) -> Self
+impl core::clone::Clone for nika_tui_view::workspace::surface::Mark
+pub fn nika_tui_view::workspace::surface::Mark::clone(&self) -> nika_tui_view::workspace::surface::Mark
+impl core::cmp::Eq for nika_tui_view::workspace::surface::Mark
+impl core::cmp::PartialEq for nika_tui_view::workspace::surface::Mark
+pub fn nika_tui_view::workspace::surface::Mark::eq(&self, other: &nika_tui_view::workspace::surface::Mark) -> bool
+impl core::fmt::Debug for nika_tui_view::workspace::surface::Mark
+pub fn nika_tui_view::workspace::surface::Mark::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui_view::workspace::surface::Mark
+impl core::marker::StructuralPartialEq for nika_tui_view::workspace::surface::Mark
+impl<D> owo_colors::OwoColorize for nika_tui_view::workspace::surface::Mark
+impl<Q, K> equivalent::Equivalent<K> for nika_tui_view::workspace::surface::Mark where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Mark::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui_view::workspace::surface::Mark where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Mark::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui_view::workspace::surface::Mark where U: core::convert::From<T>
+pub fn nika_tui_view::workspace::surface::Mark::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_view::workspace::surface::Mark where U: core::convert::Into<T>
+pub type nika_tui_view::workspace::surface::Mark::Error = core::convert::Infallible
+pub fn nika_tui_view::workspace::surface::Mark::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_view::workspace::surface::Mark where U: core::convert::TryFrom<T>
+pub type nika_tui_view::workspace::surface::Mark::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_view::workspace::surface::Mark::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_view::workspace::surface::Mark where T: core::clone::Clone
+pub type nika_tui_view::workspace::surface::Mark::Owned = T
+pub fn nika_tui_view::workspace::surface::Mark::clone_into(&self, target: &mut T)
+pub fn nika_tui_view::workspace::surface::Mark::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_view::workspace::surface::Mark where T: 'static + ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Mark::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_view::workspace::surface::Mark where T: ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Mark::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_view::workspace::surface::Mark where T: ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Mark::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_view::workspace::surface::Mark where T: core::clone::Clone
+pub unsafe fn nika_tui_view::workspace::surface::Mark::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_view::workspace::surface::Mark
+pub fn nika_tui_view::workspace::surface::Mark::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui_view::workspace::surface::Mark where T: core::clone::Clone
+pub fn nika_tui_view::workspace::surface::Mark::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui_view::workspace::surface::Mark
+impl<T> nika_error::traits::AsAny for nika_tui_view::workspace::surface::Mark where T: 'static
+pub fn nika_tui_view::workspace::surface::Mark::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_tui_view::workspace::surface::Mark where T: core::marker::Copy
+pub fn nika_tui_view::workspace::surface::Mark::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui_view::workspace::surface::Mark where T: ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Mark::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui_view::workspace::surface::Mark::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui_view::workspace::surface::Mark
+impl<T> tracing::instrument::WithSubscriber for nika_tui_view::workspace::surface::Mark
+impl<T> typenum::type_operators::Same for nika_tui_view::workspace::surface::Mark
+pub type nika_tui_view::workspace::surface::Mark::Output = T
+#[non_exhaustive] pub struct nika_tui_view::workspace::surface::Plan
+pub nika_tui_view::workspace::surface::Plan::band: ratatui_core::layout::rect::Rect
+pub nika_tui_view::workspace::surface::Plan::framed: bool
+pub nika_tui_view::workspace::surface::Plan::head: ratatui_core::layout::rect::Rect
+pub nika_tui_view::workspace::surface::Plan::list: ratatui_core::layout::rect::Rect
+pub nika_tui_view::workspace::surface::Plan::tail: ratatui_core::layout::rect::Rect
+pub nika_tui_view::workspace::surface::Plan::title: ratatui_core::layout::rect::Rect
+impl core::clone::Clone for nika_tui_view::workspace::surface::Plan
+pub fn nika_tui_view::workspace::surface::Plan::clone(&self) -> nika_tui_view::workspace::surface::Plan
+impl core::cmp::Eq for nika_tui_view::workspace::surface::Plan
+impl core::cmp::PartialEq for nika_tui_view::workspace::surface::Plan
+pub fn nika_tui_view::workspace::surface::Plan::eq(&self, other: &nika_tui_view::workspace::surface::Plan) -> bool
+impl core::fmt::Debug for nika_tui_view::workspace::surface::Plan
+pub fn nika_tui_view::workspace::surface::Plan::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui_view::workspace::surface::Plan
+impl core::marker::StructuralPartialEq for nika_tui_view::workspace::surface::Plan
+impl<D> owo_colors::OwoColorize for nika_tui_view::workspace::surface::Plan
+impl<Q, K> equivalent::Equivalent<K> for nika_tui_view::workspace::surface::Plan where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Plan::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui_view::workspace::surface::Plan where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Plan::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui_view::workspace::surface::Plan where U: core::convert::From<T>
+pub fn nika_tui_view::workspace::surface::Plan::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_view::workspace::surface::Plan where U: core::convert::Into<T>
+pub type nika_tui_view::workspace::surface::Plan::Error = core::convert::Infallible
+pub fn nika_tui_view::workspace::surface::Plan::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_view::workspace::surface::Plan where U: core::convert::TryFrom<T>
+pub type nika_tui_view::workspace::surface::Plan::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_view::workspace::surface::Plan::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_view::workspace::surface::Plan where T: core::clone::Clone
+pub type nika_tui_view::workspace::surface::Plan::Owned = T
+pub fn nika_tui_view::workspace::surface::Plan::clone_into(&self, target: &mut T)
+pub fn nika_tui_view::workspace::surface::Plan::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_view::workspace::surface::Plan where T: 'static + ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Plan::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_view::workspace::surface::Plan where T: ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Plan::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_view::workspace::surface::Plan where T: ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Plan::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_view::workspace::surface::Plan where T: core::clone::Clone
+pub unsafe fn nika_tui_view::workspace::surface::Plan::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_view::workspace::surface::Plan
+pub fn nika_tui_view::workspace::surface::Plan::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui_view::workspace::surface::Plan where T: core::clone::Clone
+pub fn nika_tui_view::workspace::surface::Plan::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui_view::workspace::surface::Plan
+impl<T> nika_error::traits::AsAny for nika_tui_view::workspace::surface::Plan where T: 'static
+pub fn nika_tui_view::workspace::surface::Plan::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_tui_view::workspace::surface::Plan where T: core::marker::Copy
+pub fn nika_tui_view::workspace::surface::Plan::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui_view::workspace::surface::Plan where T: ?core::marker::Sized
+pub fn nika_tui_view::workspace::surface::Plan::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui_view::workspace::surface::Plan::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui_view::workspace::surface::Plan
+impl<T> tracing::instrument::WithSubscriber for nika_tui_view::workspace::surface::Plan
+impl<T> typenum::type_operators::Same for nika_tui_view::workspace::surface::Plan
+pub type nika_tui_view::workspace::surface::Plan::Output = T
+pub fn nika_tui_view::workspace::surface::clear(plan: &nika_tui_view::workspace::surface::Plan, buf: &mut ratatui_core::buffer::buffer::Buffer, (ascii, color): (bool, bool))
+pub fn nika_tui_view::workspace::surface::item_at(plan: &nika_tui_view::workspace::surface::Plan, shown: &core::ops::range::Range<usize>, y: u16) -> core::option::Option<usize>
+pub fn nika_tui_view::workspace::surface::page(selected: core::option::Option<usize>, count: usize, rows: usize) -> core::ops::range::Range<usize>
+pub fn nika_tui_view::workspace::surface::paint_title(plan: &nika_tui_view::workspace::surface::Plan, line: &ratatui_core::text::line::Line<'_>, buf: &mut ratatui_core::buffer::buffer::Buffer)
+pub fn nika_tui_view::workspace::surface::plan(band: ratatui_core::layout::rect::Rect, ask: nika_tui_view::workspace::surface::Ask, framed: bool) -> nika_tui_view::workspace::surface::Plan
+pub fn nika_tui_view::workspace::surface::row((name, does): (&str, &str), column: usize, width: u16, mark: nika_tui_view::workspace::surface::Mark, (ascii, color): (bool, bool)) -> ratatui_core::text::line::Line<'static>
+pub fn nika_tui_view::workspace::surface::title((name, facts): (&str, &str), close: &str, width: u16, (ascii, color): (bool, bool)) -> ratatui_core::text::line::Line<'static>
 pub mod nika_tui_view::workspace::text
 pub const nika_tui_view::workspace::text::HANG: usize
 pub const nika_tui_view::workspace::text::KEEP: char

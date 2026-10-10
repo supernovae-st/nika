@@ -131,9 +131,17 @@ pub(crate) struct Chooser {
     query: Option<String>,
     /// The composer holds the keys; the slash list shows and reads only then.
     focused: bool,
+    /// A typed choice holds the line: the slash list never opens over it,
+    /// whatever the draft waiting out of view holds.
+    held: bool,
 }
 
 impl Chooser {
+    /// Whether a typed choice holds the line ([`Chooser::held`]).
+    pub(super) fn hold(&mut self, held: bool) {
+        self.held = held;
+    }
+
     /// The commands whose name begins with `word`, case aside.
     fn beginning(&self, word: &str) -> Vec<&Entry> {
         let word = word.to_lowercase();
@@ -214,6 +222,7 @@ impl Composer {
             self.area.cursor_line_style()
         };
         self.area.set_cursor_style(cursor);
+        self.answer.focus(focused);
     }
 
     /// Whether the composer holds the keys ([`Self::set_focused`]).
@@ -292,6 +301,7 @@ impl Composer {
     fn typed_command(&self) -> Option<String> {
         let text = self.text();
         let open = self.chooser.focused
+            && !self.chooser.held
             && command_word(&text)
             && !self.recalled(&text)
             && self.chooser.closed_for.as_deref() != Some(text.as_str());
@@ -393,6 +403,15 @@ impl Composer {
                 self.close_palette();
                 Chosen::Pass
             }
+        }
+    }
+
+    /// A press on the listed entry at `index`: it is selected, nothing else.
+    pub(crate) fn select_entry(&mut self, index: usize) {
+        let name = (self.listing())
+            .and_then(|listing| listing.entries.get(index).map(|entry| entry.name.clone()));
+        if name.is_some() {
+            self.chooser.picked = name;
         }
     }
 

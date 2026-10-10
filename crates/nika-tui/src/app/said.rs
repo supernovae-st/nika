@@ -65,7 +65,7 @@ impl Said {
 /// answer bound to the identity painted, or a line to whatever waits (a
 /// question kept in prose, a cost decision, a consent, a gate, the choice of
 /// intelligence, the free prompt).
-fn routed(waiting: &Waiting, line: String) -> Said {
+pub(super) fn routed(waiting: &Waiting, line: String) -> Said {
     match waiting {
         Waiting::QuestionDocument { asked, .. } => Said::Answer {
             text: line,
@@ -90,6 +90,8 @@ pub(super) enum Unsent {
     Nothing,
     /// These exact words go back to the draft.
     Words(String),
+    /// These exact words go back to the typed choice's own reply field.
+    Own(String),
     /// The offer sent stays selected; its key never fills the draft.
     Selected,
 }
@@ -102,6 +104,7 @@ fn returned(composer: &mut Composer, beats: &[Beat]) -> Unsent {
     let sent = composer.answer_returned(refused.is_some());
     match refused {
         Some(_) if sent == Some(Sent::Offer) => Unsent::Selected,
+        Some(words) if sent == Some(Sent::Own) => Unsent::Own(words),
         Some(words) => Unsent::Words(words),
         None => Unsent::Nothing,
     }
@@ -167,10 +170,20 @@ impl<C: Conversation + 'static> Shell<C> {
                 self.keep_reading(|_, composer| composer.put_back(&words));
                 BACK_IN_THE_BOX
             }
+            // Its question still holds the line: back in its own field.
+            Unsent::Own(words) if self.composer.choosing(&self.state.waiting) => {
+                self.composer.put_back_own(&words);
+                BACK_IN_THE_BOX
+            }
+            // The question moved on: the words wait in the draft, never lost.
+            Unsent::Own(words) if !fresh => {
+                self.keep_reading(|_, composer| composer.put_back(&words));
+                BACK_IN_THE_BOX
+            }
             Unsent::Selected if self.composer.offer_selected(&self.state.waiting).is_some() => {
                 STILL_SELECTED
             }
-            Unsent::Words(_) | Unsent::Selected => NOTHING_SENT,
+            Unsent::Words(_) | Unsent::Own(_) | Unsent::Selected => NOTHING_SENT,
         };
         self.state.completion = Some(notice.to_owned());
     }
@@ -413,6 +426,41 @@ mod tests {
         assert!(composer.text().is_empty(), "a key never fills the draft");
         let taken = [Beat::Wait(Waiting::Free)];
         assert_eq!(returned(&mut composer, &taken), Unsent::Nothing);
+    }
+
+    /// An own reply typed in the typed choice's own field leaves before any
+    /// selection; refused, its exact words come back to that field (never to
+    /// the draft, which never changed) for the question painted again.
+    #[test]
+    fn an_own_reply_not_taken_comes_back_to_its_own_field() {
+        let key = |code| KeyEvent::new(code, KeyModifiers::NONE);
+        let painted = typed(currencies(), "w-1");
+        let mut composer = Composer::new();
+        composer.set_focused(true);
+        composer.paste("my unsent draft");
+        composer.follow(&painted);
+        for c in "dollars".chars() {
+            assert!(composer.own_key(key(KeyCode::Char(c))));
+        }
+        composer.offer_key(&painted, key(KeyCode::Down));
+        let sent = composer.offer_key(&painted, key(KeyCode::Enter));
+        assert_eq!(sent, Offered::Answer("dollars".to_owned()));
+        let refused = [
+            Beat::Say(Committed::new(Kind::Refusal, "stale")),
+            Beat::NotTaken("dollars".to_owned()),
+            Beat::Wait(painted.clone()),
+        ];
+        assert_eq!(
+            returned(&mut composer, &refused),
+            Unsent::Own("dollars".to_owned())
+        );
+        composer.put_back_own("dollars");
+        assert_eq!(composer.own_reply(), "dollars");
+        assert_eq!(
+            composer.text(),
+            "my unsent draft",
+            "the draft never changed"
+        );
     }
 
     /// The words of the first answer the beats say was not taken, whatever

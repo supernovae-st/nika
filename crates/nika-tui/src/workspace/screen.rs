@@ -601,6 +601,21 @@ fn panel(
     }
     let live = live_panel(geometry, state, screen);
     render_panel_live(frame, state, composer, bottom, live);
+    // An open surface covers the transcript down to the composer, last.
+    crate::render::paint_band(frame, (state, composer), transcript.y, bottom, live);
+}
+
+/// The band an open surface paints over in `screen`'s conversation on
+/// `geometry` ([`crate::render::band`]): painting and the pointer read it.
+pub(crate) fn band(
+    geometry: &Geometry,
+    state: &UiState,
+    composer: &Composer,
+    screen: &Screen,
+) -> Option<(Rect, bool)> {
+    let [_, transcript, _, live] = panel_areas(geometry, state, composer, screen);
+    let panel = live_panel(geometry, state, screen);
+    crate::render::band(state, composer, transcript.y, live, panel)
 }
 
 /// The panel rows from which its title takes a thin rule under it.

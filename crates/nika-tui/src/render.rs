@@ -10,13 +10,17 @@
 //! slot for a gate, a permission, a cost or a boundary, the failure slot for a
 //! refusal; the default foreground for everything the human reads.
 //!
-//! The live area holds the command chooser under the line it fills
-//! (`chooser`): while it shows, the area may take all but two rows of what
-//! it is given, so the transcript and its rule always keep a row. A typed
-//! question's card stands above that line (`question`): it may take as much,
-//! and it gives way first, so the line that answers keeps its row. In the
-//! workspace's conversation the current proposal's review (`Consent`) gives
-//! the live area its standing and the one row that names every consent word.
+//! What the chooser lists, and the offers of a typed choice, open as one
+//! surface above the line (`surface`): a band from the transcript's first
+//! row down to the composer. The live area is sized by facts at rest, so
+//! opening, searching or closing a surface moves no row and the transcript
+//! keeps its reading position under the band ([`band`]); an inline frame
+//! grows for its band instead. The card of a typed question that offers
+//! nothing stands above the line (`question`): it may take all but two rows
+//! of what it is given, and it gives way first, so the line that answers
+//! keeps its row. In the workspace's conversation the current proposal's
+//! review (`Consent`) gives the live area its standing and the one row that
+//! names every consent word.
 
 mod chooser;
 #[cfg(test)]
@@ -24,6 +28,9 @@ mod chooser_tests;
 pub(crate) mod question;
 #[cfg(test)]
 mod question_tests;
+pub(crate) mod surface;
+#[cfg(test)]
+mod surface_tests;
 
 pub(crate) use nika_tui_view::workspace::text::own;
 pub(crate) use nika_tui_view::workspace::wrapped::{height, pages, paint_page, window};
@@ -208,43 +215,45 @@ pub(crate) fn panel_rows(
     height: u16,
     Panel { boxed, consent }: Panel<'_>,
 ) -> u16 {
-    let chooser = chooser::rows(state, composer, width);
-    let input = if composer.palette_open() {
-        1
-    } else {
-        let inner = inner_width(width, boxed);
-        // A framed field keeps a little writing space even before a second
-        // line is entered. The palette keeps its compact search row.
-        composer
-            .content_rows(editor_width(state, composer, inner))
-            .max(if boxed { 2 } else { 1 })
-    };
-    // The chooser borrows the rail's row while it shows; the question's live
-    // home and the reviewed proposal take the rows that only repeat them ([`Lent`]).
-    let homed = question::homed(state, composer);
-    let lent = Lent::of(state, homed, state.interrupt_armed, consent);
-    let rail = usize::from(rail_shown(state) && chooser == 0 && !lent.rail);
-    let aside = usize::from(composer.aside().is_some());
-    let hint = hint_lines(state, composer, width, consent);
-    let hint = usize::from(wrapped_rows(&hint, width).min(3));
-    let listing = composer.listing().is_some();
-    let status = usize::from(status_rows(state, listing, width, lent.status));
-    let edges = if boxed {
-        usize::from(box_rows(state, composer))
+    // An inline frame grows for a surface's band; a full screen paints the
+    // band over its transcript and keeps every row ([`band`]).
+    let band = if state.presentation == Presentation::Inline {
+        usize::from(surface::demand(state, composer, width))
     } else {
         0
     };
-    let card = usize::from(question::rows(state, composer, width));
-    let rows = rail + status + aside + card + edges + input + chooser + hint;
+    // The line's own rows beside the waiting prompt, whatever a surface
+    // shows: a framed field keeps a little writing space even before a
+    // second line is entered.
+    let inner = inner_width(width, boxed);
+    let input = composer
+        .content_rows(editor_width(state, inner))
+        .max(if boxed { 2 } else { 1 });
+    // The question's live home and the reviewed proposal take the rows that
+    // only repeat them ([`Lent`]).
+    let homed = question::homed(state);
+    let lent = Lent::of(state, homed, state.interrupt_armed, consent);
+    let rail = usize::from(rail_shown(state) && !lent.rail);
+    let aside = usize::from(composer.aside().is_some());
+    let hint = hint_lines(state, composer, width, (consent, false));
+    let hint = usize::from(wrapped_rows(&hint, width).min(3));
+    let status = usize::from(status_rows(state, false, width, lent.status));
+    let edges = if boxed {
+        usize::from(box_rows(state))
+    } else {
+        0
+    };
+    let card = usize::from(question::rows(state, width));
+    let rows = band + rail + status + aside + card + edges + input + hint;
     // Only a multi-line draft asks past the half; a one-line draft never does.
     let readable = if input > 1 {
         u16::try_from(status + edges + input.min(READABLE_LINES) + hint).unwrap_or(u16::MAX)
     } else {
         0
     };
-    // The chooser and a typed question's card are the decision at hand: they
-    // may take all but the two rows the transcript and its rule keep.
-    let maximum = if chooser > 0 || card > 0 {
+    // An inline band and a typed question's card are the decision at hand:
+    // they may take all but the two rows the transcript and its rule keep.
+    let maximum = if band > 0 || card > 0 {
         height.saturating_sub(2)
     } else {
         height
@@ -339,9 +348,9 @@ const BOX_ROWS: u16 = 3;
 /// The rows the boxed composer adds now ([`BOX_ROWS`]): no caption under the
 /// question's live home, whose card names the question right above the line,
 /// nor while a proposal or a gate waits, whose own prompt names the line.
-fn box_rows(state: &UiState, composer: &Composer) -> u16 {
-    let named = question::homed(state, composer)
-        || matches!(state.waiting, Waiting::Proposal | Waiting::Gate);
+fn box_rows(state: &UiState) -> u16 {
+    let named =
+        question::homed(state) || matches!(state.waiting, Waiting::Proposal | Waiting::Gate);
     BOX_ROWS - u16::from(named)
 }
 
@@ -647,11 +656,11 @@ fn hint_lines(
     state: &UiState,
     composer: &Composer,
     width: u16,
-    consent: Consent<'_>,
+    (consent, listed): (Consent<'_>, bool),
 ) -> Vec<Line<'static>> {
-    let choosing = composer
-        .listing()
-        .map(|listing| chooser::hint(&listing, state.busy.is_some(), state.ascii));
+    let choosing = (composer.listing())
+        .filter(|_| listed)
+        .map(|listing| chooser::hint(&listing, state.busy.is_some(), state.ascii, width));
     let idle = if state.busy.is_some() {
         WORKING_HINT.to_owned()
     } else if state.waiting == Waiting::Free
@@ -708,9 +717,9 @@ fn hint_lines(
 }
 
 /// The rows of the live area, top to bottom: the rail, the status, a draft
-/// set aside, a typed question's card, the caption and the box when boxed,
-/// the line being written (or the palette's search), the chooser under it, a
-/// filler, the hint.
+/// set aside, a typed question's card, the rows an inline surface's band
+/// takes, the caption and the box when boxed, the line being written (or the
+/// palette's search, or a typed choice's own reply), the hint.
 struct LiveAreas {
     rail: Rect,
     status: Rect,
@@ -722,12 +731,11 @@ struct LiveAreas {
     boxed: Option<(Rect, Rect)>,
     /// The prompt and the line being written: inside the box when boxed.
     input: Rect,
-    chooser: Rect,
     hint: Rect,
 }
 
-/// [`areas_of`] a live area reviewing nothing: the question's card, the
-/// chooser and the line read the same rectangles everywhere.
+/// [`areas_of`] a live area reviewing nothing: the question's card and the
+/// line read the same rectangles everywhere.
 fn live_areas(state: &UiState, composer: &Composer, area: Rect, boxed: bool) -> LiveAreas {
     let panel = Panel {
         boxed,
@@ -736,42 +744,33 @@ fn live_areas(state: &UiState, composer: &Composer, area: Rect, boxed: bool) -> 
     areas_of(state, composer, area, panel)
 }
 
-/// Cut `area` into the live rows. Closed, the line being written takes every
-/// spare row, as it always did; while the chooser shows, the line takes its
-/// own rows, the chooser what it asks for, and the spare rows go below it.
+/// Cut `area` into the live rows, read from facts at rest whatever a surface
+/// shows: the line being written takes its own rows right above the hint,
+/// and the rows left stand above it, where an inline surface's band paints.
 /// `boxed`, the line stands in a box under its caption, one cell of air
 /// inside each edge: sizing, wrapping and painting read these same cells.
 fn areas_of(state: &UiState, composer: &Composer, area: Rect, panel: Panel<'_>) -> LiveAreas {
     let Panel { boxed, consent } = panel;
-    let chooser_wanted =
-        u16::try_from(chooser::rows(state, composer, area.width)).unwrap_or(u16::MAX);
-    let choosing = chooser_wanted > 0;
-    let hint = hint_lines(state, composer, area.width, consent);
+    let hint = hint_lines(state, composer, area.width, (consent, false));
     let hint_wanted = wrapped_rows(&hint, area.width).min(3);
-    let homed = question::homed(state, composer);
+    let homed = question::homed(state);
     let lent = Lent::of(state, homed, state.interrupt_armed, consent);
-    let listing = composer.listing().is_some();
-    let status_wanted = status_rows(state, listing, area.width, lent.status);
+    let status_wanted = status_rows(state, false, area.width, lent.status);
     let inner = inner_width(area.width, boxed);
-    let lines = if composer.palette_open() {
-        1
-    } else {
-        composer.rows(editor_width(state, composer, inner))
-    };
+    let lines = composer.rows(editor_width(state, inner));
     let readable = lines.min(u16::try_from(READABLE_LINES).unwrap_or(u16::MAX));
-    let edges = if boxed { box_rows(state, composer) } else { 0 };
-    let card_wanted = question::rows(state, composer, area.width);
+    let edges = if boxed { box_rows(state) } else { 0 };
+    let card_wanted = question::rows(state, area.width);
     // The question's live home is short of rows: the rail lends it its row.
     let short =
         homed && area.height < 1 + status_wanted + card_wanted + edges + readable + hint_wanted;
     // The rail takes a row of its own above the status (both are full
     // sentences; one 80-column row cannot hold them side by side), yields it
     // on a terminal too short for four rows or to the first lines of a
-    // multi-line draft, and lends it to the chooser, a short live home and a
-    // live home or a reviewed proposal's standing it only repeats ([`Lent`]).
+    // multi-line draft, and lends it to a short live home and a live home or
+    // a reviewed proposal's standing it only repeats ([`Lent`]).
     let rail_rows = u16::from(
         rail_shown(state)
-            && !choosing
             && !short
             && !lent.rail
             && area.height >= 4 + edges
@@ -790,29 +789,16 @@ fn areas_of(state: &UiState, composer: &Composer, area: Rect, panel: Panel<'_>) 
     // way first: the line keeps a row of its own.
     let card_rows = card_wanted.min(spare.saturating_sub(1));
     let spare = spare - card_rows;
-    let (input, chooser, filler) = if choosing {
-        let input = lines.clamp(1, spare.max(1));
-        let chooser = chooser_wanted.min(spare.saturating_sub(input));
-        (
-            Constraint::Length(input + edges),
-            Constraint::Length(chooser),
-            Constraint::Min(0),
-        )
-    } else {
-        (
-            Constraint::Min(1 + edges),
-            Constraint::Length(0),
-            Constraint::Length(0),
-        )
-    };
-    let [rail, status, aside, card, input, chooser, _, hint] = Layout::vertical([
+    // The line keeps the rows the live area reserves for it at rest (two
+    // inside a box); a frame taller than that leaves its rows above it.
+    let input = lines.max(if boxed { 2 } else { 1 }).clamp(1, spare.max(1));
+    let [rail, status, aside, card, _, input, hint] = Layout::vertical([
         Constraint::Length(rail_rows),
         Constraint::Length(status_rows),
         Constraint::Length(aside_rows),
         Constraint::Length(card_rows),
-        input,
-        chooser,
-        filler,
+        Constraint::Min(0),
+        Constraint::Length(input + edges),
         Constraint::Length(hint_rows),
     ])
     .areas(area);
@@ -834,8 +820,51 @@ fn areas_of(state: &UiState, composer: &Composer, area: Rect, panel: Panel<'_>) 
         card,
         boxed,
         input,
-        chooser,
         hint,
+    }
+}
+
+/// A boxed composer's edges under an open surface: its top corners join the
+/// band's sides, so the band and the box read as one shape.
+const JOINED: border::Set<'static> = border::Set {
+    top_left: "├",
+    top_right: "┤",
+    ..border::ROUNDED
+};
+
+/// The rows a surface paints over for the live area `live` drawn as
+/// `panel`, under a view whose first row is `ceiling` (the transcript's, or
+/// the live area's own inline): from there down to the composer (its box's
+/// top edge when boxed) across the live area's columns, and whether the band
+/// stands framed, joined to that box. `None` while no surface is open or no
+/// row is left. The band hides what it covers and moves nothing.
+pub(crate) fn band(
+    state: &UiState,
+    composer: &Composer,
+    ceiling: u16,
+    live: Rect,
+    panel: Panel<'_>,
+) -> Option<(Rect, bool)> {
+    if !surface::open(state, composer) {
+        return None;
+    }
+    let areas = areas_of(state, composer, live, panel);
+    let floor = areas.boxed.map_or(areas.input.y, |(_, frame)| frame.y);
+    let rows = floor.saturating_sub(ceiling);
+    (rows > 0).then_some((Rect::new(live.x, ceiling, live.width, rows), panel.boxed))
+}
+
+/// Paint the surface open over the live area `live` drawn as `panel` from
+/// row `ceiling` ([`band`]), after everything it covers.
+pub(crate) fn paint_band(
+    frame: &mut Frame<'_>,
+    (state, composer): (&UiState, &Composer),
+    ceiling: u16,
+    live: Rect,
+    panel: Panel<'_>,
+) {
+    if let Some(band) = band(state, composer, ceiling, live, panel) {
+        surface::render(state, composer, band, frame.buffer_mut());
     }
 }
 
@@ -849,9 +878,11 @@ fn prompt_of(state: &UiState, composer: &Composer) -> &'static str {
     }
 }
 
-/// The cells left to the line being written beside its prompt.
-fn editor_width(state: &UiState, composer: &Composer, width: u16) -> u16 {
-    let prompt = u16::try_from(prompt_of(state, composer).chars().count()).unwrap_or(8);
+/// The cells left to the line being written beside the waiting prompt: the
+/// palette's search paints in the same row without changing how the line
+/// wraps, so opening it moves nothing.
+fn editor_width(state: &UiState, width: u16) -> u16 {
+    let prompt = u16::try_from(state.waiting.prompt().chars().count()).unwrap_or(8);
     width.saturating_sub(prompt).max(8)
 }
 
@@ -890,17 +921,17 @@ pub(crate) fn render_panel_live(
         let line = chooser::aside_line(aside, areas.aside.width, state.ascii, state.color);
         frame.render_widget(Paragraph::new(line), areas.aside);
     }
-    question::render(state, composer, areas.card, frame.buffer_mut());
+    question::render(state, areas.card, frame.buffer_mut());
     if let Some((caption, edges)) = areas.boxed {
         let quiet = role::style(Role::Dim, state.color);
         frame.render_widget(
             Paragraph::new(Line::styled(caption_of(state), quiet)),
             caption,
         );
-        let set = if state.ascii {
-            ASCII_BOX
-        } else {
-            border::ROUNDED
+        let set = match (state.ascii, surface::open(state, composer)) {
+            (true, _) => ASCII_BOX,
+            (false, true) => JOINED,
+            (false, false) => border::ROUNDED,
         };
         let frame_style = role::border(state.color);
         frame.render_widget(
@@ -930,6 +961,10 @@ pub(crate) fn render_panel_live(
             Paragraph::new(chooser::search_line(composer, state.color)),
             editor,
         );
+    } else if surface::choosing(state, composer) {
+        // The typed choice holds the line: its own reply's field stands in
+        // the draft's place, the draft waiting untouched out of view.
+        composer.render_own(editor, frame.buffer_mut());
     } else {
         composer.render(editor, frame.buffer_mut());
         if boxed && state.color && composer.is_blank() {
@@ -939,8 +974,7 @@ pub(crate) fn render_panel_live(
             );
         }
     }
-    chooser::render(state, composer, areas.chooser, frame.buffer_mut());
-    let hint = hint_lines(state, composer, area.width, consent);
+    let hint = hint_lines(state, composer, area.width, (consent, true));
     frame.render_widget(Paragraph::new(hint).wrap(Wrap { trim: false }), areas.hint);
 }
 
@@ -949,6 +983,7 @@ pub(crate) fn render_panel_live(
 pub fn draw_inline(frame: &mut Frame<'_>, state: &UiState, composer: &Composer) {
     let area = frame.area();
     render_live(frame, state, composer, area);
+    paint_band(frame, (state, composer), area.y, area, Panel::default());
 }
 
 /// The transcript in `area`, scrolled so its end (less the focus scroll) is
@@ -997,6 +1032,13 @@ pub fn draw_focus(frame: &mut Frame<'_>, state: &UiState, composer: &Composer) {
         rule,
     );
     render_live(frame, state, composer, bottom);
+    paint_band(
+        frame,
+        (state, composer),
+        transcript.y,
+        bottom,
+        Panel::default(),
+    );
 }
 
 #[cfg(test)]

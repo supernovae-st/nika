@@ -1,25 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The typed question's card as drawn: the offer a press lands on is the
-//! offer painted on that row at every qualified size and in both glyph
-//! columns, the window pages without moving under the pointer, the selection
-//! reads without colour, the card never repeats the question's own words, and
-//! it gives way to a turn, to the chooser and to the line that answers it.
+//! The card of a typed question that offers nothing (a text, an exact value)
+//! as drawn: it names the shape of the answer, never repeats the question's
+//! own words outside its live home, reads in the workspace the first exact
+//! words and where the rest is read, gives way to a turn and to the line that
+//! answers it, and keeps its rows under a surface. A typed choice has no card:
+//! it opens the surface above the line (`surface_tests`).
 
 #![allow(clippy::expect_used)]
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Position, Rect};
+use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier};
 
-use super::question::{
-    SHOWN, Share, WORD_ROWS, Whole, carried, hang, offer_at, rows, window, word_cap,
-};
-use super::{draw_focus, draw_inline, focus_areas, live_areas, live_rows};
+use super::question::{Share, WORD_ROWS, Whole, carried, hang, rows, word_cap};
+use super::{draw_focus, draw_inline, live_areas, live_rows};
 use crate::composer::Composer;
 use crate::model::{Asked, Committed, Kind, Offer, Presentation, Shape, UiState, Waiting};
 use crate::visual::role;
@@ -28,13 +26,6 @@ use unicode_width::UnicodeWidthStr;
 
 const LABEL: &str = "Which currency do the amounts use?";
 const WHY: &str = "the report sums amounts and needs one currency";
-
-/// `count` offers with distinct one-cell keys and labels.
-fn offers(count: usize) -> Vec<Offer> {
-    (0..count)
-        .map(|n| Offer::new(format!("opt-{n}"), format!("label {n}")))
-        .collect()
-}
 
 fn asked(shape: Shape, mandatory: bool) -> Waiting {
     let question = Asked::new(LABEL, WHY, mandatory, shape, "w-1", 1);
@@ -52,23 +43,16 @@ fn state(presentation: Presentation, size: (u16, u16), waiting: Waiting, ascii: 
     state
 }
 
-/// A composer holding the keys with the offer `selected` (by keys), if any.
-fn composer(waiting: &Waiting, selected: Option<usize>) -> Composer {
+/// A composer holding the keys, following `waiting`.
+fn composer(waiting: &Waiting) -> Composer {
     let mut composer = Composer::new();
     composer.set_focused(true);
     composer.follow(waiting);
-    if let Some(selected) = selected {
-        composer.offer_key(waiting, KeyEvent::new(KeyCode::Home, KeyModifiers::NONE));
-        for _ in 0..selected {
-            composer.offer_key(waiting, KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
-        }
-    }
-    assert_eq!(composer.offer_selected(waiting), selected);
     composer
 }
 
-/// The frame of `state`, and the live area it painted.
-fn frame(state: &UiState, composer: &Composer) -> (Buffer, Rect) {
+/// The frame of `state`.
+fn frame(state: &UiState, composer: &Composer) -> Buffer {
     let (width, height) = state.size;
     let mut terminal = Terminal::new(TestBackend::new(width, height)).expect("terminal");
     terminal
@@ -77,12 +61,7 @@ fn frame(state: &UiState, composer: &Composer) -> (Buffer, Rect) {
             _ => draw_focus(frame, state, composer),
         })
         .expect("draw");
-    let area = Rect::new(0, 0, width, height);
-    let live = match state.presentation {
-        Presentation::Inline => area,
-        _ => focus_areas(area, state, composer)[2],
-    };
-    (terminal.backend().buffer().clone(), live)
+    terminal.backend().buffer().clone()
 }
 
 fn row(buffer: &Buffer, y: u16) -> String {
@@ -93,135 +72,14 @@ fn row(buffer: &Buffer, y: u16) -> String {
         .to_owned()
 }
 
-/// The offer whose exact row `text` is, with or without the selection mark.
-fn painted(text: &str, offers: &[Offer], ascii: bool) -> Option<usize> {
-    let (mark, sep) = if ascii {
-        ("> ", " - ")
-    } else {
-        ("› ", " · ")
-    };
-    offers.iter().position(|offer| {
-        let body = format!("{}{sep}{}", offer.key, offer.label);
-        text == format!("  {body}") || text == format!("{mark}{body}")
-    })
-}
-
-#[test]
-fn the_window_pages_whole_and_never_moves_under_a_press() {
-    assert_eq!(window(None, 9, 4), 0..4);
-    assert_eq!(window(Some(3), 9, 4), 0..4);
-    assert_eq!(window(Some(4), 9, 4), 4..8);
-    assert_eq!(window(Some(8), 9, 4), 8..9);
-    assert_eq!(window(Some(40), 9, 4), 8..9);
-    assert_eq!(window(Some(2), 0, 4), 0..0);
-    assert_eq!(window(Some(2), 9, 0), 0..0);
-    for rows in 1..=SHOWN {
-        for selected in 0..9 {
-            let shown = window(Some(selected), 9, rows);
-            assert!(shown.contains(&selected), "{selected} in {shown:?}");
-            assert!(shown.len() <= rows);
-            for pressed in shown.clone() {
-                assert_eq!(window(Some(pressed), 9, rows), shown, "a press moved it");
-            }
-        }
-    }
-}
-
-/// Every row the frame paints as an offer is the offer a press on that row
-/// lands on, and no other row is one: at the qualified sizes, inline and in
-/// the focus view, in both glyph columns, on every page.
-#[test]
-fn every_painted_offer_row_is_the_offer_a_press_lands_on() {
-    let all = offers(9);
-    let waiting = asked(Shape::Choice(all.clone()), true);
-    let cases = [
-        (Presentation::Focus, (80, 24)),
-        (Presentation::Focus, (60, 18)),
-        (Presentation::Focus, (120, 40)),
-        (Presentation::Inline, (80, 12)),
-        (Presentation::Inline, (60, 12)),
-    ];
-    for (presentation, size) in cases {
-        for ascii in [false, true] {
-            for selected in [None, Some(0), Some(4), Some(5), Some(8)] {
-                let at = format!("{presentation:?} {size:?} ascii={ascii} {selected:?}");
-                let state = state(presentation, size, waiting.clone(), ascii);
-                let composer = composer(&state.waiting, selected);
-                let (buffer, live) = frame(&state, &composer);
-                let mut hits = Vec::new();
-                for y in 0..size.1 {
-                    let text = row(&buffer, y);
-                    let press = Position::new(0, y);
-                    let hit = offer_at(&state, &composer, live, false, press);
-                    assert_eq!(hit, painted(&text, &all, ascii), "{at} row {y}: {text:?}");
-                    hits.extend(hit);
-                }
-                assert!(!hits.is_empty(), "{at}: no offer painted");
-                let first = hits[0];
-                assert_eq!(
-                    hits,
-                    (first..first + hits.len()).collect::<Vec<_>>(),
-                    "{at}"
-                );
-                if let Some(selected) = selected {
-                    assert!(hits.contains(&selected), "{at}: the selection is in view");
-                }
-                if ascii {
-                    for y in 0..size.1 {
-                        assert!(row(&buffer, y).is_ascii(), "{at} row {y}");
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// The selection is a mark and reverse video while the offers take keys,
-/// with no hue when colour is off; with words in the draft the offers are
-/// inert: the mark stays, the reverse goes, and the hint keeps the reply.
-#[test]
-fn the_selection_reads_without_colour_and_only_reverses_while_armed() {
-    let waiting = asked(Shape::Choice(offers(3)), false);
-    for ascii in [false, true] {
-        let state = state(Presentation::Inline, (80, 12), waiting.clone(), ascii);
-        let mut composer = composer(&state.waiting, Some(1));
-        let (buffer, _) = frame(&state, &composer);
-        let mark = if ascii { "> opt-1" } else { "› opt-1" };
-        let y = (0..12)
-            .find(|y| row(&buffer, *y).starts_with(mark))
-            .expect("the selected row");
-        for x in 0..7 {
-            let cell = &buffer[(x, y)];
-            assert!(cell.modifier.contains(Modifier::REVERSED), "x {x}");
-            assert_eq!((cell.fg, cell.bg), (Color::Reset, Color::Reset), "x {x}");
-        }
-        for other in (0..12).filter(|other| *other != y) {
-            let reversed =
-                (0..80).any(|x| buffer[(x, other)].modifier.contains(Modifier::REVERSED));
-            let text = row(&buffer, other);
-            assert!(!reversed || text.contains("reply"), "row {other}: {text}");
-        }
-        composer.paste("a reply in my words");
-        let (buffer, _) = frame(&state, &composer);
-        let y = (0..12)
-            .find(|y| row(&buffer, *y).starts_with(mark))
-            .expect("the mark stays");
-        assert!(
-            (0..7).all(|x| !buffer[(x, y)].modifier.contains(Modifier::REVERSED)),
-            "inert offers are not reversed"
-        );
-    }
-}
-
 /// The card names the shape of the answer and whether it is required; the
 /// question's own words keep their one home in the transcript. A typed
-/// choice's hint names its keys, in ASCII too.
+/// choice has no card at all: the surface above the line takes it.
 #[test]
 fn the_card_names_the_shape_and_never_repeats_the_question() {
     for (shape, mandatory, header) in [
-        (Shape::Choice(offers(2)), true, "Offered answers · required"),
-        (Shape::Choice(offers(2)), false, "Offered answers"),
         (Shape::Text, true, "A text answer · required"),
+        (Shape::Text, false, "A text answer"),
         (Shape::Literal, false, "An exact value"),
     ] {
         for ascii in [false, true] {
@@ -231,8 +89,8 @@ fn the_card_names_the_shape_and_never_repeats_the_question() {
                 asked(shape.clone(), mandatory),
                 ascii,
             );
-            let composer = composer(&state.waiting, None);
-            let (buffer, _) = frame(&state, &composer);
+            let composer = composer(&state.waiting);
+            let buffer = frame(&state, &composer);
             let shown: Vec<String> = (0..12).map(|y| row(&buffer, y)).collect();
             let header = if ascii {
                 header.replace('·', "-")
@@ -243,43 +101,42 @@ fn the_card_names_the_shape_and_never_repeats_the_question() {
             for words in [LABEL, WHY] {
                 assert!(!shown.iter().any(|row| row.contains(words)), "{shown:#?}");
             }
-            if matches!(shape, Shape::Choice(_)) {
-                let hint = if ascii {
-                    "Up/Down choose - Enter answers - or type your reply - cancel drops it"
-                } else {
-                    "↑↓ choose · Enter answers · or type your reply · cancel drops it"
-                };
-                assert!(shown.iter().any(|row| row == hint), "{shown:#?}");
-            }
         }
     }
+    let choice = Shape::Choice(vec![Offer::new("eur", "Euro")]);
+    let state = state(Presentation::Focus, (80, 24), asked(choice, true), false);
+    assert_eq!(rows(&state, 80), 0, "a typed choice has no card");
 }
 
-/// The card gives way while a turn works and while the chooser lists, and a
-/// question kept in prose has none. It never takes the row of the line that
-/// answers, and a window too short for every offer says what continues.
+/// The card gives way while a turn works, and a question kept in prose has
+/// none; a surface over it hides it without moving its rows. It never takes
+/// the row of the line that answers.
 #[test]
 fn the_card_gives_way_and_never_takes_the_line() {
-    let waiting = asked(Shape::Choice(offers(9)), true);
+    let waiting = asked(Shape::Text, true);
     let mut state = state(Presentation::Focus, (80, 24), waiting.clone(), false);
-    let mut composer = composer(&state.waiting, None);
-    assert_eq!(rows(&state, &composer, 80), 1 + 6);
+    let mut composer = composer(&state.waiting);
+    assert_eq!(rows(&state, 80), 1, "the header, outside a live home");
     let bare = UiState::new(Presentation::Focus, false, (80, 24));
     assert!(live_rows(&state, &composer, 80, 24) > live_rows(&bare, &composer, 80, 24));
     state.busy = Some("● reading your answer".to_owned());
-    assert_eq!(rows(&state, &composer, 80), 0, "a turn works");
+    assert_eq!(rows(&state, 80), 0, "a turn works");
     state.busy = None;
     composer.toggle_palette();
-    assert_eq!(rows(&state, &composer, 80), 0, "the palette lists");
+    assert_eq!(
+        rows(&state, 80),
+        1,
+        "a surface hides the card, its rows stay"
+    );
     composer.close_palette();
     state.waiting = Waiting::Question {
         key: "unknown_cost".to_owned(),
     };
-    assert_eq!(rows(&state, &composer, 80), 0, "a question in prose");
+    assert_eq!(rows(&state, 80), 0, "a question in prose");
     state.waiting = Waiting::Question {
         key: "const.currency".to_owned(),
     };
-    assert_eq!(rows(&state, &composer, 80), 0, "the same key in prose");
+    assert_eq!(rows(&state, 80), 0, "the same key in prose");
     state.waiting = waiting;
     for height in [3, 4, 5, 6, 8] {
         let areas = live_areas(&state, &composer, Rect::new(0, 0, 80, height), false);
@@ -295,11 +152,7 @@ fn the_card_gives_way_and_never_takes_the_line() {
         .draw(|frame| super::render_live(frame, &state, &composer, frame.area()))
         .expect("draw");
     let header = row(terminal.backend().buffer(), areas.card.y);
-    let last = usize::from(areas.card.height - 1);
-    assert_eq!(
-        header,
-        format!("Offered answers · required · 1-{last} of 9")
-    );
+    assert_eq!(header, "A text answer · required");
 }
 
 /// The Session's words of the typed question, as its block holds them: the
@@ -363,7 +216,7 @@ fn the_live_home_reads_the_first_exact_words_and_where_the_rest_is_read() {
             let at = format!("{width}x{height} ascii={ascii}");
             let mut state = home(Shape::Text);
             state.ascii = ascii;
-            let composer = composer(&state.waiting, None);
+            let composer = composer(&state.waiting);
             let live = Rect::new(0, 0, width, height);
             let areas = live_areas(&state, &composer, live, false);
             let card = areas.card;
@@ -380,7 +233,7 @@ fn the_live_home_reads_the_first_exact_words_and_where_the_rest_is_read() {
                 .map(|y| row_from(&buffer, 0, y))
                 .collect();
             let tall = usize::from(card.height);
-            let share = Share::of(tall, words.len(), 0, word_cap(&state)).expect("a home");
+            let share = Share::of(tall, words.len(), word_cap(&state)).expect("a home");
             match share.whole {
                 Whole::Shown => assert_eq!(shown, words, "{at}"),
                 Whole::Row => {
@@ -400,9 +253,9 @@ fn the_live_home_reads_the_first_exact_words_and_where_the_rest_is_read() {
         }
     }
     let state = home(Shape::Text);
-    let composer = composer(&state.waiting, None);
+    let composer = composer(&state.waiting);
     let roomy = Rect::new(0, 0, 80, 30);
-    let asked = rows(&state, &composer, 80);
+    let asked = rows(&state, 80);
     assert_eq!(
         live_areas(&state, &composer, roomy, false).card.height,
         asked
@@ -417,7 +270,7 @@ fn the_live_home_titles_in_the_accent_and_keeps_its_facts_quiet() {
     for color in [true, false] {
         let mut state = home(Shape::Text);
         state.color = color;
-        let composer = composer(&state.waiting, None);
+        let composer = composer(&state.waiting);
         let live = Rect::new(0, 0, 44, 18);
         let buffer = live_frame(&state, &composer, live);
         let y = live_areas(&state, &composer, live, false).card.y;
@@ -439,14 +292,14 @@ fn the_live_home_titles_in_the_accent_and_keeps_its_facts_quiet() {
 }
 
 /// The card carries the words only while it paints them: never while a turn
-/// works or the chooser lists (the reader still opens them), nor with too few
-/// rows for its title and first word row, nor outside the workspace. A
-/// selection and a scrolled reading change nothing.
+/// works (the reader still opens them), nor with too few rows for its title
+/// and first word row, nor outside the workspace. A surface over it, and a
+/// scrolled reading, change nothing: the transcript keeps its rows.
 #[test]
 fn the_card_carries_the_words_only_while_it_paints_them() {
     let live = Rect::new(0, 0, 44, 18);
     let mut state = home(Shape::Text);
-    let mut composer = composer(&state.waiting, None);
+    let mut composer = composer(&state.waiting);
     assert_eq!(carried(&state, &composer, live, false), Some(1));
     state.busy = Some("● reading your answer".to_owned());
     assert_eq!(
@@ -463,8 +316,8 @@ fn the_card_carries_the_words_only_while_it_paints_them() {
     composer.toggle_palette();
     assert_eq!(
         carried(&state, &composer, live, false),
-        None,
-        "the chooser lists"
+        Some(1),
+        "a surface over the card keeps the transcript's rows"
     );
     composer.close_palette();
     for height in [1, 2, 3, 4] {
@@ -476,11 +329,9 @@ fn the_card_carries_the_words_only_while_it_paints_them() {
         );
     }
     assert_eq!(carried(&state, &composer, live, false), Some(1));
-    let mut scrolled = home(Shape::Choice(offers(3)));
+    let mut scrolled = home(Shape::Text);
     scrolled.focus_scroll = 7;
-    let selected = self::composer(&scrolled.waiting, Some(2));
-    assert_eq!(carried(&scrolled, &selected, live, false), Some(1));
-    assert_eq!(selected.offer_selected(&scrolled.waiting), Some(2));
+    assert_eq!(carried(&scrolled, &composer, live, false), Some(1));
     state.presentation = Presentation::Focus;
     assert_eq!(
         carried(&state, &composer, live, false),
@@ -489,89 +340,40 @@ fn the_card_carries_the_words_only_while_it_paints_them() {
     );
 }
 
-/// Under the words, every painted offer row is the offer a press there lands
-/// on, wherever the live area stands on the frame, and the selection is in
-/// view.
-#[test]
-fn a_press_lands_on_the_offer_painted_under_the_words_at_any_origin() {
-    let all = offers(9);
-    for (x, y) in [(0, 0), (10, 5), (3, 17)] {
-        for (width, height) in [(44, 16), (60, 8), (80, 12)] {
-            for selected in [None, Some(5)] {
-                let state = home(Shape::Choice(all.clone()));
-                let composer = composer(&state.waiting, selected);
-                let live = Rect::new(x, y, width, height);
-                let at = format!("{live:?} {selected:?}");
-                assert_eq!(carried(&state, &composer, live, false), Some(1), "{at}");
-                let buffer = live_frame(&state, &composer, live);
-                let mut hits = Vec::new();
-                for row in live.y..live.bottom() {
-                    let text = row_from(&buffer, live.x, row);
-                    let press = Position::new(live.x + 1, row);
-                    let hit = offer_at(&state, &composer, live, false, press);
-                    assert_eq!(hit, painted(&text, &all, false), "{at} row {row}: {text:?}");
-                    hits.extend(hit);
-                }
-                assert!(!hits.is_empty(), "{at}: offers painted");
-                if let Some(selected) = selected {
-                    assert!(hits.contains(&selected), "{at}: the selection is in view");
-                }
-            }
-        }
-    }
-}
-
-/// The title comes first, then the first word row and an offer row; the
-/// offers take their page and the words the rest, every row the cap holds and
-/// past it a bounded prefix that says where the whole question is read; that
-/// row never hides a single word row; a card too short for that carries none.
+/// The title comes first, then the first word row; the words take the rest,
+/// every row the cap holds and past it a bounded prefix that says where the
+/// whole question is read; that row never hides a single word row; a card too
+/// short for that carries none.
 #[test]
 fn the_card_shares_its_rows_words_first_and_bounded() {
-    let share = |words, whole, offers| {
-        Some(Share {
-            words,
-            whole,
-            offers,
-        })
-    };
+    let share = |words, whole| Some(Share { words, whole });
     let cap = WORD_ROWS;
-    assert_eq!(Share::of(1, 3, 0, cap), None, "the title alone");
-    assert_eq!(Share::of(4, 0, 0, cap), None, "no words");
-    assert_eq!(Share::of(2, 3, 2, cap), None, "no row for an offer");
-    assert_eq!(Share::of(2, 1, 0, cap), share(1, Whole::Shown, 0));
-    assert_eq!(Share::of(2, 4, 0, cap), share(1, Whole::Inline, 0));
-    assert_eq!(Share::of(3, 4, 0, cap), share(1, Whole::Row, 0));
-    assert_eq!(Share::of(5, 4, 0, cap), share(4, Whole::Shown, 0));
-    assert_eq!(Share::of(3, 4, 3, cap), share(1, Whole::Inline, 1));
-    assert_eq!(Share::of(6, 4, 3, cap), share(1, Whole::Row, 3));
-    assert_eq!(Share::of(9, 9, 0, cap), share(WORD_ROWS, Whole::Row, 0));
-    assert_eq!(
-        Share::of(40, 9, 9, cap),
-        share(WORD_ROWS, Whole::Row, SHOWN)
-    );
+    assert_eq!(Share::of(1, 3, cap), None, "the title alone");
+    assert_eq!(Share::of(4, 0, cap), None, "no words");
+    assert_eq!(Share::of(2, 1, cap), share(1, Whole::Shown));
+    assert_eq!(Share::of(2, 4, cap), share(1, Whole::Inline));
+    assert_eq!(Share::of(3, 4, cap), share(1, Whole::Row));
+    assert_eq!(Share::of(5, 4, cap), share(4, Whole::Shown));
+    assert_eq!(Share::of(9, 9, cap), share(WORD_ROWS, Whole::Row));
     // One row past the cap is read where it stands: the cue would take it.
-    assert_eq!(Share::of(8, 7, 0, cap), share(7, Whole::Shown, 0));
-    assert_eq!(Share::of(8, 8, 0, cap), share(WORD_ROWS, Whole::Row, 0));
+    assert_eq!(Share::of(8, 7, cap), share(7, Whole::Shown));
+    assert_eq!(Share::of(8, 8, cap), share(WORD_ROWS, Whole::Row));
     // A taller frame's cap holds more: nine rows whole under a cap of ten.
-    assert_eq!(Share::of(11, 9, 0, 10), share(9, Whole::Shown, 0));
-    assert_eq!(Share::of(9, 9, 0, 10), share(7, Whole::Row, 0));
+    assert_eq!(Share::of(11, 9, 10), share(9, Whole::Shown));
+    assert_eq!(Share::of(9, 9, 10), share(7, Whole::Row));
     for cap in [WORD_ROWS, 10] {
         for rows in 0..20 {
             for words in 0..14 {
-                for offers in 0..10 {
-                    let Some(share) = Share::of(rows, words, offers, cap) else {
-                        continue;
-                    };
-                    let at = format!("{rows} {words} {offers} cap {cap}: {share:?}");
-                    let cue = usize::from(share.whole == Whole::Row);
-                    let used = 1 + share.words + cue + share.offers;
-                    assert!(used <= rows, "{at}");
-                    assert!((1..=cap + 1).contains(&share.words), "{at}");
-                    assert_eq!(share.offers > 0, offers > 0, "{at}");
-                    assert_eq!(share.whole == Whole::Shown, share.words == words, "{at}");
-                    if share.whole == Whole::Row {
-                        assert!(words >= share.words + 2, "{at}: the cue hides one row");
-                    }
+                let Some(share) = Share::of(rows, words, cap) else {
+                    continue;
+                };
+                let at = format!("{rows} {words} cap {cap}: {share:?}");
+                let cue = usize::from(share.whole == Whole::Row);
+                assert!(1 + share.words + cue <= rows, "{at}");
+                assert!((1..=cap + 1).contains(&share.words), "{at}");
+                assert_eq!(share.whole == Whole::Shown, share.words == words, "{at}");
+                if share.whole == Whole::Row {
+                    assert!(words >= share.words + 2, "{at}: the cue hides one row");
                 }
             }
         }
@@ -599,7 +401,7 @@ fn the_card_reads_every_word_its_frame_has_room_for() {
         let mut state = home(Shape::Literal);
         state.size = size;
         state.transcript[1] = Committed::question(WITNESS, CURRENCY);
-        let composer = composer(&state.waiting, None);
+        let composer = composer(&state.waiting);
         let live = Rect::new(0, 0, width, height);
         let words = hang(CURRENCY, usize::from(width));
         assert_eq!(words.len(), count, "{at}: {words:#?}");

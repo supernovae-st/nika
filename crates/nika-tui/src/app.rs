@@ -71,6 +71,7 @@ mod opening;
 mod progress;
 mod said;
 mod stop;
+mod surface;
 mod welcome;
 mod worker;
 
@@ -558,13 +559,17 @@ impl<C: Conversation + 'static> Shell<C> {
             Some(Caught::Read) => Ok(Step::Stay),
             // A view key the palette chose, pressed past the chooser.
             Some(Caught::Press(chosen)) => self.route_key(chosen, broker),
+            // What the typed choice holding the line sent, bound to it.
+            Some(Caught::Sent(said)) => self.send(said, broker),
             None => self.route_key(key, broker),
         }
     }
 
     /// One key by the ordinary precedence ([`decide`]).
     fn route_key(&mut self, key: KeyEvent, broker: &mut Broker) -> io::Result<Step> {
-        if crate::scroll::end(&mut self.state, &self.desk, key) {
+        // A surface hides the transcript: `End` never moves it under the band.
+        let hidden = render::surface::open(&self.state, &self.composer);
+        if !hidden && crate::scroll::end(&mut self.state, &self.desk, key) {
             return Ok(Step::Stay);
         }
         let decision = decide(&self.state, &mut self.desk, key);
@@ -609,11 +614,7 @@ impl<C: Conversation + 'static> Shell<C> {
                 }
             },
         };
-        match self.submit(said, broker)? {
-            Submitted::Left(exit) => Ok(Step::Leave(exit)),
-            Submitted::Handoff(Some(handoff)) => Ok(Step::Handoff(handoff)),
-            Submitted::Handoff(None) => Ok(Step::Stay),
-        }
+        self.send(said, broker)
     }
 
     fn interrupt(&mut self) -> io::Result<Step> {
