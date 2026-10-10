@@ -419,34 +419,53 @@ fn call(result: &Value) -> Value {
     json!({"call": "plan", "result": result})
 }
 
-/// The legacy reader recognizes provider prose, which can quote a past timeout during a
-/// present monetary/admission refusal. That phrase alone must not assert a current deadline.
+/// A deadline is the last authoring call's typed record, never words in a message: a provider's
+/// own words that say "timed out", or a refusal quoting a past timeout, read as the provider
+/// failure they are, and a call recorded as timed out reads as the budget whatever its words.
 #[test]
-fn timeout_words_without_a_last_timeout_record_keep_the_budget_headline() {
-    let reason = "the previous call timed out; this request was refused before any byte left";
-    for context in [
-        vec![],
-        vec![call(&json!({"failure_kind": "admission_refused"}))],
-        vec![call(&json!({"failure_kind": "provider_error"}))],
-        vec![call(&json!({"stop_reason": "MaxTokens"}))],
-        vec![
-            call(&json!({"failure_kind": "timeout"})),
-            call(&json!({"failure_kind": "admission_refused"})),
-        ],
-        vec![
-            call(&json!({"failure_kind": "timeout"})),
-            json!({"call": "repair"}),
-        ],
-    ] {
-        let reading = Reading::of(outcome("authoring_provider", reason, context));
-        assert!(matches!(&reading, Reading::BudgetExhausted(_)));
-        assert_eq!(
-            authoring_budget_headline(reading.outcome().provenance.authoring.as_ref()),
-            "I couldn't finish a workflow I trust within the authoring budget"
-        );
-        assert_eq!(reasons(reading.outcome()), [reason]);
+fn a_deadline_is_the_last_call_record_never_words_in_a_message() {
+    let quoted = "provider API error (HTTP 504); the provider said: \"upstream request timed out\"; \
+                  usage and billing unknown";
+    let refusal = "the previous call timed out; this request was refused before any byte left";
+    for reason in [quoted, refusal] {
+        for context in [
+            vec![],
+            vec![call(&json!({"failure_kind": "admission_refused"}))],
+            vec![call(&json!({"failure_kind": "provider_error"}))],
+            vec![call(&json!({"stop_reason": "MaxTokens"}))],
+            vec![
+                call(&json!({"failure_kind": "timeout"})),
+                call(&json!({"failure_kind": "admission_refused"})),
+            ],
+            vec![
+                call(&json!({"failure_kind": "timeout"})),
+                json!({"call": "repair"}),
+            ],
+        ] {
+            let reading = Reading::of(outcome("authoring_provider", reason, context));
+            assert!(
+                matches!(&reading, Reading::ProviderFailed(_)),
+                "{reason}: {reading:?}"
+            );
+            assert_eq!(
+                authoring_budget_headline(reading.outcome().provenance.authoring.as_ref()),
+                "I couldn't finish a workflow I trust within the authoring budget"
+            );
+            assert_eq!(reasons(reading.outcome()), [reason]);
+        }
     }
-    let mut absent = outcome("authoring_provider", reason, vec![]);
+    let silent = "provider API error (HTTP 408); usage and billing unknown";
+    let timeout = vec![call(&json!({"failure_kind": "timeout"}))];
+    let reading = Reading::of(outcome("authoring_provider", silent, timeout));
+    assert!(
+        matches!(&reading, Reading::BudgetExhausted(_)),
+        "{reading:?}"
+    );
+    assert_eq!(
+        authoring_budget_headline(reading.outcome().provenance.authoring.as_ref()),
+        TIME_HEAD
+    );
+    let mut absent = outcome("authoring_provider", refusal, vec![]);
     absent.provenance.authoring = None;
     assert!(!authoring_budget_headline(absent.provenance.authoring.as_ref()).contains(TIME_HEAD));
 }
@@ -653,6 +672,15 @@ fn a_held_candidate_is_read_as_held_before_any_provider_finding_or_question() {
             "authoring_provider",
             message,
         );
+        // The compiler records each authoring call's fate beside its words.
+        let kind = if message == timed_out {
+            "timeout"
+        } else {
+            "admission_refused"
+        };
+        let mut receipt = AuthoringReceipt::new("fixture/model".to_owned());
+        receipt.context = vec![call(&json!({"failure_kind": kind}))];
+        out.provenance.authoring = Some(receipt);
         out
     };
     // Held: the question a skeleton leaves, a timeout, a refusal all read as held.

@@ -4,8 +4,8 @@
 //! What one compile outcome means for a conversation, and the literal a human line is at one of
 //! its questions (descended from `nika-session` on 2026-09-28, C7; `nika_session::authoring`
 //! re-exports all of it). [`Reading`](crate::compile::reading::Reading) is read from the compiler's typed fields — its status,
-//! candidate, questions, route and plan — and, for a provider failure, from the provider
-//! diagnostic's own words (a timeout is recognized by its text): it never parses the compiler's
+//! candidate, questions, route and plan — and, for a provider failure, from the last authoring
+//! call's typed record (a timeout is its `failure_kind`): it never parses the compiler's
 //! prose back into state. Pure: an outcome or a line in, a reading out — nothing here calls,
 //! reads or decides for a host, and a host's own protocol words stay with the host.
 
@@ -87,16 +87,15 @@ impl Reading {
         {
             return Self::Questions(out);
         }
-        let provider_findings: Vec<&str> = out
-            .diagnostics
-            .iter()
-            .filter(|d| d.target == "authoring_provider")
-            .map(|d| d.message.as_str())
-            .collect();
-        if provider_findings.iter().any(|m| m.contains("timed out")) {
+        let failed = (out.diagnostics.iter()).any(|d| d.target == "authoring_provider");
+        // A deadline is the last authoring call's typed record, never words in a message.
+        let timed_out = (out.provenance.authoring.as_ref())
+            .and_then(|receipt| receipt.context.last())
+            .is_some_and(|call| call["result"]["failure_kind"] == "timeout");
+        if failed && timed_out {
             return Self::BudgetExhausted(out);
         }
-        if !provider_findings.is_empty() {
+        if failed {
             return Self::ProviderFailed(out);
         }
         let routed = out
