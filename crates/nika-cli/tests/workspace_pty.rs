@@ -39,6 +39,9 @@ mod run;
 #[path = "workspace_pty/question.rs"]
 mod question;
 
+#[path = "workspace_pty/surface.rs"]
+mod surface;
+
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
