@@ -432,6 +432,7 @@ impl<T> typenum::type_operators::Same for nika_session_host::run::NoRunDoor
 pub type nika_session_host::run::NoRunDoor::Output = T
 pub trait nika_session_host::run::Jobs: core::marker::Send + core::marker::Sync
 pub fn nika_session_host::run::Jobs::admit<'a>(&'a self, run: &'a nika_session_change::change::RunRequest) -> nika_session_host::run::JobFuture<'a, core::result::Result<nika_session_host::run::Admitted, alloc::string::String>>
+pub fn nika_session_host::run::Jobs::cancel<'a>(&'a self, id: &'a str) -> nika_session_host::run::JobFuture<'a, core::result::Result<(), alloc::string::String>>
 pub fn nika_session_host::run::Jobs::decide<'a>(&'a self, review: &'a str, approve: bool) -> nika_session_host::run::JobFuture<'a, core::result::Result<core::option::Option<alloc::string::String>, alloc::string::String>>
 pub fn nika_session_host::run::Jobs::settled<'a>(&'a self, id: &'a str) -> nika_session_host::run::JobFuture<'a, core::result::Result<nika_session_host::run::JobEnd, alloc::string::String>>
 pub trait nika_session_host::run::RunDoor: core::marker::Send
@@ -475,6 +476,7 @@ pub nika_session_host::wire::Command::Submit::command: alloc::string::String
 pub nika_session_host::wire::Command::Submit::line: alloc::string::String
 pub nika_session_host::wire::Command::Submit::snapshot: alloc::string::String
 impl nika_session_host::wire::Command
+pub fn nika_session_host::wire::Command::identity_of(bytes: &[u8]) -> core::option::Option<alloc::string::String>
 pub fn nika_session_host::wire::Command::parse(bytes: &[u8]) -> core::result::Result<Self, alloc::string::String>
 impl core::clone::Clone for nika_session_host::wire::Command
 pub fn nika_session_host::wire::Command::clone(&self) -> nika_session_host::wire::Command
@@ -636,6 +638,7 @@ pub type nika_session_host::wire::Frame::Output = T
 pub const nika_session_host::wire::CAPABILITY: &str
 pub const nika_session_host::wire::CONTRACT: &str
 pub const nika_session_host::wire::SELECTION_CAPABILITY: &str
+pub const nika_session_host::wire::STEERING_CAPABILITY: &str
 #[non_exhaustive] pub enum nika_session_host::Command
 pub nika_session_host::Command::Close
 pub nika_session_host::Command::Details
@@ -653,6 +656,7 @@ pub nika_session_host::Command::Submit::command: alloc::string::String
 pub nika_session_host::Command::Submit::line: alloc::string::String
 pub nika_session_host::Command::Submit::snapshot: alloc::string::String
 impl nika_session_host::wire::Command
+pub fn nika_session_host::wire::Command::identity_of(bytes: &[u8]) -> core::option::Option<alloc::string::String>
 pub fn nika_session_host::wire::Command::parse(bytes: &[u8]) -> core::result::Result<Self, alloc::string::String>
 impl core::clone::Clone for nika_session_host::wire::Command
 pub fn nika_session_host::wire::Command::clone(&self) -> nika_session_host::wire::Command
@@ -894,3 +898,4 @@ pub type nika_session_host::host::SessionHost::Output = T
 pub const nika_session_host::CAPABILITY: &str
 pub const nika_session_host::CONTRACT: &str
 pub const nika_session_host::SELECTION_CAPABILITY: &str
+pub const nika_session_host::STEERING_CAPABILITY: &str

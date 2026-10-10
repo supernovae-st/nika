@@ -587,6 +587,7 @@ pub fn nika_onboard::compile::room::ObservedRoom::recompose(&self, out: &nika_co
 pub fn nika_onboard::compile::room::ObservedRoom::root(&self) -> &std::path::Path
 pub fn nika_onboard::compile::room::ObservedRoom::scratch_parent(&self) -> core::option::Option<&std::path::Path>
 pub fn nika_onboard::compile::room::ObservedRoom::with_bound(self, bound: core::time::Duration) -> Self
+pub fn nika_onboard::compile::room::ObservedRoom::with_captures(self, captures: nika_service_execution::rehearsal::replay::Captures) -> Self
 pub fn nika_onboard::compile::room::ObservedRoom::with_jq_helper(self, helper: nika_service_execution::rehearsal::isolated_jq::JqHelper) -> Self
 pub fn nika_onboard::compile::room::ObservedRoom::with_scratch_parent(self, parent: impl core::convert::Into<std::path::PathBuf>) -> Self
 impl core::clone::Clone for nika_onboard::compile::room::ObservedRoom
