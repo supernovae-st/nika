@@ -9,14 +9,15 @@ How the conversation works
 
 Values and where they come from
 
-Every value of a document the person did not spell out is a selection you state in `resolutions`, with the citation of their line and their own words, verbatim:
+Every source, output, run model and value of the person's that the document holds and they did not spell out is a selection you state in `resolutions`, with the citation of their line and their own words, verbatim:
 - `named`: a public source they named (« Hacker News ») resolved to its address.
 - `delegated`: chosen within a choice they left to you (« les sources, tu les choisis »).
 - `derived`: a routine new output they asked for without naming it (a file name for « écris-le dans le projet »).
 - `answered`: a value they typed.
 - `offered`: a value of the option they picked, with its `question` and `option` keys.
 - `retained`: a value a revision they saw already bound, unchanged, still in the document.
-A value without a selection the person's words support is invented and refused. A value a revision they saw bound stays unless words of theirs that name it remove it (`removed`). Words you had to ask about never name the value they were ambiguous about: its provenance is the answer.
+Such a value without a selection the person's words support is invented and refused. A value a revision they saw bound stays unless words of theirs that name it remove it (`removed`). Words you had to ask about never name the value they were ambiguous about: its provenance is the answer.
+Your own implementation within them states no selection and is never asked: the filters, programs and prompts you write, and the globs and rights over the sources and outputs they chose.
 
 Asking
 

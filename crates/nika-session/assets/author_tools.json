@@ -50,7 +50,7 @@
   {
    "name": "candidate_write",
    "read_only": false,
-   "description": "Replace the candidate with a complete .nika document. In resolutions, state where every value the person did not spell out comes from, with the citation of their line and their own words; a value a revision they saw bound stays unless their words remove it (removed). The reply carries Nika's check findings and its laws (`findings`, empty when nothing stands against it) and the values it dropped: when none, propose in the same message. Nothing is saved or run.",
+   "description": "Replace the candidate with a complete .nika document. In resolutions, state where each source, output, run model and value of the person's they did not spell out comes from, with the citation of their line and their own words (your own filters, programs, prompts, globs and rights within them state none); a value a revision they saw bound stays unless their words remove it (removed). The reply carries Nika's check findings and its laws (`findings`, empty when nothing stands against it) and the values it dropped: when none, propose in the same message. Nothing is saved or run.",
    "input_schema": {
     "type": "object",
     "properties": {
@@ -514,7 +514,7 @@
   },
   "resolutions": {
    "type": "array",
-   "description": "Every value of the document the person did not spell out themselves, with where it comes from.",
+   "description": "Each source, output, run model and value of the person's the document holds and they did not spell out, with where it comes from; the author's own filters, programs, prompts, globs and rights within them state none.",
    "items": {
     "type": "object",
     "properties": {

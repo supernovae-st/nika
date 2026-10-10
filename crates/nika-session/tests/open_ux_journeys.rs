@@ -849,6 +849,25 @@ fn a_name_left_to_the_author_is_never_asked_again() {
     assert!(said(named).contains(&changed), "{}", said(named));
 }
 
+/// The evaluator's tickets, biz24-07 and all-tags cells: an author's own filters, programs, globs
+/// and rights state no selection and are never asked. The author reads it in its instructions and
+/// in `candidate_write`, and its own jq filter, stated nowhere, is proposed at once.
+#[test]
+fn an_authors_own_filter_is_proposed_without_a_question() {
+    let journey = run("own_filter");
+    let proposed = journey.step(0);
+    assert_eq!(outcome_kind(proposed), "proposal", "{proposed:#}");
+    let first = &journey.agent[0];
+    let told = first.text();
+    assert!(told.contains("states no selection"), "told: own code");
+    assert!(!told.contains("Every value of a document"), "old rule gone");
+    let write = (first.body["tools"].as_array().into_iter().flatten())
+        .find(|tool| tool["function"]["name"] == "candidate_write")
+        .map(|tool| tool["function"]["description"].to_string())
+        .unwrap_or_default();
+    assert!(write.contains("state none"), "candidate_write says it too");
+}
+
 /// Item 4(e) and lane B's T3, E1 TUI: « today » removes no source, and a replacement in words
 /// that name the source is said under the proposal.
 #[test]
