@@ -29,7 +29,7 @@ use nika_compile_cognition::rehearse::{
 use nika_execution::{ExecutionService, ExecutionSnapshot, SnapshotLimits};
 use nika_fs::{EffectLedger, OwnedDir, RoomLimits, RootedFs};
 use nika_service_execution::{
-    DeniedTally, ExecutionAccessPlan, IsolatedJq, ServiceExecutionDriver,
+    DeniedTally, ExecutionAccessPlan, IsolatedJq, ServiceExecutionDriver, replay::Captures,
 };
 
 /// The program a room starts to evaluate `nika:jq` (see [`ObservedRoom::with_jq_helper`]).
@@ -47,6 +47,7 @@ pub struct ObservedRoom {
     scratch_parent: Option<PathBuf>,
     jq: Option<JqHelper>,
     locate: Option<Locator>,
+    captures: Option<Arc<Captures>>,
 }
 
 /// Where the host will save a candidate's bytes, relative to the project root (`None`: it cannot
@@ -89,6 +90,7 @@ impl ObservedRoom {
             scratch_parent: None,
             jq: None,
             locate: None,
+            captures: None,
         }
     }
 
@@ -110,6 +112,13 @@ impl ObservedRoom {
     #[must_use]
     pub fn with_jq_helper(mut self, helper: JqHelper) -> Self {
         self.jq = Some(helper);
+        self
+    }
+
+    /// The same room as a replay trial over `captures` (`nika_service_execution::replay`).
+    #[must_use]
+    pub fn with_captures(mut self, captures: Captures) -> Self {
+        self.captures = Some(Arc::new(captures));
         self
     }
 
@@ -246,6 +255,7 @@ impl Rehearse for ObservedRoom {
             targets: targets.to_vec(),
             candidate_sha256: sha256(candidate),
             jq: self.jq.clone(),
+            captures: self.captures.clone(),
         };
         Box::pin(async move {
             let candidate_sha256 = job.candidate_sha256.clone();
@@ -283,6 +293,7 @@ struct Job {
     targets: Vec<String>,
     candidate_sha256: String,
     jq: Option<JqHelper>,
+    captures: Option<Arc<Captures>>,
 }
 
 /// The admitted candidate, ready to run in its prepared room.
@@ -296,7 +307,8 @@ struct Ready {
 impl Job {
     /// Screen the candidate, then rehearse it on an executor of this worker's own.
     fn run(self) -> RehearsalReport {
-        let screened = match screen::screen_with(&self.candidate, &self.inputs, self.jq.is_some()) {
+        let lent = (self.jq.is_some(), self.captures.as_deref());
+        let screened = match screen::screen_with(&self.candidate, &self.inputs, lent) {
             Ok(screened) => screened,
             Err(refused) => return record::refused(self.candidate_sha256, refused),
         };
@@ -349,11 +361,12 @@ impl Job {
         // deadline is drained and reaped while the run still stands, never dropped by its bound.
         let jq_deadline = started + self.bound.saturating_sub(self.bound / 5);
         let jq = (self.jq.clone()).map(|helper| Arc::new(IsolatedJq::new(helper, jq_deadline)));
-        let run = ready.driver.rehearse_over_with(
+        let run = ready.driver.rehearse_over_replaying(
             Arc::clone(&room),
             ready.plan,
             Arc::clone(&tally),
             jq.clone(),
+            self.captures.clone(),
         );
         let settled = tokio::time::timeout(self.bound, run).await.ok();
         drained &= world::next_phase(&ledger).await.is_ok();
@@ -439,8 +452,8 @@ impl Job {
                 "the admission door admitted other bytes than the candidate's".to_owned(),
             ));
         }
-        let plan = driver
-            .rehearsal_plan(None)
+        let plan = (self.captures.as_ref())
+            .map_or_else(|| driver.rehearsal_plan(None), |_| driver.replay_plan(None))
             .map_err(|refusal| Refused::new(Refusal::Plan, refusal.to_string()))?;
         Ok((digest, driver, plan))
     }
