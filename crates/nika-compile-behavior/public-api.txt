@@ -1611,11 +1611,13 @@ pub type nika_compile_behavior::behavior::Ruling::Output = T
 pub nika_compile_behavior::behavior::Run::consumed: alloc::vec::Vec<nika_compile_behavior::behavior::Consumed>
 pub nika_compile_behavior::behavior::Run::end: nika_compile_behavior::behavior::RunEnd
 pub nika_compile_behavior::behavior::Run::fixture: alloc::string::String
+pub nika_compile_behavior::behavior::Run::flow: alloc::vec::Vec<nika_compile_behavior::behavior::StepFlow>
 pub nika_compile_behavior::behavior::Run::read_back: alloc::vec::Vec<nika_compile_behavior::behavior::ReadBack>
 pub nika_compile_behavior::behavior::Run::usage: nika_compile_behavior::behavior::Usage
 impl nika_compile_behavior::behavior::Run
 pub fn nika_compile_behavior::behavior::Run::new(fixture: impl core::convert::Into<alloc::string::String>, end: nika_compile_behavior::behavior::RunEnd, usage: nika_compile_behavior::behavior::Usage) -> Self
 pub fn nika_compile_behavior::behavior::Run::with_consumed(self, consumed: nika_compile_behavior::behavior::Consumed) -> Self
+pub fn nika_compile_behavior::behavior::Run::with_flow(self, flow: alloc::vec::Vec<nika_compile_behavior::behavior::StepFlow>) -> Self
 pub fn nika_compile_behavior::behavior::Run::with_read_back(self, read_back: nika_compile_behavior::behavior::ReadBack) -> Self
 impl core::clone::Clone for nika_compile_behavior::behavior::Run
 pub fn nika_compile_behavior::behavior::Run::clone(&self) -> nika_compile_behavior::behavior::Run
@@ -1772,6 +1774,45 @@ impl<T> core::convert::From<T> for nika_compile_behavior::behavior::Step
 pub fn nika_compile_behavior::behavior::Step::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::Step
 pub type nika_compile_behavior::behavior::Step::Output = T
+#[non_exhaustive] pub struct nika_compile_behavior::behavior::StepFlow
+pub nika_compile_behavior::behavior::StepFlow::received: core::option::Option<u64>
+pub nika_compile_behavior::behavior::StepFlow::returned: core::option::Option<u64>
+pub nika_compile_behavior::behavior::StepFlow::task: alloc::string::String
+impl nika_compile_behavior::behavior::StepFlow
+pub fn nika_compile_behavior::behavior::StepFlow::emptied(&self) -> bool
+pub fn nika_compile_behavior::behavior::StepFlow::new(task: impl core::convert::Into<alloc::string::String>, received: core::option::Option<u64>, returned: core::option::Option<u64>) -> Self
+impl core::clone::Clone for nika_compile_behavior::behavior::StepFlow
+pub fn nika_compile_behavior::behavior::StepFlow::clone(&self) -> nika_compile_behavior::behavior::StepFlow
+impl core::cmp::Eq for nika_compile_behavior::behavior::StepFlow
+impl core::cmp::PartialEq for nika_compile_behavior::behavior::StepFlow
+pub fn nika_compile_behavior::behavior::StepFlow::eq(&self, other: &nika_compile_behavior::behavior::StepFlow) -> bool
+impl core::fmt::Debug for nika_compile_behavior::behavior::StepFlow
+pub fn nika_compile_behavior::behavior::StepFlow::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_behavior::behavior::StepFlow
+impl<T, U> core::convert::Into<U> for nika_compile_behavior::behavior::StepFlow where U: core::convert::From<T>
+pub fn nika_compile_behavior::behavior::StepFlow::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_behavior::behavior::StepFlow where U: core::convert::Into<T>
+pub type nika_compile_behavior::behavior::StepFlow::Error = core::convert::Infallible
+pub fn nika_compile_behavior::behavior::StepFlow::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_behavior::behavior::StepFlow where U: core::convert::TryFrom<T>
+pub type nika_compile_behavior::behavior::StepFlow::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_behavior::behavior::StepFlow::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_behavior::behavior::StepFlow where T: core::clone::Clone
+pub type nika_compile_behavior::behavior::StepFlow::Owned = T
+pub fn nika_compile_behavior::behavior::StepFlow::clone_into(&self, target: &mut T)
+pub fn nika_compile_behavior::behavior::StepFlow::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_behavior::behavior::StepFlow where T: 'static + ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::StepFlow::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_behavior::behavior::StepFlow where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::StepFlow::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_behavior::behavior::StepFlow where T: ?core::marker::Sized
+pub fn nika_compile_behavior::behavior::StepFlow::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_behavior::behavior::StepFlow where T: core::clone::Clone
+pub unsafe fn nika_compile_behavior::behavior::StepFlow::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_behavior::behavior::StepFlow
+pub fn nika_compile_behavior::behavior::StepFlow::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_compile_behavior::behavior::StepFlow
+pub type nika_compile_behavior::behavior::StepFlow::Output = T
 #[non_exhaustive] pub struct nika_compile_behavior::behavior::StopFact
 pub nika_compile_behavior::behavior::StopFact::field: alloc::string::String
 pub nika_compile_behavior::behavior::StopFact::operation: nika_compile_behavior::behavior::Operation
