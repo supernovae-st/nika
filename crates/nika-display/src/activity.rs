@@ -59,6 +59,46 @@ impl CallMark {
         }
     }
 }
+/// Where one tool step of a conversation's run is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ToolState {
+    /// The tool began.
+    Started,
+    /// It answered.
+    Finished,
+    /// It answered with a failure.
+    Failed,
+}
+
+/// One tool the conversation's intelligence called, as the Session's run observed it: the
+/// call's identity, the tool, where it is and the time it took — never its arguments or reply.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ToolMark {
+    /// The call's identity, as the model or the agent gave it.
+    pub call: String,
+    /// The tool (`candidate_write`).
+    pub name: String,
+    /// Where it is.
+    pub state: ToolState,
+    /// Milliseconds it took, once it answered.
+    pub elapsed_ms: Option<u64>,
+}
+
+impl ToolMark {
+    /// Preserve the run's own facts.
+    #[must_use]
+    pub fn new(call: &str, name: &str, state: ToolState, elapsed_ms: Option<u64>) -> Self {
+        Self {
+            call: call.into(),
+            name: name.into(),
+            state,
+            elapsed_ms,
+        }
+    }
+}
+
 /// One activity: a phase, its note in words, and whether it is done.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -71,6 +111,8 @@ pub struct Activity {
     pub done: bool,
     /// A physical compiler call, when the producer reported one; model means requested.
     pub call: Option<CallMark>,
+    /// A tool step of the conversation's run, when the run reported one.
+    pub tool: Option<ToolMark>,
 }
 
 impl Activity {
@@ -82,6 +124,7 @@ impl Activity {
             note: note.into(),
             done: false,
             call: None,
+            tool: None,
         }
     }
 
@@ -93,14 +136,21 @@ impl Activity {
             note: note.into(),
             done: true,
             call: None,
+            tool: None,
         }
     }
 
-    /// The glyph: ✓ done · ↻ repairing · ● working (the renderer's busy
-    /// row and the plain loop share it; the loader turns beside ● only).
+    /// The glyph: ✓ done · ✗ a tool step that failed · ↻ repairing · ● working (the
+    /// renderer's busy row and the plain loop share it; the loader turns beside ● only).
     #[must_use]
     pub const fn glyph(&self) -> char {
-        if self.done {
+        if let Some(ToolMark {
+            state: ToolState::Failed,
+            ..
+        }) = &self.tool
+        {
+            '✗'
+        } else if self.done {
             '✓'
         } else if matches!(self.phase, Phase::Repairing) {
             '↻'
@@ -216,9 +266,59 @@ pub fn call_activity(ordinal: u32, role: &str, model: &str, state: CallState) ->
     activity
 }
 
+/// Present one real tool step of a conversation's run; the phase is the tool's family, the
+/// note names the tool and, once it answered, the time it took.
+#[must_use]
+pub fn tool_activity(
+    call: &str,
+    name: &str,
+    state: ToolState,
+    elapsed_ms: Option<u64>,
+) -> Activity {
+    let phase = match name {
+        "check" | "inspect" | "verify" | "explain" | "trial" => Phase::Checking,
+        "knowledge" | "language" | "models" => Phase::Knowledge,
+        _ => Phase::Authoring,
+    };
+    let took = elapsed_ms.map_or_else(String::new, |ms| format!(" · {ms} ms"));
+    let note = match state {
+        ToolState::Failed => format!("{name} failed{took}"),
+        _ => format!("{name}{took}"),
+    };
+    let mut activity = Activity::now(phase, note);
+    activity.done = state != ToolState::Started;
+    activity.tool = Some(ToolMark::new(call, name, state, elapsed_ms));
+    activity
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A tool step reads as its tool, then the time it took; a failed step reads ✗; the phase is
+    /// the tool's family, and the mark keeps the run's own facts and nothing else.
+    #[test]
+    fn a_tool_step_reads_as_its_tool_and_the_time_it_took() {
+        let started = tool_activity("toolu_1", "candidate_write", ToolState::Started, None);
+        assert_eq!(started.line(), "● candidate_write");
+        assert_eq!((started.phase, started.done), (Phase::Authoring, false));
+        let finished = tool_activity("toolu_1", "verify", ToolState::Finished, Some(42));
+        assert_eq!(finished.line(), "✓ verify · 42 ms");
+        assert_eq!(finished.phase, Phase::Checking);
+        let failed = tool_activity("toolu_2", "language", ToolState::Failed, Some(7));
+        assert_eq!(failed.line(), "✗ language failed · 7 ms");
+        assert_eq!(failed.phase, Phase::Knowledge);
+        assert_eq!(
+            failed.tool,
+            Some(ToolMark::new(
+                "toolu_2",
+                "language",
+                ToolState::Failed,
+                Some(7)
+            ))
+        );
+        assert_eq!(failed.call, None);
+    }
 
     #[test]
     fn typed_and_legacy_listeners_preserve_the_producers_phase_and_line() {

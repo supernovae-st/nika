@@ -108,11 +108,65 @@ impl<T> tracing::instrument::Instrument for nika_display::activity::Phase
 impl<T> tracing::instrument::WithSubscriber for nika_display::activity::Phase
 impl<T> typenum::type_operators::Same for nika_display::activity::Phase
 pub type nika_display::activity::Phase::Output = T
+#[non_exhaustive] pub enum nika_display::activity::ToolState
+pub nika_display::activity::ToolState::Failed
+pub nika_display::activity::ToolState::Finished
+pub nika_display::activity::ToolState::Started
+impl core::clone::Clone for nika_display::activity::ToolState
+pub fn nika_display::activity::ToolState::clone(&self) -> nika_display::activity::ToolState
+impl core::cmp::Eq for nika_display::activity::ToolState
+impl core::cmp::PartialEq for nika_display::activity::ToolState
+pub fn nika_display::activity::ToolState::eq(&self, other: &nika_display::activity::ToolState) -> bool
+impl core::fmt::Debug for nika_display::activity::ToolState
+pub fn nika_display::activity::ToolState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_display::activity::ToolState
+impl core::marker::StructuralPartialEq for nika_display::activity::ToolState
+impl<D> owo_colors::OwoColorize for nika_display::activity::ToolState
+impl<Q, K> equivalent::Equivalent<K> for nika_display::activity::ToolState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::activity::ToolState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::activity::ToolState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::activity::ToolState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::activity::ToolState where U: core::convert::From<T>
+pub fn nika_display::activity::ToolState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::activity::ToolState where U: core::convert::Into<T>
+pub type nika_display::activity::ToolState::Error = core::convert::Infallible
+pub fn nika_display::activity::ToolState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::activity::ToolState where U: core::convert::TryFrom<T>
+pub type nika_display::activity::ToolState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::activity::ToolState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::activity::ToolState where T: core::clone::Clone
+pub type nika_display::activity::ToolState::Owned = T
+pub fn nika_display::activity::ToolState::clone_into(&self, target: &mut T)
+pub fn nika_display::activity::ToolState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::activity::ToolState where T: 'static + ?core::marker::Sized
+pub fn nika_display::activity::ToolState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::activity::ToolState where T: ?core::marker::Sized
+pub fn nika_display::activity::ToolState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::activity::ToolState where T: ?core::marker::Sized
+pub fn nika_display::activity::ToolState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::activity::ToolState where T: core::clone::Clone
+pub unsafe fn nika_display::activity::ToolState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::activity::ToolState
+pub fn nika_display::activity::ToolState::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::activity::ToolState where T: core::clone::Clone
+pub fn nika_display::activity::ToolState::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::activity::ToolState where T: 'static
+pub fn nika_display::activity::ToolState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_display::activity::ToolState where T: core::marker::Copy
+pub fn nika_display::activity::ToolState::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::activity::ToolState where T: ?core::marker::Sized
+pub fn nika_display::activity::ToolState::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::activity::ToolState::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::activity::ToolState
+impl<T> tracing::instrument::WithSubscriber for nika_display::activity::ToolState
+impl<T> typenum::type_operators::Same for nika_display::activity::ToolState
+pub type nika_display::activity::ToolState::Output = T
 #[non_exhaustive] pub struct nika_display::activity::Activity
 pub nika_display::activity::Activity::call: core::option::Option<nika_display::activity::CallMark>
 pub nika_display::activity::Activity::done: bool
 pub nika_display::activity::Activity::note: alloc::string::String
 pub nika_display::activity::Activity::phase: nika_display::activity::Phase
+pub nika_display::activity::Activity::tool: core::option::Option<nika_display::activity::ToolMark>
 impl nika_display::activity::Activity
 pub fn nika_display::activity::Activity::done(phase: nika_display::activity::Phase, note: impl core::convert::Into<alloc::string::String>) -> Self
 pub const fn nika_display::activity::Activity::glyph(&self) -> char
@@ -284,8 +338,62 @@ pub type nika_display::activity::Progress::Output = T
 impl<T> zvariant::optional::NoneValue for nika_display::activity::Progress where T: core::default::Default
 pub type nika_display::activity::Progress::NoneType = T
 pub fn nika_display::activity::Progress::null_value() -> T
+#[non_exhaustive] pub struct nika_display::activity::ToolMark
+pub nika_display::activity::ToolMark::call: alloc::string::String
+pub nika_display::activity::ToolMark::elapsed_ms: core::option::Option<u64>
+pub nika_display::activity::ToolMark::name: alloc::string::String
+pub nika_display::activity::ToolMark::state: nika_display::activity::ToolState
+impl nika_display::activity::ToolMark
+pub fn nika_display::activity::ToolMark::new(call: &str, name: &str, state: nika_display::activity::ToolState, elapsed_ms: core::option::Option<u64>) -> Self
+impl core::clone::Clone for nika_display::activity::ToolMark
+pub fn nika_display::activity::ToolMark::clone(&self) -> nika_display::activity::ToolMark
+impl core::cmp::Eq for nika_display::activity::ToolMark
+impl core::cmp::PartialEq for nika_display::activity::ToolMark
+pub fn nika_display::activity::ToolMark::eq(&self, other: &nika_display::activity::ToolMark) -> bool
+impl core::fmt::Debug for nika_display::activity::ToolMark
+pub fn nika_display::activity::ToolMark::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_display::activity::ToolMark
+impl<D> owo_colors::OwoColorize for nika_display::activity::ToolMark
+impl<Q, K> equivalent::Equivalent<K> for nika_display::activity::ToolMark where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::activity::ToolMark::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::activity::ToolMark where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::activity::ToolMark::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::activity::ToolMark where U: core::convert::From<T>
+pub fn nika_display::activity::ToolMark::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::activity::ToolMark where U: core::convert::Into<T>
+pub type nika_display::activity::ToolMark::Error = core::convert::Infallible
+pub fn nika_display::activity::ToolMark::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::activity::ToolMark where U: core::convert::TryFrom<T>
+pub type nika_display::activity::ToolMark::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::activity::ToolMark::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::activity::ToolMark where T: core::clone::Clone
+pub type nika_display::activity::ToolMark::Owned = T
+pub fn nika_display::activity::ToolMark::clone_into(&self, target: &mut T)
+pub fn nika_display::activity::ToolMark::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::activity::ToolMark where T: 'static + ?core::marker::Sized
+pub fn nika_display::activity::ToolMark::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::activity::ToolMark where T: ?core::marker::Sized
+pub fn nika_display::activity::ToolMark::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::activity::ToolMark where T: ?core::marker::Sized
+pub fn nika_display::activity::ToolMark::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::activity::ToolMark where T: core::clone::Clone
+pub unsafe fn nika_display::activity::ToolMark::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::activity::ToolMark
+pub fn nika_display::activity::ToolMark::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::activity::ToolMark where T: core::clone::Clone
+pub fn nika_display::activity::ToolMark::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::activity::ToolMark where T: 'static
+pub fn nika_display::activity::ToolMark::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::activity::ToolMark where T: ?core::marker::Sized
+pub fn nika_display::activity::ToolMark::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::activity::ToolMark::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::activity::ToolMark
+impl<T> tracing::instrument::WithSubscriber for nika_display::activity::ToolMark
+impl<T> typenum::type_operators::Same for nika_display::activity::ToolMark
+pub type nika_display::activity::ToolMark::Output = T
 pub fn nika_display::activity::call_activity(ordinal: u32, role: &str, model: &str, state: nika_display::activity::CallState) -> nika_display::activity::Activity
 pub fn nika_display::activity::current_listener() -> core::option::Option<nika_display::activity::ActivityHook>
+pub fn nika_display::activity::tool_activity(call: &str, name: &str, state: nika_display::activity::ToolState, elapsed_ms: core::option::Option<u64>) -> nika_display::activity::Activity
 pub type nika_display::activity::ActivityHook = alloc::sync::Arc<(dyn core::ops::function::Fn(&nika_display::activity::Activity) + core::marker::Send + core::marker::Sync)>
 pub type nika_display::activity::TextHook = alloc::boxed::Box<(dyn core::ops::function::Fn(&str) + core::marker::Send)>
 pub mod nika_display::activity_card
