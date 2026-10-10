@@ -25,8 +25,8 @@ const ROLES: [Role; 10] = [
 #[test]
 fn semantic_roles_wear_the_approved_hues() {
     for (role, hue) in [
-        // Violet accent and selection, cyan interaction, green success.
-        (Role::Accent, Color::Rgb(182, 154, 255)),
+        // Electric-blue accent and selection, cyan invoke, green success.
+        (Role::Accent, Color::Rgb(76, 163, 255)),
         (Role::VerbInvoke, Color::Rgb(123, 219, 232)),
         (Role::Good, Color::Rgb(126, 208, 160)),
         (Role::Warn, Color::Rgb(233, 191, 126)),
@@ -59,7 +59,7 @@ fn surfaces_are_the_approved_dark_ground_and_panel() {
 }
 
 #[test]
-fn verbs_keep_identities_apart_from_the_violet_accent() {
+fn verbs_keep_identities_apart_from_the_electric_blue_accent() {
     let accent = style(Role::Accent, true).fg;
     // The infer verb keeps its blue identity instead of borrowing the accent.
     assert_eq!(

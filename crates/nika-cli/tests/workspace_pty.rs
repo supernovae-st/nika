@@ -804,8 +804,8 @@ fn the_native_workflow_uses_the_approved_palette_without_changing_source() {
         screen.contains("[graph]") && screen.contains(&witness) && screen.contains("join")
     });
     assert!(
-        term.screen.hues().contains("38;2;182;154;255"),
-        "the approved violet accent is emitted by the native renderer: {:?}",
+        term.screen.hues().contains("38;2;76;163;255"),
+        "the approved electric-blue accent is emitted by the native renderer: {:?}",
         term.screen.hues()
     );
     assert!(

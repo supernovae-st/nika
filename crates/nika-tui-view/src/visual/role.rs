@@ -2,8 +2,9 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! Semantic roles resolved to the workspace's product palette, the hues of
-//! the approved terminal design: a violet accent and selection, cyan for
-//! interaction, green for success, on subdued dark surfaces. The roles
+//! the approved terminal design: an electric-blue accent and selection
+//! (brand, focus, selection, primary action and interaction chrome), cyan
+//! for the invoke verb, green for success, on subdued dark surfaces. The roles
 //! still belong to `nika_display`, while these RGB hues belong only to the
 //! TUI: the renderer and every viewer paint with this one mapping, and the
 //! CLI keeps its own terminal-theme mapping. `NO_COLOR` carries no hue.
@@ -20,7 +21,7 @@ const PANEL: Color = Color::Rgb(16, 22, 33);
 /// The subdued frame of an object at rest.
 const BORDER: Color = Color::Rgb(45, 59, 82);
 /// The fill of the selected or active object.
-const SELECTION: Color = Color::Rgb(37, 39, 62);
+const SELECTION: Color = Color::Rgb(20, 45, 73);
 
 /// The style of `role`. The secondary RGB text stays legible on dark
 /// surfaces. Without colour, dim and strong retain only their text weights.
@@ -35,7 +36,7 @@ pub fn style(role: Role, color: bool) -> Style {
         return plain;
     }
     let hue = match role {
-        Role::Accent => Color::Rgb(182, 154, 255),
+        Role::Accent => Color::Rgb(76, 163, 255),
         Role::VerbInfer => Color::Rgb(140, 177, 255),
         Role::Good => Color::Rgb(126, 208, 160),
         Role::Bad => Color::Rgb(255, 150, 158),
@@ -112,7 +113,7 @@ mod tests {
     #[test]
     fn semantic_roles_use_the_product_palette_with_readable_secondary_text() {
         for (role, color) in [
-            (Role::Accent, Color::Rgb(182, 154, 255)),
+            (Role::Accent, Color::Rgb(76, 163, 255)),
             (Role::Good, Color::Rgb(126, 208, 160)),
             (Role::Bad, Color::Rgb(255, 150, 158)),
             (Role::Warn, Color::Rgb(233, 191, 126)),
@@ -161,7 +162,7 @@ mod tests {
         assert_eq!(verb("invoke", true), style(Role::VerbInvoke, true));
         assert_eq!(verb("agent", true), style(Role::VerbAgent, true));
         assert_eq!(verb("fetch", true), style(Role::Dim, true));
-        // Invoke keeps its cyan identity and infer its blue beside the violet accent.
+        // Invoke keeps its cyan identity and infer its blue beside the electric-blue accent.
         assert_ne!(verb("invoke", true), style(Role::Accent, true));
         assert_ne!(verb("infer", true), style(Role::Accent, true));
     }

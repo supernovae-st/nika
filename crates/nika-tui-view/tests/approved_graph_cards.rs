@@ -846,9 +846,9 @@ fn observed_states_sit_on_their_cards_and_only_unobserved_cards_say_definition()
 }
 
 #[test]
-fn a_running_card_wears_the_approved_violet_and_selection() {
-    let violet = Color::Rgb(182, 154, 255);
-    let selection = Color::Rgb(37, 39, 62);
+fn a_running_card_wears_the_approved_electric_blue_and_selection() {
+    let blue = Color::Rgb(76, 163, 255);
+    let selection = Color::Rgb(20, 45, 73);
     let ground = Color::Rgb(13, 17, 25);
     let border = Color::Rgb(45, 59, 82);
     let muted = Color::Rgb(156, 172, 197);
@@ -865,12 +865,12 @@ fn a_running_card_wears_the_approved_violet_and_selection() {
         let style = style_at(&lines[row], column);
         (style.fg, style.bg)
     };
-    // The running card: the violet frame on the selection fill.
-    assert_eq!(paint(5, 0), (Some(violet), Some(selection)));
-    assert_eq!(paint(8, 29), (Some(violet), Some(selection)));
+    // The running card: the electric-blue frame on the selection fill.
+    assert_eq!(paint(5, 0), (Some(blue), Some(selection)));
+    assert_eq!(paint(8, 29), (Some(blue), Some(selection)));
     assert_eq!(paint(6, 2), (Some(ink), Some(selection)), "its title");
     let running = column_of(&rows[6], "◐");
-    assert_eq!(paint(6, running), (Some(violet), Some(selection)));
+    assert_eq!(paint(6, running), (Some(blue), Some(selection)));
     assert_eq!(paint(5, 15), (Some(muted), Some(selection)), "its entry");
     // Idle cards keep the subdued frame on the dark ground.
     for (row, column) in [(0, 0), (5, 32), (10, 0), (13, 61)] {

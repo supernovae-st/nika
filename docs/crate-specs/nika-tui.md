@@ -43,7 +43,7 @@ become typed beats, and the CLI door injects the runners. The
 The roles remain the engine's closed set, `nika_display::theme::Role`
 (the accent, the three verdicts, dim, strong and the four verb chips).
 `visual::role::style` resolves them to the workspace's RGB product palette:
-a violet accent and selection fill on dark navy surfaces, blue for infer, cyan
+an electric-blue accent and selection fill on dark navy surfaces, blue for infer, cyan
 for invoke, lavender for agent, amber for exec and attention, green success,
 red failure, and readable secondary text. The renderer and viewer share the
 viewer's pure visual owner through compatibility paths (ADR-143). The CLI retains
