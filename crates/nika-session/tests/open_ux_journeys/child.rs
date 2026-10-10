@@ -260,6 +260,10 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path, markers: &Path) -> Val
                 asked.push(session.pending_question_id());
                 continue;
             }
+            Act::Edit(path, text) => {
+                std::fs::write(root.join(path), text).expect("the project file is edited");
+                (path, json!({"kind": "edited"}))
+            }
             Act::Reopen => {
                 drop(session);
                 session = open(root, home, scenario.history);

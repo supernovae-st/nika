@@ -7,8 +7,11 @@
 //! The public F4 diagnostic (`schema-drift-session`): a header column renamed between the
 //! proposal and the yes still saved the stale workflow; compatible new rows must keep landing.
 
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+
+use crate::change::{ProjectChangeSet, Witness};
 
 use crate::intelligence::{DataLocus, IntelligenceKind, ResolvedSessionIntelligence};
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
@@ -541,4 +544,88 @@ fn an_answer_round_keeps_its_own_observation_apart_from_the_one_it_continued() {
         "report must identify the Orders source facts"
     );
     assert!(seen.lock().expect("record").is_empty(), "no model");
+}
+
+/// A workflow a conversation's author wrote over `./data/input.csv`: no compile recorded what it
+/// relies on.
+const COPIED: &str = "nika: copy-input\npermits:\n  tools: [\"nika:read\", \"nika:write\"]\n  fs:\n    read: [\"./data/input.csv\"]\n    write: [\"./out/copy.csv\"]\ntasks:\n  read_it:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/input.csv\" } }\n  write_it:\n    with: { text: \"${{ tasks.read_it.output }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"./out/copy.csv\", content: \"${{ with.text }}\" } }\n";
+
+/// The conversation's proposal of `COPIED`, pending under its identity, its basis bound with
+/// the bytes its author read (`seen`).
+fn conversation_proposal(s: &mut SessionRuntime, seen: &BTreeMap<String, Witness>) {
+    let set = ProjectChangeSet::workflow_at(
+        &s.snapshot.root,
+        "copy",
+        "copy-input.nika",
+        COPIED.to_owned(),
+    )
+    .expect("the conversation's candidate is a change");
+    let id = s.proposal_id(&set);
+    s.bind_read_basis(&id, &set, seen);
+    s.pending = Some(set);
+}
+
+/// P0 · a conversation's proposal that reads a project file lands on the exact bytes it was
+/// shown over: no compile is asked to rebuild bytes it never wrote.
+#[test]
+fn a_conversation_proposal_lands_on_the_bytes_it_was_shown_over() {
+    let root = project(INPUT);
+    let (mut s, seen) = open(root.path());
+    conversation_proposal(&mut s, &BTreeMap::new());
+    let landed = facts(s.consent("yes"));
+    assert!(
+        landed.contains("the exact bytes it was shown over still hold for `./data/input.csv`"),
+        "{landed}"
+    );
+    assert!(
+        root.path().join("copy-input.nika").exists(),
+        "the reviewed bytes landed"
+    );
+    assert!(
+        seen.lock().expect("prompt record").is_empty(),
+        "no model was asked"
+    );
+}
+
+/// P0 · a project file changed after the proposal withdraws it before anything lands.
+#[test]
+fn a_file_changed_after_a_conversation_proposal_withdraws_it() {
+    let root = project(INPUT);
+    let (mut s, _) = open(root.path());
+    conversation_proposal(&mut s, &BTreeMap::new());
+    let changed = INPUT.replace("A030,300", "A030,301");
+    std::fs::write(root.path().join("data/input.csv"), changed).expect("edited");
+    let why = refused(s.consent("yes"));
+    assert_eq!(why.class, RefusalClass::StaleRevision, "{}", why.text);
+    assert!(
+        why.text.contains(
+            "the files this proposal reads changed since it was shown: `./data/input.csv`"
+        ),
+        "{}",
+        why.text
+    );
+    assert!(
+        !root.path().join("copy-input.nika").exists(),
+        "nothing landed"
+    );
+}
+
+/// P0 · the basis keeps the bytes the author read: a file that already held other bytes when
+/// the proposal was made withdraws it.
+#[test]
+fn a_conversation_proposal_is_judged_by_the_bytes_its_author_read() {
+    let root = project(INPUT);
+    let (mut s, _) = open(root.path());
+    let read = BTreeMap::from([("./data/input.csv".to_owned(), Witness::of(b"id,amount\n"))]);
+    conversation_proposal(&mut s, &read);
+    let why = refused(s.consent("yes"));
+    assert!(
+        why.text.contains("changed since it was shown"),
+        "{}",
+        why.text
+    );
+    assert!(
+        !root.path().join("copy-input.nika").exists(),
+        "nothing landed"
+    );
 }

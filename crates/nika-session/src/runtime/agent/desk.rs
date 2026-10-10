@@ -7,6 +7,7 @@
 //! page observer, the document operations and the judge. The desk owns what it reads, so a
 //! run's tools never borrow the Session they serve; none of it writes, runs or sends a workflow.
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -24,7 +25,7 @@ use serde_json::{Value, json};
 use crate::authoring::{AuthoringContext, AuthoringSeat};
 
 use super::tools::Desk;
-use crate::change::ProjectChangeSet;
+use crate::change::{ProjectChangeSet, Witness};
 
 /// The largest project file a conversation reads.
 const READ_CAP: u64 = 256 * 1024;
@@ -61,6 +62,9 @@ pub(crate) struct Verifier {
 pub(crate) struct Verified {
     verdicts: Vec<Value>,
     ready: Option<(String, String)>,
+    /// The project files the author read through the desk, by the path a workflow names, each
+    /// with the witness of the bytes it read: what its proposal's basis keeps.
+    read: BTreeMap<String, Witness>,
 }
 
 /// The verdicts `verifier` shares with its conversation, or why they cannot be read.
@@ -69,6 +73,11 @@ fn kept(verifier: &Verifier) -> Result<MutexGuard<'_, Verified>, String> {
 }
 
 impl Verified {
+    /// The files the author read, each with the witness of the bytes it read.
+    pub(crate) fn read(&self) -> &BTreeMap<String, Witness> {
+        &self.read
+    }
+
     /// Keep every verdict `out` recorded that declined its bytes, once.
     fn keep(&mut self, out: &CompileOutcome) {
         let attempts = (out.provenance.decision.as_ref())
@@ -148,6 +157,11 @@ impl Desk for SessionDesk {
         let text = (root.read_capped_below(dirs, name, READ_CAP, &over))
             .map_err(|e| format!("`{path}` cannot be read: {e}"))?
             .ok_or_else(|| format!("`{path}` does not exist in the project"))?;
+        // The bytes read, kept for the basis of a proposal that reads this file.
+        let named = format!("./{}", parts.join("/"));
+        kept(&self.verifier)?
+            .read
+            .insert(named, Witness::of(text.as_bytes()));
         let first = usize::try_from(offset.unwrap_or(1).max(1)).unwrap_or(usize::MAX) - 1;
         let count = limit.map_or(READ_LINES, |n| usize::try_from(n).unwrap_or(usize::MAX));
         let lines: Vec<&str> = text.lines().skip(first).take(count).collect();

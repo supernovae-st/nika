@@ -535,6 +535,9 @@ impl SessionRuntime {
         let bytes = self.draft_preview(&set);
         let id = ProposalId::of(&bytes);
         self.bind_proposal_money(&id);
+        // The source basis of these bytes, bound to the identity the person reviews.
+        let seen = (driver.verified.lock()).map(|kept| kept.read().clone());
+        self.bind_read_basis(&id, &set, &seen.unwrap_or_default());
         self.pending = Some(set);
         driver.authorized = acts.map(|acts| (id.clone(), acts));
         TurnOutcome::Proposal {

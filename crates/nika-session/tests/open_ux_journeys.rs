@@ -767,3 +767,43 @@ fn a_candidate_its_judge_doubts_goes_back_to_the_author_and_is_not_asked_again()
         "the same bytes ask the judge nothing"
     );
 }
+
+/// P0: an agent-led proposal that reads a project file is saved after the person's yes; its
+/// sources are judged by the exact bytes it was shown over, never by a compile it never had.
+#[test]
+fn an_agent_proposal_that_reads_a_project_file_is_saved_after_the_yes() {
+    let journey = run("reads_a_project_file");
+    assert_eq!(journey.step(0)["outcome"]["kind"], "proposal");
+    let yes = journey.step(1);
+    assert_ne!(yes["outcome"]["kind"], "refusal", "{yes}");
+    let text = yes["outcome"]["text"].as_str().unwrap();
+    assert!(
+        text.contains("the exact bytes it was shown over still hold for `./data/ventes.csv`"),
+        "{text}"
+    );
+    let files = journey.report["files"].as_array().unwrap();
+    assert!(
+        files.iter().any(|f| f.as_str().is_some_and(is_workflow)),
+        "{files:?}"
+    );
+}
+
+/// P0: a project file changed after the proposal withdraws it at the yes, as stale.
+#[test]
+fn a_file_changed_after_the_proposal_withdraws_it_at_the_yes() {
+    let journey = run("a_read_file_changes");
+    let yes = journey.step(2);
+    assert_eq!(yes["outcome"]["kind"], "refusal", "{yes}");
+    let text = yes["outcome"]["text"].as_str().unwrap();
+    assert!(
+        text.contains(
+            "the files this proposal reads changed since it was shown: `./data/ventes.csv`"
+        ),
+        "{text}"
+    );
+    let files = journey.report["files"].as_array().unwrap();
+    assert!(
+        !files.iter().any(|f| f.as_str().is_some_and(is_workflow)),
+        "{files:?}"
+    );
+}

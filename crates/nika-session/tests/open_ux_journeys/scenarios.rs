@@ -98,6 +98,8 @@ pub(crate) enum Act {
     /// `Stoppable`, and while the author's request is held under the marker, the person acts
     /// from the host's thread.
     While(&'static str, &'static str, During),
+    /// A project file written as a person edits it, between two lines.
+    Edit(&'static str, &'static str),
 }
 
 /// What the person does from the host's thread while the author's request is under way.
@@ -277,6 +279,8 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "follow_up_after_run" => follow_up_after_run(),
         "stop_mid_request" => stop_mid_request(),
         "doubted_candidate" => doubted_candidate(),
+        "reads_a_project_file" => reads_sales(false),
+        "a_read_file_changes" => reads_sales(true),
         other => panic!("unknown scenario {other}"),
     }
 }
@@ -718,6 +722,33 @@ fn doubted_candidate() -> Scenario {
             ],
             replies: Vec::new(),
             verdicts: vec!["unfaithful".to_owned()],
+        },
+    }
+}
+/// The same sales, changed after the proposal.
+pub(crate) const SALES_CHANGED: &str = "date,montant\n2026-10-01,12\n2026-10-02,30\n2026-10-03,7\n";
+/// What the author says once the counting workflow is shown.
+const COUNTED: &str = "Voici le workflow : il compte les lignes de ./data/ventes.csv.";
+
+/// The counting workflow proposed, then the person's yes; `changed` edits the sales between.
+fn reads_sales(changed: bool) -> Scenario {
+    let mut acts = vec![Act::Turn(COUNT_REQUEST)];
+    if changed {
+        acts.push(Act::Edit("data/ventes.csv", SALES_CHANGED));
+    }
+    acts.push(Act::Submit("oui"));
+    Scenario {
+        files: vec![("data/ventes.csv", SALES)],
+        history: false,
+        acts,
+        script: Script {
+            agent: vec![
+                call("candidate_write", count_write()),
+                call("propose", json!({})),
+                say(COUNTED),
+            ],
+            replies: Vec::new(),
+            verdicts: Vec::new(),
         },
     }
 }
