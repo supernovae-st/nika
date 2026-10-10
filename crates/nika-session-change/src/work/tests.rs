@@ -1076,3 +1076,103 @@ fn a_conversation_reaches_hosts_with_provenance_delegations_and_identities() {
     assert_eq!(json["questions"][1]["state"], "after");
     assert_eq!(json["questions"][1]["after"], serde_json::json!(["plan"]));
 }
+
+/// The lines the person sent while the conversation's last run was under way, and the facts this
+/// machine's inventory states for an offered model, reach hosts typed; a snapshot without them
+/// keeps its bytes, and an offered model the inventory does not know carries none.
+#[test]
+fn queued_lines_and_offered_model_facts_reach_hosts_typed() {
+    use super::{ModelFacts, OfferValue, QueueMode, Queued, UsdPerMillion, ValueRole};
+    let request = Request::new(Some("digest".to_owned()), Vec::new(), Vec::new());
+    let rail = Rail {
+        draft: Stage::Pending,
+        saved: Stage::Pending,
+        checked: Stage::Pending,
+        active: Stage::Pending,
+        run: Stage::Pending,
+    };
+    let work = Work::new(
+        PathBuf::from("/p"),
+        request,
+        Waiting::Free,
+        None,
+        None,
+        None,
+        None,
+        rail,
+    );
+    let plain = serde_json::to_value(&work).expect("serializes");
+    assert!(plain.get("queued").is_none(), "{plain}");
+    let queued = vec![Queued::new("l1", QueueMode::Steer, "use b instead")];
+    let json = serde_json::to_value(work.with_queued(queued)).expect("serializes");
+    assert_eq!(
+        json["queued"],
+        serde_json::json!([{"id": "l1", "mode": "steer", "line": "use b instead",
+            "state": "waiting"}])
+    );
+
+    let model = "deepseek/deepseek-chat";
+    let words = (
+        "deepseek".to_owned(),
+        "api".to_owned(),
+        "api_metered".to_owned(),
+    );
+    let facts = ModelFacts::new("run", model, words, true, Some(1.1));
+    let offered = OfferValue::new(ValueRole::RunModel, model, None).with_choice(Some(facts));
+    assert_eq!(
+        serde_json::to_value(&offered).expect("serializes"),
+        serde_json::json!({"role": "run_model", "value": model, "choice": {"role": "run",
+            "model": model, "via": "deepseek", "class": "api", "configured": true,
+            "billing": "api_metered", "output_usd_per_million": 1.1}})
+    );
+    let unknown = OfferValue::new(ValueRole::RunModel, "acme/imaginary-1", None).with_choice(None);
+    assert_eq!(
+        serde_json::to_value(&unknown).expect("serializes"),
+        serde_json::json!({"role": "run_model", "value": "acme/imaginary-1"})
+    );
+    let words = (String::new(), "harness".to_owned(), "unknown".to_owned());
+    let unpriced = ModelFacts::new("run", "seat/model", words, false, None);
+    let unpriced = serde_json::to_value(&unpriced).expect("serializes");
+    assert!(
+        unpriced.get("output_usd_per_million").is_none(),
+        "an unknown price is absent, never zero: {unpriced}"
+    );
+    let (one, other) = (UsdPerMillion(f64::NAN), UsdPerMillion(f64::NAN));
+    assert_eq!(one, other, "a price compares by its total order");
+}
+
+/// A stopped turn says how the Stop reached the intelligence and which lines were not sent, in
+/// words and typed.
+#[test]
+fn a_stopped_turn_says_how_it_reached_the_run_and_what_was_not_sent() {
+    use super::{QueueMode, Queued, QueuedState};
+    use crate::outcome::{StopReach, Stopped};
+    let mut returned = Queued::new("l1", QueueMode::FollowUp, "then c");
+    returned.state = QueuedState::Returned;
+    let stopped = Stopped::new(StopReach::AgentCancelled, vec![returned], Some(3));
+    assert_eq!(
+        stopped.text(),
+        "stopped by you · the agent was asked to stop and ended its turn · the conversation and \
+         its draft are kept · not sent: « then c »"
+    );
+    assert_eq!(
+        serde_json::to_value(&stopped).expect("serializes"),
+        serde_json::json!({"reach": "agent_cancelled", "unsent": [{"id": "l1",
+            "mode": "follow_up", "line": "then c", "state": "returned"}], "candidate": 3})
+    );
+    let quiet = Stopped::new(StopReach::BetweenSteps, Vec::new(), None);
+    assert_eq!(
+        quiet.text(),
+        "stopped by you · nothing was under way · the conversation and its draft are kept"
+    );
+    let reaches = [
+        StopReach::BetweenSteps,
+        StopReach::RequestDropped,
+        StopReach::AgentCancelled,
+    ];
+    let words: Vec<&str> = reaches.iter().map(|reach| reach.as_str()).collect();
+    assert_eq!(
+        words,
+        ["between_steps", "request_dropped", "agent_cancelled"]
+    );
+}

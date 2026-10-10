@@ -254,6 +254,80 @@ impl fmt::Display for Refusal {
     }
 }
 
+/// How the person's Stop reached the intelligence leading the conversation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum StopReach {
+    /// Nika's own loop stopped at a step boundary: no request was under way.
+    BetweenSteps,
+    /// Nika's own loop dropped its request to the route: a request already sent may still be
+    /// billed.
+    RequestDropped,
+    /// The agent leading the conversation was asked once to stop (`session/cancel`) and ended
+    /// its turn.
+    AgentCancelled,
+}
+
+impl StopReach {
+    /// The reach's word on the wire.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::BetweenSteps => "between_steps",
+            Self::RequestDropped => "request_dropped",
+            Self::AgentCancelled => "agent_cancelled",
+        }
+    }
+}
+
+/// A turn of a conversation the person stopped: how the stop reached the intelligence, the
+/// lines they sent meanwhile (returned unsent, with their identities) and the draft revision
+/// kept. The conversation's tree and draft are kept whole; nothing is undone.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[non_exhaustive]
+pub struct Stopped {
+    /// How the stop reached the intelligence.
+    pub reach: StopReach,
+    /// The lines returned unsent.
+    pub unsent: Vec<crate::work::Queued>,
+    /// The candidate revision kept, when one was written.
+    pub candidate: Option<u64>,
+}
+
+impl Stopped {
+    /// Construct (INV-019).
+    #[must_use]
+    pub fn new(reach: StopReach, unsent: Vec<crate::work::Queued>, candidate: Option<u64>) -> Self {
+        Self {
+            reach,
+            unsent,
+            candidate,
+        }
+    }
+
+    /// What a plain door prints.
+    #[must_use]
+    pub fn text(&self) -> String {
+        let reached = match self.reach {
+            StopReach::BetweenSteps => "nothing was under way",
+            StopReach::RequestDropped => {
+                "the request under way was dropped; a request already sent may still be billed"
+            }
+            StopReach::AgentCancelled => "the agent was asked to stop and ended its turn",
+        };
+        let mut text =
+            format!("stopped by you · {reached} · the conversation and its draft are kept");
+        if !self.unsent.is_empty() {
+            let lines: Vec<String> = (self.unsent.iter())
+                .map(|queued| format!("« {} »", queued.line))
+                .collect();
+            text = format!("{text} · not sent: {}", lines.join(" · "));
+        }
+        text
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
