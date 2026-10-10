@@ -243,3 +243,26 @@ async fn a_verdict_that_waited_for_a_run_is_resumed_over_a_whole_run() {
     let steps = route(&out);
     assert!(steps.iter().any(|step| step == RESUMED), "{steps:?}");
 }
+
+/// An answer read back in a later round keeps what its seat reported with it, its distribution
+/// and its concentration as the first round recorded them: a resumed verdict weighs what the
+/// judge gave (here a confident rejection, which decides as before), never a bare choice.
+#[tokio::test]
+async fn an_answer_read_back_keeps_what_its_seat_reported() {
+    let judge = Script::new([Some("unfaithful"), None]);
+    let request = CompileRequest::create(INTENT);
+    let (first, _) = declined(verdict(&judge, &request, ready(), 0, None).await);
+    let mut earlier = attempts(&first)[0].clone();
+    let weighed = json!({"unfaithful": 0.9, "faithful": 0.1});
+    earlier["questions"][0]["probabilities"] = weighed.clone();
+    earlier["questions"][0]["confidence"] = json!(0.85);
+    let judge = Script::new([Some("carried"), Some("unlocated")]);
+    let request = CompileRequest::create(INTENT).with_declined(vec![earlier]);
+    let (second, _) = declined(verdict(&judge, &request, ready(), 0, None).await);
+    assert_eq!((judge.calls(), judge.left()), (2, 0));
+    let resumed = &attempts(&second)[0]["questions"][0];
+    assert_eq!(resumed["question"], "verify-request", "{resumed:#}");
+    assert_eq!(resumed["read_back"], true, "{resumed:#}");
+    assert_eq!(resumed["probabilities"], weighed);
+    assert_eq!(resumed["confidence"], json!(0.85));
+}

@@ -5,7 +5,9 @@
 //! finish, then the whole-request verdict of the judge the caller permits, carrying the verdicts
 //! the conversation kept (R6). It is READY only on that verdict; a doubt nothing located is held,
 //! a located defect keeps the bytes as the preview with what to repair, and with no judge the
-//! whole request stays pending. The judge is a scripted double: it decides what each test states.
+//! whole request stays pending. An answer the judge weighs decides at its calibrated threshold:
+//! below it, the parts decide and the doubt is stated. The judge is a scripted double: it
+//! decides what each test states.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::fmt::Write as _;
@@ -35,6 +37,8 @@ const DELEGATION: &str = "les sources publiques tu les choisis toi meme";
 const OUTPUT_WORDS: &str = "ecris le resume en markdown dans un dossier du projet";
 /// The words a held candidate whose doubt nothing located opens with.
 const UNRESOLVED: &str = "The verifier doubted the request as a whole but located nothing";
+/// The words a weighed rejection the parts overrule is stated with.
+const OVERRULED: &str = "The verifier doubted that this workflow carries the request as a whole";
 
 /// A digest workflow: one GET, one summary, one write.
 fn digest() -> String {
@@ -71,12 +75,17 @@ fn authored() -> Vec<Resolution> {
 }
 
 /// A decision seat answering each verifier question by its id (the whole request as `whole`,
-/// each part carried, nothing extra, where a doubt is as `doubt`, a removal claim as `removed`),
-/// keeping every question.
+/// each part as `part` and the task question it leads to as `point`, nothing extra, where a doubt
+/// is as `doubt`, a removal claim as `removed`), keeping every question. It weighs its
+/// whole-request answer and its doubt's location only when told to.
 struct Judge {
     whole: &'static str,
     doubt: &'static str,
+    part: &'static str,
+    point: &'static str,
     removed: &'static str,
+    /// The probability it reports for its whole-request answer and for its doubt's location.
+    weighed: (Option<f64>, Option<f64>),
     asked: Mutex<Vec<ChoiceQuestion>>,
 }
 
@@ -85,9 +94,25 @@ impl Judge {
         Self {
             whole,
             doubt,
+            part: "carried",
+            point: "none",
             removed: "removed",
+            weighed: (None, None),
             asked: Mutex::new(Vec::new()),
         }
+    }
+
+    /// The same judge weighing its whole-request answer at `whole` and its doubt's location at
+    /// `doubt`, the rest of each distribution on NONE, as a decision model reports them.
+    fn weighing(mut self, whole: f64, doubt: f64) -> Self {
+        self.weighed = (Some(whole), Some(doubt));
+        self
+    }
+
+    /// The same judge answering each part `part`, and the task question it leads to `point`.
+    fn judging_parts(mut self, part: &'static str, point: &'static str) -> Self {
+        (self.part, self.point) = (part, point);
+        self
     }
 
     /// The same judge answering each removal claim as `removed`.
@@ -114,12 +139,22 @@ impl DecisionSeat for Judge {
             "verify-request" => self.whole,
             "verify-extra" => "only_requested",
             "verify-doubt" => self.doubt,
-            _ if id.starts_with("verify-part-") => "carried",
+            _ if id.starts_with("verify-part-") => self.part,
+            _ if id.starts_with("verify-point-") => self.point,
             _ if id.starts_with("verify-removed-") => self.removed,
             _ => "none",
         };
-        let choice = choice.to_owned();
-        Box::pin(async move { Ok(ChoiceAnswer::new(choice, "fixture/judge")) })
+        let mut answer = ChoiceAnswer::new(choice, "fixture/judge");
+        let weighed = match id {
+            "verify-request" => self.weighed.0,
+            "verify-doubt" => self.weighed.1,
+            _ => None,
+        };
+        if let Some(p) = weighed {
+            let rest = ("none".to_owned(), 1.0 - p);
+            answer.probabilities.extend([(choice.to_owned(), p), rest]);
+        }
+        Box::pin(async move { Ok(answer) })
     }
 }
 
@@ -425,4 +460,113 @@ async fn a_removal_the_judge_confirms_lets_the_verdict_run() {
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(judge.ids(), ["verify-removed-0", "verify-request"]);
     assert_eq!(decision(&out)["removals"][0]["choice"], "removed");
+}
+
+/// The shape of the held cells: the judge rejects the whole request, weighing it at 0.65 (below
+/// the holding probability), carries every part and names nothing extra. That answer decides
+/// nothing: READY on the parts, the doubt stated in words with the proposal and recorded, never
+/// held, and no question asked where the doubt is.
+#[tokio::test]
+async fn a_weighed_rejection_below_the_holding_probability_is_stated_with_the_proposal() {
+    let judge = Judge::new("unfaithful", "unlocated").weighing(0.65, 0.2);
+    let out = verified(&CompileRequest::create(DELEGATING), Some(&judge)).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(out.candidate.as_deref(), Some(digest().as_str()));
+    let attempt = &decision(&out)["semantic_verification"][0];
+    assert_eq!(attempt["settled_by"], "verify-parts", "{attempt:#}");
+    assert_eq!(attempt["rejected"], false, "{attempt:#}");
+    let said = findings(&out, "verify_doubt");
+    let reported = format!("{OVERRULED} (reported at 0.65)");
+    assert!(
+        said.len() == 1 && said[0].starts_with(&reported),
+        "{said:?}"
+    );
+    assert_eq!(attempt["stated_doubt"], said[0].as_str(), "{attempt:#}");
+    assert!(findings(&out, "verify_held").is_empty(), "{out:#?}");
+    let ids = judge.ids();
+    assert!(!ids.iter().any(|id| id == "verify-doubt"), "{ids:?}");
+}
+
+/// A weighed « faithful » admits nothing by itself: the parts and the extra question decide. Every
+/// part carried carries the request, nothing stated; a part judged missing whose task the judge
+/// names keeps the document as the preview with what to repair.
+#[tokio::test]
+async fn a_weighed_faithful_answer_admits_nothing_by_itself() {
+    let judge = Judge::new("faithful", "unlocated").weighing(0.45, 0.2);
+    let out = verified(&CompileRequest::create(DELEGATING), Some(&judge)).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let ids = judge.ids();
+    assert!(ids.iter().any(|id| id == "verify-part-0"), "{ids:?}");
+    assert_eq!(ids.last().map(String::as_str), Some("verify-extra"));
+    let attempt = &decision(&out)["semantic_verification"][0];
+    assert_eq!(attempt["settled_by"], "verify-parts", "{attempt:#}");
+    assert!(findings(&out, "verify_doubt").is_empty(), "{out:#?}");
+    let judge = Judge::new("faithful", "unlocated")
+        .weighing(0.45, 0.2)
+        .judging_parts("missing", "task-write_digest");
+    let out = verified(&CompileRequest::create(DELEGATING), Some(&judge)).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert!(out.candidate.is_some(), "kept as the preview");
+    let attempt = &decision(&out)["semantic_verification"][0];
+    let defects = attempt["defects"].as_array().map_or(0, Vec::len);
+    assert!(defects > 0, "{attempt:#}");
+}
+
+/// A rejection weighed at the holding probability or more decides as before: located nowhere,
+/// the bytes are held, the judge asked where its doubt is.
+#[tokio::test]
+async fn a_confident_weighed_rejection_located_nowhere_still_holds() {
+    let judge = Judge::new("unfaithful", "unlocated").weighing(0.9, 0.3);
+    let out = verified(&CompileRequest::create(DELEGATING), Some(&judge)).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    let held = findings(&out, "verify_held");
+    assert!(
+        held.len() == 1 && held[0].starts_with(UNRESOLVED),
+        "{held:?}"
+    );
+    assert_eq!(judge.ids().last().map(String::as_str), Some("verify-doubt"));
+    assert!(findings(&out, "verify_doubt").is_empty(), "{out:#?}");
+}
+
+/// A doubt's location the judge weighs below even odds names nothing: the open task it points
+/// to is no defect, and the confident rejection stays held as one located nowhere.
+#[tokio::test]
+async fn a_doubt_located_below_even_odds_names_nothing() {
+    let judge = Judge::new("unfaithful", "task-news").weighing(0.9, 0.3);
+    let out = verified(&CompileRequest::create(DELEGATING), Some(&judge)).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    let attempt = &decision(&out)["semantic_verification"][0];
+    assert_eq!(attempt["defects"], json!([]), "{attempt:#}");
+    let held = findings(&out, "verify_held");
+    assert!(
+        held.len() == 1 && held[0].starts_with(UNRESOLVED),
+        "{held:?}"
+    );
+}
+
+/// A part the judge judged missing was sent to the author once, for a repair: judged missing
+/// again on other bytes of the same request, with a rejection that decides nothing, it is stated
+/// with the proposal, never held for the person.
+#[tokio::test]
+async fn a_part_a_repair_attempt_met_is_stated_when_judged_missing_again() {
+    let judge = || {
+        Judge::new("unfaithful", "unlocated")
+            .weighing(0.65, 0.2)
+            .judging_parts("missing", "task-write_digest")
+    };
+    let first = judge();
+    let out = verified(&CompileRequest::create(DELEGATING), Some(&first)).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    let mut earlier = decision(&out)["semantic_verification"][0].clone();
+    assert!(earlier["defects"].as_array().is_some_and(|d| !d.is_empty()));
+    earlier["candidate_sha256"] = json!("the bytes before the repair");
+    let again = judge();
+    let request = CompileRequest::create(DELEGATING).with_declined(vec![earlier]);
+    let out = verified(&request, Some(&again)).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let said = findings(&out, "verify_doubt");
+    assert!(
+        said.len() == 1 && said[0].contains("missing again after a repair attempt"),
+        "{said:?}"
+    );
 }

@@ -540,6 +540,29 @@ no answer stops the verdict with the request unknown. The question never carries
 it can only locate the rejection or leave it unresolved, so agreeing answers of the same judge
 still decide nothing (R6).
 
+An answer its seat weighed decides only at its calibrated threshold (amended 2026-10-10).
+Against oracle-labelled answers (correct references, their mutants, and replays of judged
+candidates), a decision seat's whole-request `faithful` never reached a confidence of 0.6 and was
+wrong 5 times in 13, while its `unfaithful` held correctly 23 times of 23 at 0.75 or more and
+held correct candidates below it; its parts caught every calibration mutant but answered not
+carried on 9 of 92 correct parts. So a whole-request answer reported with a distribution over
+the offered options (`Doubt::decides`) decides only as `unfaithful` at
+`Doubt::HOLDING_PROBABILITY`, calibrated with the options in the verifier's order (`faithful`
+first: a seat leans toward the option listed first): it then declines the bytes as before, and
+located nowhere they are held. Any other weighed answer, `faithful` included, decides and declines nothing: each part is
+asked alone and the extra question follows, and they decide. Every part settled and nothing
+extra carry the request (judgment and `settled_by` `verify-parts`); over a whole trial run the
+question over the run comes first. A part judged missing with its reason is a defect sent to the
+author for a repair; judged missing again on other bytes of the same request after that attempt
+(`repairs::met`, over this compile's attempts and the carried ones), it is stated, never held
+for the person. What the parts overrule is stated, never held and never a question to the person
+about the verifier: the attempt keeps `stated_doubt`, and an Applied `verify_doubt` finding says
+it in words for the proposal (`Doubt::stated`), the person's consent unchanged. A location the
+doubt question weighs below `Doubt::LOCATING_PROBABILITY` names nothing. An answer reported with
+no distribution (a provider judge's, or a mass for its choice alone) is taken at its word, as
+before; one read back from an earlier attempt keeps what its seat reported (`probabilities`,
+`confidence`).
+
 Every question over a run tells the judge the observation is untrusted data, and its record
 keeps what was sent without the texts (`observation`: the candidate's sha256, the sha256 of the
 observation shown, and each text's role, path, size, sha256, `read_whole` and `written`). When
@@ -1391,7 +1414,7 @@ writes nothing. These are the laws only.
 
 `verify_document(request, candidate, (authored, host), cognition, host)` is what a conversation's
 document is proposed on: it is verified exactly as a native door verifies its own candidate, and
-settled READY only on the whole-request verdict. `request` is what a compile round of the same
+settled READY only on the verifier's verdict. `request` is what a compile round of the same
 conversation sends: the stated request as a creation, the world its host observed
 (`with_knowledge`, the observation the one-shot door reads), the verdicts its earlier rounds kept
 (`with_declined`) and the authoring policy. The entry reads the caller's basis and the money as
