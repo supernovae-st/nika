@@ -64,6 +64,62 @@ pub fn nika_session_agent::compact::cut(tree: &nika_session_agent::tree::Tree, k
 pub fn nika_session_agent::compact::estimate(tree: &nika_session_agent::tree::Tree) -> u64
 pub fn nika_session_agent::compact::request(tree: &nika_session_agent::tree::Tree, first_kept: &nika_session_agent::tree::EntryId, focus: core::option::Option<&str>) -> nika_session_agent::run::Request
 pub mod nika_session_agent::conversation
+#[non_exhaustive] pub enum nika_session_agent::conversation::Pick
+pub nika_session_agent::conversation::Pick::Declined
+pub nika_session_agent::conversation::Pick::Delegated
+pub nika_session_agent::conversation::Pick::Nothing
+pub nika_session_agent::conversation::Pick::Offer(alloc::string::String)
+pub nika_session_agent::conversation::Pick::Unread
+impl nika_session_agent::conversation::Pick
+pub fn nika_session_agent::conversation::Pick::of_line(question: &nika_session_change::work::conversation::AskedQuestion, line: &str) -> core::option::Option<Self>
+pub fn nika_session_agent::conversation::Pick::prompt(question: &nika_session_change::work::conversation::AskedQuestion, line: &str) -> alloc::string::String
+pub fn nika_session_agent::conversation::Pick::read(reply: &str, question: &nika_session_change::work::conversation::AskedQuestion) -> Self
+impl core::clone::Clone for nika_session_agent::conversation::Pick
+pub fn nika_session_agent::conversation::Pick::clone(&self) -> nika_session_agent::conversation::Pick
+impl core::cmp::Eq for nika_session_agent::conversation::Pick
+impl core::cmp::PartialEq for nika_session_agent::conversation::Pick
+pub fn nika_session_agent::conversation::Pick::eq(&self, other: &nika_session_agent::conversation::Pick) -> bool
+impl core::fmt::Debug for nika_session_agent::conversation::Pick
+pub fn nika_session_agent::conversation::Pick::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_agent::conversation::Pick
+impl<D> owo_colors::OwoColorize for nika_session_agent::conversation::Pick
+impl<Q, K> equivalent::Equivalent<K> for nika_session_agent::conversation::Pick where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_agent::conversation::Pick::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_agent::conversation::Pick where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_agent::conversation::Pick::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_agent::conversation::Pick where U: core::convert::From<T>
+pub fn nika_session_agent::conversation::Pick::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_agent::conversation::Pick where U: core::convert::Into<T>
+pub type nika_session_agent::conversation::Pick::Error = core::convert::Infallible
+pub fn nika_session_agent::conversation::Pick::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_agent::conversation::Pick where U: core::convert::TryFrom<T>
+pub type nika_session_agent::conversation::Pick::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_agent::conversation::Pick::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_agent::conversation::Pick where T: core::clone::Clone
+pub type nika_session_agent::conversation::Pick::Owned = T
+pub fn nika_session_agent::conversation::Pick::clone_into(&self, target: &mut T)
+pub fn nika_session_agent::conversation::Pick::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_agent::conversation::Pick where T: 'static + ?core::marker::Sized
+pub fn nika_session_agent::conversation::Pick::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_agent::conversation::Pick where T: ?core::marker::Sized
+pub fn nika_session_agent::conversation::Pick::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_agent::conversation::Pick where T: ?core::marker::Sized
+pub fn nika_session_agent::conversation::Pick::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_agent::conversation::Pick where T: core::clone::Clone
+pub unsafe fn nika_session_agent::conversation::Pick::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_agent::conversation::Pick
+pub fn nika_session_agent::conversation::Pick::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_agent::conversation::Pick where T: core::clone::Clone
+pub fn nika_session_agent::conversation::Pick::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_agent::conversation::Pick where T: 'static
+pub fn nika_session_agent::conversation::Pick::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_agent::conversation::Pick where T: ?core::marker::Sized
+pub fn nika_session_agent::conversation::Pick::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_agent::conversation::Pick::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_agent::conversation::Pick
+impl<T> tracing::instrument::WithSubscriber for nika_session_agent::conversation::Pick
+impl<T> typenum::type_operators::Same for nika_session_agent::conversation::Pick
+pub type nika_session_agent::conversation::Pick::Output = T
 #[non_exhaustive] pub struct nika_session_agent::conversation::Acts
 pub nika_session_agent::conversation::Acts::run: bool
 pub nika_session_agent::conversation::Acts::save: bool
@@ -264,11 +320,14 @@ impl<T> typenum::type_operators::Same for nika_session_agent::conversation::Cite
 pub type nika_session_agent::conversation::Cited::Output = T
 pub struct nika_session_agent::conversation::Conversation
 impl nika_session_agent::conversation::Conversation
-pub fn nika_session_agent::conversation::Conversation::answered_by(&mut self, cite: &str)
+pub fn nika_session_agent::conversation::Conversation::answered_by(&mut self, cite: &str, line: &str, read: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_session_agent::conversation::Pick>) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_session_agent::conversation::Conversation::to_read(&self, line: &str) -> alloc::vec::Vec<nika_session_change::work::conversation::AskedQuestion>
+impl nika_session_agent::conversation::Conversation
 pub fn nika_session_agent::conversation::Conversation::ask(&mut self, citations: &nika_session_agent::conversation::Citations, args: &serde_json::value::Value, call: core::option::Option<&str>, (mint, facts): (nika_session_agent::conversation::Mint<'_>, nika_session_agent::conversation::Facts<'_>)) -> nika_session_change::tools::ToolReply
 pub fn nika_session_agent::conversation::Conversation::asked_ids(&self) -> alloc::vec::Vec<nika_session_change::outcome::QuestionId>
 pub fn nika_session_agent::conversation::Conversation::bindings(&self) -> &[nika_session_change::work::conversation::Binding]
 pub fn nika_session_agent::conversation::Conversation::candidate(&self) -> core::option::Option<&nika_session_agent::conversation::Candidate>
+pub fn nika_session_agent::conversation::Conversation::changed(&self) -> &[alloc::string::String]
 pub fn nika_session_agent::conversation::Conversation::delegations(&self) -> &[nika_session_change::work::conversation::Delegation]
 pub fn nika_session_agent::conversation::Conversation::dropped(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_session_agent::conversation::Conversation::kept(&self) -> serde_json::value::Value
@@ -846,13 +905,17 @@ pub type nika_session_agent::run::Outcome::Output = T
 pub struct nika_session_agent::run::Agent<'a>
 impl nika_session_agent::run::Agent<'_>
 pub fn nika_session_agent::run::Agent<'_>::lead(&mut self, text: &str, opening: core::option::Option<&str>, conversant: &mut dyn nika_session_agent::Conversant, relay: &nika_session_agent::Relay, events: &mut dyn core::ops::function::FnMut(nika_session_agent::event::AgentEvent)) -> nika_session_agent::run::Outcome
+pub fn nika_session_agent::run::Agent<'_>::lead_note(&mut self, note: &str, opening: core::option::Option<&str>, conversant: &mut dyn nika_session_agent::Conversant, relay: &nika_session_agent::Relay, events: &mut dyn core::ops::function::FnMut(nika_session_agent::event::AgentEvent)) -> nika_session_agent::run::Outcome
 impl<'a> nika_session_agent::run::Agent<'a>
 pub fn nika_session_agent::run::Agent<'a>::answer(&mut self, text: &str, model: &mut dyn nika_session_agent::run::Model, events: &mut dyn core::ops::function::FnMut(nika_session_agent::event::AgentEvent)) -> nika_session_agent::run::Outcome
 pub fn nika_session_agent::run::Agent<'a>::compact(&mut self, focus: core::option::Option<&str>, model: &mut dyn nika_session_agent::run::Model, events: &mut dyn core::ops::function::FnMut(nika_session_agent::event::AgentEvent)) -> core::result::Result<core::option::Option<nika_session_agent::tree::EntryId>, nika_session_agent::run::AgentError>
 pub fn nika_session_agent::run::Agent<'a>::new(tree: &'a mut nika_session_agent::tree::Tree, store: &'a mut dyn nika_session_agent::run::Store, tools: &'a dyn nika_session_change::tools::SessionTools, now: &'a dyn core::ops::function::Fn() -> u64) -> Self
+pub fn nika_session_agent::run::Agent<'a>::note(&mut self, note: &str, model: &mut dyn nika_session_agent::run::Model, events: &mut dyn core::ops::function::FnMut(nika_session_agent::event::AgentEvent)) -> nika_session_agent::run::Outcome
 pub fn nika_session_agent::run::Agent<'a>::prompt(&mut self, text: &str, model: &mut dyn nika_session_agent::run::Model, events: &mut dyn core::ops::function::FnMut(nika_session_agent::event::AgentEvent)) -> nika_session_agent::run::Outcome
 pub const fn nika_session_agent::run::Agent<'a>::stop_reach(&self) -> core::option::Option<nika_session_change::outcome::StopReach>
 pub fn nika_session_agent::run::Agent<'a>::with_cancel(self, cancel: &nika_types::cancel::CancelCtx) -> Self
+pub fn nika_session_agent::run::Agent<'a>::with_note(self, note: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_session_agent::run::Agent<'a>::with_reading(self, notes: &[alloc::string::String]) -> Self
 pub fn nika_session_agent::run::Agent<'a>::with_steering(self, steering: &nika_session_agent::steer::Steering) -> Self
 pub fn nika_session_agent::run::Agent<'a>::with_window(self, window: nika_session_agent::compact::Window) -> Self
 impl<D> owo_colors::OwoColorize for nika_session_agent::run::Agent<'a>
@@ -1192,6 +1255,8 @@ pub nika_session_agent::tree::EntryKind::Compaction::tokens_before: u64
 pub nika_session_agent::tree::EntryKind::Fact
 pub nika_session_agent::tree::EntryKind::Fact::data: serde_json::value::Value
 pub nika_session_agent::tree::EntryKind::Fact::name: alloc::string::String
+pub nika_session_agent::tree::EntryKind::Note
+pub nika_session_agent::tree::EntryKind::Note::text: alloc::string::String
 pub nika_session_agent::tree::EntryKind::Parked
 pub nika_session_agent::tree::EntryKind::Parked::call: alloc::string::String
 pub nika_session_agent::tree::EntryKind::Parked::name: alloc::string::String
@@ -1207,6 +1272,7 @@ pub nika_session_agent::tree::EntryKind::ToolResult::reply: nika_session_change:
 #[non_exhaustive] pub nika_session_agent::tree::EntryKind::User
 pub nika_session_agent::tree::EntryKind::User::answers: core::option::Option<alloc::string::String>
 pub nika_session_agent::tree::EntryKind::User::cite: alloc::string::String
+pub nika_session_agent::tree::EntryKind::User::nika: core::option::Option<alloc::string::String>
 pub nika_session_agent::tree::EntryKind::User::queued: core::option::Option<nika_session_change::work::queue::QueueMode>
 pub nika_session_agent::tree::EntryKind::User::text: alloc::string::String
 impl core::clone::Clone for nika_session_agent::tree::EntryKind
@@ -1609,6 +1675,7 @@ pub struct nika_session_agent::tree::Tree
 impl nika_session_agent::tree::Tree
 pub fn nika_session_agent::tree::Tree::append(&mut self, kind: nika_session_agent::tree::EntryKind, at: u64, write: impl core::ops::function::FnOnce(&str) -> core::io::error::Result<()>) -> core::result::Result<nika_session_agent::tree::EntryId, nika_session_agent::tree::TreeError>
 pub fn nika_session_agent::tree::Tree::append_user(&mut self, text: impl core::convert::Into<alloc::string::String>, answers: core::option::Option<alloc::string::String>, queued: core::option::Option<nika_session_change::work::queue::QueueMode>, at: u64, write: impl core::ops::function::FnOnce(&str) -> core::io::error::Result<()>) -> core::result::Result<(nika_session_agent::tree::EntryId, alloc::string::String), nika_session_agent::tree::TreeError>
+pub fn nika_session_agent::tree::Tree::append_user_read(&mut self, text: impl core::convert::Into<alloc::string::String>, (answers, queued): (core::option::Option<alloc::string::String>, core::option::Option<nika_session_change::work::queue::QueueMode>), nika: core::option::Option<alloc::string::String>, at: u64, write: impl core::ops::function::FnOnce(&str) -> core::io::error::Result<()>) -> core::result::Result<(nika_session_agent::tree::EntryId, alloc::string::String), nika_session_agent::tree::TreeError>
 pub fn nika_session_agent::tree::Tree::branch(&self) -> alloc::vec::Vec<&nika_session_agent::tree::Entry>
 pub fn nika_session_agent::tree::Tree::cited(&self, cite: &str) -> core::option::Option<(&nika_session_agent::tree::Entry, &str)>
 pub fn nika_session_agent::tree::Tree::context(&self) -> nika_session_agent::tree::Context
@@ -1915,6 +1982,8 @@ pub nika_session_agent::EntryKind::Compaction::tokens_before: u64
 pub nika_session_agent::EntryKind::Fact
 pub nika_session_agent::EntryKind::Fact::data: serde_json::value::Value
 pub nika_session_agent::EntryKind::Fact::name: alloc::string::String
+pub nika_session_agent::EntryKind::Note
+pub nika_session_agent::EntryKind::Note::text: alloc::string::String
 pub nika_session_agent::EntryKind::Parked
 pub nika_session_agent::EntryKind::Parked::call: alloc::string::String
 pub nika_session_agent::EntryKind::Parked::name: alloc::string::String
@@ -1930,6 +1999,7 @@ pub nika_session_agent::EntryKind::ToolResult::reply: nika_session_change::tools
 #[non_exhaustive] pub nika_session_agent::EntryKind::User
 pub nika_session_agent::EntryKind::User::answers: core::option::Option<alloc::string::String>
 pub nika_session_agent::EntryKind::User::cite: alloc::string::String
+pub nika_session_agent::EntryKind::User::nika: core::option::Option<alloc::string::String>
 pub nika_session_agent::EntryKind::User::queued: core::option::Option<nika_session_change::work::queue::QueueMode>
 pub nika_session_agent::EntryKind::User::text: alloc::string::String
 impl core::clone::Clone for nika_session_agent::tree::EntryKind
@@ -2280,13 +2350,17 @@ pub type nika_session_agent::tree::TreeError::Output = T
 pub struct nika_session_agent::Agent<'a>
 impl nika_session_agent::run::Agent<'_>
 pub fn nika_session_agent::run::Agent<'_>::lead(&mut self, text: &str, opening: core::option::Option<&str>, conversant: &mut dyn nika_session_agent::Conversant, relay: &nika_session_agent::Relay, events: &mut dyn core::ops::function::FnMut(nika_session_agent::event::AgentEvent)) -> nika_session_agent::run::Outcome
+pub fn nika_session_agent::run::Agent<'_>::lead_note(&mut self, note: &str, opening: core::option::Option<&str>, conversant: &mut dyn nika_session_agent::Conversant, relay: &nika_session_agent::Relay, events: &mut dyn core::ops::function::FnMut(nika_session_agent::event::AgentEvent)) -> nika_session_agent::run::Outcome
 impl<'a> nika_session_agent::run::Agent<'a>
 pub fn nika_session_agent::run::Agent<'a>::answer(&mut self, text: &str, model: &mut dyn nika_session_agent::run::Model, events: &mut dyn core::ops::function::FnMut(nika_session_agent::event::AgentEvent)) -> nika_session_agent::run::Outcome
 pub fn nika_session_agent::run::Agent<'a>::compact(&mut self, focus: core::option::Option<&str>, model: &mut dyn nika_session_agent::run::Model, events: &mut dyn core::ops::function::FnMut(nika_session_agent::event::AgentEvent)) -> core::result::Result<core::option::Option<nika_session_agent::tree::EntryId>, nika_session_agent::run::AgentError>
 pub fn nika_session_agent::run::Agent<'a>::new(tree: &'a mut nika_session_agent::tree::Tree, store: &'a mut dyn nika_session_agent::run::Store, tools: &'a dyn nika_session_change::tools::SessionTools, now: &'a dyn core::ops::function::Fn() -> u64) -> Self
+pub fn nika_session_agent::run::Agent<'a>::note(&mut self, note: &str, model: &mut dyn nika_session_agent::run::Model, events: &mut dyn core::ops::function::FnMut(nika_session_agent::event::AgentEvent)) -> nika_session_agent::run::Outcome
 pub fn nika_session_agent::run::Agent<'a>::prompt(&mut self, text: &str, model: &mut dyn nika_session_agent::run::Model, events: &mut dyn core::ops::function::FnMut(nika_session_agent::event::AgentEvent)) -> nika_session_agent::run::Outcome
 pub const fn nika_session_agent::run::Agent<'a>::stop_reach(&self) -> core::option::Option<nika_session_change::outcome::StopReach>
 pub fn nika_session_agent::run::Agent<'a>::with_cancel(self, cancel: &nika_types::cancel::CancelCtx) -> Self
+pub fn nika_session_agent::run::Agent<'a>::with_note(self, note: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_session_agent::run::Agent<'a>::with_reading(self, notes: &[alloc::string::String]) -> Self
 pub fn nika_session_agent::run::Agent<'a>::with_steering(self, steering: &nika_session_agent::steer::Steering) -> Self
 pub fn nika_session_agent::run::Agent<'a>::with_window(self, window: nika_session_agent::compact::Window) -> Self
 impl<D> owo_colors::OwoColorize for nika_session_agent::run::Agent<'a>
@@ -2739,6 +2813,7 @@ pub struct nika_session_agent::Tree
 impl nika_session_agent::tree::Tree
 pub fn nika_session_agent::tree::Tree::append(&mut self, kind: nika_session_agent::tree::EntryKind, at: u64, write: impl core::ops::function::FnOnce(&str) -> core::io::error::Result<()>) -> core::result::Result<nika_session_agent::tree::EntryId, nika_session_agent::tree::TreeError>
 pub fn nika_session_agent::tree::Tree::append_user(&mut self, text: impl core::convert::Into<alloc::string::String>, answers: core::option::Option<alloc::string::String>, queued: core::option::Option<nika_session_change::work::queue::QueueMode>, at: u64, write: impl core::ops::function::FnOnce(&str) -> core::io::error::Result<()>) -> core::result::Result<(nika_session_agent::tree::EntryId, alloc::string::String), nika_session_agent::tree::TreeError>
+pub fn nika_session_agent::tree::Tree::append_user_read(&mut self, text: impl core::convert::Into<alloc::string::String>, (answers, queued): (core::option::Option<alloc::string::String>, core::option::Option<nika_session_change::work::queue::QueueMode>), nika: core::option::Option<alloc::string::String>, at: u64, write: impl core::ops::function::FnOnce(&str) -> core::io::error::Result<()>) -> core::result::Result<(nika_session_agent::tree::EntryId, alloc::string::String), nika_session_agent::tree::TreeError>
 pub fn nika_session_agent::tree::Tree::branch(&self) -> alloc::vec::Vec<&nika_session_agent::tree::Entry>
 pub fn nika_session_agent::tree::Tree::cited(&self, cite: &str) -> core::option::Option<(&nika_session_agent::tree::Entry, &str)>
 pub fn nika_session_agent::tree::Tree::context(&self) -> nika_session_agent::tree::Context

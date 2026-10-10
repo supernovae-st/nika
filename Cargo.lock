@@ -5574,10 +5574,12 @@ name = "nika-session"
 version = "0.123.0-preview.1"
 dependencies = [
  "blake3",
+ "nika-builtin",
  "nika-cadence",
  "nika-catalog",
  "nika-cli-host",
  "nika-compile",
+ "nika-compile-cognition",
  "nika-compile-fidelity",
  "nika-compile-seats",
  "nika-dap",
@@ -5680,6 +5682,7 @@ dependencies = [
  "nika-onboard",
  "nika-providers",
  "nika-runtime",
+ "nika-service-execution",
  "nika-session-agent",
  "nika-session-change",
  "nika-types",

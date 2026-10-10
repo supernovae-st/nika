@@ -256,6 +256,295 @@ pub fn nika_service_execution::inputs::check_bindings(pairs: &[alloc::string::St
 pub fn nika_service_execution::inputs::coerce_literal(decl: &nika_vocab::var_decl::VarDecl, text: &str) -> core::result::Result<serde_json::value::Value, nika_service_execution::inputs::Misfit>
 pub fn nika_service_execution::inputs::declaration<'w>(wf: &'w nika_schema::raw::workflow::RawWorkflow, key: &str) -> core::result::Result<&'w nika_vocab::var_decl::VarDecl, nika_service_execution::inputs::UndeclaredInput>
 pub fn nika_service_execution::inputs::parse_var_overrides(pairs: &[alloc::string::String], wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_service_execution::inputs::ValidatedInputs, alloc::string::String>
+pub mod nika_service_execution::replay
+#[non_exhaustive] pub enum nika_service_execution::replay::CaptureRefused
+pub nika_service_execution::replay::CaptureRefused::Address
+pub nika_service_execution::replay::CaptureRefused::Body
+pub nika_service_execution::replay::CaptureRefused::Body::bytes: usize
+pub nika_service_execution::replay::CaptureRefused::Count
+pub nika_service_execution::replay::CaptureRefused::Total
+pub nika_service_execution::replay::CaptureRefused::Total::bytes: usize
+impl core::clone::Clone for nika_service_execution::replay::CaptureRefused
+pub fn nika_service_execution::replay::CaptureRefused::clone(&self) -> nika_service_execution::replay::CaptureRefused
+impl core::cmp::Eq for nika_service_execution::replay::CaptureRefused
+impl core::cmp::PartialEq for nika_service_execution::replay::CaptureRefused
+pub fn nika_service_execution::replay::CaptureRefused::eq(&self, other: &nika_service_execution::replay::CaptureRefused) -> bool
+impl core::fmt::Debug for nika_service_execution::replay::CaptureRefused
+pub fn nika_service_execution::replay::CaptureRefused::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_service_execution::replay::CaptureRefused
+pub fn nika_service_execution::replay::CaptureRefused::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_service_execution::replay::CaptureRefused
+impl<D> owo_colors::OwoColorize for nika_service_execution::replay::CaptureRefused
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::replay::CaptureRefused where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::replay::CaptureRefused::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::replay::CaptureRefused where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::replay::CaptureRefused::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::replay::CaptureRefused where U: core::convert::From<T>
+pub fn nika_service_execution::replay::CaptureRefused::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::replay::CaptureRefused where U: core::convert::Into<T>
+pub type nika_service_execution::replay::CaptureRefused::Error = core::convert::Infallible
+pub fn nika_service_execution::replay::CaptureRefused::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::replay::CaptureRefused where U: core::convert::TryFrom<T>
+pub type nika_service_execution::replay::CaptureRefused::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::replay::CaptureRefused::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::replay::CaptureRefused where T: core::clone::Clone
+pub type nika_service_execution::replay::CaptureRefused::Owned = T
+pub fn nika_service_execution::replay::CaptureRefused::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::replay::CaptureRefused::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_service_execution::replay::CaptureRefused where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_service_execution::replay::CaptureRefused::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_service_execution::replay::CaptureRefused where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::replay::CaptureRefused::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::replay::CaptureRefused where T: ?core::marker::Sized
+pub fn nika_service_execution::replay::CaptureRefused::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::replay::CaptureRefused where T: ?core::marker::Sized
+pub fn nika_service_execution::replay::CaptureRefused::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::replay::CaptureRefused where T: core::clone::Clone
+pub unsafe fn nika_service_execution::replay::CaptureRefused::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::replay::CaptureRefused
+pub fn nika_service_execution::replay::CaptureRefused::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::replay::CaptureRefused where T: core::clone::Clone
+pub fn nika_service_execution::replay::CaptureRefused::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_service_execution::replay::CaptureRefused where T: core::fmt::Display
+pub fn nika_service_execution::replay::CaptureRefused::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_service_execution::replay::CaptureRefused where T: 'static
+pub fn nika_service_execution::replay::CaptureRefused::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::replay::CaptureRefused where T: ?core::marker::Sized
+pub fn nika_service_execution::replay::CaptureRefused::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::replay::CaptureRefused::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::replay::CaptureRefused
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::replay::CaptureRefused
+impl<T> typenum::type_operators::Same for nika_service_execution::replay::CaptureRefused
+pub type nika_service_execution::replay::CaptureRefused::Output = T
+#[non_exhaustive] pub enum nika_service_execution::replay::Settled
+pub nika_service_execution::replay::Settled::Failed
+pub nika_service_execution::replay::Settled::Failed::code: alloc::string::String
+pub nika_service_execution::replay::Settled::Failed::message: alloc::string::String
+pub nika_service_execution::replay::Settled::Failed::task: alloc::string::String
+pub nika_service_execution::replay::Settled::Passed
+impl core::clone::Clone for nika_service_execution::replay::Settled
+pub fn nika_service_execution::replay::Settled::clone(&self) -> nika_service_execution::replay::Settled
+impl core::cmp::Eq for nika_service_execution::replay::Settled
+impl core::cmp::PartialEq for nika_service_execution::replay::Settled
+pub fn nika_service_execution::replay::Settled::eq(&self, other: &nika_service_execution::replay::Settled) -> bool
+impl core::fmt::Debug for nika_service_execution::replay::Settled
+pub fn nika_service_execution::replay::Settled::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_service_execution::replay::Settled
+impl<D> owo_colors::OwoColorize for nika_service_execution::replay::Settled
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::replay::Settled where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::replay::Settled::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::replay::Settled where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::replay::Settled::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::replay::Settled where U: core::convert::From<T>
+pub fn nika_service_execution::replay::Settled::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::replay::Settled where U: core::convert::Into<T>
+pub type nika_service_execution::replay::Settled::Error = core::convert::Infallible
+pub fn nika_service_execution::replay::Settled::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::replay::Settled where U: core::convert::TryFrom<T>
+pub type nika_service_execution::replay::Settled::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::replay::Settled::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::replay::Settled where T: core::clone::Clone
+pub type nika_service_execution::replay::Settled::Owned = T
+pub fn nika_service_execution::replay::Settled::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::replay::Settled::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::replay::Settled where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::replay::Settled::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::replay::Settled where T: ?core::marker::Sized
+pub fn nika_service_execution::replay::Settled::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::replay::Settled where T: ?core::marker::Sized
+pub fn nika_service_execution::replay::Settled::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::replay::Settled where T: core::clone::Clone
+pub unsafe fn nika_service_execution::replay::Settled::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::replay::Settled
+pub fn nika_service_execution::replay::Settled::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::replay::Settled where T: core::clone::Clone
+pub fn nika_service_execution::replay::Settled::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::replay::Settled where T: 'static
+pub fn nika_service_execution::replay::Settled::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::replay::Settled where T: ?core::marker::Sized
+pub fn nika_service_execution::replay::Settled::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::replay::Settled::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::replay::Settled
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::replay::Settled
+impl<T> typenum::type_operators::Same for nika_service_execution::replay::Settled
+pub type nika_service_execution::replay::Settled::Output = T
+#[non_exhaustive] pub struct nika_service_execution::replay::Capture
+impl nika_service_execution::replay::Capture
+pub fn nika_service_execution::replay::Capture::body(&self) -> &[u8]
+pub fn nika_service_execution::replay::Capture::captured_at_ms(&self) -> u64
+pub fn nika_service_execution::replay::Capture::content_type(&self) -> core::option::Option<&str>
+pub fn nika_service_execution::replay::Capture::new(url: impl core::convert::Into<alloc::string::String>, status: u16, content_type: core::option::Option<alloc::string::String>, body: alloc::vec::Vec<u8>, captured_at_ms: u64) -> Self
+pub fn nika_service_execution::replay::Capture::sha256(&self) -> &str
+pub fn nika_service_execution::replay::Capture::status(&self) -> u16
+pub fn nika_service_execution::replay::Capture::url(&self) -> &str
+impl core::clone::Clone for nika_service_execution::replay::Capture
+pub fn nika_service_execution::replay::Capture::clone(&self) -> nika_service_execution::replay::Capture
+impl core::cmp::Eq for nika_service_execution::replay::Capture
+impl core::cmp::PartialEq for nika_service_execution::replay::Capture
+pub fn nika_service_execution::replay::Capture::eq(&self, other: &nika_service_execution::replay::Capture) -> bool
+impl core::fmt::Debug for nika_service_execution::replay::Capture
+pub fn nika_service_execution::replay::Capture::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_service_execution::replay::Capture
+impl<D> owo_colors::OwoColorize for nika_service_execution::replay::Capture
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::replay::Capture where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::replay::Capture::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::replay::Capture where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::replay::Capture::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::replay::Capture where U: core::convert::From<T>
+pub fn nika_service_execution::replay::Capture::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::replay::Capture where U: core::convert::Into<T>
+pub type nika_service_execution::replay::Capture::Error = core::convert::Infallible
+pub fn nika_service_execution::replay::Capture::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::replay::Capture where U: core::convert::TryFrom<T>
+pub type nika_service_execution::replay::Capture::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::replay::Capture::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::replay::Capture where T: core::clone::Clone
+pub type nika_service_execution::replay::Capture::Owned = T
+pub fn nika_service_execution::replay::Capture::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::replay::Capture::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::replay::Capture where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::replay::Capture::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::replay::Capture where T: ?core::marker::Sized
+pub fn nika_service_execution::replay::Capture::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::replay::Capture where T: ?core::marker::Sized
+pub fn nika_service_execution::replay::Capture::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::replay::Capture where T: core::clone::Clone
+pub unsafe fn nika_service_execution::replay::Capture::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::replay::Capture
+pub fn nika_service_execution::replay::Capture::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::replay::Capture where T: core::clone::Clone
+pub fn nika_service_execution::replay::Capture::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::replay::Capture where T: 'static
+pub fn nika_service_execution::replay::Capture::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::replay::Capture where T: ?core::marker::Sized
+pub fn nika_service_execution::replay::Capture::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::replay::Capture::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::replay::Capture
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::replay::Capture
+impl<T> typenum::type_operators::Same for nika_service_execution::replay::Capture
+pub type nika_service_execution::replay::Capture::Output = T
+#[non_exhaustive] pub struct nika_service_execution::replay::Captures
+impl nika_service_execution::replay::Captures
+pub const nika_service_execution::replay::Captures::MAX_CAPTURES: usize
+pub const nika_service_execution::replay::Captures::MAX_CAPTURE_BYTES: usize
+pub const nika_service_execution::replay::Captures::MAX_TOTAL_BYTES: usize
+pub fn nika_service_execution::replay::Captures::get(&self, url: &str) -> core::option::Option<&nika_service_execution::replay::Capture>
+pub fn nika_service_execution::replay::Captures::insert(&mut self, capture: nika_service_execution::replay::Capture) -> core::result::Result<(), nika_service_execution::replay::CaptureRefused>
+pub fn nika_service_execution::replay::Captures::is_empty(&self) -> bool
+pub fn nika_service_execution::replay::Captures::iter(&self) -> impl core::iter::traits::exact_size::ExactSizeIterator<Item = &nika_service_execution::replay::Capture>
+pub fn nika_service_execution::replay::Captures::len(&self) -> usize
+pub fn nika_service_execution::replay::Captures::new() -> Self
+impl core::clone::Clone for nika_service_execution::replay::Captures
+pub fn nika_service_execution::replay::Captures::clone(&self) -> nika_service_execution::replay::Captures
+impl core::cmp::Eq for nika_service_execution::replay::Captures
+impl core::cmp::PartialEq for nika_service_execution::replay::Captures
+pub fn nika_service_execution::replay::Captures::eq(&self, other: &nika_service_execution::replay::Captures) -> bool
+impl core::default::Default for nika_service_execution::replay::Captures
+pub fn nika_service_execution::replay::Captures::default() -> nika_service_execution::replay::Captures
+impl core::fmt::Debug for nika_service_execution::replay::Captures
+pub fn nika_service_execution::replay::Captures::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_service_execution::replay::Captures
+impl<D> owo_colors::OwoColorize for nika_service_execution::replay::Captures
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::replay::Captures where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::replay::Captures::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::replay::Captures where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::replay::Captures::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::replay::Captures where U: core::convert::From<T>
+pub fn nika_service_execution::replay::Captures::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::replay::Captures where U: core::convert::Into<T>
+pub type nika_service_execution::replay::Captures::Error = core::convert::Infallible
+pub fn nika_service_execution::replay::Captures::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::replay::Captures where U: core::convert::TryFrom<T>
+pub type nika_service_execution::replay::Captures::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::replay::Captures::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::replay::Captures where T: core::clone::Clone
+pub type nika_service_execution::replay::Captures::Owned = T
+pub fn nika_service_execution::replay::Captures::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::replay::Captures::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::replay::Captures where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::replay::Captures::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::replay::Captures where T: ?core::marker::Sized
+pub fn nika_service_execution::replay::Captures::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::replay::Captures where T: ?core::marker::Sized
+pub fn nika_service_execution::replay::Captures::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::replay::Captures where T: core::clone::Clone
+pub unsafe fn nika_service_execution::replay::Captures::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::replay::Captures
+pub fn nika_service_execution::replay::Captures::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::replay::Captures where T: core::clone::Clone
+pub fn nika_service_execution::replay::Captures::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::replay::Captures where T: 'static
+pub fn nika_service_execution::replay::Captures::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::replay::Captures where T: ?core::marker::Sized
+pub fn nika_service_execution::replay::Captures::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::replay::Captures::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::replay::Captures
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::replay::Captures
+impl<T> typenum::type_operators::Same for nika_service_execution::replay::Captures
+pub type nika_service_execution::replay::Captures::Output = T
+#[non_exhaustive] pub struct nika_service_execution::replay::ReplayScreen
+pub nika_service_execution::replay::ReplayScreen::filters: alloc::vec::Vec<alloc::string::String>
+pub nika_service_execution::replay::ReplayScreen::unexercised: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub nika_service_execution::replay::ReplayScreen::upstream: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<alloc::string::String>>
+impl nika_service_execution::replay::ReplayScreen
+pub fn nika_service_execution::replay::ReplayScreen::behind(&self, task: &str) -> bool
+pub fn nika_service_execution::replay::ReplayScreen::is_unexercised(&self, task: &str) -> bool
+pub fn nika_service_execution::replay::ReplayScreen::new(unexercised: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, upstream: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<alloc::string::String>>, filters: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_service_execution::replay::ReplayScreen::screens(&self, task: &nika_schema::raw::task::RawTask) -> bool
+impl core::clone::Clone for nika_service_execution::replay::ReplayScreen
+pub fn nika_service_execution::replay::ReplayScreen::clone(&self) -> nika_service_execution::replay::ReplayScreen
+impl core::cmp::Eq for nika_service_execution::replay::ReplayScreen
+impl core::cmp::PartialEq for nika_service_execution::replay::ReplayScreen
+pub fn nika_service_execution::replay::ReplayScreen::eq(&self, other: &nika_service_execution::replay::ReplayScreen) -> bool
+impl core::default::Default for nika_service_execution::replay::ReplayScreen
+pub fn nika_service_execution::replay::ReplayScreen::default() -> nika_service_execution::replay::ReplayScreen
+impl core::fmt::Debug for nika_service_execution::replay::ReplayScreen
+pub fn nika_service_execution::replay::ReplayScreen::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_service_execution::replay::ReplayScreen
+impl<D> owo_colors::OwoColorize for nika_service_execution::replay::ReplayScreen
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::replay::ReplayScreen where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::replay::ReplayScreen::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::replay::ReplayScreen where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::replay::ReplayScreen::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::replay::ReplayScreen where U: core::convert::From<T>
+pub fn nika_service_execution::replay::ReplayScreen::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::replay::ReplayScreen where U: core::convert::Into<T>
+pub type nika_service_execution::replay::ReplayScreen::Error = core::convert::Infallible
+pub fn nika_service_execution::replay::ReplayScreen::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::replay::ReplayScreen where U: core::convert::TryFrom<T>
+pub type nika_service_execution::replay::ReplayScreen::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::replay::ReplayScreen::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::replay::ReplayScreen where T: core::clone::Clone
+pub type nika_service_execution::replay::ReplayScreen::Owned = T
+pub fn nika_service_execution::replay::ReplayScreen::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::replay::ReplayScreen::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::replay::ReplayScreen where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::replay::ReplayScreen::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::replay::ReplayScreen where T: ?core::marker::Sized
+pub fn nika_service_execution::replay::ReplayScreen::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::replay::ReplayScreen where T: ?core::marker::Sized
+pub fn nika_service_execution::replay::ReplayScreen::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::replay::ReplayScreen where T: core::clone::Clone
+pub unsafe fn nika_service_execution::replay::ReplayScreen::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::replay::ReplayScreen
+pub fn nika_service_execution::replay::ReplayScreen::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::replay::ReplayScreen where T: core::clone::Clone
+pub fn nika_service_execution::replay::ReplayScreen::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::replay::ReplayScreen where T: 'static
+pub fn nika_service_execution::replay::ReplayScreen::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::replay::ReplayScreen where T: ?core::marker::Sized
+pub fn nika_service_execution::replay::ReplayScreen::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::replay::ReplayScreen::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::replay::ReplayScreen
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::replay::ReplayScreen
+impl<T> typenum::type_operators::Same for nika_service_execution::replay::ReplayScreen
+pub type nika_service_execution::replay::ReplayScreen::Output = T
+pub const nika_service_execution::replay::KEPT_NOTHING: &str
+pub fn nika_service_execution::replay::parsed(candidate: &str) -> core::option::Option<nika_schema::raw::workflow::RawWorkflow>
+pub fn nika_service_execution::replay::screen(workflow: &nika_schema::raw::workflow::RawWorkflow, captures: &nika_service_execution::replay::Captures) -> nika_service_execution::replay::ReplayScreen
+pub fn nika_service_execution::replay::settle(outcome: &nika_runtime::RunOutcome, order: &[alloc::string::String], screen: &nika_service_execution::replay::ReplayScreen) -> nika_service_execution::replay::Settled
+pub fn nika_service_execution::replay::settle_into(outcome: &mut nika_runtime::RunOutcome, order: &[alloc::string::String], screen: &nika_service_execution::replay::ReplayScreen)
+pub fn nika_service_execution::replay::sources(workflow: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_service_execution::run_cost
 #[non_exhaustive] pub enum nika_service_execution::run_cost::RunShapeError
 pub nika_service_execution::run_cost::RunShapeError::Action
@@ -1229,8 +1518,10 @@ pub fn nika_service_execution::ServiceExecutionDriver::with_task_scope(self, tar
 pub const fn nika_service_execution::ServiceExecutionDriver::workflow(&self) -> &nika_schema::raw::workflow::RawWorkflow
 impl nika_service_execution::ServiceExecutionDriver
 pub fn nika_service_execution::ServiceExecutionDriver::rehearsal_plan(&self, pin: core::option::Option<&str>) -> core::result::Result<nika_providers::plan::ExecutionAccessPlan, nika_service_execution::RehearsalPlanRefusal>
+pub fn nika_service_execution::ServiceExecutionDriver::replay_plan(&self, pin: core::option::Option<&str>) -> core::result::Result<nika_providers::plan::ExecutionAccessPlan, nika_service_execution::RehearsalPlanRefusal>
 impl nika_service_execution::ServiceExecutionDriver
 pub async fn nika_service_execution::ServiceExecutionDriver::rehearse_over<F>(&self, fs: alloc::sync::Arc<F>, plan: nika_providers::plan::ExecutionAccessPlan, tally: alloc::sync::Arc<nika_service_execution::DeniedTally>) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime_laws::errors::RuntimeError> where F: nika_kernel_core::io::fs::FsReadDyn + nika_kernel_core::io::fs::FsWriteDyn + nika_kernel_core::io::fs::FsListDyn + nika_kernel_core::io::fs::FsMetaDyn + core::marker::Send + core::marker::Sync + 'static
+pub async fn nika_service_execution::ServiceExecutionDriver::rehearse_over_replaying<F>(&self, fs: alloc::sync::Arc<F>, plan: nika_providers::plan::ExecutionAccessPlan, tally: alloc::sync::Arc<nika_service_execution::DeniedTally>, jq: core::option::Option<alloc::sync::Arc<nika_service_execution::IsolatedJq>>, captures: core::option::Option<alloc::sync::Arc<nika_service_execution::replay::Captures>>) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime_laws::errors::RuntimeError> where F: nika_kernel_core::io::fs::FsReadDyn + nika_kernel_core::io::fs::FsWriteDyn + nika_kernel_core::io::fs::FsListDyn + nika_kernel_core::io::fs::FsMetaDyn + core::marker::Send + core::marker::Sync + 'static
 pub async fn nika_service_execution::ServiceExecutionDriver::rehearse_over_with<F>(&self, fs: alloc::sync::Arc<F>, plan: nika_providers::plan::ExecutionAccessPlan, tally: alloc::sync::Arc<nika_service_execution::DeniedTally>, jq: core::option::Option<alloc::sync::Arc<nika_service_execution::IsolatedJq>>) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime_laws::errors::RuntimeError> where F: nika_kernel_core::io::fs::FsReadDyn + nika_kernel_core::io::fs::FsWriteDyn + nika_kernel_core::io::fs::FsListDyn + nika_kernel_core::io::fs::FsMetaDyn + core::marker::Send + core::marker::Sync + 'static
 impl core::clone::Clone for nika_service_execution::ServiceExecutionDriver
 pub fn nika_service_execution::ServiceExecutionDriver::clone(&self) -> Self

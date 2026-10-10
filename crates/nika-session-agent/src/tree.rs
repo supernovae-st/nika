@@ -123,6 +123,10 @@ pub enum EntryKind {
         /// How the line waited while a run was under way.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         queued: Option<QueueMode>,
+        /// What Nika says to the author with this line (its reading of an answer, the facts of
+        /// the last run): never the person's words and never a citation.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        nika: Option<String>,
     },
     /// The model's message as received: text, thinking and calls.
     Assistant {
@@ -169,6 +173,12 @@ pub enum EntryKind {
     Stopped {
         /// The lines, oldest first.
         queued: Vec<String>,
+    },
+    /// Nika's own words to the author with no person's line (a failed run's facts, what to
+    /// repair): data the model reads, never a person's line, a citation or an authority.
+    Note {
+        /// The note.
+        text: String,
     },
     /// A fact the Session records (`name` says which: an ask, a candidate, a proposal, a
     /// consent, an observation, a knowledge choice, an import): evidence the model never reads.
@@ -426,12 +436,31 @@ impl Tree {
         at: u64,
         write: impl FnOnce(&str) -> io::Result<()>,
     ) -> Result<(EntryId, String), TreeError> {
+        self.append_user_read(text, (answers, queued), None, at, write)
+    }
+
+    /// [`Tree::append_user`], with what Nika says to the author with the line (`nika`: its
+    /// reading of an answer, the facts of the last run), kept beside the person's words and
+    /// shown to the author after them.
+    ///
+    /// # Errors
+    ///
+    /// As [`Tree::append`].
+    pub fn append_user_read(
+        &mut self,
+        text: impl Into<String>,
+        (answers, queued): (Option<String>, Option<QueueMode>),
+        nika: Option<String>,
+        at: u64,
+        write: impl FnOnce(&str) -> io::Result<()>,
+    ) -> Result<(EntryId, String), TreeError> {
         let cite = format!("u{}", self.cites + 1);
         let kind = EntryKind::User {
             cite: cite.clone(),
             text: text.into(),
             answers,
             queued,
+            nika,
         };
         Ok((self.append(kind, at, write)?, cite))
     }
@@ -632,8 +661,13 @@ impl Tree {
                     cite,
                     text,
                     answers: None,
+                    nika,
                     ..
-                } => messages.push(user_message(cite, text)),
+                } => messages.push(user_message(cite, text, nika.as_deref())),
+                EntryKind::Note { text } => {
+                    let note = format!("{NOTE_LEAD}\n{text}");
+                    messages.push(Message::text(Role::User, note));
+                }
                 EntryKind::Assistant { content, .. } => {
                     messages.push(Message::new(Role::Assistant, content.clone()));
                     let results: Vec<ContentBlock> = calls(content)
@@ -707,20 +741,26 @@ pub fn read_line(line: &str) -> Option<LineFacts> {
     Some(LineFacts { n: line.n, person })
 }
 
+/// What precedes Nika's own note to the author.
+const NOTE_LEAD: &str = "Nika (not the person):";
+
 /// A person's line as the model reads it: their words, then the citation the model uses to
-/// name them.
-fn user_message(cite: &str, text: &str) -> Message {
-    Message::new(
-        Role::User,
-        vec![
-            ContentBlock::Text {
-                text: text.to_owned(),
-            },
-            ContentBlock::Text {
-                text: format!("(cited as {cite})"),
-            },
-        ],
-    )
+/// name them, then what Nika says with it, when it says something.
+fn user_message(cite: &str, text: &str, nika: Option<&str>) -> Message {
+    let mut blocks = vec![
+        ContentBlock::Text {
+            text: text.to_owned(),
+        },
+        ContentBlock::Text {
+            text: format!("(cited as {cite})"),
+        },
+    ];
+    if let Some(nika) = nika {
+        blocks.push(ContentBlock::Text {
+            text: format!("{NOTE_LEAD}\n{nika}"),
+        });
+    }
+    Message::new(Role::User, blocks)
 }
 
 /// The calls of a message: identity, tool and arguments.
@@ -744,9 +784,13 @@ fn replies<'a>(kept: &[&'a Entry]) -> BTreeMap<&'a str, (String, bool)> {
                 cite,
                 text,
                 answers: Some(call),
+                nika,
                 ..
             } => {
-                let answer = format!("The person answered, cited as {cite}:\n{text}");
+                let mut answer = format!("The person answered, cited as {cite}:\n{text}");
+                if let Some(nika) = nika {
+                    answer = format!("{answer}\n\n{NOTE_LEAD}\n{nika}");
+                }
                 out.insert(call.as_str(), (answer, false));
             }
             _ => {}

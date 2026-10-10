@@ -225,6 +225,8 @@ pub struct Agent<'a> {
     cancel: CancelCtx,
     window: Option<Window>,
     stopped: Option<StopReach>,
+    reading: Option<String>,
+    note: Option<String>,
 }
 
 impl<'a> Agent<'a> {
@@ -246,6 +248,8 @@ impl<'a> Agent<'a> {
             cancel: CancelCtx::new(),
             window: None,
             stopped: None,
+            reading: None,
+            note: None,
         }
     }
 
@@ -260,6 +264,49 @@ impl<'a> Agent<'a> {
     pub fn with_steering(mut self, steering: &Steering) -> Self {
         self.steering = steering.clone();
         self
+    }
+
+    /// What the Session read the person's next answer to pick (`notes`, one per question it
+    /// answers): shown to the author after the answer, never as the person's words.
+    #[must_use]
+    pub fn with_reading(mut self, notes: &[String]) -> Self {
+        self.reading = (!notes.is_empty()).then(|| {
+            let lines: Vec<String> = notes.iter().map(|note| format!("- {note}")).collect();
+            format!("Its reading of this answer:\n{}", lines.join("\n"))
+        });
+        self
+    }
+
+    /// What Nika says to the author with the person's next line (the facts of the last run):
+    /// shown after their words, never as theirs.
+    #[must_use]
+    pub fn with_note(mut self, note: Option<String>) -> Self {
+        self.note = note;
+        self
+    }
+
+    /// Nika's own `note` (a failed run's facts, what to repair) starts a run with no person's
+    /// line. While a question waits for the person, nothing starts; a shown proposal the person's
+    /// words acted on (saved, run) waits for nothing more.
+    pub fn note(
+        &mut self,
+        note: &str,
+        model: &mut dyn Model,
+        events: &mut dyn FnMut(AgentEvent),
+    ) -> Outcome {
+        if let Some((call, name)) = self.tree.parked()
+            && name != "propose"
+        {
+            let call = call.to_owned();
+            return Outcome::Failed {
+                error: AgentError::Parked { call },
+            };
+        }
+        let text = note.to_owned();
+        match self.record(EntryKind::Note { text }) {
+            Ok(entry) => self.drive(&entry, model, events),
+            Err(error) => Outcome::Failed { error },
+        }
     }
 
     /// The Stop this loop obeys.
@@ -381,6 +428,7 @@ impl<'a> Agent<'a> {
     fn turns(&mut self, model: &mut dyn Model, events: &mut dyn FnMut(AgentEvent)) -> Outcome {
         let mut turn: u32 = 0;
         let mut last: Option<(String, Value, String)> = None;
+        let mut asked_again = false;
         loop {
             if self.cancel.is_cancelled() {
                 return self.stop(StopReach::BetweenSteps);
@@ -415,6 +463,17 @@ impl<'a> Agent<'a> {
                 };
                 match entered {
                     Ok(true) => continue,
+                    // No word and no call (a model that only reasoned): asked once more.
+                    Ok(false) if text.trim().is_empty() && !asked_again => {
+                        asked_again = true;
+                        let note = EntryKind::Note {
+                            text: SILENT.to_owned(),
+                        };
+                        if let Err(error) = self.record(note) {
+                            return Outcome::Failed { error };
+                        }
+                        continue;
+                    }
                     Ok(false) => return Outcome::Answered { text },
                     Err(error) => return Outcome::Failed { error },
                 }
@@ -619,10 +678,16 @@ impl<'a> Agent<'a> {
         queued: Option<QueueMode>,
     ) -> Result<(EntryId, String), AgentError> {
         let at = (self.now)();
+        let reading = answers.as_ref().and(self.reading.take());
+        let nika = match (self.note.take(), reading) {
+            (Some(note), Some(reading)) => Some(format!("{note}\n\n{reading}")),
+            (note, reading) => note.or(reading),
+        };
         let store = &mut *self.store;
+        let line = (answers, queued);
         Ok(self
             .tree
-            .append_user(text, answers, queued, at, |line| store.append(line))?)
+            .append_user_read(text, line, nika, at, |line| store.append(line))?)
     }
 }
 
@@ -637,6 +702,11 @@ fn pairs(queued: &[Queued]) -> Vec<(QueueMode, String)> {
 fn ids(queued: &[Queued]) -> Vec<String> {
     queued.iter().map(|queued| queued.id.clone()).collect()
 }
+
+/// What the loop tells the model after a message with no word and no call: the person saw
+/// nothing of it.
+const SILENT: &str = "Your last message had no words and no call, so the person saw nothing. \
+                      Answer them, ask them, or call a tool.";
 
 /// The answer text of a message: its text blocks, in order.
 fn answer_text(content: &[ContentBlock]) -> String {

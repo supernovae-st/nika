@@ -55,8 +55,14 @@ pub(crate) trait Desk: Send {
         stated: &str,
         selections: (&[Resolution], &[Resolution]),
     ) -> Result<String, String>;
-    /// The candidate rehearsed where no effect escapes: what it would read, write and send.
-    fn trial(&mut self, source: &str) -> Result<String, String>;
+    /// What Nika judges of `source` with no model: its check findings, then the laws over the
+    /// person's words (`stated`) and its selections. Empty when nothing stands against it.
+    fn judged_now(
+        &mut self,
+        source: &str,
+        stated: &str,
+        selections: (&[Resolution], &[Resolution]),
+    ) -> Vec<String>;
     /// What this machine's inventory says of `model` as a run's model; none when it offers none.
     fn model_facts(&mut self, model: &str) -> Option<ModelFacts>;
 }
@@ -234,8 +240,8 @@ impl SessionTools for Toolbox {
             }
             "observe" => reply(parts.desk.observe(&text("url").unwrap_or_default())),
             "compose" => parts.compose(args),
-            "verify" => parts.verify(),
-            "trial" => parts.trial(),
+            // The trial runs within the verification: `trial` asks for both.
+            "verify" | "trial" => parts.verify(),
             "ask" => parts.ask(args, call.meta.as_deref()),
             "propose" => parts.propose(args),
             "new_request" => {
@@ -274,9 +280,31 @@ impl Parts<'_> {
         let citations = self.citations();
         let desk = &mut *self.desk;
         let texts = (source, summary.unwrap_or_default());
-        (self.conversation).write(&citations, texts, (&rows, &removed), &mut |source| {
-            desk.parse(source)
-        })
+        let reply =
+            (self.conversation).write(&citations, texts, (&rows, &removed), &mut |source| {
+                desk.parse(source)
+            });
+        self.with_verdict(reply)
+    }
+
+    /// A written candidate's reply with what Nika judges of it with no model, so the author can
+    /// propose in the same message: its check findings and its laws (`findings`, empty when
+    /// nothing stands against it) and the values it dropped of those the person saw. `propose`
+    /// still verifies the whole candidate, its trial and its judge included.
+    fn with_verdict(&mut self, mut reply: ToolReply) -> ToolReply {
+        let (Some(source), false) = (self.source(), reply.is_error) else {
+            return reply;
+        };
+        let Ok(mut written) = serde_json::from_str::<Value>(&reply.text) else {
+            return reply;
+        };
+        let stated = self.citations().stated(self.conversation.since());
+        let (authored, host) = self.conversation.selections();
+        let findings = self.desk.judged_now(&source, &stated, (&authored, &host));
+        written["findings"] = json!(findings);
+        written["dropped"] = json!(self.conversation.dropped());
+        reply.text = written.to_string();
+        reply
     }
 
     fn edit(&mut self, args: &Value) -> ToolReply {
@@ -340,13 +368,6 @@ impl Parts<'_> {
         }
     }
 
-    fn trial(&mut self) -> ToolReply {
-        match self.source() {
-            Some(source) => reply(self.desk.trial(&source)),
-            None => ToolReply::error("no candidate to rehearse: write one with candidate_write"),
-        }
-    }
-
     fn ask(&mut self, args: &Value, call: Option<&str>) -> ToolReply {
         let citations = self.citations();
         let (mint, desk) = (&mut *self.mint, &mut *self.desk);
@@ -381,6 +402,7 @@ impl Parts<'_> {
         if let Err(why) = authorized {
             text["why"] = Value::String(why);
         }
-        ToolReply::ok(text.to_string())
+        // Shown, the proposal ends the turn: the person's next line answers it.
+        ToolReply::ends_turn(text.to_string())
     }
 }

@@ -682,7 +682,7 @@ async fn get_job(path: &str, state: &AppState) -> Response<ResponseBody> {
     }
 }
 
-async fn cancel_job(path: &str, state: &AppState) -> Response<ResponseBody> {
+pub(super) async fn cancel_job(path: &str, state: &AppState) -> Response<ResponseBody> {
     let Some(raw_id) = job_action_id(path, "/cancel") else {
         return job_not_found();
     };

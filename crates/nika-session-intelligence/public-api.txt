@@ -643,6 +643,7 @@ pub fn nika_session_intelligence::intelligence::annotated_keys(keys: &[alloc::st
 pub fn nika_session_intelligence::intelligence::now_rfc3339() -> alloc::string::String
 pub fn nika_session_intelligence::intelligence::seat_answers_here(seat: &str) -> bool
 pub mod nika_session_intelligence::observe
+pub fn nika_session_intelligence::observe::capture(url: &str) -> core::result::Result<nika_service_execution::rehearsal::replay::Capture, alloc::string::String>
 pub fn nika_session_intelligence::observe::observe(url: &str) -> core::result::Result<serde_json::value::Value, alloc::string::String>
 pub mod nika_session_intelligence::reasoner
 pub mod nika_session_intelligence::reasoner::agent_model
@@ -1067,6 +1068,41 @@ pub fn nika_session_intelligence::reasoner::ScriptedReasoner::reason_with_admiss
 pub fn nika_session_intelligence::reasoner::ScriptedReasoner::supports_admission(&self) -> bool
 pub fn nika_session_intelligence::reasoner::block_on<F: core::future::future::Future>(fut: F) -> core::result::Result<<F as core::future::future::Future>::Output, nika_session_intelligence::reasoner::ReasonError>
 pub fn nika_session_intelligence::reasoner::provider_config() -> nika_providers::registry::ProvidersConfig
+pub mod nika_session_intelligence::trial
+pub use nika_session_intelligence::trial::Capture
+#[non_exhaustive] pub struct nika_session_intelligence::trial::Trial
+pub nika_session_intelligence::trial::Trial::scoped: nika_onboard::compile::copy::native::Scoped
+pub nika_session_intelligence::trial::Trial::words: alloc::string::String
+impl<D> owo_colors::OwoColorize for nika_session_intelligence::trial::Trial
+impl<T, U> core::convert::Into<U> for nika_session_intelligence::trial::Trial where U: core::convert::From<T>
+pub fn nika_session_intelligence::trial::Trial::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_intelligence::trial::Trial where U: core::convert::Into<T>
+pub type nika_session_intelligence::trial::Trial::Error = core::convert::Infallible
+pub fn nika_session_intelligence::trial::Trial::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_intelligence::trial::Trial where U: core::convert::TryFrom<T>
+pub type nika_session_intelligence::trial::Trial::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_intelligence::trial::Trial::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_session_intelligence::trial::Trial where T: 'static + ?core::marker::Sized
+pub fn nika_session_intelligence::trial::Trial::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_intelligence::trial::Trial where T: ?core::marker::Sized
+pub fn nika_session_intelligence::trial::Trial::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_intelligence::trial::Trial where T: ?core::marker::Sized
+pub fn nika_session_intelligence::trial::Trial::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_session_intelligence::trial::Trial
+pub fn nika_session_intelligence::trial::Trial::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_session_intelligence::trial::Trial where T: 'static
+pub fn nika_session_intelligence::trial::Trial::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_intelligence::trial::Trial where T: ?core::marker::Sized
+pub fn nika_session_intelligence::trial::Trial::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_intelligence::trial::Trial::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_intelligence::trial::Trial
+impl<T> tracing::instrument::WithSubscriber for nika_session_intelligence::trial::Trial
+impl<T> typenum::type_operators::Same for nika_session_intelligence::trial::Trial
+pub type nika_session_intelligence::trial::Trial::Output = T
+pub fn nika_session_intelligence::trial::guarded() -> nika_session_intelligence::trial::Observer
+pub fn nika_session_intelligence::trial::prepare(candidate: &str, stated: &str, (root, jq): (std::path::PathBuf, core::option::Option<nika_service_execution::rehearsal::isolated_jq::JqHelper>), held: &mut nika_session_intelligence::trial::Observed, observe: &nika_session_intelligence::trial::Observer) -> nika_session_intelligence::trial::Trial
+pub type nika_session_intelligence::trial::Observed = alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_service_execution::rehearsal::replay::Capture>
+pub type nika_session_intelligence::trial::Observer = alloc::sync::Arc<(dyn core::ops::function::Fn(&str) -> core::result::Result<nika_service_execution::rehearsal::replay::Capture, alloc::string::String> + core::marker::Send + core::marker::Sync)>
 pub mod nika_session_intelligence::turn
 #[non_exhaustive] pub enum nika_session_intelligence::turn::RoutingMethod
 pub nika_session_intelligence::turn::RoutingMethod::Failed

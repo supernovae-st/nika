@@ -65,7 +65,8 @@ impl SessionRuntime {
         }
         match (exit, facts, self.last_workflow.clone()) {
             (0 | 1, Some(f), Some(workflow)) => {
-                TurnOutcome::Facts(format!("{}\n  {line}", f.result(&root, &workflow)))
+                // The conversation's author hears of its candidate's run: a failure is repaired.
+                self.after_run(exit, format!("{}\n  {line}", f.result(&root, &workflow)))
             }
             _ => TurnOutcome::Facts(line),
         }

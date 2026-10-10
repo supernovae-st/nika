@@ -10,7 +10,9 @@
 //! selection covers its literal for Law 2 ([`crate::fidelity::laws_resolved`]): it is neither an
 //! invented literal nor a human answer. The scope never widens an effect: a delegated or named
 //! source is a public address read with GET; a source the person typed may also be a file
-//! inside the project, only read; a derived output is a new file inside the project.
+//! inside the project, only read; a derived or delegated output is a new file inside the
+//! project; a derived read is a file under a folder the person typed, only read; a derived value
+//! is the exact host of an address the person typed (amended 2026-10-10).
 //! Nothing here grants a permit, a Save or a Run, and the Check still judges the document whole.
 
 use nika_types::net;
@@ -284,10 +286,12 @@ fn refusal(
     }
 }
 
-/// Why an author's selection may not take its role. Only a read source and a new output can
-/// stand for a value the person did not spell: a named or delegated selection is a read source,
-/// a derived one a new output, and an answered value is one the person typed, verbatim. Any
-/// other pairing would let a literal nobody wrote pass as stated.
+/// Why an author's selection may not take its role. Only what the person's words scope can
+/// stand for a value they did not spell: a named selection is a read source; a delegated one a
+/// read source or a new output; a derived one a new output, a file read under a folder the
+/// person typed ([`under_typed_folder`]), or the exact host of an address they typed
+/// ([`typed_host`]); an answered value is one the person typed, verbatim. Any other pairing
+/// would let a literal nobody wrote pass as stated.
 fn misplaced(stated: &str, selection: &Resolution) -> Option<String> {
     let (value, kind, role) = (
         selection.value.as_str(),
@@ -295,10 +299,17 @@ fn misplaced(stated: &str, selection: &Resolution) -> Option<String> {
         selection.role.word(),
     );
     let fits = match selection.kind {
-        ResolutionKind::Named | ResolutionKind::Delegated => {
-            selection.role == ResolutionRole::ReadSource
-        }
-        ResolutionKind::Derived => selection.role == ResolutionRole::OutputPath,
+        ResolutionKind::Named => selection.role == ResolutionRole::ReadSource,
+        ResolutionKind::Delegated => matches!(
+            selection.role,
+            ResolutionRole::ReadSource | ResolutionRole::OutputPath
+        ),
+        ResolutionKind::Derived => match selection.role {
+            ResolutionRole::OutputPath => true,
+            ResolutionRole::ReadSource => under_typed_folder(stated, value),
+            ResolutionRole::Value => typed_host(stated, value),
+            ResolutionRole::RunModel => false,
+        },
         ResolutionKind::Answered => typed(stated, value),
         ResolutionKind::Offered | ResolutionKind::Retained => true,
     };
@@ -307,9 +318,48 @@ fn misplaced(stated: &str, selection: &Resolution) -> Option<String> {
             "UNAUTHORIZED SELECTION: `{value}` is stated as answered, but the person's words do not contain it; an answered value is one they typed, verbatim."
         ),
         _ => format!(
-            "UNAUTHORIZED SELECTION: `{value}` is stated as {kind} for the role {role}: a named or delegated selection is a read source and a derived one a new output; any other value must be the person's own words."
+            "UNAUTHORIZED SELECTION: `{value}` is stated as {kind} for the role {role}: a named selection is a read source, a delegated one a read source or a new output, a derived one a new output, a file read under a folder the person typed or the host of an address they typed; any other value must be the person's own words."
         ),
     })
+}
+
+/// The paths the person typed: each word of `stated` holding a `/` and no scheme, its trailing
+/// punctuation aside.
+fn typed_paths(stated: &str) -> impl Iterator<Item = &str> {
+    (stated.split(|c: char| c.is_whitespace() || ",;()[]{}<>«»\"'`".contains(c)))
+        .map(|word| word.trim_end_matches(['.', '!', '?', ':']))
+        .filter(|word| word.contains('/') && !word.contains("://"))
+}
+
+/// Whether `value` lies under a folder the person typed: the folder of a path of theirs (the
+/// path itself when it ends with `/`), `./` aside. `world/pages/*.json` lies under the `world`
+/// of `world/source.json`; the folder is never the project root.
+fn under_typed_folder(stated: &str, value: &str) -> bool {
+    let value = value.trim().trim_start_matches("./");
+    typed_paths(stated).any(|path| {
+        let path = path.trim_start_matches("./");
+        let folder = path.rsplit_once('/').map_or("", |(folder, _)| folder);
+        !folder.is_empty()
+            && value
+                .strip_prefix(folder)
+                .is_some_and(|rest| rest.starts_with('/'))
+    })
+}
+
+/// Whether `value` is the exact host of an http(s) address the person typed, letter case and a
+/// trailing dot aside: `127.0.0.1` of `http://127.0.0.1:55546`.
+fn typed_host(stated: &str, value: &str) -> bool {
+    let value = value.trim().trim_end_matches('.').to_ascii_lowercase();
+    (stated.split(|c: char| c.is_whitespace() || ",;()<>«»\"'`".contains(c)))
+        .filter_map(|word| word.split_once("://"))
+        .filter(|(scheme, _)| matches!(scheme.to_ascii_lowercase().as_str(), "http" | "https"))
+        .filter_map(|(_, rest)| rest.split(['/', '?', '#']).next())
+        .map(|authority| authority.rsplit('@').next().unwrap_or_default())
+        .map(|authority| match authority.strip_prefix('[') {
+            Some(bracketed) => bracketed.split(']').next().unwrap_or_default(),
+            None => authority.split(':').next().unwrap_or_default(),
+        })
+        .any(|host| !value.is_empty() && host.trim_end_matches('.').eq_ignore_ascii_case(&value))
 }
 
 /// Whether the person typed `value`: one of their words is the value, up to the leading `./` or
@@ -360,7 +410,10 @@ fn read_source_refusal(doc: &Value, value: &str, kind: ResolutionKind) -> Option
     let local = !value.contains(':');
     let typed = matches!(
         kind,
-        ResolutionKind::Answered | ResolutionKind::Offered | ResolutionKind::Retained
+        ResolutionKind::Answered
+            | ResolutionKind::Offered
+            | ResolutionKind::Retained
+            | ResolutionKind::Derived
     );
     if local && typed {
         return project_read_refusal(doc, value);
@@ -423,14 +476,17 @@ fn output_refusal(
             "OUT OF SCOPE: `{value}` is not a file inside the project: an output is a relative path under the project root, never absolute, hidden or above it."
         ));
     }
-    if kind == ResolutionKind::Derived && !value.is_ascii() {
+    // An author's own name, derived or delegated, is plain and new.
+    let chosen = matches!(kind, ResolutionKind::Derived | ResolutionKind::Delegated);
+    let label = kind.word();
+    if chosen && !value.is_ascii() {
         return Some(format!(
-            "OUT OF SCOPE: `{value}` is a derived name outside plain ASCII: a file system may hold it under another spelling; derive a plain ASCII name."
+            "OUT OF SCOPE: `{value}` is a {label} name outside plain ASCII: a file system may hold it under another spelling; derive a plain ASCII name."
         ));
     }
-    if kind == ResolutionKind::Derived && observed_file(world, value) {
+    if chosen && observed_file(world, value) {
         return Some(format!(
-            "OUT OF SCOPE: `{value}` already exists in the project: a derived output never replaces a file; ask the person whether to replace it, or derive a new name."
+            "OUT OF SCOPE: `{value}` already exists in the project: a {label} output never replaces a file; ask the person whether to replace it, or derive a new name."
         ));
     }
     let misused = uses(doc, value)
@@ -866,13 +922,9 @@ mod tests {
                 .with_excerpt("Hacker News"),
             Resolution::new(webhook, ResolutionKind::Delegated, ResolutionRole::RunModel)
                 .with_excerpt("tu les choisis toi-même"),
-            Resolution::new(
-                "./news/digest.md",
-                ResolutionKind::Delegated,
-                ResolutionRole::OutputPath,
-            )
-            .with_excerpt("tu les choisis toi-même"),
             Resolution::new(webhook, ResolutionKind::Derived, ResolutionRole::ReadSource)
+                .with_excerpt("dans un dossier du projet"),
+            Resolution::new(webhook, ResolutionKind::Derived, ResolutionRole::Value)
                 .with_excerpt("dans un dossier du projet"),
         ];
         for row in rows {
@@ -889,6 +941,87 @@ mod tests {
         let (covered, refused) = judge(&sent, std::slice::from_ref(&typed), &[], None);
         assert!(refused.is_empty(), "{refused:?}");
         assert_eq!(covered, ["Markdown"]);
+    }
+
+    /// The words of a request scope three more author choices (amended 2026-10-10): an output
+    /// name the person delegated, a new file inside the project only written; a read under a
+    /// folder the person typed, a glob or a read scope, only read; and the exact host of an
+    /// address they typed. Beyond what they typed, each stays refused.
+    #[test]
+    fn a_delegated_output_name_and_values_derived_from_typed_words_are_admitted() {
+        let stated = "Parcours les pages depuis le curseur de world/source.json, puis POST vers le sink local http://127.0.0.1:55546 ; écris le bilan dans un dossier du projet, tu choisis le nom.";
+        let doc = json!({"tasks": {
+            "pages": {"invoke": {"tool": "nika:glob", "args": {"pattern": "world/pages/*.json"}}},
+            "write": {"invoke": {"tool": "nika:write",
+                "args": {"path": "./out/report.json", "content": "x"}}},
+        }});
+        let chosen = |value: &str, kind, role, excerpt: &str| {
+            Resolution::new(value, kind, role).with_excerpt(excerpt)
+        };
+        let (derived, delegated) = (ResolutionKind::Derived, ResolutionKind::Delegated);
+        let (read, output) = (ResolutionRole::ReadSource, ResolutionRole::OutputPath);
+        let typed = "world/source.json";
+        let sink = "http://127.0.0.1:55546";
+        let rows = [
+            chosen("./out/report.json", delegated, output, "tu choisis le nom"),
+            chosen("world/pages/*.json", derived, read, typed),
+            chosen("world/**", derived, read, typed),
+            chosen("127.0.0.1", derived, ResolutionRole::Value, sink),
+        ];
+        let mut out = Vec::new();
+        let covered = admitted(stated, &doc, (&rows, &[]), None, &mut out);
+        assert!(out.is_empty(), "{out:?}");
+        assert_eq!(covered.len(), rows.len(), "{covered:?}");
+        let beyond = [
+            chosen("other/*.json", derived, read, typed),
+            chosen("source.json", derived, read, typed),
+            chosen("10.0.0.1", derived, ResolutionRole::Value, sink),
+            chosen("127.0.0.1:55546", derived, ResolutionRole::Value, sink),
+        ];
+        for row in beyond {
+            let mut out = Vec::new();
+            let covered = admitted(
+                stated,
+                &doc,
+                (std::slice::from_ref(&row), &[]),
+                None,
+                &mut out,
+            );
+            assert!(covered.is_empty(), "{row:?}");
+            assert!(
+                out[0].message.starts_with("UNAUTHORIZED SELECTION"),
+                "{row:?}: {out:?}"
+            );
+        }
+        // A derived read is only read, and stays inside the project.
+        let written = json!({"tasks": {"write": {"invoke": {"tool": "nika:write",
+            "args": {"path": "world/pages/x.json", "content": "x"}}}}});
+        let row = chosen("world/pages/x.json", derived, read, typed);
+        let mut out = Vec::new();
+        assert!(
+            admitted(
+                stated,
+                &written,
+                (std::slice::from_ref(&row), &[]),
+                None,
+                &mut out
+            )
+            .is_empty()
+        );
+        assert!(out[0].message.contains("only read"), "{out:?}");
+        let above = chosen("world/../secret.json", derived, read, typed);
+        let mut out = Vec::new();
+        assert!(
+            admitted(
+                stated,
+                &doc,
+                (std::slice::from_ref(&above), &[]),
+                None,
+                &mut out
+            )
+            .is_empty()
+        );
+        assert!(out[0].message.contains("inside the project"), "{out:?}");
     }
 
     #[test]

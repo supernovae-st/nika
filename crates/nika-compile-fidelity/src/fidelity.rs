@@ -18,6 +18,8 @@ use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod asked;
+/// The reasoning budget a document leaves the models that reason before they answer.
+pub mod budget;
 mod final_gate;
 mod instants;
 mod record_scope;

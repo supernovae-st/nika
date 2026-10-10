@@ -52,6 +52,7 @@ pub use nika_session::outcome
 pub use nika_session::reasoner
 pub use nika_session::review
 pub use nika_session::steer
+pub use nika_session::trial
 pub use nika_session::turn
 pub use nika_session::work
 pub use nika_session::world
@@ -817,6 +818,7 @@ pub fn nika_session::runtime::SessionRuntime::waiting(&self) -> nika_session_cha
 pub fn nika_session::runtime::SessionRuntime::work(&self) -> nika_session_change::work::Work
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::with_jq_helper(&mut self, helper: nika_service_execution::rehearsal::isolated_jq::JqHelper)
+pub fn nika_session::runtime::SessionRuntime::with_trial_observer(&mut self, observe: impl core::ops::function::Fn(&str) -> core::result::Result<nika_service_execution::rehearsal::replay::Capture, alloc::string::String> + core::marker::Send + core::marker::Sync + 'static)
 impl core::fmt::Debug for nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_session::runtime::SessionRuntime
@@ -1471,6 +1473,7 @@ pub fn nika_session::runtime::SessionRuntime::waiting(&self) -> nika_session_cha
 pub fn nika_session::runtime::SessionRuntime::work(&self) -> nika_session_change::work::Work
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::with_jq_helper(&mut self, helper: nika_service_execution::rehearsal::isolated_jq::JqHelper)
+pub fn nika_session::runtime::SessionRuntime::with_trial_observer(&mut self, observe: impl core::ops::function::Fn(&str) -> core::result::Result<nika_service_execution::rehearsal::replay::Capture, alloc::string::String> + core::marker::Send + core::marker::Sync + 'static)
 impl core::fmt::Debug for nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_session::runtime::SessionRuntime

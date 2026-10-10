@@ -50,7 +50,7 @@
   {
    "name": "candidate_write",
    "read_only": false,
-   "description": "Replace the candidate with a complete .nika document. In resolutions, state where every value the person did not spell out comes from, with the citation of their line and their own words; a value a revision they saw bound stays unless their words remove it (removed). Nothing is saved or run.",
+   "description": "Replace the candidate with a complete .nika document. In resolutions, state where each source, output, run model and value of the person's they did not spell out comes from, with the citation of their line and their own words (your own filters, programs, prompts, globs and rights within them state none); a value a revision they saw bound stays unless their words remove it (removed). The reply carries Nika's check findings and its laws (`findings`, empty when nothing stands against it) and the values it dropped: when none, propose in the same message. Nothing is saved or run.",
    "input_schema": {
     "type": "object",
     "properties": {
@@ -79,7 +79,7 @@
   {
    "name": "candidate_edit",
    "read_only": false,
-   "description": "Replace one exact, unique passage of the candidate. resolutions, when given, replace the candidate's; removed as for candidate_write. Nothing is saved or run.",
+   "description": "Replace one exact, unique passage of the candidate. resolutions, when given, replace the candidate's; removed as for candidate_write. The reply carries the same findings as candidate_write's. Nothing is saved or run.",
    "input_schema": {
     "type": "object",
     "properties": {
@@ -286,7 +286,7 @@
   {
    "name": "verify",
    "read_only": true,
-   "description": "Judge the candidate against the whole request: Nika's check, the fidelity laws with the selections' provenance, what earlier revisions kept, and the money gate.",
+   "description": "Judge the candidate against the whole request: Nika's check, the fidelity laws with the selections' provenance, what earlier revisions kept, a trial where nothing leaves the room (on the pages its public GET sources answer, each observed once, and the project files it reads; a model step, a request other than GET and any effect outside the room are not run), the whole-request verdict and the money gate. A failed trial comes back with its facts (task, code, message): repair the candidate, then verify again.",
    "input_schema": {
     "type": "object",
     "properties": {},
@@ -296,7 +296,7 @@
   {
    "name": "trial",
    "read_only": true,
-   "description": "Rehearse the candidate in a safe room built from the observed world: what it would read, write and send. No effect escapes.",
+   "description": "The verification, its trial included: the same as verify. Nika tries the candidate where nothing leaves the room, on the pages its sources answered.",
    "input_schema": {
     "type": "object",
     "properties": {},
@@ -306,7 +306,7 @@
   {
    "name": "ask",
    "read_only": false,
-   "description": "Ask the person what you cannot decide from their words; independent questions together, a dependent one with after. An option may carry the concrete values accepting it binds. Bind first, in answered, what their last line already answered. A value they already settled is not asked again: the reply gives it back. When something is asked, the turn ends and their next line answers.",
+   "description": "Ask the person what you cannot decide from their words; independent questions together, a dependent one with after. An option may carry the concrete values accepting it binds. Bind first, in answered, what their last line already answered. A value they already settled is not asked again: the reply gives it back, unless the question cites in `reopens` their later words that ask to change it. When something is asked, the turn ends and their next line answers.",
    "input_schema": {
     "type": "object",
     "properties": {
@@ -384,6 +384,25 @@
          "items": {
           "type": "string"
          }
+        },
+        "reopens": {
+         "type": "object",
+         "description": "The person's own words, in a line written after they settled this value, that ask to change it: only then is a settled value asked again.",
+         "properties": {
+          "message": {
+           "type": "string",
+           "pattern": "^u[0-9]+$"
+          },
+          "excerpt": {
+           "type": "string",
+           "minLength": 1
+          }
+         },
+         "required": [
+          "message",
+          "excerpt"
+         ],
+         "additionalProperties": false
         }
        },
        "required": [
@@ -434,7 +453,7 @@
   {
    "name": "propose",
    "read_only": false,
-   "description": "Present the current candidate to the person: Nika verifies it first (check, fidelity with the selections' provenance, kept values) and refuses it with findings. To save, or save and run, on the person's explicit words, name the acts and cite their line written after this exact candidate was shown: Nika checks that the words still cover its effects, or the proposal waits for their consent.",
+   "description": "Present the current candidate to the person: Nika verifies it first (check, fidelity with the selections' provenance, kept values, its trial) and refuses it with findings. Shown, it ends your turn: write what you tell the person in the same message, before the call; their reply comes as their next line. To save, or save and run, on the person's explicit words, name the acts and cite their line written after this exact candidate was shown: Nika checks that the words still cover its effects, or the proposal waits for their consent.",
    "input_schema": {
     "type": "object",
     "properties": {
@@ -495,7 +514,7 @@
   },
   "resolutions": {
    "type": "array",
-   "description": "Every value of the document the person did not spell out themselves, with where it comes from.",
+   "description": "Each source, output, run model and value of the person's the document holds and they did not spell out, with where it comes from; the author's own filters, programs, prompts, globs and rights within them state none.",
    "items": {
     "type": "object",
     "properties": {

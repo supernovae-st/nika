@@ -28,6 +28,8 @@ pub(crate) enum Step {
     },
     /// A reply that ends the agent's turn.
     Say(String),
+    /// A reply with reasoning and no content: no word and no call.
+    Think(String),
     /// Hold the request under way: leave the marker under the markers directory, wait (30 s
     /// at most) for the child's cue `<marker>.go`, then answer it with the next step.
     Hold(String),
@@ -56,6 +58,11 @@ pub(crate) fn say(text: &str) -> Step {
     Step::Say(text.to_owned())
 }
 
+/// A reply that only reasons.
+pub(crate) fn think(thought: &str) -> Step {
+    Step::Think(thought.to_owned())
+}
+
 /// Hold the next request until the child's cue.
 pub(crate) fn hold(marker: &str) -> Step {
     Step::Hold(marker.to_owned())
@@ -76,6 +83,9 @@ fn held(markers: &Path, marker: &str) {
 pub(crate) struct Script {
     pub(crate) agent: Vec<Step>,
     pub(crate) replies: Vec<String>,
+    /// What the Session's reading of an answer picks, one per reading: an offered key,
+    /// `DELEGATE` or `NONE` (the default when the queue is empty).
+    pub(crate) picks: Vec<String>,
     /// What the verifier's judge answers the whole-request question, one per verdict asked
     /// (`faithful` when the queue is empty); a doubt that follows is never located.
     pub(crate) verdicts: Vec<String>,
@@ -92,6 +102,8 @@ pub(crate) enum Kind {
     Document,
     /// The bounded reading of a reply (« copy the value or say NONE »).
     Reading,
+    /// The Session's reading of which offer an answer picks (« one word only »).
+    Pick,
     /// Anything else: a plain reply.
     Reply,
 }
@@ -131,6 +143,21 @@ impl Seen {
                 .join("\n"),
             _ => String::new(),
         }
+    }
+
+    /// The names of the tools the author called in the request's last assistant message.
+    pub(crate) fn called(&self) -> Vec<String> {
+        let messages = self.body["messages"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let last = (messages.iter()).rev().find(|m| m["role"] == "assistant");
+        (last
+            .and_then(|m| m["tool_calls"].as_array())
+            .into_iter()
+            .flatten())
+        .filter_map(|call| call["function"]["name"].as_str().map(str::to_owned))
+        .collect()
     }
 
     /// The names of the tools the request offers.
@@ -177,6 +204,9 @@ fn kind_of(body: &Value) -> Kind {
     if last.contains("asked a human for one value") || last.contains("asked a human to choose") {
         return Kind::Reading;
     }
+    if last.contains("One word only, nothing else.") {
+        return Kind::Pick;
+    }
     Kind::Reply
 }
 
@@ -184,6 +214,7 @@ fn kind_of(body: &Value) -> Kind {
 struct Queues {
     agent: Vec<Step>,
     replies: Vec<String>,
+    picks: Vec<String>,
     verdicts: Vec<String>,
     calls: usize,
     markers: PathBuf,
@@ -218,13 +249,21 @@ impl Queues {
                     self.calls += 1;
                     text_completion(&text)
                 }
+                Step::Think(thought) => {
+                    self.calls += 1;
+                    let message =
+                        json!({"role": "assistant", "content": null, "reasoning_content": thought});
+                    completion(&message, "stop")
+                }
             },
             Kind::Judge => {
                 let keys = &body["response_format"]["json_schema"]["schema"]["properties"]["choice"]
                     ["enum"];
                 let offers =
                     |key: &str| keys.as_array().is_some_and(|k| k.iter().any(|k| k == key));
-                let choice = if offers("unfaithful") && !self.verdicts.is_empty() {
+                // A scripted verdict answers the first question that offers it.
+                let scripted = (self.verdicts.first()).is_some_and(|verdict| offers(verdict));
+                let choice = if scripted {
                     self.verdicts.remove(0)
                 } else {
                     let approve = APPROVALS.into_iter().find(|a| offers(a));
@@ -240,6 +279,14 @@ impl Queues {
                 .to_string(),
             ),
             Kind::Reading => text_completion("NONE"),
+            Kind::Pick => {
+                let pick = if self.picks.is_empty() {
+                    "NONE".to_owned()
+                } else {
+                    self.picks.remove(0)
+                };
+                text_completion(&pick)
+            }
             Kind::Reply => {
                 let text = if self.replies.is_empty() {
                     "D'accord.".to_owned()
@@ -284,6 +331,7 @@ impl Peer {
             let mut queues = Queues {
                 agent: script.agent,
                 replies: script.replies,
+                picks: script.picks,
                 verdicts: script.verdicts,
                 calls: 0,
                 markers,

@@ -4,22 +4,24 @@
 //! The whole request against the candidate (R4 A11, R5 R6 and A1). The whole-request verdict is
 //! the READY gate: « faithful » carries the request; a call that returns no admitted choice
 //! judges nothing and stays unknown; it is told what the bytes hold ([`Construction::shown`]).
+//! An answer its seat weighed decides only as a confident rejection ([`Doubt::decides`],
+//! 2026-10-10): otherwise the parts decide, and what they overrule is stated.
 //!
-//! Any other answer declines these bytes: they are never asked of the same judge again (R6),
-//! and it is not yet a defect. Each part of the request is asked alone, as evidence and never as
-//! the verdict: carried, missing, superseded by a later part, or (outside a restriction, in a
-//! request of several parts) asking no operation of the workflow. A part judged missing becomes
-//! a defect only when the judge also says why: the task that does it differently or does what it
-//! forbids, an operation of its own that no task performs (a prohibition or a structure law asks
-//! none, so it is never offered that reason), or an offered component the bytes do not hold
-//! ([`Construction`]: the engine facts of the lent catalogue; its `no_fit` lets that clause's own
-//! alternative stand when every offer was examinable). A part the judge then
-//! finds no task failing is contested; a part left without a choice stays unknown: never a
-//! certain defect, never a success. When no part is missing, one question asks which task, if
-//! any, does something the request does not ask, among the tasks the engine's facts leave open
-//! ([`Effects`]): writing the output a carried part states is never extra, and with none open
-//! the facts settle it with no call. A call that fails or is refused stops the localization:
-//! nothing more is asked of that judge in this verdict.
+//! A deciding answer other than « faithful » declines these bytes: they are never asked of the same
+//! judge again (R6), and it is not yet a defect. Each part of the request is asked alone, as
+//! evidence and never as the verdict: carried, missing, superseded by a later part, or (outside a
+//! restriction, in a request of several parts) asking no operation of the workflow. A part judged
+//! missing becomes a defect only when the judge also says why: the task that does it differently or
+//! does what it forbids, an operation of its own that no task performs (a prohibition or a
+//! structure law asks none, so it is never offered that reason), or an offered component the bytes
+//! do not hold ([`Construction`]: the engine facts of the lent catalogue; its `no_fit` lets that
+//! clause's own alternative stand when every offer was examinable). A part the judge then finds no
+//! task failing is contested; a part left without a choice stays unknown: never a certain defect,
+//! never a success. When no part is missing, one question asks which task, if any, does something
+//! the request does not ask, among the tasks the engine's facts leave open ([`Effects`]): writing
+//! the output a carried part states is never extra, and with none open the facts settle it with no
+//! call. A call that fails or is refused stops the localization: nothing more is asked of that
+//! judge in this verdict.
 //!
 //! When this compile ran these exact bytes in a sealed room and the run proves whole outputs
 //! (every output it was read for written by the run itself, every text read whole), that run is
@@ -239,7 +241,10 @@ pub(super) async fn whole<P: ProviderInferDyn>(
         intent,
         effects: effects.as_ref(),
     };
-    if answer == "faithful" {
+    // A deciding answer but faithful declines these bytes; an abstention rejects nothing and is
+    // not consumed. A weighed answer decides only as a confident rejection.
+    let decides = Doubt::decides(&verdict.records);
+    if answer == "faithful" && decides {
         verdict.consumed += 1;
         // A whole run of these bytes is evidence the bytes alone are not: the verdict stands
         // only when nothing over it stands against it.
@@ -253,22 +258,24 @@ pub(super) async fn whole<P: ProviderInferDyn>(
         verdict.settled_by = Some("verify-request");
         return;
     }
-    // Any other answer declines these bytes; an abstention rejects nothing and is not consumed.
-    verdict.decline(Declined::Abstained);
-    if answer == "unfaithful" {
-        verdict.consumed += 1;
-        verdict.decline(Declined::Rejected);
+    if decides {
+        verdict.decline(Declined::Abstained);
+        if answer == "unfaithful" {
+            verdict.consumed += 1;
+            verdict.decline(Declined::Rejected);
+        }
+        verdict.doubt.push(answer);
     }
-    verdict.doubt.push(answer);
-    if locate(tasks.as_deref(), &asked, observation, verdict, out).await {
-        verdict.judgments.push(carried("verify-observed"));
-        verdict.settled_by = Some("verify-observed");
+    if let Some(by) = locate(tasks.as_deref(), &asked, observation, verdict, out).await {
+        verdict.judgments.push(carried(by));
+        verdict.settled_by = Some(by);
     }
 }
 
-/// What a doubt asks next: each part against the bytes, the run over the parts it can decide,
-/// the extra-operation question, then, when every part is carried, the whole request over the
-/// run, or with no run where the rejection is. Whether the run carried the whole request;
+/// What a doubt, or a whole-request answer that decides nothing, asks next: each part against
+/// the bytes, the run over the parts it can decide, the extra-operation question, then, when
+/// every part is carried, the whole request over the run, or with no run where a deciding
+/// rejection is. The question that settled the whole request (a whole run, or the parts);
 /// everything else lands in `verdict`.
 async fn locate<P: ProviderInferDyn>(
     tasks: Option<&[String]>,
@@ -276,10 +283,18 @@ async fn locate<P: ProviderInferDyn>(
     observation: Option<&Value>,
     verdict: &mut Verdict,
     out: &mut CompileOutcome,
-) -> bool {
+) -> Option<&'static str> {
     let intent = asked.intent;
     let mut parts = split(intent);
     localize(&mut parts, asked, verdict, out).await;
+    // A part a repair attempt met, missing again where no whole-request answer decides: stated.
+    let mut restated = Vec::new();
+    for part in (parts.iter_mut()).filter(|part| matches!(part.state, State::Defect(_))) {
+        if verdict.doubt.is_empty() && verdict.repaired.contains(&part.text) {
+            restated.push(part.text.clone());
+            part.state = State::Settled;
+        }
+    }
     super::unread(verdict);
     let trial = observation.filter(|observed| trial_whole(observed));
     if let Some(run) = trial.filter(|_| !verdict.stopped) {
@@ -300,52 +315,57 @@ async fn locate<P: ProviderInferDyn>(
         Extra::Defect(note) => {
             verdict.defects.push(EXTRA_DEFECT.to_owned());
             verdict.notes.push((EXTRA_DEFECT.to_owned(), note));
-            return false;
+            return None;
         }
         Extra::Unknown(why) => Some(why),
     };
     if broken {
-        return false;
+        return None;
     }
     if verdict.stopped {
         verdict.unknown.extend(undecided);
         verdict.unknown.push(intent.to_owned());
-        return false;
+        return None;
     }
     let why = match (trial, observation) {
         (Some(_), _) if open => OPEN_AFTER_RUN,
         (None, Some(_)) => PARTIAL,
         (None, None) => NO_TRIAL,
         (Some(run), _) => match observe(&parts, asked, run, verdict, out).await {
-            Observed::Carried => return true,
+            Observed::Carried => return Some("verify-observed"),
             Observed::Defect(defect, note) => {
                 verdict.unknown.extend(undecided);
                 verdict.defects.push(defect.clone());
                 verdict.notes.push((defect, note));
-                return false;
+                return None;
             }
             Observed::Stopped => {
                 verdict.unknown.extend(undecided);
                 verdict.unknown.push(intent.to_owned());
-                return false;
+                return None;
             }
             Observed::Unsettled(why) => why,
         },
     };
+    // No whole-request answer declined these bytes (a weighed one): its parts carry the request.
+    if verdict.doubt.is_empty() && !open && undecided.is_none() {
+        verdict.stated = Doubt::stated(&verdict.records, &restated);
+        return Some("verify-parts");
+    }
     // No run decides it, no part is open and nothing is extra: asked once where it is.
     if trial.is_none() && !open && undecided.is_none() && verdict.doubt == ["unfaithful"] {
         match doubted(&parts, asked, verdict, out).await {
             Some(false) => {}
-            Some(true) => return false,
+            Some(true) => return None,
             None => {
                 verdict.unknown.push(intent.to_owned());
-                return false;
+                return None;
             }
         }
     }
     verdict.unknown.extend(undecided);
     doubt_stays(intent, why, verdict);
-    false
+    None
 }
 
 /// Where a rejection nothing located is, asked once of the judge when no run of these bytes
@@ -372,7 +392,9 @@ async fn doubted<P: ProviderInferDyn>(
         verdict.stopped = true;
         return None;
     }
-    let located = answer.as_deref().and_then(|key| doubt.read(key));
+    let located = (answer.as_deref())
+        .and_then(|key| doubt.read(key))
+        .filter(|_| Doubt::locates(&verdict.records));
     verdict.consumed += u32::from(located.is_some());
     let (text, note) = match located {
         Some(Located::Part(k)) => {
@@ -428,9 +450,12 @@ fn keep(parts: &[Part], verdict: &mut Verdict) -> bool {
 }
 
 /// A doubt nothing decided (R6): the request is contested when the judge rejected it, with why
-/// nothing decided it; unknown when it only abstained.
+/// nothing decided it; unknown when it only abstained; neither when no whole-request answer
+/// declined these bytes (one that decides nothing), whose open parts keep the doubt.
 fn doubt_stays(intent: &str, why: &str, verdict: &mut Verdict) {
-    if verdict.rejected() {
+    if verdict.doubt.is_empty() {
+        verdict.unsettled.push(why.to_owned());
+    } else if verdict.rejected() {
         verdict.contested.push(intent.to_owned());
         verdict.unsettled.push(why.to_owned());
     } else {

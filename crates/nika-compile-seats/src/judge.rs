@@ -8,7 +8,8 @@
 //! catalogue a door was lent, what it composed) ride the same state as data ([`authoring`]);
 //! what each task of the judged bytes touches decides which task a judge may still name as doing
 //! something unasked ([`Effects`]), and a doubt nothing located is asked where it is once
-//! ([`Doubt`]).
+//! ([`Doubt`]); a value a revision drops on the person's cited words is asked whether those
+//! words remove it ([`Removal`]).
 
 use nika_compile::surface::{EditChange, Input, sha256};
 use nika_compile::{CompileOutcome, CompileRequest};
@@ -21,12 +22,14 @@ mod construction;
 mod doubt;
 mod effects;
 mod framing;
+mod removal;
 pub use construction::{Construction, Construed};
 pub use doubt::{Doubt, Located};
 pub use effects::Effects;
 pub use framing::{
     CREATED, REVISED, REVISED_APPENDED, REVISED_DOCUMENT, REVISED_OVER_DOCUMENT, told,
 };
+pub use removal::Removal;
 
 /// The state every question and every repair carries: the request as compiled and as first
 /// stated, its answers, the observed world and the candidate's bytes. The first statement is

@@ -10,6 +10,57 @@ pub const nika_compile_fidelity::decimal::ARITHMETIC: &str
 pub const nika_compile_fidelity::decimal::ORDER: &str
 pub mod nika_compile_fidelity::fidelity
 pub use nika_compile_fidelity::fidelity::instant_shape
+pub mod nika_compile_fidelity::fidelity::budget
+#[non_exhaustive] pub struct nika_compile_fidelity::fidelity::budget::ReasoningFacts
+pub nika_compile_fidelity::fidelity::budget::ReasoningFacts::low_effort: bool
+pub nika_compile_fidelity::fidelity::budget::ReasoningFacts::reasons_by_default: bool
+pub nika_compile_fidelity::fidelity::budget::ReasoningFacts::room: core::option::Option<u32>
+impl nika_compile_fidelity::fidelity::budget::ReasoningFacts
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::new(reasons_by_default: bool, room: core::option::Option<u32>) -> Self
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::of_caps(caps: &serde_json::value::Value) -> Self
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::with_low_effort(self, reaches: bool) -> Self
+impl core::clone::Clone for nika_compile_fidelity::fidelity::budget::ReasoningFacts
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::clone(&self) -> nika_compile_fidelity::fidelity::budget::ReasoningFacts
+impl core::cmp::Eq for nika_compile_fidelity::fidelity::budget::ReasoningFacts
+impl core::cmp::PartialEq for nika_compile_fidelity::fidelity::budget::ReasoningFacts
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::eq(&self, other: &nika_compile_fidelity::fidelity::budget::ReasoningFacts) -> bool
+impl core::fmt::Debug for nika_compile_fidelity::fidelity::budget::ReasoningFacts
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::fidelity::budget::ReasoningFacts
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::fidelity::budget::ReasoningFacts
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::fidelity::budget::ReasoningFacts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::fidelity::budget::ReasoningFacts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::fidelity::budget::ReasoningFacts where U: core::convert::From<T>
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::fidelity::budget::ReasoningFacts where U: core::convert::Into<T>
+pub type nika_compile_fidelity::fidelity::budget::ReasoningFacts::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::fidelity::budget::ReasoningFacts where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::fidelity::budget::ReasoningFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::fidelity::budget::ReasoningFacts where T: core::clone::Clone
+pub type nika_compile_fidelity::fidelity::budget::ReasoningFacts::Owned = T
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::fidelity::budget::ReasoningFacts where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::fidelity::budget::ReasoningFacts where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::fidelity::budget::ReasoningFacts where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::fidelity::budget::ReasoningFacts where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::fidelity::budget::ReasoningFacts
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::fidelity::budget::ReasoningFacts where T: core::clone::Clone
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::fidelity::budget::ReasoningFacts where T: 'static
+pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::fidelity::budget::ReasoningFacts
+pub type nika_compile_fidelity::fidelity::budget::ReasoningFacts::Output = T
+pub fn nika_compile_fidelity::fidelity::budget::reasoning(stated: &str, doc: &serde_json::value::Value, facts: &dyn core::ops::function::Fn(&str) -> core::option::Option<nika_compile_fidelity::fidelity::budget::ReasoningFacts>, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub mod nika_compile_fidelity::fidelity::resolution
 #[non_exhaustive] pub enum nika_compile_fidelity::fidelity::resolution::ResolutionKind
 pub nika_compile_fidelity::fidelity::resolution::ResolutionKind::Answered

@@ -16,6 +16,7 @@ use nika_compile_cognition::rehearse::Refusal;
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawTask, RawWorkflow};
 use nika_schema::{FileId, ParseMode, VarDecl};
 use nika_service_execution::ADMITTED_TOOLS;
+use nika_service_execution::replay::{self, Captures, ReplayScreen};
 use serde_json::Value;
 
 #[cfg(test)]
@@ -63,14 +64,15 @@ pub(super) struct Screened {
 /// Screen `candidate` over the observed `inputs`, for a host that evaluates no `nika:jq`.
 #[cfg(test)]
 fn screen(candidate: &str, inputs: &[String]) -> Result<Screened, Refused> {
-    screen_with(candidate, inputs, false)
+    screen_with(candidate, inputs, (false, None))
 }
 
-/// Screen `candidate` over the observed `inputs`; `jq` when the host evaluates `nika:jq`.
+/// Screen `candidate` over the observed `inputs`; `jq` when the host evaluates `nika:jq`, and
+/// `captures` when it lends a replay trial, whose own screen answers for a task it screens.
 pub(super) fn screen_with(
     candidate: &str,
     inputs: &[String],
-    jq: bool,
+    (jq, captures): (bool, Option<&Captures>),
 ) -> Result<Screened, Refused> {
     let workflow =
         nika_schema::parse(candidate, FileId::new(0), ParseMode::Strict).map_err(|error| {
@@ -96,8 +98,10 @@ pub(super) fn screen_with(
         tasks: Vec::new(),
     };
     let mut reads = Vec::new();
+    let replay = captures.map(|captures| replay::screen(&workflow, captures));
     for task in &workflow.tasks {
-        if let Some(read) = screen_task(&workflow, &task.value, &mut screened.outputs, jq)? {
+        let lent = (jq, replay.as_ref());
+        if let Some(read) = screen_task(&workflow, &task.value, &mut screened.outputs, lent)? {
             reads.push(read);
         }
         screened.tasks.push(task.value.id.value.clone());
@@ -128,11 +132,14 @@ fn screen_task(
     workflow: &RawWorkflow,
     task: &RawTask,
     outputs: &mut Vec<Output>,
-    jq: bool,
+    (jq, replay): (bool, Option<&ReplayScreen>),
 ) -> Result<Option<(String, String)>, Refused> {
     let id = task.id.value.as_str();
     if !task.extract.is_empty() {
         return Err(bounded(id, "extracts with jq"));
+    }
+    if replay.is_some_and(|replay| replay.screens(task)) {
+        return Ok(None);
     }
     let invoke = match &task.action {
         RawAction::Invoke(invoke) => invoke,

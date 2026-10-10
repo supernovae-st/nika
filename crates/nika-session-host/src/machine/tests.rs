@@ -140,6 +140,45 @@ fn the_door_writes_its_log_in_order_and_replies_beside_it() {
     assert!(door.done.recv_timeout(WAIT).expect("door ended").is_ok());
 }
 
+/// A line the door cannot parse is refused `malformed` as a direct reply, naming the command
+/// identity its JSON carries when that identity is a valid one, so the client that sent it tells
+/// that refusal from another line's; a line naming none, or an invalid one, is refused naming
+/// none.
+#[test]
+fn a_line_it_cannot_parse_is_refused_naming_the_identity_it_carries() {
+    let root = world();
+    let mut door = Door::open(root.path());
+    assert_eq!(door.next()["frame"], "opened");
+    door.send(&serde_json::json!({
+        "contract": CONTRACT, "op": "rewind", "command": "c-9", "line": "use b instead",
+    }));
+    let named = door.next();
+    assert_eq!(
+        (
+            named["frame"].as_str(),
+            named["error"].as_str(),
+            named["command"].as_str()
+        ),
+        (Some("refused"), Some("malformed"), Some("c-9")),
+        "{named}"
+    );
+    assert!(named.get("event").is_none(), "a direct reply: {named}");
+    door.send(&serde_json::json!({
+        "contract": CONTRACT, "op": "rewind", "command": "not an identity",
+    }));
+    let invalid = door.next();
+    assert_eq!(invalid["error"], "malformed", "{invalid}");
+    assert!(invalid.get("command").is_none(), "{invalid}");
+    door.send(&Value::String("not json".to_owned()));
+    let unnamed = door.next();
+    assert_eq!(unnamed["error"], "malformed", "{unnamed}");
+    assert!(unnamed.get("command").is_none(), "{unnamed}");
+    door.input = None;
+    let (closed, _) = door.until("closed");
+    assert_eq!(closed["frame"], "closed");
+    assert!(door.done.recv_timeout(WAIT).expect("door ended").is_ok());
+}
+
 #[test]
 fn stop_and_close_are_read_while_a_turn_runs() {
     let root = world();

@@ -124,6 +124,15 @@ fn calls_to(made: &[(&str, &str, &str)]) -> Result<Reply, ModelError> {
     Ok(Reply::new(blocks, StopReason::ToolUse).with_usage(TokenUsage::new(10, 5)))
 }
 
+/// A message that only reasoned: no word and no call.
+#[allow(clippy::unnecessary_wraps)]
+fn thinks(thought: &str) -> Result<Reply, ModelError> {
+    let thinking = ContentBlock::Thinking {
+        text: thought.into(),
+    };
+    Ok(Reply::new(vec![thinking], StopReason::EndTurn))
+}
+
 fn now() -> u64 {
     7
 }
@@ -539,4 +548,43 @@ fn a_request_carries_the_branch_instructions_and_the_persons_citations() {
     assert_eq!(request.system.as_deref(), Some("Author with the person."));
     let cited = &request.messages[0].content[1];
     assert!(matches!(cited, ContentBlock::Text { text } if text == "(cited as u1)"));
+}
+
+/// A message with no word and no call is asked once more, in Nika's words; the answer to that
+/// ends the run.
+#[test]
+fn a_message_that_only_reasoned_is_asked_once_more() {
+    let (mut tree, mut lines) = fresh();
+    let tools = Tools::new();
+    let mut model = Script::new(vec![thinks("which feed first?"), says("Voici le plan.")]);
+    let outcome =
+        Agent::new(&mut tree, &mut lines, &tools, &now).prompt("go", &mut model, &mut |_| {});
+    assert!(matches!(&outcome, Outcome::Answered { text } if text == "Voici le plan."));
+    assert_eq!(model.seen.len(), 2);
+    let asked = model.seen[1].messages.last().unwrap();
+    assert_eq!(asked.role, Role::User);
+    let text = answer_text(&asked.content);
+    assert!(text.starts_with("Nika (not the person):"), "{text}");
+    assert!(text.contains("no words and no call"), "{text}");
+    assert_eq!(
+        kinds(tree.entries()),
+        ["user", "assistant", "note", "assistant"]
+    );
+}
+
+/// Asked once more, a model that reasons without a word again ends the run as it is: no third
+/// call, an empty answer the Session says in its own words.
+#[test]
+fn a_model_that_only_reasons_twice_ends_the_run_without_a_third_call() {
+    let (mut tree, mut lines) = fresh();
+    let tools = Tools::new();
+    let mut model = Script::new(vec![thinks("hmm"), thinks("still hmm")]);
+    let outcome =
+        Agent::new(&mut tree, &mut lines, &tools, &now).prompt("go", &mut model, &mut |_| {});
+    assert!(matches!(&outcome, Outcome::Answered { text } if text.is_empty()));
+    assert_eq!(model.seen.len(), 2);
+    assert_eq!(
+        kinds(tree.entries()),
+        ["user", "assistant", "note", "assistant"]
+    );
 }

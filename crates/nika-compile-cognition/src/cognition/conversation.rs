@@ -19,6 +19,7 @@ use crate::fidelity::resolution::Resolution;
 use crate::rehearse::Rehearse;
 use crate::types::Input;
 use crate::{CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, lexicon};
+pub use nika_compile_seats::judge::Removal;
 use nika_kernel::ai::provider::ProviderInferDyn;
 use serde_json::{Value, json};
 
@@ -26,6 +27,8 @@ use serde_json::{Value, json};
 const DOOR: &str = "conversation: document";
 /// The finding target of a refusal the laws make before any judge reads the bytes.
 const REFUSED: &str = "conversation";
+/// The finding target of a removal claim the judge did not confirm.
+const REMOVAL: &str = "removal";
 /// What a revision handed to this door is told: the judge frames a revision by its base.
 const NOT_CREATED: &str = "A conversation's document is verified against the request it creates: a revision of a saved workflow is judged with its base by the revision door, so nothing was judged here and nothing is READY.";
 /// What a candidate no judge settled says (R4 A11): nothing is READY on its bytes.
@@ -53,6 +56,24 @@ pub async fn verify_document<P: ProviderInferDyn>(
     cognition: Cognition<'_, P>,
     host: Option<&dyn Rehearse>,
 ) -> Result<CompileOutcome, crate::CompileError> {
+    verify_document_with(request, candidate, selections, &[], cognition, host).await
+}
+
+/// [`verify_document`] for a revision that drops values a proposal the person saw bound: each
+/// claim of `removals` is asked of the judge before the whole request (`verify-removed-<k>`,
+/// recorded as `decision.removals`), and a claim it does not confirm keeps the document from
+/// READY, never proposed, with why (a `removal` finding).
+///
+/// # Errors
+/// None today: every refusal is an outcome; the `Result` matches the other compile entries.
+pub async fn verify_document_with<P: ProviderInferDyn>(
+    request: &CompileRequest,
+    candidate: &str,
+    selections: (&[Resolution], &[Resolution]),
+    removals: &[Removal],
+    cognition: Cognition<'_, P>,
+    host: Option<&dyn Rehearse>,
+) -> Result<CompileOutcome, crate::CompileError> {
     let caller = match nika_compile::surface::semantic::caller(request) {
         Ok(caller) => caller,
         Err(refused) => return Ok(*refused),
@@ -77,7 +98,8 @@ pub async fn verify_document<P: ProviderInferDyn>(
         reading: reading.clone(),
     };
     let mut rehearsals = rehearsal::Rehearsals::new(host).serving(serves);
-    let mut out = judged(&reading, candidate, selections, seats, &mut rehearsals).await;
+    let words = (candidate, selections, removals);
+    let mut out = judged(&reading, words, seats, &mut rehearsals).await;
     rehearsals.finish(&reading, &mut out).await;
     if let Some(money) = record {
         let closed = closed.as_deref().filter(|_| offered);
@@ -91,8 +113,7 @@ pub async fn verify_document<P: ProviderInferDyn>(
 /// The laws, the finish, the run and the verdict over one document, with the exit each leaves.
 async fn judged<P: ProviderInferDyn>(
     reading: &CompileRequest,
-    candidate: &str,
-    selections: (&[Resolution], &[Resolution]),
+    (candidate, selections, removals): (&str, (&[Resolution], &[Resolution]), &[Removal]),
     seats: Cognition<'_, P>,
     rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> CompileOutcome {
@@ -126,6 +147,18 @@ async fn judged<P: ProviderInferDyn>(
         // A run serves only a verdict: with no judge, the room runs nothing.
         (None, None) => return pending(&intent, reading, out),
     };
+    if !removals.is_empty() {
+        // Boxed where it is built: its questions are the verdict's, at the verdict's size.
+        let claims = verify::removals::unconfirmed(&judge, removals, &intent, &mut out);
+        let held = Box::pin(claims).await;
+        if !held.is_empty() {
+            for why in held {
+                crate::finding(&mut out, DiagnosticKind::Refused, REMOVAL, why);
+            }
+            out.status = CompileStatus::Incomplete;
+            return out;
+        }
+    }
     let run = rehearsals.trial(reading, &out).await;
     let read = lexicon::read(&intent);
     // Boxed where it is built, as the native door's verdict is: its state machine is large.

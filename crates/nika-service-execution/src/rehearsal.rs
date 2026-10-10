@@ -7,7 +7,9 @@
 //! candidate names a model lane, or when it holds any `infer:` or `agent:`
 //! task (a model-less one yields no lane, yet would run on the default model).
 //! A zero cost ceiling elsewhere is defense in depth, never this denial.
-//! The run itself, over a room, is the `room` child's.
+//! The run itself, over a room, is the `room` child's. A replay trial
+//! ([`replay`]) keeps a model step out of the run instead: its plan refuses
+//! only a pin, and its runtime reaches no provider.
 
 use std::fmt;
 
@@ -16,6 +18,7 @@ use nika_providers::ExecutionAccessPlan;
 use crate::ServiceExecutionDriver;
 
 mod isolated_jq;
+pub mod replay;
 mod room;
 #[cfg(test)]
 mod room_tests;
@@ -75,6 +78,27 @@ impl ServiceExecutionDriver {
         if verbs.infer || verbs.agent {
             return Err(RehearsalPlanRefusal::ModelVerb);
         }
+        Ok(plan)
+    }
+
+    /// A replay trial's access plan: the pure resolver's, over no model override, no pin and
+    /// no probe rows. A model lane or an `infer:`/`agent:` task is kept out of the trial rather
+    /// than refused: the trial's runtime has no provider transport and holds no key, and its
+    /// agent seat refuses every turn, so a model step fails where it stands and the trial's
+    /// screen names it not exercised ([`replay::screen`]).
+    ///
+    /// # Errors
+    /// [`RehearsalPlanRefusal::Pin`] when the caller asked for one.
+    pub fn replay_plan(
+        &self,
+        pin: Option<&str>,
+    ) -> Result<ExecutionAccessPlan, RehearsalPlanRefusal> {
+        if pin.is_some() {
+            return Err(RehearsalPlanRefusal::Pin);
+        }
+        let mut plan = self.resolve_access_plan_over(None, None, &[]);
+        // No launch refusal for a model lane: its step fails where it stands.
+        plan.lanes.clear();
         Ok(plan)
     }
 }

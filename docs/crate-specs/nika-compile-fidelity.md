@@ -154,11 +154,17 @@ needs keeps its default.
   relative path under the project, never absolute, hidden or above it, and for `derived` absent
   from the observed world) and the document uses it in that role alone (a source only as a
   `nika:fetch` URL read with GET or HEAD; an output only as a `nika:write` path, directly or
-  through a bare `${{ const.<name> }}`). Only a read source and a new output can stand for
-  words the person did not spell: a named or delegated selection is a read source, a derived
-  one a new output, and an answered value is one the person typed verbatim, in any role. A
-  derived name is plain ASCII and never matches an observed file, letter case aside (a
-  case-insensitive file system holds both spellings as one file). A host made of numbers that
+  through a bare `${{ const.<name> }}`). Only what the person's words scope can stand for
+  words they did not spell: a named selection is a read source, a delegated one a read source
+  or a new output, a derived one a new output, and an answered value is one the person typed
+  verbatim, in any role. Amended 2026-10-10, within the scope the person stated: a delegated
+  output name is a new file as a derived one is; a derived `read_source` may be a file read
+  under a folder the person typed (the folder of a path of theirs, as a glob or a read scope:
+  `world/pages/*.json`, `world/**` under `world/source.json`), only read and inside the
+  project; a derived `value` may be the exact host of an http(s) address the person typed
+  (`127.0.0.1` of `http://127.0.0.1:55546`). A derived or delegated name is plain ASCII and
+  never matches an observed file, letter case aside (a case-insensitive file system holds
+  both spellings as one file). A host made of numbers that
   is no canonical address (`127.1`, `0x7f.0.0.1`) is refused. Each refusal is one `resolution`
   diagnostic (`UNAUTHORIZED SELECTION`, `OUT OF SCOPE`). `laws_resolved` is `laws_observed`
   with the admitted literals covered by
@@ -344,7 +350,7 @@ Calling the pure fidelity function alone does not establish those additional con
 `fidelity` (the laws and their diagnostics · the approval guard and Law 3b in
 `fidelity/final_gate` · Law 23 in `fidelity/records`, with its measured forms in
 `assets/record_forms.txt` · Law 24 and the jq scope walk in `fidelity/record_scope` · Law 25
-in `fidelity/instants`) · `sketch` (the constrained intermediate, its structural laws, its
+in `fidelity/instants` · the reasoning budget in `fidelity/budget`) · `sketch` (the constrained intermediate, its structural laws, its
 typed holes, its document) · `candidate` (the plan a candidate states, a revision's delta) ·
 `behavior` (re-exported whole from `nika-compile-behavior`, ADR-149; its module map is that
 crate's spec).
@@ -446,3 +452,26 @@ existing observed-world input receives the metadata with parsing and timezone gu
 makes (verbatim, spacing and typographic quotes aside). An `answered` selection is a value the
 person typed, verbatim or without the leading `./` or trailing `/` two spellings of one path or
 address differ by, as a whole word of their text.
+
+## The reasoning budget (amended 2026-10-10)
+
+`budget::reasoning(stated, doc, facts, out)` judges each `infer:` task of a document whose
+author states its own caps (a Session conversation's). A model that reasons before it answers
+spends that reasoning inside the call's output cap, so a cap with no room for the answer ends
+the run with no answer (NIKA-INFER-004) or with one cut short. On a seat whose facts say it
+reasons by default, a cap below the facts' room, or no cap at all, is one `reasoning_budget`
+diagnostic (`REASONING BUDGET`) naming the task, the seat, the cap and only the remedies that
+reach the route: raise or state `max_tokens` (the room), and set `run.reasoning.effort: low`
+where the facts say that level reaches it. Turning thinking off is never named: no route fact
+reaches it yet, and a `thinking:` block a route does not map changes nothing, so it settles no
+task. Not judged: a task whose run lowers the effort to `low` where that reaches it, a templated
+cap or seat, a cap the person typed (`resolution::typed`), and an `agent:` task (its
+`max_tokens_total` is cumulative across requests and bounds none).
+
+The facts are a typed input, `budget::ReasoningFacts` (`#[non_exhaustive]`, `new(reasons, room)`,
+`with_low_effort(reaches)`): whether the route reasons by default, the cap that leaves room for
+the reasoning and the answer, whether `run.reasoning.effort: low` reaches it. `of_caps` reads
+them from the catalog's facts as `nika_compile::surface::output_caps` reports them: a row that
+records reasoning and documents effort levels reasons by default (a row recording reasoning
+alone records a capability, which a Claude row uses only when asked), and `low` among its levels
+reaches it. The law reads, calls and writes nothing else.

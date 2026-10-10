@@ -41,8 +41,9 @@ const TECHCRUNCH: &str = "https://techcrunch.com";
 const DIGEST: &str = "./news/digest.md";
 /// The ordinary request: sources and output left open.
 pub(crate) const REQUEST: &str = "fais moi un workflow tres simple qui recupere les news tech recentes, les resume et ecrit le resultat en markdown dans un dossier du projet";
-/// The acceptance of the agent's recommendation.
-pub(crate) const ACCEPT: &str = "oui tout me va, je suis tes recos";
+/// The acceptance of the agent's recommendation: the consent word, a pick by protocol (a
+/// sentence would be read by the seat's own one-shot, which this fixture does not script).
+pub(crate) const ACCEPT: &str = "oui";
 /// The person asks which model runs their workflow.
 pub(crate) const CHOOSE: &str = "which model should run my workflow?";
 /// A model no route on this machine offers.
@@ -383,8 +384,21 @@ fn assert_agent_read(world: &World) {
         first.ends_with(&format!("{REQUEST}\n\n(cited as u1)")),
         "{first}"
     );
-    let answer = format!("The person answered, cited as u2:\n{ACCEPT}");
-    assert_eq!(prompts[1], answer);
+    // The answer, then what Nika read it to pick: the recommended offer, bound by Nika.
+    let answer = format!("The person answered, cited as u2:\n{ACCEPT}\n\nNika (not the person):\n");
+    assert!(
+        prompts[1].as_str().unwrap().starts_with(&answer),
+        "{}",
+        prompts[1]
+    );
+    assert!(
+        prompts[1]
+            .as_str()
+            .unwrap()
+            .contains("the person picked `recommended`"),
+        "{}",
+        prompts[1]
+    );
     let names = nika_session_change::tools::NAMES.len();
     assert_eq!(world.observed("tools")[0].as_array().unwrap().len(), names);
     let replies = world.observed("replies");
@@ -405,8 +419,8 @@ fn assert_agent_read(world: &World) {
     assert_eq!(world.observed("foreign"), [rejected]);
 }
 
-/// The tree keeps who leads, each turn's record (the foreign tool denied with it), the call
-/// that waited for the person and the line that answered it.
+/// The tree keeps who leads, each turn's record (the foreign tool denied with it), the calls
+/// that waited for the person and the line that answered the first.
 fn assert_tree_kept(world: &World) {
     let tree = world.tree();
     let facts = entries(&tree, "fact");
@@ -417,9 +431,11 @@ fn assert_tree_kept(world: &World) {
     let denied =
         (facts.iter()).any(|f| f["kind"]["data"]["permissions"]["denied"] == json!(["Bash"]));
     assert!(denied, "{facts:#?}");
+    // The question, then, since a shown proposal ends the turn, the proposal.
     let parked = entries(&tree, "parked");
-    assert_eq!(parked.len(), 1);
+    assert_eq!(parked.len(), 2);
     assert_eq!(parked[0]["kind"]["call"], "toolu_ask");
+    assert_eq!(parked[1]["kind"]["call"], "toolu_propose");
     let answered = (entries(&tree, "user").into_iter())
         .any(|u| u["kind"]["cite"] == "u2" && u["kind"]["answers"] == "toolu_ask");
     assert!(answered, "{tree:#?}");

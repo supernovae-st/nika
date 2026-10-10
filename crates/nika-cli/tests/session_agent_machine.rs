@@ -22,15 +22,17 @@ use serde_json::{Value, json};
 
 const REQUEST: &str = "fais moi un workflow tres simple qui recupere les news tech recentes, les resume et ecrit le resultat en markdown dans un dossier du projet";
 const ACCEPT: &str = "oui tout me va";
-const SOURCE: &str = "https://news.ycombinator.com";
+/// A file of the project the offer names: the trial reads the project's copy, so nothing is
+/// fetched (a reserved name such as `.invalid` is no address a source may have).
+const SOURCE: &str = "./news/sources.md";
 const OUTPUT: &str = "./news/digest.md";
 /// The kept choice of the local route this loopback serves.
 const CHOICE: &str = r#"{"kind":{"kind":"local","provider":"vllm"},"model":"vllm/agent-seat","chosen_at":"2026-10-10T00:00:00Z"}"#;
 
-/// The candidate the accepted offer builds: one GET, one summary, one write.
+/// The candidate the accepted offer builds: one read, one summary, one write.
 fn digest() -> String {
     format!(
-        "nika: news-digest\nmodel: vllm/agent-seat\npermits:\n  tools: [\"nika:fetch\", \"nika:write\"]\n  net:\n    http: [\"news.ycombinator.com\"]\n  fs:\n    write: [\"{OUTPUT}\"]\ntasks:\n  hacker_news:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"{SOURCE}\", method: GET }}\n  summarize:\n    with:\n      news: \"${{{{ tasks.hacker_news.output }}}}\"\n    infer:\n      max_tokens: 1000\n      prompt: \"Résume en Markdown les actualités ci-dessous, sans rien inventer : ${{{{ with.news }}}}\"\n  write_digest:\n    with:\n      digest: \"${{{{ tasks.summarize.output }}}}\"\n    invoke:\n      tool: \"nika:write\"\n      args: {{ path: \"{OUTPUT}\", content: \"${{{{ with.digest }}}}\" }}\n"
+        "nika: news-digest\nmodel: vllm/agent-seat\npermits:\n  tools: [\"nika:read\", \"nika:write\"]\n  fs:\n    read: [\"{SOURCE}\"]\n    write: [\"{OUTPUT}\"]\ntasks:\n  read_news:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{SOURCE}\" }}\n  summarize:\n    with:\n      news: \"${{{{ tasks.read_news.output }}}}\"\n    infer:\n      max_tokens: 1000\n      prompt: \"Résume en Markdown les actualités ci-dessous, sans rien inventer : ${{{{ with.news }}}}\"\n  write_digest:\n    with:\n      digest: \"${{{{ tasks.summarize.output }}}}\"\n    invoke:\n      tool: \"nika:write\"\n      args: {{ path: \"{OUTPUT}\", content: \"${{{{ with.digest }}}}\" }}\n"
     )
 }
 
@@ -42,15 +44,15 @@ fn script() -> Vec<Value> {
     };
     vec![
         json!({"tool": "ask", "args": {"questions": [{
-            "key": "plan", "question": "Je prends Hacker News et j'écris le résumé dans ./news/digest.md : ça te va ?",
+            "key": "plan", "question": "Je lis ./news/sources.md et j'écris le résumé dans ./news/digest.md : ça te va ?",
             "options": [{"key": "recommended", "label": "Oui", "recommended": true, "values": [
-                {"role": "read_source", "value": SOURCE, "name": "Hacker News"},
+                {"role": "read_source", "value": SOURCE, "name": "tes sources"},
                 {"role": "output_path", "value": OUTPUT}]}],
             "free_text": true}]}}),
-        json!({"tool": "candidate_write", "args": {"source": digest(), "summary": "Hacker News, résumé dans ./news/digest.md",
+        json!({"tool": "candidate_write", "args": {"source": digest(), "summary": "Tes sources, résumé dans ./news/digest.md",
             "resolutions": [offered(SOURCE, "read_source"), offered(OUTPUT, "output_path")]}}),
         json!({"tool": "propose", "args": {}}),
-        json!({"say": "Voici le workflow : Hacker News, résumé dans ./news/digest.md."}),
+        json!({"say": "Voici le workflow : tes sources, résumé dans ./news/digest.md."}),
     ]
 }
 
@@ -134,14 +136,19 @@ const APPROVALS: [&str; 5] = [
 ];
 
 /// What the loopback answers a request that offers no tools: the verifier's closed choice
-/// approved; anything else gets a plain word.
+/// approved, the Session's reading of the accepting answer as the recommended offer; anything
+/// else gets a plain word.
 fn reply(body: &Value) -> Value {
     let keys = &body["response_format"]["json_schema"]["schema"]["properties"]["choice"]["enum"];
     let offered = |key: &&str| keys.as_array().is_some_and(|k| k.iter().any(|k| k == *key));
-    let content = match APPROVALS.into_iter().find(offered) {
-        Some(approve) => json!({"choice": approve}).to_string(),
-        None => "D'accord.".to_owned(),
-    };
+    if let Some(approve) = APPROVALS.into_iter().find(offered) {
+        let choice = json!({"choice": approve}).to_string();
+        return json!({"role": "assistant", "content": choice});
+    }
+    let last = (body["messages"].as_array().into_iter().flatten()).next_back();
+    let reading = (last.and_then(|message| message["content"].as_str()))
+        .is_some_and(|text| text.contains("One word only, nothing else."));
+    let content = if reading { "recommended" } else { "D'accord." };
     json!({"role": "assistant", "content": content})
 }
 
@@ -330,6 +337,10 @@ fn assert_proposed(proposed: &Value, author: &Author, project: &Path) -> String 
 fn the_agent_asks_writes_proposes_and_the_yes_saves_through_the_machine_door() {
     let project = tempfile::tempdir().expect("project");
     let home = tempfile::tempdir().expect("home");
+    // The file the offer names, as the person keeps it: the trial reads its copy.
+    let news = project.path().join("news");
+    std::fs::create_dir_all(&news).expect("news");
+    std::fs::write(news.join("sources.md"), "# Tech\n- Rust 1.97 is out\n").expect("sources");
     let author = Author::start();
     let mut door = Door::open(project.path(), home.path(), &author);
     let opened = door.next("opened");

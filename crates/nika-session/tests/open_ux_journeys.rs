@@ -33,17 +33,18 @@ mod peer;
 #[path = "open_ux_journeys/scenarios.rs"]
 mod scenarios;
 
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use peer::{Kind, Peer, Seen};
 use scenarios::{
-    ACCEPT, ALREADY, DELEGATION, DIGEST, FOLLOWED, HACKER_NEWS, LE_MONDE, LE_MONDE_WORDS,
-    OUTPUT_WORDS, STEER_B, STEERED, STILL_HERE, STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C,
-    THEN_STOP, WHY, scenario,
+    ACCEPT, ALGOLIA, ALREADY, DEFLECT, DELEGATION, DIGEST, EMPTY, FOLLOWED, HACKER_NEWS, LE_MONDE,
+    LE_MONDE_WORDS, OUTPUT_WORDS, RENAMED, REPAIRING, REQUEST, STEER_B, STEERED, STILL_HERE,
+    STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C, THEN_STOP, TRIED_ON, UNRESOLVED, WHY, YC_BLOG,
+    scenario,
 };
-use scenarios::{REPAIRING, UNRESOLVED};
 use serde_json::{Value, json};
 
 /// One scenario's report, and the requests the peer received while the child drove it.
@@ -76,6 +77,15 @@ fn run(name: &str) -> Journey {
     let markers = dir.path().join("markers");
     std::fs::create_dir_all(&markers).unwrap();
     let peer = Peer::start(scenario.script, &markers);
+    // The suite's own jq helper: this binary's `jq_helper`, its answer on descriptor 3.
+    let helper = dir.path().join("jq-helper");
+    let exe = std::env::current_exe().unwrap();
+    let wrapper = format!(
+        "#!/bin/sh\nexec /usr/bin/env OPEN_UX_JQ=1 '{}' --exact jq_helper --ignored --test-threads=1 -q 3>&1 1>/dev/null 2>/dev/null\n",
+        exe.display()
+    );
+    std::fs::write(&helper, wrapper).unwrap();
+    std::fs::set_permissions(&helper, std::fs::Permissions::from_mode(0o755)).unwrap();
     let report = dir.path().join("report.json");
     let log = dir.path().join("child.log");
     let mut command = Command::new(std::env::current_exe().unwrap());
@@ -97,6 +107,7 @@ fn run(name: &str) -> Journey {
         .env("OPEN_UX_ROOT", &root)
         .env("OPEN_UX_REPORT", &report)
         .env("OPEN_UX_MARKERS", &markers)
+        .env("OPEN_UX_JQ_HELPER", &helper)
         .stdin(Stdio::null())
         .stdout(Stdio::from(std::fs::File::create(&log).unwrap()))
         .stderr(Stdio::from(
@@ -128,6 +139,23 @@ fn run(name: &str) -> Journey {
         seen,
         _dir: dir,
     }
+}
+
+/// The suite's own jq helper, as `nika __nika-jq-eval` serves one evaluation: the engine's
+/// evaluator over the framed request on stdin, its framed answer on descriptor 3 (the wrapper
+/// sends libtest's own words elsewhere).
+#[test]
+#[ignore = "run by the journeys' jq helper wrapper"]
+fn jq_helper() {
+    if std::env::var_os("OPEN_UX_JQ").is_none() {
+        return;
+    }
+    let mut answer = std::fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/fd/3")
+        .unwrap();
+    let mut request = std::io::stdin().lock();
+    nika_builtin::data::jq_serve(&mut request, &mut answer, 4 * 1024 * 1024).unwrap();
 }
 
 /// The child: drive the scenario its parent named, write the report.
@@ -378,7 +406,7 @@ fn a_partial_correction_keeps_every_unaffected_selection_and_its_provenance() {
         LE_MONDE_WORDS
     );
     // The author's first correction silently dropped TechCrunch: refused, with the reason.
-    let refused = journey.agent[6].last();
+    let refused = journey.agent[5].last();
     assert!(
         refused.contains("techcrunch.com"),
         "the refusal names the retained source the correction dropped: {refused}"
@@ -399,7 +427,7 @@ fn a_value_already_given_is_never_asked_again() {
     assert_ne!(outcome_kind(added), "question", "{added:#}");
     assert!(open_questions(added).is_empty(), "{:#}", work(added));
     assert_eq!(waiting(added), "consent", "{added:#}");
-    let settled = journey.agent[5].last();
+    let settled = journey.agent[4].last();
     assert!(
         settled.contains("news/digest.md"),
         "the refused ask returns the settled value to the author: {settled}"
@@ -446,7 +474,7 @@ fn a_reopened_session_keeps_selections_and_provenance_and_renews_identities() {
         assert!(source.contains(value), "{value}:\n{source}");
     }
     // The author's first request after the reopen carries the conversation it continues.
-    let resumed = &journey.agent[4];
+    let resumed = &journey.agent[3];
     for value in [ACCEPT, HACKER_NEWS, DIGEST] {
         assert!(
             resumed.text().contains(value),
@@ -739,6 +767,189 @@ fn stop_drops_the_request_under_way_and_returns_the_queued_line() {
     assert_eq!(journey.report["tools"], json!([]));
 }
 
+/// The text of a step's outcome.
+fn said(step: &Value) -> &str {
+    step["outcome"]["text"].as_str().unwrap_or_default()
+}
+
+/// F2: a refusal picks no offer, and the author's claim that the person accepted one binds
+/// nothing.
+#[test]
+fn a_refusal_binds_no_offer_the_author_claims() {
+    let journey = run("refused_offer");
+    let refused = journey.step(1);
+    assert_ne!(outcome_kind(refused), "proposal", "{refused:#}");
+    assert!(rows(refused, "bindings").is_empty(), "{:#}", work(refused));
+    let answer = &journey.agent[1];
+    assert!(
+        answer.text().contains("declined the offers"),
+        "{}",
+        answer.text()
+    );
+    let claim = &journey.agent[2];
+    assert!(
+        claim.last().contains("declined the offers"),
+        "{}",
+        claim.last()
+    );
+}
+
+/// Item 4(a), E1 machine-1: a deflection takes the recommended offer, delegated and visible.
+#[test]
+fn a_deflection_takes_the_recommendation_visibly() {
+    let journey = run("deflection_takes_the_recommendation");
+    assert_eq!(outcome_kind(journey.step(0)), "question");
+    let proposed = journey.step(1);
+    assert_eq!(outcome_kind(proposed), "proposal", "{proposed:#}");
+    let hn = binding(proposed, HACKER_NEWS).expect("Hacker News is bound");
+    let delegated = json!({"kind": "delegated", "message": "u2", "excerpt": DEFLECT,
+        "question": "yc_source", "option": "hackernews"});
+    assert_eq!(hn["provenance"], delegated, "{hn:#}");
+    assert!(
+        binding(proposed, YC_BLOG).is_none(),
+        "never the offer not picked"
+    );
+    let delegations = rows(proposed, "delegations");
+    assert!(
+        delegations
+            .iter()
+            .any(|d| d["message"] == "u2" && d["scope"] == "read_source"),
+        "{delegations:?}"
+    );
+    let read = &journey.agent[1];
+    assert!(
+        read.text().contains("recommended `hackernews`"),
+        "{}",
+        read.text()
+    );
+}
+
+/// Item 4(b), E1 machine-2: a value left to the author is chosen once and never asked again.
+#[test]
+fn a_name_left_to_the_author_is_never_asked_again() {
+    let journey = run("delegated_name");
+    assert_eq!(outcome_kind(journey.step(2)), "question");
+    let named = journey.step(3);
+    assert_eq!(outcome_kind(named), "proposal", "{named:#}");
+    let refused =
+        (journey.agent.iter()).any(|s| s.last().contains(r#""delegated":{"message":"u4"}"#));
+    assert!(refused, "the second `ask` was refused, not asked");
+    assert_eq!(
+        provenance(named, RENAMED),
+        ("derived".to_owned(), "u4".to_owned())
+    );
+    let delegations = rows(named, "delegations");
+    assert!(
+        delegations
+            .iter()
+            .any(|d| d["message"] == "u4" && d["scope"] == "output_path"),
+        "{delegations:?}"
+    );
+    let changed = format!("output `{DIGEST}` replaced by `{RENAMED}`");
+    assert!(said(named).contains(&changed), "{}", said(named));
+}
+
+/// The evaluator's tickets, biz24-07 and all-tags cells: an author's own filters, programs, globs
+/// and rights state no selection and are never asked. The author reads it in its instructions and
+/// in `candidate_write`, and its own jq filter, stated nowhere, is proposed at once.
+#[test]
+fn an_authors_own_filter_is_proposed_without_a_question() {
+    let journey = run("own_filter");
+    let proposed = journey.step(0);
+    assert_eq!(outcome_kind(proposed), "proposal", "{proposed:#}");
+    let first = &journey.agent[0];
+    let told = first.text();
+    assert!(told.contains("states no selection"), "told: own code");
+    assert!(!told.contains("Every value of a document"), "old rule gone");
+    let write = (first.body["tools"].as_array().into_iter().flatten())
+        .find(|tool| tool["function"]["name"] == "candidate_write")
+        .map(|tool| tool["function"]["description"].to_string())
+        .unwrap_or_default();
+    assert!(write.contains("state none"), "candidate_write says it too");
+}
+
+/// Item 4(e) and lane B's T3, E1 TUI: « today » removes no source, and a replacement in words
+/// that name the source is said under the proposal.
+#[test]
+fn a_source_is_replaced_only_by_words_that_name_it_and_the_change_is_said() {
+    let journey = run("source_swap");
+    assert_ne!(outcome_kind(journey.step(2)), "proposal");
+    let unnamed = format!("does not name `{HACKER_NEWS}`");
+    let refused = (journey.agent.iter()).any(|s| s.last().contains(&unnamed));
+    assert!(refused, "« today » removed nothing");
+    let swapped = journey.step(3);
+    assert_eq!(outcome_kind(swapped), "proposal", "{swapped:#}");
+    let changed = format!(
+        "Changed from the proposal you saw: source `{HACKER_NEWS}` replaced by `{ALGOLIA}`"
+    );
+    assert!(said(swapped).contains(&changed), "{}", said(swapped));
+}
+
+/// Item 4(f), E1 TUI: the folder typed at a proposal is a revision; the card never files it as
+/// money input.
+#[test]
+fn a_folder_line_at_a_proposal_is_never_money_input() {
+    let journey = run("folder_line");
+    let moved = journey.step(2);
+    assert_eq!(outcome_kind(moved), "proposal", "{moved:#}");
+    assert!(!said(moved).contains("monetary input"), "{}", said(moved));
+    let request = format!("request: «{REQUEST}»");
+    assert!(said(moved).contains(&request), "{}", said(moved));
+}
+
+/// Item 5, E1 machine-2: a failed Run goes back to its author at once with the run's facts; the
+/// repaired revision never runs on the words that ran the failed one, and runs on new words.
+#[test]
+fn a_failed_run_is_repaired_and_runs_again_only_on_new_words() {
+    let journey = run("failed_run_repaired");
+    assert_eq!(outcome_kind(journey.step(2)), "run_requested");
+    let repaired = journey.step(3);
+    assert_eq!(outcome_kind(repaired), "proposal", "{repaired:#}");
+    let text = said(repaired);
+    assert!(
+        text.starts_with("Failed · `") && text.contains("`summarize` failed"),
+        "{text}"
+    );
+    assert!(text.contains("NIKA-INFER-001"), "{text}");
+    let note = (journey.agent.iter())
+        .find(|s| s.text().contains("The run the person asked for failed"))
+        .expect("the author read the run's facts");
+    assert!(
+        note.text().contains("Nika (not the person):") && note.text().contains("NIKA-INFER-001"),
+        "{}",
+        note.text()
+    );
+    // The words that ran the failed revision authorize nothing more: the repair waits for the
+    // person's consent. Shown, the proposal ended the turn, and the author reads the person's
+    // next line in place of the refusal.
+    assert_eq!(waiting(repaired), "consent", "{repaired:#}");
+    let again = journey.step(4);
+    assert_eq!(outcome_kind(again), "run_requested", "{again:#}");
+}
+
+/// Item 5, the evaluator's repair cell: a complaint about a successful Run reaches the author
+/// with the run's facts, and the repair runs on those words.
+#[test]
+fn a_complaint_about_a_run_reaches_the_author_with_its_facts() {
+    let journey = run("complaint_after_success");
+    assert_eq!(
+        outcome_kind(journey.step(3)),
+        "facts",
+        "{:#}",
+        journey.step(3)
+    );
+    let complaint = (journey.agent.iter())
+        .find(|s| s.last().contains(EMPTY))
+        .expect("the complaint reached the author");
+    let last = complaint.last();
+    assert!(
+        last.contains("The last run the person asked for:") && last.contains("Done ·"),
+        "{last}"
+    );
+    let again = journey.step(4);
+    assert_eq!(outcome_kind(again), "run_requested", "{again:#}");
+}
+
 /// Lane B's verifier on the conversation's candidate: a judge that rejects the request as a
 /// whole and locates nothing holds it, so nothing is proposed and the author repairs from the
 /// findings; the same bytes verified again ask the judge nothing (R6).
@@ -768,6 +979,70 @@ fn a_candidate_its_judge_doubts_goes_back_to_the_author_and_is_not_asked_again()
     );
 }
 
+/// The author's request after its `n`-th tool call returned: what that call answered.
+fn answered(journey: &Journey, n: usize) -> String {
+    journey.agent.get(n).map(Seen::last).unwrap_or_default()
+}
+
+/// Item 2: a candidate is tried before it is proposed, on the pages its sources answered. A jq
+/// step that refuses a date without an offset fails the trial: nothing is proposed, the author
+/// reads the trial's facts (the task, its code, its message) and proposes the repaired
+/// revision, whose trial passes and binds to the proposal that shows what it ran on.
+#[test]
+fn a_trial_catches_a_date_without_an_offset_before_any_proposal() {
+    let journey = run("trial_offset");
+    let step = journey.step(0);
+    assert_eq!(step["outcome"]["kind"], "proposal", "{step}");
+    let failed = answered(&journey, 2);
+    assert!(
+        failed.contains("run_failure") && failed.contains("\"today\""),
+        "{failed}"
+    );
+    assert!(
+        !failed.contains("shown to the person"),
+        "nothing was proposed: {failed}"
+    );
+    let text = step["outcome"]["text"].as_str().unwrap();
+    assert!(text.contains(TRIED_ON), "{text}");
+    assert_eq!(
+        step["shown"]["work"]["candidate"]["rehearsed"], true,
+        "{step}"
+    );
+}
+
+/// Item 2, the repair cell: a filter that keeps nothing of the items an RFC 3339 feed gives
+/// fails the trial with what came in, so the author repairs it before any proposal.
+#[test]
+fn a_trial_catches_a_filter_that_keeps_nothing_before_any_proposal() {
+    let journey = run("trial_kept_nothing");
+    let step = journey.step(0);
+    assert_eq!(step["outcome"]["kind"], "proposal", "{step}");
+    let failed = answered(&journey, 2);
+    assert!(failed.contains("NIKA-REHEARSAL-EMPTY"), "{failed}");
+    assert!(
+        failed.contains("2 items in from stories.items, 0 out"),
+        "{failed}"
+    );
+    assert!(
+        failed.contains("published: string (2026-10-10T08:00:00+00:00)"),
+        "{failed}"
+    );
+    let text = step["outcome"]["text"].as_str().unwrap();
+    assert!(text.contains(TRIED_ON), "{text}");
+}
+
+/// Item 2: what a trial does not run is said to the person: the model step and the POST.
+#[test]
+fn a_trial_names_the_steps_it_did_not_run() {
+    let journey = run("trial_names_what_it_skips");
+    let step = journey.step(0);
+    assert_eq!(step["outcome"]["kind"], "proposal", "{step}");
+    let text = step["outcome"]["text"].as_str().unwrap();
+    assert!(text.contains(TRIED_ON), "{text}");
+    let skipped = "not run: the model step (summarize) · a request other than GET (send) · any effect outside the room";
+    assert!(text.contains(skipped), "{text}");
+}
+
 /// P0: an agent-led proposal that reads a project file is saved after the person's yes; its
 /// sources are judged by the exact bytes it was shown over, never by a compile it never had.
 #[test]
@@ -795,10 +1070,11 @@ fn a_file_changed_after_the_proposal_withdraws_it_at_the_yes() {
     let yes = journey.step(2);
     assert_eq!(yes["outcome"]["kind"], "refusal", "{yes}");
     let text = yes["outcome"]["text"].as_str().unwrap();
+    // The trial's proof judges first (the rehearsed world moved), else the read basis.
+    let moved = text.contains("the files this proposal was rehearsed on changed")
+        || text.contains("the files this proposal reads changed since it was shown");
     assert!(
-        text.contains(
-            "the files this proposal reads changed since it was shown: `./data/ventes.csv`"
-        ),
+        moved && text.contains("ventes.csv") && text.contains("withdrawn"),
         "{text}"
     );
     let files = journey.report["files"].as_array().unwrap();
@@ -806,4 +1082,38 @@ fn a_file_changed_after_the_proposal_withdraws_it_at_the_yes() {
         !files.iter().any(|f| f.as_str().is_some_and(is_workflow)),
         "{files:?}"
     );
+}
+
+/// NIK-16 change 1: a write's reply carries Nika's check findings and its laws, so the author
+/// repairs an invented path at once and proposes with no `check` or `verify` round trip.
+#[test]
+fn a_write_reply_carries_its_findings_and_the_repaired_write_proposes() {
+    let journey = run("write_carries_its_findings");
+    assert_eq!(
+        journey.step(0)["outcome"]["kind"],
+        "proposal",
+        "{}",
+        journey.step(0)
+    );
+    let invented = answered(&journey, 1);
+    assert!(invented.contains("INVENTED LITERAL"), "{invented}");
+    let repaired = answered(&journey, 2);
+    assert!(repaired.contains("\"findings\":[]"), "{repaired}");
+    let names: Vec<String> = journey.agent.iter().flat_map(Seen::called).collect();
+    assert!(
+        !names.iter().any(|n| n == "check" || n == "verify"),
+        "{names:?}"
+    );
+}
+
+/// A model that only reasons is asked once more, in Nika's words; silent again, the turn says
+/// so instead of ending in an empty reply (lane C's Gemini thought-only turns).
+#[test]
+fn a_thought_only_answer_never_ends_a_turn_in_silence() {
+    let journey = run("thought_only");
+    let said = reply(journey.step(0));
+    assert!(said.contains("ended this turn without a word"), "{said}");
+    assert_eq!(journey.agent.len(), 2, "{:#?}", journey.agent);
+    let asked = journey.agent[1].last();
+    assert!(asked.contains("no words and no call"), "{asked}");
 }

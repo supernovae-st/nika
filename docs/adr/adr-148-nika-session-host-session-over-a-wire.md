@@ -109,7 +109,14 @@ The owners that would naturally host this adapter stand at the 15,000 prod-LOC w
    A Stop of such a turn settles as the typed outcome `stopped` (how it reached the
    intelligence, the lines returned unsent, the draft kept), and each tool step of the run
    reaches the event log as typed activity (`tool`: call, name, state, elapsed), never its
-   arguments.
+   arguments. Both doors advertise `sessionSteering`, so a client tells a door that takes these
+   lines from one that does not, and refuses them itself, before it sends one.
+10. **A refusal names the line it refuses** (amended 2026-10-10). A line that is not a command
+    of the contract is refused `malformed`, a direct reply in line order, naming the command
+    identity its JSON carries when that identity is a valid one: a client tells the refusal of
+    its own line from another's, which a native client has nothing else to go by for (a door
+    without an op refuses that op this way). A line naming none, or an invalid one, is refused
+    naming none.
 
 ## Consequences
 

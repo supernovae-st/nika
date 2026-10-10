@@ -185,10 +185,24 @@ as an external consumer.
   question that localizes a whole-request rejection nothing else located when no run of the
   bytes exists (`verify-doubt`): it shows the request's parts with their answers and the
   facts, and offers each part (`part-<k>`), each open task (`task-<id>`) and `unlocated`;
-  `Located` reads the answer as a part, a task, or nothing. The verifier that asks the
-  questions and weighs the answers stays in `nika-compile-cognition`.
+  `Located` reads the answer as a part, a task, or nothing. An answer a seat weighs (a
+  distribution over the offered options) decides at a calibrated threshold, read as the
+  probability reported for its choice (amended 2026-10-10, oracle-labelled answers):
+  `Doubt::decides` lets a whole-request answer decide only as `unfaithful` at
+  `HOLDING_PROBABILITY` (0.83, a confidence of 0.75 over three options, `faithful` offered
+  first: a seat leans toward the option listed first, so another order needs a new
+  calibration), an unweighed answer taken at its word; `Doubt::locates` lets this question's location name a defect only at
+  `LOCATING_PROBABILITY` (0.5); `Doubt::stated(records, restated)` words what the parts
+  overrule (any whole-request answer but `faithful`, with its probability, and each part a
+  repair attempt met that stands again). `Removal { value, words }`
+  (`#[non_exhaustive]`, `new`) is a claim that the person's cited words remove a value a
+  proposal they saw bound; `Removal::question(k, stated)` is the closed question whether they do
+  (`verify-removed-<k>`: `removed`, `kept`, NONE; amended 2026-10-10). The
+  verifier that asks the questions and weighs the answers stays in `nika-compile-cognition`.
 - `repairs` — the laws that end the verifier's work: `progressed` (a defect set is progress
-  when it names a new part or narrows the last set) and `carry_declined` (the record of bytes a
+  when it names a new part or narrows the last set), `met` (the parts earlier verdicts on other
+  bytes of the same request sent to their author, from a compile's attempts and the carried
+  ones; amended 2026-10-10) and `carry_declined` (the record of bytes a
   judge rejected keeps each rejection of them once per judge, context and request, so every
   round that replays it, whatever host resends it, repeats the rejection with no call; with no
   rejection to carry, or for a semantic record whose closed format holds none, the record is

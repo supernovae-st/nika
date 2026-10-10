@@ -14,15 +14,19 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use nika_cli_host::Theme;
 use nika_cli_host::oracle::{AuditOptions, Lanes};
 use nika_compile_fidelity::fidelity::resolution::Resolution;
-use nika_compile_seats::foundry::document;
+use nika_compile_seats::foundry::{ComponentCatalog, document};
 use nika_fs::OwnedDir;
+use nika_onboard::compile::copy::native;
+use nika_onboard::compile::room::JqHelper;
 use nika_onboard::compile::{CompileOutcome, CompileStatus};
+use nika_onboard::knowledge::Snapshot;
 use nika_onboard::knowledge::pin::KnowledgePin;
 use nika_providers::InferenceAdmission;
 use nika_providers::probe::ProviderProbe;
 use serde_json::{Value, json};
 
 use crate::authoring::{AuthoringContext, AuthoringSeat};
+use crate::trial::{Observed, Observer, Trial};
 
 use super::tools::Desk;
 use crate::change::{ProjectChangeSet, Witness};
@@ -43,6 +47,8 @@ pub(crate) struct SessionDesk {
     pub(crate) probes: Vec<ProviderProbe>,
     pub(crate) knowledge: Option<KnowledgePin>,
     pub(crate) verifier: Verifier,
+    /// The pinned release, admitted once for the turn when a tool first reads it.
+    pub(crate) admitted: Option<Snapshot>,
 }
 
 /// The judge a conversation's document faces: the seat and decision model a compile round of
@@ -53,11 +59,14 @@ pub(crate) struct Verifier {
     pub(crate) context: AuthoringContext,
     pub(crate) account: Option<InferenceAdmission>,
     pub(crate) kept: Arc<Mutex<Verified>>,
+    /// What a trial is lent: the jq helper, and the observer of the pages it runs on.
+    pub(crate) trial: (Option<JqHelper>, Observer),
 }
 
 /// What a conversation's verifications keep across its lines: every verdict that declined its
-/// bytes (a judge is never asked again on bytes it rejected) and the last verdict that made a
-/// document ready (its key and scope), so `propose` after `verify` asks nothing.
+/// bytes (a judge is never asked again on bytes it rejected), the last verdict that made a
+/// document ready (its key and scope), so `propose` after `verify` asks nothing, the pages its
+/// trials ran on (observed once each) and the trial of the last ready document with its words.
 #[derive(Default)]
 pub(crate) struct Verified {
     verdicts: Vec<Value>,
@@ -65,6 +74,8 @@ pub(crate) struct Verified {
     /// The project files the author read through the desk, by the path a workflow names, each
     /// with the witness of the bytes it read: what its proposal's basis keeps.
     read: BTreeMap<String, Witness>,
+    observed: Observed,
+    tried: Option<(native::Preview, String)>,
 }
 
 /// The verdicts `verifier` shares with its conversation, or why they cannot be read.
@@ -76,6 +87,11 @@ impl Verified {
     /// The files the author read, each with the witness of the bytes it read.
     pub(crate) fn read(&self) -> &BTreeMap<String, Witness> {
         &self.read
+    }
+
+    /// The trial of the last ready document and its words, taken once by the proposal of it.
+    pub(crate) fn take_tried(&mut self) -> Option<(native::Preview, String)> {
+        self.tried.take()
     }
 
     /// Keep every verdict `out` recorded that declined its bytes, once.
@@ -101,6 +117,18 @@ fn findings(out: &CompileOutcome) -> String {
         lines.push("the verifier did not settle the candidate".to_owned());
     }
     lines.join("\n")
+}
+
+impl SessionDesk {
+    /// The pinned release, admitted once for this turn.
+    fn release(&mut self) -> Result<&Snapshot, String> {
+        if self.admitted.is_none() {
+            let pin =
+                (self.knowledge.as_ref()).ok_or("the knowledge release is off in this Session")?;
+            self.admitted = Some(pin.reopen().map_err(|e| e.to_string())?);
+        }
+        (self.admitted.as_ref()).ok_or_else(|| "the knowledge release was not admitted".to_owned())
+    }
 }
 
 /// `text` cut at `PAGE_CHARS`, saying so.
@@ -298,15 +326,15 @@ impl Desk for SessionDesk {
     fn knowledge(&mut self, query: Option<&str>, skill: Option<&str>) -> Result<String, String> {
         let pin =
             (self.knowledge.as_ref()).ok_or("the knowledge release is off in this Session")?;
-        let snapshot = pin.reopen().map_err(|e| e.to_string())?;
+        let holdout = pin.exclude_corpus.clone();
+        let release = json!({"version": pin.version, "digest": pin.digest});
+        let snapshot = self.release()?;
         let words = skill.or(query).unwrap_or_default();
-        let pack =
-            (snapshot.pack(words, pin.exclude_corpus.as_deref())).map_err(|e| e.to_string())?;
+        let pack = (snapshot.pack(words, holdout.as_deref())).map_err(|e| e.to_string())?;
         let references: Vec<Value> = (pack.references.iter())
             .filter(|r| skill.is_none_or(|s| r.kind == "skill" && r.id.contains(s)))
             .map(|r| json!({"kind": r.kind, "id": r.id, "text": r.text}))
             .collect();
-        let release = json!({"version": pin.version, "digest": pin.digest});
         Ok(page(
             &json!({"release": release, "references": references}).to_string(),
         ))
@@ -317,7 +345,13 @@ impl Desk for SessionDesk {
     }
 
     fn compose(&mut self, source: &str, operations: &[Value]) -> Result<String, String> {
-        (document::apply(source, (operations, None), None, &[]))
+        // The release the Session pinned, lent as executable components as a compile round lends
+        // it, its held-out corpus out of reach: a pin that no longer reopens lends nothing.
+        let holdout = (self.knowledge.as_ref()).and_then(|pin| pin.exclude_corpus.clone());
+        let snapshot = self.release().ok();
+        let catalogue = snapshot.map(|snapshot| snapshot.catalogue(holdout.as_deref()));
+        let lent = (catalogue.as_ref()).map(|catalogue| catalogue as &dyn ComponentCatalog);
+        (document::apply(source, (operations, None), lent, &[]))
             .map(|applied| applied.source)
             .map_err(|refused| refused.join("\n"))
     }
@@ -343,9 +377,18 @@ impl Desk for SessionDesk {
             }
             kept.verdicts.clone()
         };
-        // The same verification a compile round of the request faces: the files its words name
-        // observed, the laws, then the whole-request verdict; ready only on that verdict.
+        // Tried where nothing leaves: the pages its public GET sources answer, observed once for
+        // the conversation, lent to the observed room as a replay trial of these bytes.
         let verifier = &self.verifier;
+        let (jq, observe) = &verifier.trial;
+        let lent = (self.root.clone(), jq.clone());
+        let Trial { scoped, words, .. } = {
+            let mut kept = kept(verifier)?;
+            crate::trial::prepare(source, stated, lent, &mut kept.observed, observe)
+        };
+        // The same verification a compile round of the request faces: the files its words name
+        // observed, the laws, the trial, then the whole-request verdict; ready only on that
+        // verdict, and never on a failed trial.
         let out = crate::authoring::verify_in(
             &verifier.seat,
             &verifier.context,
@@ -353,13 +396,15 @@ impl Desk for SessionDesk {
             (source, selections),
             declined,
             verifier.account.as_ref(),
-            None,
+            Some(&scoped),
         )
         .map_err(|e| e.to_string())?;
+        let (_, tried) = scoped.finish().into_parts();
         kept(verifier)?.keep(&out);
         if out.status != CompileStatus::Ready {
             return Err(findings(&out));
         }
+        kept(verifier)?.tried = tried.ok().flatten().map(|tried| (tried, words));
         let path = (crate::review::destination(&self.root, source))
             .ok_or("the candidate has no representable destination in the project")?;
         let at = path.display().to_string();
@@ -374,8 +419,26 @@ impl Desk for SessionDesk {
         Ok(scope)
     }
 
-    fn trial(&mut self, _source: &str) -> Result<String, String> {
-        Err("the rehearsal room is not open to a conversation's candidate yet: check and verify judge it".to_owned())
+    fn judged_now(
+        &mut self,
+        source: &str,
+        stated: &str,
+        selections: (&[Resolution], &[Resolution]),
+    ) -> Vec<String> {
+        let options = AuditOptions::new(None, None);
+        let audited =
+            nika_cli_host::oracle::audit_source(source, "candidate.nika", None, None, options);
+        let mut found: Vec<String> = match audited {
+            Ok(audit) => (audit.report.findings.iter())
+                .map(|f| format!("{}: {}", f.code.as_deref().unwrap_or(f.kind), f.message))
+                .collect(),
+            Err(e) => vec![format!("the candidate does not parse: {e}")],
+        };
+        let observed = nika_cli_host::compile::observe::world(&self.root, stated);
+        let laws =
+            nika_compile_cognition::judge_document(stated, source, selections, observed.as_ref());
+        found.extend(laws);
+        found
     }
 
     fn model_facts(&mut self, model: &str) -> Option<nika_session_change::work::ModelFacts> {

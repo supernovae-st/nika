@@ -30,4 +30,5 @@ pub mod authoring;
 pub mod intelligence;
 pub mod observe;
 pub mod reasoner;
+pub mod trial;
 pub mod turn;

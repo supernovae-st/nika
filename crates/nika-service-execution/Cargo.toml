@@ -27,10 +27,10 @@ nika-verb-exec   = { path = "../nika-verb-exec", version = "0.123.0-preview.1" }
 nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.123.0-preview.1" }
 nika-verb-agent  = { path = "../nika-verb-agent", version = "0.123.0-preview.1" }
 serde_json       = { workspace = true }
+bytes            = { workspace = true }                                   # a replay trial's captured bodies, served whole as the fetch plane's answers
 thiserror        = { workspace = true }                                   # RunShapeError — the typed unknown-cost Run shape refusal (FCI-019)
 
 [dev-dependencies]
-bytes    = { workspace = true }                           # a test backend implements the kernel read seam
 nika-fs  = { path = "../nika-fs", version = "0.123.0-preview.1" }   # OwnedDir — the admission input the tests capture from
 tempfile = { workspace = true }
 tokio    = { workspace = true }

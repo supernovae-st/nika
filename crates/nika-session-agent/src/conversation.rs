@@ -25,6 +25,12 @@ use nika_session_change::work::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+mod answer;
+mod pick;
+
+use self::answer::Answered;
+pub use self::pick::Pick;
+
 /// How a question gets its identity from its context.
 pub type Mint<'a> = &'a mut dyn FnMut(&str) -> QuestionId;
 
@@ -125,8 +131,14 @@ pub struct Conversation {
     accepted: Vec<Binding>,
     delegations: Vec<Delegation>,
     asked: Vec<AskedQuestion>,
-    answered: BTreeMap<String, (AskedQuestion, String)>,
+    /// When each question was asked: the last durable line then.
+    asked_at: BTreeMap<String, u64>,
+    answered: BTreeMap<String, Answered>,
     shown: Option<Shown>,
+    /// What the last proposal changed in the values the one before it bound.
+    changed: Vec<String>,
+    /// The values the last proposal the person saw bound, as it bound them.
+    seen: Vec<Binding>,
 }
 
 /// What a Session keeps of a conversation across a reopen: the evidence, never an authority
@@ -148,6 +160,23 @@ struct KeptCandidate {
     source: String,
     summary: String,
     rows: Vec<Value>,
+}
+
+/// Whether `reopens` cites the person's words, in a line written after `settled` was bound,
+/// that ask to change it: a settled value is asked again only on them.
+fn reopened(citations: &Citations, settled: &Binding, reopens: &Value) -> bool {
+    let (Some(message), Some(excerpt)) = (reopens["message"].as_str(), reopens["excerpt"].as_str())
+    else {
+        return false;
+    };
+    let since = (citations.get(&settled.provenance.message)).map_or(0, |line| line.at);
+    (citations.get(message)).is_some_and(|line| line.at > since && in_line(line, excerpt, None))
+}
+
+/// Whether `binding` is the value `question` asks: its key, or its single-valued role.
+fn settles(binding: &Binding, question: &AskedQuestion) -> bool {
+    binding.key.as_deref() == Some(question.key.as_str())
+        || (question.role).is_some_and(|role| single(role) && binding.role == role)
 }
 
 /// The value without the spellings two equal literals differ by (a leading `./`, a trailing
@@ -194,9 +223,39 @@ fn role_word(word: &str) -> Option<ValueRole> {
     }
 }
 
+/// The own name of an address's host: the label before its last one, longer than two letters
+/// (`techcrunch` for `techcrunch.com`, `ycombinator` for `news.ycombinator.com`).
+fn host_name(value: &str) -> Option<String> {
+    let rest = (value.strip_prefix("https://")).or_else(|| value.strip_prefix("http://"))?;
+    let host = rest.split(['/', '?', '#', ':']).next()?;
+    let labels: Vec<&str> = host.split('.').filter(|label| !label.is_empty()).collect();
+    let name = labels.len().checked_sub(2).and_then(|at| labels.get(at))?;
+    (name.chars().count() > 2).then(|| name.to_lowercase())
+}
+
+/// A role, as the person reads it.
+fn role_words(role: ValueRole) -> &'static str {
+    match role {
+        ValueRole::ReadSource => "source",
+        ValueRole::OutputPath => "output",
+        ValueRole::RunModel => "model",
+        _ => "value",
+    }
+}
+
 /// A role holds one value at a time when a workflow has one of it: its output, its model.
 fn single(role: ValueRole) -> bool {
     matches!(role, ValueRole::OutputPath | ValueRole::RunModel)
+}
+
+/// How the author binds its own choice in a choice the person left to it: a new output's name as
+/// derived, a source as delegated (the author choices the selection law admits).
+fn chosen_as(role: Option<ValueRole>) -> &'static str {
+    if role == Some(ValueRole::OutputPath) {
+        "derived"
+    } else {
+        "delegated"
+    }
 }
 
 impl Conversation {
@@ -237,14 +296,6 @@ impl Conversation {
         self.since
     }
 
-    /// The person's line `cite` answered the questions asked now: they answer nothing again.
-    pub fn answered_by(&mut self, cite: &str) {
-        for question in std::mem::take(&mut self.asked) {
-            self.answered
-                .insert(question.key.clone(), (question, cite.to_owned()));
-        }
-    }
-
     /// `ask`: bind the answers the author read in the person's line, refuse what the person
     /// already settled (with its value, to the author), ask the rest together. `mint` gives a
     /// question its identity from its context. The turn ends when something is asked.
@@ -266,7 +317,7 @@ impl Conversation {
         let mut asked = Vec::new();
         let questions = args["questions"].as_array().into_iter().flatten();
         for (ordinal, question) in questions.enumerate() {
-            match self.question(question, (call, ordinal), mint, facts) {
+            match self.question(question, citations, (call, ordinal), mint, facts) {
                 Ok(question) => asked.push(question),
                 Err(settled) => refused.push(settled),
             }
@@ -277,6 +328,12 @@ impl Conversation {
         let text = json!({"asked": open, "bound": bound, "refused": refused}).to_string();
         if asked.is_empty() {
             return ToolReply::ok(text);
+        }
+        let at = citations.last();
+        for question in &asked {
+            self.asked_at.insert(question.key.clone(), at);
+            // A settled value the person's later words reopened is the question's now.
+            self.bindings.retain(|b| !settles(b, question));
         }
         self.asked = asked;
         ToolReply::ends_turn(text)
@@ -295,7 +352,7 @@ impl Conversation {
                 "`{value}` is not in the person's line {message} as cited; bind only what they typed"
             ));
         }
-        let asked = (self.answered.get(&key).map(|(q, _)| q))
+        let asked = (self.answered.get(&key).map(|answer| &answer.question))
             .or_else(|| self.asked.iter().find(|q| q.key == key));
         let role = asked.and_then(|q| q.role).unwrap_or(ValueRole::Value);
         let provenance = Provenance::new(ProvenanceKind::Answered, &message).with_excerpt(&excerpt);
@@ -311,6 +368,7 @@ impl Conversation {
     fn question(
         &self,
         question: &Value,
+        citations: &Citations,
         (call, ordinal): (Option<&str>, usize),
         mint: Mint<'_>,
         facts: Facts<'_>,
@@ -320,9 +378,18 @@ impl Conversation {
         let settled = self.bindings.iter().find(|b| {
             b.key.as_deref() == Some(key) || role.is_some_and(|r| single(r) && b.role == r)
         });
-        if let Some(settled) = settled {
+        if let Some(settled) = settled
+            && !reopened(citations, settled, &question["reopens"])
+        {
             return Err(json!({"key": key, "why": "already settled by the person",
                 "settled": {"value": settled.value, "message": settled.provenance.message}}));
+        }
+        if let Some(message) = self.left_to_author(key) {
+            let why = format!(
+                "the person left it to you: choose it, bind it as {} citing their words, and say what you chose",
+                chosen_as(role)
+            );
+            return Err(json!({"key": key, "why": why, "delegated": {"message": message}}));
         }
         let text = question["question"].as_str().unwrap_or_default();
         let context = format!(
@@ -331,7 +398,7 @@ impl Conversation {
             call.unwrap_or_default(),
             question["options"]
         );
-        let options = (question["options"].as_array().into_iter().flatten())
+        let options: Vec<Offer> = (question["options"].as_array().into_iter().flatten())
             .map(|option| {
                 let values = (option["values"].as_array().into_iter().flatten())
                     .filter_map(|v| {
@@ -355,6 +422,17 @@ impl Conversation {
                 .with_values(values)
             })
             .collect();
+        let mut offered = options
+            .iter()
+            .flat_map(|offer: &Offer| &offer.values)
+            .peekable();
+        let bound = |v: &OfferValue| {
+            (self.bindings.iter()).any(|b| b.role == v.role && same_literal(&b.value, &v.value))
+        };
+        if offered.peek().is_some() && offered.all(bound) {
+            return Err(json!({"key": key,
+                "why": "every value it offers is already bound: nothing is left to ask"}));
+        }
         let after = (question["after"].as_array().into_iter().flatten())
             .filter_map(|k| k.as_str().map(str::to_owned))
             .collect();
@@ -393,7 +471,7 @@ impl Conversation {
         let mut refusals = Vec::new();
         let mut released = Vec::new();
         for row in removed {
-            match Self::removal(citations, row) {
+            match self.removal(citations, row) {
                 Ok(value) => released.push(value),
                 Err(why) => refusals.push(why),
             }
@@ -403,6 +481,15 @@ impl Conversation {
             match self.provenance(citations, row) {
                 Ok(binding) => bindings.push(binding),
                 Err(why) => refusals.push(why),
+            }
+        }
+        // A value kept from a proposal the person saw must still be in the document.
+        for row in rows.iter().filter(|r| r.kind == ResolutionKind::Retained) {
+            if !source.contains(bare(&row.value)) {
+                refusals.push(format!(
+                    "`{}` is stated as kept, but the document no longer carries it: keep it, or state in `removed` the person's words that remove it",
+                    row.value
+                ));
             }
         }
         if !refusals.is_empty() {
@@ -426,8 +513,12 @@ impl Conversation {
                 self.delegations.push(delegation);
             }
         }
-        // An answer bound by its question stays bound beside the document's own selections.
-        for answer in self.bindings.iter().filter(|b| b.key.is_some()) {
+        // An answer bound by its question stays bound beside the document's own selections,
+        // unless the person's own words removed it.
+        let answers = (self.bindings.iter()).filter(|b| {
+            b.key.is_some() && !released.iter().any(|value| same_literal(value, &b.value))
+        });
+        for answer in answers {
             if !bindings
                 .iter()
                 .any(|b| same_literal(&b.value, &answer.value))
@@ -452,16 +543,44 @@ impl Conversation {
         ToolReply::ok(json!({"revision": number, "bindings": bound}).to_string())
     }
 
-    /// A value the person's own cited words remove from what a revision they saw bound.
-    fn removal(citations: &Citations, row: &Value) -> Result<String, String> {
+    /// A value the person's own cited words remove from what a revision they saw bound: the
+    /// words must be theirs and name the value.
+    fn removal(&self, citations: &Citations, row: &Value) -> Result<String, String> {
         let text = |field: &str| row[field].as_str().unwrap_or_default();
         let (value, message, excerpt) = (text("value"), text("message"), text("excerpt"));
         match citations.get(message) {
-            Some(line) if in_line(line, excerpt, None) => Ok(value.to_owned()),
+            Some(line) if in_line(line, excerpt, None) && self.names(excerpt, value) => {
+                Ok(value.to_owned())
+            }
+            Some(line) if in_line(line, excerpt, None) => Err(format!(
+                "« {excerpt} » does not name `{value}`: a value the person saw bound is removed only by words that name it (its address, its host's name or the name it was offered under); ask them whether they meant to drop it"
+            )),
             _ => Err(format!(
                 "`{value}` is stated as removed by « {excerpt} », which is not in the person's line {message}"
             )),
         }
+    }
+
+    /// Whether the person's words `excerpt` name `value`: the value as written, its host's own
+    /// name (`techcrunch` for `https://techcrunch.com/feed/`), a name an offer gave it, or the
+    /// words that bound it.
+    fn names(&self, excerpt: &str, value: &str) -> bool {
+        let words = excerpt.to_lowercase();
+        let says = |name: &str| {
+            let name = name.trim().to_lowercase();
+            name.chars().count() > 2 && words.contains(&name)
+        };
+        if says(bare(value)) || host_name(value).is_some_and(|name| says(&name)) {
+            return true;
+        }
+        let questions = (self.asked.iter()).chain(self.answered.values().map(|a| &a.question));
+        let offered = (questions.flat_map(|q| q.options.iter().flat_map(|o| &o.values)))
+            .filter(|offered| same_literal(&offered.value, value))
+            .filter_map(|offered| offered.name.as_deref());
+        let bound = (self.accepted.iter().chain(&self.bindings))
+            .filter(|binding| same_literal(&binding.value, value))
+            .filter_map(|binding| binding.provenance.excerpt.as_deref());
+        offered.chain(bound).any(says)
     }
 
     /// The provenance a selection has, checked against what the Session holds.
@@ -478,19 +597,13 @@ impl Conversation {
                 }),
             ResolutionKind::Offered => {
                 let (question, option) = (row.question.clone(), row.option.clone());
-                let offered = question.as_deref().and_then(|key| self.answered.get(key));
-                let fits = offered.is_some_and(|(asked, by)| {
-                    *by == message
-                        && asked.options.iter().any(|o| {
-                            Some(o.key.as_str()) == option.as_deref()
-                                && (o.values.iter())
-                                    .any(|v| v.role == role && same_literal(&v.value, value))
-                        })
+                let answer = question.as_deref().and_then(|key| self.answered.get(key));
+                let fits = answer.is_some_and(|answer| {
+                    answer.offers(&message, option.as_deref(), (role, value))
                 });
                 if !fits {
-                    return Err(format!(
-                        "`{value}` is stated as offered, but no option the person accepted with {message} carries it"
-                    ));
+                    let (question, option) = (question.as_deref(), option.as_deref());
+                    return Err(self.not_picked(question, option, (&message, value)));
                 }
                 let provenance = Provenance::new(ProvenanceKind::Offered, &message)
                     .with_offer(question.unwrap_or_default(), option);
@@ -505,6 +618,15 @@ impl Conversation {
                 if !in_line(line, &excerpt, typed) {
                     return Err(format!(
                         "`{value}` cites « {excerpt} », which is not in the person's line {message}"
+                    ));
+                }
+                // Words Nika had to ask about did not name the value: the answer settles it.
+                if let Some(asked) = (kind == ResolutionKind::Named)
+                    .then(|| self.asked_about(value, line.at))
+                    .flatten()
+                {
+                    return Err(format!(
+                        "`{value}` answers `{asked}`, which Nika asked because « {excerpt} » did not settle it: bind it from the person's answer (offered or delegated), never as named"
                     ));
                 }
                 let kind = match kind {
@@ -603,22 +725,24 @@ impl Conversation {
             save: acts.contains(&"save") || acts.contains(&"run"),
             run: acts.contains(&"run"),
         };
+        self.changed = self.changes_since_seen();
         let authorized = if wanted.save {
             let said = &args["authorized_by"];
             let message = said["message"].as_str().unwrap_or_default();
             let excerpt = said["excerpt"].as_str().unwrap_or_default();
             match (citations.get(message), &self.shown) {
-                (Some(line), Some(shown))
-                    if in_line(line, excerpt, None)
-                        && line.at > shown.at
-                        && shown.scope == scope =>
-                {
-                    Ok(Some(wanted))
+                // Only the person's words written after the proposal shown answer it: those that
+                // ran a failed revision authorize nothing, whatever the candidate does now.
+                (Some(line), Some(shown)) if in_line(line, excerpt, None) && line.at > shown.at => {
+                    if shown.scope == scope {
+                        Ok(Some(wanted))
+                    } else {
+                        Err(format!(
+                            "the person's {message} answered the proposal of revision {}; this candidate may do something else, so it waits for their consent",
+                            shown.number
+                        ))
+                    }
                 }
-                (Some(_), Some(shown)) if shown.scope != scope => Err(format!(
-                    "the person's {message} answered the proposal of revision {}; this candidate may do something else, so it waits for their consent",
-                    shown.number
-                )),
                 _ => Err(format!(
                     "`{message}` does not authorize it: the words must be the person's, written after the proposal they designate"
                 )),
@@ -627,14 +751,59 @@ impl Conversation {
             Ok(None)
         };
         self.accepted.clone_from(&self.bindings);
-        if !matches!(authorized, Ok(Some(_))) {
-            self.shown = Some(Shown {
-                number,
-                scope,
-                at: citations.last(),
-            });
-        }
+        self.seen.clone_from(&self.bindings);
+        // What the person is shown now: a line authorizes acts only when written after it, so
+        // one line authorizes one proposal, never a later revision (a repair after a run).
+        self.shown = Some(Shown {
+            number,
+            scope,
+            at: citations.last(),
+        });
         authorized
+    }
+
+    /// What the last proposal changed in the values the proposal before it bound, in words for
+    /// the person: each value replaced, dropped or added, by its role.
+    #[must_use]
+    pub fn changed(&self) -> &[String] {
+        &self.changed
+    }
+
+    /// The values bound now against the ones the last proposal the person saw bound.
+    fn changes_since_seen(&self) -> Vec<String> {
+        let seen = |value: &str| (self.seen.iter()).any(|kept| same_literal(&kept.value, value));
+        let now = |value: &str| self.bindings.iter().any(|b| same_literal(&b.value, value));
+        let mut said = Vec::new();
+        let mut roles: Vec<ValueRole> = Vec::new();
+        for binding in self.seen.iter().chain(&self.bindings) {
+            if !roles.contains(&binding.role) {
+                roles.push(binding.role);
+            }
+        }
+        for role in roles {
+            let of = |list: &[Binding], keep: &dyn Fn(&str) -> bool| -> Vec<String> {
+                (list.iter())
+                    .filter(|b| b.role == role && keep(&b.value))
+                    .map(|b| format!("`{}`", b.value))
+                    .collect()
+            };
+            let gone = of(&self.seen, &|value| !now(value));
+            let added = of(&self.bindings, &|value| !seen(value));
+            let what = role_words(role);
+            match (gone.is_empty(), added.is_empty()) {
+                (false, false) => said.push(format!(
+                    "{what} {} replaced by {}",
+                    gone.join(", "),
+                    added.join(", ")
+                )),
+                (false, true) => said.push(format!("{what} {} dropped", gone.join(", "))),
+                (true, false) if !self.accepted.is_empty() => {
+                    said.push(format!("{what} {} added", added.join(", ")));
+                }
+                _ => {}
+            }
+        }
+        said
     }
 
     /// `new_request`: the person replaced the request; nothing of the former one remains, and
@@ -701,6 +870,7 @@ impl Conversation {
             since: kept.since,
             candidate,
             bindings: kept.bindings,
+            seen: kept.accepted.clone(),
             accepted: kept.accepted,
             delegations: kept.delegations,
             ..Self::default()

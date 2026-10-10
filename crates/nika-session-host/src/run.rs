@@ -560,15 +560,109 @@ pub trait Jobs: Send + Sync {
     /// The job `id` once it settled or paused: the exit `nika run` gives for that end, the
     /// journal the resident wrote, when it wrote one, and the identities its receipt names.
     fn settled<'a>(&'a self, id: &'a str) -> JobFuture<'a, Result<JobEnd, String>>;
+
+    /// Stop the job `id` through the resident's own job cancellation: a running job at its next
+    /// wave boundary, a queued one before it starts, a settled one as it is. A resident that
+    /// cannot stop a job says so (the default).
+    fn cancel<'a>(&'a self, id: &'a str) -> JobFuture<'a, Result<(), String>> {
+        Box::pin(async move { Err(format!("this resident cannot stop the job {id}")) })
+    }
 }
 
 /// A Session's runs through a resident's job admission, waited for on the resident's runtime
 /// from the Session's own worker thread. A cost review it holds is declined when a new run
-/// replaces it or when the door is dropped: a pending review never outlives its Session.
+/// replaces it or when the door is dropped: a pending review never outlives its Session. Its
+/// Stop is the resident's own job cancellation ([`Jobs::cancel`]), asked once.
 pub struct JobDoor {
     handle: tokio::runtime::Handle,
     jobs: Arc<dyn Jobs>,
     held: Option<String>,
+    stop: Option<Arc<JobStop>>,
+}
+
+/// The Stop of one job a [`JobDoor`] runs: before the admission it admits nothing, after it it
+/// asks the resident's job cancellation once, and a later Stop sends nothing more.
+struct JobStop {
+    handle: tokio::runtime::Handle,
+    jobs: Arc<dyn Jobs>,
+    phase: Mutex<JobPhase>,
+}
+
+/// Where a job door's Stop finds its run.
+enum JobPhase {
+    /// Armed for the next run: nothing admitted yet.
+    Armed,
+    /// A Stop came before the admission: nothing is admitted.
+    Refused,
+    /// The job runs under this identity.
+    Running(String),
+    /// The job's cancellation was asked.
+    Signalled,
+    /// The run ended.
+    Ended,
+}
+
+impl JobStop {
+    fn phase(&self) -> MutexGuard<'_, JobPhase> {
+        self.phase.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Ask the resident to cancel `job`, without waiting: the run's own end tells how it ended.
+    fn send(&self, job: &str) {
+        let (jobs, job) = (Arc::clone(&self.jobs), job.to_owned());
+        drop(self.handle.spawn(async move {
+            let _ = jobs.cancel(&job).await;
+        }));
+    }
+}
+
+impl RunStop for JobStop {
+    fn stop(&self) -> Stopping {
+        let mut phase = self.phase();
+        let (next, stopping) = match &*phase {
+            JobPhase::Armed | JobPhase::Refused => (JobPhase::Refused, Stopping::Pending),
+            JobPhase::Running(job) => {
+                self.send(job);
+                (JobPhase::Signalled, Stopping::Signalled)
+            }
+            JobPhase::Signalled => (JobPhase::Signalled, Stopping::Signalled),
+            JobPhase::Ended => (JobPhase::Ended, Stopping::Ended),
+        };
+        *phase = next;
+        stopping
+    }
+}
+
+/// The Stop a job door's run took, ended with that run.
+struct JobArmed(Option<Arc<JobStop>>);
+
+impl JobArmed {
+    /// Whether a Stop came before the admission: then nothing is admitted.
+    fn refuses(&self) -> bool {
+        (self.0.as_ref()).is_some_and(|stop| matches!(*stop.phase(), JobPhase::Refused))
+    }
+
+    /// The run was admitted as `job`: a Stop that came meanwhile is sent now.
+    fn admitted(&self, job: &str) {
+        let Some(stop) = &self.0 else {
+            return;
+        };
+        let mut phase = stop.phase();
+        *phase = if matches!(*phase, JobPhase::Refused) {
+            stop.send(job);
+            JobPhase::Signalled
+        } else {
+            JobPhase::Running(job.to_owned())
+        };
+    }
+}
+
+impl Drop for JobArmed {
+    fn drop(&mut self) {
+        if let Some(stop) = &self.0 {
+            *stop.phase() = JobPhase::Ended;
+        }
+    }
 }
 
 impl std::fmt::Debug for JobDoor {
@@ -587,6 +681,7 @@ impl JobDoor {
             handle,
             jobs,
             held: None,
+            stop: None,
         }
     }
 
@@ -597,8 +692,9 @@ impl JobDoor {
         }
     }
 
-    /// The admitted job, waited for to its end.
-    fn observe(&self, job: &str, sink: &dyn RunSink) -> RunStep {
+    /// The admitted job, waited for to its end, its Stop (`armed`) reaching it from now on.
+    fn observe(&self, job: &str, sink: &dyn RunSink, armed: &JobArmed) -> RunStep {
+        armed.admitted(job);
         sink.said(format!("run admitted as job {job}"));
         match self.handle.block_on(self.jobs.settled(job)) {
             Ok(end) => {
@@ -626,8 +722,12 @@ impl Drop for JobDoor {
 impl RunDoor for JobDoor {
     fn run(&mut self, _root: &Path, run: &RunRequest, sink: &dyn RunSink) -> RunStep {
         self.release();
+        let armed = JobArmed(self.stop.take());
+        if armed.refuses() {
+            return not_started(STOPPED_BEFORE_START);
+        }
         match self.handle.block_on(self.jobs.admit(run)) {
-            Ok(Admitted::Job(job)) => self.observe(&job, sink),
+            Ok(Admitted::Job(job)) => self.observe(&job, sink, &armed),
             Ok(Admitted::Review {
                 review,
                 question,
@@ -661,13 +761,28 @@ impl RunDoor for JobDoor {
                 why: "no run waits at a cost review on this door · nothing was sent".to_owned(),
             };
         };
+        let armed = JobArmed(self.stop.take());
+        if armed.refuses() {
+            let _declined = self.handle.block_on(self.jobs.decide(&review, false));
+            return not_started(STOPPED_BEFORE_START);
+        }
         match self.handle.block_on(self.jobs.decide(&review, approve)) {
-            Ok(Some(job)) => self.observe(&job, sink),
+            Ok(Some(job)) => self.observe(&job, sink, &armed),
             Ok(None) => RunStep::Declined,
             Err(why) => RunStep::NotStarted {
                 why: format!("{why} · nothing ran"),
             },
         }
+    }
+
+    fn stopper(&mut self) -> Option<Arc<dyn RunStop>> {
+        let stop = Arc::new(JobStop {
+            handle: self.handle.clone(),
+            jobs: Arc::clone(&self.jobs),
+            phase: Mutex::new(JobPhase::Armed),
+        });
+        self.stop = Some(Arc::clone(&stop));
+        Some(stop)
     }
 }
 

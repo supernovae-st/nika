@@ -9,13 +9,14 @@
 //! act: what waits, the work snapshot hosts render, and the identities pending. The tool steps
 //! the Session reports are recorded as a host receives them.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use nika_session::activity::{Activity, ToolState};
 use nika_session::reasoner::{NoReasoner, ProviderReasoner};
 use nika_session::steer::{QueueRefused, Queued, Steering};
+use nika_session::trial::Capture;
 use nika_session::turn::{
     RoutingMethod, SessionPhase, TurnAct, TurnClassifier, TurnContext, TurnDecision,
 };
@@ -26,7 +27,7 @@ use nika_session::{
 };
 use serde_json::{Value, json};
 
-use super::scenarios::{Act, During, SEAT, scenario};
+use super::scenarios::{Act, During, OBSERVED_AT, Ran, SEAT, feeds, scenario};
 
 /// A host's router: a line at a question answers it, a line at a proposal changes it, and a
 /// line while nothing waits is work. (An author that reads the conversation itself needs none.)
@@ -65,6 +66,28 @@ fn open(root: &Path, home: &Path, history: bool) -> SessionRuntime {
     );
     let mut session = SessionRuntime::open_with(root, census, &pref, Some(home), factory);
     session.with_classifier(Box::new(Routes));
+    // No page leaves these journeys: a trial observes the scenario's own feeds, nothing else.
+    let fed = feeds(&std::env::var("OPEN_UX_CHILD").unwrap_or_default());
+    session.with_trial_observer(move |url| {
+        let body = (fed.iter())
+            .find(|(at, _)| *at == url)
+            .map(|(_, body)| *body);
+        let rss = body.is_some_and(|body| body.starts_with('<'));
+        let kind = Some(
+            if rss {
+                "application/rss+xml"
+            } else {
+                "application/json"
+            }
+            .to_owned(),
+        );
+        body.map(|body| Capture::new(url, 200, kind, body.as_bytes().to_vec(), OBSERVED_AT))
+            .ok_or_else(|| format!("`{url}` is no page of this journey"))
+    });
+    // The suite's own jq helper, when the parent wrote one.
+    if let Some(helper) = std::env::var_os("OPEN_UX_JQ_HELPER") {
+        session.with_jq_helper(nika_session::JqHelper::new(helper));
+    }
     if history {
         session.enable_history(home).expect("history opens");
         session.restore_state();
@@ -155,6 +178,46 @@ fn watch_tools(session: &mut SessionRuntime, tools: &Tools) {
     }));
 }
 
+/// The trace a run leaves, shaped as a real one (frames only): the digest's tasks in order,
+/// each completed until the one that failed; the exit code the door saw, and the trace's path
+/// as the project names it.
+fn run_trace(root: &Path, ran: Ran, k: usize) -> (u8, PathBuf) {
+    let frame = |kind: &str, fields: &[(&str, &str)]| {
+        let fields: Vec<Value> = (fields.iter())
+            .map(|(key, value)| json!({"key": key, "value": value}))
+            .collect();
+        json!({"kind": kind, "fields": fields}).to_string()
+    };
+    let tasks = ["hacker_news", "techcrunch", "summarize", "write_digest"];
+    let mut lines = vec![frame("workflow_started", &[("workflow", "news-digest")])];
+    let mut exit = 0;
+    for task in tasks {
+        lines.push(frame("task_started", &[("task", task)]));
+        match ran {
+            Ran::Failed(failed, detail) if failed == task => {
+                lines.push(frame("task_failed", &[("task", task), ("detail", detail)]));
+                exit = 1;
+                break;
+            }
+            _ => lines.push(frame(
+                "task_completed",
+                &[("task", task), ("duration_ms", "2")],
+            )),
+        }
+    }
+    let end = if exit == 0 {
+        frame("workflow_completed", &[("status", "succeeded")])
+    } else {
+        frame("workflow_failed", &[("status", "failed")])
+    };
+    lines.push(end);
+    let at = PathBuf::from(format!(".nika/traces/run-{k}.ndjson"));
+    let file = root.join(&at);
+    std::fs::create_dir_all(file.parent().expect("traces")).expect("the traces directory");
+    std::fs::write(&file, lines.join("\n") + "\n").expect("the trace");
+    (exit, at)
+}
+
 /// A queue receipt, as a host shows it.
 fn receipt(queued: Result<Queued, QueueRefused>) -> Value {
     match queued {
@@ -209,6 +272,9 @@ fn act_while(
 pub(crate) fn drive(name: &str, root: &Path, home: &Path, markers: &Path) -> Value {
     let scenario = scenario(name);
     let mut session = open(root, home, scenario.history);
+    if scenario.preparing {
+        session.enable_continuous_preparation();
+    }
     let tools = Tools::default();
     watch_tools(&mut session, &tools);
     let mut waited: Vec<Waiting> = Vec::new();
@@ -220,6 +286,10 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path, markers: &Path) -> Val
             Act::Stoppable(line) => {
                 let _ = session.begin_preparation_turn();
                 (line, outcome(&session.turn(line)))
+            }
+            Act::RunEnds(ran) => {
+                let (exit, trace) = run_trace(root, ran, steps.len());
+                ("(run)", outcome(&session.observe_run(exit, Some(&trace))))
             }
             Act::While(line, marker, during) => {
                 let (result, queued) = act_while(&mut session, markers, (line, marker, during));

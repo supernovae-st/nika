@@ -159,6 +159,11 @@ fn the_machine_door_opens_with_the_conversation_s_named_choice() {
         words.contains(&Value::from("sessionIntelligence")),
         "{identity}"
     );
+    // The doors' steer and follow_up, which this door takes: a client finds them before it sends.
+    assert!(
+        words.contains(&Value::from("sessionSteering")),
+        "{identity}"
+    );
 }
 
 /// One `submit` command of the contract: `line` typed against the snapshot `snapshot` names.

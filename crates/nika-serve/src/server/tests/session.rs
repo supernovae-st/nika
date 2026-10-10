@@ -371,10 +371,11 @@ async fn the_session_door_is_off_unless_the_operator_seats_it() {
     let off = (false, Registry::Elsewhere);
     let served = serve(&world, off, Some(1.0), Arc::default()).await;
     let health = wire_request(served.address, &get("/health")).await.json();
+    let doors = ["sessionHost", "sessionIntelligence", "sessionSteering"];
     assert!(
         !capabilities(&health)
             .iter()
-            .any(|word| word == "sessionHost" || word == "sessionIntelligence")
+            .any(|word| doors.contains(&word.as_str()))
     );
     let refused = wire_request(served.address, &post("/v1/sessions", "", true)).await;
     assert_eq!(refused.status, 404);
@@ -406,6 +407,10 @@ async fn a_seated_session_saves_then_runs_exactly_the_saved_bytes_once_as_a_job(
     assert!(
         words.iter().any(|word| word == "sessionIntelligence"),
         "{words:?}"
+    );
+    assert!(
+        words.iter().any(|word| word == "sessionSteering"),
+        "the doors' steer and follow_up are advertised: {words:?}"
     );
     let contract = wire_request(served.address, &get("/v1/openapi.json"))
         .await

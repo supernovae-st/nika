@@ -28,9 +28,11 @@ use bytes::Bytes;
 use nika_event::source_id::sha256_hex;
 use nika_fs::{EffectLedger, OwnedDir, Phase, RoomLimits, RootedFs};
 use nika_kernel::fs::{FileMetadata, FsError, FsListDyn, FsMetaDyn, FsReadDyn, FsWriteDyn};
-use nika_runtime::{RunOutcome, RuntimeError};
+use nika_runtime::{RunOutcome, RuntimeError, TaskStatus};
 use serde_json::{Value, json};
 
+use super::replay::{Capture, Captures};
+use super::room::OUTSIDE;
 use super::{DeniedEffects, DeniedTally};
 use crate::{ExecutionAccessPlan, ServiceExecutionDriver};
 
@@ -568,4 +570,127 @@ async fn a_helper_that_cannot_start_bounds_the_call_and_the_first_bound_is_kept(
         Some(kept),
         "the first bound of the run is the one kept"
     );
+}
+
+// ─── a replay trial: a captured GET answered, nothing else ──────────────
+
+/// The feed a replay trial captured.
+const FEED_URL: &str = "https://feed.example/items";
+
+/// A request of `url` by `method`, its text kept whole at `./<prefix>/out/feed.txt`.
+fn keeping(prefix: &str, url: &str, method: &str) -> String {
+    let to = format!("./{prefix}/out/feed.txt");
+    format!(
+        "nika: keep\npermits:\n  tools: [\"nika:fetch\", \"nika:write\"]\n  net: {{ http: [\"feed.example\"] }}\n  fs:\n    write: [\"{to}\"]\ntasks:\n  feed:\n    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"{url}\", method: {method}, mode: text }} }}\n  keep:\n    with: {{ text: \"${{{{ tasks.feed.output }}}}\" }}\n    invoke: {{ tool: \"nika:write\", args: {{ path: \"{to}\", content: \"${{{{ with.text }}}}\", create_dirs: true, overwrite: true }} }}\n"
+    )
+}
+
+/// The trial's captures: the feed, as plain text.
+fn feed_captures() -> TestResult<Arc<Captures>> {
+    let mut captures = Captures::new();
+    let text = Some("text/plain".to_owned());
+    let page = Capture::new(FEED_URL, 200, text, b"hello feed".to_vec(), 7);
+    captures
+        .insert(page)
+        .map_err(|refused| refused.to_string())?;
+    Ok(Arc::new(captures))
+}
+
+/// One replay trial of `source` over `captures` as `test`, drained after it: the room, the run's
+/// end and what its denied capabilities saw, with the evidence lines of every run here.
+async fn replayed(
+    test: &str,
+    source: &str,
+    captures: Arc<Captures>,
+) -> TestResult<(
+    tempfile::TempDir,
+    Result<RunOutcome, RuntimeError>,
+    DeniedEffects,
+)> {
+    let world = tempfile::tempdir()?;
+    let (driver, _, digest) = admitted(source, world.path())?;
+    let plan = (driver.replay_plan(None)).map_err(|refused| refused.to_string())?;
+    let (dir, fs) = room(&[]).await?;
+    let tally = Arc::new(DeniedTally::default());
+    evidence(&json!({
+        "event": "begin", "test": test, "subrun": "replay", "candidate": handed(source),
+        "admitted_digest": digest,
+    }));
+    let end = driver
+        .rehearse_over_replaying(
+            Arc::clone(&fs),
+            plan,
+            Arc::clone(&tally),
+            None,
+            Some(captures),
+        )
+        .await;
+    evidence(&json!({
+        "event": "return", "test": test, "subrun": "replay", "candidate": handed(source),
+        "end": ended(&end), "denied": counts(&tally.counted()),
+    }));
+    let drained = fs.ledger().seal_and_drain().await;
+    let denied = tally.counted();
+    evidence(&json!({
+        "event": "drain", "test": test, "subrun": "replay", "joined": drained.joined,
+        "panicked": drained.panicked, "written": fs.ledger().written().count(),
+        "late_refusals": fs.ledger().late_refusals(), "denied": counts(&denied),
+    }));
+    Ok((dir, end, denied))
+}
+
+#[tokio::test]
+async fn a_captured_get_is_replayed_and_nothing_leaves_the_room() -> TestResult<()> {
+    const TEST: &str = concat!(
+        module_path!(),
+        "::a_captured_get_is_replayed_and_nothing_leaves_the_room"
+    );
+    let p = prefix();
+    let source = keeping(&p, FEED_URL, "GET");
+    let (dir, end, denied) = replayed(TEST, &source, feed_captures()?).await?;
+    let outcome = end?;
+    assert!(outcome.ok, "{outcome:?}");
+    let kept = std::fs::read_to_string(dir.path().join(&p).join("out/feed.txt"))?;
+    assert!(
+        kept.contains("hello feed"),
+        "the capture's own bytes: {kept:?}"
+    );
+    assert_eq!(denied, DeniedEffects::default());
+    Ok(())
+}
+
+#[tokio::test]
+async fn an_address_no_capture_holds_is_refused_and_excused() -> TestResult<()> {
+    const TEST: &str = concat!(
+        module_path!(),
+        "::an_address_no_capture_holds_is_refused_and_excused"
+    );
+    let p = prefix();
+    let source = keeping(&p, "https://feed.example/items/", "GET");
+    let (dir, end, denied) = replayed(TEST, &source, feed_captures()?).await?;
+    let outcome = end?;
+    let feed = &outcome.records["feed"];
+    let refused = (feed.error.as_ref()).is_some_and(|error| error.message.contains(OUTSIDE));
+    assert!(feed.status == TaskStatus::Skipped && refused, "{outcome:?}");
+    assert_eq!(denied, DeniedEffects::default(), "excused: {denied:?}");
+    assert!(!dir.path().join(&p).join("out/feed.txt").exists());
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_post_is_refused_even_at_a_captured_address() -> TestResult<()> {
+    const TEST: &str = concat!(
+        module_path!(),
+        "::a_post_is_refused_even_at_a_captured_address"
+    );
+    let p = prefix();
+    let source = keeping(&p, FEED_URL, "POST");
+    let (dir, end, denied) = replayed(TEST, &source, feed_captures()?).await?;
+    let outcome = end?;
+    let feed = &outcome.records["feed"];
+    let refused = (feed.error.as_ref()).is_some_and(|error| error.message.contains(OUTSIDE));
+    assert!(feed.status == TaskStatus::Skipped && refused, "{outcome:?}");
+    assert_eq!(denied, DeniedEffects::default(), "excused: {denied:?}");
+    assert!(!dir.path().join(&p).join("out/feed.txt").exists());
+    Ok(())
 }

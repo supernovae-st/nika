@@ -99,3 +99,73 @@ fn an_answer_locates_a_part_an_open_task_or_nothing() {
         assert_eq!(doubt.read(refused), None, "{refused}");
     }
 }
+
+/// An answer its seat weighed (a distribution over the offered options) decides at its threshold:
+/// the whole request only as « unfaithful » at the holding probability, this question's location
+/// at the locating probability; an unweighed answer, or a mass for the choice alone, is taken at
+/// its word. What the parts overrule is stated in words, with the probability reported and each
+/// part a repair attempt met that stands again.
+#[test]
+fn a_weighed_answer_decides_at_its_threshold_and_the_rest_is_stated() {
+    let answered = |question: &str, choice: &str, p: Option<f64>| {
+        let mut record = json!({"question": question, "choice": choice, "confidence": 0.99});
+        if let Some(p) = p {
+            let other = if choice == "none" { "faithful" } else { "none" };
+            record["probabilities"] = json!({choice: p, other: 1.0 - p});
+        }
+        record
+    };
+    let whole = |choice: &str, p: Option<f64>| [answered("verify-request", choice, p)];
+    for (choice, p) in [
+        ("unfaithful", Some(0.83)),
+        ("unfaithful", None),
+        ("faithful", None),
+    ] {
+        assert!(Doubt::decides(&whole(choice, p)), "{choice} {p:?}");
+    }
+    for (choice, p) in [
+        ("unfaithful", Some(0.82)),
+        ("faithful", Some(0.9)),
+        ("none", Some(0.9)),
+    ] {
+        assert!(!Doubt::decides(&whole(choice, p)), "{choice} {p:?}");
+    }
+    let alone = [json!({"question": "verify-request", "choice": "unfaithful",
+        "probabilities": {"unfaithful": 0.4}})];
+    assert!(
+        Doubt::decides(&alone),
+        "a mass for the choice alone weighs nothing"
+    );
+    assert!(Doubt::locates(&[answered(
+        "verify-doubt",
+        "part-1",
+        Some(0.5)
+    )]));
+    assert!(!Doubt::locates(&[answered(
+        "verify-doubt",
+        "part-1",
+        Some(0.42)
+    )]));
+    assert!(Doubt::locates(&[answered("verify-doubt", "part-1", None)]));
+    let said = Doubt::stated(&whole("unfaithful", Some(0.65)), &[]).expect("a doubt is stated");
+    let opening = "The verifier doubted that this workflow carries the request as a whole (reported at 0.65), a question that decides nothing on its own: no part of the request, judged alone, is missing";
+    assert!(said.starts_with(opening), "{said}");
+    assert!(said.ends_with("Read it before you consent."), "{said}");
+    let again = [PARTS[2].to_owned()];
+    let said = Doubt::stated(&whole("faithful", Some(0.4)), &again).expect("a part is stated");
+    let part = format!(
+        "The verifier judged « {} » missing again after a repair attempt",
+        PARTS[2]
+    );
+    assert!(
+        said.starts_with(&part) && !said.contains("no part of the request"),
+        "{said}"
+    );
+    let said = Doubt::stated(&whole("none", None), &[]).expect("an abstention is stated");
+    assert!(
+        said.starts_with("The verifier made no decision on the request as a whole, a question"),
+        "{said}"
+    );
+    assert_eq!(Doubt::stated(&whole("faithful", Some(0.9)), &[]), None);
+    assert_eq!(Doubt::stated(&[], &[]), None);
+}

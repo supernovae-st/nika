@@ -40,13 +40,15 @@ use crate::{
 mod faithful;
 mod grounding;
 mod held;
+/// The removal claims a revision makes, asked of the judge before the whole request.
+pub(super) mod removals;
 use faithful::{Pointed, whole};
 use grounding::grounding;
 use held::held_text;
 pub(super) use held::{HELD_TARGET, held, kept, preserve_unjudged, withdrawn};
 use nika_compile_clauses::parts::{parts, restricts};
 use nika_compile_seats::judge::{Construction, judged_state, state, told};
-use nika_compile_seats::repairs::carry_declined;
+use nika_compile_seats::repairs::{carry_declined, met};
 
 /// Who judges a candidate: a decision seat the caller permits (its calls and usage are its own,
 /// recorded here), or the authoring provider through the journaled authoring call.
@@ -75,6 +77,10 @@ impl<P: ProviderInferDyn> Judge<'_, P> {
 pub(super) struct Verdict {
     /// The judgments the core's READY law weighs.
     pub(super) judgments: Vec<Judgment>,
+    /// What a verdict states with the proposal when its parts carry the request.
+    pub(super) stated: Option<String>,
+    /// The parts earlier verdicts on other bytes of this request sent to their author.
+    pub(super) repaired: Vec<String>,
     /// Parts of the request the candidate misses or does differently: repaired from.
     pub(super) defects: Vec<String>,
     /// What the judge could not settle (NONE, a failed or refused call).
@@ -314,13 +320,14 @@ async fn ask<P: ProviderInferDyn>(
     out: &mut CompileOutcome,
 ) -> Option<String> {
     // An answer this judge already gave these bytes, in the attempt this verdict resumes, is
-    // read back with no call: it is never asked again (R6).
-    if let Some(choice) = read_back(verdict, question) {
+    // read back with no call, with what its seat reported: it is never asked again (R6).
+    if let Some(earlier) = read_back(verdict, question) {
         verdict.read_back += 1;
         let record = json!({"question": question.id, "options": question.keys(),
-            "choice": choice, "read_back": true, "role": role});
+            "choice": earlier["choice"], "probabilities": earlier["probabilities"],
+            "confidence": earlier["confidence"], "read_back": true, "role": role});
         verdict.records.push(record);
-        return Some(choice);
+        return earlier["choice"].as_str().map(str::to_owned);
     }
     verdict.attempted += 1;
     let (returned, answer) = match judge {
@@ -406,9 +413,9 @@ fn unread(verdict: &mut Verdict) {
     }
 }
 
-/// The admitted answer the attempt a verdict resumes gave the same question over the same
-/// observation (none for a question over the bytes alone), when it gave one.
-fn read_back(verdict: &Verdict, question: &ChoiceQuestion) -> Option<String> {
+/// The record of the admitted answer the attempt a verdict resumes gave the same question over
+/// the same observation (none for a question over the bytes alone), when it gave one.
+fn read_back(verdict: &Verdict, question: &ChoiceQuestion) -> Option<Value> {
     let observed = (question.state.get("observation"))
         .map(|observation| knowledge::sha256(&observation.to_string()));
     let earlier = (verdict.earlier.iter()).find(|record| {
@@ -418,7 +425,7 @@ fn read_back(verdict: &Verdict, question: &ChoiceQuestion) -> Option<String> {
     let choice = earlier["choice"].as_str()?;
     (question.keys().iter())
         .any(|key| key == choice)
-        .then(|| choice.to_owned())
+        .then(|| earlier.clone())
 }
 
 /// The authoring receipt's journal so far, in call order.
@@ -520,6 +527,7 @@ async fn verdict_on<P: ProviderInferDyn>(
         route(out, RESUMED);
         verdict.earlier = earlier.earlier;
     }
+    verdict.repaired = met(out, &request.declined, intent, &sha);
     verdict.candidate_sha256 = Some(sha);
     verdict.context_sha256 = Some(shown);
     let grounding = grounding(Some(candidate));
@@ -825,6 +833,9 @@ fn record<P: ProviderInferDyn>(
     });
     if let Some(why) = &verdict.unobserved {
         entry["unobserved"] = why.clone();
+    }
+    if let Some(said) = &verdict.stated {
+        entry["stated_doubt"] = json!(said);
     }
     if let Some(attempts) = decision["semantic_verification"].as_array_mut() {
         attempts.push(entry);
@@ -1413,6 +1424,7 @@ pub(super) async fn verdict_by<P: ProviderInferDyn>(
     let grounding = grounding(Some(&candidate));
     verdict.reference = grounding.record;
     let asked = (&base, grounding.text.as_str());
+    verdict.repaired = met(&out, &request.declined, intent, &sha);
     verdict.candidate_sha256 = Some(sha);
     verdict.context_sha256 = Some(shown);
     whole(
@@ -1430,6 +1442,14 @@ pub(super) async fn verdict_by<P: ProviderInferDyn>(
     verdict.usage = usage(&judge, &verdict, calls);
     record(&mut out, &judge, &verdict, attempt);
     if verdict.settled() {
+        if let Some(said) = &verdict.stated {
+            crate::finding(
+                &mut out,
+                DiagnosticKind::Applied,
+                "verify_doubt",
+                said.clone(),
+            );
+        }
         route(&mut out, &format!("verify: judged ({})", judge.kind()));
         return Ok(out);
     }

@@ -79,11 +79,13 @@ pub(crate) fn sized(seat: Option<&str>, base: u32) -> u32 {
 /// writes a candidate. `reasoning_capability` is `recorded` only when a catalog rule records
 /// it; the catalog default is no evidence, so every other model is `unrecorded`, never
 /// non-reasoning. Whether thinking counts inside the cap belongs to the route the run
-/// resolves, so it stays `unknown` here. `None` only for `mock` and templated seats.
+/// resolves, so it stays `unknown` here. `reasoning_efforts` lists the `run.reasoning.effort`
+/// levels the exact model documents. `None` only for `mock` and templated seats.
 #[must_use]
 pub fn output_caps(model: &str) -> Option<Value> {
     let (provider, name) = judged(model)?;
-    let reasoning = nika_catalog::model_capabilities(provider, name).reasoning;
+    let caps = nika_catalog::model_capabilities(provider, name);
+    let reasoning = caps.reasoning;
     let limit = known_limit(provider, name);
     let bound = limit.as_ref().map(|(limit, _)| *limit);
     let evidence = if reasoning { "recorded" } else { "unrecorded" };
@@ -91,6 +93,7 @@ pub fn output_caps(model: &str) -> Option<Value> {
     Some(json!({
         "model": model,
         "reasoning_capability": evidence,
+        "reasoning_efforts": caps.reasoning_efforts.iter().map(|l| l.word()).collect::<Vec<_>>(),
         "thinking_counted_in_cap": "unknown",
         "route": "resolved at run time",
         "suggested_default_max_tokens": suggested,

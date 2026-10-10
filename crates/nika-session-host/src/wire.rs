@@ -23,6 +23,10 @@ pub const CAPABILITY: &str = "sessionHost";
 /// census's own words, held for that conversation only, never saved).
 pub const SELECTION_CAPABILITY: &str = "sessionIntelligence";
 
+/// The capability word of a door that takes [`Command::Steer`] and [`Command::FollowUp`]: a
+/// client that does not find it refuses those lines itself, before it sends one.
+pub const STEERING_CAPABILITY: &str = "sessionSteering";
+
 /// The longest command identity a client may choose.
 const MAX_COMMAND: usize = 128;
 
@@ -121,6 +125,16 @@ impl Command {
             }
             (op, ..) => Err(format!("unknown op `{op}`")),
         }
+    }
+
+    /// The command identity a line names although it is not a command [`Command::parse`]
+    /// accepts: the refusal of that line then names it, so the client that sent it tells it from
+    /// another line's. `None` when the line is not one JSON object or names no valid identity.
+    #[must_use]
+    pub fn identity_of(bytes: &[u8]) -> Option<String> {
+        let value: serde_json::Value = serde_json::from_slice(bytes).ok()?;
+        let command = value.get("command")?.as_str()?;
+        identity(command.to_owned()).ok()
     }
 
     /// The digest of the exact bytes a command identity is bound to: its op, its snapshot and

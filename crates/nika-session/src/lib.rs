@@ -44,7 +44,7 @@ pub use nika_session_agent::steer;
 /// `nika_session_intelligence::{authoring, intelligence, reasoner, turn}`. These paths are kept
 /// and name the very same items (types, traits, functions, constants).
 #[doc(inline)]
-pub use nika_session_intelligence::{authoring, intelligence, reasoner, turn};
+pub use nika_session_intelligence::{authoring, intelligence, reasoner, trial, turn};
 pub mod broker;
 /// The project change a proposal writes ([`change`]), its factual review ([`review`]), the
 /// typed outcome a host renders ([`outcome`]) and the consent record ([`consent`]) are owned
