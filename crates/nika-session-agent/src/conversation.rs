@@ -26,30 +26,31 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 /// How a question gets its identity from its context.
-type Mint<'a> = &'a mut dyn FnMut(&str) -> QuestionId;
+pub type Mint<'a> = &'a mut dyn FnMut(&str) -> QuestionId;
 
 /// What this machine's inventory says of a model an option offers.
-type Facts<'a> = &'a mut dyn FnMut(&str) -> Option<nika_session_change::work::ModelFacts>;
+pub type Facts<'a> = &'a mut dyn FnMut(&str) -> Option<nika_session_change::work::ModelFacts>;
 
 /// One of the person's lines, as the tree made it durable.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Cited {
+#[non_exhaustive]
+pub struct Cited {
     /// The tree line it is on: later lines have greater numbers.
-    pub(crate) at: u64,
+    pub at: u64,
     /// The person's words, as typed.
-    pub(crate) text: String,
+    pub text: String,
 }
 
 /// The person's lines by citation (`u1`, `u2`, …), indexed as the tree's lines become durable.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct Citations {
+pub struct Citations {
     lines: BTreeMap<String, Cited>,
     last: u64,
 }
 
 impl Citations {
     /// The tree line `at` became durable; it records the person's line `cite` when one is given.
-    pub(crate) fn record(&mut self, at: u64, person: Option<(String, String)>) {
+    pub fn record(&mut self, at: u64, person: Option<(String, String)>) {
         self.last = self.last.max(at);
         if let Some((cite, text)) = person {
             self.lines.insert(cite, Cited { at, text });
@@ -57,18 +58,21 @@ impl Citations {
     }
 
     /// The person's line `cite`.
-    pub(crate) fn get(&self, cite: &str) -> Option<&Cited> {
+    #[must_use]
+    pub fn get(&self, cite: &str) -> Option<&Cited> {
         self.lines.get(cite)
     }
 
     /// The last durable line.
-    pub(crate) fn last(&self) -> u64 {
+    #[must_use]
+    pub fn last(&self) -> u64 {
         self.last
     }
 
     /// Every word the person wrote from the tree line `from` on, in order: the request a
     /// candidate answers, as the laws read it.
-    pub(crate) fn stated(&self, from: u64) -> String {
+    #[must_use]
+    pub fn stated(&self, from: u64) -> String {
         let mut lines: Vec<&Cited> = self.lines.values().filter(|l| l.at >= from).collect();
         lines.sort_by_key(|line| line.at);
         let texts: Vec<&str> = lines.iter().map(|line| line.text.as_str()).collect();
@@ -78,15 +82,16 @@ impl Citations {
 
 /// One revision of the candidate.
 #[derive(Clone, Debug)]
-pub(crate) struct Candidate {
+#[non_exhaustive]
+pub struct Candidate {
     /// Its number in this request, from 1.
-    pub(crate) number: u64,
+    pub number: u64,
     /// The complete `.nika` document.
-    pub(crate) source: String,
+    pub source: String,
     /// What changed, for the person.
-    pub(crate) summary: String,
+    pub summary: String,
     /// The selections it carries, as the author stated them and the Session checked them.
-    pub(crate) rows: Vec<Resolution>,
+    pub rows: Vec<Resolution>,
 }
 
 /// The proposal the person was shown.
@@ -102,16 +107,17 @@ pub(crate) struct Shown {
 
 /// What a proposal lets the Session do once every check passed.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct Acts {
+#[non_exhaustive]
+pub struct Acts {
     /// Save the candidate, on the person's own words.
-    pub(crate) save: bool,
+    pub save: bool,
     /// Run it after saving, through the run's admission.
-    pub(crate) run: bool,
+    pub run: bool,
 }
 
 /// The conversation's state.
 #[derive(Debug, Default)]
-pub(crate) struct Conversation {
+pub struct Conversation {
     request: u64,
     since: u64,
     candidate: Option<Candidate>,
@@ -195,38 +201,44 @@ fn single(role: ValueRole) -> bool {
 
 impl Conversation {
     /// The values the candidate binds.
-    pub(crate) fn bindings(&self) -> &[Binding] {
+    #[must_use]
+    pub fn bindings(&self) -> &[Binding] {
         &self.bindings
     }
 
     /// The choices the person delegated.
-    pub(crate) fn delegations(&self) -> &[Delegation] {
+    #[must_use]
+    pub fn delegations(&self) -> &[Delegation] {
         &self.delegations
     }
 
     /// The questions asked now, open or after their prerequisites.
-    pub(crate) fn questions(&self) -> &[AskedQuestion] {
+    #[must_use]
+    pub fn questions(&self) -> &[AskedQuestion] {
         &self.asked
     }
 
     /// The identities of the questions asked now.
-    pub(crate) fn asked_ids(&self) -> Vec<QuestionId> {
+    #[must_use]
+    pub fn asked_ids(&self) -> Vec<QuestionId> {
         self.asked.iter().map(|q| q.id.clone()).collect()
     }
 
     /// The candidate, when one was written.
-    pub(crate) fn candidate(&self) -> Option<&Candidate> {
+    #[must_use]
+    pub fn candidate(&self) -> Option<&Candidate> {
         self.candidate.as_ref()
     }
 
     /// The tree line the current request starts on: the person's words from it on are what a
     /// candidate answers.
-    pub(crate) fn since(&self) -> u64 {
+    #[must_use]
+    pub fn since(&self) -> u64 {
         self.since
     }
 
     /// The person's line `cite` answered the questions asked now: they answer nothing again.
-    pub(crate) fn answered_by(&mut self, cite: &str) {
+    pub fn answered_by(&mut self, cite: &str) {
         for question in std::mem::take(&mut self.asked) {
             self.answered
                 .insert(question.key.clone(), (question, cite.to_owned()));
@@ -236,7 +248,7 @@ impl Conversation {
     /// `ask`: bind the answers the author read in the person's line, refuse what the person
     /// already settled (with its value, to the author), ask the rest together. `mint` gives a
     /// question its identity from its context. The turn ends when something is asked.
-    pub(crate) fn ask(
+    pub fn ask(
         &mut self,
         citations: &Citations,
         args: &Value,
@@ -364,7 +376,7 @@ impl Conversation {
     /// Session checks; `check` parses it. A value a proposal the person saw bound stays bound,
     /// with its own provenance, while the document still carries it; one the person's cited
     /// words remove (`removed`) is no longer theirs to keep.
-    pub(crate) fn write(
+    pub fn write(
         &mut self,
         citations: &Citations,
         (source, summary): (String, String),
@@ -510,7 +522,8 @@ impl Conversation {
     /// Why the candidate cannot be proposed as it is: each value a proposal the person saw
     /// bound that the candidate dropped unasked. A single-valued role that took another
     /// authorized value replaced it; nothing was dropped.
-    pub(crate) fn dropped(&self) -> Vec<String> {
+    #[must_use]
+    pub fn dropped(&self) -> Vec<String> {
         let replaced =
             |role: ValueRole| single(role) && self.bindings.iter().any(|b| b.role == role);
         (self.accepted.iter())
@@ -530,7 +543,8 @@ impl Conversation {
     /// The candidate's selections for the judge: the ones the author states on the person's
     /// words (their words are read again), and the ones the Session verified itself (an
     /// accepted offer, a kept value, an answer bound by its question).
-    pub(crate) fn selections(&self) -> (Vec<Resolution>, Vec<Resolution>) {
+    #[must_use]
+    pub fn selections(&self) -> (Vec<Resolution>, Vec<Resolution>) {
         let authored = (self.candidate.iter().flat_map(|c| &c.rows))
             .filter(|r| {
                 matches!(
@@ -569,7 +583,11 @@ impl Conversation {
     /// authorizes them only when it was written after this exact revision's proposal was shown
     /// and the candidate may do nothing more than that revision could (`scope`). Returns the
     /// acts to perform, or why none is authorized (the proposal then waits for consent).
-    pub(crate) fn propose(
+    ///
+    /// # Errors
+    ///
+    /// When there is no candidate, or when the cited line does not authorize the acts asked for.
+    pub fn propose(
         &mut self,
         citations: &Citations,
         args: &Value,
@@ -621,7 +639,7 @@ impl Conversation {
 
     /// `new_request`: the person replaced the request; nothing of the former one remains, and
     /// their words from the replacing line on are the new request.
-    pub(crate) fn replace(&mut self, citations: &Citations, args: &Value) -> ToolReply {
+    pub fn replace(&mut self, citations: &Citations, args: &Value) -> ToolReply {
         let message = args["message"].as_str().unwrap_or_default();
         let excerpt = args["excerpt"].as_str().unwrap_or_default();
         match citations.get(message) {
@@ -641,7 +659,8 @@ impl Conversation {
     }
 
     /// What a Session keeps across a reopen.
-    pub(crate) fn kept(&self) -> Value {
+    #[must_use]
+    pub fn kept(&self) -> Value {
         let candidate = self.candidate.as_ref().map(|c| KeptCandidate {
             number: c.number,
             source: c.source.clone(),
@@ -662,7 +681,8 @@ impl Conversation {
 
     /// A conversation read back from what a Session kept: its evidence, no question and no
     /// proposal. `None` for a value this engine does not read.
-    pub(crate) fn restored(value: &Value) -> Option<Self> {
+    #[must_use]
+    pub fn restored(value: &Value) -> Option<Self> {
         let kept: Kept = serde_json::from_value(value.clone()).ok()?;
         if kept.version != 1 {
             return None;

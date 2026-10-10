@@ -21,6 +21,10 @@
 //! - [`tree`] · the Session tree: every entry a conversation records, each with its parent,
 //!   one chained line per entry; the branch a model reads, and the person's cited lines, the
 //!   only entries that carry authority.
+//! - [`conversation`] · the ledger of what the conversation holds of the person's request:
+//!   the candidate's revisions, the values it binds and where each comes from, the choices
+//!   the person delegated and the questions asked, every authorizing check read from the
+//!   person's own cited lines.
 //! - [`compact`] · earlier entries folded into a summary when the route's window requires it,
 //!   the person's words and the values' provenance kept.
 //! - [`event`] · what a run tells a host while it happens (`nika/session-events@0`).
@@ -41,6 +45,7 @@
 )]
 
 pub mod compact;
+pub mod conversation;
 pub mod event;
 pub mod observe;
 pub mod run;

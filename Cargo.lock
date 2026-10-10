@@ -5610,6 +5610,7 @@ name = "nika-session-agent"
 version = "0.123.0-preview.1"
 dependencies = [
  "blake3",
+ "nika-compile-fidelity",
  "nika-kernel",
  "nika-session-change",
  "proptest",

@@ -17,7 +17,7 @@ use nika_session_change::tools::{SessionTools, ToolCall, ToolDef, ToolReply};
 use nika_session_change::work::ModelFacts;
 use serde_json::{Value, json};
 
-use super::conversation::{Acts, Citations, Conversation};
+use nika_session_agent::conversation::{Acts, Citations, Conversation};
 
 /// The tools' definitions: names, descriptions and argument schemas (`$defs` inlined).
 const DEFINITIONS: &str = include_str!("../../../assets/author_tools.json");

@@ -17,7 +17,6 @@
 //! [`DRIVER_ENV`] says `rounds`, read once when it opens the Session; a route that cannot lead a
 //! conversation (a seat over its native connection, no intelligence) keeps it too.
 
-mod conversation;
 mod desk;
 mod led;
 mod store;
@@ -28,6 +27,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use nika_fs::OwnedDir;
+use nika_session_agent::conversation::{Acts, Conversation};
 use nika_session_agent::{
     Agent, AgentEvent, EntryKind, Observed, Outcome, QueueMode, QueuedState, Relay, Steering, Tree,
 };
@@ -37,7 +37,6 @@ use nika_types::access::HarnessTransport;
 use nika_types::cancel::CancelCtx;
 use serde_json::Value;
 
-use self::conversation::{Acts, Conversation};
 use self::desk::SessionDesk;
 use self::store::TreeFile;
 use self::tools::{Decided, Toolbox};
