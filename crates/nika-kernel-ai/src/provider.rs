@@ -97,6 +97,16 @@ pub enum ContentBlock {
         /// Thinking content.
         text: String,
     },
+    /// Reasoning state a provider asks to receive back verbatim in later requests: an
+    /// Anthropic signed `thinking` or `redacted_thinking` block, a Gemini `thoughtSignature`.
+    /// Opaque: only the wire that produced it reads `state` and sends it back unmodified, in
+    /// place; every other wire skips it.
+    Reasoning {
+        /// The wire that produced it (`anthropic`, `gemini`).
+        wire: String,
+        /// The provider's own JSON, sent back unmodified.
+        state: serde_json::Value,
+    },
 }
 
 // ─── Tool definition ─────────────────────────────────────────────────
@@ -498,6 +508,14 @@ pub enum InferEvent {
     Thinking {
         /// Thinking text.
         text: String,
+    },
+    /// Reasoning state to keep and send back verbatim ([`ContentBlock::Reasoning`]), in the
+    /// order it arrived among the other blocks of the answer.
+    Reasoning {
+        /// The wire that produced it.
+        wire: String,
+        /// The provider's own JSON.
+        state: serde_json::Value,
     },
     /// Token usage update.
     Usage(TokenUsage),
