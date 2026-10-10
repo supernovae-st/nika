@@ -66,11 +66,13 @@ fn read_commands<R: BufRead, W: Write>(host: &SessionHost, mut input: R, output:
             continue;
         }
         let reply = match Command::parse(text.as_bytes()) {
+            // A line it cannot parse is refused in line order, naming the identity it carries
+            // when it carries a valid one: the client tells that refusal from another line's.
             Err(why) => Some(Frame::refused(
                 host.session(),
                 Refused::Malformed,
                 why,
-                None,
+                Command::identity_of(text.as_bytes()).as_deref(),
                 None,
                 None,
             )),

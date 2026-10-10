@@ -170,6 +170,34 @@ fn outcomes_are_projected_word_for_word_and_runs_become_effects() {
     assert!(matches!(effects.as_slice(), [Effect::Run(run)] if run.vars.len() == 2));
 }
 
+/// A line that is not a command still names the valid identity its JSON carries, so its
+/// refusal can name it; an invalid identity, none, or a line that is not one object names none.
+#[test]
+fn a_line_that_does_not_parse_still_names_its_valid_identity() {
+    let unknown = format!(r#"{{"contract":"{CONTRACT}","op":"rewind","command":"c-9"}}"#);
+    assert!(Command::parse(unknown.as_bytes()).is_err());
+    assert_eq!(
+        Command::identity_of(unknown.as_bytes()).as_deref(),
+        Some("c-9")
+    );
+    let forbidden =
+        format!(r#"{{"contract":"{CONTRACT}","op":"stop","command":"s-1","line":"x"}}"#);
+    assert!(Command::parse(forbidden.as_bytes()).is_err());
+    assert_eq!(
+        Command::identity_of(forbidden.as_bytes()).as_deref(),
+        Some("s-1")
+    );
+    for line in [
+        r#"{"op":"rewind","command":"not an identity"}"#,
+        r#"{"op":"rewind","command":7}"#,
+        r#"{"op":"rewind"}"#,
+        r#"["c-9"]"#,
+        "not json",
+    ] {
+        assert_eq!(Command::identity_of(line.as_bytes()), None, "{line}");
+    }
+}
+
 /// A line for the conversation's run under way is a command of the contract, by its mode, with
 /// its identity and its line; its bytes bind it to its op as any command's do.
 #[test]

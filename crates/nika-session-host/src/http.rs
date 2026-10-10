@@ -220,12 +220,14 @@ impl Sessions {
 
 /// One command: a refusal or a replay answers at once, a submit once it settled.
 async fn command(host: &SessionHost, body: &[u8]) -> Response<ResponseBody> {
-    let refused = |message: String| {
+    // A body it cannot parse is refused naming the identity it carries, when a valid one, as the
+    // native door names it.
+    let refused = |message: String, named: Option<String>| {
         let frame = Frame::refused(
             host.session(),
             Refused::Malformed,
             message,
-            None,
+            named.as_deref(),
             None,
             None,
         );
@@ -243,9 +245,10 @@ async fn command(host: &SessionHost, body: &[u8]) -> Response<ResponseBody> {
                 "only submit, stop, steer and follow_up are commands here · read with GET, \
                  close with DELETE"
                     .to_owned(),
+                None,
             );
         }
-        Err(why) => return refused(why),
+        Err(why) => return refused(why, Command::identity_of(body)),
     };
     match host.dispatch(command) {
         Dispatch::Reply(frame) | Dispatch::Logged(frame) => respond(&frame),
@@ -264,7 +267,7 @@ async fn command(host: &SessionHost, body: &[u8]) -> Response<ResponseBody> {
                 respond(&frame)
             }
         },
-        _ => refused("this Session is closing".to_owned()),
+        _ => refused("this Session is closing".to_owned(), None),
     }
 }
 

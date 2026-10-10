@@ -28,6 +28,7 @@ const SUPPORTED_CAPABILITIES: &[&str] = &[
     "compile",
     "sessionHost",
     "sessionIntelligence",
+    "sessionSteering",
 ];
 
 /// The engine, source and machine-protocol identity compiled into this build.

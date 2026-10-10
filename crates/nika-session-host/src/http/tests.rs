@@ -280,6 +280,34 @@ async fn one_live_session_per_project_and_its_routes_answer_by_identity() {
     assert_ne!(reopened["session"], session.as_str(), "another incarnation");
 }
 
+/// A command the door cannot parse is refused `malformed` naming the command identity its JSON
+/// carries when that identity is a valid one, as the native door names it; a command naming an
+/// invalid one is refused naming none.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_command_it_cannot_parse_is_refused_naming_the_identity_it_carries() {
+    let root = world();
+    let address = listen(sessions(root.path())).await;
+    let (status, opened) = call(address, "POST", "/v1/sessions", "").await;
+    assert_eq!(status, 201);
+    let session = opened["session"].as_str().expect("session").to_owned();
+    let path = format!("/v1/sessions/{session}/commands");
+    let unknown = serde_json::json!({"contract": CONTRACT, "op": "rewind", "command": "c-9"});
+    let (status, named) = call(address, "POST", &path, &unknown.to_string()).await;
+    assert_eq!(
+        (status, named["error"].as_str(), named["command"].as_str()),
+        (400, Some("malformed"), Some("c-9")),
+        "{named}"
+    );
+    let invalid = serde_json::json!({
+        "contract": CONTRACT, "op": "rewind", "command": "not an identity",
+    });
+    let (status, unnamed) = call(address, "POST", &path, &invalid.to_string()).await;
+    assert_eq!(status, 400, "{unnamed}");
+    assert!(unnamed.get("command").is_none(), "{unnamed}");
+    let (status, closed) = call(address, "DELETE", &format!("/v1/sessions/{session}"), "").await;
+    assert_eq!((status, closed["frame"].as_str()), (200, Some("closed")));
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_command_outlives_the_request_that_carried_it() {
     let root = world();
