@@ -1283,6 +1283,12 @@ the person's words, verbatim (`assets/resolutions_schema.json`; the kinds a host
 `nika_compile_fidelity::fidelity::resolution::admitted` admits each selection on those words,
 within its role's scope and use, and Law 2 counts an admitted literal as stated
 (`laws_resolved`). An unreadable or refused selection is a finding the next round repairs from.
+Amended 2026-10-10, the door teaches every scope the law admits (an output name the request
+leaves to the author, a file read under a folder the person typed, the exact host of an address
+they typed). Its findings go through `resolution::selection_remedies`, so an unwritten
+destination or an invented literal names the selection that answers it before any question. A
+file the request asks for without naming it is derived and stated, asked only when the
+person's words leave its name to them.
 The native record of an accepted document keeps the rows (`plan.resolutions`): provenance,
 never a human answer. The private-plan door (policy `off`) and the sketch door do not carry
 selections yet (their emission would need the core's assembler to bind them), a documented
@@ -1409,8 +1415,10 @@ candidate a Session conversation wrote: the strict parser, the pure Check, then 
 against everything the person stated in the request it answers, over the world the host observed
 for it (`observed`: without it no law that reads the project fires). The author's selections are
 admitted on the person's own words; the ones the host verified itself (an offer it showed, a
-value an accepted revision bound) have their scope and use judged only. It calls, reads and
-writes nothing. These are the laws only.
+value an accepted revision bound) have their scope and use judged only. Its findings name the
+selection that answers an unwritten destination or an invented literal, as the document door's
+do (`resolution::selection_remedies`, amended 2026-10-10). It calls, reads and writes nothing.
+These are the laws only.
 
 The conversation laws also judge each `infer:` task's reasoning budget (amended 2026-10-10):
 `nika-compile-fidelity`'s `budget::reasoning` law, fed each seat's facts as

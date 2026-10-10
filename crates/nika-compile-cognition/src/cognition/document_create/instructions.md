@@ -31,11 +31,16 @@ yourself; an absent component never removes a clause.
 Some values the request does not spell are still the person's to have: a public source it names
 (« Hacker News » is read at its public address), public sources it lets you choose (« choose the
 sources yourself »), a routine new output file inside the project when it asks for one without a
-name. Write the concrete value in the document and state it in `resolutions`, one row each:
+name or leaves the name to you, a file read under a folder the person typed (a glob over `data/` of
+`data/sales.csv`), the exact host of an address they typed. Write the concrete value in the
+document and state it in `resolutions`, one row each:
 `{"value": <exactly as the document carries it>, "kind": "named" | "delegated" | "derived" | "answered", "role": "read_source" | "output_path" | "run_model" | "value", "excerpt": <the person's own words that ask for it, verbatim>}`.
-A named or delegated source is a public http(s) address read with GET only; a derived output is a
-new relative path under the project, written only. Never state a private or credentialed address,
-a file that already exists, or words the request does not carry: those are questions.
+A named or delegated source is a public http(s) address read with GET only; a derived or delegated
+output is a new relative path under the project, written only; a derived read lies under a folder
+the person typed and is only read; a derived value is the exact host of an http(s) address they
+typed. A file the request asks for without naming it is derived and stated, not asked, unless its
+words leave the name to the person. Never state a private or credentialed address, a file that
+already exists, or words the request does not carry: those are questions.
 
 ## Your answer
 

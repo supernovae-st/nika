@@ -84,6 +84,14 @@ fn a_value_no_selection_covers_is_an_invented_literal() {
             .any(|r| r.starts_with("INVENTED LITERAL") && r.contains("news.ycombinator.com")),
         "{refusals:?}"
     );
+    // Each names the selection that answers it before any question (red before 2026-10-10).
+    assert!(
+        refusals
+            .iter()
+            .filter(|r| r.starts_with("INVENTED LITERAL"))
+            .all(|r| r.contains("state it in `resolutions` with those words")),
+        "{refusals:?}"
+    );
 }
 
 #[test]

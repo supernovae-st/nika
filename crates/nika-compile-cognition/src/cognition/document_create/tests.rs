@@ -203,6 +203,8 @@ const STALE_INTENT: &str = "Create a new workflow that reads ./in/tickets.json. 
 struct Scripted {
     answers: std::sync::Mutex<Vec<String>>,
     openings: std::sync::Mutex<Vec<String>>,
+    /// The last message of each authoring call: after a refusal, the repair it was sent.
+    closings: std::sync::Mutex<Vec<String>>,
     states: std::sync::Mutex<Vec<Value>>,
     /// Whether the whole request is judged from the transmitted engine facts alone: unfaithful
     /// when the catalogue offered a component and none is composed, else faithful.
@@ -218,6 +220,7 @@ impl Scripted {
         Self {
             answers: std::sync::Mutex::new(answers),
             openings: std::sync::Mutex::new(Vec::new()),
+            closings: std::sync::Mutex::new(Vec::new()),
             states: std::sync::Mutex::new(Vec::new()),
             conditional: false,
             doubting: false,
@@ -249,6 +252,10 @@ impl Scripted {
 
     fn openings(&self) -> Vec<String> {
         self.openings.lock().expect("openings").clone()
+    }
+
+    fn closings(&self) -> Vec<String> {
+        self.closings.lock().expect("closings").clone()
     }
 
     /// The engine facts every verifier question showed, the same in each.
@@ -309,6 +316,8 @@ impl nika_kernel::ai::provider::ProviderInferDyn for Scripted {
         let text = if authoring {
             let opening = (request.messages.get(1)).map_or_else(String::new, |m| format!("{m:?}"));
             self.openings.lock().expect("openings").push(opening);
+            let closing = (request.messages.last()).map_or_else(String::new, |m| format!("{m:?}"));
+            self.closings.lock().expect("closings").push(closing);
             let mut answers = self.answers.lock().expect("answers");
             (!answers.is_empty())
                 .then(|| answers.remove(0))
@@ -973,6 +982,60 @@ async fn a_revision_doubt_is_settled_by_one_trial_of_its_exact_bytes() {
             "exactly one trial, of the draft"
         );
     }
+}
+
+/// A request that leaves its sources and its output's name to the author.
+const DELEGATING: &str = "recupere les news tech recentes, resume les et ecris le resume en markdown dans un dossier du projet. les sources publiques tu les choisis toi meme";
+
+/// A digest of a public source written under a name the author chose: valid, and stated nowhere.
+const UNSTATED: &str = r#"nika: news-digest
+model: mock/echo
+permits:
+  tools: ["nika:fetch", "nika:write"]
+  net:
+    http: ["news.ycombinator.com"]
+  fs:
+    write: ["./news/digest.md"]
+tasks:
+  news:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://news.ycombinator.com", method: GET }
+  summarize:
+    with:
+      news: "${{ tasks.news.output }}"
+    infer:
+      max_tokens: 1000
+      prompt: "Résume en Markdown les actualités ci-dessous, sans rien inventer : ${{ with.news }}"
+  write_digest:
+    with:
+      digest: "${{ tasks.summarize.output }}"
+    invoke:
+      tool: "nika:write"
+      args: { path: "./news/digest.md", content: "${{ with.digest }}" }
+"#;
+
+/// A value the person's words authorize but the author never stated is refused with the
+/// selection that answers it, so the repair states it rather than asking the person (red before
+/// 2026-10-10: the finding named only a placeholder question).
+#[tokio::test]
+async fn an_unstated_selection_is_repaired_by_stating_it_never_only_asked() {
+    // `only`: the document door whatever the reader composed.
+    let only = policy().with_native(crate::NativeMode::Only);
+    let request = crate::CompileRequest::create(DELEGATING).with_authoring_policy(only);
+    let author = Scripted::new(vec![door(UNSTATED, &[]), door(UNSTATED, &[])]);
+    let _ = compiled(&request, &author).await;
+    let closings = author.closings();
+    let repair = closings
+        .get(1)
+        .expect("a repair round followed the refusal");
+    assert!(
+        repair.contains("INVENTED LITERAL")
+            && repair.contains(
+                "state it in `resolutions` with those words, verbatim, instead of asking"
+            ),
+        "{repair}"
+    );
 }
 
 mod construction;
