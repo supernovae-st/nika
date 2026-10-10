@@ -85,3 +85,11 @@ Session's tools act on the Session, and only the Session's doors save, run or re
 | 10 PARITY | N/A: a new capability, no legacy behaviour to match |
 | 11 REVIEW | pending |
 | 12 ATOMIC | the unit's admission commit |
+
+## Host helpers (2d)
+
+`tree::read_line` reads what one durable line says (its place and, for a person's line, the
+citation, the words and the call it answers) without the line format leaving the crate: the
+Session indexes the person's lines as they are appended, while the loop holds the tree.
+`Tree::next_cite` names the citation the next person's line will get, and `Tree::last_said` the
+text of the model's last message on the branch.

@@ -487,6 +487,30 @@ impl Tree {
         self.previous = digest;
     }
 
+    /// The citation the next person's line will get, so a host can record which line answers
+    /// what waits before the model reads it.
+    #[must_use]
+    pub fn next_cite(&self) -> String {
+        format!("u{}", self.cites + 1)
+    }
+
+    /// What the model said last on the branch, beside its calls: the text of its last message.
+    #[must_use]
+    pub fn last_said(&self) -> String {
+        let said = self.branch().into_iter().rev().find_map(|e| match &e.kind {
+            EntryKind::Assistant { content, .. } => Some(content),
+            _ => None,
+        });
+        (said.into_iter().flatten())
+            .filter_map(|block| match block {
+                ContentBlock::Text { text } => Some(text.trim()),
+                _ => None,
+            })
+            .filter(|text| !text.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     /// What the first line states.
     #[must_use]
     pub fn header(&self) -> &Header {
@@ -634,6 +658,53 @@ impl Tree {
         }
         Context { system, messages }
     }
+}
+
+/// One person's line, as a tree line states it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct PersonLine {
+    /// Its citation.
+    pub cite: String,
+    /// The person's words, as typed.
+    pub text: String,
+    /// The call it answers, when the run waited for the person.
+    pub answers: Option<String>,
+}
+
+/// What one tree line says: its place in the file and, for a person's line, the line.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct LineFacts {
+    /// Its place in the file, from 0 (the header).
+    pub n: u64,
+    /// The person's line it records, when it records one.
+    pub person: Option<PersonLine>,
+}
+
+/// What `line` says, when it reads as a line of a tree. Its digest is not checked here: a host
+/// that reads a whole file back uses [`Tree::replay`]; this reads the line a host just made
+/// durable, to index the person's words while the loop holds the tree.
+#[must_use]
+pub fn read_line(line: &str) -> Option<LineFacts> {
+    let line: Line = serde_json::from_str(line).ok()?;
+    let person = match line.body {
+        Body::Entry(entry) => match entry.kind {
+            EntryKind::User {
+                cite,
+                text,
+                answers,
+                ..
+            } => Some(PersonLine {
+                cite,
+                text,
+                answers,
+            }),
+            _ => None,
+        },
+        Body::Header(_) => None,
+    };
+    Some(LineFacts { n: line.n, person })
 }
 
 /// A person's line as the model reads it: their words, then the citation the model uses to
