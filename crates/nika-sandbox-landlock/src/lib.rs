@@ -31,8 +31,13 @@
 //!   srt's own answer — `--unshare-net` + a socat bridge over a
 //!   bind-mounted unix socket pair — is the named follow-on that brings
 //!   Linux to the same strength.
-//! - **Writes** — allowed ONLY under the declared `fs_write` prefixes plus
-//!   scratch (`--bind`). Everything else is read-only or absent.
+//! - **Writes** — allowed ONLY under the declared `fs_write` prefixes that
+//!   exist at spawn plus scratch (`--bind`). Everything else is read-only or
+//!   absent. A write grant that names nothing yet cannot be bound (bwrap binds
+//!   only an existing source, and a jailed command cannot create its own
+//!   grant): it is left out and said on stderr with its remedy, never refused,
+//!   because every exec receives every write grant of its workflow and another
+//!   task may be the one that creates it.
 //! - **Reads** — the system paths every binary + the dynamic linker need are
 //!   bound read-only (`--ro-bind`, else nothing runs); the declared `fs_read`
 //!   prefixes are added read-only; SENSITIVE user paths (`~/.ssh`, `~/.aws`,
@@ -51,10 +56,11 @@
 //! binds exactly that file, so a `SQLite` database granted by its file path
 //! CANNOT run WAL here — the `-wal`/`-shm`/`-journal` sidecars are
 //! same-stem siblings created AT RUNTIME, and bwrap has no future-file bind
-//! (`--bind-try` skips what does not exist yet; binding the parent directory
-//! would over-grant the whole tree). The Seatbelt backend expresses the
-//! family precisely as three exact-path `literal` filters; bwrap cannot.
-//! The honest Linux contract: **a database grant names its directory**
+//! (a source that does not exist yet cannot be bound; binding the parent
+//! directory would over-grant the whole tree). The same holds for any file a
+//! jailed command must CREATE under an exact-file grant. The Seatbelt backend
+//! expresses the family precisely as three exact-path `literal` filters; bwrap
+//! cannot. The honest Linux contract: **a database grant names its directory**
 //! (`/data/db-dir/**`), never the bare file.
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
@@ -116,6 +122,11 @@ impl CommandSandbox for LandlockSandbox {
             });
         }
         let jail = build_jail_args(spec)?;
+        if let Some(line) = unbound_writes(spec) {
+            // One line per spawn on the runner's stderr channel, never a refusal.
+            use std::io::Write as _;
+            let _ = writeln!(std::io::stderr().lock(), "{line}");
+        }
         Ok(wrap(command, jail))
     }
 
@@ -204,14 +215,18 @@ fn build_jail_args(spec: &SandboxSpec) -> Result<Vec<String>, CommandSandboxErro
         a.push(prefix);
     }
 
-    // Declared writes · read-write binds under the validated literal prefix.
+    // Declared writes · read-write binds of what exists now, under the validated literal
+    // prefix. A source that vanishes before the mount fails the launcher loudly (`--bind`,
+    // never a skipping `--bind-try`); one absent already is said by `unbound_writes`.
     for glob in &spec.fs_write {
         let Some(prefix) = grant_subpath(glob)? else {
             continue;
         };
-        a.push("--bind-try".to_owned());
-        a.push(prefix.clone());
-        a.push(prefix);
+        if Path::new(&prefix).exists() {
+            a.push("--bind".to_owned());
+            a.push(prefix.clone());
+            a.push(prefix);
+        }
     }
 
     // Network: `--unshare-all` already dropped the net namespace. The ALLOW
@@ -232,6 +247,31 @@ fn build_jail_args(spec: &SandboxSpec) -> Result<Vec<String>, CommandSandboxErro
     }
 
     Ok(a)
+}
+
+/// The one line naming the write grants the jail leaves unbound because they name nothing yet,
+/// with the remedy; `None` when every write grant exists. bwrap binds only an existing source,
+/// and a jailed command cannot create its own grant (its parent is not writable). Every exec
+/// receives every write grant of its workflow, and a grant may serve another task (an engine
+/// write, a later step), so an absent one is said, never refused and never silently dropped.
+fn unbound_writes(spec: &SandboxSpec) -> Option<String> {
+    let absent: Vec<String> = (spec.fs_write.iter())
+        .filter_map(|glob| grant_subpath(glob).ok().flatten())
+        .filter(|path| !Path::new(path).exists())
+        .collect();
+    (!absent.is_empty()).then(|| {
+        format!(
+            "nika exec: the Linux jail binds only paths that exist, so a jailed command cannot \
+             create {}: {} · grant the directory instead, and make sure it exists before an \
+             exec writes into it",
+            if absent.len() == 1 {
+                "this write grant"
+            } else {
+                "these write grants"
+            },
+            absent.join(", ")
+        )
+    })
 }
 
 /// Wrap a command in `bwrap <jail args> -- <inner argv>`.
@@ -546,12 +586,32 @@ mod tests {
         );
     }
 
-    /// A declared write becomes a read-write bind; a declared read a ro-bind.
+    /// A directory of this test process, created now and removed when it drops.
+    struct Scratch(std::path::PathBuf);
+
+    impl Scratch {
+        fn new(name: &str) -> Self {
+            let dir =
+                std::env::temp_dir().join(format!("nika-landlock-{name}-{}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// A declared write that exists becomes a read-write bind (never a skipping `--bind-try`);
+    /// a declared read a ro-bind.
     #[test]
     fn declared_paths_become_binds() {
+        let out = Scratch::new("out");
         let mut spec = SandboxSpec::new();
         spec.fs_read = vec!["/data/in/**".to_owned()];
-        spec.fs_write = vec!["/data/out/**".to_owned()];
+        spec.fs_write = vec![format!("{}/**", out.0.display())];
         let args = build_jail_args(&spec).unwrap();
         let joined = args.join(" ");
         assert!(
@@ -559,8 +619,55 @@ mod tests {
             "read is a ro-bind: {joined}"
         );
         assert!(
-            joined.contains("--bind-try /data/out /data/out"),
+            joined.contains(&format!("--bind {0} {0}", out.0.display())),
             "write is a rw-bind: {joined}"
+        );
+        assert!(
+            !joined.contains("--bind-try"),
+            "a write grant is never skipped silently: {joined}"
+        );
+        assert_eq!(unbound_writes(&spec), None, "every write grant exists");
+    }
+
+    /// A write grant that names nothing yet is no refusal (every exec receives every write grant
+    /// of its workflow, and another task may create it), is left out of the jail, and is said:
+    /// one line per spawn names every absent path and the remedy.
+    #[test]
+    fn an_absent_write_grant_is_said_with_its_remedy_and_never_bound() {
+        let dir = Scratch::new("absent");
+        let file = dir.0.join("later.txt");
+        let missing = dir.0.join("missing");
+        let mut spec = SandboxSpec::new();
+        spec.fs_write = vec![
+            file.display().to_string(),
+            format!("{}/**", missing.display()),
+        ];
+        let args = build_jail_args(&spec).expect("an absent write grant is no refusal");
+        let named = |path: &std::path::Path| args.iter().any(|a| a == &path.display().to_string());
+        assert!(!named(&file) && !named(&missing), "{args:?}");
+        let line = unbound_writes(&spec).expect("the absent grants are said");
+        assert_eq!(
+            line,
+            format!(
+                "nika exec: the Linux jail binds only paths that exist, so a jailed command \
+                 cannot create these write grants: {}, {} · grant the directory instead, and \
+                 make sure it exists before an exec writes into it",
+                file.display(),
+                missing.display()
+            ),
+            "one line names every absent path and the remedy"
+        );
+        // Once it exists, the same grant is bound and no longer said.
+        std::fs::write(&file, "").unwrap();
+        let joined = build_jail_args(&spec).unwrap().join(" ");
+        assert!(
+            joined.contains(&format!("--bind {0} {0}", file.display())),
+            "{joined}"
+        );
+        let line = unbound_writes(&spec).expect("the missing directory is still said");
+        assert!(
+            line.contains(&format!("this write grant: {} ·", missing.display())),
+            "{line}"
         );
     }
 
