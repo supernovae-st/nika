@@ -6,7 +6,7 @@
 //! each race is decided, not hoped for.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, mpsc};
 use std::time::Duration;
 
@@ -17,7 +17,10 @@ use nika_session::{KeptRun, ScriptedReasoner, SessionRuntime};
 use serde_json::Value;
 
 use super::*;
-use crate::run::{LaneRunDoor, NoRunDoor, RunDoor, RunRequest, RunSink, RunStep};
+use crate::run::{
+    Admitted, JobDoor, JobEnd, JobFuture, Jobs, LaneRunDoor, NoRunDoor, RunDoor, RunRequest,
+    RunSink, RunStep,
+};
 use crate::wire::CONTRACT;
 
 /// A Ready intent the compiler settles with no question and no model.
@@ -956,5 +959,85 @@ fn a_stop_taken_before_the_native_door_spawns_is_applied_at_the_spawn() {
     assert_eq!(
         settled["outcomes"][1]["text"],
         "a Stop arrived before this run started · nothing ran"
+    );
+}
+
+/// A resident whose one job runs until it is cancelled, counting the cancellations it is asked.
+struct Cancellable {
+    entered: Mutex<mpsc::Sender<()>>,
+    cancels: AtomicUsize,
+    cancelled: AtomicBool,
+}
+
+impl Jobs for Cancellable {
+    fn admit<'a>(&'a self, _run: &'a RunRequest) -> JobFuture<'a, Result<Admitted, String>> {
+        Box::pin(async move { Ok(Admitted::Job("job-1".to_owned())) })
+    }
+
+    fn decide<'a>(&'a self, _: &'a str, _: bool) -> JobFuture<'a, Result<Option<String>, String>> {
+        Box::pin(async move { Ok(None) })
+    }
+
+    fn settled<'a>(&'a self, _id: &'a str) -> JobFuture<'a, Result<JobEnd, String>> {
+        Box::pin(async move {
+            let _ = self.entered.lock().expect("entered").send(());
+            let mut waited = 0;
+            while !self.cancelled.load(Ordering::SeqCst) && waited < 6000 {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                waited += 1;
+            }
+            Ok(JobEnd::new(130, None))
+        })
+    }
+
+    fn cancel<'a>(&'a self, _id: &'a str) -> JobFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            self.cancels.fetch_add(1, Ordering::SeqCst);
+            self.cancelled.store(true, Ordering::SeqCst);
+            Ok(())
+        })
+    }
+}
+
+/// NIK-17: a Session's Stop over Serve's job door reaches the resident's job cancellation as the
+/// native door reaches its child: the run is stopping, the Stop is taken once, and a second Stop
+/// sends nothing more. Before, the job door armed no Stop: `run_underway`, the run went on.
+#[test]
+fn a_stop_reaches_the_job_a_resident_runs_once() {
+    let resident = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .expect("the resident's runtime");
+    let root = world();
+    let (entered, waiting) = mpsc::channel();
+    let jobs = Arc::new(Cancellable {
+        entered: Mutex::new(entered),
+        cancels: AtomicUsize::new(0),
+        cancelled: AtomicBool::new(false),
+    });
+    let door = JobDoor::new(
+        resident.handle().clone(),
+        Arc::clone(&jobs) as Arc<dyn Jobs>,
+    );
+    let host = SessionHost::start(runtime(root.path()), Box::new(door), Vec::new()).expect("host");
+    assert_eq!(kinds(&settle(&host, "c-1", COPY)), ["proposal"]);
+    settle(&host, "c-2", "yes");
+    assert!(matches!(
+        host.dispatch(submit("c-3", &handle(&host), "run it")),
+        Dispatch::Accepted { .. }
+    ));
+    waiting.recv_timeout(WAIT).expect("the job runs");
+    let receipt = reply(host.dispatch(stop("s-1")));
+    assert_eq!(receipt["receipt"], "run_stopping", "{receipt}");
+    assert_eq!(receipt["snapshot"]["busy"]["stop_requested"], true);
+    let second = reply(host.dispatch(stop("s-2")));
+    assert_eq!(second["receipt"], "run_stopping", "{second}");
+    let settled = json(&host.wait_result("c-3").expect("settled"));
+    assert_eq!(kinds(&settled)[0], "run_requested", "{settled}");
+    assert_eq!(
+        jobs.cancels.load(Ordering::SeqCst),
+        1,
+        "one cancellation for two Stops"
     );
 }

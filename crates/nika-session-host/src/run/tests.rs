@@ -6,6 +6,8 @@
 //! end is unknown never reported as observed.
 
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 use super::*;
 
@@ -17,6 +19,11 @@ struct Scripted {
     refuse: Option<String>,
     review: bool,
     lost: Option<String>,
+    /// The job runs until it is cancelled.
+    hold: bool,
+    /// The door waits on the job's end.
+    waiting: AtomicBool,
+    cancelled: Mutex<Vec<String>>,
 }
 
 impl Jobs for Scripted {
@@ -56,6 +63,16 @@ impl Jobs for Scripted {
 
     fn settled<'a>(&'a self, id: &'a str) -> JobFuture<'a, Result<JobEnd, String>> {
         Box::pin(async move {
+            self.waiting.store(true, Ordering::SeqCst);
+            let mut waited = 0;
+            while self.hold && self.cancelled.lock().expect("cancelled").is_empty() && waited < 2000
+            {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+                waited += 1;
+            }
+            if self.hold {
+                return Ok(JobEnd::new(130, None));
+            }
             match &self.lost {
                 Some(why) => Err(why.clone()),
                 None => Ok(JobEnd::new(
@@ -63,6 +80,16 @@ impl Jobs for Scripted {
                     Some(PathBuf::from(format!(".nika/traces/{id}.ndjson"))),
                 )),
             }
+        })
+    }
+
+    fn cancel<'a>(&'a self, id: &'a str) -> JobFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            self.cancelled
+                .lock()
+                .expect("cancelled")
+                .push(id.to_owned());
+            Ok(())
         })
     }
 }
@@ -429,4 +456,59 @@ fn a_stop_before_the_lane_door_spawns_starts_nothing() {
         door.stop.is_none(),
         "no Stop of that run reaches the next one"
     );
+}
+
+/// The job door's Stop reaches the resident's own job cancellation once: asked while the job
+/// runs it signals, a second Stop sends nothing more, and the run's end is the job's.
+#[test]
+fn a_stop_cancels_the_running_job_once() {
+    let jobs = Arc::new(Scripted {
+        hold: true,
+        ..Scripted::default()
+    });
+    let (_runtime, mut door) = door(&jobs);
+    let stopper = door.stopper().expect("the job door arms a Stop");
+    let told = Told::default();
+    let step = std::thread::scope(|scope| {
+        let worker = std::thread::Builder::new()
+            .spawn_scoped(scope, || door.run(Path::new("/project"), &request(), &told))
+            .expect("worker");
+        while !jobs.waiting.load(Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(stopper.stop(), Stopping::Signalled);
+        assert_eq!(
+            stopper.stop(),
+            Stopping::Signalled,
+            "a second Stop sends nothing more"
+        );
+        worker.join().expect("joined")
+    });
+    let RunStep::Observed { exit, .. } = step else {
+        panic!("observed: {step:?}");
+    };
+    assert_eq!(exit, 130);
+    assert_eq!(*jobs.cancelled.lock().expect("cancelled"), ["job-1"]);
+    assert_eq!(
+        stopper.stop(),
+        Stopping::Ended,
+        "the run ended: nothing is sent"
+    );
+}
+
+/// A Stop that came before the admission admits nothing: the run starts no job.
+#[test]
+fn a_stop_before_the_admission_admits_no_job() {
+    let jobs = Arc::new(Scripted::default());
+    let (_runtime, mut door) = door(&jobs);
+    let stopper = door.stopper().expect("the job door arms a Stop");
+    assert_eq!(stopper.stop(), Stopping::Pending);
+    let told = Told::default();
+    let step = on_worker(|| door.run(Path::new("/project"), &request(), &told));
+    let RunStep::NotStarted { why } = step else {
+        panic!("not started: {step:?}");
+    };
+    assert_eq!(why, "a Stop arrived before this run started · nothing ran");
+    assert!(jobs.admitted.lock().expect("admitted").is_empty());
+    assert!(jobs.cancelled.lock().expect("cancelled").is_empty());
 }

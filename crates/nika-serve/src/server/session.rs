@@ -107,6 +107,16 @@ impl Jobs for Resident {
     fn settled<'a>(&'a self, id: &'a str) -> JobFuture<'a, Result<JobEnd, String>> {
         Box::pin(self.ended(id))
     }
+
+    fn cancel<'a>(&'a self, id: &'a str) -> JobFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            let (path, state) = (format!("/v1/jobs/{id}/cancel"), self.state()?);
+            match route::cancel_job(&path, &state).await.status() {
+                status if status.is_success() => Ok(()),
+                status => Err(format!("job {id} not stopped ({status})")),
+            }
+        })
+    }
 }
 
 impl Resident {
