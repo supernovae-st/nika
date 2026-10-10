@@ -691,6 +691,8 @@ impl<T> tracing::instrument::Instrument for nika_session_intelligence::reasoner:
 impl<T> tracing::instrument::WithSubscriber for nika_session_intelligence::reasoner::agent_model::AgentModel
 impl<T> typenum::type_operators::Same for nika_session_intelligence::reasoner::agent_model::AgentModel
 pub type nika_session_intelligence::reasoner::agent_model::AgentModel::Output = T
+pub fn nika_session_intelligence::reasoner::agent_model::model_facts(probes: &[nika_providers::probe::ProviderProbe], model: &str) -> core::option::Option<nika_session_change::work::conversation::ModelFacts>
+pub fn nika_session_intelligence::reasoner::agent_model::tool_steps(hook: nika_display::activity::ActivityHook) -> nika_session_agent::observe::StepSink
 pub mod nika_session_intelligence::reasoner::agent_seat
 pub struct nika_session_intelligence::reasoner::agent_seat::SeatConversation
 impl nika_session_intelligence::reasoner::agent_seat::SeatConversation
