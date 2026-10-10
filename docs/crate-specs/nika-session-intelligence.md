@@ -11,7 +11,7 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 (workspace-inherited) |
 | Publish | `false` — member of the `nika-session` unit |
-| Dependencies | **read from `Cargo.toml`, which is authoritative** · lateral L4 `nika-onboard`, `nika-cli-host` (default features off), `nika-compile-cognition`, `nika-compile-seats`, `nika-display`, `nika-session-change` · `nika-runtime` (`compose::config_from_env`, the ONE env boundary) · `nika-providers`, `nika-verb-infer`, `nika-http`, `nika-kernel`, `nika-types` · `nika-harness` (optional, `access-harness`) · `blake3`, `serde`, `serde_json`, `thiserror`, `tokio` · dev: `nika-catalog`, `nika-error`, `nika-event`, `tempfile` |
+| Dependencies | **read from `Cargo.toml`, which is authoritative** · lateral L4 `nika-onboard`, `nika-cli-host` (default features off), `nika-compile-cognition`, `nika-compile-seats`, `nika-display`, `nika-session-change` · `nika-runtime` (`compose::config_from_env`, the ONE env boundary) · `nika-providers`, `nika-verb-infer`, `nika-http`, `nika-kernel`, `nika-types` · `nika-harness` and lateral L4 `nika-mcp` (optional, `access-harness`: the conversation's tool server) · `blake3`, `serde`, `serde_json`, `thiserror`, `tokio` · dev: `nika-catalog`, `nika-error`, `nika-event`, `tempfile` |
 | Features | `access-harness` (default; the harness reasoner and the subscription authoring seat, forwarded by `nika-session`'s own) · `test-support` (never default; the provider transport's test substitution, which only the session's loopback suites enable through their dev-dependency) |
 | NIKA codes | none owed — `ReasonError` (a reasoner that could not answer), `AuthoringError` (the authoring door's machinery) and `AuthoringContextError` (an authoring configuration that cannot be honored, wrapped by `AuthoringError::Context`) are spoken by the session as refusals with their fix; their exemptions sit in `scripts/ci/error-one-voice-allowlist.tsv` |
 
@@ -115,3 +115,10 @@ tools. `SessionReasoner::agent_model` names it for the paths that can lead (the 
 every other path keeps the round driver. `observe` fetches one public page with GET through the
 fetch client's guard (no private, local or credentialed address, 15 s, 512 KiB) and reports what a
 person would see of it, never its whole text.
+
+`reasoner::agent_seat` (feature `access-harness`) opens the conversation a subscription seat chosen
+over ACP leads with its agent's own loop: the registry row the choice names under its audited
+conversation profile (Claude Code; Codex rides the same door), the person's model and effort, and
+the Session's tools served by a `nika-mcp` tool server on loopback with its own bearer, one per
+conversation, closed with it. `SeatConversation` is the loop's `Conversant`: one prompt per entry,
+the beats read on a current-thread runtime, Stop sent as `session/cancel` once; nothing falls back.

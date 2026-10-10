@@ -6,11 +6,16 @@
 //! and keeps the live child across its fresh cost review, so the review's answer reaches that
 //! very child once. A door that cannot start runs says so and observes nothing: no exit, no
 //! trace and no assurance are invented for a run that did not happen.
+//!
+//! A door that can stop its runs lends the host a [`RunStop`] for each one: the run's own first
+//! signal, the one a first Ctrl-C sends, so in-flight work completes and no new wave starts.
+//! A Stop taken before the run started its work is applied when it starts: one taken before the
+//! door spawns its child starts nothing, one taken after reaches the child as its run starts.
 
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use nika_cli_host::display::run_story::{ExecutionId, RunFrame, RunIdentity};
+use nika_cli_host::display::run_story::{EventKind, ExecutionId, RunFrame, RunIdentity};
 use nika_cli_host::lane::{self, ChildSlot, PendingRun, RunProgress};
 use nika_session::KeptRun;
 
@@ -53,6 +58,26 @@ pub enum RunStep {
     },
 }
 
+/// Where a Stop found the run a door executes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Stopping {
+    /// The run took its first signal: it stops at its next wave boundary (in-flight work
+    /// completes and is counted, no new wave starts, its trace seals as cancelled).
+    Signalled,
+    /// The run had not started its work: it starts none, or takes the signal as it starts.
+    Pending,
+    /// The run already ended: nothing was sent.
+    Ended,
+}
+
+/// The Stop of one run a door executes, callable from any thread while the door blocks in it.
+pub trait RunStop: Send + Sync {
+    /// Ask the run to stop at its next wave boundary. Idempotent: a later call sends nothing
+    /// more and says where the run stands; a Stop never escalates to an abort.
+    fn stop(&self) -> Stopping;
+}
+
 /// How a host executes what its Session requested.
 pub trait RunDoor: Send {
     /// Run the workflow once, as the Session requested it.
@@ -71,6 +96,12 @@ pub trait RunDoor: Send {
     /// The human's answer to the cost review this door holds: one approval continues that very
     /// child once; a decline drops it and sends nothing.
     fn answer_review(&mut self, approve: bool, sink: &dyn RunSink) -> RunStep;
+
+    /// Arm a Stop for the next run, resume or approved review this door executes, when it can
+    /// stop one. `None` (the default): the run is not stopped from here.
+    fn stopper(&mut self) -> Option<Arc<dyn RunStop>> {
+        None
+    }
 }
 
 /// A door that starts no run, and says why.
@@ -114,6 +145,78 @@ impl RunDoor for NoRunDoor {
     }
 }
 
+/// Why a run whose Stop came before it started its work was not started.
+const STOPPED_BEFORE_START: &str = "a Stop arrived before this run started · nothing ran";
+
+/// Where one lane run stands for its Stop.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Phase {
+    /// Armed: the run has not reported its start.
+    Armed,
+    /// A Stop came before the start: the run starts nothing, or is signalled as it starts.
+    Pending,
+    /// The run reported its start: its signal listener is armed, a Stop signals it at once.
+    Started,
+    /// The first signal was sent.
+    Signalled,
+    /// The run ended: nothing is sent any more.
+    Ended,
+}
+
+/// The Stop of one lane run: SIGINT to its child once the run reported its start, never before
+/// (a signal ahead of the child's listener would end it by the default action, no trace sealed).
+struct LaneStop {
+    slot: ChildSlot,
+    phase: Mutex<Phase>,
+}
+
+impl LaneStop {
+    fn phase(&self) -> MutexGuard<'_, Phase> {
+        self.phase.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Before the child spawns: whether a Stop already came, then nothing starts.
+    fn refuses(&self) -> bool {
+        let mut phase = self.phase();
+        let refused = *phase == Phase::Pending;
+        if refused {
+            *phase = Phase::Ended;
+        }
+        refused
+    }
+
+    /// The run reported its start: a Stop that waited for it is sent now.
+    fn started(&self) {
+        let mut phase = self.phase();
+        *phase = match *phase {
+            Phase::Armed => Phase::Started,
+            Phase::Pending if PendingRun::interrupt(&self.slot) => Phase::Signalled,
+            Phase::Pending => Phase::Ended,
+            other => other,
+        };
+    }
+
+    fn ended(&self) {
+        *self.phase() = Phase::Ended;
+    }
+}
+
+impl RunStop for LaneStop {
+    fn stop(&self) -> Stopping {
+        let mut phase = self.phase();
+        let (next, stopping) = match *phase {
+            Phase::Armed | Phase::Pending => (Phase::Pending, Stopping::Pending),
+            Phase::Started if PendingRun::interrupt(&self.slot) => {
+                (Phase::Signalled, Stopping::Signalled)
+            }
+            Phase::Signalled => (Phase::Signalled, Stopping::Signalled),
+            Phase::Started | Phase::Ended => (Phase::Ended, Stopping::Ended),
+        };
+        *phase = next;
+        stopping
+    }
+}
+
 /// This binary's machine lane as a child (`nika run --json`), pipes only: the native door's
 /// runs, the same path the terminal renderer takes, its frames folded as that renderer folds them.
 pub struct LaneRunDoor {
@@ -121,6 +224,7 @@ pub struct LaneRunDoor {
     slot: ChildSlot,
     held: Option<Box<PendingRun>>,
     identity: Mutex<RunIdentity>,
+    stop: Option<Arc<LaneStop>>,
 }
 
 impl std::fmt::Debug for LaneRunDoor {
@@ -141,6 +245,7 @@ impl LaneRunDoor {
             slot: Arc::new(Mutex::new(None)),
             held: None,
             identity: Mutex::default(),
+            stop: None,
         }
     }
 
@@ -167,10 +272,11 @@ impl LaneRunDoor {
 }
 
 /// The turn's own sink, the run's identity folded on the way: the one fold every host folds a
-/// run's frames with.
+/// run's frames with. The run's start frame is also its Stop's cue.
 struct Folding<'a> {
     sink: &'a dyn RunSink,
     identity: &'a Mutex<RunIdentity>,
+    stop: Option<&'a LaneStop>,
 }
 
 impl RunSink for Folding<'_> {
@@ -181,6 +287,11 @@ impl RunSink for Folding<'_> {
     fn frame(&self, frame: RunFrame) {
         if let Ok(mut identity) = self.identity.lock() {
             identity.frame(&frame);
+        }
+        if let (Some(stop), RunFrame::Event(event)) = (self.stop, &frame)
+            && event.kind == EventKind::WorkflowStarted
+        {
+            stop.started();
         }
         self.sink.frame(frame);
     }
@@ -206,6 +317,10 @@ impl RunDoor for LaneRunDoor {
     fn run(&mut self, root: &Path, run: &RunRequest, sink: &dyn RunSink) -> RunStep {
         // A new run replaces a review still held: dropping it ends its child, nothing is sent.
         self.held = None;
+        let armed = Armed(self.stop.take());
+        if armed.refuses() {
+            return not_started(STOPPED_BEFORE_START);
+        }
         // The child runs only the bytes the Session checked: it compares their witness with the
         // source it captures, and other bytes (or a request that recorded none) run nothing.
         let args = run.args(root);
@@ -213,6 +328,7 @@ impl RunDoor for LaneRunDoor {
         let folding = Folding {
             sink,
             identity: &self.identity,
+            stop: armed.stop(),
         };
         match lane::drive_reviewed_child_observed(&self.exe, &args, root, &folding, &self.slot) {
             RunProgress::Complete((exit, trace, _)) => RunStep::Observed {
@@ -242,11 +358,16 @@ impl RunDoor for LaneRunDoor {
         answer: &str,
         sink: &dyn RunSink,
     ) -> RunStep {
+        let armed = Armed(self.stop.take());
+        if armed.refuses() {
+            return not_started(STOPPED_BEFORE_START);
+        }
         let args = lane::resume_args(root, workflow, trace, answer);
         self.fresh();
         let folding = Folding {
             sink,
             identity: &self.identity,
+            stop: armed.stop(),
         };
         let (exit, trace, _) =
             lane::drive_child_observed(&self.exe, &args, root, &folding, &self.slot);
@@ -258,6 +379,7 @@ impl RunDoor for LaneRunDoor {
     }
 
     fn answer_review(&mut self, approve: bool, sink: &dyn RunSink) -> RunStep {
+        let armed = Armed(self.stop.take());
         let Some(pending) = self.held.take() else {
             return RunStep::NotStarted {
                 why: "no run waits at a cost review on this door".to_owned(),
@@ -267,10 +389,16 @@ impl RunDoor for LaneRunDoor {
             drop(pending);
             return RunStep::Declined;
         }
+        if armed.refuses() {
+            // The approval never reaches the child: dropping it ends it, nothing is sent.
+            drop(pending);
+            return not_started(STOPPED_BEFORE_START);
+        }
         // The approved child continues the run its review held: its frames fold on.
         let folding = Folding {
             sink,
             identity: &self.identity,
+            stop: armed.stop(),
         };
         let (exit, trace, _) = (*pending).answer_observed(true, &folding);
         RunStep::Observed {
@@ -278,6 +406,43 @@ impl RunDoor for LaneRunDoor {
             trace,
             leg: self.leg(),
         }
+    }
+
+    fn stopper(&mut self) -> Option<Arc<dyn RunStop>> {
+        let stop = Arc::new(LaneStop {
+            slot: Arc::clone(&self.slot),
+            phase: Mutex::new(Phase::Armed),
+        });
+        self.stop = Some(Arc::clone(&stop));
+        Some(stop)
+    }
+}
+
+/// The Stop a run took from its door, ended with that run.
+struct Armed(Option<Arc<LaneStop>>);
+
+impl Armed {
+    /// Whether a Stop came before the run started: then nothing starts.
+    fn refuses(&self) -> bool {
+        self.0.as_ref().is_some_and(|stop| stop.refuses())
+    }
+
+    fn stop(&self) -> Option<&LaneStop> {
+        self.0.as_deref()
+    }
+}
+
+impl Drop for Armed {
+    fn drop(&mut self) {
+        if let Some(stop) = &self.0 {
+            stop.ended();
+        }
+    }
+}
+
+fn not_started(why: &str) -> RunStep {
+    RunStep::NotStarted {
+        why: why.to_owned(),
     }
 }
 

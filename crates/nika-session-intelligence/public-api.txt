@@ -691,6 +691,42 @@ impl<T> tracing::instrument::Instrument for nika_session_intelligence::reasoner:
 impl<T> tracing::instrument::WithSubscriber for nika_session_intelligence::reasoner::agent_model::AgentModel
 impl<T> typenum::type_operators::Same for nika_session_intelligence::reasoner::agent_model::AgentModel
 pub type nika_session_intelligence::reasoner::agent_model::AgentModel::Output = T
+pub mod nika_session_intelligence::reasoner::agent_seat
+pub struct nika_session_intelligence::reasoner::agent_seat::SeatConversation
+impl nika_session_intelligence::reasoner::agent_seat::SeatConversation
+pub const fn nika_session_intelligence::reasoner::agent_seat::SeatConversation::opening(&self) -> &serde_json::value::Value
+impl core::ops::drop::Drop for nika_session_intelligence::reasoner::agent_seat::SeatConversation
+pub fn nika_session_intelligence::reasoner::agent_seat::SeatConversation::drop(&mut self)
+impl nika_session_agent::run::lead::Conversant for nika_session_intelligence::reasoner::agent_seat::SeatConversation
+pub fn nika_session_intelligence::reasoner::agent_seat::SeatConversation::ended(&self) -> bool
+pub fn nika_session_intelligence::reasoner::agent_seat::SeatConversation::prompt(&mut self, text: &str, beats: &mut dyn core::ops::function::FnMut(nika_session_agent::run::lead::Beat), stop: &mut dyn core::ops::function::FnMut() -> bool) -> core::result::Result<nika_session_agent::run::lead::Led, alloc::string::String>
+impl<D> owo_colors::OwoColorize for nika_session_intelligence::reasoner::agent_seat::SeatConversation
+impl<T, U> core::convert::Into<U> for nika_session_intelligence::reasoner::agent_seat::SeatConversation where U: core::convert::From<T>
+pub fn nika_session_intelligence::reasoner::agent_seat::SeatConversation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_intelligence::reasoner::agent_seat::SeatConversation where U: core::convert::Into<T>
+pub type nika_session_intelligence::reasoner::agent_seat::SeatConversation::Error = core::convert::Infallible
+pub fn nika_session_intelligence::reasoner::agent_seat::SeatConversation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_intelligence::reasoner::agent_seat::SeatConversation where U: core::convert::TryFrom<T>
+pub type nika_session_intelligence::reasoner::agent_seat::SeatConversation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_intelligence::reasoner::agent_seat::SeatConversation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_session_intelligence::reasoner::agent_seat::SeatConversation where T: 'static + ?core::marker::Sized
+pub fn nika_session_intelligence::reasoner::agent_seat::SeatConversation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_intelligence::reasoner::agent_seat::SeatConversation where T: ?core::marker::Sized
+pub fn nika_session_intelligence::reasoner::agent_seat::SeatConversation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_intelligence::reasoner::agent_seat::SeatConversation where T: ?core::marker::Sized
+pub fn nika_session_intelligence::reasoner::agent_seat::SeatConversation::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_session_intelligence::reasoner::agent_seat::SeatConversation
+pub fn nika_session_intelligence::reasoner::agent_seat::SeatConversation::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_session_intelligence::reasoner::agent_seat::SeatConversation where T: 'static
+pub fn nika_session_intelligence::reasoner::agent_seat::SeatConversation::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_intelligence::reasoner::agent_seat::SeatConversation where T: ?core::marker::Sized
+pub fn nika_session_intelligence::reasoner::agent_seat::SeatConversation::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_intelligence::reasoner::agent_seat::SeatConversation::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_intelligence::reasoner::agent_seat::SeatConversation
+impl<T> tracing::instrument::WithSubscriber for nika_session_intelligence::reasoner::agent_seat::SeatConversation
+impl<T> typenum::type_operators::Same for nika_session_intelligence::reasoner::agent_seat::SeatConversation
+pub type nika_session_intelligence::reasoner::agent_seat::SeatConversation::Output = T
+pub fn nika_session_intelligence::reasoner::agent_seat::open(seat: &str, model: core::option::Option<&str>, effort: core::option::Option<nika_compile::types::AuthoringReasoning>, tools: alloc::sync::Arc<dyn nika_session_change::tools::SessionTools>) -> core::result::Result<nika_session_intelligence::reasoner::agent_seat::SeatConversation, alloc::string::String>
 #[non_exhaustive] pub enum nika_session_intelligence::reasoner::ReasonError
 pub nika_session_intelligence::reasoner::ReasonError::Cancelled
 pub nika_session_intelligence::reasoner::ReasonError::NoIntelligence

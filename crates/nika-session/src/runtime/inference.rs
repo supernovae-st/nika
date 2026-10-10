@@ -54,10 +54,16 @@ impl SessionRuntime {
     /// The completed worker returns this Session and its journal; Run is outside this token.
     pub fn begin_preparation_turn(&mut self) -> nika_types::cancel::CancelCtx {
         self.preparation_before = self.preparation_snapshot();
-        self.money
+        let cancel = self
+            .money
             .preparation
             .get_or_insert_with(Default::default)
-            .begin_turn()
+            .begin_turn();
+        // The conversation's loop, Nika's or an ACP agent's, obeys the same Stop.
+        if let Some(driver) = self.agent.as_mut() {
+            driver.stop_with(cancel.clone());
+        }
+        cancel
     }
 
     pub(super) fn retain_money_guard(&mut self) {

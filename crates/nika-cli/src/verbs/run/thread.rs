@@ -8,8 +8,8 @@
 //! boundary: in-flight work completes and is counted, the unstarted tasks
 //! settle as cancelled by the operator, the run ends with ONE
 //! `workflow_cancelled` terminal and the trace seals. A second signal ends
-//! the process at once: the trace stays incomplete · the operator's choice,
-//! said on stderr.
+//! the exec process groups the run still owns, then the process itself:
+//! the trace stays incomplete · the operator's choice, said on stderr.
 //!
 //! The listener is a THREAD of its own, never a branch beside the run's
 //! future: the run's task can sit in a long synchronous stretch (a wave
@@ -21,14 +21,11 @@ use nika_types::cancel::CancelCtx;
 
 use super::RunVerdict;
 
-pub(super) fn block_on_run<F>(
+pub(super) fn block_on_run(
     runtime: &tokio::runtime::Runtime,
-    future: F,
+    future: impl std::future::Future<Output = RunVerdict>,
     cancel: &CancelCtx,
-) -> RunVerdict
-where
-    F: std::future::Future<Output = RunVerdict>,
-{
+) -> RunVerdict {
     let _listener = listen(runtime, cancel.clone());
     runtime.block_on(future)
 }
@@ -54,10 +51,10 @@ impl Drop for Listener {
     }
 }
 
-/// Hear the operator on a thread of its own: the first signal flips the
-/// context and says what happens next; the second ends the process with
-/// the cancelled class. A listener that cannot start says so once and the
-/// run then ends the way the platform ends it, never a silent hang.
+/// Hear the operator on a thread of its own: the first signal flips the context and says
+/// what happens next; the second ends the run's exec process groups, then the process with
+/// the cancelled class. A listener that cannot start says so once and the run then ends the
+/// way the platform ends it, never a silent hang.
 fn listen(runtime: &tokio::runtime::Runtime, cancel: CancelCtx) -> Option<Listener> {
     // Register before dispatch, and retain both Unix subscriptions between
     // signals. Recreating a receiver after "cancelling" could lose the next
@@ -89,16 +86,17 @@ fn listen(runtime: &tokio::runtime::Runtime, cancel: CancelCtx) -> Option<Listen
         receiver.recv().await;
         #[cfg(not(unix))]
         operator_signal().await;
-        eprintln!("nika run: aborted · the trace is incomplete (the run was cut mid-flight)");
-        std::process::exit(i32::from(crate::verbs::exit::CANCELLED));
+        // Exits while the ended groups stay taken: no run of theirs goes on past this end.
+        nika_exec_runner::terminate_owned_groups(std::time::Duration::from_secs(1), |ended| {
+            eprintln!(
+                "nika run: aborted · the trace is incomplete (the run was cut mid-flight) · {ended}"
+            );
+            std::process::exit(i32::from(crate::verbs::exit::CANCELLED));
+        });
     };
-    match spawn_listener(signals) {
-        Ok(listener) => Some(listener),
-        Err(error) => {
-            eprintln!("nika run: cannot listen for Ctrl-C: {error}");
-            None
-        }
-    }
+    spawn_listener(signals)
+        .inspect_err(|error| eprintln!("nika run: cannot listen for Ctrl-C: {error}"))
+        .ok()
 }
 
 fn spawn_listener(

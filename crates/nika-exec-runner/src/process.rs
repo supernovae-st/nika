@@ -11,13 +11,21 @@
 //! uninterruptible processes and cleanup after runtime shutdown need a
 //! stronger OS boundary. Successful background commands keep their existing
 //! behavior; this guard acts only when collection fails or is abandoned.
+//!
+//! A process that exits without running destructors never reaches that Drop:
+//! every group is also listed process-wide from its spawn until its owner
+//! releases it before the reap, so [`terminate_owned_groups`] can end what is
+//! still owned first.
 
 use std::io;
 use std::process::ExitStatus;
 use tokio::process::{Child, Command};
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-use rustix::process::{Pid, Signal, WaitId, WaitIdOptions, kill_process_group, waitid};
+use rustix::process::{Pid, Signal, WaitId, WaitIdOptions, waitid};
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod groups;
 
 pub(super) struct Process {
     pub(super) child: Child,
@@ -29,20 +37,12 @@ impl Process {
     pub(super) fn spawn(command: &mut Command) -> io::Result<Self> {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         command.process_group(0).kill_on_drop(false);
-        let child = command.spawn()?;
+        // Under the owned list's lock: a forced end never misses the group, and
+        // nothing starts once one began.
         #[cfg(any(target_os = "linux", target_os = "macos"))]
-        let Some(group) = child
-            .id()
-            .and_then(|id| i32::try_from(id).ok())
-            .filter(|id| *id > 1)
-            .and_then(Pid::from_raw)
-        else {
-            let mut child = child;
-            let _ = child.start_kill();
-            return Err(io::Error::other(
-                "spawned child has no usable process-group identity",
-            ));
-        };
+        let (child, group) = groups::OWNED.spawn(|| grouped(command))?;
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+        let child = command.spawn()?;
         Ok(Self {
             child,
             #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -68,10 +68,12 @@ impl Process {
                 Ok(None) => {}
                 Err(rustix::io::Errno::INTR) => continue,
                 Err(error) => {
-                    if error == rustix::io::Errno::CHILD {
+                    if error == rustix::io::Errno::CHILD
+                        && let Some(group) = self.group.take()
+                    {
                         // An external reaper took ownership: never signal the
                         // saved group number after its leader may be recycled.
-                        self.group = None;
+                        let _ = groups::OWNED.release(group, None);
                     }
                     return Err(error.into());
                 }
@@ -87,12 +89,13 @@ impl Process {
         self.child.wait().await.map(|_| ())
     }
 
-    /// Called only after `exited()` AND both drains finish. Disarm immediately
-    /// before synchronous reaping, with no cancellation point in between.
+    /// Called only after `exited()` AND both drains finish. Disarm (and release
+    /// the group process-wide) immediately before synchronous reaping, with no
+    /// cancellation point in between.
     pub(super) fn finish(&mut self) -> io::Result<ExitStatus> {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
-        {
-            self.group = None;
+        if let Some(group) = self.group.take() {
+            let _ = groups::OWNED.release(group, None);
         }
         self.child
             .try_wait()?
@@ -100,11 +103,33 @@ impl Process {
     }
 }
 
+/// Spawn `command` and name its dedicated group: a child without one is
+/// killed, never kept.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn grouped(command: &mut Command) -> io::Result<(Child, Pid)> {
+    let child = command.spawn()?;
+    let Some(group) = child
+        .id()
+        .and_then(|id| i32::try_from(id).ok())
+        .filter(|id| *id > 1)
+        .and_then(Pid::from_raw)
+    else {
+        let mut child = child;
+        let _ = child.start_kill();
+        return Err(io::Error::other(
+            "spawned child has no usable process-group identity",
+        ));
+    };
+    Ok((child, group))
+}
+
 impl Drop for Process {
     fn drop(&mut self) {
+        // Only while this process still owns the group: a forced end that took
+        // it may have reaped its leader already.
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         if let Some(group) = self.group.take()
-            && let Err(error) = kill_process_group(group, Signal::KILL)
+            && let Some(Err(error)) = groups::OWNED.release(group, Some(Signal::KILL))
             && error != rustix::io::Errno::SRCH
         {
             use std::io::Write as _;
@@ -115,6 +140,117 @@ impl Drop for Process {
         }
         // Tokio's reaper follows. On Linux/macOS its kill_on_drop is disabled:
         // this guard is the sole signal owner, including after ECHILD disarms it.
+    }
+}
+
+// ─── a forced end of every owned group ──────────────────────────────────
+
+/// What a forced end of the owned process groups came to ([`terminate_owned_groups`]). It counts
+/// processes ended, never effects undone: nothing a process did is rolled back.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Terminated {
+    ended: usize,
+    killed: usize,
+    unconfirmed: Vec<i32>,
+    spared: usize,
+    untracked: bool,
+}
+
+impl Terminated {
+    /// The groups seen to end: each one's leader reaped, then no process left in it.
+    #[must_use]
+    pub const fn ended(&self) -> usize {
+        self.ended
+    }
+
+    /// Of the groups signalled, those whose leader still ran after the grace, so SIGKILL ended it.
+    #[must_use]
+    pub const fn killed(&self) -> usize {
+        self.killed
+    }
+
+    /// The groups signalled whose end was not seen within the wait (a process stuck in the
+    /// kernel, or one that left its group), by number: they may still run.
+    pub fn unconfirmed(&self) -> impl Iterator<Item = i32> + '_ {
+        self.unconfirmed.iter().copied()
+    }
+
+    /// The groups never signalled because this process could no longer wait for their leader:
+    /// their number may name another group now, and their processes may still run.
+    #[must_use]
+    pub const fn spared(&self) -> usize {
+        self.spared
+    }
+
+    /// Whether every process group this process owned was seen to end; never on a platform
+    /// without dedicated groups, where none is tracked.
+    #[must_use]
+    pub fn complete(&self) -> bool {
+        !self.untracked && self.spared == 0 && self.unconfirmed.is_empty()
+    }
+}
+
+impl std::fmt::Display for Terminated {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let noun = |n: usize| if n == 1 { "group" } else { "groups" };
+        if self.untracked {
+            f.write_str(
+                "this platform tracks no exec process group: one still running was not ended",
+            )?;
+        } else if self.ended == 0 && self.unconfirmed.is_empty() && self.spared == 0 {
+            f.write_str("no exec process was running")?;
+        } else {
+            write!(f, "{} exec process {} ended", self.ended, noun(self.ended))?;
+            if self.killed > 0 {
+                write!(f, " ({} after SIGKILL)", self.killed)?;
+            }
+            for group in &self.unconfirmed {
+                write!(
+                    f,
+                    " · process group {group} did not confirm its end and may still run"
+                )?;
+            }
+            if self.spared > 0 {
+                let spared = self.spared;
+                write!(
+                    f,
+                    " · {spared} exec process {} could not be signalled safely and may still run",
+                    noun(spared)
+                )?;
+            }
+        }
+        f.write_str(
+            " · nothing is rolled back: what already ran stays done, \
+             and an effect in flight has an unknown outcome",
+        )
+    }
+}
+
+/// End every process group this process's spawns still own, for a process about to exit without
+/// running its destructors (the CLI's second Ctrl-C): SIGTERM to each group whose leader
+/// is still this process's child, up to `grace` for those leaders to exit, SIGKILL to every one of
+/// those groups (an exited leader can leave members behind), then up to `grace` again to reap each
+/// leader and see its group empty. A group whose leader this process can no longer wait for is
+/// never signalled: its number may name another group. Nothing spawns afterwards, and `grace`
+/// counts at most one minute.
+///
+/// `then` receives the report while every group stays taken: an owner whose group ended cannot
+/// go on (reap it, report its end) before `then` returns, so a process that exits in `then` lets
+/// none of them run on past the end it reports.
+///
+/// Blocking, for a thread of its own, never an executor's. It ends processes and undoes nothing
+/// they did; a descendant that left its group (setsid, setpgid) is outside it.
+pub fn terminate_owned_groups(grace: std::time::Duration, then: impl FnOnce(&Terminated)) {
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    groups::OWNED.terminate(grace, then);
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        let _ = grace;
+        then(&Terminated {
+            untracked: true,
+            ..Terminated::default()
+        });
     }
 }
 
@@ -384,9 +520,10 @@ async fn collect_grouped(
         match (early, ended.load(Ordering::SeqCst)) {
             (Some(joined), 0) => (Some(joined), None),
             (early, why) => {
-                // The leader is unreaped, so the group number still names this group.
+                // The leader is unreaped, so the group number still names this group
+                // (unless a forced end took it: then this never signals it).
                 if !released.load(Ordering::SeqCst) {
-                    let _ = kill_process_group(group, Signal::KILL);
+                    let _ = groups::OWNED.signal(group, Signal::KILL);
                 }
                 let why = match why {
                     2 => Ended::Stdout,

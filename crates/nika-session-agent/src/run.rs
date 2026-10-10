@@ -23,6 +23,10 @@ use crate::event::{AgentEvent, End};
 use crate::steer::{QueueMode, Steering};
 use crate::tree::{EntryId, EntryKind, Tree, TreeError, calls};
 
+mod lead;
+
+pub use lead::{Beat, Conversant, LED_TURN, Led, LedEnd, Relay, transcript};
+
 /// What the model reads after a call that repeats the previous one exactly, reply included.
 const REPEATED: &str = "\n\n(Nika: this call and its reply repeat the previous call exactly.)";
 
@@ -279,7 +283,7 @@ impl<'a> Agent<'a> {
             };
         }
         match self.user(text, None, None) {
-            Ok(entry) => self.drive(&entry, model, events),
+            Ok((entry, _)) => self.drive(&entry, model, events),
             Err(error) => Outcome::Failed { error },
         }
     }
@@ -297,7 +301,7 @@ impl<'a> Agent<'a> {
             };
         };
         match self.user(text, Some(call), None) {
-            Ok(entry) => self.drive(&entry, model, events),
+            Ok((entry, _)) => self.drive(&entry, model, events),
             Err(error) => Outcome::Failed { error },
         }
     }
@@ -535,19 +539,33 @@ impl<'a> Agent<'a> {
     }
 
     /// Record the queued lines of `mode` as the person's lines; returns whether any entered.
-    /// A line that could not be recorded returns to the queue with the ones after it.
     fn dequeue(
         &mut self,
         mode: QueueMode,
         events: &mut dyn FnMut(AgentEvent),
     ) -> Result<bool, AgentError> {
+        self.queued_lines(mode, events)
+            .map(|lines| !lines.is_empty())
+    }
+
+    /// Record the queued lines of `mode` as the person's lines; returns each with its citation.
+    /// A line that could not be recorded returns to the queue with the ones after it.
+    fn queued_lines(
+        &mut self,
+        mode: QueueMode,
+        events: &mut dyn FnMut(AgentEvent),
+    ) -> Result<Vec<(String, String)>, AgentError> {
         let lines = self.steering.take(mode);
+        let mut entered = Vec::with_capacity(lines.len());
         for (k, line) in lines.iter().enumerate() {
             match self.user(line, None, Some(mode)) {
-                Ok(entry) => events(AgentEvent::Dequeued {
-                    mode,
-                    entry: entry.to_string(),
-                }),
+                Ok((entry, cite)) => {
+                    events(AgentEvent::Dequeued {
+                        mode,
+                        entry: entry.to_string(),
+                    });
+                    entered.push((line.clone(), cite));
+                }
                 Err(error) => {
                     let rest = lines[k..].iter().map(|l| (mode, l.clone())).collect();
                     self.steering.requeue(rest);
@@ -555,7 +573,7 @@ impl<'a> Agent<'a> {
                 }
             }
         }
-        Ok(!lines.is_empty())
+        Ok(entered)
     }
 
     /// Stop: the queued lines return unsent, and the tree records that the person stopped.
@@ -577,18 +595,18 @@ impl<'a> Agent<'a> {
         Ok(self.tree.append(kind, at, |line| store.append(line))?)
     }
 
+    /// Record a person's line; returns its entry and its citation.
     fn user(
         &mut self,
         text: &str,
         answers: Option<String>,
         queued: Option<QueueMode>,
-    ) -> Result<EntryId, AgentError> {
+    ) -> Result<(EntryId, String), AgentError> {
         let at = (self.now)();
         let store = &mut *self.store;
-        let (entry, _) = self
+        Ok(self
             .tree
-            .append_user(text, answers, queued, at, |line| store.append(line))?;
-        Ok(entry)
+            .append_user(text, answers, queued, at, |line| store.append(line))?)
     }
 }
 

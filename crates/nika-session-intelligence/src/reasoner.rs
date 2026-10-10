@@ -8,9 +8,13 @@
 //! infer verb), a scripted reasoner (the tests' stand-in, which records
 //! exactly what it was given), or none. [`agent_model`] asks the same API or
 //! local route with a whole conversation and the Session's tools, for the
-//! conversation the selected intelligence leads.
+//! conversation the selected intelligence leads; `agent_seat` opens that
+//! conversation with a subscription seat's ACP agent, which leads it with its
+//! own loop over the same tools.
 
 pub mod agent_model;
+#[cfg(feature = "access-harness")]
+pub mod agent_seat;
 #[cfg(test)]
 mod label_tests;
 #[cfg(any(test, feature = "test-support"))]

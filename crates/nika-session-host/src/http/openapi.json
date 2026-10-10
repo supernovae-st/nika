@@ -36,7 +36,7 @@
       "parameters": [{"$ref": "#/components/parameters/SessionId"}],
       "get": {
         "summary": "The current snapshot",
-        "description": "Never waits on a turn: `snapshot.busy` names the command under way and its phase (`preparing`, `running`, `settling`).",
+        "description": "Never waits on a turn: `snapshot.busy` names the command under way, its phase (`preparing`, `running`, `stopping`: the run took its first signal, `settling`) and whether a Stop was taken for it (`stop_requested`).",
         "responses": {
           "200": {"description": "A `snapshot` frame", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
           "404": {"description": "A `refused` frame: session_not_found (unknown, closed, or another incarnation)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}}
@@ -44,7 +44,7 @@
       },
       "delete": {
         "summary": "Close the Session",
-        "description": "A preparation under way is stopped, nothing more is admitted, the turn under way settles, the runtime releases its history, and `closed` ends the log. A Run under way is not stopped by closing: the close waits for it.",
+        "description": "A preparation under way is stopped, nothing more is admitted, the turn under way settles, the runtime releases its history, and `closed` ends the log. A Run under way is not stopped by closing: the close waits for it (a `stop` command asks it to stop first).",
         "responses": {
           "200": {"description": "The `closed` frame (the last event)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
           "404": {"description": "A `refused` frame: session_not_found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}}
@@ -65,8 +65,8 @@
     "/v1/sessions/{session}/commands": {
       "parameters": [{"$ref": "#/components/parameters/SessionId"}],
       "post": {
-        "summary": "Submit a line against a snapshot, or stop the preparation under way",
-        "description": "A submit reaches the Session only when it names the CURRENT snapshot; the Session receives that snapshot's retained `Waiting`, never one rebuilt from the request. A command identity already known answers first: the same bytes (op, snapshot, line) return the recorded result with `replayed: true` (an original still running is awaited, never run twice); other bytes answer 409 command_conflict. One turn at a time: a submit during a turn answers 409 busy with its line returned unconsumed. The answer to a submit comes once it settled; no request deadline applies, and a disconnected request never cancels the accepted turn. A stop answers at once with its receipt (`stop_requested`, `nothing_to_stop`, `run_underway`); the settlement is the target command's own result.",
+        "summary": "Submit a line against a snapshot, or stop the turn under way",
+        "description": "A submit reaches the Session only when it names the CURRENT snapshot; the Session receives that snapshot's retained `Waiting`, never one rebuilt from the request. A command identity already known answers first: the same bytes (op, snapshot, line) return the recorded result with `replayed: true` (an original still running is awaited, never run twice); other bytes answer 409 command_conflict. One turn at a time: a submit during a turn answers 409 busy with its line returned unconsumed. The answer to a submit comes once it settled; no request deadline applies, and a disconnected request never cancels the accepted turn. A stop answers at once with its receipt; the settlement is the target command's own result. `stop_requested`: the preparation under way stops, or the Run it executes had not started its work yet (it starts none, or takes the Stop as it starts). `run_stopping`: the Run took its first signal, as a first Ctrl-C sends it: in-flight work completes and is counted, no new wave starts, and its result carries `run_stopped` once its trace sealed as cancelled (`run_aborted` when it ended without sealing it). `nothing_to_stop`: no turn, the turn is settling, or its Run already ended. `run_underway`: this door cannot stop the Run. A replayed stop answers its recorded receipt, and a second stop while one is under way sends nothing more: a stop never escalates to an abort.",
         "requestBody": {
           "required": true,
           "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionCommand"}}}
@@ -123,7 +123,7 @@
           "busy": {
             "oneOf": [
               {"type": "null"},
-              {"type": "object", "required": ["command", "phase", "stop_requested"], "properties": {"command": {"type": "string"}, "phase": {"enum": ["preparing", "running", "settling"]}, "stop_requested": {"type": "boolean"}}}
+              {"type": "object", "required": ["command", "phase", "stop_requested"], "properties": {"command": {"type": "string"}, "phase": {"enum": ["preparing", "running", "stopping", "settling"]}, "stop_requested": {"type": "boolean"}}}
             ]
           },
           "work": {
@@ -153,7 +153,7 @@
       "SessionOutcome": {
         "type": "object",
         "required": ["kind"],
-        "description": "One TurnOutcome, projected mechanically: reply, facts, help, aside, ask, cancelled (with `withdrawn` outcomes when a Stop withdrew a late result), quit, refusal (`class`), held and proposal (`proposal`), question (`key`), gate (`trace`, `task`), run_requested (`workflow`, `inputs` names only, `max_cost_usd`), resume_requested (`workflow`, `trace`, `answer`), run_review (`review`: the run waits at its fresh cost review), run_reviewed, run_not_started (nothing ran), run_unobserved (admitted, its end not observed: effects unknown), resumed, other.",
+        "description": "One TurnOutcome, projected mechanically: reply, facts, help, aside, ask, cancelled (with `withdrawn` outcomes when a Stop withdrew a late result), quit, refusal (`class`), held and proposal (`proposal`), question (`key`), gate (`trace`, `task`), run_requested (`workflow`, `inputs` names only, `max_cost_usd`), resume_requested (`workflow`, `trace`, `answer`), run_review (`review`: the run waits at its fresh cost review), run_reviewed, run_not_started (nothing ran), run_unobserved (admitted, its end not observed: effects unknown), run_stopped (a Stop reached the run and it sealed its trace as cancelled), run_aborted (a Stop reached the run but it ended without sealing its trace: cut mid-flight, effects in flight unknown), resumed, other. A kind this list does not name is shown as unknown, never guessed.",
         "properties": {"kind": {"type": "string"}, "text": {"type": "string"}}
       },
       "SessionFrame": {
@@ -168,7 +168,7 @@
           "op": {"enum": ["submit", "stop"]},
           "replayed": {"type": "boolean"},
           "outcomes": {"type": "array", "items": {"$ref": "#/components/schemas/SessionOutcome"}},
-          "receipt": {"enum": ["stop_requested", "nothing_to_stop", "run_underway"]},
+          "receipt": {"enum": ["stop_requested", "run_stopping", "nothing_to_stop", "run_underway"]},
           "target": {"type": ["string", "null"]},
           "error": {"enum": ["malformed", "session_not_found", "stale_snapshot", "unknown_snapshot", "busy", "command_conflict", "session_live", "session_unavailable"]},
           "message": {"type": "string"},

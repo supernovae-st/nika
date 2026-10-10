@@ -38,7 +38,8 @@ pub enum Command {
         /// The line, exactly as typed.
         line: String,
     },
-    /// Stop the preparation under way.
+    /// Stop the turn under way: its preparation, or the run it executes when its door can stop
+    /// it (the run's first signal: in-flight work completes, no new wave starts). Never an abort.
     Stop {
         /// The caller's identity for this command.
         command: String,
@@ -173,8 +174,10 @@ impl Refused {
 pub(crate) enum TurnPhase {
     /// The Session prepares: a Stop applies.
     Preparing,
-    /// A run requested by the Session executes: a Stop does not stop it.
+    /// A run requested by the Session executes: a Stop asks it to stop when its door can.
     Running,
+    /// The run took its first signal: in-flight work completes, no new wave starts.
+    Stopping,
     /// The turn's result is being settled: a Stop arrives too late.
     Settling,
 }
@@ -184,6 +187,7 @@ impl TurnPhase {
         match self {
             Self::Preparing => "preparing",
             Self::Running => "running",
+            Self::Stopping => "stopping",
             Self::Settling => "settling",
         }
     }
@@ -346,6 +350,14 @@ pub(crate) enum Outcome {
         text: String,
     },
     RunUnobserved {
+        text: String,
+    },
+    /// The Stop reached the run and it sealed its trace as cancelled.
+    RunStopped {
+        text: String,
+    },
+    /// The Stop reached the run but it ended without sealing its trace (an abort or a crash).
+    RunAborted {
         text: String,
     },
     Resumed {

@@ -307,6 +307,7 @@ fn a_resumed_leg_without_its_own_start_names_no_source() {
     let folding = Folding {
         sink: &told,
         identity: &door.identity,
+        stop: None,
     };
     folding.frame(RunFrame::decode(&started(EXEC, 1, "aa")).expect("the paused leg's start"));
     door.fresh();
@@ -341,6 +342,7 @@ fn the_lane_fold_relays_every_frame_and_keeps_the_runs_identity() {
     let folding = Folding {
         sink: &relayed,
         identity: &identity,
+        stop: None,
     };
     folding.said("running · copy.nika".to_owned());
     let settled = format!(
@@ -362,4 +364,69 @@ fn the_lane_fold_relays_every_frame_and_keeps_the_runs_identity() {
     );
     assert_eq!(leg.trace, None, "the Session adds the trace it was told");
     assert_eq!(kept(&RunIdentity::new()), None);
+}
+
+/// A lane run's Stop waits for the run's start (its child's signal listener), sends the first
+/// signal once, then only says where the run stands: a second Stop never signals again.
+#[test]
+#[allow(clippy::disallowed_types)]
+fn a_lane_stop_waits_for_its_runs_start_then_interrupts_the_child_once() {
+    use std::os::unix::process::ExitStatusExt as _;
+    let mut door = LaneRunDoor::new(PathBuf::from("nika"));
+    let stop = door.stopper().expect("the lane door stops its runs");
+    assert_eq!(
+        stop.stop(),
+        Stopping::Pending,
+        "no child yet: the Stop waits"
+    );
+    let mut child = std::process::Command::new("/bin/sleep")
+        .arg("30")
+        .spawn()
+        .expect("a child in the run's place");
+    *door.slot.lock().expect("slot") = Some(child.id());
+    let told = Told::default();
+    let folding = Folding {
+        sink: &told,
+        identity: &door.identity,
+        stop: door.stop.as_deref(),
+    };
+    folding.frame(RunFrame::decode(&started(EXEC, 1, "aa")).expect("the run's start"));
+    let status = child.wait().expect("the child ends");
+    assert_eq!(status.signal(), Some(2), "SIGINT, a first Ctrl-C's signal");
+    // Reaped, its pid still in the slot: a second Stop must not signal it again.
+    assert_eq!(stop.stop(), Stopping::Signalled);
+    door.stop.as_deref().expect("armed").ended();
+    assert_eq!(
+        stop.stop(),
+        Stopping::Ended,
+        "a run that ended takes no Stop"
+    );
+}
+
+/// A Stop taken before the lane door spawns its child is applied there: nothing is spawned (the
+/// door's binary does not even exist), and the next run arms afresh.
+#[test]
+fn a_stop_before_the_lane_door_spawns_starts_nothing() {
+    let mut door = LaneRunDoor::new(PathBuf::from("/nonexistent/nika-run-lane"));
+    let stop = door.stopper().expect("armed");
+    assert_eq!(stop.stop(), Stopping::Pending);
+    let told = Told::default();
+    let refused = door.run(Path::new("/"), &request(), &told);
+    assert!(
+        matches!(&refused, RunStep::NotStarted { why } if why == STOPPED_BEFORE_START),
+        "{refused:?}"
+    );
+    assert!(
+        told.0.lock().expect("told").is_empty(),
+        "no child said a word"
+    );
+    assert_eq!(
+        stop.stop(),
+        Stopping::Ended,
+        "the refused run ended its Stop"
+    );
+    assert!(
+        door.stop.is_none(),
+        "no Stop of that run reaches the next one"
+    );
 }

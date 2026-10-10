@@ -7,23 +7,32 @@
 //! consent door, a reply, a stop or a refusal. Saving and running stay the consent door's acts:
 //! the person's own words can open it for the exact candidate they were shown, nothing else.
 //!
+//! An API or a local route is asked by Nika's own loop; a subscription seat chosen over ACP leads
+//! with its agent's own loop ([`led`]), reaching the same tools over MCP. Both record the same
+//! tree, obey the same Stop and steering, and end in the same outcomes.
+//!
 //! The tree is kept beside the conversation history (in memory without history) and the
 //! conversation's evidence — values, provenance, delegations — with the history's state;
 //! questions and proposals never survive a reopen. A host door keeps the round driver when
 //! [`DRIVER_ENV`] says `rounds`, read once when it opens the Session; a route that cannot lead a
-//! conversation (a subscription seat, no intelligence) keeps it too.
+//! conversation (a seat over its native connection, no intelligence) keeps it too.
 
 mod conversation;
 mod desk;
+mod led;
 mod store;
 mod tools;
 
 use std::io;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use nika_fs::OwnedDir;
-use nika_session_agent::{Agent, AgentEvent, EntryKind, Outcome, Tree};
+use nika_session_agent::{Agent, AgentEvent, EntryKind, Outcome, QueueMode, Relay, Steering, Tree};
+use nika_session_change::tools::SessionTools;
 use nika_session_intelligence::reasoner::agent_model::AgentModel;
+use nika_types::access::HarnessTransport;
+use nika_types::cancel::CancelCtx;
 use serde_json::Value;
 
 use self::conversation::{Acts, Conversation};
@@ -42,13 +51,19 @@ pub(super) const DRIVER_ENV: &str = "NIKA_SESSION_DRIVER";
 /// The instructions every request of the conversation starts with.
 const SYSTEM: &str = include_str!("../../assets/author_system.md");
 
-/// The conversation the Session holds between turns.
+/// The conversation the Session holds between turns: its tools (and the relay an ACP agent
+/// reaches them through), its tree, the person's queued lines, the turn's Stop and the agent
+/// leading it, when a seat's agent does.
 pub(super) struct Driver {
-    conversation: Conversation,
+    toolbox: Arc<Toolbox>,
+    relay: Arc<Relay>,
     tree: Option<Tree>,
     store: TreeFile,
     damaged: Option<String>,
     authorized: Option<(ProposalId, Acts)>,
+    steering: Steering,
+    cancel: CancelCtx,
+    leading: Option<led::Leading>,
 }
 
 impl Driver {
@@ -61,12 +76,18 @@ impl Driver {
     }
 
     fn with_store(store: TreeFile) -> Self {
+        let toolbox = Arc::new(Toolbox::new(Conversation::default(), store.citations()));
+        let relay = Arc::new(Relay::new(Arc::clone(&toolbox) as Arc<dyn SessionTools>));
         Self {
-            conversation: Conversation::default(),
+            toolbox,
+            relay,
             tree: None,
             store,
             damaged: None,
             authorized: None,
+            steering: Steering::new(),
+            cancel: CancelCtx::new(),
+            leading: None,
         }
     }
 
@@ -92,15 +113,24 @@ impl Driver {
             },
             Err(error) => driver.damaged = Some(error.to_string()),
         }
-        driver.conversation = kept.and_then(Conversation::restored).unwrap_or_default();
+        let restored = kept.and_then(Conversation::restored).unwrap_or_default();
+        driver.toolbox.with(|conversation| *conversation = restored);
         driver
     }
 
     /// The questions that wait for the person now.
-    fn open(&self) -> Vec<&AskedQuestion> {
-        (self.conversation.questions().iter())
-            .filter(|q| q.state == AskedState::Open)
-            .collect()
+    fn open(&self) -> Vec<AskedQuestion> {
+        self.toolbox.with(|conversation| {
+            (conversation.questions().iter())
+                .filter(|q| q.state == AskedState::Open)
+                .cloned()
+                .collect()
+        })
+    }
+
+    /// The Stop of the turn about to start.
+    pub(super) fn stop_with(&mut self, cancel: CancelCtx) {
+        self.cancel = cancel;
     }
 }
 
@@ -108,11 +138,25 @@ fn refusal(class: RefusalClass, text: impl Into<String>) -> TurnOutcome {
     TurnOutcome::Refusal(Refusal::new(class, text))
 }
 
+fn could_not_start(why: &str) -> TurnOutcome {
+    refusal(
+        RefusalClass::Io,
+        format!("the conversation could not start: {why}"),
+    )
+}
+
 fn unix_ms() -> u64 {
     let since = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
     u64::try_from(since.as_millis()).unwrap_or(u64::MAX)
+}
+
+/// The instructions every request of a conversation prepared with `chosen` starts with.
+fn instructions(chosen: &str) -> String {
+    format!(
+        "{SYSTEM}\nThis Session: the person chose `{chosen}` to prepare with; offer the models of this machine through `models`."
+    )
 }
 
 /// A new tree: its header, then the instructions every request starts with.
@@ -126,10 +170,9 @@ fn start_tree(store: &mut TreeFile, root: &std::path::Path, model: &str) -> Resu
         nika_session_agent::Store::append(&mut *store, line)
     })
     .map_err(|e| e.to_string())?;
-    let text = format!(
-        "{SYSTEM}\nThis Session: the person chose `{model}` to prepare with; offer the models of this machine through `models`."
-    );
-    let system = EntryKind::System { text };
+    let system = EntryKind::System {
+        text: instructions(model),
+    };
     (tree.append(system, at, |line| {
         nika_session_agent::Store::append(&mut *store, line)
     }))
@@ -137,11 +180,40 @@ fn start_tree(store: &mut TreeFile, root: &std::path::Path, model: &str) -> Resu
     Ok(tree)
 }
 
+/// The person's lines a run returned unsent, quoted; none when it returned none.
+fn unsent(queued: &[(QueueMode, String)]) -> Option<String> {
+    (!queued.is_empty()).then(|| {
+        let lines: Vec<String> = queued
+            .iter()
+            .map(|(_, line)| format!("« {line} »"))
+            .collect();
+        format!("not sent: {}", lines.join(" · "))
+    })
+}
+
 impl SessionRuntime {
     /// Whether the selected intelligence leads this Session's conversation: the host door kept
     /// the agent driver and the selected route can lead one.
     pub(super) fn agent_leads(&self) -> bool {
-        self.agent.is_some() && self.reasoner.agent_model().is_some()
+        self.agent.is_some()
+            && (self.reasoner.agent_model().is_some() || self.agent_seat().is_some())
+    }
+
+    /// The subscription seat whose ACP agent leads the conversation: the seat the person chose,
+    /// over the ACP connection they chose.
+    fn agent_seat(&self) -> Option<String> {
+        (self.reasoner.harness_transport() == HarnessTransport::Acp)
+            .then(|| self.reasoner.authoring_harness())
+            .flatten()
+    }
+
+    /// The person's lines queued while a turn of the conversation is under way: a steering line
+    /// enters after the calls under way (an ACP agent is asked to stop and reads it next), a
+    /// follow-up line when the turn would end, and Stop returns both unsent. None while no
+    /// conversation is led.
+    #[must_use]
+    pub fn steering(&self) -> Option<Steering> {
+        self.agent.as_ref().map(|driver| driver.steering.clone())
     }
 
     /// The line, when the conversation's intelligence takes it: a free line while no
@@ -179,7 +251,7 @@ impl SessionRuntime {
 
     /// One line through the conversation, under the same gates a reasoner call meets: the money
     /// that blocks cognition, an intelligence that reads, the effort the route can carry, and
-    /// one admitted dispatch around the whole run.
+    /// one admitted dispatch around the whole run (a seat's dispatch rides the subscription).
     fn agent_line(&mut self, line: &str) -> TurnOutcome {
         if let Some(why) = self.agent.as_ref().and_then(|d| d.damaged.clone()) {
             return refusal(
@@ -207,22 +279,21 @@ impl SessionRuntime {
                 );
             }
         };
-        let Some(mut model) = self.reasoner.agent_model() else {
+        let model = self.reasoner.agent_model();
+        let seat = model.is_none().then(|| self.agent_seat()).flatten();
+        if model.is_none() && seat.is_none() {
             return refusal(
                 RefusalClass::WrongState,
                 "this intelligence does not lead a conversation",
             );
-        };
+        }
         let Some(mut driver) = self.agent.take() else {
             return refusal(
                 RefusalClass::WrongState,
                 "no conversation is open in this Session",
             );
         };
-        if let Some(effort) = effort {
-            model = model.with_effort(effort);
-        }
-        let (account, entered) = match self.enter_dispatch(Some(model.model())) {
+        let (account, entered) = match self.enter_dispatch(model.as_ref().map(AgentModel::model)) {
             Ok(pair) => pair,
             Err(why) => {
                 self.agent = Some(driver);
@@ -232,67 +303,109 @@ impl SessionRuntime {
                 );
             }
         };
-        if let Some(account) = account {
-            model = model.with_admission(account);
-        }
-        let outcome = self.drive(&mut driver, line, &mut model);
+        let outcome = match (model, seat) {
+            (Some(mut model), _) => {
+                if let Some(effort) = effort {
+                    model = model.with_effort(effort);
+                }
+                if let Some(account) = account {
+                    model = model.with_admission(account);
+                }
+                self.drive(&mut driver, line, &mut model)
+            }
+            (None, Some(seat)) => self.drive_led(&mut driver, line, &seat, effort),
+            (None, None) => refusal(
+                RefusalClass::WrongState,
+                "this intelligence does not lead a conversation",
+            ),
+        };
         self.agent = Some(driver);
         self.leave_paid_dispatch(entered);
         outcome
     }
 
-    /// The run: a line that answers the call the conversation waits on, or a new prompt.
-    fn drive(&mut self, driver: &mut Driver, line: &str, model: &mut AgentModel) -> TurnOutcome {
+    /// A turn of the conversation begins: its tree started when none was, the tools given the
+    /// turn's capabilities, and the questions a waiting run asked answered by the line about to
+    /// be cited. Returns the questions asked before the line.
+    fn agent_begin(&self, driver: &mut Driver, chosen: &str) -> Result<Vec<QuestionId>, String> {
+        if driver.tree.is_none() {
+            let started = start_tree(&mut driver.store, &self.snapshot.root, chosen)?;
+            driver.tree = Some(started);
+        }
         let probes = (self.census.as_ref()).map(|c| c.provider_context.clone());
-        let mut desk = SessionDesk {
+        let desk = SessionDesk {
             root: self.snapshot.root.clone(),
             probes: probes.unwrap_or_default(),
             knowledge: self.authoring_context.knowledge().cloned(),
         };
         let asker = self.questions.asker();
-        let mut mint =
-            move |context: &str| QuestionId::new(Witness::of(context.as_bytes()).0, &asker);
+        let mint = move |context: &str| QuestionId::new(Witness::of(context.as_bytes()).0, &asker);
+        driver.toolbox.begin(Box::new(desk), Box::new(mint));
+        let waiting = (driver.tree.as_ref())
+            .filter(|tree| tree.parked().is_some())
+            .map(Tree::next_cite);
+        Ok(driver.toolbox.with(|conversation| {
+            let before = conversation.asked_ids();
+            if let Some(cite) = waiting {
+                conversation.answered_by(&cite);
+            }
+            before
+        }))
+    }
+
+    /// The run over the selected API or local route, by Nika's own loop: a line that answers
+    /// the call the conversation waits on, or a new prompt.
+    fn drive(&mut self, driver: &mut Driver, line: &str, model: &mut AgentModel) -> TurnOutcome {
+        // A seat's agent no longer leads once the route is an API or a local one.
+        driver.leading = None;
+        let before = match self.agent_begin(driver, model.model()) {
+            Ok(before) => before,
+            Err(why) => return could_not_start(&why),
+        };
         let now = unix_ms;
         let Driver {
-            conversation,
+            toolbox,
             tree,
             store,
+            steering,
+            cancel,
             ..
         } = &mut *driver;
-        if tree.is_none() {
-            match start_tree(store, &self.snapshot.root, model.model()) {
-                Ok(started) => *tree = Some(started),
-                Err(why) => {
-                    let text = format!("the conversation could not start: {why}");
-                    return refusal(RefusalClass::Io, text);
-                }
-            }
-        }
         let Some(tree) = tree.as_mut() else {
+            toolbox.end();
             return refusal(RefusalClass::Io, "the conversation could not start");
         };
-        let before = conversation.asked_ids();
         let parked = tree.parked().is_some();
-        if parked {
-            conversation.answered_by(&tree.next_cite());
-        }
-        let toolbox = Toolbox::new(conversation, store.citations(), &mut desk, &mut mint);
         let mut events = |_: AgentEvent| {};
-        let mut agent = Agent::new(tree, store, &toolbox, &now);
+        let mut agent = Agent::new(tree, store, &**toolbox, &now)
+            .with_steering(steering)
+            .with_cancel(cancel);
         let outcome = if parked {
             agent.answer(line, model, &mut events)
         } else {
             agent.prompt(line, model, &mut events)
         };
         drop(agent);
-        let decided = toolbox.decided();
-        drop(toolbox);
-        let still = conversation.asked_ids();
+        self.agent_end(driver, before, outcome)
+    }
+
+    /// The turn ended: what it decided, the questions no longer asked closed, the request read
+    /// again, and the run's outcome as the Session's own.
+    fn agent_end(
+        &mut self,
+        driver: &mut Driver,
+        before: Vec<QuestionId>,
+        outcome: Outcome,
+    ) -> TurnOutcome {
+        let decided = driver.toolbox.end();
+        let (still, since) = driver
+            .toolbox
+            .with(|conversation| (conversation.asked_ids(), conversation.since()));
         for id in before.into_iter().filter(|id| !still.contains(id)) {
             self.questions.close(Some(id));
         }
-        let request = (store.citations().lock())
-            .map(|c| c.stated(conversation.since()))
+        let request = (driver.store.citations().lock())
+            .map(|c| c.stated(since))
             .unwrap_or_default();
         self.intent.goal = request.lines().next().map(str::to_owned);
         self.settle_run(driver, outcome, decided)
@@ -311,7 +424,7 @@ impl SessionRuntime {
             .map(Tree::last_said)
             .unwrap_or_default();
         match outcome {
-            Outcome::Parked { .. } => {
+            Outcome::Parked { queued, .. } => {
                 // A question waits: the proposal shown is no longer what the next line answers.
                 self.pending = None;
                 let open = driver.open();
@@ -319,13 +432,14 @@ impl SessionRuntime {
                 let mut text: Vec<String> = Vec::new();
                 text.extend((!said.is_empty()).then_some(said));
                 text.extend(open.iter().map(|q| q.question.clone()));
+                text.extend(unsent(&queued));
                 TurnOutcome::Question {
                     key,
                     question: text.join("\n"),
                 }
             }
             Outcome::Answered { text } => {
-                let current = driver.conversation.candidate().map(|c| c.number);
+                let current = driver.toolbox.with(|c| c.candidate().map(|c| c.number));
                 match decided.proposed {
                     Some(revision) if current == Some(revision) => {
                         self.agent_propose(driver, &text, decided.acts)
@@ -333,15 +447,21 @@ impl SessionRuntime {
                     _ => TurnOutcome::Reply(text),
                 }
             }
-            Outcome::Stopped { .. } => TurnOutcome::Cancelled(
-                "preparation stopped · the conversation is kept · a request already sent may still be billed"
-                    .to_owned(),
-            ),
+            Outcome::Stopped { queued } => {
+                let mut text = "preparation stopped · the conversation is kept · a request already sent may still be billed".to_owned();
+                if let Some(lines) = unsent(&queued) {
+                    text = format!("{text} · {lines}");
+                }
+                TurnOutcome::Cancelled(text)
+            }
             Outcome::Failed { error } => refusal(
                 RefusalClass::IntelligenceRefused,
                 format!("the conversation could not go on: {error} · what was said is kept"),
             ),
-            _ => refusal(RefusalClass::IntelligenceRefused, "the conversation ended unread"),
+            _ => refusal(
+                RefusalClass::IntelligenceRefused,
+                "the conversation ended unread",
+            ),
         }
     }
 
@@ -354,7 +474,7 @@ impl SessionRuntime {
         said: &str,
         acts: Option<Acts>,
     ) -> TurnOutcome {
-        let Some(candidate) = driver.conversation.candidate() else {
+        let Some(candidate) = driver.toolbox.with(|c| c.candidate().cloned()) else {
             return TurnOutcome::Reply(said.to_owned());
         };
         let root = self.snapshot.root.clone();
@@ -435,11 +555,13 @@ impl SessionRuntime {
     /// The work snapshot with what the conversation holds.
     pub(super) fn with_agent(&self, work: Work) -> Work {
         match &self.agent {
-            Some(driver) => work.with_conversation(
-                driver.conversation.bindings().to_vec(),
-                driver.conversation.delegations().to_vec(),
-                driver.conversation.questions().to_vec(),
-            ),
+            Some(driver) => driver.toolbox.with(|conversation| {
+                work.with_conversation(
+                    conversation.bindings().to_vec(),
+                    conversation.delegations().to_vec(),
+                    conversation.questions().to_vec(),
+                )
+            }),
             None => work,
         }
     }
@@ -449,7 +571,7 @@ impl SessionRuntime {
     pub(super) fn agent_kept(&self) -> Option<Value> {
         (self.agent.as_ref())
             .filter(|d| d.tree.is_some())
-            .map(|d| d.conversation.kept())
+            .map(|d| d.toolbox.with(|conversation| conversation.kept()))
     }
 
     /// The conversation a history resumes, in the history's own directory.

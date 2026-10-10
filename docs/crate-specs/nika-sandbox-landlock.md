@@ -42,7 +42,18 @@ ride the outer launcher so the confined child inherits them.
   srt's `--unshare-net` + socat-bridge-over-unix-socket is the named
   follow-on that closes it.
 - **Writes** — read-write `--bind` only under the validated `fs_write` literal
-  prefixes; everything else is read-only or absent.
+  prefixes that exist at spawn; everything else is read-only or absent. bwrap
+  binds only an existing source and a jailed command cannot create its own
+  grant, so a write grant that names nothing yet is left out of the jail and
+  said: a spawn that leaves grants unbound writes one line on stderr naming
+  every absent path and the remedy (grant the directory, and make sure it
+  exists before an exec writes into it). It is never refused: every exec
+  receives every write grant of its workflow, and another task (an engine
+  write, a later step) may be the one that creates it. It is never skipped
+  silently either: the former `--bind-try` dropped it without a word, so a
+  command that had to create that file failed far from the cause (on Linux
+  only: Seatbelt's path filter admits a file that does not exist yet). An
+  existing source that vanishes before the mount fails the launcher loudly.
 - **Reads** — the system trees (linker, libs, shell) are `--ro-bind`; declared
   `fs_read` prefixes add read-only reach; `$HOME` is bound NOWHERE, so sensitive
   files (`~/.ssh`, `~/.aws`) are absent from the jail — deny-default by absence.
@@ -68,8 +79,10 @@ sibling's macOS-runner-gated proof.
 One asymmetry with the macOS sibling: an EXACT-file grant binds exactly that
 file, so a SQLite database granted by its file path cannot run WAL here —
 the `-wal`/`-shm`/`-journal` sidecars are created at runtime and bwrap has no
-future-file bind (`--bind-try` skips what does not exist; binding the parent
-directory would over-grant the tree). The Seatbelt backend expresses the
+future-file bind (a source that does not exist cannot be bound; binding the
+parent directory would over-grant the tree). The same holds for any file a
+jailed command must create under an exact-file grant: grant its directory.
+The Seatbelt backend expresses the
 family precisely as three exact-path literals (closed 2026-07-29 against the
 `SQLITE_CANTOPEN` finding); on Linux the contract stays: **a database grant
 names its directory** (`/data/db-dir/**`).

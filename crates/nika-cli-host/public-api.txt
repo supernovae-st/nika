@@ -1409,6 +1409,7 @@ impl nika_cli_host::lane::PendingRun
 pub fn nika_cli_host::lane::PendingRun::answer(self, yes: bool, busy: &std::sync::mpsc::Sender<alloc::string::String>) -> (u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>)
 pub fn nika_cli_host::lane::PendingRun::answer_observed(self, yes: bool, sink: &dyn nika_display::run_story::RunSink) -> (u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>)
 pub fn nika_cli_host::lane::PendingRun::details(&self) -> alloc::string::String
+pub fn nika_cli_host::lane::PendingRun::interrupt(slot: &nika_cli_host::lane::ChildSlot) -> bool
 pub fn nika_cli_host::lane::PendingRun::question(&self) -> alloc::string::String
 impl core::ops::drop::Drop for nika_cli_host::lane::PendingRun
 pub fn nika_cli_host::lane::PendingRun::drop(&mut self)

@@ -56,6 +56,12 @@
 //! - **Future-drop** (INV-011 / ADR-016): on Linux/macOS a dedicated group
 //!   receives SIGKILL before the unreaped leader is released. Other platforms
 //!   retain direct-child `kill_on_drop(true)`. Neither proves completed cleanup.
+//! - **Forced end**: a process that exits without running destructors
+//!   (`std::process::exit`) never reaches that drop, so on Linux/macOS every
+//!   group is also owned process-wide from its spawn until its owner releases
+//!   it before the reap. [`terminate_owned_groups`] ends what is still owned
+//!   (SIGTERM, a bounded grace, SIGKILL, a bounded reap) and never signals a
+//!   group whose leader this process can no longer wait for.
 //! - **Concurrent stdout/stderr drain with exit observation** via `tokio::try_join!`
 //!   (INV-012) — a child writing past the OS pipe buffer would deadlock if we
 //!   waited-then-read.
@@ -79,7 +85,8 @@ mod scratch;
 
 pub use egress::{EgressDecision, EgressEvent, EgressObserver};
 pub use process::{
-    Caps, Collected, Ended, Lane, SERVE_FAILED, SERVE_NO_CPU_LIMIT, collect, serve_stdio,
+    Caps, Collected, Ended, Lane, SERVE_FAILED, SERVE_NO_CPU_LIMIT, Terminated, collect,
+    serve_stdio, terminate_owned_groups,
 };
 
 use std::collections::BTreeMap;

@@ -5,19 +5,19 @@
 //! asked (the intent reaches the deterministic compiler), the worker held at named points so
 //! each race is decided, not hoped for.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, mpsc};
 use std::time::Duration;
 
 use nika_session::intelligence::{
     IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence, UserIntelligencePreference,
 };
-use nika_session::{ScriptedReasoner, SessionRuntime};
+use nika_session::{KeptRun, ScriptedReasoner, SessionRuntime};
 use serde_json::Value;
 
 use super::*;
-use crate::run::{NoRunDoor, RunDoor, RunRequest, RunSink, RunStep};
+use crate::run::{LaneRunDoor, NoRunDoor, RunDoor, RunRequest, RunSink, RunStep};
 use crate::wire::CONTRACT;
 
 /// A Ready intent the compiler settles with no question and no model.
@@ -747,5 +747,214 @@ fn the_answer_act_rides_the_snapshot_under_the_identity_shown() {
         json(&host.snapshot())["snapshot"]["work"]["answered"],
         *act,
         "a resync reads the same act"
+    );
+}
+
+/// A Stop handle that counts what it is asked and says the run took its signal.
+struct Counting(Arc<AtomicUsize>);
+
+impl RunStop for Counting {
+    fn stop(&self) -> Stopping {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Stopping::Signalled
+    }
+}
+
+/// A run door whose run holds until the test lets it end, then observes it interrupted: its
+/// settlement sealed or not. It can stop its runs only when it counts its Stops.
+struct Holding {
+    entered: mpsc::Sender<()>,
+    release: mpsc::Receiver<()>,
+    stops: Option<Arc<AtomicUsize>>,
+    sealed: bool,
+}
+
+impl RunDoor for Holding {
+    fn run(&mut self, _root: &Path, _run: &RunRequest, _sink: &dyn RunSink) -> RunStep {
+        self.entered.send(()).expect("the test waits for the run");
+        self.release
+            .recv_timeout(WAIT)
+            .expect("the test lets the run end");
+        let mut leg = KeptRun::new();
+        leg.execution = Some("01a0ef11-0212-70de-a8b3-99de9427fccc".to_owned());
+        leg.chain_head = self.sealed.then(|| "c0ffee".to_owned());
+        RunStep::Observed {
+            exit: 130,
+            trace: None,
+            leg: Some(leg),
+        }
+    }
+
+    fn resume(&mut self, _: &Path, _: &Path, _: &Path, _: &str, _: &dyn RunSink) -> RunStep {
+        RunStep::NotStarted {
+            why: "no resume here".to_owned(),
+        }
+    }
+
+    fn answer_review(&mut self, _approve: bool, _sink: &dyn RunSink) -> RunStep {
+        RunStep::NotStarted {
+            why: "no review here".to_owned(),
+        }
+    }
+
+    fn stopper(&mut self) -> Option<Arc<dyn RunStop>> {
+        let stops = Arc::clone(self.stops.as_ref()?);
+        Some(Arc::new(Counting(stops)))
+    }
+}
+
+/// The project, its host, the door's stop count and the release that lets the run end.
+type HeldRun = (
+    tempfile::TempDir,
+    SessionHost,
+    Arc<AtomicUsize>,
+    mpsc::Sender<()>,
+);
+
+/// A saved workflow whose « run it » is under way in a [`Holding`] door.
+fn held_run(can_stop: bool, sealed: bool) -> HeldRun {
+    let root = world();
+    let (entered, held) = mpsc::channel();
+    let (release, released) = mpsc::channel();
+    let stops = Arc::new(AtomicUsize::new(0));
+    let door = Holding {
+        entered,
+        release: released,
+        stops: can_stop.then(|| Arc::clone(&stops)),
+        sealed,
+    };
+    let host = SessionHost::start(runtime(root.path()), Box::new(door), Vec::new()).expect("host");
+    assert_eq!(kinds(&settle(&host, "c-1", COPY)), ["proposal"]);
+    settle(&host, "c-2", "yes");
+    assert!(matches!(
+        host.dispatch(submit("c-3", &handle(&host), "run it")),
+        Dispatch::Accepted { .. }
+    ));
+    held.recv_timeout(WAIT).expect("the run is under way");
+    (root, host, stops, release)
+}
+
+/// A Stop while the turn's run executes reaches its door exactly once: the run is stopping, the
+/// snapshot says a Stop was taken, the same Stop replayed answers its record, and a second Stop
+/// sends nothing more (it never escalates). The run then sealed its trace as cancelled: its
+/// observation says stopped, never aborted.
+#[test]
+fn a_stop_reaches_the_run_under_way_once_and_its_settlement_reads_stopped() {
+    let (_root, host, stops, release) = held_run(true, true);
+    let receipt = reply(host.dispatch(stop("s-1")));
+    assert_eq!(receipt["receipt"], "run_stopping");
+    assert_eq!(receipt["target"], "c-3");
+    assert_eq!(receipt["snapshot"]["busy"]["phase"], "stopping");
+    assert_eq!(receipt["snapshot"]["busy"]["stop_requested"], true);
+    assert_eq!(stops.load(Ordering::SeqCst), 1);
+    let replay = reply(host.dispatch(stop("s-1")));
+    assert_eq!(replay["replayed"], true);
+    assert_eq!(replay["event"], receipt["event"]);
+    let second = reply(host.dispatch(stop("s-2")));
+    assert_eq!(second["receipt"], "run_stopping");
+    assert_eq!(
+        stops.load(Ordering::SeqCst),
+        1,
+        "one door stop: a replay and a second Stop signal nothing"
+    );
+    release.send(()).expect("release");
+    let settled = json(&host.wait_result("c-3").expect("settled"));
+    assert_eq!(
+        kinds(&settled),
+        ["run_requested", "facts", "run_stopped"],
+        "{settled}"
+    );
+    let run = &settled["snapshot"]["work"]["run"];
+    assert_eq!(run["end"]["end"], "interrupted", "{run}");
+    assert_eq!(run["sealed"], true, "{run}");
+    assert_eq!(settled["snapshot"]["busy"], Value::Null);
+}
+
+/// The same Stop, but the run ended without sealing its trace: its observation says aborted,
+/// never stopped, though both exits read 130.
+#[test]
+fn a_run_cut_after_its_stop_reads_aborted_not_stopped() {
+    let (_root, host, stops, release) = held_run(true, false);
+    assert_eq!(reply(host.dispatch(stop("s-1")))["receipt"], "run_stopping");
+    release.send(()).expect("release");
+    let settled = json(&host.wait_result("c-3").expect("settled"));
+    assert_eq!(
+        kinds(&settled),
+        ["run_requested", "facts", "run_aborted"],
+        "{settled}"
+    );
+    assert_eq!(settled["snapshot"]["work"]["run"]["sealed"], false);
+    assert_eq!(stops.load(Ordering::SeqCst), 1);
+}
+
+/// A Stop that reached the run reads stopped only when the run ended interrupted with its trace
+/// sealed, aborted when it ended cut or crashed without sealing it, and nothing more when the run
+/// reached an end of its own: its observation says that end, sealed or not.
+#[test]
+fn a_reached_stop_reads_by_the_runs_end_and_its_seal() {
+    let read = |exit, sealed| match super::worker::stopped(exit, sealed) {
+        Some(Outcome::RunStopped { .. }) => "stopped",
+        Some(Outcome::RunAborted { .. }) => "aborted",
+        Some(other) => panic!("not a Stop's outcome: {other:?}"),
+        None => "its own end",
+    };
+    assert_eq!(read(130, true), "stopped");
+    assert_eq!(read(130, false), "aborted");
+    // A lane child killed by a signal, or one that panicked: cut without a seal.
+    assert_eq!(read(3, false), "aborted");
+    assert_eq!(read(101, false), "aborted");
+    assert_eq!(read(3, true), "its own end");
+    for exit in [0, 1, 4] {
+        assert_eq!(read(exit, true), "its own end", "exit {exit}");
+        assert_eq!(read(exit, false), "its own end", "exit {exit}");
+    }
+}
+
+/// A door that cannot stop its run keeps the answer it always gave: the run is under way and no
+/// Stop was taken for it.
+#[test]
+fn a_door_that_cannot_stop_its_run_answers_run_underway() {
+    let (_root, host, stops, release) = held_run(false, true);
+    let receipt = reply(host.dispatch(stop("s-1")));
+    assert_eq!(receipt["receipt"], "run_underway");
+    assert_eq!(receipt["snapshot"]["busy"]["phase"], "running");
+    assert_eq!(receipt["snapshot"]["busy"]["stop_requested"], false);
+    release.send(()).expect("release");
+    let settled = json(&host.wait_result("c-3").expect("settled"));
+    assert_eq!(kinds(&settled), ["run_requested", "facts"], "{settled}");
+    assert_eq!(stops.load(Ordering::SeqCst), 0);
+}
+
+/// A Stop taken once the run is armed but before the native door spawns its child is applied at
+/// the spawn: the door starts nothing (its binary does not even exist).
+#[test]
+fn a_stop_taken_before_the_native_door_spawns_is_applied_at_the_spawn() {
+    let root = world();
+    let door = LaneRunDoor::new(PathBuf::from("/nonexistent/nika-run-lane"));
+    let host = SessionHost::start(runtime(root.path()), Box::new(door), Vec::new()).expect("host");
+    assert_eq!(kinds(&settle(&host, "c-1", COPY)), ["proposal"]);
+    settle(&host, "c-2", "yes");
+    let gate = Gate::default();
+    host.pause_at(gate.pause());
+    gate.hold("running");
+    assert!(matches!(
+        host.dispatch(submit("c-3", &handle(&host), "run it")),
+        Dispatch::Accepted { .. }
+    ));
+    gate.reached();
+    let receipt = reply(host.dispatch(stop("s-1")));
+    assert_eq!(receipt["receipt"], "stop_requested");
+    assert_eq!(receipt["snapshot"]["busy"]["phase"], "running");
+    assert_eq!(receipt["snapshot"]["busy"]["stop_requested"], true);
+    gate.release();
+    let settled = json(&host.wait_result("c-3").expect("settled"));
+    assert_eq!(
+        kinds(&settled),
+        ["run_requested", "run_not_started"],
+        "{settled}"
+    );
+    assert_eq!(
+        settled["outcomes"][1]["text"],
+        "a Stop arrived before this run started · nothing ran"
     );
 }

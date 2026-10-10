@@ -808,6 +808,8 @@ pub fn nika_session::runtime::SessionRuntime::restored_draft_id(&self) -> core::
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::restore_round(&mut self) -> nika_session::runtime::TurnOutcome
 impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::steering(&self) -> core::option::Option<nika_session_agent::steer::Steering>
+impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::submit(&mut self, line: &str, shown: &nika_session_change::work::Waiting) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::waiting(&self) -> nika_session_change::work::Waiting
 pub fn nika_session::runtime::SessionRuntime::work(&self) -> nika_session_change::work::Work
@@ -1458,6 +1460,8 @@ pub fn nika_session::runtime::SessionRuntime::repropose_restored_draft(&mut self
 pub fn nika_session::runtime::SessionRuntime::restored_draft_id(&self) -> core::option::Option<&str>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::restore_round(&mut self) -> nika_session::runtime::TurnOutcome
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::steering(&self) -> core::option::Option<nika_session_agent::steer::Steering>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::submit(&mut self, line: &str, shown: &nika_session_change::work::Waiting) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::waiting(&self) -> nika_session_change::work::Waiting

@@ -153,3 +153,36 @@ fn confined_has_no_network_without_an_explicit_lift() {
         "an unshared netns must refuse the connection · stderr {stderr:?}"
     );
 }
+
+/// WRITE-ALLOW: a dir granted for WRITE is bound read-write — a confined command CREATES a file
+/// that did not exist inside it, and the file lands on the host (the counterpart of the
+/// read-only proof above: the jail admits the granted write reach, not just denies the rest).
+#[test]
+fn confined_can_create_a_new_file_in_a_write_granted_directory() {
+    if !LandlockSandbox::available() {
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("nika-sbx-rw-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    let target = dir.join("created.txt");
+
+    let mut spec = SandboxSpec::new();
+    spec.fs_write = vec![format!("{}/**", dir.display())];
+    let out = run(
+        &spec,
+        "/bin/sh",
+        &["-c", &format!("echo created > {}", target.display())],
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("bwrap:"),
+        "the launcher itself failed — the proof is vacuous · stderr {stderr:?}"
+    );
+    assert!(
+        out.status.success(),
+        "creating a file inside a write grant must succeed · stderr {stderr:?}"
+    );
+    let landed = std::fs::read_to_string(&target).expect("the created file is on the host");
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(landed, "created\n", "the jailed write reached the host");
+}

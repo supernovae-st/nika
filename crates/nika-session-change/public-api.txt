@@ -3744,6 +3744,7 @@ pub nika_session_change::work::Run::chain_len: core::option::Option<u64>
 pub nika_session_change::work::Run::current: bool
 pub nika_session_change::work::Run::end: core::option::Option<nika_session_change::work::RunEnd>
 pub nika_session_change::work::Run::execution: core::option::Option<alloc::string::String>
+pub nika_session_change::work::Run::sealed: bool
 pub nika_session_change::work::Run::trace: core::option::Option<alloc::string::String>
 pub nika_session_change::work::Run::workflow: core::option::Option<alloc::string::String>
 pub nika_session_change::work::Run::workflow_sha256: core::option::Option<alloc::string::String>

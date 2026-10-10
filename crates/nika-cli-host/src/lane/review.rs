@@ -6,6 +6,8 @@
 #![allow(clippy::disallowed_types)]
 use super::{ChildSlot, RunSink, RunStory};
 use nika_providers::admission::CostChallenge;
+use nix::sys::signal::{Signal, kill};
+use nix::unistd::Pid;
 use std::io::{BufRead as _, Read as _, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdout, Command, Stdio};
@@ -31,14 +33,20 @@ pub struct PendingRun {
 }
 impl Drop for PendingRun {
     fn drop(&mut self) {
+        let _ = self.slot.lock().map(|mut slot| slot.take()); // before the reap: no reused pid
         let _ = self.child.kill();
         let _ = self.child.wait();
-        if let Ok(mut slot) = self.slot.lock() {
-            *slot = None;
-        }
     }
 }
 impl PendingRun {
+    /// Whether SIGINT reached the child in `slot`, sent under the lock it leaves before its reap.
+    #[must_use]
+    pub fn interrupt(slot: &ChildSlot) -> bool {
+        let Ok(held) = slot.lock() else { return false };
+        held.and_then(|pid| i32::try_from(pid).ok())
+            .filter(|pid| *pid > 1)
+            .is_some_and(|pid| kill(Pid::from_raw(pid), Signal::SIGINT).is_ok())
+    }
     /// The first screen of the fresh Run question.
     #[must_use]
     pub fn question(&self) -> String {
@@ -113,6 +121,7 @@ impl PendingRun {
         }
     }
     pub(super) fn complete(&mut self) -> RunResult {
+        let _ = self.slot.lock().map(|mut slot| slot.take()); // before the reap: no reused pid
         let code = self
             .child
             .wait()
