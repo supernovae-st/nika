@@ -11,7 +11,7 @@ use std::fmt::Write as _;
 
 use serde_json::{Value, json};
 
-use super::peer::{Script, Step, call, call_saying, hold, say};
+use super::peer::{Script, Step, call, call_saying, hold, say, think};
 
 /// The Session's reading of the sentence that accepts the plan: its recommended option.
 fn accepted_pick() -> Vec<String> {
@@ -322,6 +322,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "reads_a_project_file" => reads_sales(false),
         "a_read_file_changes" => reads_sales(true),
         "write_carries_its_findings" => write_carries_its_findings(),
+        "thought_only" => thought_only(),
         other => panic!("unknown scenario {other}"),
     }
 }
@@ -830,6 +831,25 @@ fn yc_question() -> Value {
 }
 
 /// F2: the person refuses the plan; the author's claim that they accepted it is refused.
+/// A model that only reasons, twice: asked once more, then the turn says so.
+fn thought_only() -> Scenario {
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(REQUEST)],
+        script: Script {
+            agent: vec![
+                think("Quelles sources en premier ?"),
+                think("Toujours rien à dire."),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
 fn refused_offer() -> Scenario {
     Scenario {
         files: Vec::new(),

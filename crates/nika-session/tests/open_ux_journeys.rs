@@ -1086,3 +1086,15 @@ fn a_write_reply_carries_its_findings_and_the_repaired_write_proposes() {
         "{names:?}"
     );
 }
+
+/// A model that only reasons is asked once more, in Nika's words; silent again, the turn says
+/// so instead of ending in an empty reply (lane C's Gemini thought-only turns).
+#[test]
+fn a_thought_only_answer_never_ends_a_turn_in_silence() {
+    let journey = run("thought_only");
+    let said = reply(journey.step(0));
+    assert!(said.contains("ended this turn without a word"), "{said}");
+    assert_eq!(journey.agent.len(), 2, "{:#?}", journey.agent);
+    let asked = journey.agent[1].last();
+    assert!(asked.contains("no words and no call"), "{asked}");
+}

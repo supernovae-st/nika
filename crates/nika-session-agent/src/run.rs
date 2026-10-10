@@ -428,6 +428,7 @@ impl<'a> Agent<'a> {
     fn turns(&mut self, model: &mut dyn Model, events: &mut dyn FnMut(AgentEvent)) -> Outcome {
         let mut turn: u32 = 0;
         let mut last: Option<(String, Value, String)> = None;
+        let mut asked_again = false;
         loop {
             if self.cancel.is_cancelled() {
                 return self.stop(StopReach::BetweenSteps);
@@ -462,6 +463,17 @@ impl<'a> Agent<'a> {
                 };
                 match entered {
                     Ok(true) => continue,
+                    // No word and no call (a model that only reasoned): asked once more.
+                    Ok(false) if text.trim().is_empty() && !asked_again => {
+                        asked_again = true;
+                        let note = EntryKind::Note {
+                            text: SILENT.to_owned(),
+                        };
+                        if let Err(error) = self.record(note) {
+                            return Outcome::Failed { error };
+                        }
+                        continue;
+                    }
                     Ok(false) => return Outcome::Answered { text },
                     Err(error) => return Outcome::Failed { error },
                 }
@@ -690,6 +702,11 @@ fn pairs(queued: &[Queued]) -> Vec<(QueueMode, String)> {
 fn ids(queued: &[Queued]) -> Vec<String> {
     queued.iter().map(|queued| queued.id.clone()).collect()
 }
+
+/// What the loop tells the model after a message with no word and no call: the person saw
+/// nothing of it.
+const SILENT: &str = "Your last message had no words and no call, so the person saw nothing. \
+                      Answer them, ask them, or call a tool.";
 
 /// The answer text of a message: its text blocks, in order.
 fn answer_text(content: &[ContentBlock]) -> String {

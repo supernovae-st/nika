@@ -216,6 +216,20 @@ fn unsent(queued: &[(QueueMode, String)]) -> Option<String> {
     })
 }
 
+/// What the person reads of a turn that ended without a word, its model asked once more.
+const SAID_NOTHING: &str = "The author ended this turn without a word: nothing was asked or \
+                            proposed. Say what you want next, or say it again.";
+
+/// A turn's reply as the person reads it: never an empty one.
+fn voiced(outcome: TurnOutcome) -> TurnOutcome {
+    match outcome {
+        TurnOutcome::Reply(text) if text.trim().is_empty() => {
+            TurnOutcome::Reply(SAID_NOTHING.to_owned())
+        }
+        other => other,
+    }
+}
+
 impl SessionRuntime {
     /// Whether the selected intelligence leads this Session's conversation: the host door kept
     /// the agent driver and the selected route can lead one.
@@ -536,7 +550,7 @@ impl SessionRuntime {
             .map(|c| c.stated(since))
             .unwrap_or_default();
         self.intent.goal = request.lines().next().map(str::to_owned);
-        self.settle_run(driver, (outcome, reach), decided)
+        voiced(self.settle_run(driver, (outcome, reach), decided))
     }
 
     /// The run's outcome as the Session's own.

@@ -28,6 +28,8 @@ pub(crate) enum Step {
     },
     /// A reply that ends the agent's turn.
     Say(String),
+    /// A reply with reasoning and no content: no word and no call.
+    Think(String),
     /// Hold the request under way: leave the marker under the markers directory, wait (30 s
     /// at most) for the child's cue `<marker>.go`, then answer it with the next step.
     Hold(String),
@@ -54,6 +56,11 @@ pub(crate) fn call_saying(text: &str, name: &str, args: Value) -> Step {
 /// A reply that ends the turn.
 pub(crate) fn say(text: &str) -> Step {
     Step::Say(text.to_owned())
+}
+
+/// A reply that only reasons.
+pub(crate) fn think(thought: &str) -> Step {
+    Step::Think(thought.to_owned())
 }
 
 /// Hold the next request until the child's cue.
@@ -241,6 +248,12 @@ impl Queues {
                 Step::Say(text) => {
                     self.calls += 1;
                     text_completion(&text)
+                }
+                Step::Think(thought) => {
+                    self.calls += 1;
+                    let message =
+                        json!({"role": "assistant", "content": null, "reasoning_content": thought});
+                    completion(&message, "stop")
                 }
             },
             Kind::Judge => {
