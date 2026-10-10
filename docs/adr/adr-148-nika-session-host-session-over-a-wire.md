@@ -96,6 +96,20 @@ The owners that would naturally host this adapter stand at the 15,000 prod-LOC w
    and is never written as the operator's default; words the census does not read open nothing.
    A choice made inside the conversation holds the same way. Both doors advertise
    `sessionIntelligence`.
+9. **A line for the run under way** (amended 2026-10-10). While a turn of the conversation an
+   intelligence leads is under way, `steer` and `follow_up` (`{command, line}`) queue a line for
+   that run, outside the one-turn-at-a-time path and bound to the turn they found, like Stop:
+   the receipt is `queued` with the line's identity and state, `not_reading` (a turn runs that
+   no conversation's run reads), `nothing_to_steer` (no turn: submit the line), `blank` or
+   `full` (a run takes a bounded number of lines), and it is logged and idempotent by command
+   identity. A steering line enters after the calls
+   under way (an ACP agent is asked once to stop and reads it next), a follow-up when the run
+   would end; each becomes the person's next cited line, and only then authorizes anything. The
+   busy snapshot shows the queue (`busy.queued`), the work snapshot what became of each line.
+   A Stop of such a turn settles as the typed outcome `stopped` (how it reached the
+   intelligence, the lines returned unsent, the draft kept), and each tool step of the run
+   reaches the event log as typed activity (`tool`: call, name, state, elapsed), never its
+   arguments.
 
 ## Consequences
 

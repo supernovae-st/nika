@@ -232,10 +232,16 @@ async fn command(host: &SessionHost, body: &[u8]) -> Response<ResponseBody> {
         respond(&frame)
     };
     let command = match Command::parse(body) {
-        Ok(command @ (Command::Submit { .. } | Command::Stop { .. })) => command,
+        Ok(
+            command @ (Command::Submit { .. }
+            | Command::Stop { .. }
+            | Command::Steer { .. }
+            | Command::FollowUp { .. }),
+        ) => command,
         Ok(_) => {
             return refused(
-                "only submit and stop are commands here · read with GET, close with DELETE"
+                "only submit, stop, steer and follow_up are commands here · read with GET, \
+                 close with DELETE"
                     .to_owned(),
             );
         }
