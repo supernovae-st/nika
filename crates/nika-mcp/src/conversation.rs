@@ -191,10 +191,10 @@ impl ToolServer {
     /// Serve until closed: one request and one response per connection, each connection on a
     /// thread of its own, at most eight at once, under the HTTP door's deadlines (a request has
     /// 30 s in all to arrive, its response 30 s to leave), so a slow or silent client holds one
-    /// connection, never the server. The session receives one call at a time: a call holds the
-    /// next call, not the next request, for as long as its tool runs. Blocking: run it on a
-    /// thread of its own; it returns once closed and every connection in hand is answered. A
-    /// failed accept is skipped, never fatal.
+    /// connection for a bounded time. The session receives one call at a time: a call holds the
+    /// next call, not the next request, for as long as its tool runs. Blocking: run it on a thread
+    /// of its own; it returns once closed and every connection in hand is answered. A failed accept
+    /// is skipped, never fatal.
     pub fn serve(&self) {
         let session = OneAtATime {
             tools: &*self.tools,

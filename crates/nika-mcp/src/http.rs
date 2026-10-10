@@ -172,7 +172,7 @@ impl HttpServer {
     /// most eight at once (the next waits in the listener's backlog). A
     /// request has 30 s in all to arrive, head and body, and its response
     /// 30 s to leave, so a slow client holds one connection for a bounded
-    /// time and never the server; the dispatch is pure, so concurrent
+    /// time; the dispatch is pure, so concurrent
     /// requests never meet. The crate stays sync (the workspace is
     /// tokio-first; scoped std threads are this transport's whole
     /// machinery). A failed accept is skipped (transient), never fatal;
@@ -904,9 +904,9 @@ mod tests {
         });
     }
 
-    /// A failed accept on the server's side pauses the loop before the
-    /// next try, so a persistent failure (descriptors exhausted) never
-    /// spins a core; one the client caused is retried at once.
+    /// A failed accept on the server's side (descriptors exhausted)
+    /// pauses the loop before the next try; one the client caused is
+    /// retried at once.
     #[test]
     fn a_failed_accept_pauses_the_loop_unless_the_client_caused_it() {
         let failing = |kind: io::ErrorKind, tries: u32| {

@@ -104,7 +104,7 @@ authority of its own (lateral L4→L4 edge to `nika-session-change`, which never
   through one serving loop: each connection runs on a scoped thread of its own, at most eight at
   once, the next waiting in the listener's backlog; a request has 30 s in all to arrive, one
   deadline across every read of its head and body (`408` past it), and its response 30 s to
-  leave, so a slow client holds one connection for a bounded time and never the server. A failed
+  leave, so a slow client holds one connection for a bounded time. A failed
   accept is skipped; one on the server's side (descriptors exhausted) pauses the loop for 100 ms
   first, while one the client caused is retried at once.
 - `bridge(url, bearer, input, output)` — a stdio MCP session relayed to that server line by line,
