@@ -131,6 +131,19 @@ async fn send<P: ProviderInferDyn>(
             let answered = result.as_ref().ok().and_then(|r| r.as_ref().ok());
             context["reasoning"] = reasoning_record(policy.reasoning, answered);
             context["response"] = answered.map_or(Value::Null, response_identity);
+            // What actually left for this call, from the provider's own per-dispatch record (the
+            // transport never re-sends one): a call cut by its deadline sent one; a harness counts
+            // its own invocations, its requests unknown here.
+            context["requests_sent"] =
+                if nika_providers::authoring::policy::harness_route(&policy.model) {
+                    Value::Null
+                } else {
+                    json!(match &result {
+                        Ok(Ok(response)) => response.inference_calls.len(),
+                        Ok(Err(error)) => error.inference_calls().len(),
+                        Err(_) => 1,
+                    })
+                };
         }
     }
     let response = match result {

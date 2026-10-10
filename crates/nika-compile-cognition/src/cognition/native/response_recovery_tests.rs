@@ -234,6 +234,18 @@ async fn unbounded_repairs_end_on_a_failed_call_or_on_findings_already_answered(
     assert_eq!(roles(&out), ["sketch", "fill", "judge_request"]);
 }
 
+/// Each authoring call records the requests it actually sent, read from the provider's own
+/// record of its dispatches: a call the provider sent twice says two.
+#[tokio::test]
+async fn an_authoring_call_records_the_requests_it_sent() {
+    let mut resent = completed(&graph("save"));
+    resent.inference_calls.resize_with(2, Default::default);
+    let seat = Seat::new([Reply::Answer(Box::new(resent)), reply(&fills("save"))]);
+    let out = authored(&seat, policy(0)).await;
+    let receipt = out.provenance.authoring.as_ref().unwrap();
+    assert_eq!(receipt.context[0]["requests_sent"], 2, "{receipt:#?}");
+}
+
 #[tokio::test]
 async fn a_cut_answer_below_the_ceiling_is_asked_again_once_at_the_ceiling() {
     let opened = |initial| policy(0).with_initial_max_tokens(initial);
