@@ -37,6 +37,9 @@ use serde_json::{Value, json};
 mod admitted;
 mod agenda;
 use agenda::Action;
+/// A document a conversation wrote, verified as a native door verifies its own candidate.
+mod conversation;
+pub use conversation::verify_document;
 /// The document door of a fresh CREATE: the complete document, admitted components composed in.
 mod document_create;
 mod instructions;

@@ -794,11 +794,14 @@ pub(super) fn judge_resolved(
 
 /// The judge of a document an intelligence wrote in a Session's conversation, outside a compile
 /// round: the strict parser, the pure Check, then the fidelity laws against everything the
-/// person `stated` in the request it answers. The selections the author states (`authored`)
-/// are admitted on the person's own words; the ones the Session verified itself (`host`: an
-/// offer it showed and the person accepted, a value an accepted revision bound) have their
-/// scope and use judged, never their words read again. Returns each refusal's message; none
-/// when the document stands. Nothing is called, read or written.
+/// person `stated` in the request it answers, over the world the host `observed` for it (the
+/// observation a compile round reads: without it, no law that reads the project fires). The
+/// selections the author states (`authored`) are admitted on the person's own words; the ones
+/// the Session verified itself (`host`: an offer it showed and the person accepted, a value an
+/// accepted revision bound) have their scope and use judged, never their words read again.
+/// Returns each refusal's message; none when the document stands. Nothing is called, read or
+/// written. These are the laws only: a document is proposed on
+/// [`verify_document`](crate::verify_document), which adds the whole-request verdict.
 #[must_use]
 pub fn judge_document(
     stated: &str,
@@ -809,6 +812,21 @@ pub fn judge_document(
     ),
     observed: Option<&Value>,
 ) -> Vec<String> {
+    (document_refusals(stated, candidate, (authored, host), observed).into_iter())
+        .map(|d| d.message)
+        .collect()
+}
+
+/// [`judge_document`]'s refusals, each with the kind of law that made it.
+pub(super) fn document_refusals(
+    stated: &str,
+    candidate: &str,
+    (authored, host): (
+        &[fidelity::resolution::Resolution],
+        &[fidelity::resolution::Resolution],
+    ),
+    observed: Option<&Value>,
+) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     if let Some(doc) = admit(candidate, &[], &mut out) {
         let selected = (authored, host);
@@ -818,7 +836,7 @@ pub fn judge_document(
         fidelity::laws_resolved(stated, &plan, &doc, words, &[], &[], observed, &mut out);
     }
     out.dedup();
-    out.into_iter().map(|d| d.message).collect()
+    out
 }
 
 /// The strict parser and the pure Check (its refusals become diagnostics, the laws still
