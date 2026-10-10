@@ -432,7 +432,6 @@ pub struct nika_runtime::compose::RunSeams
 pub nika_runtime::compose::RunSeams::clock: nika_clock::declared_clock::DeclaredClock
 pub nika_runtime::compose::RunSeams::jitter_seed: u64
 impl nika_runtime::RunSeams
-pub fn nika_runtime::RunSeams::backoff(&self) -> alloc::sync::Arc<dyn nika_providers::retry::Backoff>
 pub fn nika_runtime::RunSeams::of(decl: core::option::Option<&nika_vocab::run::RunDecl>) -> Self
 pub fn nika_runtime::RunSeams::stamper(&self) -> alloc::boxed::Box<dyn nika_event::stamp::Stamper>
 impl<D> owo_colors::OwoColorize for nika_runtime::RunSeams
@@ -965,7 +964,6 @@ pub struct nika_runtime::RunSeams
 pub nika_runtime::RunSeams::clock: nika_clock::declared_clock::DeclaredClock
 pub nika_runtime::RunSeams::jitter_seed: u64
 impl nika_runtime::RunSeams
-pub fn nika_runtime::RunSeams::backoff(&self) -> alloc::sync::Arc<dyn nika_providers::retry::Backoff>
 pub fn nika_runtime::RunSeams::of(decl: core::option::Option<&nika_vocab::run::RunDecl>) -> Self
 pub fn nika_runtime::RunSeams::stamper(&self) -> alloc::boxed::Box<dyn nika_event::stamp::Stamper>
 impl<D> owo_colors::OwoColorize for nika_runtime::RunSeams
