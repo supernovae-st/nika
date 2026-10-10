@@ -147,7 +147,12 @@ NIKA-339 provider transport/other range and remains `NIKA-INFER-001` at the infe
 verb. Both error-trait and inherent `is_transient()` agree. The runtime may retry
 only under the authored attempt/backoff/timeout policy; the provider layer never
 replays independently. The timeout adapter retains its existing API-408 terminal
-policy. A missing response does not prove that no tokens were generated or billed.
+policy, and its message names the deadline that applied: the task's `timeout:`
+when it states one, else the 600 s every buffered call is given, local or cloud
+(`wire::BUFFERED_DEFAULT_TIMEOUT`, the provider transport's own bound on a silent
+connection, so no shorter implicit deadline cuts a legitimate answer). Streaming
+carries only an explicit deadline and the idle-read guard.
+A missing response does not prove that no tokens were generated or billed.
 Streaming yields the error once and does not synthesize a successful `Done`.
 For an agent, a connection failure after any tool completed suppresses automatic
 whole-task replay, including an `on_codes` override. The transport remains

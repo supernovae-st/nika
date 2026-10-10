@@ -148,7 +148,7 @@ fn build_request(
     request.body = Some(Bytes::from(
         serde_json::to_vec(&body).map_err(|_| refused("request serialization failed"))?,
     ));
-    request.timeout = super::transport_deadline(&rp.profile, req, stream);
+    request.timeout = super::transport_deadline(req, stream);
     request.follow_redirects = false;
     Ok(request)
 }

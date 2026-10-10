@@ -687,10 +687,12 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              a workflow that has no per-task pins, or `--access <seat>`. \
              A catalog alias (`grok`) is the same seat as its canonical \
              id (`xai`) and uses that seat's key (`XAI_API_KEY`). \
-             Buffered inference defaults to 300s local / 30s cloud. \
-             For a local timeout, choose a smaller non-reasoning model or set \
-             `timeout: 7m` on the task (next to infer:). Streaming has an \
-             idle-read guard, not this implicit total deadline.\n",
+             A buffered inference call without a task `timeout:` is given \
+             600s, local or cloud (the provider transport also closes a \
+             connection silent that long). To bound it otherwise, set \
+             `timeout: 7m` on the task (next to infer:); a smaller \
+             non-reasoning model answers sooner. Streaming has an \
+             idle-read guard, not this total deadline.\n",
         ),
         "NIKA-PROVIDER" => Some(
             "  `model:` is `<provider>/<model>` — a pasteable id \
@@ -985,8 +987,8 @@ mod tests {
         assert!(help.contains("mock/echo"), "{help}");
         assert!(help.contains("xai"), "{help}");
         assert!(help.contains("XAI_API_KEY"), "{help}");
-        assert!(help.contains("300s local"), "{help}");
-        assert!(help.contains("30s cloud"), "{help}");
+        assert!(help.contains("600s, local or cloud"), "{help}");
+        assert!(!help.contains("30s cloud"), "{help}");
         assert!(help.contains("timeout: 7m"), "{help}");
         assert!(help.contains("next to infer:"), "{help}");
     }

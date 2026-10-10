@@ -9,7 +9,7 @@
 //! nicknames): cloud rows carry env var + key prefixes, the 5 local
 //! servers' rows (the 2026-07-06 fill) carry the catalog face while their
 //! endpoints and keyless-ness stay const HERE — the loopback defaults and
-//! the `is_local` classification are runtime facts, never data.
+//! the local classification (`server_backed_local`) are runtime facts, never data.
 
 use nika_catalog::types::Provider as CatalogRow;
 
@@ -108,17 +108,6 @@ impl Profile {
             v.push(row.env_var.to_owned());
         }
         v
-    }
-
-    /// Whether this profile is one of the 5 LOCAL servers (`ollama` ·
-    /// `lmstudio` · `llamacpp` · `localai` · `vllm`) — keyed on the
-    /// canonical id (the [`LOCAL`] seed rows), so an operator
-    /// `with_base_url` override never flips the classification. Local
-    /// servers get the generous transport-deadline default (a local
-    /// model routinely needs minutes for one completion — see
-    /// `wire::transport_deadline`).
-    pub(crate) fn is_local(&self) -> bool {
-        LOCAL.iter().any(|(id, _)| *id == self.id)
     }
 
     /// Whether THIS provider supports native `response_format:
@@ -1235,17 +1224,6 @@ mod tests {
                 assert!(!row.models.is_empty(), "{} row needs a seed model", p.id);
                 assert!(!p.requires_key, "{} keyless by construction", p.id);
             }
-        }
-    }
-
-    #[test]
-    fn is_local_classifies_exactly_the_five_local_servers() {
-        // F1: the classification drives the transport-deadline default
-        // (local ≫ cloud) — keyed on the id so a base_url override can
-        // never flip it.
-        for p in seed() {
-            let expected = ["ollama", "lmstudio", "llamacpp", "localai", "vllm"].contains(&p.id);
-            assert_eq!(p.is_local(), expected, "{} classification", p.id);
         }
     }
 

@@ -256,10 +256,10 @@ fn build_request(
     http_req.headers = headers;
     http_req.body = Some(Bytes::from(bytes));
     // The task `timeout:` governs the transport deadline (F1) — buffered
-    // calls always get one (per-provider default when undeclared · local
-    // servers get minutes, not the 30s cloud default); streaming carries
-    // only an explicit budget (the idle-read guard reaps stalls).
-    http_req.timeout = super::transport_deadline(&rp.profile, &req, stream);
+    // calls always get one (the buffered default when undeclared, local or
+    // cloud); streaming carries only an explicit budget (the idle-read guard
+    // reaps stalls).
+    http_req.timeout = super::transport_deadline(&req, stream);
     Ok(http_req)
 }
 

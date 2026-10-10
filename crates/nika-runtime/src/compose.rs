@@ -543,9 +543,9 @@ pub fn capabilities_of(wf: &nika_schema::raw::RawWorkflow) -> RuntimeCapabilitie
 /// total deadline for a request without an explicit one.
 ///
 /// Every buffered provider call sets its OWN total deadline (the task
-/// `timeout:` · else the wire layer's per-provider default — 30s cloud ·
-/// 300s local), so this ceiling never governs a well-formed call; it only
-/// reaps sockets that stopped delivering. It MUST comfortably exceed the
+/// `timeout:` · else the wire layer's buffered default, 600s local or cloud,
+/// equal to this ceiling), so this ceiling only reaps sockets that stopped
+/// delivering. It MUST comfortably exceed the
 /// longest silent local-model wait (a non-streaming completion delivers
 /// ZERO bytes while the model computes — the default 30s guard killed every
 /// `timeout: 7m` ollama task at 30s · F1). A task `timeout:` beyond this

@@ -13,6 +13,7 @@
 //! 3. provider 401 retains sanitized status and authentication guidance
 //! 4. `ProviderMeta` answers coherently with the wire family
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use nika_kernel::ai::provider::{
@@ -20,6 +21,7 @@ use nika_kernel::ai::provider::{
     ProviderMeta as _, ProviderStreamDyn as _, ResponseFormat, Role, StopReason, ToolDef,
 };
 use nika_kernel::genai::GenAiSystem;
+use nika_kernel::http::{HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse};
 use nika_kernel::secret::Secret;
 
 use crate::profile::{WireFormat, seed};
@@ -481,32 +483,25 @@ async fn every_wired_profile_parses_a_tool_call_consistently() {
 async fn every_wired_profile_carries_the_transport_deadline() {
     // F1 parity (field report 2026-07-04): the task `timeout:` must govern
     // the provider HTTP deadline on EVERY wire — and when the task declares
-    // none, the default is per provider CLASS: local servers get minutes
-    // (a 14B model cannot answer a real prompt in 30s · the sovereignty
-    // story), cloud keeps the historical 30s.
-    use crate::wire::{CLOUD_DEFAULT_TIMEOUT, LOCAL_DEFAULT_TIMEOUT};
+    // none, every buffered call gets the same default, local or cloud: the
+    // provider transport's own bound on a silent connection (a 30s cloud
+    // default cut a legitimate summary at 30.0s · E1, 2026-10-10).
+    use crate::wire::BUFFERED_DEFAULT_TIMEOUT;
     use std::time::Duration;
 
     let task_budget = Duration::from_secs(420); // the `timeout: "7m"` repro
 
     for (id, wire, requires_key) in wired_http_profiles() {
-        let is_local = matches!(id, "ollama" | "lmstudio" | "llamacpp" | "localai" | "vllm");
-
-        // (a) no task timeout → the per-class default rides the request.
+        // (a) no task timeout → the buffered default rides the request.
         let fake = FakeHttp::with_json(200, ok_fixture(id, wire));
         let rp = resolve_on(&fake, id, requires_key);
         rp.infer(request())
             .await
             .unwrap_or_else(|e| panic!("[{id}] infer must succeed: {e}"));
-        let expected = if is_local {
-            LOCAL_DEFAULT_TIMEOUT
-        } else {
-            CLOUD_DEFAULT_TIMEOUT
-        };
         assert_eq!(
             fake.captured()[0].timeout,
-            Some(expected),
-            "[{id}] class default rides the buffered request"
+            Some(BUFFERED_DEFAULT_TIMEOUT),
+            "[{id}] the buffered default rides the buffered request"
         );
 
         // (b) task timeout declared → it WINS on every wire (the 408-at-30s
@@ -556,6 +551,65 @@ async fn every_wired_profile_carries_the_transport_deadline() {
             Some(task_budget),
             "[{id}] an explicit task budget rides the streaming request too"
         );
+    }
+}
+
+/// A provider that answers after a scripted latency, the way the real transport delivers it: a
+/// request whose own total deadline is shorter is cut with the transport's timeout first.
+struct Slow {
+    latency: std::time::Duration,
+    body: &'static str,
+}
+
+impl HttpPostDyn for Slow {
+    async fn post(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
+        if let Some(deadline) = request.timeout.filter(|deadline| *deadline < self.latency) {
+            let duration_ms = u64::try_from(deadline.as_millis()).unwrap_or(u64::MAX);
+            return Err(HttpError::Timeout { duration_ms });
+        }
+        let body = bytes::Bytes::from_static(self.body.as_bytes());
+        Ok(HttpResponse::new(200, BTreeMap::new(), body, request.url))
+    }
+
+    async fn send_streaming(&self, _: HttpRequest) -> Result<HttpStreamResponse, HttpError> {
+        Err(HttpError::Unsupported {
+            reason: "a buffered provider only".to_owned(),
+        })
+    }
+}
+
+/// E1 run 2 (2026-10-10): a buffered cloud summary whose task declared no `timeout:` was cut at
+/// 30.0 s by an implicit deadline and the Run failed. On every wired profile, local or cloud, a
+/// buffered answer that takes 35 s is received; a task's own shorter `timeout:` still cuts it,
+/// and the 408 names that deadline.
+#[tokio::test]
+async fn a_buffered_answer_after_35s_is_never_cut_by_an_implicit_deadline() {
+    let latency = std::time::Duration::from_secs(35);
+    for (id, wire, requires_key) in wired_http_profiles() {
+        let slow = Arc::new(Slow {
+            latency,
+            body: ok_fixture(id, wire),
+        });
+        let mut config = ProvidersConfig::new();
+        if requires_key {
+            config = config.with_key(id, Secret::new("parity-test-key"));
+        }
+        let rp = ProviderRegistry::new(slow, config)
+            .resolve(&format!("{id}/test-model"))
+            .expect("parity profile resolves");
+        let answered = rp.infer(request()).await;
+        assert!(answered.is_ok(), "[{id}] {answered:?}");
+        let mut bounded = request();
+        bounded.timeout = Some(std::time::Duration::from_secs(20));
+        let cut = rp
+            .infer(bounded)
+            .await
+            .expect_err("the task's own timeout cuts");
+        let ProviderError::Api { status, message } = cut.unobserved() else {
+            panic!("[{id}] the task's own 20 s timeout cuts the call: {cut:?}");
+        };
+        assert_eq!(*status, 408, "[{id}] {message}");
+        assert!(message.contains("after 20000ms"), "[{id}] {message}");
     }
 }
 
