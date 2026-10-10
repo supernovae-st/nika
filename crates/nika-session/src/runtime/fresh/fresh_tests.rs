@@ -57,13 +57,8 @@ fn open(root: &Path) -> (SessionRuntime, Seen) {
     let player = Player {
         seen: Arc::clone(&seen),
     };
-    let intelligence = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::None,
-        model: None,
-        locus: DataLocus::None,
-        ready: true,
-        why: None,
-    };
+    let intelligence =
+        ResolvedSessionIntelligence::new(IntelligenceKind::None, None, DataLocus::None, true, None);
     (
         SessionRuntime::open(root, intelligence, Box::new(player)),
         seen,

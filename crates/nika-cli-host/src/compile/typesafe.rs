@@ -38,6 +38,8 @@ pub struct TypesafeSeat {
     name: String,
     base: String,
     timeout: Duration,
+    /// What its batches learned of its capacity: each later batch starts under it.
+    capacity: system_one::Capacity,
 }
 
 /// How far one request went: never sent, an unknown outcome (the transport failed after it
@@ -127,6 +129,7 @@ impl TypesafeSeat {
             name: format!("typesafe/{model}"),
             base: base.trim_end_matches('/').to_owned(),
             timeout: TIMEOUT,
+            capacity: system_one::Capacity::default(),
         })
     }
 

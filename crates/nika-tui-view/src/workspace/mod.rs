@@ -3,7 +3,8 @@
 
 //! The pure parts of the workspace screen, shared with the renderer that owns
 //! the screen (`nika-tui`, ADR-143): where each region stands ([`geometry`]),
-//! the header ([`header`]), the project aside ([`aside`]), the pinned run
+//! the header ([`header`]) and its composition ([`masthead`]), the project
+//! aside ([`aside`]) and the project it lists ([`project`]), the pinned run
 //! ([`pinned`]), the object in view ([`object`]) and the conversation's own
 //! rows ([`conversation`]), with the fitting of words into cells they share
 //! ([`text`]).
@@ -16,10 +17,14 @@
 //! in the renderer.
 
 pub mod aside;
+pub mod candidate;
 pub mod conversation;
 pub mod geometry;
 pub mod header;
+pub mod inspect;
+pub mod masthead;
 pub mod object;
 pub mod pinned;
+pub mod project;
 pub mod text;
 pub mod wrapped;

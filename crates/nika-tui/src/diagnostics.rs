@@ -31,6 +31,9 @@ pub(crate) enum Shown {
     /// The opening banner, its recognised knowledge warning shortened; the
     /// block's text is the detail.
     Banner(String),
+    /// A run's story folded at its commit (`Committed::run`): one quiet row
+    /// of the run's label and settled state; the block's text is the detail.
+    Folded((String, &'static str)),
 }
 
 /// A recognised refusal, in four parts.
@@ -99,6 +102,7 @@ pub(crate) fn shown(block: &Committed) -> Shown {
     match block.kind {
         Kind::Refusal => untrusted_refusal(&block.text).map_or(Shown::Said, Shown::Refusal),
         Kind::Banner => banner(&block.text).map_or(Shown::Said, Shown::Banner),
+        Kind::Run => (block.run.clone()).map_or(Shown::Said, Shown::Folded),
         _ => Shown::Said,
     }
 }

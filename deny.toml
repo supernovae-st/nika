@@ -116,6 +116,7 @@ wrappers = [
   "nika-service-execution", # L3 shared driver: tokio dev-dep ONLY for #[tokio::test] over the async service seam (zero runtime tokio dep)
   "nika-serve",            # L4 remote HTTP: tokio net/rt/sync own the listener (W06 · loopback Bearer server)
   "nika-dap",              # L4 forensics (the trust plane · 2026-07-20): tokio dev-dep ONLY — the anchor submit-path tests park a current-thread executor around the HttpPostDyn seam (zero runtime tokio dep · the L4 shim owns the production executor)
+  "nika-mcp",              # L4 MCP: tokio dev-dep ONLY — the conversation relay test drives a harness conversation against the crate's real tool server (zero runtime tokio dep · the server stays sync)
   "nika-trace",            # L4 flight-recorder reader (descended from nika-cli 2026-08-11 · the 15k wall · ADR-110): the anchor verb's production submit parks a current-thread executor around the nika-http Rekor/RFC 3161 round-trips (the nika-models idiom · the lib is sync everywhere else)
   # Transitive consumers via reqwest → hyper stack (allowed through nika-catalog-verify)
   # tower-http joined via chromiumoxide's reqwest 0.13 tree (nika-browser M2.5).
@@ -127,8 +128,9 @@ wrappers = [
   # Transitive consumers via chromiumoxide (nika-browser's CDP backend · M2.5):
   # the CDP WebSocket rides async-tungstenite/tokio · tower-http via its reqwest
   "chromiumoxide", "async-tungstenite", "tower-http",
-  "nika-session",         # L4 native session (ADR-125): blocks on ONE inference at a time (a current-thread runtime per turn) — the seat adapter and the provider registry are async
+  "nika-session",         # L4 native session (ADR-125): tokio dev-dep ONLY since ADR-150 — its suites park their own current-thread runtimes (the reasoners' runtime moved to nika-session-intelligence)
   "nika-session-host",    # L4 Session over a wire (ADR-148): tokio sync/time for the HTTP routes' wait and the machine door's stdio lines (dev: rt-multi-thread, net, macros, io-util for its route tests)
+  "nika-session-intelligence", # L4 session member (ADR-150): blocks on ONE inference at a time (a current-thread runtime per turn) — the seat adapter and the provider registry are async
   "nika-tui",             # L4 terminal renderer (ADR-139): a current-thread runtime for ONE event broker (crossterm EventStream · signals · mpsc) and the UI loop; no work of the engine runs here
 ]
 

@@ -33,15 +33,15 @@ fn world() -> tempfile::TempDir {
 
 /// A session whose reasoner answers in words only, over a local engine.
 fn open(root: &Path, replies: &[&str]) -> SessionRuntime {
-    let local = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Local {
+    let local = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Local {
             provider: "ollama".to_owned(),
         },
-        model: None,
-        locus: DataLocus::Local,
-        ready: true,
-        why: None,
-    };
+        None,
+        DataLocus::Local,
+        true,
+        None,
+    );
     SessionRuntime::open(
         root,
         local,
@@ -461,15 +461,15 @@ impl crate::reasoner::SessionReasoner for SeatedReasoner {
 }
 
 fn open_seated(root: &Path) -> SessionRuntime {
-    let api = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Api {
+    let api = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Api {
             provider: "mock".to_owned(),
         },
-        model: Some("mock/echo".to_owned()),
-        locus: DataLocus::Local,
-        ready: true,
-        why: None,
-    };
+        Some("mock/echo".to_owned()),
+        DataLocus::Local,
+        true,
+        None,
+    );
     SessionRuntime::open(
         root,
         api,
@@ -594,17 +594,17 @@ fn an_honest_incomplete_keeps_only_the_reasons_a_human_can_act_on() {
 fn a_model_the_human_named_is_never_swapped_for_a_stronger_one() {
     let root = world();
     let stronger = |named: Option<&str>| {
-        let api = ResolvedSessionIntelligence {
-            kind: IntelligenceKind::Api {
+        let api = ResolvedSessionIntelligence::new(
+            IntelligenceKind::Api {
                 provider: "deepseek".to_owned(),
             },
-            model: named.map(str::to_owned),
-            locus: DataLocus::Metered {
+            named.map(str::to_owned),
+            DataLocus::Metered {
                 provider: "deepseek".to_owned(),
             },
-            ready: true,
-            why: None,
-        };
+            true,
+            None,
+        );
         let reasoner = crate::reasoner::ProviderReasoner {
             model: named.unwrap_or("deepseek/deepseek-flash").to_owned(),
             label: "deepseek API".to_owned(),

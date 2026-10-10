@@ -106,17 +106,22 @@ pub(crate) fn handle(msg: &Value) -> Option<Value> {
 /// and prompts capabilities · identity. Version negotiation (spec lifecycle · MUST): echo the
 /// client's requested version when supported, else answer with ours.
 fn initialize_result(params: Option<&Value>) -> Value {
-    let version = params
-        .and_then(|p| p.get("protocolVersion"))
-        .and_then(Value::as_str)
-        .filter(|v| SUPPORTED.contains(v))
-        .unwrap_or(PROTOCOL_VERSION);
     json!({
-        "protocolVersion": version,
+        "protocolVersion": negotiated(params),
         "capabilities": { "tools": {}, "prompts": {} },
         "serverInfo": { "name": SERVER_NAME, "version": env!("CARGO_PKG_VERSION") },
         "instructions": SERVER_INSTRUCTIONS,
     })
+}
+
+/// The revision an `initialize` answers: the client's requested one when
+/// supported, else ours (spec lifecycle · version negotiation MUST).
+pub(crate) fn negotiated(params: Option<&Value>) -> &str {
+    params
+        .and_then(|p| p.get("protocolVersion"))
+        .and_then(Value::as_str)
+        .filter(|v| SUPPORTED.contains(v))
+        .unwrap_or(PROTOCOL_VERSION)
 }
 
 /// `tools/call` → run the named tool over its `arguments`. A missing/!object
@@ -167,17 +172,17 @@ fn prompts_get(id: &Value, params: Option<&Value>) -> Value {
 }
 
 /// An MCP tool result: one text content block + the `isError` flag.
-fn tool_content(text: &str, is_error: bool) -> Value {
+pub(crate) fn tool_content(text: &str, is_error: bool) -> Value {
     json!({ "content": [{ "type": "text", "text": text }], "isError": is_error })
 }
 
 /// A JSON-RPC 2.0 success reply.
-fn ok(id: &Value, result: Value) -> Value {
+pub(crate) fn ok(id: &Value, result: Value) -> Value {
     reply(id, "result", result)
 }
 
 /// A JSON-RPC 2.0 error reply.
-fn err(id: &Value, code: i64, message: &str) -> Value {
+pub(crate) fn err(id: &Value, code: i64, message: &str) -> Value {
     reply(id, "error", json!({ "code": code, "message": message }))
 }
 

@@ -182,15 +182,15 @@ fn open(world: &World, replies: &[String]) -> (SessionRuntime, Seen) {
         inner: ScriptedReasoner::new(replies.to_vec()),
         seen: Arc::clone(&seen),
     };
-    let local = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Local {
+    let local = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Local {
             provider: "ollama".to_owned(),
         },
-        model: None,
-        locus: DataLocus::Local,
-        ready: true,
-        why: None,
-    };
+        None,
+        DataLocus::Local,
+        true,
+        None,
+    );
     (
         SessionRuntime::open(world.root(), local, Box::new(player)),
         seen,

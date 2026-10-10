@@ -214,13 +214,20 @@ impl<C: Conversation + 'static> Shell<C> {
         self.composer.set_focused(focused);
     }
 
-    /// The transcript block whose whole words the reader shows, by index: the
-    /// typed question waiting at the answer line, tied to its block by
-    /// identity (the block the live card carries, whatever the card shows
-    /// now); else the latest block the conversation's cards show summarized (a
-    /// recognized refusal or banner) or the current proposal reviewed against
+    /// The transcript block whose whole words the reader shows, by index:
+    /// scrolled back, the newest one the conversation shows at the reading
+    /// position ([`diagnostic::read_at`]); else the typed question waiting at
+    /// the answer line, tied to its block by identity (the block the live card
+    /// carries, whatever the card shows now); else the latest block the
+    /// conversation's cards show short of whole (a recognized refusal or
+    /// banner, a folded run's story) or the current proposal reviewed against
     /// the same candidate the workspace paints.
     fn reader(&self) -> Option<usize> {
+        if self.state.focus_scroll > 0
+            && let Some(at) = diagnostic::read_at(&self.state, &self.desk, &self.composer, None)
+        {
+            return Some(at);
+        }
         if let Some(index) = question::asked_block(&self.state) {
             return Some(index);
         }

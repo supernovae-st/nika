@@ -28,7 +28,7 @@ use nika_tui_view::Canvas;
 use ratatui::text::{Line, Span};
 
 use super::LiveRun;
-use super::faces::lines_of;
+use super::faces::{lines_of, verdict};
 use crate::session::acquire::ChildRead;
 use crate::visual::{role, state};
 use crate::workspace::text::{fit_head, marks};
@@ -250,26 +250,7 @@ fn said(read: &ChildRead, sep: &str) -> Vec<(String, Role)> {
         return vec![(format!("not read{sep}{why}"), Role::Warn)];
     }
     let mut rows = Vec::new();
-    if let Some(witness) = proven.witness() {
-        let short: String = witness.chars().take(12).collect();
-        rows.push((
-            format!("captured bytes {short}{sep}the verdict below is theirs"),
-            Role::Dim,
-        ));
-    }
-    let tier = proven.tier().unwrap_or("unknown").to_uppercase();
-    let exit = proven
-        .exit()
-        .map_or_else(|| "unknown".to_owned(), |e| e.to_string());
-    let tone = if proven.exit() == Some(0) {
-        Role::Accent
-    } else {
-        Role::Warn
-    };
-    rows.push((
-        format!("verdict{sep}{tier}{sep}exit {exit}{sep}the verifier's, over these bytes"),
-        tone,
-    ));
+    verdict(proven, sep, &mut rows);
     for (holds, words) in read.compared() {
         rows.push((words.clone(), if *holds { Role::Dim } else { Role::Warn }));
     }

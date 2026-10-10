@@ -29,6 +29,10 @@ nika-builtin = { path = "../nika-builtin", version = "0.123.0-preview.1" }
 # never depends on this one.
 nika-cli-host = { path = "../nika-cli-host", version = "0.123.0-preview.1", default-features = false }
 nika-migrate = { path = "../nika-migrate", version = "0.123.0-preview.1" }  # `repair::word_sites` — the ONE whole-token scan (the `nika_examples` builtin route)
+# The session's tool contract (`tools::SessionTools` · `nika/author-tools@0`) the
+# conversation tool server relays (lateral L4→L4 · nika-session-change never
+# depends back).
+nika-session-change = { path = "../nika-session-change", version = "0.123.0-preview.1" }
 # The exec verb's OS sandbox (ADR-095 Layer 6) — a spawned MCP server rides
 # the SAME confinement (never a bespoke second sandbox). The selection itself
 # lives at the L3 composition root (#888 · the ONE `select_command_sandbox`);
@@ -43,9 +47,14 @@ serde_json  = { workspace = true }   # JSON-RPC 2.0 messages (the only wire form
 serde       = { workspace = true }   # the lockfile/registry envelopes (pin.rs · client.rs)
 thiserror   = { workspace = true }   # the transport error enum
 blake3      = { workspace = true }   # the per-tool pin hash (the proof layer's algorithm · domain-separated pre-image replicated in pin.rs)
+getrandom   = { workspace = true }   # the bearer a conversation's tool server mints for itself alone
 
 [lints]
 workspace = true
 
 [dev-dependencies]
 proptest = { workspace = true }   # Gate 6 · property tests on the JSON-RPC dispatcher (untrusted client input)
+# The conversation relay end to end: the harness opens an ACP conversation with a scripted
+# agent that calls this crate's tool server (tests/conversation_relay.rs).
+nika-harness = { path = "../nika-harness", version = "0.123.0-preview.1" }
+tokio        = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }

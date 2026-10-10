@@ -7,7 +7,7 @@
 //! makes of the document and the record that follows it are tested where those laws live
 //! (`nika_compile_seats::foundry::document::create`).
 
-use super::{DocumentAnswer, answer_schema};
+use super::{DocumentAnswer, Resolution, answer_schema};
 use crate::rehearse::{
     Attempt, Bounds, CopyReceipt, Digest, EffectCounts, FinalReceipt, FinalState, Held,
     LedgerFacts, Observation, Rehearsal, RehearsalFuture, RehearsalReport, Rehearse,
@@ -143,9 +143,14 @@ fn the_answer_schema_widens_the_whole_source_answer_with_the_documents_operation
         "questions",
         "gaps",
         "notes",
+        "resolutions",
     ] {
         assert!(required.contains(&key), "{key}: {required:?}");
     }
+    // An author states only the kinds it can authorize from the person's words: an offer and a
+    // kept value are the Session's to state.
+    let kinds = &schema["properties"]["resolutions"]["items"]["properties"]["kind"]["enum"];
+    assert_eq!(kinds, &json!(["named", "delegated", "derived", "answered"]));
     let ops = &schema["properties"]["operations"]["items"]["properties"]["op"]["enum"];
     for op in ["set", "insert_text", "rename", "compose", "rebind"] {
         assert!(
@@ -168,6 +173,24 @@ fn an_answer_writes_its_document_whole_or_line_by_line() {
     // The text wins when both are stated.
     let both = answer(json!({"candidate": WRITTEN, "candidate_lines": ["nika: other"]}));
     assert_eq!(both.written().as_deref(), Some(WRITTEN));
+}
+
+/// The selections an answer states read back as the law reads them; an answer without them, as
+/// every answer before them, states none.
+#[test]
+fn an_answer_states_its_selections_with_their_provenance() {
+    let row = json!({"value": "./news/digest.md", "kind": "derived", "role": "output_path",
+        "excerpt": "dans un fichier du projet"});
+    let stated = answer(json!({"candidate": WRITTEN, "resolutions": [row]}));
+    let read = Resolution::read_all(&stated.resolutions).expect("readable");
+    assert_eq!(read.len(), 1);
+    assert_eq!(read[0].to_json(), row);
+    assert!(answer(json!({"candidate": WRITTEN})).resolutions.is_empty());
+    assert!(
+        answer(json!({"candidate": WRITTEN, "resolutions": null}))
+            .resolutions
+            .is_empty()
+    );
 }
 
 /// The audit's request for the stale-records report (its phrasing kept verbatim).

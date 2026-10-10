@@ -31,15 +31,18 @@
 //! - [`remote`] · what a door that holds no project admits from its caller's engine to prepare
 //!   as `nika compile` does: the observation of the stated files and the trial inputs a room is
 //!   built from.
+//! - [`authority`] · the authority over a seat's requests: the bound a door states, the counters
+//!   that enforce it, and the account a receipt keeps (descended from the seats' doors, ADR-152).
 //!
 //! A size-cap member of the `nika-onboard` unit (ADR-146 · D-2026-07-09-N1 · the ADR-144
 //! precedent), placed below the seats' doors: `nika-compile-cognition` →
-//! `nika-compile-seats` → `nika-compile`, never back. The seats' doors keep both modules at
-//! their historical paths, `nika_compile_cognition::{decide, rehearse}`, and the onboarding
-//! surface re-exports them from there.
+//! `nika-compile-seats` → `nika-compile`, never back. The seats' doors keep the modules at
+//! their historical paths, `nika_compile_cognition::{authority, decide, rehearse}`, and the
+//! onboarding surface re-exports them from there.
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+pub mod authority;
 pub mod compose;
 pub mod decide;
 pub mod foundry;

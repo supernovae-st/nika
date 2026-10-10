@@ -84,6 +84,14 @@ read the clock or change consent. Native-project integration tests stay at the
 native boundary rather than adding an edge back. The brand provenance test uses
 the existing workspace `sha2` dev dependency.
 
+On 9 October 2026 the object in view moved here as well (ADR-143 amendment of
+that date): the look's faces (`workspace::inspect`) over the plain check facts
+the renderer folds from the check facade's audit (`Checked`, `Said`), the
+proposal's faces and facts with the review card model (`workspace::candidate`),
+the header's composition (`workspace::masthead`) and the project's data and
+pure projections (`workspace::project`). The renderer keeps the audit fold,
+the aside routing over the live run and the review's place in the transcript.
+
 - Nothing here reads a file, a clock or the environment, spawns, blocks or stores. The faces
   tests are the only callers of `nika_cli_host::oracle::audit_source`, as the owner's stand-in,
   once per fixture.

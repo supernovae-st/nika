@@ -57,7 +57,12 @@ against an identity fixed by the build and pinned when a Session opens. Under
 strategy `off`, nothing named is `Unread` and attaches no knowledge. Naming a
 source under that strategy is refused (`ConfigError::KnowledgeUnread`). Off
 beside a source on one layer is refused (`ConfigError::ContradictoryKnowledge`);
-an explicit path named `off` stays a directory.
+an explicit path named `off` stays a directory. A door's own layer may name the
+embedded release explicitly (`AuthoringSettings::with_knowledge_embedded`, which
+replaces whatever knowledge that layer named): it decides as `Named` with
+`KnowledgeSource::Embedded` and `KnowledgeLayer::Explicit`, so the environment's
+knowledge is not read while its strategy, effort and held-out corpus still apply.
+No flag or environment word sets it; the Session's `/knowledge embedded` does.
 
 `AuthoringConfig::with_knowledge` composes an admitted release for the request's
 intent; a revision takes precedence over the caller's clarified fallback. An
@@ -165,6 +170,14 @@ here from `nika-session` on 2026-09-29 (the `meaning` precedent · D8 headroom);
 host endpoint observations. `audit_over` preserves a configured OpenAI-compatible
 route; the existing `audit` wrapper retains conservative profile defaults. Both
 are pure resolutions: this crate still never calls a provider. Its tests live beside it (`src/guard.rs`).
+
+A `provider/name` token is judged as a model by its role, never by its shape: only when it
+fills a model slot — the value of a `model:` field, a `--model` flag, or a name the prose
+calls a model (« the model `x` » · « the `x` model » · « `x` as the model »). An output or
+input path (`news/2026-10-09.md`, a folder named like a provider) keeps its role wherever the
+reply carries it, and a model slot is judged whatever its name looks like (a capitalised or
+two-letter provider, a folder word). There is no folder list. A model named in prose without
+a model slot (« Use `x`. ») is not judged.
 
 ## The automation rail (read by Session)
 
@@ -787,6 +800,14 @@ session-wide creation quotas; a trial run grants no live `.nika` Run authority. 
 the room's screen refuses what a rehearsal cannot bound or confine; its last pass is the
 argument law of `nika-compile-seats` (`rehearse::arguments`, held here until this crate's size
 cap), and each value that law refuses is a data bound in the words of its field.
+
+Before each rehearsal, `Scoped` observes the request's sources and destinations in the original
+project (`WorldBefore::capture`); a path outside the project, a symlink or an unreadable file
+blocks the dispatch's account. Told the request (`Scoped::stating`, which Session passes), it
+leaves out of that observation each destination the request states as an endpoint's route that
+the candidate sends to, as the fidelity path law reads it (`fidelity::stated_routes`): a route
+is no file. The host is still handed every destination. An unstated route, a rooted or `..`
+file, and a route the candidate also opens as a file still block the account in the same words.
 
 ### Child workflows checked composed
 

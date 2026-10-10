@@ -73,11 +73,8 @@ impl SessionReasoner for Reader {
         } else {
             self.replies.remove(0)
         };
-        next.map(|text| Reply {
-            text: text.to_owned(),
-            usage_observed: false,
-        })
-        .map_err(|why| ReasonError::Provider(why.to_owned()))
+        next.map(|text| Reply::new(text.to_owned(), false))
+            .map_err(|why| ReasonError::Provider(why.to_owned()))
     }
 }
 
@@ -94,15 +91,15 @@ fn reading(
     replies: Vec<Result<&'static str, &'static str>>,
 ) -> (SessionRuntime, Receiver<String>) {
     let (seen, prompts) = channel();
-    let local = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Local {
+    let local = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Local {
             provider: "ollama".to_owned(),
         },
-        model: None,
-        locus: DataLocus::Local,
-        ready: true,
-        why: None,
-    };
+        None,
+        DataLocus::Local,
+        true,
+        None,
+    );
     let reader = Reader {
         replies,
         seen,
@@ -135,15 +132,15 @@ fn seated(
     let peer = Peer::start(vec![(200, response(JUDGE_APPROVES))]);
     let transport = test_transport::install(&peer.url);
     let (seen, prompts) = channel();
-    let local = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Local {
+    let local = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Local {
             provider: "ollama".to_owned(),
         },
-        model: None,
-        locus: DataLocus::Local,
-        ready: true,
-        why: None,
-    };
+        None,
+        DataLocus::Local,
+        true,
+        None,
+    );
     let reader = Reader {
         replies,
         seen,
@@ -159,13 +156,13 @@ fn seated(
 
 /// A session with no intelligence chosen: replies are taken as typed.
 fn literal(root: &Path) -> SessionRuntime {
-    let none = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::None,
-        model: None,
-        locus: DataLocus::None,
-        ready: false,
-        why: None,
-    };
+    let none = ResolvedSessionIntelligence::new(
+        IntelligenceKind::None,
+        None,
+        DataLocus::None,
+        false,
+        None,
+    );
     SessionRuntime::open(root, none, Box::new(NoReasoner))
 }
 

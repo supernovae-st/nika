@@ -6,9 +6,9 @@
 //! them; it repeats the verdict with no call (`carried`), and the bytes stay held. A correction
 //! is another request: the verdict binds to the request it judged, so the corrected request is
 //! asked again. New work carries none. No provider qualification, no paid call.
-use super::unjudged::{DOUBTED, HELD, UNTRIED, asked, held_findings};
+use super::authoring_decision::{KEY, Peer as SystemOne, Reply, SEAT};
+use super::unjudged::{DOUBTED, UNRESOLVED, UNTRIED, asked, held_findings};
 use super::*;
-use crate::authoring::decision::tests::{KEY, Peer as SystemOne, Reply, SEAT};
 use crate::authoring::{AuthoringContext, AuthoringSeat, DecisionSetup};
 use nika_cli_host::compile::config::AuthoringSettings;
 use nika_event::source_id::sha256_hex;
@@ -41,28 +41,29 @@ fn verdict(id: &str, choice: &str) -> Reply {
 }
 
 /// The verifier's doubt of [`WORK`]'s candidate with no defect located: the whole request not
-/// carried, its one part carried, no task doing what the request does not ask.
+/// carried, its one part carried (the read and the write are the request's own, so the engine's
+/// facts leave no task to ask about), and, asked where its doubt is, nowhere.
 const DOUBT: [(&str, &str); 3] = [
     ("verify-request", "unfaithful"),
     ("verify-part-0", "carried"),
-    ("verify-extra", "only_requested"),
+    ("verify-doubt", "unlocated"),
 ];
 
 /// The session under the provider's unnamed default (a reading it cannot settle is read once
 /// more by the stronger model), its verifier the operator-selected decision seat at `base`.
 fn judged_by_seat(root: &Path, home: &Path, base: &str) -> SessionRuntime {
     std::fs::write(root.join("entree.txt"), "A\n").expect("input");
-    let selected = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Api {
+    let selected = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Api {
             provider: "deepseek".into(),
         },
-        model: None,
-        locus: DataLocus::Metered {
+        None,
+        DataLocus::Metered {
             provider: "deepseek".into(),
         },
-        ready: true,
-        why: None,
-    };
+        true,
+        None,
+    );
     let reasoner = || ProviderReasoner {
         model: "deepseek/deepseek-flash".into(),
         label: "DeepSeek".into(),
@@ -186,9 +187,9 @@ fn the_stronger_retry_that_authors_the_held_bytes_again_never_asks_their_verifie
     let asked_roles: Vec<&Value> = (kept[0]["questions"].as_array().into_iter().flatten())
         .map(|question| &question["role"])
         .collect();
-    assert_eq!(asked_roles, ["judge_request", "judge_part", "judge_extra"]);
+    assert_eq!(asked_roles, ["judge_request", "judge_part", "judge_doubt"]);
     let held = s.last_outcome.as_ref().expect("the held outcome");
-    let untried = format!("{HELD}{UNTRIED}");
+    let untried = format!("{UNRESOLVED}{UNTRIED}");
     assert_eq!(held_findings(held), [untried.as_str()]);
     assert_eq!(
         verify_steps(&s),

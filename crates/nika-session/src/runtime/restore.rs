@@ -13,6 +13,9 @@ use super::{HELP, Refusal, RefusalClass, SLASH_COMMANDS, SessionRuntime, TurnOut
 /// The help line of `/restore`, shown only while a kept draft can be proposed again.
 pub(super) const RESTORE_HELP: &str = "/restore            see again the proposal kept from your last session (its request, a fresh preview) · no AI asked · nothing is written until you say yes";
 
+/// The help line of `/knowledge`, shown only while a refused source can be replaced.
+pub(super) const KNOWLEDGE_HELP: &str = "/knowledge embedded  use the knowledge built into Nika for this conversation (the setting that named another was refused) · a held message resumes once · `/knowledge` shows the one in use";
+
 /// The recovery notice's pointer to `/restore`, after the kept draft's own line.
 pub(super) const RESTORE_HINT: &str =
     "\n  → type /restore to review it again · no AI asked · nothing is written until you say yes";
@@ -22,26 +25,36 @@ const NOTHING_KEPT: &str = " · only a proposal waiting for your yes or no, or a
 
 impl SessionRuntime {
     /// The help card, with `/restore` only while a kept round can be continued or a kept
-    /// draft proposed again.
+    /// draft proposed again, and `/knowledge` only while a refused knowledge source can be
+    /// replaced by the embedded release.
     #[must_use]
     pub fn help_card(&self) -> String {
+        let card = if self.knowledge_offered() {
+            HELP.replacen("\n/help ", &format!("\n{KNOWLEDGE_HELP}\n/help "), 1)
+        } else {
+            HELP.to_owned()
+        };
         let line = if self.round_is_continuable() {
             ROUND_HELP
         } else if self.restored_draft_id().is_some() {
             RESTORE_HELP
         } else {
-            return HELP.to_owned();
+            return card;
         };
-        HELP.replacen("\n/help ", &format!("\n{line}\n/help "), 1)
+        card.replacen("\n/help ", &format!("\n{line}\n/help "), 1)
     }
 
-    /// The slash commands a door completes now: [`SLASH_COMMANDS`], and `/restore` only
-    /// while a kept round can be continued or a kept draft proposed again.
+    /// The slash commands a door completes now: [`SLASH_COMMANDS`], `/restore` only while a
+    /// kept round can be continued or a kept draft proposed again, and `/knowledge` only while
+    /// a refused knowledge source can be replaced by the embedded release.
     #[must_use]
     pub fn slash_commands(&self) -> Vec<&'static str> {
         let mut commands = SLASH_COMMANDS.to_vec();
         if self.round_is_continuable() || self.restored_draft_id().is_some() {
             commands.insert(2, "/restore");
+        }
+        if self.knowledge_offered() {
+            commands.insert(0, "/knowledge");
         }
         commands
     }

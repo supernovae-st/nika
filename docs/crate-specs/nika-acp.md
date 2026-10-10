@@ -113,6 +113,12 @@ the distinct `mcp/` subtree). It honors `KIMI_CODE_HOME` and fails closed on
 absent, empty, ambiguous, unreadable, swapped, or symlinked stores. This is a
 configuration witness, not a token-validity claim: the first ACP session owns
 expiry/parse judgment and must fail without any native-provider fallback.
+A Command-auth row's login command (its exit code alone) has 30 s to answer:
+valid checks were measured at 12 s and 25.8 s (2026-10-09), and the former
+10 s read a signed-in seat as signed out. A check that does not answer in time,
+or cannot run, is an unknown sign-in (`LoginCheck::Unanswered` · `Unreadable`,
+carried as `login` on the probe facts), never signed out; admission still
+requires an answer (`configured` stays fail-closed).
 
 ## 5 · The mock ACP agent (P3.3 · the load-bearing instrument)
 
@@ -141,6 +147,81 @@ Harness rows emit `access=harness` · `billing=included_quota|extra_usage|unknow
 · `UnpricedReason::SubscriptionQuota` — never a fabricated $0 (A-6/A-7). The
 ledger law is untouched (`unmetered never trips` · `ledger.rs:190`); the
 epilogue speaks the quota line only when observable.
+
+## 7bis · Visible thinking (2026-10-09)
+
+Silence is the transport's signal only when the agent is genuinely silent. Measured on Claude
+Code ACP authoring calls (`@agentclientprotocol/claude-agent-acp` 0.81.1, effort `max`): no
+thought frame ever arrived, so a call that thought for minutes wrote only its answer chunks at
+the end, and a call still thinking at the silence allowance was cut with nothing but one status
+and one usage frame. The adapter writes `agent_thought_chunk` only for non-empty thinking
+text, and recent models default the SDK's `thinking.display` to `omitted` (signature-only
+blocks whose text is empty). Codex ACP streams its reasoning unchanged.
+
+So every Claude Code session the engine opens, the audited one-shot profile (authoring,
+`infer:`) and the `agent:` seat alike, sends `_meta.claudeCode.options.thinking =
+{type: adaptive, display: summarized}` with `session/new`: the adapter spreads those options
+over its defaults, and the SDK maps them to `--thinking adaptive --thinking-display
+summarized`. Adaptive thinking is the SDK's default for the models that support it, so this
+changes what is displayed, never the model, the effort, a budget or a tool; an agent session
+carries no other option, and its own loop, tools and settings stay its own. A thinking option a
+caller already names is kept as given. Codex and every other adapter send no options. Thought
+frames stay counted, never stored as text, and the 600 s silence allowance and the frames that
+re-arm it are unchanged: a thought frame shows the adapter wrote one, not what the model is
+doing. How the option meets a thinking setting of the user's own Claude Code configuration
+(which an `agent:` session reads, and the one-shot profile does not), and whether every offered
+Claude model accepts adaptive thinking, are to be verified live on the integrated binary.
+
+## 7ter · Persistent conversation profile (2026-10-09)
+
+A Session conversation led by an ACP agent runs in one persistent agent session whose only tools
+are Nika's own (`nika_harness::conversation`, opened by `SpawnedHarness::converse`). It sits
+beside the one-shot profile, which is unchanged.
+
+- **Once, then per entry.** `session/new` once per conversation, one `session/prompt` per user
+  entry, request ids from 101; the agent keeps the history and runs its own loop until it answers.
+  The session's root is a fresh scratch directory; the adapter's process group, the scratch and
+  the driver end with the `Conversation` handle.
+- **Closed surface, no turn limit.** Claude Code receives the one-shot's audited options without
+  `maxTurns`: `tools: []`, `mcpServers: {}`, `strictMcpConfig: true`, `settingSources: []`, no
+  plugins, skills or agents, `allowDangerouslySkipPermissions: false`, `persistSession: false` and
+  summarized thinking. Its only MCP server is Nika's, mounted through `session/new`'s
+  `mcpServers` (HTTP: `type`, `name`, `url` and an `Authorization` bearer header). Codex mounts
+  Nika's server from its own configuration (`mcp_servers.<name>`, every other configured server
+  disabled, every tool feature off, read back with `codex mcp list` before the spawn: exactly one
+  server enabled, Nika's), reads the bearer from the environment variable the configuration
+  names (`NIKA_MCP_BEARER`, never the configuration or a command line), and keeps the `read-only`
+  mode applied and read back. A user server already named like Nika's refuses the conversation.
+- **Admission and transport.** Only claude-agent-acp 0.81.1 and codex-acp 1.13.1 are admitted,
+  judged on `initialize` as the one-shot judges them. The transport follows the agent: HTTP when
+  Claude Code advertises `agentCapabilities.mcpCapabilities.http` (Codex's configuration speaks
+  Streamable HTTP) and Nika offers its endpoint, else Nika's stdio bridge when offered;
+  otherwise the conversation is refused after `initialize`, before any session, and nothing falls
+  back to the one-shot path. The opening record names the transport chosen, what the agent
+  advertised, what was offered, the server and the selection applied; never the endpoint or the
+  bearer.
+- **Permissions.** Nika answers every `session/request_permission` itself: `allow_once` only when
+  the call names one of the offered tools on Nika's server (`mcp__<server>__<tool>`, read from
+  `_meta.claudeCode.toolName` or the call's `name`, the server Claude Code names beside it
+  agreeing); anything else is rejected with `reject_once`, so the agent goes on without it
+  (`cancelled` when no such option is offered). `allow_always` and remembered rejections are
+  never chosen. Each decision is a turn beat and lands in the turn record (`allowed` count,
+  `denied` tool names, plain words only).
+- **Turns and Stop.** A turn's beats are its answer and thought text, its tool frames (now
+  expected activity) and the permission decisions, ending with its record: the closed end
+  (`end_turn`, `max_tokens`, `max_turn_requests`, `refusal`, `cancelled`, `other`), the Stops
+  received and whether `session/cancel` went out (once per turn, however many Stops), the
+  permissions, the bounds and the activity of §7bis's records. One turn runs at a time; a prompt
+  sent mid-turn is refused on its own stream. The turn's silence allowance applies while no tool
+  call is open (Nika's tool time is the Session's, bounded by its Stop), and again once Stop was
+  sent; between turns there is no bound. A transport failure, an unreadable line or a turn that
+  outlives its allowance ends the conversation.
+- **Not yet.** `session/load` is not used: a reopened conversation starts a new session and the
+  Session folds its context brief into the first prompt. The stdio bridge exists as a library
+  (`nika_mcp::conversation::bridge`) but no CLI starts it yet (`nika mcp --session`), so an agent
+  without HTTP MCP is refused. How codex-acp 1.13.1 presents a Nika tool call (whether it asks a
+  permission, and under which name) and the real Claude adapter's frames are to be confirmed by a
+  live probe.
 
 ## 8 · Non-goals (P3)
 

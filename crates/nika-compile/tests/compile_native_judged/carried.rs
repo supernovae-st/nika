@@ -15,21 +15,22 @@ use nika_compile_cognition::{Cognition, compile_with_cognition};
 /// The faithful program of [`TICKETS`]: the open tickets kept.
 const OPEN: &str = "fromjson | map(select(.status == \"open\"))";
 
-/// The judge's doubt that locates nothing: the request unfaithful, its two parts carried, no task
-/// doing more than asked.
+/// The judge's doubt that locates nothing: the request unfaithful, its two parts carried (the read
+/// and the write are the request's own, so the engine's facts leave no task to ask about), and
+/// asked where its doubt is, nowhere.
 const REJECTED: [(&str, &str); 4] = [
     ("verify-request", "unfaithful"),
     ("verify-part-0", "carried"),
     ("verify-part-1", "carried"),
-    ("verify-extra", "only_requested"),
+    ("verify-doubt", "unlocated"),
 ];
 
-/// The same doubt as an abstention: the judge chooses none on the whole request.
-const ABSTAINED: [(&str, &str); 4] = [
+/// The same doubt as an abstention: the judge chooses none on the whole request (an abstention is
+/// never asked where it is).
+const ABSTAINED: [(&str, &str); 3] = [
     ("verify-request", "none"),
     ("verify-part-0", "carried"),
     ("verify-part-1", "carried"),
-    ("verify-extra", "only_requested"),
 ];
 
 /// The route step of a verdict a host carried from an earlier round.
@@ -105,8 +106,10 @@ async fn a_rejection_carried_from_an_earlier_round_is_repeated_with_no_call() {
     assert_eq!(repeated.len(), 1, "{repeated:#?}");
     let mut carried = judged.clone();
     let spent = json!({"calls": 0, "input_tokens": 0, "output_tokens": 0, "complete": true});
+    // A repeat asks nothing: no question, and no engine fact settled in its stead.
     for (key, value) in [
         ("questions", json!([])),
+        ("engine", json!([])),
         ("attempted", json!(0)),
         ("returned", json!(0)),
         ("consumed", json!(0)),

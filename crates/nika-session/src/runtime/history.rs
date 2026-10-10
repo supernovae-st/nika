@@ -63,6 +63,11 @@ pub(super) struct Saved {
     #[serde(default, deserialize_with = "present")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selection: Option<serde_json::Value>,
+    /// This conversation's own explicit knowledge choice (`embedded`, by `/knowledge embedded`):
+    /// it resumes with the conversation; absent from records that had none, whose bytes stay
+    /// exactly as before. A word this engine does not read is kept unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub knowledge: Option<String>,
 }
 
 fn present<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<serde_json::Value>, D::Error> {

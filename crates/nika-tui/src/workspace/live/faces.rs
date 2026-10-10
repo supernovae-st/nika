@@ -394,26 +394,7 @@ impl LiveRun {
             rows.push((format!("not verified{sep}{why}"), Role::Warn));
             return lines_of(&rows, cells, ascii, color);
         }
-        if let Some(witness) = proven.witness() {
-            let short: String = witness.chars().take(12).collect();
-            rows.push((
-                format!("captured bytes {short}{sep}the verdict below is theirs"),
-                Role::Dim,
-            ));
-        }
-        let tier = proven.tier().unwrap_or("unknown").to_uppercase();
-        let exit = proven
-            .exit()
-            .map_or_else(|| "unknown".to_owned(), |e| e.to_string());
-        let tone = if proven.exit() == Some(0) {
-            Role::Accent
-        } else {
-            Role::Warn
-        };
-        rows.push((
-            format!("verdict{sep}{tier}{sep}exit {exit}{sep}the verifier's, over these bytes"),
-            tone,
-        ));
+        let tone = verdict(proven, sep, &mut rows);
         if proven.unbound().is_empty() {
             rows.push((
                 format!("this run's journal{sep}its execution, source and receipt match"),
@@ -466,4 +447,31 @@ impl LiveRun {
         ));
         lines_of(&rows, cells, ascii, color)
     }
+}
+
+/// The rows of `proven`'s verdict: the witness of the captured bytes, then
+/// the verifier's tier and exit in the tone (returned) an exit other than 0
+/// warns with.
+pub(super) fn verdict(proven: &Proven, sep: &str, rows: &mut Vec<(String, Role)>) -> Role {
+    if let Some(witness) = proven.witness() {
+        let short: String = witness.chars().take(12).collect();
+        rows.push((
+            format!("captured bytes {short}{sep}the verdict below is theirs"),
+            Role::Dim,
+        ));
+    }
+    let tier = proven.tier().unwrap_or("unknown").to_uppercase();
+    let exit = proven
+        .exit()
+        .map_or_else(|| "unknown".to_owned(), |e| e.to_string());
+    let tone = if proven.exit() == Some(0) {
+        Role::Accent
+    } else {
+        Role::Warn
+    };
+    rows.push((
+        format!("verdict{sep}{tier}{sep}exit {exit}{sep}the verifier's, over these bytes"),
+        tone,
+    ));
+    tone
 }

@@ -17,6 +17,9 @@ use crate::reasoner::{ProviderReasoner, test_transport};
 use crate::turn::{SessionPhase, TurnAct, TurnClassifier, TurnContext, TurnDecision};
 use nika_providers::AdmissionState;
 use serde_json::{Value, json};
+/// The decision seat through its real shared adapter and a loopback System One peer, which
+/// four runtime suites script (beside them since the authoring door left for its member).
+pub(crate) mod authoring_decision;
 mod carried;
 #[cfg(feature = "access-harness")]
 mod connection;
@@ -125,17 +128,17 @@ pub(crate) fn authored(reply: fn(&str) -> Value) -> Vec<(u16, Value)> {
 pub(crate) const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
 fn open(root: &Path) -> SessionRuntime {
     std::fs::write(root.join("entree.txt"), "A\n").expect("input");
-    let selected = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Api {
+    let selected = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Api {
             provider: "deepseek".into(),
         },
-        model: Some(MODEL.into()),
-        locus: DataLocus::Metered {
+        Some(MODEL.into()),
+        DataLocus::Metered {
             provider: "deepseek".into(),
         },
-        ready: true,
-        why: None,
-    };
+        true,
+        None,
+    );
     let mut s = SessionRuntime::open(
         root,
         selected,

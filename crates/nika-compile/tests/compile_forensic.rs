@@ -152,11 +152,12 @@ fn source_schema() -> Vec<String> {
         .to_vec()
 }
 
-/// The answer schema of the document door: the retired schema's keys and `operations` over the
-/// last document.
+/// The answer schema of the document door: the retired schema's keys, `operations` over the
+/// last document and the `resolutions` the author's selections carry.
 fn document_schema() -> Vec<String> {
     let mut keys = source_schema();
     keys.push("operations".to_owned());
+    keys.push("resolutions".to_owned());
     keys.sort();
     keys
 }

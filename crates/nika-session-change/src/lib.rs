@@ -44,6 +44,7 @@ pub mod outcome;
 pub mod reply;
 pub mod review;
 pub mod save_run;
+pub mod tools;
 pub mod work;
 pub mod world;
 

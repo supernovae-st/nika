@@ -91,9 +91,11 @@ where
     R: AsyncRead + Unpin + Send + 'static,
     W: AsyncWrite + Unpin + Send + 'static,
 {
-    drive_profile(reader, writer, request, idle, None, None)
+    drive_profile(reader, writer, request, idle, None, None, None)
 }
 
+/// [`drive_with_idle`] under a one-shot `completion` profile, telling `progress`, and sending
+/// `meta` with `session/new` (`OneShot::session_meta`, or an agent session's own options).
 pub(crate) fn drive_profile<R, W>(
     reader: R,
     writer: W,
@@ -101,6 +103,7 @@ pub(crate) fn drive_profile<R, W>(
     idle: std::time::Duration,
     completion: Option<crate::authoring::acp::OneShot>,
     progress: Option<crate::authoring::acp::Progress>,
+    meta: Option<Value>,
 ) -> HarnessEventStream
 where
     R: AsyncRead + Unpin + Send + 'static,
@@ -121,6 +124,7 @@ where
             media: crate::media::MediaState::default(),
             completion,
             progress,
+            meta,
         };
         if let Err(e) = driver.run(request).await {
             activity::failed(driver.progress.as_ref());
@@ -166,6 +170,8 @@ struct Driver<R, W> {
     /// The authoring call this session's closed protocol milestones, and what it receives after
     /// the prompt (`activity`), are told to, if any.
     progress: Option<crate::authoring::acp::Progress>,
+    /// The options sent once with `session/new` (`_meta`), if any.
+    meta: Option<Value>,
 }
 
 impl<R, W> Driver<R, W>
@@ -204,10 +210,7 @@ where
             mcp_servers: Vec::new(),
         })
         .map_err(session_err)?;
-        if let Some(meta) = self
-            .completion
-            .and_then(crate::authoring::acp::OneShot::session_meta)
-        {
+        if let Some(meta) = self.meta.take() {
             params["_meta"] = meta;
         }
         self.send_request(ID_SESSION_NEW, wire::METHOD_SESSION_NEW, &params)
@@ -689,6 +692,9 @@ mod effort;
 
 /// A completion profile's required session mode, applied and read back before the prompt.
 mod mode;
+
+/// One ACP session kept open across turns (`crate::conversation`).
+pub(crate) mod conversation;
 
 /// The engine's verdict → the wire outcome. `AllowOnce` selects the
 /// agent's `allow_once` option; `allow_always` is NEVER selected even

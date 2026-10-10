@@ -9,7 +9,8 @@
 //! paints, so the scroll bounds are the rows drawn; clipping can start inside
 //! a piece without losing wrapped text, and no block's words are rewritten.
 //! A refusal recognised by the Session's exact sentence reads first as a short
-//! summary ([`diagnostics`]), and the current proposal, tied to the candidate
+//! summary ([`diagnostics`]), a run's story folded at its commit as one quiet
+//! row of its run and state, and the current proposal, tied to the candidate
 //! by identity, as its typed review ([`review`]), its identity and reader key
 //! on its bottom border; any other proposal is history, quietly titled. Each
 //! block keeps the Session's words whole, and measuring and painting use the
@@ -25,6 +26,8 @@ pub(crate) mod diagnostics;
 mod bubble;
 pub(crate) mod review;
 
+use std::ops::Range;
+
 use nika_display::theme::Role;
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -36,7 +39,7 @@ use unicode_width::UnicodeWidthStr;
 use self::bubble::{Bubble, Form};
 use self::diagnostics::{Shown, Summary};
 use self::review::Review;
-use super::text::fit_head;
+use super::text::{fit_head, marks};
 
 use crate::model::{Committed, Kind, UiState};
 use crate::render::{block_lines, content_rows, window};
@@ -75,6 +78,10 @@ fn card_lines(block: &Committed, color: bool, ascii: bool) -> Vec<Line<'static>>
         Shown::Said => block_lines(block, color, ascii),
         Shown::Banner(text) => block_lines(&Committed::new(block.kind, text), color, ascii),
         Shown::Refusal(summary) => summary_lines(block.kind, summary, color, ascii),
+        Shown::Folded((run, state)) => {
+            let (sep, dim) = (marks(ascii).0, role::style(Role::Dim, color));
+            vec![Line::styled(format!("{run}{sep}{state}{sep}F2"), dim)]
+        }
     }
 }
 
@@ -322,6 +329,43 @@ pub(crate) fn render(frame: &mut Frame<'_>, state: &UiState, area: Rect, context
             break;
         }
     }
+}
+
+/// The blocks the conversation painted in `area` with `context` shows on its
+/// rows `rows` (from the area's top), by index, the newest first: the plan
+/// painting reads, each block in the rows of its piece ([`Bubble::spans`]),
+/// so the reading position and a press name one block. A pane too small for
+/// labels paints no piece and names none.
+pub(crate) fn shown_at(
+    state: &UiState,
+    area: Rect,
+    context: Context<'_>,
+    rows: Range<usize>,
+) -> Vec<usize> {
+    if !room_for_labels(area) {
+        return Vec::new();
+    }
+    let pieces = plan(state, area, context, 0);
+    let total: usize = pieces.iter().map(Piece::rows).sum();
+    let skip = total
+        .saturating_sub(usize::from(area.height))
+        .saturating_sub(state.focus_scroll);
+    let (from, to) = (rows.start + skip, rows.end + skip);
+    // Each block's first row and rows, counted as painted: the lift first.
+    let mut at = usize::from(lift(state, area, total));
+    let mut spans = Vec::new();
+    for piece in &pieces {
+        match piece {
+            Piece::Bubble(bubble) => spans.extend(bubble.spans().map(|(top, n)| (at + top, n))),
+            _ => spans.push((at, piece.rows())),
+        }
+        at += piece.rows();
+    }
+    let shown = spans
+        .iter()
+        .enumerate()
+        .filter(|(_, (top, n))| *top < to && top + n > from);
+    shown.map(|(block, _)| block).rev().collect()
 }
 
 /// Total rendered rows, from the same plan, `context` and compact fallback as

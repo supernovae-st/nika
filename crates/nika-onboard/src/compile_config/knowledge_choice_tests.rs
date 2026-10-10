@@ -186,6 +186,90 @@ fn nothing_named_is_the_embedded_release_and_under_off_nothing_is_read() {
     );
 }
 
+/// A door's own layer names the embedded release explicitly: the environment's knowledge is not
+/// read (its release, its pack, its off, even its own contradiction), while its other words
+/// still apply; the builder replaces whatever knowledge its layer named before.
+#[test]
+fn an_explicit_embedded_release_decides_over_the_environments_knowledge() {
+    let embedded = |exclude: Option<&str>| KnowledgeChoice::Named {
+        source: KnowledgeSource::Embedded {
+            exclude_corpus: exclude.map(str::to_owned),
+        },
+        by: Explicit,
+    };
+    let explicit = none().with_knowledge_embedded();
+    let muddled = none()
+        .with_knowledge(KNOWLEDGE_OFF, None)
+        .with_knowledge_pack("/env/pack.json");
+    for env in [
+        none(),
+        none().with_knowledge("/env/snap", None),
+        none().with_knowledge_pack("/env/pack.json"),
+        none().with_knowledge(KNOWLEDGE_OFF, None),
+        muddled,
+    ] {
+        let config = resolve(&explicit, &env).expect("resolves");
+        assert_eq!(config.choice, embedded(None), "{env:?}");
+        let source = KnowledgeSource::Embedded {
+            exclude_corpus: None,
+        };
+        assert_eq!(config.knowledge, Some(source), "{env:?}");
+    }
+    let env = none()
+        .with_strategy("only")
+        .with_reasoning("max")
+        .with_knowledge("/env/snap", Some("dev".to_owned()));
+    let config = resolve(&explicit, &env).expect("resolves");
+    assert_eq!(
+        (config.strategy, config.reasoning),
+        (NativeMode::Only, Some(AuthoringReasoning::Max)),
+        "the strategy and the effort stay the environment's"
+    );
+    assert_eq!(
+        config.choice,
+        embedded(Some("dev")),
+        "its held-out corpus too"
+    );
+    assert_eq!(config.choice.words(), "knowledge embedded (explicit)");
+    let replaced = none()
+        .with_knowledge_off()
+        .with_knowledge_pack("/p.json")
+        .with_knowledge_release("/s", bundled::identity().expect("issued identity"))
+        .with_knowledge_embedded();
+    assert_eq!(replaced, none().with_knowledge_embedded());
+    let mut contradicted = none().with_knowledge_embedded();
+    contradicted.knowledge_off = true;
+    assert_eq!(
+        resolve(&contradicted, &none()),
+        Err(ConfigError::ContradictoryKnowledge { layer: Explicit })
+    );
+    // A source named on the same layer comes first, as its pack comes before its snapshot.
+    let named = none().with_knowledge_embedded().with_knowledge("/s", None);
+    assert_eq!(choice(&named, &none()), Ok(snapshot("/s", Explicit)));
+    // Under the strategy `off` the embedded release is named knowledge no seat reads.
+    let unread = none().with_strategy("off").with_knowledge_embedded();
+    assert!(matches!(
+        resolve(&unread, &none()),
+        Err(ConfigError::KnowledgeUnread { .. })
+    ));
+}
+
+/// The explicit choice is admitted and composed exactly as the default one: the same issued
+/// release, the same pack for the intent.
+#[test]
+fn an_explicit_embedded_release_attaches_what_the_default_attaches() {
+    let intent = "Declare a typed output with a description";
+    let env = none().with_knowledge("/env/snap", None);
+    let explicit = resolve(&none().with_knowledge_embedded(), &env).expect("resolves");
+    let default = resolve(&none(), &none()).expect("resolves");
+    let attach = |config: &AuthoringConfig| {
+        let request = config.with_knowledge(CompileRequest::create(intent), intent);
+        request.expect("admitted").authoring_knowledge
+    };
+    let pack = attach(&explicit).expect("attached");
+    assert_eq!(Some(pack), attach(&default));
+}
+
 #[test]
 fn an_explicit_exclusion_guards_the_release_read_and_is_refused_where_none_is() {
     let explicit = none().with_knowledge_exclude("heldout");

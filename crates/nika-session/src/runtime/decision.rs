@@ -26,6 +26,7 @@ impl SessionRuntime {
             "/meaning" => self.meaning_unrecorded(),
             "/proof" => self.proof_unrecorded(),
             "/restore" => self.restore_while_waiting(),
+            "/knowledge" => TurnOutcome::Facts(self.knowledge_card()),
             _ => self.explain_pending(),
         }
     }

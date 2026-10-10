@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Trial observations reach the configured verifier as ordinary preparation context.
 //! The end-to-end compile uses a real sealed room and loopback provider.
-use super::unjudged::{DOUBTED, HELD, HELD_MEANING, UNTRIED, asked, held_findings, meaning};
+use super::unjudged::{DOUBTED, HELD_MEANING, UNRESOLVED, UNTRIED, asked, held_findings, meaning};
 use super::*;
 use crate::authoring::{AuthoringContext, AuthoringRound, Reading};
 use nika_cli_host::compile::config::AuthoringSettings;
@@ -29,8 +29,8 @@ fn session(root: &Path) -> SessionRuntime {
 }
 /// The sketch door's answers for [`COPY`] (read the stated source, write its text to the stated
 /// destination; the compiler writes the source), then a judge that doubts the whole request,
-/// carries its one part, names no extra operation, and finds a trial run it is shown
-/// consistent.
+/// carries its one part (the read and the write are the request's own: the engine's facts leave
+/// no extra question), and finds a trial run it is shown consistent.
 fn doubted() -> Vec<(u16, Value)> {
     let sketch = json!({"name": "compiled-workflow", "tasks": [
         {"id": "read_source", "verb": "invoke", "tool": "nika:read", "purpose": "read",
@@ -43,7 +43,7 @@ fn doubted() -> Vec<(u16, Value)> {
         (200, response(&sketch.to_string())),
         (200, response(&fills.to_string())),
     ];
-    for choice in ["unfaithful", "carried", "only_requested", "consistent"] {
+    for choice in ["unfaithful", "carried", "consistent"] {
         script.push((200, response(&json!({ "choice": choice }).to_string())));
     }
     script
@@ -55,19 +55,12 @@ fn attempt(s: &SessionRuntime) -> Value {
     assert_eq!(attempts.as_array().map(Vec::len), Some(1), "{attempts:#}");
     attempts[0].clone()
 }
-/// The judge's three questions before any run is consulted: the whole request, its one part,
-/// the extra operation.
+/// The judge's two questions before any run is consulted: the whole request and its one part
+/// (the engine's facts settle the extra operation with no call).
 fn assert_localized(judged: &[(Value, Vec<String>)]) {
     assert_eq!(judged[0].1, ["faithful", "unfaithful", "none"]);
     assert_eq!(judged[1].0["clause"], json!({ "text": PART }));
     assert_eq!(judged[1].1, ["carried", "missing", "none"]);
-    let extra = [
-        "only_requested",
-        "task-read_source",
-        "task-write_output",
-        "none",
-    ];
-    assert_eq!(judged[2].1, extra);
 }
 /// A trial observation is available without extra configuration. Its consistent verdict
 /// resolves the doubt, while the original project remains untouched.
@@ -82,26 +75,26 @@ fn a_doubted_trial_run_reaches_the_configured_verifier_by_default() {
     let out = s.compile_round(&round, &seat).expect("a seated compile");
     let said = s.settle(round, Reading::of(out));
     let bodies = peer.bodies();
-    assert_eq!(bodies.len(), AUTHOR_CALLS + 4);
+    assert_eq!(bodies.len(), AUTHOR_CALLS + 3);
     let judged: Vec<_> = bodies[AUTHOR_CALLS..]
         .iter()
         .map(|body| asked(body).expect("a closed choice"))
         .collect();
     assert_localized(&judged);
     assert!(
-        judged[..3]
+        judged[..2]
             .iter()
             .all(|(state, _)| state["observation"].is_null())
     );
     // The run's texts reach the verifier in the observed question alone: no authoring call and
     // no earlier question carries them.
-    let before = &bodies[..AUTHOR_CALLS + 3];
+    let before = &bodies[..AUTHOR_CALLS + 2];
     assert!(
         before
             .iter()
             .all(|b| !b.to_string().contains("TRIAL-ROW-7"))
     );
-    assert!(bodies[AUTHOR_CALLS + 3].to_string().contains("TRIAL-ROW-7"));
+    assert!(bodies[AUTHOR_CALLS + 2].to_string().contains("TRIAL-ROW-7"));
     assert!(
         !dir.path().join("sortie.txt").exists(),
         "preparation never runs on the project"
@@ -111,22 +104,15 @@ fn a_doubted_trial_run_reaches_the_configured_verifier_by_default() {
         TRIAL_TEXT
     );
     assert!(matches!(said, TurnOutcome::Proposal { .. }), "{said:?}");
-    assert_observed(&s, &judged[3]);
+    assert_observed(&s, &judged[2]);
 }
 /// The shared run: the verifier is asked over exactly what the room copied in and read back of
 /// these bytes, every text whole; the record keeps each text's digest, never the text. Beside
 /// `consistent` it is offered `unexercised` (the run's inputs never exercise some part, so it
-/// proves no whole output), each part and each task.
+/// proves no whole output), each part and each task the engine's facts leave open (none here).
 fn assert_observed(s: &SessionRuntime, (state, options): &(Value, Vec<String>)) {
     let options: Vec<&str> = options.iter().map(String::as_str).collect();
-    let offered = [
-        "consistent",
-        "unexercised",
-        "part-0",
-        "task-read_source",
-        "task-write_output",
-        "none",
-    ];
+    let offered = ["consistent", "unexercised", "part-0", "none"];
     assert_eq!(options, offered);
     let candidate = s.candidate().expect("proposed").set.changes[0]
         .content()
@@ -145,7 +131,7 @@ fn assert_observed(s: &SessionRuntime, (state, options): &(Value, Vec<String>)) 
     for empty in ["defects", "unknown", "contested", "unsettled"] {
         assert_eq!(attempt[empty], json!([]), "{empty}");
     }
-    let asked = &attempt["questions"][3];
+    let asked = &attempt["questions"][2];
     assert_eq!(asked["question"], "verify-observed");
     assert_eq!(asked["role"], "judge_observed");
     assert_eq!(asked["choice"], "consistent");
@@ -178,17 +164,17 @@ impl TurnClassifier for Work {
 const NO_TRIAL: &str = "no trial run of these exact bytes exists in this compile";
 /// A doubted creation no trial run can decide ([`WORK`] states no file the room may copy in, so
 /// the room refuses it before any run): the judge doubts the whole request, carries its one part
-/// and names no extra operation, and the same judge asked again would decide nothing. The
-/// candidate is held as the preview, never proposed; its record is kept with the judge's
-/// rejection, so a later line that replays it asks that judge nothing, and nothing waits for a
-/// judge; the session says so.
+/// (no task is left open to name) and, asked where its doubt is, names nothing: the same judge
+/// asked again would decide nothing. The candidate is held as the preview, never proposed; its
+/// record is kept with the judge's rejection, so a later line that replays it asks that judge
+/// nothing, and nothing waits for a judge; the session says so.
 #[test]
 fn a_doubt_no_trial_run_can_decide_is_held_never_proposed_nor_replayed() {
     let mut script: Vec<_> = semantic_create()
         .iter()
         .map(|t| (200, response(t)))
         .collect();
-    for choice in ["unfaithful", "carried", "only_requested"] {
+    for choice in ["unfaithful", "carried", "unlocated"] {
         script.push((200, response(&json!({ "choice": choice }).to_string())));
     }
     let peer = Peer::start(script);
@@ -202,7 +188,7 @@ fn a_doubt_no_trial_run_can_decide_is_held_never_proposed_nor_replayed() {
         matches!(&said, TurnOutcome::Facts(words) if words == DOUBTED),
         "{said:?}"
     );
-    // The plan, the sketch and its fills, then the whole request, its part, the extra question.
+    // The document, then the whole request, its part, and where the doubt is.
     assert_eq!(peer.bodies().len(), CREATE_CALLS + 2);
     let held = s.last_outcome.as_ref().expect("the held outcome");
     assert!(held.candidate.is_some(), "shown as the preview");
@@ -229,7 +215,7 @@ fn a_doubt_no_trial_run_can_decide_is_held_never_proposed_nor_replayed() {
     let roles: Vec<&Value> = (attempt["questions"].as_array().into_iter().flatten())
         .map(|question| &question["role"])
         .collect();
-    assert_eq!(roles, ["judge_request", "judge_part", "judge_extra"]);
+    assert_eq!(roles, ["judge_request", "judge_part", "judge_doubt"]);
     let contested = format!(
         "The judge did not accept the request as carried (unfaithful) and located no defect a repair could start from; the same judge asked again decides nothing ({NO_TRIAL}). Nothing is READY on it. Next: a correction of the request, or another verifier."
     );
@@ -238,7 +224,7 @@ fn a_doubt_no_trial_run_can_decide_is_held_never_proposed_nor_replayed() {
         .map(|d| d.message.as_str())
         .collect();
     assert_eq!(findings, [contested.as_str()]);
-    let untried = format!("{HELD}{UNTRIED}");
+    let untried = format!("{UNRESOLVED}{UNTRIED}");
     assert_eq!(held_findings(held), [untried.as_str()]);
     let route = &held.provenance.decision.as_ref().expect("decision")["route"];
     let last = route.as_array().and_then(|steps| steps.last());

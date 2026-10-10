@@ -109,6 +109,7 @@ pub type nika_onboard::compile::copy::native::Preview::Output = T
 impl nika_onboard::compile::copy::native::Scoped
 pub fn nika_onboard::compile::copy::native::Scoped::finish(self) -> nika_onboard::compile::copy::native::Settled
 pub fn nika_onboard::compile::copy::native::Scoped::new(root: std::path::PathBuf, host: alloc::boxed::Box<dyn nika_compile_seats::rehearse::Rehearse>, allowance: nika_onboard::compile::copy::Allowance) -> Self
+pub fn nika_onboard::compile::copy::native::Scoped::stating(self, intent: &str) -> Self
 impl nika_compile_seats::rehearse::Rehearse for nika_onboard::compile::copy::native::Scoped
 pub fn nika_onboard::compile::copy::native::Scoped::bound(&self) -> core::time::Duration
 pub fn nika_onboard::compile::copy::native::Scoped::compose(&self, candidate: &str) -> nika_compile_seats::rehearse::Composed
@@ -1519,6 +1520,7 @@ impl<T> typenum::type_operators::Same for nika_onboard::compile_config::Authorin
 pub type nika_onboard::compile_config::AuthoringConfig::Output = T
 #[non_exhaustive] pub struct nika_onboard::compile_config::AuthoringSettings
 pub nika_onboard::compile_config::AuthoringSettings::knowledge: core::option::Option<std::path::PathBuf>
+pub nika_onboard::compile_config::AuthoringSettings::knowledge_embedded: bool
 pub nika_onboard::compile_config::AuthoringSettings::knowledge_exclude: core::option::Option<alloc::string::String>
 pub nika_onboard::compile_config::AuthoringSettings::knowledge_identity: core::option::Option<nika_onboard::knowledge::TrustedIdentity>
 pub nika_onboard::compile_config::AuthoringSettings::knowledge_off: bool
@@ -1532,6 +1534,7 @@ pub fn nika_onboard::compile_config::AuthoringSettings::from_flags(strategy: cor
 pub fn nika_onboard::compile_config::AuthoringSettings::none() -> Self
 pub fn nika_onboard::compile_config::AuthoringSettings::reasoning_only(&self) -> Self
 pub fn nika_onboard::compile_config::AuthoringSettings::with_knowledge(self, dir: impl core::convert::Into<std::path::PathBuf>, exclude: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_onboard::compile_config::AuthoringSettings::with_knowledge_embedded(self) -> Self
 pub fn nika_onboard::compile_config::AuthoringSettings::with_knowledge_exclude(self, corpus: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_onboard::compile_config::AuthoringSettings::with_knowledge_off(self) -> Self
 pub fn nika_onboard::compile_config::AuthoringSettings::with_knowledge_pack(self, file: impl core::convert::Into<std::path::PathBuf>) -> Self

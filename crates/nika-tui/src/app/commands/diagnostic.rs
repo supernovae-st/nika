@@ -1,54 +1,49 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The full words: the Session's own words of the block shown short of whole
+//! The full words: the Session's own words of a block shown short of whole
 //! (the typed question waiting at the answer line, the current proposal the
-//! cards review, or the latest refusal the conversation shows summarized),
-//! read over the frame and never edited.
+//! cards review, a refusal summarized, a run's story folded), read over the
+//! frame and never edited.
 //!
-//! The transcript keeps the Session's block untouched; a summary only changes
-//! how a card shows it. `F2` (or the palette) opens this view while such a
-//! block exists, the arrows and the page keys scroll it, and `Esc`, `Enter` or `F2`
-//! closes it with the composer, its draft and the keyboard focus exactly as
-//! they were. It sends nothing and grants nothing; any other key closes it
-//! and takes its ordinary path.
+//! The transcript keeps the Session's block untouched; a summary or a fold
+//! only changes how a card shows it. `F2` (or the palette) opens this view on
+//! the block at the reading position ([`read_at`]), a press on such a block
+//! opens it on that block; the arrows and the page keys scroll it, and `Esc`,
+//! `Enter` or `F2` closes it with the composer, its draft, the keyboard focus
+//! and the reading position exactly as they were. It sends nothing and grants
+//! nothing; any other key closes it and takes its ordinary path.
 
 use crossterm::event::{KeyCode, KeyEvent};
 use nika_display::theme::Role;
 use ratatui::Frame;
-use ratatui::layout::Rect;
+use ratatui::layout::{Position, Rect};
 use ratatui::symbols::border;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Clear, Paragraph, Wrap};
 
 use super::catalog::DIAGNOSTIC_KEY;
-use crate::model::{Committed, Kind};
+use crate::composer::Composer;
+use crate::model::{Committed, Kind, Presentation, UiState};
+use crate::render::ASCII_BOX;
 use crate::visual::role;
 use crate::workspace::cards::diagnostics::{Shown, shown};
+use crate::workspace::cards::{review, shown_at};
+use crate::workspace::desk::Desk;
 
 /// The rows one `PgUp` or `PgDn` moves.
 const PAGE: usize = 10;
 
-/// The frame's border in the ASCII glyph column.
-const ASCII_BORDER: border::Set<'static> = border::Set {
-    top_left: "+",
-    top_right: "+",
-    bottom_left: "+",
-    bottom_right: "+",
-    vertical_left: "|",
-    vertical_right: "|",
-    horizontal_top: "-",
-    horizontal_bottom: "-",
-};
-
-/// Whether the conversation's cards show `block` summarized (a recognized
-/// refusal, a shortened banner): its full words are then this view's to show.
-/// Every other block, a provider failure included, is painted as said.
+/// Whether the conversation's cards show `block` short of whole (a recognized
+/// refusal, a shortened banner, a folded run's story): its full words are then
+/// this view's to show. Every other block, a provider failure included, is
+/// painted as said.
 pub(crate) fn summarized(block: &Committed) -> bool {
     !matches!(shown(block), Shown::Said)
 }
 
 /// The latest block of `transcript` the conversation shows summarized.
+#[cfg(test)]
 pub(crate) fn latest(
     transcript: &[Committed],
     summarized: impl Fn(&Committed) -> bool,
@@ -57,16 +52,39 @@ pub(crate) fn latest(
 }
 
 /// The latest block of `transcript` whose full words this view shows, by
-/// index: a recognized refusal or a shortened banner, or the current proposal
-/// the cards review, at `proposal`.
+/// index: one shown short of whole, or the current proposal the cards review,
+/// at `proposal`.
 pub(crate) fn latest_shown(transcript: &[Committed], proposal: Option<usize>) -> Option<usize> {
-    let current = proposal.and_then(|index| transcript.get(index));
-    let found = latest(transcript, |block| {
-        summarized(block) || current.is_some_and(|it| std::ptr::eq(it, block))
-    })?;
-    transcript
-        .iter()
-        .position(|block| std::ptr::eq(block, found))
+    (0..transcript.len())
+        .rev()
+        .find(|at| proposal == Some(*at) || summarized(&transcript[*at]))
+}
+
+/// The block this view opens at the conversation's reading position, by
+/// index: the newest the workspace shows on the row of `point`, or on any of
+/// its rows (`None`), named by the plan painting reads ([`shown_at`]), so a
+/// key and a press reach one block. It is shown short of whole
+/// ([`summarized`]), or it is the current proposal the cards review or the
+/// question the live card carries; no other block opens.
+pub(crate) fn read_at(
+    state: &UiState,
+    desk: &Desk,
+    composer: &Composer,
+    point: Option<Position>,
+) -> Option<usize> {
+    (desk.geometry(state.size)).filter(|_| state.presentation == Presentation::Workspace)?;
+    let (area, carried) = crate::scroll::regions(state, desk, composer);
+    let row = |point: Position| area.contains(point).then(|| usize::from(point.y - area.y));
+    let rows = match point {
+        Some(point) => row(point).map(|row| row..row + 1)?,
+        None => 0..usize::from(area.height),
+    };
+    let review = desk.review(state.ascii);
+    let current = review::summarized(state, review.as_ref()).map(|(at, _)| at);
+    let shown = shown_at(state, area, (review.as_ref(), carried), rows);
+    shown.into_iter().find(|at| {
+        [current, carried].contains(&Some(*at)) || state.transcript.get(*at).is_some_and(summarized)
+    })
 }
 
 /// What the view did with a key.
@@ -96,11 +114,12 @@ pub(crate) struct Diagnostic {
 impl Diagnostic {
     /// The view of `block`'s own words, from their top: the whole proposal
     /// for a proposal's preview, the whole question for a question's words,
-    /// the full diagnostic for anything else.
+    /// the whole story of a run's, the full diagnostic for anything else.
     pub(crate) fn of(block: &Committed) -> Self {
         let what = match block.kind {
             Kind::Proposal => "Full proposal",
             Kind::Question => "Full question",
+            Kind::Run => "Full run story",
             _ => "Full diagnostic",
         };
         Self {
@@ -156,7 +175,7 @@ impl Diagnostic {
     /// leave, the words wrapped inside, scrolled.
     pub(crate) fn render(&self, frame: &mut Frame<'_>, area: Rect, ascii: bool, color: bool) {
         let (sep, set) = if ascii {
-            (" - ", ASCII_BORDER)
+            (" - ", ASCII_BOX)
         } else {
             (" · ", border::PLAIN)
         };
@@ -193,9 +212,155 @@ mod tests {
 
     use super::*;
     use crate::model::Kind;
+    use unicode_width::UnicodeWidthStr;
 
     fn key(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::NONE)
+    }
+
+    /// A run's story folded at its commit under `label`.
+    fn folded(label: &str, story: &str) -> Committed {
+        let mut block = Committed::new(Kind::Run, story);
+        block.run = Some((label.to_owned(), "succeeded"));
+        block
+    }
+
+    /// The conversation's rows of the frame the shell paints for `state`.
+    fn conversation(state: &UiState, desk: &Desk, composer: &Composer) -> Vec<String> {
+        let (width, height) = state.size;
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).expect("terminal");
+        let paint = crate::workspace::object::Paint {
+            ascii: state.ascii,
+            color: false,
+            elapsed: std::time::Duration::ZERO,
+            reduced_motion: true,
+        };
+        terminal
+            .draw(|frame| {
+                assert!(crate::workspace::desk::draw(
+                    frame, desk, paint, state, composer
+                ));
+            })
+            .expect("draw");
+        let (area, _) = crate::scroll::regions(state, desk, composer);
+        let buffer = terminal.backend().buffer();
+        (area.top()..area.bottom())
+            .map(|y| {
+                (area.left()..area.right())
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// The cell where `words` are first painted among the `rows` of the
+    /// conversation in `area`.
+    fn found(area: Rect, rows: &[String], words: &str) -> Option<Position> {
+        rows.iter().enumerate().find_map(|(y, row)| {
+            let x = u16::try_from(row[..row.find(words)?].width()).ok()?;
+            Some(Position::new(area.x + x, area.y + u16::try_from(y).ok()?))
+        })
+    }
+
+    /// `F2` at the reading position and a press on a painted row name one
+    /// block through the plan painting reads: at the latest rows `new`;
+    /// scrolled back, `old` (never `new` below it), a press on its words
+    /// `seen` the same block, on the human's line nothing. Blocks said after
+    /// it keep the reading position, its row and that block.
+    fn named_at_the_reading_position(old: &Committed, seen: &str, new: &Committed) {
+        for size in [(120, 40), (80, 24)] {
+            let mut state = UiState::new(Presentation::Workspace, false, size);
+            let mut desk = Desk::new();
+            desk.view = Some(crate::model::demo_project());
+            let composer = Composer::new();
+            let human = Committed::new(Kind::Human, "digest my notes");
+            state.transcript.extend([human, old.clone()]);
+            for n in 0..40 {
+                let reply = Committed::new(Kind::Reply, format!("reply {n}"));
+                state.transcript.push(reply);
+            }
+            state.transcript.push(new.clone());
+            let newest = state.transcript.len() - 1;
+            assert_eq!(read_at(&state, &desk, &composer, None), Some(newest));
+            crate::scroll::rows(&mut state, &desk, &composer, true, usize::MAX);
+            assert_eq!(read_at(&state, &desk, &composer, None), Some(1), "{size:?}");
+            let rows = conversation(&state, &desk, &composer);
+            let (area, _) = crate::scroll::regions(&state, &desk, &composer);
+            let at = found(area, &rows, seen).expect("the old block in view");
+            assert_eq!(read_at(&state, &desk, &composer, Some(at)), Some(1));
+            let line = found(area, &rows, "digest my notes").expect("the line in view");
+            assert_eq!(read_at(&state, &desk, &composer, Some(line)), None);
+            crate::scroll::preserve_reading(&mut state, &desk, &composer, |state| {
+                let again = Committed::new(Kind::Human, "again");
+                state.transcript.extend([again, new.clone()]);
+            });
+            assert_eq!(conversation(&state, &desk, &composer), rows, "{size:?}");
+            assert_eq!(read_at(&state, &desk, &composer, None), Some(1));
+            assert_eq!(read_at(&state, &desk, &composer, Some(at)), Some(1));
+        }
+    }
+
+    #[test]
+    fn the_reading_position_and_a_press_name_one_block() {
+        let refusal = Committed::new(Kind::Refusal, untrusted_refusal());
+        named_at_the_reading_position(&refusal, "Could not continue", &refusal);
+    }
+
+    #[test]
+    fn an_old_folded_run_is_named_at_its_reading_position() {
+        let old = folded("run 0123456789ab", "running · digest\n  read_notes · 2 ms");
+        let new = folded("run fedcba987654", "running · again");
+        named_at_the_reading_position(&old, "run 0123456789ab", &new);
+    }
+
+    /// A press on a summarized refusal's card names that refusal, wherever on
+    /// the card; a press on the human's line names nothing; inline and the
+    /// focus view, which paint every block as said, name nothing.
+    #[test]
+    fn a_press_on_a_summary_card_names_its_block() {
+        let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
+        let (desk, composer) = (Desk::new(), Composer::new());
+        state
+            .transcript
+            .push(Committed::new(Kind::Human, "digest my notes"));
+        state
+            .transcript
+            .push(Committed::new(Kind::Refusal, untrusted_refusal()));
+        let rows = conversation(&state, &desk, &composer);
+        let (area, _) = crate::scroll::regions(&state, &desk, &composer);
+        let title = found(area, &rows, "Could not continue").expect("its card");
+        let human = found(area, &rows, "digest my notes").expect("the line");
+        assert_eq!(read_at(&state, &desk, &composer, Some(title)), Some(1));
+        assert_eq!(read_at(&state, &desk, &composer, Some(human)), None);
+        assert_eq!(read_at(&state, &desk, &composer, None), Some(1));
+        for presentation in [Presentation::Inline, Presentation::Focus] {
+            state.presentation = presentation;
+            assert_eq!(read_at(&state, &desk, &composer, Some(title)), None);
+            assert_eq!(read_at(&state, &desk, &composer, None), None);
+        }
+    }
+
+    /// A folded run's story opens whole under its own title, its bytes kept.
+    #[test]
+    fn a_folded_story_opens_whole_as_the_run_story() {
+        let story = "running · digest\n  read_notes · 2 ms\nsucceeded · 1/1 tasks\n";
+        let block = folded("run 0123456789ab", story);
+        assert!(summarized(&block), "a fold is shown short of whole");
+        let view = Diagnostic::of(&block);
+        assert_eq!(view.words().as_bytes(), story.as_bytes());
+        let mut terminal = Terminal::new(TestBackend::new(70, 8)).expect("terminal");
+        terminal
+            .draw(|frame| view.render(frame, frame.area(), false, false))
+            .expect("draw");
+        let top: String = (0..70)
+            .map(|x| terminal.backend().buffer()[(x, 0)].symbol())
+            .collect();
+        assert!(top.contains("Full run story"), "{top}");
+        let untagged = Committed::new(Kind::Run, story);
+        assert!(
+            !summarized(&untagged),
+            "an untagged story is painted as said"
+        );
     }
 
     #[test]

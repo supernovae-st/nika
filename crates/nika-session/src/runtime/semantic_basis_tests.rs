@@ -43,17 +43,17 @@ fn fills() -> String {
 
 /// A Session on the loopback seat, its sketch strategy observing `root`.
 fn open(root: &Path) -> SessionRuntime {
-    let selected = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Api {
+    let selected = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Api {
             provider: "deepseek".into(),
         },
-        model: Some(MODEL.into()),
-        locus: DataLocus::Metered {
+        Some(MODEL.into()),
+        DataLocus::Metered {
             provider: "deepseek".into(),
         },
-        ready: true,
-        why: None,
-    };
+        true,
+        None,
+    );
     let reasoner = || ProviderReasoner {
         model: MODEL.into(),
         label: "DeepSeek".into(),

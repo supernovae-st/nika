@@ -72,6 +72,363 @@ impl<T> typenum::type_operators::Same for nika_harness::compile_seat::HarnessSea
 pub type nika_harness::compile_seat::HarnessSeat::Output = T
 impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_harness::compile_seat::HarnessSeat where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn
 pub async fn nika_harness::compile_seat::HarnessSeat::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+pub mod nika_harness::conversation
+#[non_exhaustive] pub enum nika_harness::conversation::Transport
+pub nika_harness::conversation::Transport::Http
+pub nika_harness::conversation::Transport::Stdio
+impl nika_harness::conversation::Transport
+pub const fn nika_harness::conversation::Transport::as_str(self) -> &'static str
+impl core::clone::Clone for nika_harness::conversation::Transport
+pub fn nika_harness::conversation::Transport::clone(&self) -> nika_harness::conversation::Transport
+impl core::cmp::Eq for nika_harness::conversation::Transport
+impl core::cmp::PartialEq for nika_harness::conversation::Transport
+pub fn nika_harness::conversation::Transport::eq(&self, other: &nika_harness::conversation::Transport) -> bool
+impl core::fmt::Debug for nika_harness::conversation::Transport
+pub fn nika_harness::conversation::Transport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::conversation::Transport
+impl core::marker::StructuralPartialEq for nika_harness::conversation::Transport
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::Transport
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::Transport where U: core::convert::From<T>
+pub fn nika_harness::conversation::Transport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::Transport where U: core::convert::Into<T>
+pub type nika_harness::conversation::Transport::Error = core::convert::Infallible
+pub fn nika_harness::conversation::Transport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::Transport where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::Transport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::Transport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::conversation::Transport where T: core::clone::Clone
+pub type nika_harness::conversation::Transport::Owned = T
+pub fn nika_harness::conversation::Transport::clone_into(&self, target: &mut T)
+pub fn nika_harness::conversation::Transport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::conversation::Transport where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::Transport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::Transport where T: ?core::marker::Sized
+pub fn nika_harness::conversation::Transport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::Transport where T: ?core::marker::Sized
+pub fn nika_harness::conversation::Transport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::conversation::Transport where T: core::clone::Clone
+pub unsafe fn nika_harness::conversation::Transport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::conversation::Transport
+pub fn nika_harness::conversation::Transport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::Transport where T: 'static
+pub fn nika_harness::conversation::Transport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::Transport
+pub type nika_harness::conversation::Transport::Output = T
+#[non_exhaustive] pub enum nika_harness::conversation::TurnEnd
+pub nika_harness::conversation::TurnEnd::Cancelled
+pub nika_harness::conversation::TurnEnd::EndTurn
+pub nika_harness::conversation::TurnEnd::MaxTokens
+pub nika_harness::conversation::TurnEnd::MaxTurnRequests
+pub nika_harness::conversation::TurnEnd::Other
+pub nika_harness::conversation::TurnEnd::Refusal
+impl nika_harness::conversation::TurnEnd
+pub const fn nika_harness::conversation::TurnEnd::as_str(self) -> &'static str
+impl core::clone::Clone for nika_harness::conversation::TurnEnd
+pub fn nika_harness::conversation::TurnEnd::clone(&self) -> nika_harness::conversation::TurnEnd
+impl core::cmp::Eq for nika_harness::conversation::TurnEnd
+impl core::cmp::PartialEq for nika_harness::conversation::TurnEnd
+pub fn nika_harness::conversation::TurnEnd::eq(&self, other: &nika_harness::conversation::TurnEnd) -> bool
+impl core::fmt::Debug for nika_harness::conversation::TurnEnd
+pub fn nika_harness::conversation::TurnEnd::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::conversation::TurnEnd
+impl core::marker::StructuralPartialEq for nika_harness::conversation::TurnEnd
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::TurnEnd
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::TurnEnd where U: core::convert::From<T>
+pub fn nika_harness::conversation::TurnEnd::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::TurnEnd where U: core::convert::Into<T>
+pub type nika_harness::conversation::TurnEnd::Error = core::convert::Infallible
+pub fn nika_harness::conversation::TurnEnd::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::TurnEnd where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::TurnEnd::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::TurnEnd::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::conversation::TurnEnd where T: core::clone::Clone
+pub type nika_harness::conversation::TurnEnd::Owned = T
+pub fn nika_harness::conversation::TurnEnd::clone_into(&self, target: &mut T)
+pub fn nika_harness::conversation::TurnEnd::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::conversation::TurnEnd where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::TurnEnd::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::TurnEnd where T: ?core::marker::Sized
+pub fn nika_harness::conversation::TurnEnd::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::TurnEnd where T: ?core::marker::Sized
+pub fn nika_harness::conversation::TurnEnd::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::conversation::TurnEnd where T: core::clone::Clone
+pub unsafe fn nika_harness::conversation::TurnEnd::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::conversation::TurnEnd
+pub fn nika_harness::conversation::TurnEnd::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::TurnEnd where T: 'static
+pub fn nika_harness::conversation::TurnEnd::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::TurnEnd
+pub type nika_harness::conversation::TurnEnd::Output = T
+#[non_exhaustive] pub enum nika_harness::conversation::TurnEvent
+pub nika_harness::conversation::TurnEvent::Answer
+pub nika_harness::conversation::TurnEvent::Answer::text: alloc::string::String
+pub nika_harness::conversation::TurnEvent::Ended
+pub nika_harness::conversation::TurnEvent::Ended::end: nika_harness::conversation::TurnEnd
+pub nika_harness::conversation::TurnEvent::Ended::record: serde_json::value::Value
+pub nika_harness::conversation::TurnEvent::Permission
+pub nika_harness::conversation::TurnEvent::Permission::allowed: bool
+pub nika_harness::conversation::TurnEvent::Permission::nika_tool: core::option::Option<alloc::string::String>
+pub nika_harness::conversation::TurnEvent::Permission::tool: core::option::Option<alloc::string::String>
+pub nika_harness::conversation::TurnEvent::Thought
+pub nika_harness::conversation::TurnEvent::Thought::text: alloc::string::String
+pub nika_harness::conversation::TurnEvent::Tool
+pub nika_harness::conversation::TurnEvent::Tool::nika_tool: core::option::Option<alloc::string::String>
+pub nika_harness::conversation::TurnEvent::Tool::status: core::option::Option<alloc::string::String>
+pub nika_harness::conversation::TurnEvent::Tool::tool_call_id: alloc::string::String
+impl core::clone::Clone for nika_harness::conversation::TurnEvent
+pub fn nika_harness::conversation::TurnEvent::clone(&self) -> nika_harness::conversation::TurnEvent
+impl core::cmp::PartialEq for nika_harness::conversation::TurnEvent
+pub fn nika_harness::conversation::TurnEvent::eq(&self, other: &nika_harness::conversation::TurnEvent) -> bool
+impl core::fmt::Debug for nika_harness::conversation::TurnEvent
+pub fn nika_harness::conversation::TurnEvent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::conversation::TurnEvent
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::TurnEvent
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::TurnEvent where U: core::convert::From<T>
+pub fn nika_harness::conversation::TurnEvent::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::TurnEvent where U: core::convert::Into<T>
+pub type nika_harness::conversation::TurnEvent::Error = core::convert::Infallible
+pub fn nika_harness::conversation::TurnEvent::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::TurnEvent where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::TurnEvent::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::TurnEvent::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::conversation::TurnEvent where T: core::clone::Clone
+pub type nika_harness::conversation::TurnEvent::Owned = T
+pub fn nika_harness::conversation::TurnEvent::clone_into(&self, target: &mut T)
+pub fn nika_harness::conversation::TurnEvent::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::conversation::TurnEvent where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::TurnEvent::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::TurnEvent where T: ?core::marker::Sized
+pub fn nika_harness::conversation::TurnEvent::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::TurnEvent where T: ?core::marker::Sized
+pub fn nika_harness::conversation::TurnEvent::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::conversation::TurnEvent where T: core::clone::Clone
+pub unsafe fn nika_harness::conversation::TurnEvent::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::conversation::TurnEvent
+pub fn nika_harness::conversation::TurnEvent::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::TurnEvent where T: 'static
+pub fn nika_harness::conversation::TurnEvent::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::TurnEvent
+pub type nika_harness::conversation::TurnEvent::Output = T
+pub struct nika_harness::conversation::Conversation
+impl nika_harness::conversation::Conversation
+pub fn nika_harness::conversation::Conversation::prompt(&self, text: impl core::convert::Into<alloc::string::String>) -> core::result::Result<nika_harness::conversation::TurnStream, nika_kernel_ai::harness::HarnessError>
+pub const fn nika_harness::conversation::Conversation::record(&self) -> &serde_json::value::Value
+pub fn nika_harness::conversation::Conversation::stop(&self)
+pub const fn nika_harness::conversation::Conversation::transport(&self) -> nika_harness::conversation::Transport
+impl core::fmt::Debug for nika_harness::conversation::Conversation
+pub fn nika_harness::conversation::Conversation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::Conversation
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::Conversation where U: core::convert::From<T>
+pub fn nika_harness::conversation::Conversation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::Conversation where U: core::convert::Into<T>
+pub type nika_harness::conversation::Conversation::Error = core::convert::Infallible
+pub fn nika_harness::conversation::Conversation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::Conversation where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::Conversation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::Conversation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::conversation::Conversation where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::Conversation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::Conversation where T: ?core::marker::Sized
+pub fn nika_harness::conversation::Conversation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::Conversation where T: ?core::marker::Sized
+pub fn nika_harness::conversation::Conversation::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::conversation::Conversation
+pub fn nika_harness::conversation::Conversation::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::Conversation where T: 'static
+pub fn nika_harness::conversation::Conversation::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::Conversation
+pub type nika_harness::conversation::Conversation::Output = T
+#[non_exhaustive] pub struct nika_harness::conversation::ConversationSetup
+pub nika_harness::conversation::ConversationSetup::allowance: core::time::Duration
+pub nika_harness::conversation::ConversationSetup::requested_effort: core::option::Option<alloc::string::String>
+pub nika_harness::conversation::ConversationSetup::requested_model: core::option::Option<alloc::string::String>
+impl nika_harness::conversation::ConversationSetup
+pub fn nika_harness::conversation::ConversationSetup::new() -> Self
+pub fn nika_harness::conversation::ConversationSetup::with_allowance(self, allowance: core::time::Duration) -> Self
+pub fn nika_harness::conversation::ConversationSetup::with_requested_effort(self, effort: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_harness::conversation::ConversationSetup::with_requested_model(self, model: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_harness::conversation::ConversationSetup
+pub fn nika_harness::conversation::ConversationSetup::clone(&self) -> nika_harness::conversation::ConversationSetup
+impl core::cmp::Eq for nika_harness::conversation::ConversationSetup
+impl core::cmp::PartialEq for nika_harness::conversation::ConversationSetup
+pub fn nika_harness::conversation::ConversationSetup::eq(&self, other: &nika_harness::conversation::ConversationSetup) -> bool
+impl core::default::Default for nika_harness::conversation::ConversationSetup
+pub fn nika_harness::conversation::ConversationSetup::default() -> Self
+impl core::fmt::Debug for nika_harness::conversation::ConversationSetup
+pub fn nika_harness::conversation::ConversationSetup::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::conversation::ConversationSetup
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::ConversationSetup
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::ConversationSetup where U: core::convert::From<T>
+pub fn nika_harness::conversation::ConversationSetup::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::ConversationSetup where U: core::convert::Into<T>
+pub type nika_harness::conversation::ConversationSetup::Error = core::convert::Infallible
+pub fn nika_harness::conversation::ConversationSetup::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::ConversationSetup where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::ConversationSetup::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::ConversationSetup::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::conversation::ConversationSetup where T: core::clone::Clone
+pub type nika_harness::conversation::ConversationSetup::Owned = T
+pub fn nika_harness::conversation::ConversationSetup::clone_into(&self, target: &mut T)
+pub fn nika_harness::conversation::ConversationSetup::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::conversation::ConversationSetup where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::ConversationSetup::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::ConversationSetup where T: ?core::marker::Sized
+pub fn nika_harness::conversation::ConversationSetup::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::ConversationSetup where T: ?core::marker::Sized
+pub fn nika_harness::conversation::ConversationSetup::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::conversation::ConversationSetup where T: core::clone::Clone
+pub unsafe fn nika_harness::conversation::ConversationSetup::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::conversation::ConversationSetup
+pub fn nika_harness::conversation::ConversationSetup::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::ConversationSetup where T: 'static
+pub fn nika_harness::conversation::ConversationSetup::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::ConversationSetup
+pub type nika_harness::conversation::ConversationSetup::Output = T
+pub struct nika_harness::conversation::HttpMount
+impl core::clone::Clone for nika_harness::conversation::HttpMount
+pub fn nika_harness::conversation::HttpMount::clone(&self) -> nika_harness::conversation::HttpMount
+impl core::cmp::Eq for nika_harness::conversation::HttpMount
+impl core::cmp::PartialEq for nika_harness::conversation::HttpMount
+pub fn nika_harness::conversation::HttpMount::eq(&self, other: &nika_harness::conversation::HttpMount) -> bool
+impl core::marker::StructuralPartialEq for nika_harness::conversation::HttpMount
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::HttpMount
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::HttpMount where U: core::convert::From<T>
+pub fn nika_harness::conversation::HttpMount::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::HttpMount where U: core::convert::Into<T>
+pub type nika_harness::conversation::HttpMount::Error = core::convert::Infallible
+pub fn nika_harness::conversation::HttpMount::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::HttpMount where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::HttpMount::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::HttpMount::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::conversation::HttpMount where T: core::clone::Clone
+pub type nika_harness::conversation::HttpMount::Owned = T
+pub fn nika_harness::conversation::HttpMount::clone_into(&self, target: &mut T)
+pub fn nika_harness::conversation::HttpMount::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::conversation::HttpMount where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::HttpMount::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::HttpMount where T: ?core::marker::Sized
+pub fn nika_harness::conversation::HttpMount::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::HttpMount where T: ?core::marker::Sized
+pub fn nika_harness::conversation::HttpMount::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::conversation::HttpMount where T: core::clone::Clone
+pub unsafe fn nika_harness::conversation::HttpMount::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::conversation::HttpMount
+pub fn nika_harness::conversation::HttpMount::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::HttpMount where T: 'static
+pub fn nika_harness::conversation::HttpMount::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::HttpMount
+pub type nika_harness::conversation::HttpMount::Output = T
+pub struct nika_harness::conversation::StdioMount
+impl core::clone::Clone for nika_harness::conversation::StdioMount
+pub fn nika_harness::conversation::StdioMount::clone(&self) -> nika_harness::conversation::StdioMount
+impl core::cmp::Eq for nika_harness::conversation::StdioMount
+impl core::cmp::PartialEq for nika_harness::conversation::StdioMount
+pub fn nika_harness::conversation::StdioMount::eq(&self, other: &nika_harness::conversation::StdioMount) -> bool
+impl core::marker::StructuralPartialEq for nika_harness::conversation::StdioMount
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::StdioMount
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::StdioMount where U: core::convert::From<T>
+pub fn nika_harness::conversation::StdioMount::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::StdioMount where U: core::convert::Into<T>
+pub type nika_harness::conversation::StdioMount::Error = core::convert::Infallible
+pub fn nika_harness::conversation::StdioMount::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::StdioMount where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::StdioMount::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::StdioMount::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::conversation::StdioMount where T: core::clone::Clone
+pub type nika_harness::conversation::StdioMount::Owned = T
+pub fn nika_harness::conversation::StdioMount::clone_into(&self, target: &mut T)
+pub fn nika_harness::conversation::StdioMount::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::conversation::StdioMount where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::StdioMount::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::StdioMount where T: ?core::marker::Sized
+pub fn nika_harness::conversation::StdioMount::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::StdioMount where T: ?core::marker::Sized
+pub fn nika_harness::conversation::StdioMount::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::conversation::StdioMount where T: core::clone::Clone
+pub unsafe fn nika_harness::conversation::StdioMount::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::conversation::StdioMount
+pub fn nika_harness::conversation::StdioMount::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::StdioMount where T: 'static
+pub fn nika_harness::conversation::StdioMount::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::StdioMount
+pub type nika_harness::conversation::StdioMount::Output = T
+#[non_exhaustive] pub struct nika_harness::conversation::ToolOffer
+pub nika_harness::conversation::ToolOffer::http: core::option::Option<nika_harness::conversation::HttpMount>
+pub nika_harness::conversation::ToolOffer::name: alloc::string::String
+pub nika_harness::conversation::ToolOffer::stdio: core::option::Option<nika_harness::conversation::StdioMount>
+pub nika_harness::conversation::ToolOffer::tools: alloc::vec::Vec<alloc::string::String>
+impl nika_harness::conversation::ToolOffer
+pub fn nika_harness::conversation::ToolOffer::new(name: impl core::convert::Into<alloc::string::String>, tools: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_harness::conversation::ToolOffer::with_http(self, url: impl core::convert::Into<alloc::string::String>, bearer: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_harness::conversation::ToolOffer::with_stdio(self, command: impl core::convert::Into<alloc::string::String>, args: alloc::vec::Vec<alloc::string::String>, env: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>) -> Self
+impl core::clone::Clone for nika_harness::conversation::ToolOffer
+pub fn nika_harness::conversation::ToolOffer::clone(&self) -> nika_harness::conversation::ToolOffer
+impl core::cmp::Eq for nika_harness::conversation::ToolOffer
+impl core::cmp::PartialEq for nika_harness::conversation::ToolOffer
+pub fn nika_harness::conversation::ToolOffer::eq(&self, other: &nika_harness::conversation::ToolOffer) -> bool
+impl core::fmt::Debug for nika_harness::conversation::ToolOffer
+pub fn nika_harness::conversation::ToolOffer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::conversation::ToolOffer
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::ToolOffer
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::ToolOffer where U: core::convert::From<T>
+pub fn nika_harness::conversation::ToolOffer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::ToolOffer where U: core::convert::Into<T>
+pub type nika_harness::conversation::ToolOffer::Error = core::convert::Infallible
+pub fn nika_harness::conversation::ToolOffer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::ToolOffer where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::ToolOffer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::ToolOffer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::conversation::ToolOffer where T: core::clone::Clone
+pub type nika_harness::conversation::ToolOffer::Owned = T
+pub fn nika_harness::conversation::ToolOffer::clone_into(&self, target: &mut T)
+pub fn nika_harness::conversation::ToolOffer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::conversation::ToolOffer where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::ToolOffer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::ToolOffer where T: ?core::marker::Sized
+pub fn nika_harness::conversation::ToolOffer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::ToolOffer where T: ?core::marker::Sized
+pub fn nika_harness::conversation::ToolOffer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::conversation::ToolOffer where T: core::clone::Clone
+pub unsafe fn nika_harness::conversation::ToolOffer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::conversation::ToolOffer
+pub fn nika_harness::conversation::ToolOffer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::ToolOffer where T: 'static
+pub fn nika_harness::conversation::ToolOffer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::ToolOffer
+pub type nika_harness::conversation::ToolOffer::Output = T
+pub struct nika_harness::conversation::TurnStream(_)
+impl nika_harness::conversation::TurnStream
+pub async fn nika_harness::conversation::TurnStream::next_beat(&mut self) -> core::option::Option<core::result::Result<nika_harness::conversation::TurnEvent, nika_kernel_ai::harness::HarnessError>>
+impl core::fmt::Debug for nika_harness::conversation::TurnStream
+pub fn nika_harness::conversation::TurnStream::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl futures_core::stream::Stream for nika_harness::conversation::TurnStream
+pub type nika_harness::conversation::TurnStream::Item = core::result::Result<nika_harness::conversation::TurnEvent, nika_kernel_ai::harness::HarnessError>
+pub fn nika_harness::conversation::TurnStream::poll_next(self: core::pin::Pin<&mut Self>, cx: &mut core::task::wake::Context<'_>) -> core::task::poll::Poll<core::option::Option<Self::Item>>
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::TurnStream
+impl<S, T, E> futures_core::stream::TryStream for nika_harness::conversation::TurnStream where S: futures_core::stream::Stream<Item = core::result::Result<T, E>> + ?core::marker::Sized
+pub type nika_harness::conversation::TurnStream::Error = E
+pub type nika_harness::conversation::TurnStream::Ok = T
+pub fn nika_harness::conversation::TurnStream::try_poll_next(self: core::pin::Pin<&mut S>, cx: &mut core::task::wake::Context<'_>) -> core::task::poll::Poll<core::option::Option<core::result::Result<<S as futures_core::stream::TryStream>::Ok, <S as futures_core::stream::TryStream>::Error>>>
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::TurnStream where U: core::convert::From<T>
+pub fn nika_harness::conversation::TurnStream::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::TurnStream where U: core::convert::Into<T>
+pub type nika_harness::conversation::TurnStream::Error = core::convert::Infallible
+pub fn nika_harness::conversation::TurnStream::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::TurnStream where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::TurnStream::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::TurnStream::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::conversation::TurnStream where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::TurnStream::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::TurnStream where T: ?core::marker::Sized
+pub fn nika_harness::conversation::TurnStream::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::TurnStream where T: ?core::marker::Sized
+pub fn nika_harness::conversation::TurnStream::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::conversation::TurnStream
+pub fn nika_harness::conversation::TurnStream::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::TurnStream where T: 'static
+pub fn nika_harness::conversation::TurnStream::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::TurnStream
+pub type nika_harness::conversation::TurnStream::Output = T
 pub mod nika_harness::declaration
 pub fn nika_harness::declaration::declared_adapter_id() -> core::option::Option<alloc::string::String>
 pub fn nika_harness::declaration::seat_from_env() -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
@@ -328,9 +685,55 @@ impl<T> typenum::type_operators::Same for nika_harness::infer::InferGradeSeat
 pub type nika_harness::infer::InferGradeSeat::Output = T
 pub fn nika_harness::infer::meet_infer_grade(seat: &str, need: nika_harness::infer::StructuredOutputGrade) -> core::result::Result<nika_harness::infer::InferGradeSeat, nika_harness::infer::InferGradeError>
 pub mod nika_harness::probe
+#[non_exhaustive] pub enum nika_harness::probe::LoginCheck
+pub nika_harness::probe::LoginCheck::SignedIn
+pub nika_harness::probe::LoginCheck::SignedOut
+pub nika_harness::probe::LoginCheck::Unanswered
+pub nika_harness::probe::LoginCheck::Unanswered::within: core::time::Duration
+pub nika_harness::probe::LoginCheck::Unreadable
+impl nika_harness::probe::LoginCheck
+pub const fn nika_harness::probe::LoginCheck::signed_in(self) -> core::option::Option<bool>
+pub fn nika_harness::probe::LoginCheck::unknown_words(self) -> core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::clone(&self) -> nika_harness::probe::LoginCheck
+impl core::cmp::Eq for nika_harness::probe::LoginCheck
+impl core::cmp::PartialEq for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::eq(&self, other: &nika_harness::probe::LoginCheck) -> bool
+impl core::fmt::Debug for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::probe::LoginCheck
+impl core::marker::StructuralPartialEq for nika_harness::probe::LoginCheck
+impl<D> owo_colors::OwoColorize for nika_harness::probe::LoginCheck
+impl<T, U> core::convert::Into<U> for nika_harness::probe::LoginCheck where U: core::convert::From<T>
+pub fn nika_harness::probe::LoginCheck::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::probe::LoginCheck where U: core::convert::Into<T>
+pub type nika_harness::probe::LoginCheck::Error = core::convert::Infallible
+pub fn nika_harness::probe::LoginCheck::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::probe::LoginCheck where U: core::convert::TryFrom<T>
+pub type nika_harness::probe::LoginCheck::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::probe::LoginCheck::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::probe::LoginCheck where T: core::clone::Clone
+pub type nika_harness::probe::LoginCheck::Owned = T
+pub fn nika_harness::probe::LoginCheck::clone_into(&self, target: &mut T)
+pub fn nika_harness::probe::LoginCheck::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::probe::LoginCheck where T: 'static + ?core::marker::Sized
+pub fn nika_harness::probe::LoginCheck::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::probe::LoginCheck where T: ?core::marker::Sized
+pub fn nika_harness::probe::LoginCheck::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::probe::LoginCheck where T: ?core::marker::Sized
+pub fn nika_harness::probe::LoginCheck::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::probe::LoginCheck where T: core::clone::Clone
+pub unsafe fn nika_harness::probe::LoginCheck::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::probe::LoginCheck where T: 'static
+pub fn nika_harness::probe::LoginCheck::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::probe::LoginCheck
+pub type nika_harness::probe::LoginCheck::Output = T
 #[non_exhaustive] pub struct nika_harness::probe::AdapterProbeRow
 pub nika_harness::probe::AdapterProbeRow::authenticated: core::option::Option<bool>
 pub nika_harness::probe::AdapterProbeRow::id: alloc::string::String
+pub nika_harness::probe::AdapterProbeRow::login: core::option::Option<nika_harness::probe::LoginCheck>
 pub nika_harness::probe::AdapterProbeRow::note: alloc::string::String
 pub nika_harness::probe::AdapterProbeRow::package: alloc::string::String
 pub nika_harness::probe::AdapterProbeRow::product_present: bool
@@ -376,6 +779,7 @@ pub type nika_harness::probe::AdapterProbeRow::Output = T
 pub nika_harness::probe::PresenceFact::acp_present: bool
 pub nika_harness::probe::PresenceFact::configured: bool
 pub nika_harness::probe::PresenceFact::id: alloc::string::String
+pub nika_harness::probe::PresenceFact::login: core::option::Option<nika_harness::probe::LoginCheck>
 pub nika_harness::probe::PresenceFact::product_present: bool
 pub nika_harness::probe::PresenceFact::serves: alloc::vec::Vec<alloc::string::String>
 impl core::clone::Clone for nika_harness::probe::PresenceFact
@@ -683,6 +1087,8 @@ pub fn nika_harness::spawn::HarnessAdapter::as_any(&self) -> &(dyn core::any::An
 impl<T> typenum::type_operators::Same for nika_harness::spawn::HarnessAdapter
 pub type nika_harness::spawn::HarnessAdapter::Output = T
 pub struct nika_harness::spawn::SpawnedHarness
+impl nika_harness::spawn::SpawnedHarness
+pub async fn nika_harness::spawn::SpawnedHarness::converse(&self, setup: nika_harness::conversation::ConversationSetup, offer: nika_harness::conversation::ToolOffer) -> core::result::Result<nika_harness::conversation::Conversation, nika_kernel_ai::harness::HarnessError>
 impl nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::new(adapter: nika_harness::spawn::HarnessAdapter) -> Self
 impl nika_harness::spawn::SpawnedHarness
@@ -1258,6 +1664,51 @@ impl<T> nika_error::traits::AsAny for nika_harness::infer::InferGradeError where
 pub fn nika_harness::infer::InferGradeError::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_harness::infer::InferGradeError
 pub type nika_harness::infer::InferGradeError::Output = T
+#[non_exhaustive] pub enum nika_harness::LoginCheck
+pub nika_harness::LoginCheck::SignedIn
+pub nika_harness::LoginCheck::SignedOut
+pub nika_harness::LoginCheck::Unanswered
+pub nika_harness::LoginCheck::Unanswered::within: core::time::Duration
+pub nika_harness::LoginCheck::Unreadable
+impl nika_harness::probe::LoginCheck
+pub const fn nika_harness::probe::LoginCheck::signed_in(self) -> core::option::Option<bool>
+pub fn nika_harness::probe::LoginCheck::unknown_words(self) -> core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::clone(&self) -> nika_harness::probe::LoginCheck
+impl core::cmp::Eq for nika_harness::probe::LoginCheck
+impl core::cmp::PartialEq for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::eq(&self, other: &nika_harness::probe::LoginCheck) -> bool
+impl core::fmt::Debug for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::probe::LoginCheck
+impl core::marker::StructuralPartialEq for nika_harness::probe::LoginCheck
+impl<D> owo_colors::OwoColorize for nika_harness::probe::LoginCheck
+impl<T, U> core::convert::Into<U> for nika_harness::probe::LoginCheck where U: core::convert::From<T>
+pub fn nika_harness::probe::LoginCheck::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::probe::LoginCheck where U: core::convert::Into<T>
+pub type nika_harness::probe::LoginCheck::Error = core::convert::Infallible
+pub fn nika_harness::probe::LoginCheck::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::probe::LoginCheck where U: core::convert::TryFrom<T>
+pub type nika_harness::probe::LoginCheck::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::probe::LoginCheck::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::probe::LoginCheck where T: core::clone::Clone
+pub type nika_harness::probe::LoginCheck::Owned = T
+pub fn nika_harness::probe::LoginCheck::clone_into(&self, target: &mut T)
+pub fn nika_harness::probe::LoginCheck::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::probe::LoginCheck where T: 'static + ?core::marker::Sized
+pub fn nika_harness::probe::LoginCheck::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::probe::LoginCheck where T: ?core::marker::Sized
+pub fn nika_harness::probe::LoginCheck::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::probe::LoginCheck where T: ?core::marker::Sized
+pub fn nika_harness::probe::LoginCheck::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::probe::LoginCheck where T: core::clone::Clone
+pub unsafe fn nika_harness::probe::LoginCheck::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::probe::LoginCheck
+pub fn nika_harness::probe::LoginCheck::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::probe::LoginCheck where T: 'static
+pub fn nika_harness::probe::LoginCheck::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::probe::LoginCheck
+pub type nika_harness::probe::LoginCheck::Output = T
 #[non_exhaustive] pub enum nika_harness::StructuredOutputGrade
 pub nika_harness::StructuredOutputGrade::Json
 pub nika_harness::StructuredOutputGrade::JsonSchema
@@ -1304,6 +1755,142 @@ impl<T> nika_error::traits::AsAny for nika_harness::infer::StructuredOutputGrade
 pub fn nika_harness::infer::StructuredOutputGrade::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_harness::infer::StructuredOutputGrade
 pub type nika_harness::infer::StructuredOutputGrade::Output = T
+#[non_exhaustive] pub enum nika_harness::Transport
+pub nika_harness::Transport::Http
+pub nika_harness::Transport::Stdio
+impl nika_harness::conversation::Transport
+pub const fn nika_harness::conversation::Transport::as_str(self) -> &'static str
+impl core::clone::Clone for nika_harness::conversation::Transport
+pub fn nika_harness::conversation::Transport::clone(&self) -> nika_harness::conversation::Transport
+impl core::cmp::Eq for nika_harness::conversation::Transport
+impl core::cmp::PartialEq for nika_harness::conversation::Transport
+pub fn nika_harness::conversation::Transport::eq(&self, other: &nika_harness::conversation::Transport) -> bool
+impl core::fmt::Debug for nika_harness::conversation::Transport
+pub fn nika_harness::conversation::Transport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::conversation::Transport
+impl core::marker::StructuralPartialEq for nika_harness::conversation::Transport
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::Transport
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::Transport where U: core::convert::From<T>
+pub fn nika_harness::conversation::Transport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::Transport where U: core::convert::Into<T>
+pub type nika_harness::conversation::Transport::Error = core::convert::Infallible
+pub fn nika_harness::conversation::Transport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::Transport where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::Transport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::Transport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::conversation::Transport where T: core::clone::Clone
+pub type nika_harness::conversation::Transport::Owned = T
+pub fn nika_harness::conversation::Transport::clone_into(&self, target: &mut T)
+pub fn nika_harness::conversation::Transport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::conversation::Transport where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::Transport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::Transport where T: ?core::marker::Sized
+pub fn nika_harness::conversation::Transport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::Transport where T: ?core::marker::Sized
+pub fn nika_harness::conversation::Transport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::conversation::Transport where T: core::clone::Clone
+pub unsafe fn nika_harness::conversation::Transport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::conversation::Transport
+pub fn nika_harness::conversation::Transport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::Transport where T: 'static
+pub fn nika_harness::conversation::Transport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::Transport
+pub type nika_harness::conversation::Transport::Output = T
+#[non_exhaustive] pub enum nika_harness::TurnEnd
+pub nika_harness::TurnEnd::Cancelled
+pub nika_harness::TurnEnd::EndTurn
+pub nika_harness::TurnEnd::MaxTokens
+pub nika_harness::TurnEnd::MaxTurnRequests
+pub nika_harness::TurnEnd::Other
+pub nika_harness::TurnEnd::Refusal
+impl nika_harness::conversation::TurnEnd
+pub const fn nika_harness::conversation::TurnEnd::as_str(self) -> &'static str
+impl core::clone::Clone for nika_harness::conversation::TurnEnd
+pub fn nika_harness::conversation::TurnEnd::clone(&self) -> nika_harness::conversation::TurnEnd
+impl core::cmp::Eq for nika_harness::conversation::TurnEnd
+impl core::cmp::PartialEq for nika_harness::conversation::TurnEnd
+pub fn nika_harness::conversation::TurnEnd::eq(&self, other: &nika_harness::conversation::TurnEnd) -> bool
+impl core::fmt::Debug for nika_harness::conversation::TurnEnd
+pub fn nika_harness::conversation::TurnEnd::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::conversation::TurnEnd
+impl core::marker::StructuralPartialEq for nika_harness::conversation::TurnEnd
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::TurnEnd
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::TurnEnd where U: core::convert::From<T>
+pub fn nika_harness::conversation::TurnEnd::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::TurnEnd where U: core::convert::Into<T>
+pub type nika_harness::conversation::TurnEnd::Error = core::convert::Infallible
+pub fn nika_harness::conversation::TurnEnd::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::TurnEnd where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::TurnEnd::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::TurnEnd::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::conversation::TurnEnd where T: core::clone::Clone
+pub type nika_harness::conversation::TurnEnd::Owned = T
+pub fn nika_harness::conversation::TurnEnd::clone_into(&self, target: &mut T)
+pub fn nika_harness::conversation::TurnEnd::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::conversation::TurnEnd where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::TurnEnd::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::TurnEnd where T: ?core::marker::Sized
+pub fn nika_harness::conversation::TurnEnd::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::TurnEnd where T: ?core::marker::Sized
+pub fn nika_harness::conversation::TurnEnd::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::conversation::TurnEnd where T: core::clone::Clone
+pub unsafe fn nika_harness::conversation::TurnEnd::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::conversation::TurnEnd
+pub fn nika_harness::conversation::TurnEnd::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::TurnEnd where T: 'static
+pub fn nika_harness::conversation::TurnEnd::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::TurnEnd
+pub type nika_harness::conversation::TurnEnd::Output = T
+#[non_exhaustive] pub enum nika_harness::TurnEvent
+pub nika_harness::TurnEvent::Answer
+pub nika_harness::TurnEvent::Answer::text: alloc::string::String
+pub nika_harness::TurnEvent::Ended
+pub nika_harness::TurnEvent::Ended::end: nika_harness::conversation::TurnEnd
+pub nika_harness::TurnEvent::Ended::record: serde_json::value::Value
+pub nika_harness::TurnEvent::Permission
+pub nika_harness::TurnEvent::Permission::allowed: bool
+pub nika_harness::TurnEvent::Permission::nika_tool: core::option::Option<alloc::string::String>
+pub nika_harness::TurnEvent::Permission::tool: core::option::Option<alloc::string::String>
+pub nika_harness::TurnEvent::Thought
+pub nika_harness::TurnEvent::Thought::text: alloc::string::String
+pub nika_harness::TurnEvent::Tool
+pub nika_harness::TurnEvent::Tool::nika_tool: core::option::Option<alloc::string::String>
+pub nika_harness::TurnEvent::Tool::status: core::option::Option<alloc::string::String>
+pub nika_harness::TurnEvent::Tool::tool_call_id: alloc::string::String
+impl core::clone::Clone for nika_harness::conversation::TurnEvent
+pub fn nika_harness::conversation::TurnEvent::clone(&self) -> nika_harness::conversation::TurnEvent
+impl core::cmp::PartialEq for nika_harness::conversation::TurnEvent
+pub fn nika_harness::conversation::TurnEvent::eq(&self, other: &nika_harness::conversation::TurnEvent) -> bool
+impl core::fmt::Debug for nika_harness::conversation::TurnEvent
+pub fn nika_harness::conversation::TurnEvent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::conversation::TurnEvent
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::TurnEvent
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::TurnEvent where U: core::convert::From<T>
+pub fn nika_harness::conversation::TurnEvent::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::TurnEvent where U: core::convert::Into<T>
+pub type nika_harness::conversation::TurnEvent::Error = core::convert::Infallible
+pub fn nika_harness::conversation::TurnEvent::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::TurnEvent where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::TurnEvent::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::TurnEvent::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::conversation::TurnEvent where T: core::clone::Clone
+pub type nika_harness::conversation::TurnEvent::Owned = T
+pub fn nika_harness::conversation::TurnEvent::clone_into(&self, target: &mut T)
+pub fn nika_harness::conversation::TurnEvent::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::conversation::TurnEvent where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::TurnEvent::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::TurnEvent where T: ?core::marker::Sized
+pub fn nika_harness::conversation::TurnEvent::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::TurnEvent where T: ?core::marker::Sized
+pub fn nika_harness::conversation::TurnEvent::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::conversation::TurnEvent where T: core::clone::Clone
+pub unsafe fn nika_harness::conversation::TurnEvent::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::conversation::TurnEvent
+pub fn nika_harness::conversation::TurnEvent::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::TurnEvent where T: 'static
+pub fn nika_harness::conversation::TurnEvent::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::TurnEvent
+pub type nika_harness::conversation::TurnEvent::Output = T
 #[non_exhaustive] pub struct nika_harness::AcpOneShot
 pub nika_harness::AcpOneShot::attestation: nika_harness::infer::InferGradeAttestation
 pub nika_harness::AcpOneShot::seat: &'static str
@@ -1393,6 +1980,7 @@ pub type nika_harness::run_acp::AcpOneShotRefused::Output = T
 #[non_exhaustive] pub struct nika_harness::AdapterProbeRow
 pub nika_harness::AdapterProbeRow::authenticated: core::option::Option<bool>
 pub nika_harness::AdapterProbeRow::id: alloc::string::String
+pub nika_harness::AdapterProbeRow::login: core::option::Option<nika_harness::probe::LoginCheck>
 pub nika_harness::AdapterProbeRow::note: alloc::string::String
 pub nika_harness::AdapterProbeRow::package: alloc::string::String
 pub nika_harness::AdapterProbeRow::product_present: bool
@@ -1470,6 +2058,81 @@ impl<T> nika_error::traits::AsAny for nika_harness::registry::AdapterRow where T
 pub fn nika_harness::registry::AdapterRow::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_harness::registry::AdapterRow
 pub type nika_harness::registry::AdapterRow::Output = T
+pub struct nika_harness::Conversation
+impl nika_harness::conversation::Conversation
+pub fn nika_harness::conversation::Conversation::prompt(&self, text: impl core::convert::Into<alloc::string::String>) -> core::result::Result<nika_harness::conversation::TurnStream, nika_kernel_ai::harness::HarnessError>
+pub const fn nika_harness::conversation::Conversation::record(&self) -> &serde_json::value::Value
+pub fn nika_harness::conversation::Conversation::stop(&self)
+pub const fn nika_harness::conversation::Conversation::transport(&self) -> nika_harness::conversation::Transport
+impl core::fmt::Debug for nika_harness::conversation::Conversation
+pub fn nika_harness::conversation::Conversation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::Conversation
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::Conversation where U: core::convert::From<T>
+pub fn nika_harness::conversation::Conversation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::Conversation where U: core::convert::Into<T>
+pub type nika_harness::conversation::Conversation::Error = core::convert::Infallible
+pub fn nika_harness::conversation::Conversation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::Conversation where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::Conversation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::Conversation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::conversation::Conversation where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::Conversation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::Conversation where T: ?core::marker::Sized
+pub fn nika_harness::conversation::Conversation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::Conversation where T: ?core::marker::Sized
+pub fn nika_harness::conversation::Conversation::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::conversation::Conversation
+pub fn nika_harness::conversation::Conversation::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::Conversation where T: 'static
+pub fn nika_harness::conversation::Conversation::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::Conversation
+pub type nika_harness::conversation::Conversation::Output = T
+#[non_exhaustive] pub struct nika_harness::ConversationSetup
+pub nika_harness::ConversationSetup::allowance: core::time::Duration
+pub nika_harness::ConversationSetup::requested_effort: core::option::Option<alloc::string::String>
+pub nika_harness::ConversationSetup::requested_model: core::option::Option<alloc::string::String>
+impl nika_harness::conversation::ConversationSetup
+pub fn nika_harness::conversation::ConversationSetup::new() -> Self
+pub fn nika_harness::conversation::ConversationSetup::with_allowance(self, allowance: core::time::Duration) -> Self
+pub fn nika_harness::conversation::ConversationSetup::with_requested_effort(self, effort: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_harness::conversation::ConversationSetup::with_requested_model(self, model: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_harness::conversation::ConversationSetup
+pub fn nika_harness::conversation::ConversationSetup::clone(&self) -> nika_harness::conversation::ConversationSetup
+impl core::cmp::Eq for nika_harness::conversation::ConversationSetup
+impl core::cmp::PartialEq for nika_harness::conversation::ConversationSetup
+pub fn nika_harness::conversation::ConversationSetup::eq(&self, other: &nika_harness::conversation::ConversationSetup) -> bool
+impl core::default::Default for nika_harness::conversation::ConversationSetup
+pub fn nika_harness::conversation::ConversationSetup::default() -> Self
+impl core::fmt::Debug for nika_harness::conversation::ConversationSetup
+pub fn nika_harness::conversation::ConversationSetup::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::conversation::ConversationSetup
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::ConversationSetup
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::ConversationSetup where U: core::convert::From<T>
+pub fn nika_harness::conversation::ConversationSetup::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::ConversationSetup where U: core::convert::Into<T>
+pub type nika_harness::conversation::ConversationSetup::Error = core::convert::Infallible
+pub fn nika_harness::conversation::ConversationSetup::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::ConversationSetup where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::ConversationSetup::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::ConversationSetup::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::conversation::ConversationSetup where T: core::clone::Clone
+pub type nika_harness::conversation::ConversationSetup::Owned = T
+pub fn nika_harness::conversation::ConversationSetup::clone_into(&self, target: &mut T)
+pub fn nika_harness::conversation::ConversationSetup::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::conversation::ConversationSetup where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::ConversationSetup::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::ConversationSetup where T: ?core::marker::Sized
+pub fn nika_harness::conversation::ConversationSetup::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::ConversationSetup where T: ?core::marker::Sized
+pub fn nika_harness::conversation::ConversationSetup::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::conversation::ConversationSetup where T: core::clone::Clone
+pub unsafe fn nika_harness::conversation::ConversationSetup::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::conversation::ConversationSetup
+pub fn nika_harness::conversation::ConversationSetup::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::ConversationSetup where T: 'static
+pub fn nika_harness::conversation::ConversationSetup::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::ConversationSetup
+pub type nika_harness::conversation::ConversationSetup::Output = T
 #[non_exhaustive] pub struct nika_harness::HarnessAdapter
 pub nika_harness::HarnessAdapter::args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::HarnessAdapter::command: alloc::string::String
@@ -1689,6 +2352,7 @@ pub type nika_harness::infer::InferGradeSeat::Output = T
 pub nika_harness::PresenceFact::acp_present: bool
 pub nika_harness::PresenceFact::configured: bool
 pub nika_harness::PresenceFact::id: alloc::string::String
+pub nika_harness::PresenceFact::login: core::option::Option<nika_harness::probe::LoginCheck>
 pub nika_harness::PresenceFact::product_present: bool
 pub nika_harness::PresenceFact::serves: alloc::vec::Vec<alloc::string::String>
 impl core::clone::Clone for nika_harness::probe::PresenceFact
@@ -1727,6 +2391,8 @@ pub fn nika_harness::probe::PresenceFact::as_any(&self) -> &(dyn core::any::Any 
 impl<T> typenum::type_operators::Same for nika_harness::probe::PresenceFact
 pub type nika_harness::probe::PresenceFact::Output = T
 pub struct nika_harness::SpawnedHarness
+impl nika_harness::spawn::SpawnedHarness
+pub async fn nika_harness::spawn::SpawnedHarness::converse(&self, setup: nika_harness::conversation::ConversationSetup, offer: nika_harness::conversation::ToolOffer) -> core::result::Result<nika_harness::conversation::Conversation, nika_kernel_ai::harness::HarnessError>
 impl nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::new(adapter: nika_harness::spawn::HarnessAdapter) -> Self
 impl nika_harness::spawn::SpawnedHarness
@@ -1768,6 +2434,83 @@ impl<T> typenum::type_operators::Same for nika_harness::spawn::SpawnedHarness
 pub type nika_harness::spawn::SpawnedHarness::Output = T
 impl<TraitVariantBlanketType> nika_kernel_ai::harness::AgentBackend for nika_harness::spawn::SpawnedHarness where TraitVariantBlanketType: nika_kernel_ai::harness::AgentBackendDyn
 pub async fn nika_harness::spawn::SpawnedHarness::run_agent(&self, request: nika_kernel_ai::harness::HarnessRequest) -> core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::harness::HarnessEvent, nika_kernel_ai::harness::HarnessError>> + core::marker::Send)>>, nika_kernel_ai::harness::HarnessError>
+#[non_exhaustive] pub struct nika_harness::ToolOffer
+pub nika_harness::ToolOffer::http: core::option::Option<nika_harness::conversation::HttpMount>
+pub nika_harness::ToolOffer::name: alloc::string::String
+pub nika_harness::ToolOffer::stdio: core::option::Option<nika_harness::conversation::StdioMount>
+pub nika_harness::ToolOffer::tools: alloc::vec::Vec<alloc::string::String>
+impl nika_harness::conversation::ToolOffer
+pub fn nika_harness::conversation::ToolOffer::new(name: impl core::convert::Into<alloc::string::String>, tools: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_harness::conversation::ToolOffer::with_http(self, url: impl core::convert::Into<alloc::string::String>, bearer: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_harness::conversation::ToolOffer::with_stdio(self, command: impl core::convert::Into<alloc::string::String>, args: alloc::vec::Vec<alloc::string::String>, env: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>) -> Self
+impl core::clone::Clone for nika_harness::conversation::ToolOffer
+pub fn nika_harness::conversation::ToolOffer::clone(&self) -> nika_harness::conversation::ToolOffer
+impl core::cmp::Eq for nika_harness::conversation::ToolOffer
+impl core::cmp::PartialEq for nika_harness::conversation::ToolOffer
+pub fn nika_harness::conversation::ToolOffer::eq(&self, other: &nika_harness::conversation::ToolOffer) -> bool
+impl core::fmt::Debug for nika_harness::conversation::ToolOffer
+pub fn nika_harness::conversation::ToolOffer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::conversation::ToolOffer
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::ToolOffer
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::ToolOffer where U: core::convert::From<T>
+pub fn nika_harness::conversation::ToolOffer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::ToolOffer where U: core::convert::Into<T>
+pub type nika_harness::conversation::ToolOffer::Error = core::convert::Infallible
+pub fn nika_harness::conversation::ToolOffer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::ToolOffer where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::ToolOffer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::ToolOffer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::conversation::ToolOffer where T: core::clone::Clone
+pub type nika_harness::conversation::ToolOffer::Owned = T
+pub fn nika_harness::conversation::ToolOffer::clone_into(&self, target: &mut T)
+pub fn nika_harness::conversation::ToolOffer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::conversation::ToolOffer where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::ToolOffer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::ToolOffer where T: ?core::marker::Sized
+pub fn nika_harness::conversation::ToolOffer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::ToolOffer where T: ?core::marker::Sized
+pub fn nika_harness::conversation::ToolOffer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::conversation::ToolOffer where T: core::clone::Clone
+pub unsafe fn nika_harness::conversation::ToolOffer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::conversation::ToolOffer
+pub fn nika_harness::conversation::ToolOffer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::ToolOffer where T: 'static
+pub fn nika_harness::conversation::ToolOffer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::ToolOffer
+pub type nika_harness::conversation::ToolOffer::Output = T
+pub struct nika_harness::TurnStream(_)
+impl nika_harness::conversation::TurnStream
+pub async fn nika_harness::conversation::TurnStream::next_beat(&mut self) -> core::option::Option<core::result::Result<nika_harness::conversation::TurnEvent, nika_kernel_ai::harness::HarnessError>>
+impl core::fmt::Debug for nika_harness::conversation::TurnStream
+pub fn nika_harness::conversation::TurnStream::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl futures_core::stream::Stream for nika_harness::conversation::TurnStream
+pub type nika_harness::conversation::TurnStream::Item = core::result::Result<nika_harness::conversation::TurnEvent, nika_kernel_ai::harness::HarnessError>
+pub fn nika_harness::conversation::TurnStream::poll_next(self: core::pin::Pin<&mut Self>, cx: &mut core::task::wake::Context<'_>) -> core::task::poll::Poll<core::option::Option<Self::Item>>
+impl<D> owo_colors::OwoColorize for nika_harness::conversation::TurnStream
+impl<S, T, E> futures_core::stream::TryStream for nika_harness::conversation::TurnStream where S: futures_core::stream::Stream<Item = core::result::Result<T, E>> + ?core::marker::Sized
+pub type nika_harness::conversation::TurnStream::Error = E
+pub type nika_harness::conversation::TurnStream::Ok = T
+pub fn nika_harness::conversation::TurnStream::try_poll_next(self: core::pin::Pin<&mut S>, cx: &mut core::task::wake::Context<'_>) -> core::task::poll::Poll<core::option::Option<core::result::Result<<S as futures_core::stream::TryStream>::Ok, <S as futures_core::stream::TryStream>::Error>>>
+impl<T, U> core::convert::Into<U> for nika_harness::conversation::TurnStream where U: core::convert::From<T>
+pub fn nika_harness::conversation::TurnStream::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::conversation::TurnStream where U: core::convert::Into<T>
+pub type nika_harness::conversation::TurnStream::Error = core::convert::Infallible
+pub fn nika_harness::conversation::TurnStream::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::conversation::TurnStream where U: core::convert::TryFrom<T>
+pub type nika_harness::conversation::TurnStream::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::conversation::TurnStream::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::conversation::TurnStream where T: 'static + ?core::marker::Sized
+pub fn nika_harness::conversation::TurnStream::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::conversation::TurnStream where T: ?core::marker::Sized
+pub fn nika_harness::conversation::TurnStream::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::conversation::TurnStream where T: ?core::marker::Sized
+pub fn nika_harness::conversation::TurnStream::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::conversation::TurnStream
+pub fn nika_harness::conversation::TurnStream::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::conversation::TurnStream where T: 'static
+pub fn nika_harness::conversation::TurnStream::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::conversation::TurnStream
+pub type nika_harness::conversation::TurnStream::Output = T
 #[non_exhaustive] pub struct nika_harness::VersionPin
 pub nika_harness::VersionPin::max_major: u32
 pub nika_harness::VersionPin::min: (u32, u32)

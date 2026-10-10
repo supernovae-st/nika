@@ -222,10 +222,7 @@ impl SessionReasoner for BoundaryReasoner {
     }
     fn reason(&mut self, _: &str) -> Result<crate::Reply, ReasonError> {
         assert_boundary(&self.0, None);
-        Ok(crate::Reply {
-            text: "fixture reply".into(),
-            usage_observed: false,
-        })
+        Ok(crate::Reply::new("fixture reply".into(), false))
     }
 }
 fn assert_boundary(root: &Path, decision: Option<&str>) {
@@ -294,7 +291,7 @@ fn continuous_injected_classifier_keeps_its_boundary_without_conversational_ai()
 
 #[test]
 fn continuous_deterministic_seat_keeps_its_explicit_decision_boundary() {
-    use crate::authoring::decision::tests::{KEY, SEAT};
+    use super::authoring_decision::{KEY, SEAT};
     use crate::authoring::{AuthoringContext, DecisionSetup};
     let dir = tempfile::tempdir().unwrap();
     let mut session = SessionRuntime::open(

@@ -5,7 +5,10 @@
 //! repair show the judge, apart from the compiler-owned reference they also carry. The verifier
 //! of `nika-compile-cognition` asks the questions and weighs the answers; this state moved here
 //! at that crate's size cap (2026-10-08). The engine facts a request may condition on (the
-//! catalogue a door was lent, what it composed) ride the same state as data ([`authoring`]).
+//! catalogue a door was lent, what it composed) ride the same state as data ([`authoring`]);
+//! what each task of the judged bytes touches decides which task a judge may still name as doing
+//! something unasked ([`Effects`]), and a doubt nothing located is asked where it is once
+//! ([`Doubt`]).
 
 use nika_compile::surface::{EditChange, Input, sha256};
 use nika_compile::{CompileOutcome, CompileRequest};
@@ -15,7 +18,15 @@ use crate::foundry::ComponentCatalog;
 use crate::foundry::witness::witness;
 
 mod construction;
+mod doubt;
+mod effects;
+mod framing;
 pub use construction::{Construction, Construed};
+pub use doubt::{Doubt, Located};
+pub use effects::Effects;
+pub use framing::{
+    CREATED, REVISED, REVISED_APPENDED, REVISED_DOCUMENT, REVISED_OVER_DOCUMENT, told,
+};
 
 /// The state every question and every repair carries: the request as compiled and as first
 /// stated, its answers, the observed world and the candidate's bytes. The first statement is

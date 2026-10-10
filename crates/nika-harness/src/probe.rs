@@ -47,6 +47,61 @@ pub struct AdapterProbeRow {
     /// Distinct from [`Self::version`]: Claude Code can be installed
     /// while the ACP speaker `claude-agent-acp` is not.
     pub product_present: bool,
+    /// What the seat's own login command answered, for a command-auth row: a
+    /// check that did not answer in time is unknown, never signed out
+    /// ([`LoginCheck`]). `None` for a home-file row.
+    pub login: Option<LoginCheck>,
+}
+
+/// How long a seat's own login command may take before its answer is unknown.
+/// Valid checks were measured at 12 s and 25.8 s, beyond the former 10 s, which
+/// read a signed-in seat as signed out.
+const LOGIN_CHECK_DEADLINE: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// What a seat's own login command answered, read from its exit code alone
+/// (never a credential read). Only an answer is a verdict: a check that did
+/// not answer in time, or could not run here, leaves the sign-in unknown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum LoginCheck {
+    /// It exited 0: signed in.
+    SignedIn,
+    /// It exited with another code: signed out.
+    SignedOut,
+    /// It did not answer within `within`: unknown, never signed out.
+    Unanswered {
+        /// The deadline it was given.
+        within: std::time::Duration,
+    },
+    /// It could not run here (an absent binary, a refused spawn): unknown.
+    Unreadable,
+}
+
+impl LoginCheck {
+    /// The verdict: `Some(true)` signed in, `Some(false)` signed out, `None`
+    /// unknown.
+    #[must_use]
+    pub const fn signed_in(self) -> Option<bool> {
+        match self {
+            Self::SignedIn => Some(true),
+            Self::SignedOut => Some(false),
+            Self::Unanswered { .. } | Self::Unreadable => None,
+        }
+    }
+
+    /// Nika's words for an unknown sign-in (`the login check did not answer
+    /// within 30 s`); `None` for an answer.
+    #[must_use]
+    pub fn unknown_words(self) -> Option<String> {
+        match self {
+            Self::Unanswered { within } => Some(format!(
+                "the login check did not answer within {} s",
+                within.as_secs()
+            )),
+            Self::Unreadable => Some("the login check could not run here".to_owned()),
+            Self::SignedIn | Self::SignedOut => None,
+        }
+    }
 }
 
 impl AdapterProbeRow {
@@ -104,6 +159,11 @@ pub struct PresenceFact {
     /// [`AuthProbe::HomeFile`] witness, or the login command's exit
     /// code for Command auth — SIGNED IN, never merely installed.
     pub configured: bool,
+    /// What the login command answered, when one ran (a Command-auth row whose
+    /// product is present): `configured` is true only for
+    /// [`LoginCheck::SignedIn`], and an unanswered check stays unknown here,
+    /// never signed out.
+    pub login: Option<LoginCheck>,
 }
 
 /// Presence + sign-in probe for every registry row (sync by design —
@@ -113,7 +173,7 @@ pub struct PresenceFact {
 /// and admission can never disagree on « signed in ».
 #[must_use]
 pub fn presence_facts(rows: Vec<AdapterRow>) -> Vec<PresenceFact> {
-    presence_facts_with(rows, &probe_auth_sync)
+    presence_facts_with(rows, &login_check_sync)
 }
 
 /// [`presence_facts`] over an INJECTED login probe — the pure half
@@ -121,7 +181,7 @@ pub fn presence_facts(rows: Vec<AdapterRow>) -> Vec<PresenceFact> {
 /// its product binary is present; a home-file row never spawns.
 pub(crate) fn presence_facts_with(
     rows: Vec<AdapterRow>,
-    probe: &(dyn Fn(&AuthProbe, &[String]) -> Option<bool> + Sync),
+    probe: &(dyn Fn(&AuthProbe, &[String]) -> LoginCheck + Sync),
 ) -> Vec<PresenceFact> {
     let presence: Vec<(bool, bool)> = rows
         .iter()
@@ -134,14 +194,14 @@ pub(crate) fn presence_facts_with(
         .collect();
     // The login commands of the present products answer CONCURRENTLY
     // (each is bounded; two seats must not cost two waits).
-    let signed_in: Vec<Option<bool>> = std::thread::scope(|scope| {
+    let logins: Vec<Option<LoginCheck>> = std::thread::scope(|scope| {
         let handles: Vec<_> = rows
             .iter()
             .zip(&presence)
             .map(|(row, &(product_present, _))| {
                 scope.spawn(move || match row.auth {
                     AuthProbe::Command { .. } if product_present => {
-                        probe(&row.auth, &row.adapter.passthrough_env)
+                        Some(probe(&row.auth, &row.adapter.passthrough_env))
                     }
                     AuthProbe::Command { .. } | AuthProbe::HomeFile(_) => None,
                 })
@@ -149,20 +209,21 @@ pub(crate) fn presence_facts_with(
             .collect();
         handles
             .into_iter()
-            .map(|handle| handle.join().unwrap_or(None))
+            .map(|handle| handle.join().unwrap_or(Some(LoginCheck::Unreadable)))
             .collect()
     });
     rows.into_iter()
         .zip(presence)
-        .zip(signed_in)
-        .map(|((row, (product_present, acp_present)), signed_in)| {
+        .zip(logins)
+        .map(|((row, (product_present, acp_present)), login)| {
             let configured = match row.auth {
                 AuthProbe::HomeFile(_) => {
                     probe_auth_home_sync(&row.auth, row.directory_auth).unwrap_or(false)
                 }
-                // An unreadable surface (no answer in time · the command
-                // itself failed to run) is NOT signed in: fail closed.
-                AuthProbe::Command { .. } => signed_in == Some(true),
+                // An unknown sign-in (no answer in time · the command itself
+                // failed to run) does not admit the seat: fail closed, while
+                // `login` keeps it unknown, never signed out.
+                AuthProbe::Command { .. } => login == Some(LoginCheck::SignedIn),
             };
             PresenceFact {
                 id: row.adapter.id.clone(),
@@ -170,27 +231,33 @@ pub(crate) fn presence_facts_with(
                 product_present,
                 acp_present,
                 configured,
+                login,
             }
         })
         .collect()
 }
 
-/// The login/identity probe for a sync caller — [`probe_auth`] on a
+/// The login/identity probe for a sync caller — [`login_check`] on a
 /// one-shot current-thread runtime hosted by a scoped thread, so the
 /// census can run inside an async context (the serve worker) without
-/// a runtime-in-runtime panic. `None` = the surface did not answer.
-fn probe_auth_sync(surface: &AuthProbe, passthrough: &[String]) -> Option<bool> {
+/// a runtime-in-runtime panic. A home-file surface runs no command.
+fn login_check_sync(surface: &AuthProbe, passthrough: &[String]) -> LoginCheck {
+    let AuthProbe::Command { command, args } = surface else {
+        return LoginCheck::Unreadable;
+    };
     std::thread::scope(|scope| {
         scope
             .spawn(|| {
                 let rt = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
-                    .build()
-                    .ok()?;
-                rt.block_on(probe_auth(surface, None, passthrough))
+                    .build();
+                let Ok(rt) = rt else {
+                    return LoginCheck::Unreadable;
+                };
+                rt.block_on(login_of(command, args, passthrough))
             })
             .join()
-            .unwrap_or(None)
+            .unwrap_or(LoginCheck::Unreadable)
     })
 }
 
@@ -240,6 +307,7 @@ pub fn probe_adapters_sync(rows: Vec<AdapterRow>) -> Vec<AdapterProbeRow> {
                 package: row.package.to_owned(),
                 note: "could not start the probe runtime".to_owned(),
                 product_present: false,
+                login: None,
             })
             .collect();
     };
@@ -252,8 +320,15 @@ async fn probe_one(row: AdapterRow) -> AdapterProbeRow {
         Ok(seen) => (seen, String::new()),
         Err(e) => (None, e.to_string()),
     };
-    let authenticated =
-        probe_auth(&row.auth, row.directory_auth, &row.adapter.passthrough_env).await;
+    let passthrough = &row.adapter.passthrough_env;
+    let login = match row.auth {
+        AuthProbe::Command { command, args } => Some(login_of(command, args, passthrough).await),
+        AuthProbe::HomeFile(_) => None,
+    };
+    let authenticated = match login {
+        Some(login) => login.signed_in(),
+        None => probe_auth(&row.auth, row.directory_auth, passthrough).await,
+    };
     let detect = nika_types::access::HarnessRuntime::lookup(&row.adapter.id)
         .map_or(row.adapter.command.as_str(), |rt| rt.detect_bin);
     AdapterProbeRow {
@@ -263,6 +338,7 @@ async fn probe_one(row: AdapterRow) -> AdapterProbeRow {
         package: row.package.to_owned(),
         note,
         product_present: binary_on_path(detect),
+        login,
     }
 }
 
@@ -320,20 +396,28 @@ async fn probe_auth_with(
             Some(std::path::Path::new(home?).join(rel).exists())
         }
         AuthProbe::Command { command, args } => {
-            let parent: std::collections::BTreeMap<String, String> = std::env::vars().collect();
-            probe_auth_command(command, args, &parent, passthrough).await
+            login_of(command, args, passthrough).await.signed_in()
         }
     }
 }
 
-/// The command probe uses the same declared account roots and credential filter
-/// as the ACP spawn. The injected parent keeps process tests isolated.
-async fn probe_auth_command(
+/// The login command's answer under this process's environment, composed as the ACP spawn's.
+async fn login_of(command: &str, args: &[&str], passthrough: &[String]) -> LoginCheck {
+    let parent: std::collections::BTreeMap<String, String> = std::env::vars().collect();
+    login_check(command, args, &parent, passthrough, LOGIN_CHECK_DEADLINE).await
+}
+
+/// One login command run within `deadline`, its exit code the whole verdict: a check that
+/// does not answer in time is killed and stays unknown, never signed out. The command uses the
+/// same declared account roots and credential filter as the ACP spawn; the injected parent keeps
+/// process tests isolated.
+async fn login_check(
     command: &str,
     args: &[&str],
     parent: &std::collections::BTreeMap<String, String>,
     passthrough: &[String],
-) -> Option<bool> {
+    deadline: std::time::Duration,
+) -> LoginCheck {
     let env = compose_env(parent, passthrough);
     let child = tokio::process::Command::new(command)
         .args(args)
@@ -344,11 +428,12 @@ async fn probe_auth_command(
         .stderr(std::process::Stdio::null())
         .kill_on_drop(true)
         .status();
-    let status = tokio::time::timeout(std::time::Duration::from_secs(10), child)
-        .await
-        .ok()?
-        .ok()?;
-    Some(status.success())
+    match tokio::time::timeout(deadline, child).await {
+        Err(_) => LoginCheck::Unanswered { within: deadline },
+        Ok(Err(_)) => LoginCheck::Unreadable,
+        Ok(Ok(status)) if status.success() => LoginCheck::SignedIn,
+        Ok(Ok(_)) => LoginCheck::SignedOut,
+    }
 }
 
 /// Metadata-only proof that a provider credential is present. Kimi Code stores
@@ -605,9 +690,9 @@ mod tests {
     /// answer (the S18 shape of 0.118.7: an installed codex was a
     /// « ready » seat and outranked a ready key): the probe is consulted
     /// exactly once per PRESENT product, never for an absent one, and an
-    /// unanswered surface reads as not signed in. Revert
-    /// `signed_in == Some(true)` to `product_present` and the second
-    /// row flips.
+    /// unanswered surface does not admit the seat while its login stays
+    /// unknown. Revert `login == Some(LoginCheck::SignedIn)` to
+    /// `product_present` and the second row flips.
     #[test]
     fn a_command_auth_row_is_configured_only_by_its_login_answer() {
         use std::sync::atomic::{AtomicUsize, Ordering};
@@ -623,19 +708,23 @@ mod tests {
         };
         let asked = AtomicUsize::new(0);
         let asked_ref = &asked;
-        let says = |verdict: Option<bool>| {
+        let says = |verdict: LoginCheck| {
             move |_: &AuthProbe, _: &[String]| {
                 asked_ref.fetch_add(1, Ordering::SeqCst);
                 verdict
             }
         };
         // `true` is on PATH: the product is present, the probe decides.
-        let yes = presence_facts_with(vec![row("seat-yes", "true")], &says(Some(true)));
+        let yes = presence_facts_with(vec![row("seat-yes", "true")], &says(LoginCheck::SignedIn));
         assert!(yes[0].product_present && yes[0].configured, "{yes:?}");
-        let no = presence_facts_with(vec![row("seat-no", "true")], &says(Some(false)));
+        let no = presence_facts_with(vec![row("seat-no", "true")], &says(LoginCheck::SignedOut));
         assert!(no[0].product_present && !no[0].configured, "{no:?}");
-        let mute = presence_facts_with(vec![row("seat-mute", "true")], &says(None));
-        assert!(!mute[0].configured, "no answer is not signed in: {mute:?}");
+        let unanswered = LoginCheck::Unanswered {
+            within: LOGIN_CHECK_DEADLINE,
+        };
+        let mute = presence_facts_with(vec![row("seat-mute", "true")], &says(unanswered));
+        assert!(!mute[0].configured, "no answer does not admit: {mute:?}");
+        assert_eq!(mute[0].login, Some(unanswered), "it stays unknown");
         assert_eq!(
             asked.load(Ordering::SeqCst),
             3,
@@ -644,7 +733,7 @@ mod tests {
         // An absent product never spawns its login command.
         let absent = presence_facts_with(
             vec![row("seat-absent", "nika-no-such-binary-anywhere")],
-            &says(Some(true)),
+            &says(LoginCheck::SignedIn),
         );
         assert!(
             !absent[0].product_present && !absent[0].configured,
@@ -687,15 +776,11 @@ mod tests {
                 .into_iter()
                 .find(|row| row.adapter.id == id)
                 .expect("seat");
+            let passthrough = &row.adapter.passthrough_env;
+            let args = ["-c", script];
             assert_eq!(
-                probe_auth_command(
-                    "/bin/sh",
-                    &["-c", script],
-                    &parent,
-                    &row.adapter.passthrough_env
-                )
-                .await,
-                Some(true),
+                login_check("/bin/sh", &args, &parent, passthrough, LOGIN_CHECK_DEADLINE).await,
+                LoginCheck::SignedIn,
                 "{id} must select its own account, without keys or the other seat root"
             );
         }
@@ -717,9 +802,53 @@ mod tests {
             command: "nika-no-such-binary-anywhere",
             args: &[],
         };
-        assert_eq!(probe_auth_sync(&yes, &[]), Some(true));
-        assert_eq!(probe_auth_sync(&no, &[]), Some(false));
-        assert_eq!(probe_auth_sync(&absent, &[]), None);
+        assert_eq!(login_check_sync(&yes, &[]), LoginCheck::SignedIn);
+        assert_eq!(login_check_sync(&no, &[]), LoginCheck::SignedOut);
+        assert_eq!(login_check_sync(&absent, &[]), LoginCheck::Unreadable);
+    }
+
+    /// A login command's exit code is its whole verdict inside its deadline, at real time on
+    /// scaled deadlines: a slow 0 is signed in, a failing code signed out, an absent binary
+    /// unreadable, and a command that does not answer in time is killed and stays unknown, never
+    /// signed out, in Nika's words. The deadline is 30 s: valid checks were measured at 12 s and
+    /// 25.8 s, beyond the former 10 s.
+    #[tokio::test]
+    async fn a_login_check_that_does_not_answer_in_time_is_unknown_never_signed_out() {
+        let parent = std::collections::BTreeMap::new();
+        let check = |script: &'static str, deadline: std::time::Duration| {
+            let parent = &parent;
+            async move { login_check("/bin/sh", &["-c", script], parent, &[], deadline).await }
+        };
+        let second = std::time::Duration::from_secs(5);
+        let slow = check("sleep 0.3; exit 0", second).await;
+        assert_eq!(
+            slow,
+            LoginCheck::SignedIn,
+            "a slow answer inside the deadline"
+        );
+        let failed = check("exit 1", second).await;
+        assert_eq!(failed, LoginCheck::SignedOut);
+        let started = std::time::Instant::now();
+        let within = std::time::Duration::from_millis(200);
+        let hung = check("exec sleep 5", within).await;
+        assert_eq!(hung, LoginCheck::Unanswered { within });
+        assert!(
+            started.elapsed() < second,
+            "cut at its deadline, not awaited"
+        );
+        assert_eq!(hung.signed_in(), None, "unknown, never signed out");
+        let absent = login_check("/nonexistent/nika-login", &[], &parent, &[], second).await;
+        assert_eq!(absent, LoginCheck::Unreadable);
+        assert_eq!(LOGIN_CHECK_DEADLINE, std::time::Duration::from_secs(30));
+        let production = LoginCheck::Unanswered {
+            within: LOGIN_CHECK_DEADLINE,
+        };
+        let words = production.unknown_words();
+        assert_eq!(
+            words.as_deref(),
+            Some("the login check did not answer within 30 s")
+        );
+        assert_eq!(LoginCheck::SignedOut.unknown_words(), None);
     }
 
     #[test]
@@ -775,6 +904,7 @@ mod tests {
             package: "p".to_owned(),
             note: String::new(),
             product_present: false,
+            login: None,
         };
         assert!(row(Some((1, 0))).usable());
         assert!(

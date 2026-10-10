@@ -560,7 +560,7 @@ fn wrong_seat_refusal(canonical: &str, name: &str) -> Option<ResolveRefusal> {
 }
 
 /// Snapshot row id and query name the same catalog seat (`gemini` ↔ `google`).
-fn pricing_provider_matches(row_provider: &str, query: &str) -> bool {
+pub(crate) fn pricing_provider_matches(row_provider: &str, query: &str) -> bool {
     if row_provider.eq_ignore_ascii_case(query) {
         return true;
     }

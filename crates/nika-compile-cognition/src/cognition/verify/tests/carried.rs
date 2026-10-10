@@ -94,6 +94,7 @@ async fn a_rejection_carried_from_an_earlier_round_is_never_asked_again() {
         "settled_by": null,
         "candidate_sha256": sha,
         "declined": true, "rejected": true, "settled": false, "stopped": false,
+        "unresolved": false, "engine": [],
         "whole_asked": true,
         "request": INTENT,
         "same_bytes_as": null,

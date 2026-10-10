@@ -35,6 +35,7 @@ mod integrity;
 mod permits;
 mod shape;
 pub mod sink;
+mod subsume;
 mod trifecta;
 mod witness;
 

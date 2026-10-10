@@ -35,7 +35,14 @@
 /// name the very same items (types, functions, constant).
 #[doc(inline)]
 pub use nika_onboard::{activity, identity};
-pub mod authoring;
+/// The intelligence the session reasons, routes and authors with — the census and the human's
+/// choice ([`intelligence`]), the reasoners ([`reasoner`]), the router of a free line
+/// ([`turn`]) and the authoring door to the ONE compiler ([`authoring`]) — is owned by the
+/// size-cap member below the session since 2026-10-09 (ADR-150):
+/// `nika_session_intelligence::{authoring, intelligence, reasoner, turn}`. These paths are kept
+/// and name the very same items (types, traits, functions, constants).
+#[doc(inline)]
+pub use nika_session_intelligence::{authoring, intelligence, reasoner, turn};
 pub mod broker;
 /// The project change a proposal writes ([`change`]), its factual review ([`review`]), the
 /// typed outcome a host renders ([`outcome`]) and the consent record ([`consent`]) are owned
@@ -52,7 +59,6 @@ pub mod facts;
 /// source compatibility and names the very same items (types, functions).
 #[doc(inline)]
 pub use nika_onboard::guard;
-pub mod intelligence;
 /// The Meaning view: what survived of a request, clause by clause, read from the
 /// compiler's obligation ledger. Owned here again since 2026-10-07, the session being its
 /// only reader (it sat in `nika_onboard::compile::meaning` from 2026-09-28).
@@ -64,11 +70,9 @@ pub mod meaning;
 #[doc(inline)]
 pub use nika_onboard::lifecycle;
 pub mod money;
-pub mod reasoner;
 pub mod runtime;
 pub mod snapshot;
 pub mod state;
-pub mod turn;
 
 // What a run's trace proves (the result, gate and `/proof` views) is read
 // here, never owned: the flight-recorder reader holds it, and

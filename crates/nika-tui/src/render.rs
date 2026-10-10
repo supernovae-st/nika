@@ -25,6 +25,7 @@ pub(crate) mod question;
 #[cfg(test)]
 mod question_tests;
 
+pub(crate) use nika_tui_view::workspace::text::own;
 pub(crate) use nika_tui_view::workspace::wrapped::{height, pages, paint_page, window};
 
 use nika_display::theme::Role;
@@ -73,21 +74,6 @@ fn face(kind: Kind, color: bool, ascii: bool) -> (&'static str, Style) {
         Kind::Gate => (pick("⏸ ", "|| "), role::style(Role::Warn, color)),
         Kind::Result => ("", strong),
         Kind::Refusal => (pick("✖ ", "x "), role::style(Role::Bad, color)),
-    }
-}
-
-/// The renderer's own words in the glyph column in use: under `ascii` its
-/// markers, separators and arrows (`›`, `·`, `…`, `↑↓`) take their ASCII
-/// twins. Only text the renderer writes goes through here; the Session's words
-/// are never rewritten.
-pub(crate) fn own(text: &str, ascii: bool) -> String {
-    if ascii {
-        text.replace('›', ">")
-            .replace('·', "-")
-            .replace('…', "...")
-            .replace("↑↓", "Up/Down")
-    } else {
-        text.to_owned()
     }
 }
 
@@ -363,8 +349,8 @@ fn box_rows(state: &UiState, composer: &Composer) -> u16 {
 /// box's edge and one cell of air.
 const BOX_INSET: u16 = 4;
 
-/// The box's edges in the ASCII glyph column.
-const ASCII_BOX: border::Set<'static> = border::Set {
+/// A box's edges in the ASCII glyph column: the composer's, the reader's.
+pub(crate) const ASCII_BOX: border::Set<'static> = border::Set {
     top_left: "+",
     top_right: "+",
     bottom_left: "+",

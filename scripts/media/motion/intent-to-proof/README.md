@@ -26,7 +26,7 @@ from a real source at render time (`src/facts.mjs`).
 | `program` hash | sha256 of the fixture program |
 | `plan` hash | sha256 of `captured/plan.json`, the film's plan as data |
 | `proposal` hash | blake3 of the exact consent preview text (`captured/hashes.json`) |
-| Session acts NEW WORK · ANSWER · DISCUSS · REQUEST RUN | `TurnAct` in `crates/nika-session/src/turn.rs` |
+| Session acts NEW WORK · ANSWER · DISCUSS · REQUEST RUN | `TurnAct` in `crates/nika-session-intelligence/src/turn.rs` |
 | `nika:read` · `nika:jq` · `nika:prompt` gate · `nika:fetch` POST guarded by `when: ${{ with.approved == true }}` | The idiom of the compiler's own READY output (`crates/nika-compile/tests/fixtures/contract/money-approval-answered.json`) |
 
 What is illustration:

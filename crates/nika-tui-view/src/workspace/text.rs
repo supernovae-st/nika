@@ -111,9 +111,93 @@ pub fn wrap(text: &str, width: usize, cut: &str) -> Vec<String> {
     rows
 }
 
+/// Binds a count to its unit (`61 lines`): [`hang`] never parts them, and
+/// paints a plain space between them.
+pub const KEEP: char = '\u{a0}';
+
+/// The cells every row of a fact after its first hangs in ([`hang`]): deeper
+/// than any first row, so a continuation never reads as a fact of its own.
+pub const HANG: usize = 4;
+
+/// `words` broken at their plain spaces into rows of at most `width` cells:
+/// the first row `indent` cells in, every further row [`HANG`] cells in. A
+/// word stays whole on a row where it fits one (a [`KEEP`] binds a count to
+/// its unit); a wider one breaks between its characters, never inside one.
+/// Widths are the layout's cells, and no row is cut.
+#[must_use]
+pub fn hang(words: &str, indent: usize, width: usize) -> Vec<String> {
+    if width == 0 {
+        return Vec::new();
+    }
+    let hung = HANG.min(width - 1);
+    let start = indent.min(hung);
+    let mut rows = Vec::new();
+    let mut row = " ".repeat(start);
+    let (mut used, mut from, mut bare) = (start, start, true);
+    for word in words.split(' ').filter(|word| !word.is_empty()) {
+        if !bare && used + 1 + word.width() <= width {
+            row.push(' ');
+            row.push_str(word);
+            used += 1 + word.width();
+            continue;
+        }
+        if !bare {
+            rows.push(std::mem::replace(&mut row, " ".repeat(hung)));
+            (used, from) = (hung, hung);
+        }
+        for glyph in word.chars() {
+            let cells = glyph.width().unwrap_or(0);
+            if used + cells > width && used > from {
+                rows.push(std::mem::replace(&mut row, " ".repeat(hung)));
+                (used, from) = (hung, hung);
+            }
+            row.push(glyph);
+            used += cells;
+        }
+        bare = false;
+    }
+    if !bare {
+        rows.push(row);
+    }
+    rows.into_iter().map(|row| row.replace(KEEP, " ")).collect()
+}
+
+/// The renderer's own words in the glyph column in use: under `ascii` its
+/// markers, separators and arrows (`›`, `·`, `…`, `↑↓`) take their ASCII
+/// twins. Only text the renderer writes goes through here; the Session's words
+/// are never rewritten.
+#[must_use]
+pub fn own(text: &str, ascii: bool) -> String {
+    if ascii {
+        text.replace('›', ">")
+            .replace('·', "-")
+            .replace('…', "...")
+            .replace("↑↓", "Up/Down")
+    } else {
+        text.to_owned()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hanging_keeps_each_word_whole_where_a_row_holds_it() {
+        let words = format!("creates notes/digest.nika (61{KEEP}lines) over-a-very-long-name");
+        let rows = hang(&words, 0, 24);
+        assert_eq!(rows[0], "creates");
+        assert_eq!(rows[1], "    notes/digest.nika");
+        assert_eq!(rows[2], "    (61 lines)");
+        assert!(
+            rows[3..].iter().all(|row| row.starts_with("    ")),
+            "{rows:?}"
+        );
+        assert_eq!(rows[3..].concat().replace(' ', ""), "over-a-very-long-name");
+        assert!(rows.iter().all(|row| row.width() <= 24), "{rows:?}");
+        assert_eq!(hang("a b", 2, 10), ["  a b"]);
+        assert!(hang("anything", 0, 0).is_empty());
+    }
 
     #[test]
     fn wrapping_breaks_at_spaces_and_cuts_a_word_wider_than_a_row() {

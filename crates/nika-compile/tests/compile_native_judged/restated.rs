@@ -164,13 +164,20 @@ impl ProviderInferDyn for Author {
 }
 
 /// The doubt no part locates on one document: the whole request unfaithful, its two parts
-/// carried, no task doing more than asked.
-const DOUBT: [(&str, &str); 4] = [
+/// carried (the read and the write are the request's own, so the engine's facts leave no task
+/// to ask about).
+const DOUBT: [(&str, &str); 3] = [
     ("verify-request", "unfaithful"),
     ("verify-part-0", "carried"),
     ("verify-part-1", "carried"),
-    ("verify-extra", "only_requested"),
 ];
+
+/// [`DOUBT`] on a document no run decides: asked where the doubt is, nowhere.
+fn doubted() -> Vec<(&'static str, &'static str)> {
+    let mut script = DOUBT.to_vec();
+    script.push(("verify-doubt", "unlocated"));
+    script
+}
 
 /// [`TICKETS`] through the document door, judged by `judge` and rehearsed in `room`.
 async fn restated(room: &Room, judge: &dyn DecisionSeat, author: &Author) -> CompileOutcome {
@@ -208,7 +215,7 @@ async fn a_refused_trial_reopens_the_author_and_the_restated_document_runs_and_i
         "the restated document passes the law"
     );
     let room = Room::new(None);
-    let mut script = DOUBT.to_vec();
+    let mut script = doubted();
     script.extend(DOUBT);
     script.push(("verify-observed", "consistent"));
     let judge = Judging::new(&script);
@@ -252,8 +259,8 @@ async fn the_same_refusal_again_reopens_nothing_and_holds_the_document_with_its_
     let again = "# the same construct, other bytes\n".to_owned() + WRAPPED;
     let again = again.as_str();
     let room = Room::new(None);
-    let mut script = DOUBT.to_vec();
-    script.extend(DOUBT);
+    let mut script = doubted();
+    script.extend(doubted());
     let judge = Judging::new(&script);
     let author = Author::new(&[WRAPPED, again]);
     let out = restated(&room, &judge, &author).await;
@@ -270,17 +277,15 @@ async fn the_same_refusal_again_reopens_nothing_and_holds_the_document_with_its_
     let words = room_words(again).unwrap();
     let held = findings(&out, "verify_held");
     assert_eq!(held.len(), 1, "{held:?}");
-    assert!(
-        held[0].starts_with(HELD) && held[0].contains(&words),
-        "{held:?}"
-    );
+    let opened = held[0].starts_with(HELD) || held[0].starts_with(UNRESOLVED);
+    assert!(opened && held[0].contains(&words), "{held:?}");
 }
 
 #[tokio::test]
 async fn a_refusal_the_requested_effect_causes_reopens_nothing() {
     let reason = "the candidate needs an effect a rehearsal denies";
     let room = Room::new(Some(reason));
-    let judge = Judging::new(&DOUBT);
+    let judge = Judging::new(&doubted());
     let author = Author::new(&[PLAIN]);
     let out = restated(&room, &judge, &author).await;
     assert_eq!(author.told().len(), 1, "no restatement asked: {out:#?}");
@@ -313,7 +318,7 @@ impl DecisionSeat for Another {
 #[tokio::test]
 async fn a_replayed_held_record_asks_its_judge_nothing_and_another_judge_decides_it() {
     let room = Room::new(Some("the candidate needs an effect a rehearsal denies"));
-    let held = restated(&room, &Judging::new(&DOUBT), &Author::new(&[PLAIN])).await;
+    let held = restated(&room, &Judging::new(&doubted()), &Author::new(&[PLAIN])).await;
     let record = held.provenance.plan.clone().expect("the record is kept");
     let policy = policy(NativeMode::Escalate).with_repairs(4);
     let replay = CompileRequest::create(TICKETS)
@@ -359,7 +364,7 @@ async fn a_replayed_held_record_asks_its_judge_nothing_and_another_judge_decides
 #[tokio::test]
 async fn a_record_held_without_a_room_names_the_refusal_of_the_round_that_replays_it() {
     let policy = policy(NativeMode::Escalate).with_repairs(4);
-    let (judge, author) = (Judging::new(&DOUBT), Author::new(&[PLAIN]));
+    let (judge, author) = (Judging::new(&doubted()), Author::new(&[PLAIN]));
     let cognition = Cognition {
         provider: Some(&author),
         seat: Some(&judge as &dyn DecisionSeat),

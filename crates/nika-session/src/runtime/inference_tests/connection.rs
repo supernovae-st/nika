@@ -22,10 +22,7 @@ impl SessionReasoner for Subscription {
     }
     fn reason(&mut self, _: &str) -> Result<Reply, ReasonError> {
         self.0.fetch_add(1, Ordering::SeqCst);
-        Ok(Reply {
-            text: "subscription fixture reply".into(),
-            usage_observed: false,
-        })
+        Ok(Reply::new("subscription fixture reply".into(), false))
     }
 }
 fn connected(root: &Path, home: &Path, calls: &Arc<AtomicUsize>) -> SessionRuntime {
@@ -37,17 +34,11 @@ fn connected(root: &Path, home: &Path, calls: &Arc<AtomicUsize>) -> SessionRunti
             Some(MODEL.into()),
         )
     });
-    let census = IntelligenceCensus {
-        seats: vec![SeatSeen {
-            id: "claude-code".into(),
-            product_present: true,
-            configured: true,
-            answers_here: true,
-        }],
-        api_keys: vec!["deepseek".into()],
-        locals: vec![],
-        provider_context: Vec::new(),
-    };
+    let census = IntelligenceCensus::new(
+        vec![SeatSeen::new("claude-code".into(), true, true, true)],
+        vec!["deepseek".into()],
+        vec![],
+    );
     let calls = Arc::clone(calls);
     let mut session = SessionRuntime::open_with(
         root,

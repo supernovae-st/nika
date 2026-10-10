@@ -18,7 +18,7 @@ use std::path::Path;
 pub enum Finding {
     /// A `nika:<name>` this engine does not ship.
     Builtin(String),
-    /// A `<provider>/<model>` this binary cannot resolve.
+    /// A `<provider>/<model>` in a model slot this binary cannot resolve.
     Model {
         /// The id as written.
         id: String,
@@ -263,7 +263,8 @@ impl KnownWorld {
     ) -> Vec<Finding> {
         let mut findings = Vec::new();
         let mut seen = BTreeSet::new();
-        for token in tokens(reply) {
+        let words = tokens(reply);
+        for (at, &token) in words.iter().enumerate() {
             if let Some(name) = token.strip_prefix("nika:") {
                 let name = name.trim_end_matches(|c: char| !c.is_ascii_alphanumeric() && c != '_');
                 if !name.is_empty()
@@ -289,8 +290,8 @@ impl KnownWorld {
                 if code.len() > 5 && !code_known(code) && seen.insert(format!("c:{code}")) {
                     findings.push(Finding::Code(code.to_owned()));
                 }
-            } else if let Some((provider, model)) = token.split_once('/')
-                && looks_like_model(provider, model)
+            } else if token.contains('/')
+                && model_slot(&words, at)
                 && let Some(refusal) = nika_providers::resolve_refusal_over(token, probes)
                 && seen.insert(format!("p:{token}"))
             {
@@ -300,7 +301,7 @@ impl KnownWorld {
                 });
             }
         }
-        for token in tokens(reply) {
+        for token in &words {
             let bare = token.trim_end_matches(':');
             if token.ends_with(':')
                 && DEAD_FIELDS.contains(&bare)
@@ -383,20 +384,16 @@ fn code_known(code: &str) -> bool {
         || nika_pack::error_codes().iter().any(|r| r.code == code)
 }
 
-fn looks_like_model(provider: &str, model: &str) -> bool {
-    !provider.is_empty()
-        && !model.is_empty()
-        && provider
-            .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
-        && model
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == ':')
-        && provider.len() >= 3
-        && ![
-            "http", "https", "file", "usr", "tmp", "etc", "var", "home", "out", "src", "docs",
-        ]
-        .contains(&provider)
+/// Whether the token at `at` fills a model slot: a `model:` field, a `--model` flag, or a name
+/// the prose calls a model (« the model `x` » · « the `x` model » · « `x` as the model »). An
+/// output path or any other name outside one keeps its own role, whatever its shape.
+fn model_slot(words: &[&str], at: usize) -> bool {
+    let word = |i: usize| Some(words.get(i)?.trim_matches(|c: char| !c.is_alphanumeric()));
+    let model = |i: usize| word(i).is_some_and(|w| w.eq_ignore_ascii_case("model"));
+    let as_the = word(at + 1).is_some_and(|w| w.eq_ignore_ascii_case("as"));
+    at.checked_sub(1).is_some_and(model)
+        || model(at + 1)
+        || (as_the && (model(at + 2) || model(at + 3)))
 }
 
 /// The backtick-quoted and bare tokens a reply names.
@@ -647,5 +644,50 @@ mod tests {
         assert!(w.mcp_servers.contains("github"));
         let findings = w.audit("call `mcp:github/list_issues` and `mcp:slack/post`");
         assert_eq!(findings, vec![Finding::McpServer("slack".to_owned())]);
+    }
+
+    /// UXP-09 · an output path keeps its role wherever a reply carries it (prose, inline code,
+    /// a YAML `path:`, a folder named like a provider), beside a real model in its slot.
+    #[test]
+    fn an_output_path_stays_a_path_in_every_context() {
+        let reply = "I'll write the digest to news/2026-10-09.md, then `reports/x/y.md` and \
+            `mistral/notes.md`. The model writes `news/2026-10-09.md` each morning.\n\
+            ```yaml\nnika: digest\nmodel: deepseek/deepseek-v4-pro\ntasks:\n  save:\n    \
+            invoke: { tool: \"nika:write\", args: { path: news/2026-10-09.md } }\n```";
+        let findings = world().audit(reply);
+        assert!(findings.is_empty(), "{findings:?}");
+        assert_eq!(KnownWorld::correct(reply, &findings), reply);
+    }
+
+    /// UXP-N06 · a model slot (a `model:` field, `--model`, « X as the model ») is judged by the
+    /// model law whatever the name looks like, with today's words: the shape and folder lists
+    /// the guard read before missed `docs/…` and a capitalised provider.
+    #[test]
+    fn a_model_slot_is_judged_whatever_the_name_looks_like() {
+        let reply = "```yaml\nnika: digest\nmodel: acme/gpt-9\n```\nOr run it with \
+            `--model docs/gpt-9`, or keep `Acme/GPT-9` as the model.";
+        let findings = world().audit(reply);
+        let refused = |id: &str| Finding::Model {
+            id: id.to_owned(),
+            why: nika_providers::resolve_refusal(id)
+                .expect("no such provider")
+                .why,
+        };
+        let expected = vec![
+            refused("acme/gpt-9"),
+            refused("docs/gpt-9"),
+            refused("Acme/GPT-9"),
+        ];
+        assert_eq!(findings, expected);
+        let Finding::Model { why, .. } = &findings[0] else {
+            panic!("{findings:?}");
+        };
+        assert!(
+            why.starts_with("provider `acme` does not resolve in THIS binary"),
+            "{why}"
+        );
+        let shown = KnownWorld::correct(reply, &findings);
+        let correction = format!("`acme/gpt-9` does not resolve in this binary — {why}");
+        assert!(shown.contains(&correction), "{shown}");
     }
 }

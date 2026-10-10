@@ -80,13 +80,13 @@ impl TypesafeSeat {
         Box::pin(self.exchanged(batch, &Unrecorded))
     }
 
-    /// [`Self::exchange_each`], each physical request shown to `watch` before it can leave.
+    /// [`Self::exchange_each`], each request shown to `watch` before it can leave, then timed.
     pub(super) async fn exchanged(
         &self,
         batch: &ChoiceBatch,
         watch: &dyn Requests,
     ) -> BatchExchange {
-        let mut partition = system_one::Partition::of(batch);
+        let mut partition = self.capacity.partition(batch);
         if let Some(record) = partition.unsent(batch, "not_sent") {
             watch.unsent(record);
         }
@@ -110,14 +110,17 @@ impl TypesafeSeat {
                     break;
                 }
             }
+            let started = std::time::Instant::now();
             match self.post(&body).await {
                 Ok(response) => partition.responded(at, batch, response.status, &response.body),
                 Err(failure) => {
                     partition.lost(at, failure.delivery != Delivery::NotSent, failure.error);
                 }
             }
+            partition.timed(at, started.elapsed());
             watch.settled(slots[at], partition.record(at, batch, &slots));
         }
+        self.capacity.learn(&partition);
         BatchExchange::of(partition)
     }
 }

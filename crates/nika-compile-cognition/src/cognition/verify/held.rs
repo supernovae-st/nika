@@ -73,17 +73,20 @@ pub(in crate::cognition) fn held(mut out: CompileOutcome, verdict: &Verdict) -> 
 pub(in crate::cognition) const HELD_TARGET: &str = "verify_held";
 
 /// What a held candidate offers, by what held it: located defects the repairs did not settle,
-/// a rejection with no defect located, or an abstention; why no trial ran, when the rehearsal
-/// room refused these bytes (A4); and why the localization stopped, when a call got no answer.
+/// a rejection nothing located (unresolved: how many parts were asked alone), any other rejection
+/// with no defect located, or an abstention; why no trial ran, when the rehearsal room refused
+/// these bytes (A4); and why the localization stopped, when a call got no answer.
 pub(super) fn held_text(verdict: &Verdict) -> String {
-    let held = if !verdict.defects.is_empty() {
-        HELD_DEFECTS
+    let mut text = if !verdict.defects.is_empty() {
+        HELD_DEFECTS.to_owned()
+    } else if verdict.unresolved() {
+        let asked = super::parts(verdict.request.as_deref().unwrap_or_default()).len();
+        format!("{UNRESOLVED_OVER} ({asked}) {UNRESOLVED}")
     } else if verdict.rejected() {
-        HELD
+        HELD.to_owned()
     } else {
-        HELD_ABSTAINED
+        HELD_ABSTAINED.to_owned()
     };
-    let mut text = held.to_owned();
     if let Some(reason) = (verdict.unobserved.as_ref()).and_then(|why| why["reason"].as_str()) {
         text = format!("{text} {UNOBSERVED} ({reason}).");
     }
@@ -94,6 +97,8 @@ pub(super) fn held_text(verdict: &Verdict) -> String {
 }
 
 const HELD: &str = "The candidate was judged and not accepted, with no defect a repair could start from: it is shown, never offered, and nothing was written. A correction of the request or another verifier can decide it.";
+const UNRESOLVED_OVER: &str = "The verifier doubted the request as a whole but located nothing: asked alone, none of its parts";
+const UNRESOLVED: &str = "was found missing, no task was found doing anything the request does not ask, and no run of these bytes decided it. Nothing is verified: the workflow is shown, never proposed, and nothing was written. Review it and describe a correction, or choose another verifier.";
 const HELD_DEFECTS: &str = "The candidate was judged and not accepted: the parts named above stay missing. It is shown, never offered, and nothing was written; this verifier is not asked again on these bytes, in this compile or in a later round that carries this verdict. A correction of the request, another authoring model or another verifier can decide it.";
 const HELD_ABSTAINED: &str = "The verifier read the candidate and abstained: it neither accepted nor rejected it, and located no defect. It is shown, never offered, and nothing was written; it is not asked again on these bytes in this compile. A correction of the request, another verifier, or a new round that authors again can decide it.";
 const UNOBSERVED: &str =

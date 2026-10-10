@@ -34,10 +34,7 @@ impl SessionReasoner for Counted {
 
     fn reason(&mut self, _prompt: &str) -> Result<crate::Reply, crate::ReasonError> {
         self.0.fetch_add(1, Ordering::SeqCst);
-        Ok(crate::Reply {
-            text: "ANSWER".to_owned(),
-            usage_observed: false,
-        })
+        Ok(crate::Reply::new("ANSWER".to_owned(), false))
     }
 }
 

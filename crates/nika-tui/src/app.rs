@@ -897,8 +897,12 @@ impl<C: Conversation + 'static> Shell<C> {
         if self.desk.wants_look || self.desk.opened_workflow().is_some() {
             self.look();
         }
-        for beat in beats {
+        for mut beat in beats {
             let busy = matches!(beat, Beat::Busy(_));
+            // A run's story folds once, at its commit, under the leg observed whole.
+            if let Beat::Say(block) = &mut beat {
+                block.run = self.desk.folded().filter(|_| block.kind == Kind::Run);
+            }
             if let Beat::Wait(waiting) = &beat {
                 // A typed choice's selection follows the question it belongs to.
                 self.composer.follow(waiting);

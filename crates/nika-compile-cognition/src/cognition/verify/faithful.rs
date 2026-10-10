@@ -16,9 +16,10 @@
 //! alternative stand when every offer was examinable). A part the judge then
 //! finds no task failing is contested; a part left without a choice stays unknown: never a
 //! certain defect, never a success. When no part is missing, one question asks which task, if
-//! any, does something the request does not ask; a task that only reads a source the request
-//! names decides nothing there. A call that fails or is refused stops the localization: nothing
-//! more is asked of that judge in this verdict.
+//! any, does something the request does not ask, among the tasks the engine's facts leave open
+//! ([`Effects`]): writing the output a carried part states is never extra, and with none open
+//! the facts settle it with no call. A call that fails or is refused stops the localization:
+//! nothing more is asked of that judge in this verdict.
 //!
 //! When this compile ran these exact bytes in a sealed room and the run proves whole outputs
 //! (every output it was read for written by the run itself, every text read whole), that run is
@@ -26,8 +27,10 @@
 //! and each restriction the judge found broken, is judged again over what the run did: carried,
 //! missing, or not exercised by these inputs, which decides nothing (a partial proof stays
 //! partial). Then, when every part is carried and no task does anything unasked, the whole
-//! request is asked over the run: consistent outputs carry it. Without such a run, or with a
-//! part still open, the doubt stays: the request is contested when the judge rejected it,
+//! request is asked over the run: consistent outputs carry it. With no run, every part settled
+//! and nothing extra, the judge is asked once where its rejection is ([`Doubt`]): a part or an
+//! open task it names is localized as above, nothing named leaves it unresolved. Otherwise, or
+//! with a part still open, the doubt stays: the request is contested when the judge rejected it,
 //! unknown when it only abstained, and the candidate is held, never READY.
 //!
 //! « faithful » reads the bytes, not what they produced: over such a run it stands only once no
@@ -35,10 +38,7 @@
 
 use serde_json::{Value, json};
 
-use super::{
-    CLAUSE, CREATED, Declined, Judge, NO_OPERATION, REVISED, REVISED_APPENDED, Verdict, WHOLE, ask,
-    grounded, parts, prefetch,
-};
+use super::{CLAUSE, Declined, Judge, NO_OPERATION, Verdict, WHOLE, ask, parts, prefetch};
 use crate::CompileOutcome;
 use crate::decide::{ChoiceOption, ChoiceQuestion};
 use crate::rehearse::trial_receipts;
@@ -46,7 +46,7 @@ use crate::rehearse::trial_receipts;
 pub(super) use crate::rehearse::trial_whole;
 use nika_compile::surface::{Binding, Disposition, Judgment};
 use nika_compile_clauses::parts::{asks_an_operation, restricts};
-use nika_compile_seats::judge::{Construction, Construed};
+use nika_compile_seats::judge::{Construction, Construed, Doubt, Effects, Located, told};
 use nika_kernel::ai::provider::ProviderInferDyn;
 
 /// What a part asked alone adds to the clause instructions: a later part replaces it.
@@ -98,8 +98,6 @@ const OPEN_AFTER_RUN: &str =
 const NO_CHOICE_OVER_RUN: &str = "the judge made no choice over the trial run";
 const UNEXERCISED: &str =
     "the trial run's inputs never exercise some part of the request: it proves no whole output";
-const READ_ONLY_OVER_RUN: &str =
-    "the judge named a task with no effect the request could leave unasked, which decides nothing";
 const UNPOINTED: &str = "the judge named a part in the trial run but no task that fails it";
 const ALTERNATIVE: &str = "the judge named a part in the trial run, then no offer fitting it";
 
@@ -176,13 +174,14 @@ pub(super) enum Pointed {
 }
 
 /// What every question of one verdict carries: the base state, the reference, the judge, the
-/// candidate's tasks and the request.
+/// candidate's tasks, the request and what each task touches.
 struct Asked<'a, 'j, P: ProviderInferDyn> {
     base: &'a Value,
     reference: &'a str,
     judge: &'a Judge<'j, P>,
     tasks: &'a [String],
     intent: &'a str,
+    effects: Option<&'a Effects>,
 }
 
 /// The whole-request verdict, then the localization and the trial run it may need
@@ -231,13 +230,14 @@ pub(super) async fn whole<P: ProviderInferDyn>(
         return;
     };
     let candidate = base["candidate_nika"].as_str().unwrap_or_default();
-    let tasks = parsed_tasks(candidate);
+    let (tasks, effects) = (parsed_tasks(candidate), Effects::of(candidate, intent));
     let asked = Asked {
         base,
         reference,
         judge,
         tasks: tasks.as_deref().unwrap_or_default(),
         intent,
+        effects: effects.as_ref(),
     };
     if answer == "faithful" {
         verdict.consumed += 1;
@@ -260,16 +260,7 @@ pub(super) async fn whole<P: ProviderInferDyn>(
         verdict.decline(Declined::Rejected);
     }
     verdict.doubt.push(answer);
-    if locate(
-        candidate,
-        tasks.as_deref(),
-        &asked,
-        observation,
-        verdict,
-        out,
-    )
-    .await
-    {
+    if locate(tasks.as_deref(), &asked, observation, verdict, out).await {
         verdict.judgments.push(carried("verify-observed"));
         verdict.settled_by = Some("verify-observed");
     }
@@ -277,9 +268,9 @@ pub(super) async fn whole<P: ProviderInferDyn>(
 
 /// What a doubt asks next: each part against the bytes, the run over the parts it can decide,
 /// the extra-operation question, then, when every part is carried, the whole request over the
-/// run. Whether the run carried the whole request; everything else lands in `verdict`.
+/// run, or with no run where the rejection is. Whether the run carried the whole request;
+/// everything else lands in `verdict`.
 async fn locate<P: ProviderInferDyn>(
-    candidate: &str,
     tasks: Option<&[String]>,
     asked: &Asked<'_, '_, P>,
     observation: Option<&Value>,
@@ -299,7 +290,7 @@ async fn locate<P: ProviderInferDyn>(
     let extra = if verdict.stopped || broken {
         Extra::Requested
     } else {
-        extra(candidate, tasks, asked, verdict, out).await
+        extra(tasks, asked, verdict, out).await
     };
     let open = keep(&parts, verdict);
     // The extra question left without a decision stays open, unless the question over a whole
@@ -341,9 +332,76 @@ async fn locate<P: ProviderInferDyn>(
             Observed::Unsettled(why) => why,
         },
     };
+    // No run decides it, no part is open and nothing is extra: asked once where it is.
+    if trial.is_none() && !open && undecided.is_none() && verdict.doubt == ["unfaithful"] {
+        match doubted(&parts, asked, verdict, out).await {
+            Some(false) => {}
+            Some(true) => return false,
+            None => {
+                verdict.unknown.push(intent.to_owned());
+                return false;
+            }
+        }
+    }
     verdict.unknown.extend(undecided);
     doubt_stays(intent, why, verdict);
     false
+}
+
+/// Where a rejection nothing located is, asked once of the judge when no run of these bytes
+/// exists ([`Doubt`]): a part it names is localized as a part judged missing is, an open task is
+/// a defect, nothing named leaves the doubt unresolved. Whether it located something; `None`
+/// when a call got no answer.
+async fn doubted<P: ProviderInferDyn>(
+    parts: &[Part],
+    asked: &Asked<'_, '_, P>,
+    verdict: &mut Verdict,
+    out: &mut CompileOutcome,
+) -> Option<bool> {
+    let Some(effects) = asked.effects else {
+        return Some(false);
+    };
+    let texts = parts.iter().map(|part| part.text.clone()).collect();
+    let doubt = Doubt::new(texts, effects.open(&verdict.records));
+    let (state, said, options) = doubt.question(asked.base, effects, &verdict.records);
+    let said = told(asked.base, asked.reference, &said);
+    let question = ChoiceQuestion::new("verify-doubt", said, state, options);
+    let returned = verdict.answers();
+    let answer = ask(asked.judge, &question, "judge_doubt", verdict, out).await;
+    if verdict.answers() == returned {
+        verdict.stopped = true;
+        return None;
+    }
+    let located = answer.as_deref().and_then(|key| doubt.read(key));
+    verdict.consumed += u32::from(located.is_some());
+    let (text, note) = match located {
+        Some(Located::Part(k)) => {
+            let text = parts.get(k)?.text.clone();
+            let id = format!("verify-doubt-point-{k}");
+            let asked_on = (asked.base, asked.reference);
+            let pointed = point(&id, &text, asked.tasks, asked_on, asked.judge, verdict, out);
+            match missing(pointed.await?, "") {
+                State::Defect(note) => (text, note),
+                State::Contested => {
+                    verdict.contested.push(text);
+                    return Some(true);
+                }
+                State::Settled | State::Unknown => return Some(false),
+            }
+        }
+        Some(Located::Task(task)) => {
+            verdict.decline(Declined::Rejected);
+            let said = "which does something the request does not ask";
+            (
+                EXTRA_DEFECT.to_owned(),
+                format!("{}, {said}", pointed_to(&task)),
+            )
+        }
+        _ => return Some(false),
+    };
+    verdict.defects.push(text.clone());
+    verdict.notes.push((text, note));
+    Some(true)
 }
 
 /// Each part's state onto the verdict: whether a part stays open (contested or unknown).
@@ -692,37 +750,36 @@ fn observed_question<P: ProviderInferDyn>(
     Some(ChoiceQuestion::new(id, instructions, judged, options))
 }
 
-/// The task, if any, that does something the request does not ask. A task that only reads a
-/// source the request names serves it, whatever the judge names: that answer decides nothing.
+/// The task, if any, that does something the request does not ask, among those the engine's
+/// facts leave open ([`Effects`]): one reading only what the request names and writing only the
+/// outputs the parts the judge carried state is never offered, and with none left open the facts
+/// settle the question with no call, recorded on the verdict (`engine`).
 async fn extra<P: ProviderInferDyn>(
-    candidate: &str,
     tasks: Option<&[String]>,
     asked: &Asked<'_, '_, P>,
     verdict: &mut Verdict,
     out: &mut CompileOutcome,
 ) -> Extra {
-    let Some(tasks) = tasks else {
+    let (Some(tasks), Some(effects)) = (tasks, asked.effects) else {
         return Extra::Unknown(UNPARSED.to_owned());
     };
     if tasks.is_empty() {
         return Extra::Unknown(NO_TASKS.to_owned());
     }
+    let open = effects.open(&verdict.records);
+    if open.is_empty() {
+        verdict.engine.push(effects.settled(&verdict.records));
+        return Extra::Requested;
+    }
     let mut options = vec![ChoiceOption::new(
         "only_requested",
         "every task serves the request",
     )];
-    options.extend((tasks.iter()).map(|task| {
-        ChoiceOption::new(
-            format!("task-{task}"),
-            format!("the task `{task}` does something the request does not ask"),
-        )
-    }));
-    let question = ChoiceQuestion::new(
-        "verify-extra",
-        told(asked.base, asked.reference, EXTRA),
-        asked.base.clone(),
-        options,
-    );
+    options.extend(open.iter().map(|task| unasked(task)));
+    let mut state = asked.base.clone();
+    let said = effects.show(&mut state, &verdict.records, EXTRA);
+    let said = told(asked.base, asked.reference, &said);
+    let question = ChoiceQuestion::new("verify-extra", said, state, options);
     let returned = verdict.answers();
     let answer = ask(asked.judge, &question, "judge_extra", verdict, out).await;
     if verdict.answers() == returned {
@@ -734,13 +791,7 @@ async fn extra<P: ProviderInferDyn>(
             verdict.consumed += 1;
             Extra::Requested
         }
-        Some(key) => match named(key, tasks) {
-            Some(task) if reads_stated(candidate, task, asked.intent) => {
-                verdict.consumed += 1;
-                Extra::Unknown(format!(
-                    "whether any task does something the request does not ask (the judge named `{task}`, which has no effect the request could leave unasked)"
-                ))
-            }
+        Some(key) => match named(key, &open) {
             Some(task) => {
                 verdict.consumed += 1;
                 verdict.decline(Declined::Rejected);
@@ -756,51 +807,19 @@ async fn extra<P: ProviderInferDyn>(
     }
 }
 
-/// Whether a task of the candidate has no effect the request could leave unasked: it reads or
-/// writes only paths the request names (« Save ./out/x.json »: the write it asks) and calls only
-/// `nika:write` or tools with no effect (a read, a search, a conversion, a jq program, a check),
-/// such as the guards and conversions the compiler writes itself. A write elsewhere, a send, a
-/// fetch, a program run or a model call is an effect.
-fn reads_stated(candidate: &str, task: &str, intent: &str) -> bool {
-    let Ok(workflow) = nika_compile::parse(candidate) else {
-        return false;
-    };
-    let Some(found) = (workflow.tasks.iter()).find(|t| t.value.id.value == task) else {
-        return false;
-    };
-    let permits = nika_check::task_permits(&found.value);
-    let stated = |path: &str| {
-        let path = path.trim_start_matches("./");
-        !path.is_empty() && intent.contains(path)
-    };
-    !permits.is_empty()
-        && permits.iter().all(|permit| {
-            match (permit.strip_prefix("fs.read: ")).or_else(|| permit.strip_prefix("fs.write: ")) {
-                Some(path) => stated(path),
-                None => matches!(
-                    permit.as_str(),
-                    "tool: nika:read"
-                        | "tool: nika:write"
-                        | "tool: nika:glob"
-                        | "tool: nika:grep"
-                        | "tool: nika:jq"
-                        | "tool: nika:assert"
-                        | "tool: nika:convert"
-                        | "tool: nika:validate"
-                        | "tool: nika:date"
-                        | "tool: nika:hash"
-                        | "tool: nika:json_diff"
-                        | "tool: nika:json_merge_patch"
-                        | "tool: nika:inspect"
-                ),
-            }
-        })
+/// The option naming `task` as doing something the request does not ask.
+fn unasked(task: &str) -> ChoiceOption {
+    ChoiceOption::new(
+        format!("task-{task}"),
+        format!("the task `{task}` does something the request does not ask"),
+    )
 }
 
 /// The whole request over this compile's trial run of the same bytes, once every part is
 /// carried: the discriminating observation a doubt asks for. Every part is offered, the ones
-/// answered superseded or asking no operation included: the run may show them asked. A clause
-/// the judge settled `no_fit` is shown as its own history ([`Construction::recall`]).
+/// answered superseded or asking no operation included: the run may show them asked; so is each
+/// task the engine's facts leave open ([`Effects`]). A clause the judge settled `no_fit` is shown
+/// as its own history ([`Construction::recall`]).
 async fn observe<P: ProviderInferDyn>(
     parts: &[Part],
     asked: &Asked<'_, '_, P>,
@@ -822,16 +841,15 @@ async fn observe<P: ProviderInferDyn>(
     options.extend(
         (offered.iter()).map(|k| ChoiceOption::new(format!("part-{k}"), parts[*k].text.clone())),
     );
-    options.extend((asked.tasks.iter()).map(|task| {
-        ChoiceOption::new(
-            format!("task-{task}"),
-            format!("the task `{task}` does something the request does not ask"),
-        )
-    }));
+    let open = (asked.effects).map_or_else(|| asked.tasks.to_vec(), |e| e.open(&verdict.records));
+    options.extend(open.iter().map(|task| unasked(task)));
     let mut state = asked.base.clone();
     state["observation"] = run.clone();
     let (mut shown, said) = (state.clone(), format!("{RUN} {OBSERVED}"));
-    let said = Construction::of(asked.base).recall(&mut shown, &verdict.records, said);
+    let mut said = Construction::of(asked.base).recall(&mut shown, &verdict.records, said);
+    if let Some(effects) = asked.effects {
+        said = effects.show(&mut shown, &verdict.records, &said);
+    }
     let question = ChoiceQuestion::new(
         "verify-observed",
         told(asked.base, asked.reference, &said),
@@ -856,15 +874,8 @@ async fn observe<P: ProviderInferDyn>(
         verdict.consumed += 1;
         return Observed::Unsettled(UNEXERCISED);
     }
-    if let Some(task) = named(&answer, asked.tasks) {
+    if let Some(task) = named(&answer, &open) {
         verdict.consumed += 1;
-        if reads_stated(
-            asked.base["candidate_nika"].as_str().unwrap_or_default(),
-            task,
-            asked.intent,
-        ) {
-            return Observed::Unsettled(READ_ONLY_OVER_RUN);
-        }
         verdict.decline(Declined::Rejected);
         let note = format!(
             "{}, which in the trial run does something the request does not ask",
@@ -924,38 +935,6 @@ fn parsed_tasks(candidate: &str) -> Option<Vec<String>> {
             .map(|task| task.value.id.value.clone())
             .collect()
     })
-}
-
-/// What a question over a revision of a base whose own request is unknown adds to its
-/// instructions: the request states only the change, so the base's own behaviour is neither
-/// asked again nor extra, and the candidate is judged as the base with exactly that change.
-const REVISED_DOCUMENT: &str = "This candidate REVISES the existing workflow `revision.base_nika`, whose own request is unknown: `request` and `revision.change` state only the change. What the base already does is not asked again and is not extra: it must stay as in the base wherever the change does not touch it. faithful: the candidate is the base with exactly this change applied. unfaithful: the change is missing or done differently, or the candidate adds, removes or alters anything else of the base. A clause asking to modify the workflow file itself is carried by this candidate being that workflow.";
-
-/// What a question over a revision applied over the complete document of a base whose request
-/// is known adds: the base is shown whole and the change is judged over it, the earlier request
-/// history where the change takes precedence.
-const REVISED_OVER_DOCUMENT: &str = "This candidate REVISES the existing workflow `revision.base_nika` by the change `revision.change`, applied over its complete document. `revision.base_request` is the request the base answers, history only: where it and the change differ, the change takes precedence and a clause it replaces is superseded, never asked. What the base already does is not extra: it must stay as in the base wherever the change does not touch it. faithful: the candidate is the base with exactly this change applied. unfaithful: the change is missing or done differently, or the candidate adds, removes or alters anything else of the base. A clause asking to modify the workflow file itself is carried by this candidate being that workflow.";
-
-/// A whole-request question's instructions: a revision's also say which request is asked and
-/// which is history (the change appended to the earlier request, or that request resolved);
-/// any other's say what a request to author this very workflow asks of its bytes.
-pub(super) fn told(base: &Value, reference: &str, text: &str) -> String {
-    match base.get("revision") {
-        Some(revision)
-            if revision["over_document"] == Value::Bool(true)
-                && !revision["base_request"].is_null() =>
-        {
-            grounded(reference, &format!("{text} {REVISED_OVER_DOCUMENT}"))
-        }
-        Some(revision) if revision["appended"] == Value::Bool(true) => {
-            grounded(reference, &format!("{text} {REVISED_APPENDED}"))
-        }
-        Some(revision) if revision.get("base_nika").is_some() => {
-            grounded(reference, &format!("{text} {REVISED_DOCUMENT}"))
-        }
-        Some(_) => grounded(reference, &format!("{text} {REVISED}")),
-        None => grounded(reference, &format!("{text} {CREATED}")),
-    }
 }
 
 #[cfg(test)]

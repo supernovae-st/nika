@@ -1,0 +1,687 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! The semantic act of one free line — a bounded routing decision, never
+//! a lexicon. Closed protocol tokens (`/quit` · `yes` · `cancel` · `why`)
+//! are matched whole, deterministically, before this. Everything else is
+//! open language: the typed session state and the RAW line go to a
+//! bounded classifier (the session's intelligence, one label; a decision
+//! seat later) that says which act it is — discuss, modify, new work,
+//! answer, a run, cancel, mixed, or unknown — and the runtime acts on the act
+//! with the human's own words, never a paraphrase. A classification is
+//! never a consent: authority stays with the protocol tokens and the
+//! typed state. When no intelligence can judge, the fallback is UNKNOWN
+//! and the runtime keeps the automation unchanged and says so.
+
+use std::fmt::{self, Write as _};
+
+use nika_onboard::compile::AuthoringReasoning;
+
+use crate::reasoner::ReasonError;
+
+/// The bounded set of conversational acts (small on purpose: a routing
+/// decision, not an intent ontology).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TurnAct {
+    /// A question or a remark about the current automation or about Nika.
+    Discuss,
+    /// A change to the current automation (the proposal, the saved workflow).
+    Modify,
+    /// A new automation to build, unrelated to the current one.
+    NewWork,
+    /// The answer to the question Nika asked.
+    Answer,
+    /// A request to run the current automation.
+    RequestRun,
+    /// Discard the whole pending proposal or authoring request; never grants an effect.
+    Cancel,
+    /// Several acts in one line (« yes but change the file first »).
+    Mixed,
+    /// The classifier could not tell — the runtime keeps everything as is.
+    Unknown,
+}
+
+impl TurnAct {
+    /// The label the bounded classifier answers with.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Discuss => "DISCUSS",
+            Self::Modify => "MODIFY",
+            Self::NewWork => "NEW_WORK",
+            Self::Answer => "ANSWER",
+            Self::RequestRun => "REQUEST_RUN",
+            Self::Cancel => "CANCEL",
+            Self::Mixed => "MIXED",
+            Self::Unknown => "UNKNOWN",
+        }
+    }
+
+    /// Every act, in the order the classifier is told them.
+    pub const ALL: [Self; 8] = [
+        Self::Discuss,
+        Self::Modify,
+        Self::NewWork,
+        Self::Answer,
+        Self::RequestRun,
+        Self::Cancel,
+        Self::Mixed,
+        Self::Unknown,
+    ];
+
+    /// The one label a reply names, whole word; a reply naming none, or several
+    /// different ones (« not MODIFY, this is DISCUSS »), is UNKNOWN — never
+    /// the first label met.
+    #[must_use]
+    pub fn parse(reply: &str) -> Self {
+        let upper = reply.to_ascii_uppercase();
+        let word = |c: Option<char>| c.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
+        let mut named = Self::ALL.into_iter().filter(|act| {
+            upper.match_indices(act.label()).any(|(at, label)| {
+                !word(upper[..at].chars().next_back())
+                    && !word(upper[at + label.len()..].chars().next())
+            })
+        });
+        match (named.next(), named.next()) {
+            (Some(act), None) => act,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl fmt::Display for TurnAct {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.label())
+    }
+}
+
+/// The typed state the routing decision is made in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SessionPhase {
+    /// Nothing waits: a new line may be work, a question, or a run.
+    Idle,
+    /// A proposal waits for its consent.
+    ProposalPending,
+    /// A typed question (the compiler's, a declared input, the activation's) waits.
+    QuestionPending,
+    /// A run's human gate waits.
+    GatePending,
+}
+
+impl SessionPhase {
+    /// The phase in the classifier's words.
+    #[must_use]
+    pub const fn describe(self) -> &'static str {
+        match self {
+            Self::Idle => "nothing waits (idle)",
+            Self::ProposalPending => "a proposed automation waits for the human's yes or no",
+            Self::QuestionPending => "Nika asked the human a question and waits for its answer",
+            Self::GatePending => "a run is paused at a human gate (yes or no)",
+        }
+    }
+}
+
+/// What the classifier is given beside the raw line — typed state, never
+/// a paraphrase of the line.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct TurnContext {
+    /// The phase.
+    pub phase: SessionPhase,
+    /// The current automation in one line (the request it came from), when one exists.
+    pub automation: Option<String>,
+    /// The last thing Nika asked or showed the human, when relevant.
+    pub last_prompt: Option<String>,
+}
+
+impl TurnContext {
+    /// The context of one line, as a session outside this crate states it (INV-019).
+    #[must_use]
+    pub fn new(
+        phase: SessionPhase,
+        automation: Option<String>,
+        last_prompt: Option<String>,
+    ) -> Self {
+        Self {
+            phase,
+            automation,
+            last_prompt,
+        }
+    }
+}
+
+/// How the route was decided — recorded for `/details` and the proof.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum RoutingMethod {
+    /// A whole-line protocol token.
+    Protocol,
+    /// A closed fast path (a `?` line while nothing waits).
+    FastPath,
+    /// The session's intelligence, one bounded label.
+    Model,
+    /// No intelligence could judge: UNKNOWN, everything kept as is.
+    Fallback,
+    /// Routing produced no usable label: a local refusal, a failed call, or
+    /// an unusable answer. UNKNOWN keeps everything as is.
+    Failed,
+}
+
+/// The decision: the act, the other acts a mixed line carries, the method.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct TurnDecision {
+    /// The primary act.
+    pub act: TurnAct,
+    /// Further acts in the same line, when the classifier named them.
+    pub secondary: Vec<TurnAct>,
+    /// How it was decided.
+    pub method: RoutingMethod,
+    /// Why a FAILED route failed, in the error's own words, bounded —
+    /// `None` for every other method.
+    pub note: Option<String>,
+}
+
+/// The longest note a failed route keeps (characters).
+const NOTE_CHARS: usize = 120;
+
+impl TurnDecision {
+    /// A decision by one method.
+    #[must_use]
+    pub const fn new(act: TurnAct, method: RoutingMethod) -> Self {
+        Self {
+            act,
+            secondary: Vec::new(),
+            method,
+            note: None,
+        }
+    }
+
+    /// No usable route: UNKNOWN, with the failure's own words kept (bounded)
+    /// internally for receipts; `/details` projects a closed diagnostic.
+    #[must_use]
+    pub fn failed(reason: &str) -> Self {
+        let reason = reason.split_whitespace().collect::<Vec<_>>().join(" ");
+        let note: String = reason.chars().take(NOTE_CHARS).collect();
+        Self {
+            act: TurnAct::Unknown,
+            secondary: Vec::new(),
+            method: RoutingMethod::Failed,
+            note: (!note.is_empty()).then_some(note),
+        }
+    }
+}
+
+/// A bounded classifier of open language: the session's intelligence, a
+/// decision seat, a scripted one in tests, or the conservative fallback.
+pub trait TurnClassifier: Send {
+    /// Classify through a shared allowance. A custom classifier must opt in;
+    /// the default makes no call on its old unbounded implementation.
+    fn classify_with_admission(
+        &mut self,
+        _context: &TurnContext,
+        _raw: &str,
+        _account: &nika_providers::InferenceAdmission,
+    ) -> TurnDecision {
+        TurnDecision::failed("selected classifier has no catalog admission seam")
+    }
+
+    /// The act of `raw` in `context`; UNKNOWN when it cannot tell.
+    fn classify(&mut self, context: &TurnContext, raw: &str) -> TurnDecision;
+
+    /// Carry the explicit reasoning effort the session names (R4 B16) on every label sent from
+    /// now on, `None` for none. A classifier that cannot carry a named level refuses it (the
+    /// default), and the session refuses the label before calling it: a label is never sent
+    /// without the level. One that makes no model call, or whose backend has no reasoning effort
+    /// (a typed decision service), has nothing to carry: it accepts and never claims the level.
+    ///
+    /// # Errors
+    /// This classifier cannot carry the named level: the reasoner's typed refusal, as
+    /// [`crate::reasoner::SessionReasoner::reason_effort`]'s default gives it.
+    fn carry_effort(&mut self, effort: Option<AuthoringReasoning>) -> Result<(), ReasonError> {
+        effort.map_or(Ok(()), |level| {
+            Err(ReasonError::Provider(format!(
+                "this classifier cannot carry the explicit reasoning effort `{}` · nothing was sent",
+                level.word()
+            )))
+        })
+    }
+}
+
+/// No intelligence: every open line is UNKNOWN, and the runtime keeps
+/// the automation unchanged and says intelligence is unavailable.
+#[derive(Debug, Default)]
+pub struct ConservativeFallback;
+
+impl TurnClassifier for ConservativeFallback {
+    fn classify(&mut self, _context: &TurnContext, _raw: &str) -> TurnDecision {
+        TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback)
+    }
+
+    /// No model call: nothing to carry.
+    fn carry_effort(&mut self, _: Option<AuthoringReasoning>) -> Result<(), ReasonError> {
+        Ok(())
+    }
+}
+
+/// The session's intelligence as the classifier: the routing prompt, one
+/// label read whole; a path that cannot answer is the fallback (UNKNOWN).
+pub struct ReasonerClassifier {
+    reasoner: Box<dyn crate::reasoner::SessionReasoner>,
+    effort: Option<nika_onboard::compile::AuthoringReasoning>,
+}
+
+impl ReasonerClassifier {
+    /// Over one reasoner (a door builds it from the same factory as the
+    /// conversation's, so the route follows the chosen intelligence).
+    #[must_use]
+    pub fn new(reasoner: Box<dyn crate::reasoner::SessionReasoner>) -> Self {
+        Self {
+            reasoner,
+            effort: None,
+        }
+    }
+
+    /// Every label asks this explicit reasoning effort (R4 B16), on the same label call; a
+    /// reasoner that cannot carry it refuses the label before any call.
+    #[must_use]
+    pub fn asking(mut self, effort: Option<nika_onboard::compile::AuthoringReasoning>) -> Self {
+        self.effort = effort;
+        self
+    }
+}
+
+/// A label's reply as the route it decides; a path that cannot answer is the fallback.
+fn decided(reply: Result<crate::reasoner::Reply, ReasonError>) -> TurnDecision {
+    match reply {
+        Ok(reply) => TurnDecision::new(TurnAct::parse(&reply.text), RoutingMethod::Model),
+        Err(e) => TurnDecision::failed(&e.to_string()),
+    }
+}
+
+impl TurnClassifier for ReasonerClassifier {
+    fn classify_with_admission(
+        &mut self,
+        context: &TurnContext,
+        raw: &str,
+        account: &nika_providers::InferenceAdmission,
+    ) -> TurnDecision {
+        let prompt = routing_prompt(context, raw);
+        decided(match self.effort {
+            Some(effort) => (self.reasoner).reason_effort(&prompt, true, Some(account), effort),
+            None => self.reasoner.reason_label_with_admission(&prompt, account),
+        })
+    }
+
+    fn classify(&mut self, context: &TurnContext, raw: &str) -> TurnDecision {
+        let prompt = routing_prompt(context, raw);
+        decided(match self.effort {
+            Some(effort) => self.reasoner.reason_effort(&prompt, true, None, effort),
+            None => self.reasoner.reason_label(&prompt),
+        })
+    }
+
+    /// The level rides every label from now on ([`Self::asking`], as a hook).
+    fn carry_effort(&mut self, effort: Option<AuthoringReasoning>) -> Result<(), ReasonError> {
+        self.effort = effort;
+        Ok(())
+    }
+}
+
+/// The bounded prompt the session's intelligence answers with one label.
+/// Its shape follows what measurably helps a single-label zero-shot
+/// classifier (2024-2026 literature, see the lane's routing note): the
+/// labels bullet-listed in a fixed order, each with its deciding cue and
+/// one contrast pair per confusion the corpus showed (a capability
+/// question vs a change · a yes with a change); MIXED decided by clauses;
+/// UNKNOWN on decidable conditions, never as a comfortable default; no
+/// reasoning asked (chain-of-thought lowers label accuracy).
+#[must_use]
+pub fn routing_prompt(context: &TurnContext, raw: &str) -> String {
+    let mut p = String::from(
+        "You route ONE line a human typed in a conversation with Nika, an automation tool. Answer with exactly one label from the list and nothing else — no reasoning, no punctuation.\n",
+    );
+    let _ = writeln!(p, "State: {}.", context.phase.describe());
+    if let Some(automation) = &context.automation {
+        let _ = writeln!(
+            p,
+            "Current automation (the request it came from): «{automation}»."
+        );
+    }
+    if let Some(prompt) = &context.last_prompt {
+        let _ = writeln!(p, "The last thing Nika asked or showed: «{prompt}».");
+    }
+    let _ = writeln!(p, "The human's line: «{}».", raw.trim());
+    p.push_str(concat!(
+        "Labels, in order:\n",
+        "- DISCUSS: a question or a remark about the current automation or about Nika; if Nika answered it, nothing about the automation would change. Cue: asks what/whether/why, or comments. « Can it write outside the project? » is DISCUSS; « Can you write it to ./out/final.md instead? » is MODIFY.\n",
+        "- MODIFY: asks for a change to the current automation, however it is phrased — as a question, a wish, a correction, a negation. Cue: names something that should be different (a destination, a schedule, a step, a recipient). « What I actually want is ./out/final.md » is MODIFY.\n",
+        "- NEW_WORK: describes a new automation unrelated to the current one.\n",
+        "- ANSWER: gives the value the last question asked for (a model name, a path, a number, a choice), nothing more.\n",
+        "- REQUEST_RUN: asks to run the current automation as it is, with no change in the same line.\n",
+        "- CANCEL: asks to discard the whole pending proposal or authoring request, with no replacement work. This removes pending work only; it never runs, saves, deletes a saved workflow or answers a run gate. Removing one step while keeping the workflow is MODIFY; asking what cancellation does is DISCUSS.\n",
+        "- MIXED: the line carries two distinct acts, e.g. an approval or a refusal AND a change (« yes, but change the file first »), or a run AND a change (« run it, but only on Fridays »). An approval with a change is never a plain approval.\n",
+        "- UNKNOWN: only when no label fits the line, or two labels fit it equally after the cues above.\n",
+        "Label:",
+    ));
+    p
+}
+
+/// A record of one route, for `/details` and the proof (never the line
+/// itself: its hash).
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct RouteRecord {
+    /// The phase the line arrived in.
+    pub phase: SessionPhase,
+    /// The line's blake3, first 12 hex characters.
+    pub raw_hash: String,
+    /// The act decided.
+    pub act: TurnAct,
+    /// How.
+    pub method: RoutingMethod,
+    /// Why, when the route FAILED (the error's own words, bounded).
+    pub note: Option<String>,
+}
+
+impl RouteRecord {
+    /// One record.
+    #[must_use]
+    pub fn new(phase: SessionPhase, raw: &str, decision: &TurnDecision) -> Self {
+        let hash = blake3::hash(raw.trim().as_bytes()).to_hex();
+        Self {
+            phase,
+            raw_hash: hash[..12].to_owned(),
+            act: decision.act,
+            method: decision.method,
+            note: decision.note.clone(),
+        }
+    }
+
+    /// The record's line (`/details`): a closed diagnostic, never the raw failure text.
+    #[must_use]
+    pub fn line(&self) -> String {
+        let mut line = format!(
+            "{:?} · {} · {:?} · {}",
+            self.phase, self.act, self.method, self.raw_hash
+        );
+        if let Some(note) = &self.note {
+            line.push_str(" · ");
+            line.push_str(routing_failure_words(note));
+        }
+        line
+    }
+}
+
+/// Notes may contain a native client's stderr. Render only closed, engine-owned words.
+/// A category is diagnostic evidence, never evidence that a model was called or billed.
+fn routing_failure_words(note: &str) -> &'static str {
+    let native_timeout = note
+        .strip_prefix("the seat could not answer: infer-grade seat `")
+        .and_then(|rest| rest.split_once("` failed: timed out after "))
+        .and_then(|(_, duration)| duration.strip_suffix(" ms"))
+        .is_some_and(|ms| !ms.is_empty() && ms.bytes().all(|c| c.is_ascii_digit()));
+    if native_timeout {
+        return "the local AI app reached its time limit; check whether it is still working before retrying";
+    }
+    if note.starts_with("no conversational intelligence") {
+        return "no intelligence is selected; choose one with `/intelligence`";
+    }
+    if note.starts_with("the paid-dispatch boundary was not recorded (")
+        || note == "selected classifier has no catalog admission seam"
+    {
+        return "routing admission was refused; review the selected intelligence and allowance before retrying";
+    }
+    if note.starts_with("the seat could not answer:") {
+        return "the local AI app could not answer; check that it starts and is signed in before retrying";
+    }
+    if note.starts_with("the provider could not answer:") {
+        return "the API or local provider refused or failed; review `/intelligence`, connection, credentials and the request time limit";
+    }
+    if note.starts_with("the session's runtime could not start:") {
+        return "the local session runtime could not start; restart Nika before retrying";
+    }
+    "routing was refused or failed; check the selected intelligence before retrying (private error text withheld)"
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// The label is read whole and must be the only one the reply names: a reply
+    /// naming two different labels is UNKNOWN (V9 P1 · a reasoning seat that
+    /// leaks « not MODIFY, this is DISCUSS » once revised a proposal); an
+    /// unknown reply is UNKNOWN.
+    #[test]
+    fn a_reply_names_exactly_one_label_or_it_is_unknown() {
+        assert_eq!(TurnAct::parse("MODIFY"), TurnAct::Modify);
+        assert_eq!(TurnAct::parse("Label: discuss."), TurnAct::Discuss);
+        assert_eq!(TurnAct::parse("DISCUSS. Label: DISCUSS"), TurnAct::Discuss);
+        assert_eq!(TurnAct::parse("MODIFYING, so MODIFY"), TurnAct::Modify);
+        for two in [
+            "I think MIXED (a yes and MODIFY)",
+            "not MODIFY, this is DISCUSS",
+            "DISCUSS or MODIFY",
+        ] {
+            assert_eq!(TurnAct::parse(two), TurnAct::Unknown, "{two}");
+        }
+        assert_eq!(TurnAct::parse("NEW_WORK"), TurnAct::NewWork);
+        assert_eq!(TurnAct::parse("REQUEST_RUN"), TurnAct::RequestRun);
+        assert_eq!(TurnAct::parse("CANCEL"), TurnAct::Cancel);
+        assert_eq!(TurnAct::parse("CANCELLED"), TurnAct::Unknown);
+        assert_eq!(
+            TurnAct::parse("MODIFYING"),
+            TurnAct::Unknown,
+            "not a whole word"
+        );
+        assert_eq!(TurnAct::parse("no idea"), TurnAct::Unknown);
+    }
+
+    /// The prompt carries the typed state and the raw line, and asks for one label.
+    #[test]
+    fn the_prompt_carries_the_state_and_the_raw_line() {
+        let ctx = TurnContext {
+            phase: SessionPhase::ProposalPending,
+            automation: Some("Read ./sales.csv and write the total to ./out/total.md".to_owned()),
+            last_prompt: None,
+        };
+        let p = routing_prompt(&ctx, "  can you write it to ./out/final.md instead?  ");
+        assert!(p.contains("waits for the human's yes or no"));
+        assert!(p.contains("«can you write it to ./out/final.md instead?»"));
+        assert!(p.contains("- MODIFY: asks for a change") && p.ends_with("Label:"));
+        assert!(p.contains("no reasoning"), "no chain-of-thought is asked");
+        let fallback = ConservativeFallback.classify(&ctx, "anything");
+        assert_eq!(fallback.act, TurnAct::Unknown);
+        assert_eq!(fallback.method, RoutingMethod::Fallback);
+        // An intelligence that cannot answer is a FAILED route, not « none available ».
+        let failed = ReasonerClassifier::new(Box::new(crate::reasoner::NoReasoner))
+            .classify(&ctx, "anything");
+        assert_eq!(failed.act, TurnAct::Unknown);
+        assert_eq!(failed.method, RoutingMethod::Failed);
+        // The failure keeps its reason: the error's own words, bounded, on
+        // the record's line — the night's outage said nothing on any receipt.
+        assert!(
+            failed
+                .note
+                .as_deref()
+                .is_some_and(|n| n.contains("no conversational intelligence")),
+            "{:?}",
+            failed.note
+        );
+        let long = TurnDecision::failed(&"x ".repeat(200));
+        assert_eq!(long.note.as_deref().map(str::len), Some(120));
+        assert!(TurnDecision::failed("   ").note.is_none());
+        let record = RouteRecord::new(SessionPhase::Idle, "hello", &fallback);
+        assert_eq!(record.raw_hash.len(), 12);
+        assert!(record.line().contains("UNKNOWN") && record.note.is_none());
+        let failed_record = RouteRecord::new(SessionPhase::Idle, "hello", &failed);
+        assert!(
+            failed_record
+                .line()
+                .ends_with("no intelligence is selected; choose one with `/intelligence`"),
+            "{}",
+            failed_record.line()
+        );
+    }
+
+    #[test]
+    fn routing_failure_projection_never_echoes_native_stderr_or_prompts() {
+        for note in [
+            "the seat could not answer: infer-grade seat `claude-code` failed: claude exited 69 · sk-private-token secret prompt",
+            "the provider could not answer: HTTP 500 https://user:password@host/private?token=secret · my prompt",
+            "the session's runtime could not start: /private/user/path token=private",
+            "unknown private diagnostic \u{1b}[2J sk-private-token",
+        ] {
+            let record = RouteRecord::new(
+                SessionPhase::Idle,
+                "private user input",
+                &TurnDecision::failed(note),
+            );
+            let visible = record.line();
+            assert!(visible.contains("Failed") && visible.contains(&record.raw_hash));
+            for secret in [
+                "sk-",
+                "secret prompt",
+                "https://",
+                "password",
+                "token=",
+                "my prompt",
+                "private user input",
+                "/private/user/path",
+                "\u{1b}",
+            ] {
+                assert!(!visible.contains(secret), "{visible}");
+            }
+        }
+    }
+
+    #[test]
+    fn only_the_owned_native_timeout_shape_is_shown_as_a_timeout() {
+        let timeout = "the seat could not answer: infer-grade seat `claude-code` failed: timed out after 180000 ms";
+        assert!(routing_failure_words(timeout).contains("reached its time limit"));
+        let stderr = "the seat could not answer: infer-grade seat `claude-code` failed: claude exited 69 · timed out after 180000 ms";
+        assert!(!routing_failure_words(stderr).contains("reached its time limit"));
+        for malformed in [
+            "timed out after secret ms",
+            "timed out after 180000 ms password=private",
+        ] {
+            let note = format!(
+                "the seat could not answer: infer-grade seat `claude-code` failed: {malformed}"
+            );
+            assert!(!routing_failure_words(&note).contains("reached its time limit"));
+        }
+        assert!(
+            routing_failure_words("selected classifier has no catalog admission seam")
+                .contains("admission was refused")
+        );
+    }
+
+    /// The Arena routing benchmark seam, LIVE (ignored by default): the
+    /// corpus at `NIKA_ROUTING_CORPUS` (JSONL: id · state · line · expected
+    /// · optional `automation` / `last_prompt` / `or`, a second act the row
+    /// accepts; `NIKA_ROUTING_QUIET` prints no row text, for a sealed set) is
+    /// routed by the real
+    /// `ReasonerClassifier` over `NIKA_ROUTING_MODEL` (`<provider>/<model>`,
+    /// the key from the environment); one receipt line per row is printed
+    /// and, when `NIKA_ROUTING_RECEIPT` names a file, written as JSONL. The
+    /// routing addendum's first milestone (`milestone: true` rows) must
+    /// route exactly; the rest is measured, never asserted.
+    #[test]
+    #[ignore = "a real seat and a corpus file, by env"]
+    #[allow(
+        clippy::disallowed_methods,
+        clippy::disallowed_macros,
+        clippy::print_stdout,
+        reason = "a live harness: the corpus, the model and the receipt come by env; the receipt is printed"
+    )]
+    fn routing_corpus_under_a_real_seat() {
+        let corpus = std::env::var("NIKA_ROUTING_CORPUS").expect("NIKA_ROUTING_CORPUS");
+        let model = std::env::var("NIKA_ROUTING_MODEL").expect("NIKA_ROUTING_MODEL");
+        // A SEALED set is measured without printing its rows (the exposure law).
+        let quiet = std::env::var_os("NIKA_ROUTING_QUIET").is_some();
+        let text = std::fs::read_to_string(&corpus).expect("the corpus file");
+        let mut classifier = ReasonerClassifier::new(Box::new(crate::reasoner::ProviderReasoner {
+            model: model.clone(),
+            label: model.clone(),
+        }));
+        let demo = "Every weekday read the new support tickets in ./tickets.json, group the open ones by topic, draft a short brief, and ask me before sending it to Slack";
+        let mut receipts = Vec::new();
+        let (mut right, mut total, mut milestone_wrong) = (0usize, 0usize, Vec::new());
+        for line in text.lines().filter(|l| !l.trim().is_empty()) {
+            let row: serde_json::Value = serde_json::from_str(line).expect("a JSONL row");
+            let id = row["id"].as_str().unwrap_or("?").to_owned();
+            let raw = row["line"].as_str().expect("line");
+            let expected = row["expected"].as_str().expect("expected");
+            let state = row["state"].as_str().unwrap_or("idle");
+            let phase = match state {
+                "proposal_pending" => SessionPhase::ProposalPending,
+                "question_pending" => SessionPhase::QuestionPending,
+                "gate_pending" => SessionPhase::GatePending,
+                _ => SessionPhase::Idle,
+            };
+            let automation = row["automation"]
+                .as_str()
+                .map(str::to_owned)
+                .or_else(|| (state != "idle").then(|| demo.to_owned()));
+            let last_prompt =
+                row["last_prompt"]
+                    .as_str()
+                    .map(str::to_owned)
+                    .or_else(|| match phase {
+                        SessionPhase::QuestionPending => {
+                            Some("Which model should draft the brief? (provider/model)".to_owned())
+                        }
+                        SessionPhase::GatePending => {
+                            Some("Send the brief to Slack now? (yes / no)".to_owned())
+                        }
+                        SessionPhase::ProposalPending => {
+                            Some("the proposal, waiting for yes or no".to_owned())
+                        }
+                        _ => None,
+                    });
+            let ctx = TurnContext {
+                phase,
+                automation,
+                last_prompt,
+            };
+            let decision = classifier.classify(&ctx, raw);
+            let got = decision.act.label();
+            // A row may accept a second act (« yes but… » is MIXED or
+            // MODIFY: never a consent either way); the receipt keeps both.
+            let ok = got == expected || row["or"].as_str() == Some(got);
+            total += 1;
+            right += usize::from(ok);
+            if row["milestone"].as_bool() == Some(true) && !ok {
+                milestone_wrong.push(format!("{id} «{raw}» expected {expected} got {got}"));
+            }
+            if quiet {
+                println!(
+                    "{} {id:<5} {state:<17} {expected:<11} → {got:<11}",
+                    if ok { "✓" } else { "✖" }
+                );
+            } else {
+                println!(
+                    "{} {id:<5} {state:<17} {expected:<11} → {got:<11} «{raw}»",
+                    if ok { "✓" } else { "✖" }
+                );
+            }
+            receipts.push(serde_json::json!({
+                "id": id, "state": state, "expected": expected, "got": got, "ok": ok,
+                "method": format!("{:?}", decision.method), "model": model,
+                "note": decision.note,
+            }));
+        }
+        println!("routing corpus · {right}/{total} as expected · model {model}");
+        if let Ok(path) = std::env::var("NIKA_ROUTING_RECEIPT") {
+            let body: Vec<String> = receipts.iter().map(ToString::to_string).collect();
+            std::fs::write(&path, body.join("\n") + "\n").expect("the receipt file");
+        }
+        assert!(
+            milestone_wrong.is_empty(),
+            "milestone rows misrouted: {milestone_wrong:?}"
+        );
+    }
+}

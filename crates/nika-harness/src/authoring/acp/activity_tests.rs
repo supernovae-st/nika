@@ -113,18 +113,29 @@ fn frames(words: &[&str], counted: &[(&str, u32)]) -> Value {
     )
 }
 
+/// When this session's first thought and first answer arrived, and its last update's word and
+/// time.
+type Firsts<'a> = (Option<u64>, Option<u64>, Option<(&'a str, u64)>);
+
+/// No thought, no answer, no update of this session.
+const NONE: Firsts<'static> = (None, None, None);
+
 /// The activity a record must carry: the window opened at the written prompt (0 ms: the scripted
-/// door spends no setup), this session's frames and when the last arrived, the frames it cannot
-/// attribute to itself and when the last of those arrived, and what ended the driver.
+/// door spends no setup), this session's frames, when the last arrived, its first thought and
+/// answer and its last update, the frames it cannot attribute to itself and when the last of
+/// those arrived, and what ended the driver.
 fn activity(
     session: &[(&str, u32)],
     session_last: Option<u64>,
+    (thought, answer, update): Firsts<'_>,
     foreign: &[(&str, u32)],
     foreign_last: Option<u64>,
     ended_by: Option<&str>,
 ) -> Value {
+    let update = update.map(|(kind, ms)| json!({"kind": kind, "ms": ms}));
     json!({"from_ms": 0,
-        "session": {"frames": frames(&SESSION, session), "last_ms": session_last},
+        "session": {"frames": frames(&SESSION, session), "last_ms": session_last,
+            "first_thought_ms": thought, "first_answer_ms": answer, "last_update": update},
         "foreign": {"frames": frames(&FOREIGN, foreign), "last_ms": foreign_last},
         "ended_by": ended_by})
 }
@@ -192,10 +203,14 @@ async fn the_same_timed_out_prompt_tells_silence_from_unanswered_activity() {
     // The blind spot: without what arrived after the prompt, the two records are one record.
     assert_eq!(kept_before(&silent), kept_before(&busy));
     // The correction: no completed frame at all, against five of this session's own.
-    assert_eq!(silent["activity"], activity(&[], None, &[], None, None));
+    assert_eq!(
+        silent["activity"],
+        activity(&[], None, NONE, &[], None, None)
+    );
     let observed = activity(
         &[("thought", 2), ("usage", 1), ("status", 2)],
         Some(300_000),
+        (Some(60_000), None, Some(("thought", 300_000))),
         &[],
         None,
         None,
@@ -239,7 +254,7 @@ async fn foreign_traffic_never_reads_as_this_call_advancing() {
     );
     assert_eq!(stood, expected);
     let foreign = [("other_session", 2), ("uncorrelated", 2)];
-    let observed = activity(&[], None, &foreign, Some(40_000), None);
+    let observed = activity(&[], None, NONE, &foreign, Some(40_000), None);
     assert_eq!(record["activity"], observed);
 }
 
@@ -274,9 +289,20 @@ async fn ends(script: Vec<(Duration, Line)>, close: bool, class: &str, expected:
 }
 
 /// One frame of this session, 5 s after the prompt, that ends the call as `ended_by`, counted
-/// under `counted`.
+/// under `counted`: an answer or another update is also the session's last update, by the same
+/// word.
 async fn ends_on(line: Line, class: &str, counted: &str, ended_by: &str) {
-    let expected = activity(&[(counted, 1)], Some(5_000), &[], None, Some(ended_by));
+    let answer = (counted == "answer").then_some(5_000);
+    let update = matches!(counted, "answer" | "other_update").then_some((ended_by, 5_000));
+    let firsts = (None, answer, update);
+    let expected = activity(
+        &[(counted, 1)],
+        Some(5_000),
+        firsts,
+        &[],
+        None,
+        Some(ended_by),
+    );
     ends(vec![(FIVE, line)], false, class, &expected).await;
 }
 
@@ -340,7 +366,15 @@ async fn a_refused_frame_is_named_by_its_exact_category() {
 async fn a_session_end_is_named_by_its_exact_category() {
     let error = Line::Error(json!({"code":-32603,"message":format!("internal {SECRET}")}));
     ends_on(error, "session", "prompt_error", "prompt_error").await;
-    let closed = activity(&[("thought", 1)], Some(5_000), &[], None, Some("transport"));
+    let thought_at = (Some(5_000), None, Some(("thought", 5_000)));
+    let closed = activity(
+        &[("thought", 1)],
+        Some(5_000),
+        thought_at,
+        &[],
+        None,
+        Some("transport"),
+    );
     ends(vec![(FIVE, thought(SECRET))], true, "session", &closed).await;
     // The peer asks a permission and closes: the denial this side writes back cannot be written.
     let asked = Line::Frame(json!({"jsonrpc":"2.0","id":90,
@@ -349,6 +383,7 @@ async fn a_session_end_is_named_by_its_exact_category() {
     let denied = activity(
         &[("client_request", 1)],
         Some(5_000),
+        NONE,
         &[],
         None,
         Some("transport"),
@@ -357,6 +392,7 @@ async fn a_session_end_is_named_by_its_exact_category() {
     let unreadable = activity(
         &[],
         None,
+        NONE,
         &[("unreadable", 1)],
         Some(5_000),
         Some("unreadable"),
@@ -395,6 +431,7 @@ async fn a_completed_answer_records_what_preceded_and_closed_it() {
     let observed = activity(
         &[("thought", 1), ("answer", 1), ("prompt_result", 1)],
         Some(15_000),
+        (Some(5_000), Some(10_000), Some(("answer", 10_000))),
         &[],
         None,
         Some("completed"),

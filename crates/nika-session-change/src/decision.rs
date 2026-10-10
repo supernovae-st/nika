@@ -100,6 +100,7 @@ pub fn local_command_of(line: &str) -> Option<&'static str> {
         "/meaning" => Some("/meaning"),
         "/proof" => Some("/proof"),
         "/restore" => Some("/restore"),
+        "/knowledge" => Some("/knowledge"),
         _ => None,
     }
 }

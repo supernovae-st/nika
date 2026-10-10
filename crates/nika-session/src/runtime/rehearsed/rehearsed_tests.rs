@@ -170,13 +170,8 @@ fn open_with(
     host: impl Fn(&Path) -> Box<dyn Rehearse> + Send + Sync + 'static,
 ) -> (SessionRuntime, Prompts, Arc<AtomicUsize>) {
     let prompts = Arc::new(Mutex::new(Vec::new()));
-    let intelligence = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::None,
-        model: None,
-        locus: DataLocus::None,
-        ready: true,
-        why: None,
-    };
+    let intelligence =
+        ResolvedSessionIntelligence::new(IntelligenceKind::None, None, DataLocus::None, true, None);
     let player = Player {
         prompts: Arc::clone(&prompts),
     };

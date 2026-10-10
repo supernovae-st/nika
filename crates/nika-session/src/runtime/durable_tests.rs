@@ -53,15 +53,15 @@ impl SessionReasoner for Player {
 }
 
 fn intelligence() -> ResolvedSessionIntelligence {
-    ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Local {
+    ResolvedSessionIntelligence::new(
+        IntelligenceKind::Local {
             provider: "ollama".to_owned(),
         },
-        model: None,
-        locus: DataLocus::Local,
-        ready: true,
-        why: None,
-    }
+        None,
+        DataLocus::Local,
+        true,
+        None,
+    )
 }
 
 /// A project root the compiled intents are grounded in: the brief the

@@ -10,6 +10,170 @@ pub const nika_compile_fidelity::decimal::ARITHMETIC: &str
 pub const nika_compile_fidelity::decimal::ORDER: &str
 pub mod nika_compile_fidelity::fidelity
 pub use nika_compile_fidelity::fidelity::instant_shape
+pub mod nika_compile_fidelity::fidelity::resolution
+#[non_exhaustive] pub enum nika_compile_fidelity::fidelity::resolution::ResolutionKind
+pub nika_compile_fidelity::fidelity::resolution::ResolutionKind::Answered
+pub nika_compile_fidelity::fidelity::resolution::ResolutionKind::Delegated
+pub nika_compile_fidelity::fidelity::resolution::ResolutionKind::Derived
+pub nika_compile_fidelity::fidelity::resolution::ResolutionKind::Named
+pub nika_compile_fidelity::fidelity::resolution::ResolutionKind::Offered
+pub nika_compile_fidelity::fidelity::resolution::ResolutionKind::Retained
+impl nika_compile_fidelity::fidelity::resolution::ResolutionKind
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::parse(word: &str) -> core::option::Option<Self>
+pub const fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::word(self) -> &'static str
+impl core::clone::Clone for nika_compile_fidelity::fidelity::resolution::ResolutionKind
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::clone(&self) -> nika_compile_fidelity::fidelity::resolution::ResolutionKind
+impl core::cmp::Eq for nika_compile_fidelity::fidelity::resolution::ResolutionKind
+impl core::cmp::PartialEq for nika_compile_fidelity::fidelity::resolution::ResolutionKind
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::eq(&self, other: &nika_compile_fidelity::fidelity::resolution::ResolutionKind) -> bool
+impl core::fmt::Debug for nika_compile_fidelity::fidelity::resolution::ResolutionKind
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_fidelity::fidelity::resolution::ResolutionKind
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::fidelity::resolution::ResolutionKind
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::fidelity::resolution::ResolutionKind
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::fidelity::resolution::ResolutionKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::fidelity::resolution::ResolutionKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::fidelity::resolution::ResolutionKind where U: core::convert::From<T>
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::fidelity::resolution::ResolutionKind where U: core::convert::Into<T>
+pub type nika_compile_fidelity::fidelity::resolution::ResolutionKind::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::fidelity::resolution::ResolutionKind where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::fidelity::resolution::ResolutionKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::fidelity::resolution::ResolutionKind where T: core::clone::Clone
+pub type nika_compile_fidelity::fidelity::resolution::ResolutionKind::Owned = T
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::fidelity::resolution::ResolutionKind where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::fidelity::resolution::ResolutionKind where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::fidelity::resolution::ResolutionKind where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::fidelity::resolution::ResolutionKind where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::fidelity::resolution::ResolutionKind
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::fidelity::resolution::ResolutionKind where T: core::clone::Clone
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::fidelity::resolution::ResolutionKind where T: 'static
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_fidelity::fidelity::resolution::ResolutionKind where T: core::marker::Copy
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionKind::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::fidelity::resolution::ResolutionKind
+pub type nika_compile_fidelity::fidelity::resolution::ResolutionKind::Output = T
+#[non_exhaustive] pub enum nika_compile_fidelity::fidelity::resolution::ResolutionRole
+pub nika_compile_fidelity::fidelity::resolution::ResolutionRole::OutputPath
+pub nika_compile_fidelity::fidelity::resolution::ResolutionRole::ReadSource
+pub nika_compile_fidelity::fidelity::resolution::ResolutionRole::RunModel
+pub nika_compile_fidelity::fidelity::resolution::ResolutionRole::Value
+impl nika_compile_fidelity::fidelity::resolution::ResolutionRole
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::parse(word: &str) -> core::option::Option<Self>
+pub const fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::word(self) -> &'static str
+impl core::clone::Clone for nika_compile_fidelity::fidelity::resolution::ResolutionRole
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::clone(&self) -> nika_compile_fidelity::fidelity::resolution::ResolutionRole
+impl core::cmp::Eq for nika_compile_fidelity::fidelity::resolution::ResolutionRole
+impl core::cmp::PartialEq for nika_compile_fidelity::fidelity::resolution::ResolutionRole
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::eq(&self, other: &nika_compile_fidelity::fidelity::resolution::ResolutionRole) -> bool
+impl core::fmt::Debug for nika_compile_fidelity::fidelity::resolution::ResolutionRole
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_fidelity::fidelity::resolution::ResolutionRole
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::fidelity::resolution::ResolutionRole
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::fidelity::resolution::ResolutionRole
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::fidelity::resolution::ResolutionRole where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::fidelity::resolution::ResolutionRole where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::fidelity::resolution::ResolutionRole where U: core::convert::From<T>
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::fidelity::resolution::ResolutionRole where U: core::convert::Into<T>
+pub type nika_compile_fidelity::fidelity::resolution::ResolutionRole::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::fidelity::resolution::ResolutionRole where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::fidelity::resolution::ResolutionRole::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::fidelity::resolution::ResolutionRole where T: core::clone::Clone
+pub type nika_compile_fidelity::fidelity::resolution::ResolutionRole::Owned = T
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::fidelity::resolution::ResolutionRole where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::fidelity::resolution::ResolutionRole where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::fidelity::resolution::ResolutionRole where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::fidelity::resolution::ResolutionRole where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::fidelity::resolution::ResolutionRole
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::fidelity::resolution::ResolutionRole where T: core::clone::Clone
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::fidelity::resolution::ResolutionRole where T: 'static
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_fidelity::fidelity::resolution::ResolutionRole where T: core::marker::Copy
+pub fn nika_compile_fidelity::fidelity::resolution::ResolutionRole::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::fidelity::resolution::ResolutionRole
+pub type nika_compile_fidelity::fidelity::resolution::ResolutionRole::Output = T
+#[non_exhaustive] pub struct nika_compile_fidelity::fidelity::resolution::Resolution
+pub nika_compile_fidelity::fidelity::resolution::Resolution::excerpt: core::option::Option<alloc::string::String>
+pub nika_compile_fidelity::fidelity::resolution::Resolution::kind: nika_compile_fidelity::fidelity::resolution::ResolutionKind
+pub nika_compile_fidelity::fidelity::resolution::Resolution::message: core::option::Option<alloc::string::String>
+pub nika_compile_fidelity::fidelity::resolution::Resolution::option: core::option::Option<alloc::string::String>
+pub nika_compile_fidelity::fidelity::resolution::Resolution::question: core::option::Option<alloc::string::String>
+pub nika_compile_fidelity::fidelity::resolution::Resolution::role: nika_compile_fidelity::fidelity::resolution::ResolutionRole
+pub nika_compile_fidelity::fidelity::resolution::Resolution::value: alloc::string::String
+impl nika_compile_fidelity::fidelity::resolution::Resolution
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::new(value: impl core::convert::Into<alloc::string::String>, kind: nika_compile_fidelity::fidelity::resolution::ResolutionKind, role: nika_compile_fidelity::fidelity::resolution::ResolutionRole) -> Self
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::read(row: &serde_json::value::Value) -> core::result::Result<Self, alloc::string::String>
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::read_all(rows: &[serde_json::value::Value]) -> core::result::Result<alloc::vec::Vec<Self>, alloc::string::String>
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::to_json(&self) -> serde_json::value::Value
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::with_excerpt(self, excerpt: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_compile_fidelity::fidelity::resolution::Resolution
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::clone(&self) -> nika_compile_fidelity::fidelity::resolution::Resolution
+impl core::cmp::Eq for nika_compile_fidelity::fidelity::resolution::Resolution
+impl core::cmp::PartialEq for nika_compile_fidelity::fidelity::resolution::Resolution
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::eq(&self, other: &nika_compile_fidelity::fidelity::resolution::Resolution) -> bool
+impl core::fmt::Debug for nika_compile_fidelity::fidelity::resolution::Resolution
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::fidelity::resolution::Resolution
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::fidelity::resolution::Resolution
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::fidelity::resolution::Resolution where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::fidelity::resolution::Resolution where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::fidelity::resolution::Resolution where U: core::convert::From<T>
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::fidelity::resolution::Resolution where U: core::convert::Into<T>
+pub type nika_compile_fidelity::fidelity::resolution::Resolution::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::fidelity::resolution::Resolution where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::fidelity::resolution::Resolution::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::fidelity::resolution::Resolution where T: core::clone::Clone
+pub type nika_compile_fidelity::fidelity::resolution::Resolution::Owned = T
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::fidelity::resolution::Resolution where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::fidelity::resolution::Resolution where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::fidelity::resolution::Resolution where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::fidelity::resolution::Resolution where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::fidelity::resolution::Resolution::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::fidelity::resolution::Resolution
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::fidelity::resolution::Resolution where T: core::clone::Clone
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::fidelity::resolution::Resolution where T: 'static
+pub fn nika_compile_fidelity::fidelity::resolution::Resolution::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::fidelity::resolution::Resolution
+pub type nika_compile_fidelity::fidelity::resolution::Resolution::Output = T
+pub fn nika_compile_fidelity::fidelity::resolution::admitted(stated: &str, doc: &serde_json::value::Value, (authored, host): (&[nika_compile_fidelity::fidelity::resolution::Resolution], &[nika_compile_fidelity::fidelity::resolution::Resolution]), world: core::option::Option<&serde_json::value::Value>, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_fidelity::fidelity::resolution::same_literal(a: &str, b: &str) -> bool
 pub struct nika_compile_fidelity::fidelity::Diagnostic
 pub nika_compile_fidelity::fidelity::Diagnostic::kind: &'static str
 pub nika_compile_fidelity::fidelity::Diagnostic::message: alloc::string::String
@@ -65,12 +229,15 @@ pub fn nika_compile_fidelity::fidelity::depends_on(doc: &serde_json::value::Valu
 pub fn nika_compile_fidelity::fidelity::dropped_effects(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::effect_and_gate_tasks(doc: &serde_json::value::Value) -> (alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>)
 pub fn nika_compile_fidelity::fidelity::invented(intent: &str, literals: &[alloc::string::String], allowed: &[alloc::string::String], out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
+pub fn nika_compile_fidelity::fidelity::invented_except(intent: &str, literals: &[alloc::string::String], (allowed, covered): (&[alloc::string::String], &[alloc::string::String]), out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::invented_gates(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::laws(intent: &str, plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, allowed: &[alloc::string::String], waived: &[alloc::string::String], clarified: &[alloc::string::String], out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::laws_observed(intent: &str, plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, allowed: &[alloc::string::String], waived: &[alloc::string::String], clarified: &[alloc::string::String], world: core::option::Option<&serde_json::value::Value>, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
+pub fn nika_compile_fidelity::fidelity::laws_resolved(intent: &str, plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, (allowed, covered): (&[alloc::string::String], &[alloc::string::String]), waived: &[alloc::string::String], clarified: &[alloc::string::String], world: core::option::Option<&serde_json::value::Value>, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::prohibitions(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::raw_text_as_records(doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::stated_paths(intent: &str, doc: &serde_json::value::Value, waived: &[alloc::string::String], clarified: &[alloc::string::String], out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
+pub fn nika_compile_fidelity::fidelity::stated_routes(intent: &str, doc: &serde_json::value::Value) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_fidelity::fidelity::strings(value: &serde_json::value::Value, out: &mut alloc::vec::Vec<alloc::string::String>)
 pub fn nika_compile_fidelity::fidelity::tool_of<'a>(doc: &'a serde_json::value::Value, task: &str) -> &'a str
 pub fn nika_compile_fidelity::fidelity::unbound_final_gate(plan: &nika_compile_reader::plan::Plan) -> bool

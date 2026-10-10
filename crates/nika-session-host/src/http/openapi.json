@@ -126,7 +126,28 @@
               {"type": "object", "required": ["command", "phase", "stop_requested"], "properties": {"command": {"type": "string"}, "phase": {"enum": ["preparing", "running", "settling"]}, "stop_requested": {"type": "boolean"}}}
             ]
           },
-          "work": {"type": "object", "description": "The Session's `nika/session-work@0` snapshot, verbatim: `root` names the server's project world, paths are relative to it."}
+          "work": {
+            "type": "object",
+            "description": "The Session's `nika/session-work@0` snapshot, verbatim: `root` names the server's project world, paths are relative to it. While a refused knowledge source holds a line, `waiting` is `{\"kind\": \"knowledge_choice\", \"line\": <the line, exactly as typed>}`: nothing was sent for it, and submitting `/knowledge embedded` resumes it once.",
+            "properties": {
+              "knowledge": {"$ref": "#/components/schemas/SessionKnowledge"}
+            }
+          }
+        }
+      },
+      "SessionKnowledge": {
+        "type": "object",
+        "required": ["state"],
+        "description": "The authoring knowledge the Session reads now, a configured fact and never a call receipt: `admitted` (a release the strict door admitted: `source` `embedded` or `disk`, its `version`, its `manifest_sha256`, and `by` `default`, `conversation`, `host` or `environment`), `refused` (a source the configuration names, refused: `source` `snapshot`, `pack` or `embedded`, `by`, the stable `code` and its `cause`, never a host path; a line that would reach a model waits as `knowledge_choice`), or `unread` (`why`: knowledge off, the strategy `off`, or a configuration refused before its knowledge resolved).",
+        "properties": {
+          "state": {"enum": ["admitted", "refused", "unread"]},
+          "source": {"type": "string"},
+          "version": {"type": ["string", "null"]},
+          "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "by": {"type": "string"},
+          "code": {"type": "string"},
+          "cause": {"type": "string"},
+          "why": {"type": "string"}
         }
       },
       "SessionOutcome": {

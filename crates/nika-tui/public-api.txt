@@ -1027,17 +1027,17 @@ pub fn nika_tui::model::Script::answer_bound(&mut self, text: &str, witness: &st
 pub fn nika_tui::model::Script::arrangement(&self) -> core::option::Option<nika_tui_view::workspace::geometry::Arrangement>
 pub fn nika_tui::model::Script::busy_label(&self, _line: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_tui::model::Script::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
-pub fn nika_tui::model::Script::candidate(&self) -> core::option::Option<nika_tui::workspace::candidate::Proposed>
+pub fn nika_tui::model::Script::candidate(&self) -> core::option::Option<nika_tui_view::workspace::candidate::Proposed>
 pub fn nika_tui::model::Script::child(&mut self, _execution: &nika_types::id::ExecutionId, _task: &str, _relation: &nika_display::run_story::ChildRun) -> core::option::Option<nika_tui::session::acquire::ChildRead>
 pub fn nika_tui::model::Script::commands(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_tui::model::Script::fetch(&mut self, _execution: &nika_types::id::ExecutionId, _path: &str) -> core::option::Option<nika_tui::session::acquire::Fetched>
 pub fn nika_tui::model::Script::fresh_input_required(&self) -> bool
-pub fn nika_tui::model::Script::inspect(&mut self, _path: &str) -> core::option::Option<nika_tui::workspace::inspect::Inspected>
+pub fn nika_tui::model::Script::inspect(&mut self, _path: &str) -> core::option::Option<nika_tui_view::workspace::inspect::Inspected>
 pub fn nika_tui::model::Script::keep_arrangement(&mut self, _arrangement: nika_tui_view::workspace::geometry::Arrangement) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::kept_run(&self) -> core::option::Option<core::result::Result<nika_trace::run_view::kept::KeptRun, alloc::string::String>>
 pub fn nika_tui::model::Script::open(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::perform(&mut self, _handoff: &nika_tui::model::Handoff) -> alloc::vec::Vec<nika_tui::model::Beat>
-pub fn nika_tui::model::Script::project(&self) -> core::option::Option<nika_tui::workspace::project::ProjectView>
+pub fn nika_tui::model::Script::project(&self) -> core::option::Option<nika_tui_view::workspace::project::ProjectView>
 pub fn nika_tui::model::Script::prove(&mut self, _execution: &nika_types::id::ExecutionId) -> core::option::Option<nika_tui::session::acquire::Proven>
 pub fn nika_tui::model::Script::stopper(&mut self) -> core::option::Option<nika_tui::model::Stopper>
 pub fn nika_tui::model::Script::submit(&mut self, line: &str) -> nika_tui::model::Turn
@@ -1206,17 +1206,17 @@ pub fn nika_tui::model::Conversation::answer_bound(&mut self, text: &str, witnes
 pub fn nika_tui::model::Conversation::arrangement(&self) -> core::option::Option<nika_tui_view::workspace::geometry::Arrangement>
 pub fn nika_tui::model::Conversation::busy_label(&self, _line: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_tui::model::Conversation::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
-pub fn nika_tui::model::Conversation::candidate(&self) -> core::option::Option<nika_tui::workspace::candidate::Proposed>
+pub fn nika_tui::model::Conversation::candidate(&self) -> core::option::Option<nika_tui_view::workspace::candidate::Proposed>
 pub fn nika_tui::model::Conversation::child(&mut self, _execution: &nika_types::id::ExecutionId, _task: &str, _relation: &nika_display::run_story::ChildRun) -> core::option::Option<nika_tui::session::acquire::ChildRead>
 pub fn nika_tui::model::Conversation::commands(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_tui::model::Conversation::fetch(&mut self, _execution: &nika_types::id::ExecutionId, _path: &str) -> core::option::Option<nika_tui::session::acquire::Fetched>
 pub fn nika_tui::model::Conversation::fresh_input_required(&self) -> bool
-pub fn nika_tui::model::Conversation::inspect(&mut self, _path: &str) -> core::option::Option<nika_tui::workspace::inspect::Inspected>
+pub fn nika_tui::model::Conversation::inspect(&mut self, _path: &str) -> core::option::Option<nika_tui_view::workspace::inspect::Inspected>
 pub fn nika_tui::model::Conversation::keep_arrangement(&mut self, _arrangement: nika_tui_view::workspace::geometry::Arrangement) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Conversation::kept_run(&self) -> core::option::Option<core::result::Result<nika_trace::run_view::kept::KeptRun, alloc::string::String>>
 pub fn nika_tui::model::Conversation::open(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Conversation::perform(&mut self, handoff: &nika_tui::model::Handoff) -> alloc::vec::Vec<nika_tui::model::Beat>
-pub fn nika_tui::model::Conversation::project(&self) -> core::option::Option<nika_tui::workspace::project::ProjectView>
+pub fn nika_tui::model::Conversation::project(&self) -> core::option::Option<nika_tui_view::workspace::project::ProjectView>
 pub fn nika_tui::model::Conversation::prove(&mut self, _execution: &nika_types::id::ExecutionId) -> core::option::Option<nika_tui::session::acquire::Proven>
 pub fn nika_tui::model::Conversation::stopper(&mut self) -> core::option::Option<nika_tui::model::Stopper>
 pub fn nika_tui::model::Conversation::submit(&mut self, line: &str) -> nika_tui::model::Turn
@@ -1229,17 +1229,17 @@ pub fn nika_tui::model::Script::answer_bound(&mut self, text: &str, witness: &st
 pub fn nika_tui::model::Script::arrangement(&self) -> core::option::Option<nika_tui_view::workspace::geometry::Arrangement>
 pub fn nika_tui::model::Script::busy_label(&self, _line: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_tui::model::Script::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
-pub fn nika_tui::model::Script::candidate(&self) -> core::option::Option<nika_tui::workspace::candidate::Proposed>
+pub fn nika_tui::model::Script::candidate(&self) -> core::option::Option<nika_tui_view::workspace::candidate::Proposed>
 pub fn nika_tui::model::Script::child(&mut self, _execution: &nika_types::id::ExecutionId, _task: &str, _relation: &nika_display::run_story::ChildRun) -> core::option::Option<nika_tui::session::acquire::ChildRead>
 pub fn nika_tui::model::Script::commands(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_tui::model::Script::fetch(&mut self, _execution: &nika_types::id::ExecutionId, _path: &str) -> core::option::Option<nika_tui::session::acquire::Fetched>
 pub fn nika_tui::model::Script::fresh_input_required(&self) -> bool
-pub fn nika_tui::model::Script::inspect(&mut self, _path: &str) -> core::option::Option<nika_tui::workspace::inspect::Inspected>
+pub fn nika_tui::model::Script::inspect(&mut self, _path: &str) -> core::option::Option<nika_tui_view::workspace::inspect::Inspected>
 pub fn nika_tui::model::Script::keep_arrangement(&mut self, _arrangement: nika_tui_view::workspace::geometry::Arrangement) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::kept_run(&self) -> core::option::Option<core::result::Result<nika_trace::run_view::kept::KeptRun, alloc::string::String>>
 pub fn nika_tui::model::Script::open(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::perform(&mut self, _handoff: &nika_tui::model::Handoff) -> alloc::vec::Vec<nika_tui::model::Beat>
-pub fn nika_tui::model::Script::project(&self) -> core::option::Option<nika_tui::workspace::project::ProjectView>
+pub fn nika_tui::model::Script::project(&self) -> core::option::Option<nika_tui_view::workspace::project::ProjectView>
 pub fn nika_tui::model::Script::prove(&mut self, _execution: &nika_types::id::ExecutionId) -> core::option::Option<nika_tui::session::acquire::Proven>
 pub fn nika_tui::model::Script::stopper(&mut self) -> core::option::Option<nika_tui::model::Stopper>
 pub fn nika_tui::model::Script::submit(&mut self, line: &str) -> nika_tui::model::Turn
@@ -1252,24 +1252,24 @@ pub fn nika_tui::session::Live::answer_bound(&mut self, text: &str, witness: &st
 pub fn nika_tui::session::Live::arrangement(&self) -> core::option::Option<nika_tui_view::workspace::geometry::Arrangement>
 pub fn nika_tui::session::Live::busy_label(&self, line: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_tui::session::Live::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
-pub fn nika_tui::session::Live::candidate(&self) -> core::option::Option<nika_tui::workspace::candidate::Proposed>
+pub fn nika_tui::session::Live::candidate(&self) -> core::option::Option<nika_tui_view::workspace::candidate::Proposed>
 pub fn nika_tui::session::Live::child(&mut self, execution: &nika_types::id::ExecutionId, task: &str, relation: &nika_display::run_story::ChildRun) -> core::option::Option<nika_tui::session::acquire::ChildRead>
 pub fn nika_tui::session::Live::commands(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_tui::session::Live::fetch(&mut self, execution: &nika_types::id::ExecutionId, path: &str) -> core::option::Option<nika_tui::session::acquire::Fetched>
 pub fn nika_tui::session::Live::fresh_input_required(&self) -> bool
-pub fn nika_tui::session::Live::inspect(&mut self, path: &str) -> core::option::Option<nika_tui::workspace::inspect::Inspected>
+pub fn nika_tui::session::Live::inspect(&mut self, path: &str) -> core::option::Option<nika_tui_view::workspace::inspect::Inspected>
 pub fn nika_tui::session::Live::keep_arrangement(&mut self, arrangement: nika_tui_view::workspace::geometry::Arrangement) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::kept_run(&self) -> core::option::Option<core::result::Result<nika_trace::run_view::kept::KeptRun, alloc::string::String>>
 pub fn nika_tui::session::Live::open(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::perform(&mut self, handoff: &nika_tui::model::Handoff) -> alloc::vec::Vec<nika_tui::model::Beat>
-pub fn nika_tui::session::Live::project(&self) -> core::option::Option<nika_tui::workspace::project::ProjectView>
+pub fn nika_tui::session::Live::project(&self) -> core::option::Option<nika_tui_view::workspace::project::ProjectView>
 pub fn nika_tui::session::Live::prove(&mut self, execution: &nika_types::id::ExecutionId) -> core::option::Option<nika_tui::session::acquire::Proven>
 pub fn nika_tui::session::Live::stopper(&mut self) -> core::option::Option<nika_tui::model::Stopper>
 pub fn nika_tui::session::Live::submit(&mut self, line: &str) -> nika_tui::model::Turn
 pub fn nika_tui::session::Live::submit_observed(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>, seen: &nika_tui::session::feed::Seen) -> nika_tui::model::Turn
 pub fn nika_tui::session::Live::submit_with(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>) -> nika_tui::model::Turn
 pub fn nika_tui::session::Live::withdraw_stopped(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
-pub fn nika_tui::model::demo_project() -> nika_tui::workspace::project::ProjectView
+pub fn nika_tui::model::demo_project() -> nika_tui_view::workspace::project::ProjectView
 pub type nika_tui::model::Stopper = alloc::boxed::Box<(dyn core::ops::function::Fn() -> nika_tui::model::Stopping + core::marker::Send)>
 pub mod nika_tui::render
 pub use nika_tui::render::SPINNER
@@ -1437,7 +1437,7 @@ pub mod nika_tui::session::feed
 #[non_exhaustive] pub enum nika_tui::session::feed::Observed
 pub nika_tui::session::feed::Observed::Activity(nika_display::activity::Activity)
 pub nika_tui::session::feed::Observed::Asked
-pub nika_tui::session::feed::Observed::Asked::look: core::option::Option<alloc::boxed::Box<nika_tui::workspace::inspect::Inspected>>
+pub nika_tui::session::feed::Observed::Asked::look: core::option::Option<alloc::boxed::Box<nika_tui_view::workspace::inspect::Inspected>>
 pub nika_tui::session::feed::Observed::Asked::resume: bool
 pub nika_tui::session::feed::Observed::Asked::typed: bool
 pub nika_tui::session::feed::Observed::Asked::workflow: alloc::string::String
@@ -1646,7 +1646,7 @@ impl<T> typenum::type_operators::Same for nika_tui::session::Work
 pub type nika_tui::session::Work::Output = T
 pub struct nika_tui::session::Live
 impl nika_tui::session::Live
-pub fn nika_tui::session::Live::new(cwd: std::path::PathBuf, census: nika_session::intelligence::IntelligenceCensus, kept: core::option::Option<nika_session::intelligence::UserIntelligencePreference>, home: core::option::Option<std::path::PathBuf>, factory: nika_session::runtime::ReasonerFactory, runners: nika_tui::session::Runners) -> Self
+pub fn nika_tui::session::Live::new(cwd: std::path::PathBuf, census: nika_session_intelligence::intelligence::IntelligenceCensus, kept: core::option::Option<nika_session_intelligence::intelligence::UserIntelligencePreference>, home: core::option::Option<std::path::PathBuf>, factory: nika_session::runtime::ReasonerFactory, runners: nika_tui::session::Runners) -> Self
 pub fn nika_tui::session::Live::with_cost_host_evidence(self, evidence: nika_providers::admission::review::CostHostEvidence) -> Self
 pub fn nika_tui::session::Live::with_jq_helper(self, helper: nika_service_execution::rehearsal::isolated_jq::JqHelper) -> Self
 pub fn nika_tui::session::Live::with_run_review(self, runner: nika_tui::session::RunReviewed) -> Self
@@ -1660,17 +1660,17 @@ pub fn nika_tui::session::Live::answer_bound(&mut self, text: &str, witness: &st
 pub fn nika_tui::session::Live::arrangement(&self) -> core::option::Option<nika_tui_view::workspace::geometry::Arrangement>
 pub fn nika_tui::session::Live::busy_label(&self, line: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_tui::session::Live::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
-pub fn nika_tui::session::Live::candidate(&self) -> core::option::Option<nika_tui::workspace::candidate::Proposed>
+pub fn nika_tui::session::Live::candidate(&self) -> core::option::Option<nika_tui_view::workspace::candidate::Proposed>
 pub fn nika_tui::session::Live::child(&mut self, execution: &nika_types::id::ExecutionId, task: &str, relation: &nika_display::run_story::ChildRun) -> core::option::Option<nika_tui::session::acquire::ChildRead>
 pub fn nika_tui::session::Live::commands(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_tui::session::Live::fetch(&mut self, execution: &nika_types::id::ExecutionId, path: &str) -> core::option::Option<nika_tui::session::acquire::Fetched>
 pub fn nika_tui::session::Live::fresh_input_required(&self) -> bool
-pub fn nika_tui::session::Live::inspect(&mut self, path: &str) -> core::option::Option<nika_tui::workspace::inspect::Inspected>
+pub fn nika_tui::session::Live::inspect(&mut self, path: &str) -> core::option::Option<nika_tui_view::workspace::inspect::Inspected>
 pub fn nika_tui::session::Live::keep_arrangement(&mut self, arrangement: nika_tui_view::workspace::geometry::Arrangement) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::kept_run(&self) -> core::option::Option<core::result::Result<nika_trace::run_view::kept::KeptRun, alloc::string::String>>
 pub fn nika_tui::session::Live::open(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::perform(&mut self, handoff: &nika_tui::model::Handoff) -> alloc::vec::Vec<nika_tui::model::Beat>
-pub fn nika_tui::session::Live::project(&self) -> core::option::Option<nika_tui::workspace::project::ProjectView>
+pub fn nika_tui::session::Live::project(&self) -> core::option::Option<nika_tui_view::workspace::project::ProjectView>
 pub fn nika_tui::session::Live::prove(&mut self, execution: &nika_types::id::ExecutionId) -> core::option::Option<nika_tui::session::acquire::Proven>
 pub fn nika_tui::session::Live::stopper(&mut self) -> core::option::Option<nika_tui::model::Stopper>
 pub fn nika_tui::session::Live::submit(&mut self, line: &str) -> nika_tui::model::Turn
@@ -1883,61 +1883,7 @@ pub use nika_tui::workspace::aside::Verdict
 pub use nika_tui::workspace::aside::lines
 pub use nika_tui::workspace::aside::lines_selecting
 pub mod nika_tui::workspace::candidate
-#[non_exhaustive] pub struct nika_tui::workspace::candidate::Proposed
-impl nika_tui::workspace::candidate::Proposed
-pub fn nika_tui::workspace::candidate::Proposed::aside(&self) -> bool
-pub fn nika_tui::workspace::candidate::Proposed::draft(&self) -> bool
-pub fn nika_tui::workspace::candidate::Proposed::face_lines(&self, face: nika_tui_view::workflow::Face, width: u16, ascii: bool, color: bool) -> (ratatui_core::text::line::Line<'static>, alloc::vec::Vec<ratatui_core::text::line::Line<'static>>)
-pub fn nika_tui::workspace::candidate::Proposed::id(&self) -> &nika_session_change::outcome::ProposalId
-pub fn nika_tui::workspace::candidate::Proposed::label(&self) -> alloc::string::String
-pub fn nika_tui::workspace::candidate::Proposed::path(&self) -> &str
-pub fn nika_tui::workspace::candidate::Proposed::witness(&self) -> core::option::Option<&str>
-impl core::clone::Clone for nika_tui::workspace::candidate::Proposed
-pub fn nika_tui::workspace::candidate::Proposed::clone(&self) -> nika_tui::workspace::candidate::Proposed
-impl core::cmp::Eq for nika_tui::workspace::candidate::Proposed
-impl core::cmp::PartialEq for nika_tui::workspace::candidate::Proposed
-pub fn nika_tui::workspace::candidate::Proposed::eq(&self, other: &Self) -> bool
-impl core::fmt::Debug for nika_tui::workspace::candidate::Proposed
-pub fn nika_tui::workspace::candidate::Proposed::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_tui::workspace::candidate::Proposed
-impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::candidate::Proposed where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_tui::workspace::candidate::Proposed::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::candidate::Proposed where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_tui::workspace::candidate::Proposed::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_tui::workspace::candidate::Proposed where U: core::convert::From<T>
-pub fn nika_tui::workspace::candidate::Proposed::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::candidate::Proposed where U: core::convert::Into<T>
-pub type nika_tui::workspace::candidate::Proposed::Error = core::convert::Infallible
-pub fn nika_tui::workspace::candidate::Proposed::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::candidate::Proposed where U: core::convert::TryFrom<T>
-pub type nika_tui::workspace::candidate::Proposed::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_tui::workspace::candidate::Proposed::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_tui::workspace::candidate::Proposed where T: core::clone::Clone
-pub type nika_tui::workspace::candidate::Proposed::Owned = T
-pub fn nika_tui::workspace::candidate::Proposed::clone_into(&self, target: &mut T)
-pub fn nika_tui::workspace::candidate::Proposed::to_owned(&self) -> T
-impl<T> core::any::Any for nika_tui::workspace::candidate::Proposed where T: 'static + ?core::marker::Sized
-pub fn nika_tui::workspace::candidate::Proposed::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_tui::workspace::candidate::Proposed where T: ?core::marker::Sized
-pub fn nika_tui::workspace::candidate::Proposed::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::candidate::Proposed where T: ?core::marker::Sized
-pub fn nika_tui::workspace::candidate::Proposed::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_tui::workspace::candidate::Proposed where T: core::clone::Clone
-pub unsafe fn nika_tui::workspace::candidate::Proposed::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_tui::workspace::candidate::Proposed
-pub fn nika_tui::workspace::candidate::Proposed::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_tui::workspace::candidate::Proposed where T: core::clone::Clone
-pub fn nika_tui::workspace::candidate::Proposed::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> either::into_either::IntoEither for nika_tui::workspace::candidate::Proposed
-impl<T> nika_error::traits::AsAny for nika_tui::workspace::candidate::Proposed where T: 'static
-pub fn nika_tui::workspace::candidate::Proposed::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::candidate::Proposed where T: ?core::marker::Sized
-pub fn nika_tui::workspace::candidate::Proposed::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_tui::workspace::candidate::Proposed::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_tui::workspace::candidate::Proposed
-impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::candidate::Proposed
-impl<T> typenum::type_operators::Same for nika_tui::workspace::candidate::Proposed
-pub type nika_tui::workspace::candidate::Proposed::Output = T
+pub use nika_tui::workspace::candidate::Proposed
 pub mod nika_tui::workspace::conversation
 pub use nika_tui::workspace::conversation::Thread
 pub use nika_tui::workspace::conversation::context
@@ -2183,59 +2129,7 @@ pub use nika_tui::workspace::header::Place
 pub use nika_tui::workspace::header::lines
 pub use nika_tui::workspace::header::render
 pub mod nika_tui::workspace::inspect
-#[non_exhaustive] pub struct nika_tui::workspace::inspect::Inspected
-impl nika_tui::workspace::inspect::Inspected
-pub fn nika_tui::workspace::inspect::Inspected::face_lines(&self, face: nika_tui_view::workflow::Face, width: u16, ascii: bool, color: bool) -> (ratatui_core::text::line::Line<'static>, alloc::vec::Vec<ratatui_core::text::line::Line<'static>>)
-pub fn nika_tui::workspace::inspect::Inspected::path(&self) -> &str
-pub fn nika_tui::workspace::inspect::Inspected::title(&self) -> &str
-pub fn nika_tui::workspace::inspect::Inspected::why_unread(&self) -> core::option::Option<&str>
-pub fn nika_tui::workspace::inspect::Inspected::witness(&self) -> core::option::Option<&str>
-impl core::clone::Clone for nika_tui::workspace::inspect::Inspected
-pub fn nika_tui::workspace::inspect::Inspected::clone(&self) -> nika_tui::workspace::inspect::Inspected
-impl core::cmp::Eq for nika_tui::workspace::inspect::Inspected
-impl core::cmp::PartialEq for nika_tui::workspace::inspect::Inspected
-pub fn nika_tui::workspace::inspect::Inspected::eq(&self, other: &Self) -> bool
-impl core::fmt::Debug for nika_tui::workspace::inspect::Inspected
-pub fn nika_tui::workspace::inspect::Inspected::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_tui::workspace::inspect::Inspected
-impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::inspect::Inspected where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_tui::workspace::inspect::Inspected::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::inspect::Inspected where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_tui::workspace::inspect::Inspected::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_tui::workspace::inspect::Inspected where U: core::convert::From<T>
-pub fn nika_tui::workspace::inspect::Inspected::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::inspect::Inspected where U: core::convert::Into<T>
-pub type nika_tui::workspace::inspect::Inspected::Error = core::convert::Infallible
-pub fn nika_tui::workspace::inspect::Inspected::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::inspect::Inspected where U: core::convert::TryFrom<T>
-pub type nika_tui::workspace::inspect::Inspected::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_tui::workspace::inspect::Inspected::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_tui::workspace::inspect::Inspected where T: core::clone::Clone
-pub type nika_tui::workspace::inspect::Inspected::Owned = T
-pub fn nika_tui::workspace::inspect::Inspected::clone_into(&self, target: &mut T)
-pub fn nika_tui::workspace::inspect::Inspected::to_owned(&self) -> T
-impl<T> core::any::Any for nika_tui::workspace::inspect::Inspected where T: 'static + ?core::marker::Sized
-pub fn nika_tui::workspace::inspect::Inspected::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_tui::workspace::inspect::Inspected where T: ?core::marker::Sized
-pub fn nika_tui::workspace::inspect::Inspected::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::inspect::Inspected where T: ?core::marker::Sized
-pub fn nika_tui::workspace::inspect::Inspected::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_tui::workspace::inspect::Inspected where T: core::clone::Clone
-pub unsafe fn nika_tui::workspace::inspect::Inspected::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_tui::workspace::inspect::Inspected
-pub fn nika_tui::workspace::inspect::Inspected::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_tui::workspace::inspect::Inspected where T: core::clone::Clone
-pub fn nika_tui::workspace::inspect::Inspected::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> either::into_either::IntoEither for nika_tui::workspace::inspect::Inspected
-impl<T> nika_error::traits::AsAny for nika_tui::workspace::inspect::Inspected where T: 'static
-pub fn nika_tui::workspace::inspect::Inspected::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::inspect::Inspected where T: ?core::marker::Sized
-pub fn nika_tui::workspace::inspect::Inspected::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_tui::workspace::inspect::Inspected::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_tui::workspace::inspect::Inspected
-impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::inspect::Inspected
-impl<T> typenum::type_operators::Same for nika_tui::workspace::inspect::Inspected
-pub type nika_tui::workspace::inspect::Inspected::Output = T
+pub use nika_tui::workspace::inspect::Inspected
 pub mod nika_tui::workspace::live
 #[non_exhaustive] pub enum nika_tui::workspace::live::Binding
 pub nika_tui::workspace::live::Binding::Other
@@ -2475,125 +2369,8 @@ pub mod nika_tui::workspace::pinned
 pub use nika_tui::workspace::pinned::Pinned
 pub use nika_tui::workspace::pinned::line
 pub mod nika_tui::workspace::project
-#[non_exhaustive] pub struct nika_tui::workspace::project::ProjectView
-pub nika_tui::workspace::project::ProjectView::complete: bool
-pub nika_tui::workspace::project::ProjectView::git: core::option::Option<bool>
-pub nika_tui::workspace::project::ProjectView::host: alloc::string::String
-pub nika_tui::workspace::project::ProjectView::location: alloc::string::String
-pub nika_tui::workspace::project::ProjectView::manifest: core::option::Option<nika_tui_view::workspace::header::Manifest>
-pub nika_tui::workspace::project::ProjectView::name: alloc::string::String
-pub nika_tui::workspace::project::ProjectView::pinned: core::option::Option<nika_tui_view::workspace::pinned::Pinned>
-pub nika_tui::workspace::project::ProjectView::seat: core::option::Option<alloc::string::String>
-pub nika_tui::workspace::project::ProjectView::workflows: alloc::vec::Vec<nika_tui::workspace::project::WorkflowView>
-impl nika_tui::workspace::project::ProjectView
-pub fn nika_tui::workspace::project::ProjectView::governed(self, manifest: nika_tui_view::workspace::header::Manifest) -> Self
-pub fn nika_tui::workspace::project::ProjectView::listing(self, workflows: alloc::vec::Vec<nika_tui::workspace::project::WorkflowView>, complete: bool) -> Self
-pub fn nika_tui::workspace::project::ProjectView::new(host: impl core::convert::Into<alloc::string::String>, name: impl core::convert::Into<alloc::string::String>, location: impl core::convert::Into<alloc::string::String>) -> Self
-pub fn nika_tui::workspace::project::ProjectView::pinning(self, run: nika_tui_view::workspace::pinned::Pinned) -> Self
-pub fn nika_tui::workspace::project::ProjectView::seated(self, seat: impl core::convert::Into<alloc::string::String>) -> Self
-pub fn nika_tui::workspace::project::ProjectView::with_git(self, git: bool) -> Self
-impl core::clone::Clone for nika_tui::workspace::project::ProjectView
-pub fn nika_tui::workspace::project::ProjectView::clone(&self) -> nika_tui::workspace::project::ProjectView
-impl core::cmp::Eq for nika_tui::workspace::project::ProjectView
-impl core::cmp::PartialEq for nika_tui::workspace::project::ProjectView
-pub fn nika_tui::workspace::project::ProjectView::eq(&self, other: &nika_tui::workspace::project::ProjectView) -> bool
-impl core::fmt::Debug for nika_tui::workspace::project::ProjectView
-pub fn nika_tui::workspace::project::ProjectView::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_tui::workspace::project::ProjectView
-impl<D> owo_colors::OwoColorize for nika_tui::workspace::project::ProjectView
-impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::project::ProjectView where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_tui::workspace::project::ProjectView::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::project::ProjectView where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_tui::workspace::project::ProjectView::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_tui::workspace::project::ProjectView where U: core::convert::From<T>
-pub fn nika_tui::workspace::project::ProjectView::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::project::ProjectView where U: core::convert::Into<T>
-pub type nika_tui::workspace::project::ProjectView::Error = core::convert::Infallible
-pub fn nika_tui::workspace::project::ProjectView::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::project::ProjectView where U: core::convert::TryFrom<T>
-pub type nika_tui::workspace::project::ProjectView::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_tui::workspace::project::ProjectView::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_tui::workspace::project::ProjectView where T: core::clone::Clone
-pub type nika_tui::workspace::project::ProjectView::Owned = T
-pub fn nika_tui::workspace::project::ProjectView::clone_into(&self, target: &mut T)
-pub fn nika_tui::workspace::project::ProjectView::to_owned(&self) -> T
-impl<T> core::any::Any for nika_tui::workspace::project::ProjectView where T: 'static + ?core::marker::Sized
-pub fn nika_tui::workspace::project::ProjectView::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_tui::workspace::project::ProjectView where T: ?core::marker::Sized
-pub fn nika_tui::workspace::project::ProjectView::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::project::ProjectView where T: ?core::marker::Sized
-pub fn nika_tui::workspace::project::ProjectView::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_tui::workspace::project::ProjectView where T: core::clone::Clone
-pub unsafe fn nika_tui::workspace::project::ProjectView::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_tui::workspace::project::ProjectView
-pub fn nika_tui::workspace::project::ProjectView::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_tui::workspace::project::ProjectView where T: core::clone::Clone
-pub fn nika_tui::workspace::project::ProjectView::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> either::into_either::IntoEither for nika_tui::workspace::project::ProjectView
-impl<T> nika_error::traits::AsAny for nika_tui::workspace::project::ProjectView where T: 'static
-pub fn nika_tui::workspace::project::ProjectView::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::project::ProjectView where T: ?core::marker::Sized
-pub fn nika_tui::workspace::project::ProjectView::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_tui::workspace::project::ProjectView::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_tui::workspace::project::ProjectView
-impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::project::ProjectView
-impl<T> typenum::type_operators::Same for nika_tui::workspace::project::ProjectView
-pub type nika_tui::workspace::project::ProjectView::Output = T
-#[non_exhaustive] pub struct nika_tui::workspace::project::WorkflowView
-pub nika_tui::workspace::project::WorkflowView::clean: bool
-pub nika_tui::workspace::project::WorkflowView::findings: usize
-pub nika_tui::workspace::project::WorkflowView::name: core::option::Option<alloc::string::String>
-pub nika_tui::workspace::project::WorkflowView::path: alloc::string::String
-pub nika_tui::workspace::project::WorkflowView::tasks: usize
-impl nika_tui::workspace::project::WorkflowView
-pub fn nika_tui::workspace::project::WorkflowView::new(path: impl core::convert::Into<alloc::string::String>, name: core::option::Option<&str>, clean: bool, findings: usize, tasks: usize) -> Self
-impl core::clone::Clone for nika_tui::workspace::project::WorkflowView
-pub fn nika_tui::workspace::project::WorkflowView::clone(&self) -> nika_tui::workspace::project::WorkflowView
-impl core::cmp::Eq for nika_tui::workspace::project::WorkflowView
-impl core::cmp::PartialEq for nika_tui::workspace::project::WorkflowView
-pub fn nika_tui::workspace::project::WorkflowView::eq(&self, other: &nika_tui::workspace::project::WorkflowView) -> bool
-impl core::fmt::Debug for nika_tui::workspace::project::WorkflowView
-pub fn nika_tui::workspace::project::WorkflowView::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_tui::workspace::project::WorkflowView
-impl<D> owo_colors::OwoColorize for nika_tui::workspace::project::WorkflowView
-impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::project::WorkflowView where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_tui::workspace::project::WorkflowView::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::project::WorkflowView where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_tui::workspace::project::WorkflowView::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_tui::workspace::project::WorkflowView where U: core::convert::From<T>
-pub fn nika_tui::workspace::project::WorkflowView::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::project::WorkflowView where U: core::convert::Into<T>
-pub type nika_tui::workspace::project::WorkflowView::Error = core::convert::Infallible
-pub fn nika_tui::workspace::project::WorkflowView::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::project::WorkflowView where U: core::convert::TryFrom<T>
-pub type nika_tui::workspace::project::WorkflowView::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_tui::workspace::project::WorkflowView::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_tui::workspace::project::WorkflowView where T: core::clone::Clone
-pub type nika_tui::workspace::project::WorkflowView::Owned = T
-pub fn nika_tui::workspace::project::WorkflowView::clone_into(&self, target: &mut T)
-pub fn nika_tui::workspace::project::WorkflowView::to_owned(&self) -> T
-impl<T> core::any::Any for nika_tui::workspace::project::WorkflowView where T: 'static + ?core::marker::Sized
-pub fn nika_tui::workspace::project::WorkflowView::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_tui::workspace::project::WorkflowView where T: ?core::marker::Sized
-pub fn nika_tui::workspace::project::WorkflowView::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::project::WorkflowView where T: ?core::marker::Sized
-pub fn nika_tui::workspace::project::WorkflowView::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_tui::workspace::project::WorkflowView where T: core::clone::Clone
-pub unsafe fn nika_tui::workspace::project::WorkflowView::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_tui::workspace::project::WorkflowView
-pub fn nika_tui::workspace::project::WorkflowView::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_tui::workspace::project::WorkflowView where T: core::clone::Clone
-pub fn nika_tui::workspace::project::WorkflowView::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> either::into_either::IntoEither for nika_tui::workspace::project::WorkflowView
-impl<T> nika_error::traits::AsAny for nika_tui::workspace::project::WorkflowView where T: 'static
-pub fn nika_tui::workspace::project::WorkflowView::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::project::WorkflowView where T: ?core::marker::Sized
-pub fn nika_tui::workspace::project::WorkflowView::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_tui::workspace::project::WorkflowView::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_tui::workspace::project::WorkflowView
-impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::project::WorkflowView
-impl<T> typenum::type_operators::Same for nika_tui::workspace::project::WorkflowView
-pub type nika_tui::workspace::project::WorkflowView::Output = T
+pub use nika_tui::workspace::project::ProjectView
+pub use nika_tui::workspace::project::WorkflowView
 pub mod nika_tui::workspace::screen
 #[non_exhaustive] pub struct nika_tui::workspace::screen::Screen
 pub nika_tui::workspace::screen::Screen::aside: nika_tui_view::workspace::aside::Aside

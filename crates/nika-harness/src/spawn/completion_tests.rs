@@ -138,3 +138,36 @@ async fn the_spawned_transport_is_bounded_by_the_call_allowance() {
     );
     assert_eq!(starts(&log), 1, "one adapter, no retry");
 }
+
+/// What a seat sends with `session/new` follows its adapter and role: a Claude Code one-shot its
+/// audited profile, its thinking shown; a Claude Code agent session its thinking shown and no
+/// other option, its own loop untouched; a Codex seat, one-shot or agent, nothing.
+#[test]
+fn a_seat_sends_its_profile_or_its_agent_options() {
+    let seat = |id: &str| SpawnedHarness::new(HarnessAdapter::new(id, "python3").expect("id"));
+    let claude = seat("claude-code");
+    assert_eq!(
+        claude.session_meta(),
+        crate::authoring::acp::agent_meta("claude-code")
+    );
+    let shown = serde_json::json!({"type": "adaptive", "display": "summarized"});
+    let agent = claude
+        .session_meta()
+        .expect("a Claude Code agent session sends options");
+    assert_eq!(
+        agent,
+        serde_json::json!({"claudeCode": {"options": {"thinking": shown}}})
+    );
+    let one_shot = claude
+        .for_completion(Completion::Authoring)
+        .expect("audited");
+    assert_eq!(
+        one_shot.session_meta(),
+        Some(crate::authoring::acp::profile())
+    );
+    let codex = seat("codex");
+    assert_eq!(codex.session_meta(), None);
+    let codex = codex.for_completion(Completion::Infer).expect("audited");
+    assert_eq!(codex.session_meta(), None);
+    assert_eq!(seat("gemini").session_meta(), None);
+}

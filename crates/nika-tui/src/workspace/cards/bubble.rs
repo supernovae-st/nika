@@ -187,6 +187,17 @@ impl Bubble {
         usize::from(self.form == Form::Outlined)
     }
 
+    /// Each block's first row in the bubble and its rows, its sublabel or
+    /// air included, in order: where the reading position or a press finds it.
+    pub(super) fn spans(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+        let mut at = self.head();
+        self.parts.iter().map(move |part| {
+            let rows = part.lead.rows() + part.rows;
+            at += rows;
+            (at - rows, rows)
+        })
+    }
+
     /// Every row it takes, the row of air after it included.
     pub(super) fn rows(&self) -> usize {
         self.head() + self.body() + self.foot() + 1

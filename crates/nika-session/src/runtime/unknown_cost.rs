@@ -344,7 +344,7 @@ impl SessionRuntime {
             }
             let candidate = self.cost_candidate(input)?;
             let invocation = nika_types::id::CorrelationId::generate().to_string();
-            let reserved = recovery_requests(self.authoring_context.recovery);
+            let reserved = recovery_requests(self.authoring_context.recovery());
             let strategy = self.authoring_context.strategy();
             let worst = worst_case_of(strategy, 1, Some(AUTHORING_REPAIRS), false)
                 .and_then(|calls| calls.checked_add(1))

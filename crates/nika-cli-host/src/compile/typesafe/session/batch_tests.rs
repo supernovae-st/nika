@@ -450,3 +450,80 @@ fn stop_after_a_capacity_refusal_journals_the_withheld_items_unsent() {
     assert_eq!(withheld, ["stopped", "stopped", "stopped"]);
     assert_eq!(receipt["state"], "Closed");
 }
+
+/// Every request that left carries the time its transport took, in whole milliseconds (measured,
+/// so only its presence and type are judged): each physical request of a halved batch, and a
+/// single question's. A request never sent carries none.
+#[test]
+fn each_request_that_left_carries_its_transport_time() {
+    let peer = Peer::start(vec![
+        over_capacity(),
+        answering(0..1, FIRST_HALF),
+        answering(1..3, SECOND_HALF),
+    ]);
+    let journal = setup(&peer);
+    let seat = journal.consult(Ok(()));
+    let answers = block_on(seat.choose_each(&parts()));
+    assert!(answers.iter().all(Result::is_ok), "{answers:?}");
+    let alone = Peer::start(vec![reply(&choice("verify-part-0", "carried"))]);
+    let single = setup(&alone).consult(Ok(()));
+    assert!(block_on(single.choose(&part(0))).is_ok());
+    let refused = setup(&alone).consult(Err("the allowance is spent".into()));
+    assert!(block_on(refused.choose(&part(1))).is_err());
+    let receipt = seat.finish().unwrap();
+    let mut left = receipt["attempts"].as_array().unwrap().clone();
+    assert_eq!(left.len(), 3, "the refused request and its two halves");
+    left.push(single.finish().unwrap()["attempts"][0].clone());
+    for attempt in &left {
+        assert_eq!(attempt["sent"], true, "{attempt}");
+        assert!(attempt["elapsed_ms"].is_u64(), "{attempt}");
+    }
+    let unsent = refused.finish().unwrap()["attempts"][0].clone();
+    assert_eq!(unsent["sent"], false);
+    assert!(unsent.get("elapsed_ms").is_none(), "{unsent}");
+}
+
+/// The seat a Session keeps learns its capacity across compiles. A qualification of eight is
+/// refused whole, then in its first half of four, and answered in parts of two, its second four
+/// split before it left. The next compile's batch of eight to the same seat starts under what
+/// was learned: four requests of two, none refused, each naming the bound it was split under.
+#[test]
+fn a_later_compile_starts_under_the_capacity_the_seat_learned() {
+    let eight: Vec<ChoiceQuestion> = (0..8).map(part).collect();
+    let pairs = |k: usize| answering(k..k + 2, FIRST_HALF);
+    let mut script = vec![over_capacity(), over_capacity()];
+    script.extend([0, 2, 4, 6].map(pairs));
+    script.extend([0, 2, 4, 6].map(pairs));
+    let peer = Peer::start(script);
+    let journal = setup(&peer);
+    for _ in 0..2 {
+        let seat = journal.consult(Ok(()));
+        let batch = ChoiceBatch::of("foundry-qualification", &eight);
+        let answers = block_on(seat.choose_each(&batch));
+        assert!(answers.iter().all(Result::is_ok), "{answers:?}");
+        assert!(seat.finish().is_some());
+    }
+    let asked: Vec<usize> = (peer.bodies().iter())
+        .map(|body| body["questions"].as_object().unwrap().len())
+        .collect();
+    assert_eq!(
+        asked,
+        [8, 4, 2, 2, 2, 2, 2, 2, 2, 2],
+        "two refusals, then parts of two"
+    );
+    let observations = journal.observations();
+    let first = observations[0]["attempts"].as_array().unwrap();
+    let split: Vec<&Value> = first
+        .iter()
+        .map(|attempt| &attempt["split_below"])
+        .collect();
+    let (none, four) = (&Value::Null, &json!(4));
+    assert_eq!(split, [none, none, none, none, four, four]);
+    let later = observations[1]["attempts"].as_array().unwrap();
+    assert_eq!(later.len(), 4, "{later:?}");
+    for attempt in later {
+        let seen = (&attempt["outcome"], &attempt["split_below"]);
+        assert_eq!(seen, (&json!("answered"), &json!(3)), "{attempt}");
+        assert!(attempt.get("refusal").is_none(), "{attempt}");
+    }
+}

@@ -212,14 +212,20 @@ impl DecisionSeat for Judging {
     }
 }
 
-/// The doubt no part locates: the whole request unfaithful, its two parts carried, no task doing
-/// more than asked.
-const DOUBT: [(&str, &str); 4] = [
+/// The doubt no part locates: the whole request unfaithful, its two parts carried (the read and
+/// the write are the request's own, so the engine's facts leave no task to ask about).
+const DOUBT: [(&str, &str); 3] = [
     ("verify-request", "unfaithful"),
     ("verify-part-0", "carried"),
     ("verify-part-1", "carried"),
-    ("verify-extra", "only_requested"),
 ];
+
+/// [`DOUBT`], then, asked where it is when no run decides it, nowhere.
+fn unlocated() -> Vec<(&'static str, &'static str)> {
+    let mut script = DOUBT.to_vec();
+    script.push(("verify-doubt", "unlocated"));
+    script
+}
 
 /// [`DOUBT`], then the trial run found consistent with the whole request.
 fn over_the_run() -> Vec<(&'static str, &'static str)> {
@@ -307,17 +313,8 @@ fn receipts(observed: &Value) -> Value {
 }
 
 /// The question over the run: consistent, some part never exercised by these inputs, each part,
-/// each task in the document's order.
-const OVER_THE_RUN: [&str; 8] = [
-    "consistent",
-    "unexercised",
-    "part-0",
-    "part-1",
-    "task-keep_open",
-    "task-read_tickets",
-    "task-write_open",
-    "none",
-];
+/// and no task (the engine's facts settle every one of the tickets candidate's tasks).
+const OVER_THE_RUN: [&str; 5] = ["consistent", "unexercised", "part-0", "part-1", "none"];
 
 #[tokio::test]
 async fn a_trial_run_found_consistent_carries_a_doubted_request_ready() {
@@ -332,9 +329,9 @@ async fn a_trial_run_found_consistent_carries_a_doubted_request_ready() {
     // The judge read the run of exactly these bytes, and only over the question that asks it.
     let asked = judge.asked();
     let shown = observation(&candidate, Kept::Whole);
-    assert_eq!(asked[4].state["observation"], shown);
-    assert_eq!(asked[4].keys(), OVER_THE_RUN);
-    assert_eq!(judge.shown_runs(), [false, false, false, false, true]);
+    assert_eq!(asked[3].state["observation"], shown);
+    assert_eq!(asked[3].keys(), OVER_THE_RUN);
+    assert_eq!(judge.shown_runs(), [false, false, false, true]);
     // One run, the one the judge read, reused by the final barrier.
     assert_eq!(room.shown(), std::slice::from_ref(&candidate));
     let decision = out.provenance.decision.as_ref().unwrap();
@@ -352,10 +349,14 @@ async fn a_trial_run_found_consistent_carries_a_doubted_request_ready() {
         assert_eq!(attempt[list], json!([]), "{list}: {attempt:#}");
     }
     let counts = (&attempt["attempted"], &attempt["consumed"]);
-    assert_eq!(counts, (&json!(5), &json!(5)), "{attempt:#}");
+    assert_eq!(counts, (&json!(4), &json!(4)), "{attempt:#}");
+    assert_eq!(
+        attempt["engine"][0]["settled"], "only_requested",
+        "{attempt:#}"
+    );
     let sha = nika_compile::surface::sha256(&candidate);
     assert_eq!(attempt["candidate_sha256"], json!(sha), "{attempt:#}");
-    let record = &attempt["questions"][4];
+    let record = &attempt["questions"][3];
     let over = (&record["question"], &record["role"], &record["choice"]);
     let expected = (
         &json!("verify-observed"),
@@ -377,12 +378,14 @@ async fn a_trial_run_found_consistent_carries_a_doubted_request_ready() {
 #[tokio::test]
 async fn a_trial_run_read_only_in_part_leaves_the_doubted_request_held() {
     let room = Room::new(Some(Kept::Half));
-    let judge = Judging::new(&over_the_run());
+    let mut script = unlocated();
+    script.push(("verify-observed", "consistent"));
+    let judge = Judging::new(&script);
     let out = judged_in(&room, &judge, tickets()).await;
     assert_held(&out);
     // The question over the run is never asked: its scripted answer is left.
     assert_eq!(judge.left(), 1, "{out:#?}");
-    let ids: Vec<&str> = DOUBT.iter().map(|(id, _)| *id).collect();
+    let ids: Vec<&str> = unlocated().iter().map(|(id, _)| *id).collect();
     assert_eq!(judge.ids(), ids, "no question over a run: {out:#?}");
     assert_eq!(judge.shown_runs(), [false; 4]);
     let candidate = out.candidate.clone().unwrap();
@@ -401,11 +404,11 @@ async fn a_trial_run_read_only_in_part_leaves_the_doubted_request_held() {
 #[tokio::test]
 async fn a_declined_rehearsal_shows_the_judge_no_run_and_holds_the_doubted_request() {
     let room = Room::new(None);
-    let judge = Judging::new(&DOUBT);
+    let judge = Judging::new(&unlocated());
     let out = judged_in(&room, &judge, tickets()).await;
     assert_held(&out);
     assert_eq!(judge.left(), 0, "{out:#?}");
-    let ids: Vec<&str> = DOUBT.iter().map(|(id, _)| *id).collect();
+    let ids: Vec<&str> = unlocated().iter().map(|(id, _)| *id).collect();
     assert_eq!(judge.ids(), ids, "no question over a run: {out:#?}");
     assert_eq!(judge.shown_runs(), [false; 4]);
     let candidate = out.candidate.clone().unwrap();
@@ -440,7 +443,7 @@ async fn a_trial_run_that_skipped_an_output_leaves_the_doubted_request_held() {
         ("verify-part-0", "carried"),
         ("verify-part-1", "carried"),
         ("verify-part-2", "carried"),
-        ("verify-extra", "only_requested"),
+        ("verify-doubt", "unlocated"),
         ("verify-observed", "consistent"),
     ];
     let judge = Judging::new(&script);
@@ -491,7 +494,6 @@ async fn a_whole_run_settles_a_contested_restriction_then_carries_the_request_re
         ("verify-part-1", "missing"),
         ("verify-point-1", "no_task"),
         ("verify-observed-part-1", "carried"),
-        ("verify-extra", "only_requested"),
         ("verify-observed", "consistent"),
     ];
     let judge = Judging::new(&script);
@@ -500,7 +502,7 @@ async fn a_whole_run_settles_a_contested_restriction_then_carries_the_request_re
     assert_eq!(judge.left(), 0, "{out:#?}");
     let ids: Vec<&str> = script.iter().map(|(id, _)| *id).collect();
     assert_eq!(judge.ids(), ids);
-    let shown_runs = [false, false, false, false, true, false, true];
+    let shown_runs = [false, false, false, false, true, true];
     assert_eq!(judge.shown_runs(), shown_runs);
     let candidate = out.candidate.clone().unwrap();
     let shown = observation(&candidate, Kept::Whole);
@@ -513,8 +515,8 @@ async fn a_whole_run_settles_a_contested_restriction_then_carries_the_request_re
     assert_eq!(over_part.state["observation"], shown);
     assert_eq!(over_part.state["clause"], json!({"text": OPEN_ONLY}));
     assert!(over_part.instructions.contains(RESTRICTS), "{over_part:#?}");
-    assert_eq!(asked[6].keys(), OVER_THE_RUN);
-    assert_eq!(asked[6].state["observation"], shown);
+    assert_eq!(asked[5].keys(), OVER_THE_RUN);
+    assert_eq!(asked[5].state["observation"], shown);
     // One run, the one the judge read, reused by the final barrier.
     assert_eq!(room.shown(), std::slice::from_ref(&candidate));
     let attempt = &verification(&out)[0];
@@ -527,7 +529,7 @@ async fn a_whole_run_settles_a_contested_restriction_then_carries_the_request_re
         assert_eq!(attempt[list], json!([]), "{list}: {attempt:#}");
     }
     let counts = (&attempt["attempted"], &attempt["consumed"]);
-    assert_eq!(counts, (&json!(7), &json!(7)), "{attempt:#}");
+    assert_eq!(counts, (&json!(6), &json!(6)), "{attempt:#}");
     let records = attempt["questions"].as_array().cloned().unwrap_or_default();
     let roles: Vec<&Value> = records.iter().map(|record| &record["role"]).collect();
     let want = [
@@ -536,7 +538,6 @@ async fn a_whole_run_settles_a_contested_restriction_then_carries_the_request_re
         "judge_part",
         "judge_point",
         "judge_observed_part",
-        "judge_extra",
         "judge_observed",
     ];
     assert_eq!(
@@ -548,10 +549,10 @@ async fn a_whole_run_settles_a_contested_restriction_then_carries_the_request_re
     let clause = json!({"text": OPEN_ONLY, "restricts": true});
     let expected = (&json!("verify-observed-part-1"), &json!("carried"), &clause);
     assert_eq!(settled, expected, "{over:#}");
-    for at in [4, 6] {
+    for at in [4, 5] {
         assert_eq!(records[at]["observation"], receipts(&shown), "{at}");
     }
-    for at in [0, 1, 2, 3, 5] {
+    for at in [0, 1, 2, 3] {
         assert!(records[at].get("observation").is_none(), "{at}");
     }
     assert!(out.provenance.plan.is_some(), "the READY record: {out:#?}");

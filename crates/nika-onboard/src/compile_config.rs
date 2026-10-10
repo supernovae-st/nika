@@ -21,6 +21,8 @@
 //! falls back to it.
 //! Knowledge is turned off by `--no-knowledge` on a door's own layer, or by the exact
 //! environment word `NIKA_KNOWLEDGE=off`; off beside a source on the same layer is refused.
+//! A door's own layer may name the embedded release explicitly
+//! ([`AuthoringSettings::with_knowledge_embedded`]): the environment's knowledge is then not read.
 //!
 //! A named release is admitted only against the identity an embedder trusts. A host names one on
 //! its own layer with [`AuthoringSettings::with_knowledge_release`]. A flag or the environment
@@ -206,6 +208,10 @@ impl KnowledgeChoice {
     #[must_use]
     pub fn words(&self) -> String {
         match self {
+            Self::Named {
+                source: KnowledgeSource::Embedded { .. },
+                by,
+            } => format!("knowledge embedded ({})", by.word()),
             Self::Named { by, .. } => format!("knowledge named ({})", by.word()),
             Self::Disabled {
                 by: KnowledgeLayer::Explicit,
@@ -240,6 +246,9 @@ pub struct AuthoringSettings {
     /// The identity this layer trusts for the snapshot it names, from an embedder's own release
     /// record ([`Self::with_knowledge_release`]); a flag or the environment never names one.
     pub knowledge_identity: Option<TrustedIdentity>,
+    /// The release this build embeds, named on this layer ([`Self::with_knowledge_embedded`]);
+    /// a pack or a snapshot this layer names comes first, and off beside it is refused.
+    pub knowledge_embedded: bool,
 }
 
 impl AuthoringSettings {
@@ -267,6 +276,7 @@ impl AuthoringSettings {
             source_recovery: text("NIKA_AUTHORING_SOURCE_RECOVERY"),
             knowledge_off: false,
             knowledge_identity: None,
+            knowledge_embedded: false,
         }
     }
 
@@ -338,6 +348,18 @@ impl AuthoringSettings {
     #[must_use]
     pub fn with_knowledge_off(mut self) -> Self {
         self.knowledge_off = true;
+        self
+    }
+
+    /// The release this build embeds, named on this layer in place of any source or off it
+    /// named: an explicit choice, so the other layer's knowledge is not read.
+    #[must_use]
+    pub fn with_knowledge_embedded(mut self) -> Self {
+        self.knowledge = None;
+        self.knowledge_pack = None;
+        self.knowledge_identity = None;
+        self.knowledge_off = false;
+        self.knowledge_embedded = true;
         self
     }
 
@@ -649,7 +671,8 @@ pub fn reasoning(
 
 /// One layer's knowledge as that layer's own grammar reads it: off (`knowledge_off`, or on the
 /// environment's layer alone the exact word [`KNOWLEDGE_OFF`]), else its pack before its
-/// snapshot, else nothing said; off beside a source on the layer is a contradiction.
+/// snapshot before the embedded release it names, else nothing said; off beside a source on the
+/// layer is a contradiction.
 fn layer_choice(
     settings: &AuthoringSettings,
     layer: KnowledgeLayer,
@@ -666,6 +689,9 @@ fn layer_choice(
             dir: dir.clone(),
             exclude_corpus: exclude.cloned(),
             identity: settings.knowledge_identity.clone(),
+        }),
+        (None, _) if settings.knowledge_embedded => Some(KnowledgeSource::Embedded {
+            exclude_corpus: exclude.cloned(),
         }),
         (None, _) => None,
     };

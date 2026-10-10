@@ -30,8 +30,9 @@ async fn judged_record() -> (Value, String) {
 /// this verifier is not asked again on these bytes, in this compile or a later round carrying
 /// the verdict.
 const HELD_DEFECTS: &str = "The candidate was judged and not accepted: the parts named above stay missing. It is shown, never offered, and nothing was written; this verifier is not asked again on these bytes, in this compile or in a later round that carries this verdict. A correction of the request, another authoring model or another verifier can decide it.";
-/// What a held candidate offers once its judge rejected it with no defect located.
-const HELD: &str = "The candidate was judged and not accepted, with no defect a repair could start from: it is shown, never offered, and nothing was written. A correction of the request or another verifier can decide it.";
+/// What a candidate whose whole request the judge rejected, nothing narrower standing, is held
+/// with: nothing is verified; the request's three parts were asked alone.
+const UNRESOLVED: &str = "The verifier doubted the request as a whole but located nothing: asked alone, none of its parts (3) was found missing, no task was found doing anything the request does not ask, and no run of these bytes decided it. Nothing is verified: the workflow is shown, never proposed, and nothing was written. Review it and describe a correction, or choose another verifier.";
 /// What a held candidate offers once its judge abstained: an abstention is never carried to a
 /// later round, so a new round that authors again can decide it.
 const HELD_ABSTAINED: &str = "The verifier read the candidate and abstained: it neither accepted nor rejected it, and located no defect. It is shown, never offered, and nothing was written; it is not asked again on these bytes in this compile. A correction of the request, another verifier, or a new round that authors again can decide it.";
@@ -390,31 +391,38 @@ fn abstaining_whole(asked: &Asked<'_>) -> String {
 
 /// That answer round is READY only on a faithful whole request: the same judge carrying the
 /// clause and each part but answering the whole request `unfaithful` contests it with no trial
-/// run to decide it, and one abstaining on it leaves it unknown. Neither is READY; each declined
+/// run to decide it (asked where that doubt is, it names nothing: unresolved), and one
+/// abstaining on it leaves it unknown. The engine's facts settle every task (the read and the
+/// write are the request's own), so no extra question is asked. Neither is READY; each declined
 /// the bytes, so they stay the preview, held, and the record is dropped.
 #[tokio::test]
 async fn a_cold_answer_round_is_ready_only_on_a_faithful_whole_request() {
     let (failed, record) = failed_whole().await;
-    let roles = [
-        "judge_clause",
-        "judge_request",
-        "judge_part",
-        "judge_part",
-        "judge_part",
-        "judge_extra",
-    ];
+    let roles = |last: Option<&'static str>| {
+        let mut roles = vec![
+            "judge_clause",
+            "judge_request",
+            "judge_part",
+            "judge_part",
+            "judge_part",
+        ];
+        roles.extend(last);
+        roles
+    };
     let whole = json!([intent(SUM)]);
     let none = json!([]);
     let cases: [(JudgeVerdict, &str, (&Value, &Value), &str); 2] = [
-        (unfaithful_whole, "unfaithful", (&whole, &none), HELD),
+        (unfaithful_whole, "unfaithful", (&whole, &none), UNRESOLVED),
         (abstaining_whole, "none", (&none, &whole), HELD_ABSTAINED),
     ];
     for (verdict, answer, (contested, unknown), words) in cases {
+        // A rejection is asked where it is; an abstention never.
+        let asked = roles((answer == "unfaithful").then_some("judge_doubt"));
         let (out, authored, _) = answered_by(&record, verdict).await;
         assert_eq!(out.status, CompileStatus::Incomplete, "{answer}: {out:#?}");
         assert_eq!(out.candidate, failed.candidate, "{answer}: the same bytes");
         assert_eq!(authored, 0, "{answer}: {out:#?}");
-        assert_eq!(judged(&out), roles, "{answer}: {out:#?}");
+        assert_eq!(judged(&out), asked, "{answer}: {out:#?}");
         let recorded = attempt(&out);
         assert_eq!(recorded["doubt"], json!([answer]), "{recorded:#}");
         let open = (&recorded["contested"], &recorded["unknown"]);

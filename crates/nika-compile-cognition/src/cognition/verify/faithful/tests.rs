@@ -25,9 +25,7 @@ use nika_kernel::ai::provider::{
 };
 use serde_json::{Value, json};
 
-use super::super::{
-    CLAUSE, CREATED, Declined, Judge, REVISED, REVISED_APPENDED, Verdict, WHOLE, parts, state,
-};
+use super::super::{CLAUSE, Declined, Judge, Verdict, WHOLE, parts, state};
 use super::{
     EXTRA, OBSERVED, OBSERVED_PART, PART, POINT, POINT_OMITTED, Pointed, RESTRICTING, RUN,
     restricts, task_ids, whole,
@@ -37,8 +35,9 @@ use crate::cognition::knowledge::sha256;
 use crate::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionError, DecisionSeat};
 use crate::plan::Plan;
 use crate::{AuthoringPolicy, CompileOutcome, CompileRequest};
+use nika_compile_seats::judge::{CREATED, REVISED, REVISED_APPENDED};
 
-use Kind::{Extra, Observed, ObservedPart, Part, Point, Request};
+use Kind::{Extra, Locate, Observed, ObservedPart, Part, Point, Request};
 use Reply::{Choose, Fail, Prose};
 
 /// The parts of one step put to a decision seat together.
@@ -48,6 +47,9 @@ mod batched;
 mod declined;
 /// What the judged bytes hold of the lent catalogue, told to every question judging them.
 mod held;
+/// What the engine's facts settle of the extra-operation question, and where a doubt nothing
+/// else located is asked to be.
+mod located;
 /// The questions over a run of these bytes.
 mod observed;
 /// Which part a task question may call an operation no task performs.
@@ -100,12 +102,8 @@ const NO_TASK_NAMED: &str =
 /// The extra-operation question a candidate that does not parse is never asked.
 const UNPARSED: &str =
     "whether any task does something the request does not ask (the candidate does not parse)";
-/// The extra-operation question answered with the task that reads the request's own source.
-const READS_STATED: &str = "whether any task does something the request does not ask (the judge named `load`, which has no effect the request could leave unasked)";
-/// The extra question when the judge names the write of the destination the request names.
-const WRITES_STATED: &str = "whether any task does something the request does not ask (the judge named `save`, which has no effect the request could leave unasked)";
-/// The extra question when the judge names the jq filter: no effect, so it decides nothing.
-const NO_EFFECT: &str = "whether any task does something the request does not ask (the judge named `keep`, which has no effect the request could leave unasked)";
+/// What the localizing question asked of a doubt nothing located says it asks.
+const LOCATE: &str = "Locate your doubt.";
 /// The defect an extra operation leaves; its note names the task.
 const EXTRA_DEFECT: &str = "only what the request asks";
 /// The note of a part no task performs.
@@ -168,11 +166,14 @@ enum Kind {
     ObservedPart,
     /// The whole request asked over a run of these bytes.
     Observed,
+    /// Where a doubt nothing located is, asked with no run of these bytes.
+    Locate,
 }
 
 impl Kind {
     /// The question offering `keys`: the whole request over a run offers `consistent` (beside
-    /// `unexercised`); a part over a run offers `unexercised` and never `consistent`.
+    /// `unexercised`); a part over a run offers `unexercised` and never `consistent`; where a doubt
+    /// is, `unlocated`.
     fn of(keys: &[String]) -> Self {
         let offers = |key: &str| keys.iter().any(|offered| offered == key);
         if offers("consistent") {
@@ -187,6 +188,8 @@ impl Kind {
             Point
         } else if offers("only_requested") {
             Extra
+        } else if offers("unlocated") {
+            Locate
         } else {
             panic!("no whole-request question offers {keys:?}")
         }
@@ -455,8 +458,9 @@ fn observed(input_whole: bool, output_whole: bool) -> Value {
     })
 }
 
-/// A doubt (`doubt`) no part locates: each of `count` parts carried, no task doing more, then
-/// `last` when given.
+/// A doubt (`doubt`) no part locates: each of `count` parts carried, then `last` when given.
+/// Over [`CANDIDATE`] and [`ORDERS`] the engine's facts then settle every task (its read is the
+/// request's source, its write the output a carried part states), so no extra question is asked.
 fn undisputed(
     doubt: &'static str,
     count: usize,
@@ -464,9 +468,14 @@ fn undisputed(
 ) -> Vec<(Kind, Reply)> {
     let mut script = vec![(Request, Choose(doubt))];
     script.extend(repeat_n((Part, Choose("carried")), count));
-    script.push((Extra, Choose("only_requested")));
     script.extend(last);
     script
+}
+
+/// [`CANDIDATE`] writing `./out/elsewhere.json`, a path the request never names: its `save` is
+/// the one task the engine's facts leave open.
+fn elsewhere() -> String {
+    CANDIDATE.replace("./out/open.json", "./out/elsewhere.json")
 }
 
 /// An unfaithful request of `count` parts whose part `at` is judged missing, its task question
@@ -866,7 +875,10 @@ async fn no_operation_is_offered_only_to_a_plain_part_of_a_request_of_several() 
             let answer = if plain { "no_operation" } else { "carried" };
             script.push((Part, Choose(answer)));
         }
+        // A task the facts leave open (a path these requests never name, or the write of a part
+        // asking nothing) is asked about; nothing located, the doubt is asked where it is.
         script.push((Extra, Choose("only_requested")));
+        script.push((Locate, Choose("unlocated")));
         let judge = Scripted::new(script);
         let Judged { verdict, .. } = provided(intent, &judge, None).await;
         let sent = judge.sent.lock().unwrap();
@@ -1064,104 +1076,31 @@ async fn a_whole_none_left_without_any_choice_stays_unknown_never_contested() {
     assert_eq!(judge.left(), 0);
 }
 
-/// When no part is missing, one question asks which task, if any, does something the request
-/// does not ask: a task named that has an effect (a write the request does not name) is a defect
-/// whose note names it, never contested; a task with no effect the request could leave unasked
-/// (the read of the source the request names, a jq filter, the write of the destination it
-/// names) serves it, so naming it decides nothing; a question
-/// left without a choice stays unknown in its own words, and the rejected request contested. A call that got no answer stops: the extra question is unknown
-/// as unanswered (never as a choice the judge did not make), the request unknown, never
-/// contested.
-#[tokio::test]
-async fn the_extra_question_names_a_task_as_a_defect_or_stays_unknown() {
-    let extra = |task: &str| {
-        format!(
-            "the judge points to the task {task}, which does something the request does not ask"
-        )
-    };
-    let save = extra("save");
-    let disputed =
-        |unknown: &str| found(&[], &[unknown], &[ORDERS], &["unfaithful"], &[UNOBSERVED]);
-    let cases = [
-        (
-            Choose("task-save"),
-            found(
-                &[(EXTRA_DEFECT, save.as_str())],
-                &[],
-                &[],
-                &["unfaithful"],
-                &[],
-            ),
-            (5, 5, 5),
-        ),
-        (Choose("task-save"), disputed(WRITES_STATED), (5, 5, 5)),
-        (Choose("task-keep"), disputed(NO_EFFECT), (5, 5, 5)),
-        (Choose("task-load"), disputed(READS_STATED), (5, 5, 5)),
-        (Choose("none"), disputed(EXTRA_UNSETTLED), (5, 5, 4)),
-        (
-            Fail,
-            found(&[], &[EXTRA_UNANSWERED, ORDERS], &[], &["unfaithful"], &[]),
-            (5, 4, 4),
-        ),
-    ];
-    // The first case's candidate writes a file the request never names; every other writes
-    // the destination it names.
-    let elsewhere = CANDIDATE.replace("./out/open.json", "./out/elsewhere.json");
-    for (k, (reply, expected, calls)) in cases.into_iter().enumerate() {
-        let mut script = vec![(Request, Choose("unfaithful"))];
-        script.extend(repeat_n((Part, Choose("carried")), 3));
-        script.push((Extra, reply));
-        let judge = Scripted::new(script);
-        let candidate = if k == 0 {
-            elsewhere.as_str()
-        } else {
-            CANDIDATE
-        };
-        let policy = AuthoringPolicy::new(MODEL, 256, Duration::from_secs(2));
-        let provider = Judge::Provider(&policy, &judge);
-        let request = CompileRequest::create(ORDERS);
-        let Judged { verdict, .. } = judged(ORDERS, &request, candidate, &provider, None).await;
-        assert_eq!(ids(&verdict).last(), Some(&"verify-extra"), "{reply:?}");
-        let asked = record(&verdict, "verify-extra");
-        assert_eq!(asked["role"], "judge_extra");
-        let options = json!([
-            "only_requested",
-            "task-load",
-            "task-keep",
-            "task-save",
-            "none"
-        ]);
-        assert_eq!(asked["options"], options);
-        assert_eq!(asked.get("clause"), None);
-        assert_eq!(lists(&verdict), expected, "{reply:?}");
-        assert_eq!(counts(&verdict), calls, "{reply:?}");
-        assert_eq!(verdict.stopped, matches!(reply, Fail), "{reply:?}");
-        assert_eq!(verdict.judgments, NO_JUDGMENT);
-        assert_eq!(judge.left(), 0);
-    }
-}
-
 /// A doubt no part locates and no task explains is a disagreement (R6): with no run of these
 /// bytes it stays contested, its reason recorded, with no judgment: never READY. A candidate
 /// that names no task, or does not parse, is not asked the extra question, which stays unknown
 /// with that reason.
 #[tokio::test]
 async fn a_disagreement_without_an_observation_is_contested_never_ready() {
-    let judge = Scripted::new(undisputed("unfaithful", 3, None));
+    let judge = Scripted::new(undisputed(
+        "unfaithful",
+        3,
+        Some((Locate, Choose("unlocated"))),
+    ));
     let Judged { verdict, .. } = provided(ORDERS, &judge, None).await;
     let asked = [
         "verify-request",
         "verify-part-0",
         "verify-part-1",
         "verify-part-2",
-        "verify-extra",
+        "verify-doubt",
     ];
     assert_eq!(ids(&verdict), asked);
-    assert_eq!(record(&verdict, "verify-extra")["choice"], "only_requested");
+    assert_eq!(record(&verdict, "verify-doubt")["choice"], "unlocated");
     let disputed = found(&[], &[], &[ORDERS], &["unfaithful"], &[UNOBSERVED]);
     assert_eq!(lists(&verdict), disputed);
     assert_eq!(verdict.judgments, NO_JUDGMENT);
-    assert!(!verdict.settled() && verdict.doubted());
+    assert!(!verdict.settled() && verdict.doubted() && verdict.unresolved());
     assert_eq!(counts(&verdict), (5, 5, 5));
     assert_eq!(judge.left(), 0);
     let policy = AuthoringPolicy::new(MODEL, 256, Duration::from_secs(2));
@@ -1189,6 +1128,7 @@ fn asks(kind: Kind) -> &'static [&'static str] {
         Extra => &[EXTRA],
         ObservedPart => &[RUN, OBSERVED_PART],
         Observed => &[RUN, OBSERVED],
+        Locate => &[LOCATE],
     }
 }
 
@@ -1276,12 +1216,16 @@ async fn an_appended_change_is_framed_as_the_earlier_request_followed_by_the_cha
         "Change: Also list the meetings of the week",
     ];
     assert_eq!(parts(&intent), split);
-    let judge = Scripted::new(undisputed("unfaithful", 3, None));
+    // The candidate's read and write are paths this request never names: the extra question is
+    // asked, then, nothing located and no run, where the doubt is.
+    let mut script = undisputed("unfaithful", 3, Some((Extra, Choose("only_requested"))));
+    script.push((Locate, Choose("unlocated")));
+    let judge = Scripted::new(script);
     let policy = AuthoringPolicy::new(MODEL, 256, Duration::from_secs(2));
     let provider = Judge::Provider(&policy, &judge);
     let Judged { verdict, .. } = judged(&intent, &request, CANDIDATE, &provider, None).await;
     let sent = judge.sent.lock().unwrap();
-    assert_eq!(sent.len(), 5);
+    assert_eq!(sent.len(), 6);
     let revision = json!({"change": change, "base_request": original, "appended": true});
     for (k, sent) in sent.iter().enumerate() {
         let told = &sent.told;
@@ -1372,12 +1316,12 @@ async fn a_negation_is_a_restriction_and_every_part_record_names_its_clause() {
 #[tokio::test]
 async fn a_selected_seat_answers_the_same_questions_under_its_own_name() {
     let observation = observed(true, true);
+    // Every part carried, the engine's facts settle every task: no extra question is asked.
     let seat = Seated::new([
         ("verify-request", Ok("none")),
         ("verify-part-0", Ok("carried")),
         ("verify-part-1", Ok("carried")),
         ("verify-part-2", Ok("carried")),
-        ("verify-extra", Ok("only_requested")),
         ("verify-observed", Ok("consistent")),
     ]);
     let request = CompileRequest::create(ORDERS);
@@ -1392,19 +1336,16 @@ async fn a_selected_seat_answers_the_same_questions_under_its_own_name() {
     assert!(verdict.settled() && !verdict.doubted());
     let asked = seat.asked();
     assert_eq!(asked[1].state["clause"], json!({"text": ORDER_PARTS[0]}));
-    assert_eq!(asked[5].state["observation"], observation);
+    assert_eq!(asked[4].state["observation"], observation);
     let run = [
         "consistent",
         "unexercised",
         "part-0",
         "part-1",
         "part-2",
-        "task-load",
-        "task-keep",
-        "task-save",
         "none",
     ];
-    assert_eq!(asked[5].keys(), run);
+    assert_eq!(asked[4].keys(), run);
     let seat = Seated::new([
         ("verify-request", Ok("unfaithful")),
         ("verify-part-0", Ok("no_operation")),

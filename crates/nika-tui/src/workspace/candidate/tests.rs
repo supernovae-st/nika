@@ -7,8 +7,20 @@
 //! review keeps only what changes the decision, each continuation hung under its fact.
 
 use super::*;
+use crate::visual::role;
+use crate::workspace::cards::review::OR;
+use crate::workspace::inspect::Inspected;
+use crate::workspace::text::twins;
+use nika_display::theme::Role;
+use nika_session::ProposalId;
 use nika_session::change::Witness;
+use nika_session::work::DocumentRevision;
+use nika_tui_view::Face;
+use ratatui::text::Line;
 use unicode_width::UnicodeWidthStr;
+
+/// How the faces' witness row says a key turns the face.
+const FACES: &str = "Left/Right change the face";
 
 const SOURCE: &str = "nika: copy-brief\npermits:\n  fs: { read: [\"./notes/brief.md\"], write: [\"./out/copy.md\"] }\n  tools: [\"nika:read\", \"nika:write\"]\ntasks:\n  read_source:\n    invoke: { tool: \"nika:read\", args: { path: \"./notes/brief.md\" } }\n  write_output:\n    with: { text: \"${{ tasks.read_source.output }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"./out/copy.md\", content: \"${{ with.text }}\" } }\n";
 
@@ -290,6 +302,7 @@ fn a_fold_is_the_same_candidate_only_when_every_fact_is() {
     assert_ne!(a, a.clone().reaching(None), "another reach");
     let runs = a.clone().running(Some(RunAfter::Saved));
     assert_ne!(a, runs, "another save & run");
+    assert_ne!(a, a.clone().recording(rebound()), "another compile record");
     assert_eq!(a.path(), "copy-brief.nika");
     assert_eq!(a.label(), "proposal copy-brief.nika");
 }
@@ -366,6 +379,141 @@ fn a_document_revision_is_stated_with_each_component_and_its_witness() {
     );
 }
 
+/// A revision record over saved bytes: two components, one expanded with its release, admitted
+/// file and bindings, one invoked from a release that states no digest.
+fn rebound() -> Option<DocumentRevision> {
+    let raw = serde_json::json!({"mode": "operations",
+        "base_sha256": "b".repeat(64), "candidate_sha256": "c".repeat(64),
+        "changed": ["tasks.filter_records.invoke.args.expression"],
+        "preservation": "verified: every other byte is the base's",
+        "components": [
+            {"component": {"id": "block:json-filter-records", "file_sha256": "f".repeat(64),
+                "release": {"version": "1.0.0", "snapshot_sha256": "e".repeat(64)}},
+             "bindings": [{"path": "const.source_path", "bound": "./in/tickets.json"},
+                {"path": "tasks.filter_records.invoke.args.expression",
+                 "bound": "[.[] | select(.age_hours > 72)]"}]},
+            {"component": {"id": "block:stale-filter-report", "release": {"version": "r1"}}}]});
+    DocumentRevision::of(&raw, &["expanded".to_owned(), "invoked".to_owned()])
+}
+
+/// The check face holds one detail of the typed compile record bound to these bytes: how they
+/// were made, then each admitted component with its version, release and admitted-file digests,
+/// bindings and what these bytes show of it now, every row whole at every width in both glyph
+/// columns. The reviewed face keeps it; no other face repeats it.
+#[test]
+fn the_check_face_details_the_compile_record_bound_to_these_bytes() {
+    let candidate = fold("preview R", false, None).recording(rebound());
+    let squeezed = |text: &str| text.split_whitespace().collect::<String>();
+    for width in [24_u16, 36, 52, 80, 120] {
+        for ascii in [false, true] {
+            let at = format!("{width} ascii={ascii}");
+            let (_, body) = candidate.face_lines(Face::Check, width, ascii, false);
+            let shown = rows(&body);
+            let text = squeezed(&shown.join(" "));
+            let sep = if ascii { "-" } else { "·" };
+            for said in [
+                format!("compile record {sep} operations {sep} binds these bytes, sha256 {}", "c".repeat(12)),
+                format!("over the base, sha256 {}", "b".repeat(12)),
+                format!("changed {sep} tasks.filter_records.invoke.args.expression"),
+                format!("preservation {sep} verified: every other byte is the base's"),
+                format!(
+                    "block:json-filter-records {sep} expanded 1.0.0 release {} {sep} file {}",
+                    "e".repeat(12),
+                    "f".repeat(12)
+                ),
+                r#"const.source_path = "./in/tickets.json""#.to_owned(),
+                r#"tasks.filter_records.invoke.args.expression = "[.[] | select(.age_hours > 72)]""#
+                    .to_owned(),
+                format!("block:stale-filter-report {sep} invoked r1"),
+            ] {
+                assert!(text.contains(&squeezed(&said)), "{at}: {said}\n{shown:#?}");
+            }
+            let fits = shown.iter().all(|row| row.width() <= usize::from(width));
+            assert!(fits, "{at}\n{shown:#?}");
+            let from = shown
+                .iter()
+                .position(|row| row.starts_with("compile record"));
+            let detail = from.map_or(&[][..], |at| &shown[at..]);
+            assert!(detail.len() > 8, "{at}\n{shown:#?}");
+            let twinned = !ascii || !detail.iter().any(|row| row.contains('·'));
+            assert!(twinned, "{at}: the ASCII twins\n{detail:#?}");
+        }
+    }
+    let reviewed = candidate.reviewed_face_lines(Face::Check, 80, false, false, false);
+    assert!(
+        rows(&reviewed.1).join("\n").contains("compile record"),
+        "the reviewed face keeps it"
+    );
+    for face in [Face::Source, Face::Plan, Face::Graph] {
+        let (_, body) = candidate.face_lines(face, 120, false, false);
+        assert!(
+            !rows(&body).join("\n").contains("compile record"),
+            "{face:?}: one detail"
+        );
+    }
+    let (_, bare) = fold("preview R", false, None).face_lines(Face::Check, 120, false, false);
+    assert!(
+        !rows(&bare).join("\n").contains("compile record"),
+        "no record, no detail"
+    );
+}
+
+/// `expanded` and `invoked` wear the admitted role, each under its own word; a component the
+/// bytes no longer hold as bound, or that nobody witnessed, wears attention, as does a record
+/// that is no ordinary making of its bytes.
+#[test]
+fn admitted_reuse_and_attention_wear_their_own_roles() {
+    let row = |candidate: &Proposed, start: &str| {
+        let (_, body) = candidate.face_lines(Face::Check, 120, false, true);
+        let found = body
+            .into_iter()
+            .find(|line| line.to_string().starts_with(start));
+        found.unwrap_or_else(|| panic!("a row starting {start}"))
+    };
+    for (witness, tone) in [
+        ("expanded", Role::Good),
+        ("invoked", Role::Good),
+        ("revised", Role::Warn),
+        ("absent", Role::Warn),
+        ("unreadable", Role::Warn),
+        ("unwitnessed", Role::Warn),
+    ] {
+        let raw = serde_json::json!({"mode": "composed", "candidate_sha256": "c".repeat(64),
+            "components": [{"component": {"id": "block:x", "release": {"version": "1"}}}]});
+        let record = DocumentRevision::of(&raw, &[witness.to_owned()]);
+        let candidate = fold("preview W", false, None).recording(record);
+        let named = row(&candidate, &format!("block:x · {witness}"));
+        assert_eq!(named.style, role::style(tone, true), "{witness}");
+        let head = row(&candidate, "compile record · composed");
+        assert_eq!(head.style, role::style(Role::Strong, true), "{witness}");
+    }
+    let raw = serde_json::json!({"mode": "replaced", "base_sha256": "b", "candidate_sha256": "c"});
+    let whole = fold("preview W", false, None).recording(DocumentRevision::of(&raw, &[]));
+    let head = row(&whole, "compile record · replaced");
+    assert_eq!(head.style, role::style(Role::Warn, true), "a whole rewrite");
+}
+
+/// A release name stands whole on its own row wherever the row holds it, the
+/// witness beside the component's id.
+#[test]
+fn a_release_version_stands_whole_on_its_own_row() {
+    let version = "knowledge-0.123.0-r2-json-filter-records-20261009";
+    let raw = serde_json::json!({"mode": "composed", "candidate_sha256": "c".repeat(64),
+        "components": [{"component": {"id": "block:json-filter-records",
+            "release": {"version": version}}}]});
+    let record = DocumentRevision::of(&raw, &["expanded".to_owned()]);
+    let candidate = fold("preview V", false, None).recording(record);
+    for width in [51_u16, 80, 120] {
+        let (_, body) = candidate.face_lines(Face::Check, width, false, false);
+        let shown = rows(&body);
+        let whole = shown.iter().any(|row| row.trim() == version);
+        let named = shown
+            .iter()
+            .any(|row| row == "block:json-filter-records · expanded");
+        assert!(whole && named, "{width}\n{shown:#?}");
+    }
+}
+
 /// A draft lands nowhere yet: its label takes the title its object shows,
 /// never the path it holds until a proposal says where, and says it is
 /// unsaved without one; a proposal's label names where it lands.
@@ -380,4 +528,38 @@ fn a_draft_takes_its_object_title_never_its_placeholder_path() {
     assert_eq!(unsaved.label(), "draft (unsaved)");
     let proposal = Proposed::new(ProposalId::of("p"), false, bare);
     assert_eq!(proposal.label(), "proposal draft.nika");
+}
+
+/// A release name that cannot stand whole on a row of the card leaves the
+/// component's row to its shorter whole form (the check face keeps the name),
+/// never broken mid-word; a name that fits keeps its place; the faces' head
+/// reads the first form.
+#[test]
+fn a_release_name_too_long_for_the_card_leaves_its_row_whole() {
+    let long = "knowledge-0.123.0-r2-json-filter-records-20261009";
+    let row = |version: &str| {
+        let id = "block:json-filter-records";
+        format!("component · {id} {version} · invoked{OR}component · {id} · invoked")
+    };
+    for (version, width, kept) in [(long, 40, false), (long, 76, true), ("1.0.0", 40, true)] {
+        let candidate = fold("preview R", false, None).revising(vec![(row(version), false)]);
+        let review = candidate.review(false).expect("a review");
+        let shown = rows(&review.lines(false, false, width));
+        assert!(
+            shown.iter().all(|r| r.width() <= usize::from(width)),
+            "{shown:#?}"
+        );
+        let text = shown.join("\n");
+        assert_eq!(text.contains(version), kept, "{version} at {width}: {text}");
+        let words = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(
+            words.contains("block:json-filter-records · invoked") || kept,
+            "{text}"
+        );
+        assert!(!text.contains(OR), "{text}");
+    }
+    let candidate = fold("preview R", false, None).revising(vec![(row(long), false)]);
+    let (_, body) = candidate.face_lines(Face::Source, 120, false, false);
+    let head = rows(&body).join("\n");
+    assert!(head.contains(long) && !head.contains(OR), "{head}");
 }

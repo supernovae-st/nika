@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Status | **MEMBER** (size-cap split of `nika-compile-cognition`, itself a member of the admitted `nika-onboard` unit · ADR-146 · D-2026-07-09-N1 · 2026-10-07) |
-| Layer | L4 — a library surface; lateral L4→L4 edges `nika-compile-cognition → nika-compile-seats → nika-compile`, never back |
+| Layer | L4 — a library surface; lateral L4→L4 edges `nika-compile-cognition → nika-compile-seats → nika-compile`, never back; downward `nika-compile-seats → nika-check` (L0), the checker's own effect inference behind `judge::Effects` |
 | Design | the two capabilities a host lends a preparation of the Compile core: the bounded decision seats (`decide`) and the rehearsal port (`rehearse`), with the reasoning record their calls share (`reasoning`); kept under their historical paths `nika_compile_cognition::{decide, rehearse}` |
 | IMPL | measured by `scripts/crate-metrics.sh nika-compile-seats` at each freeze; the crate carries what `nika-compile-cognition` held in `decide.rs`, `rehearse.rs`, `rehearse/{judged, observed}.rs` and the two reasoning helpers of `cognition/receipt.rs` on 2026-10-07, with their tests (the gate's own counter: 1,523 prod LOC at the split) |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn |
@@ -11,7 +11,7 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 (workspace-inherited) |
 | Publish | `false` — member of the `nika-onboard` unit |
-| Dependencies | **read from `Cargo.toml`, which is authoritative** · `nika-compile` (`AuthoringReasoning`) · `nika-kernel` (the provider seam) · `nika-pack` (the skeletons and stdlib page of the shelf) · `nika-compile-fidelity` (`behavior`, the judge's run) · `serde`, `serde_json`, `thiserror`, `tokio` |
+| Dependencies | **read from `Cargo.toml`, which is authoritative** · `nika-compile` (`AuthoringReasoning`, `NativeMode`) · `nika-kernel` (the provider seam) · `nika-pack` (the skeletons and stdlib page of the shelf) · `nika-compile-fidelity` (`behavior`, the judge's run) · `nika-check` (`infer_permits`: what each task of a judged candidate touches, `judge::Effects`) · `nika-providers` (`Envelope`, `Seat`, `Wire`: the request counters the authority resolves, ADR-152) · `serde`, `serde_json`, `thiserror`, `tokio` |
 | NIKA codes | none minted here — `DecisionError` is a seat's failure the doors record and fall back from; a rehearsal states its refusal in its report |
 
 ## 1. Purpose
@@ -43,7 +43,17 @@ as an external consumer.
   item); `ProviderChoice` settles a batch in ONE request (`closed_choices`: the shared words and
   state once, an answer schema keyed by item id; `decoded_each`: each item's key bound by its
   id, an item left without one of its keys failing alone, a failed request failing every item,
-  the request's usage and reasoning riding the first item's answer only).
+  the request's usage and reasoning riding the first item's answer only). `system_one` is the
+  System One wire form of a batch, without transport: `Partition` asks every item in one request
+  and asks a request's items again, in halves, only after the service refused it for capacity
+  (a single item so refused is `over_capacity`). That refusal also bounds the rest of the batch:
+  a waiting request as large as one refused is split in halves, in order, before it leaves, so
+  a sibling half is never sent whole to be refused again (its journal record names the bound it
+  was split under, `split_below`). `Capacity` keeps what a seat's batches learned for as long as
+  the seat lives: one more than the most items a refused batch got answered at once, never at or
+  above a refused size (`Partition::learned`), which only lowers and seeds its later batches
+  (`Partition::seeded`); a batch that never met the capacity teaches nothing. The partition reads
+  no clock: the host measures each request's transport (`Partition::timed`, `elapsed_ms`).
 - `compose` — the candidate composer (ADR-147): the distinct admissible
   COLD plans in first-seen order, each judged by the deterministic `feasibility` filter against
   the reading's floor and the request before any seat sees it, the topology dimensions recalled
@@ -148,8 +158,29 @@ as an external consumer.
   records, its alternative standing over exactly the offers and statuses that state shows, as
   the judge's own history (`history`, bound to the candidate's sha256 and the lent catalogue)
   beside the same construction context: never a fact, and a fit left unknown, no choice or a
-  finding over other statuses is never shown. The verifier that asks the questions and weighs
-  the answers stays in `nika-compile-cognition`.
+  finding over other statuses is never shown. `told` frames a whole-request question by its
+  round (descended from the verifier at its size cap, 2026-10-09): a creation (`CREATED`: a
+  request to author this very workflow is carried by its bytes), a revision in words
+  (`REVISED`, or `REVISED_APPENDED` for a change appended to the earlier request), or a revision
+  over a base document (`REVISED_DOCUMENT` when the base's own request is unknown,
+  `REVISED_OVER_DOCUMENT` when it is known and the base is shown whole). `Effects` states what
+  each task of a judged candidate touches, as `nika-check` infers it over the workflow reduced
+  to that task and its `const:` block, so a path named through a constant resolves as the
+  runtime resolves it. A task that invokes a tool with no effect of its own (a read, a write, a
+  search, a conversion, a jq program, a check), reads only paths the request names and writes
+  only the output a part the judge answered `carried` states, a path no task reads, is settled
+  by the engine: writing the output a carried part asks is that part, never an extra effect.
+  Another verb, a nested workflow, a model call, a process, the network, a tool outside that
+  list, a face the checker cannot pin (a computed path, host or program) or a write elsewhere
+  leaves a task open. `open` lists the open tasks, the only ones a judge may name as doing
+  something the request does not ask; `show` adds each task's facts to a question's state
+  (`effects`) and says what they are; `settled` answers the extra-operation question with no
+  call when none is open (`only_requested`, `by: engine`, with the facts). `Doubt` is the one
+  question that localizes a whole-request rejection nothing else located when no run of the
+  bytes exists (`verify-doubt`): it shows the request's parts with their answers and the
+  facts, and offers each part (`part-<k>`), each open task (`task-<id>`) and `unlocated`;
+  `Located` reads the answer as a part, a task, or nothing. The verifier that asks the
+  questions and weighs the answers stays in `nika-compile-cognition`.
 - `repairs` — the laws that end the verifier's work: `progressed` (a defect set is progress
   when it names a new part or narrows the last set) and `carry_declined` (the record of bytes a
   judge rejected keeps each rejection of them once per judge, context and request, so every
@@ -183,6 +214,16 @@ as an external consumer.
   record, whose preservation claim says what each operation proved; the revision door that
   asks for them and judges the result stays in `nika-compile-cognition`.
 
+`authority` is the authority over a seat's requests, descended from the seats' doors at their
+size cap (2026-10-09, ADR-152) and kept at `nika_compile_cognition::authority`: `Authority`
+(a door's bound resolved against what its caller typed, before any request: `resolve`,
+`max_calls`, `envelope`, `record`), `Typed`, `Door`, `Refusal` (`Multiplicity`, `Strategy`,
+`Range`), the counters it re-exports from the provider layer (`Envelope`, `Seat`, `Wire`),
+`worst_case_of` (the request-independent worst case, unknown for request-dependent work),
+`least_requests`, `recovery_requests`, `usage_complete`, `DEFAULT_MAX_CALLS`, `SAMPLES`,
+`REPAIRS`, and the deprecated historical `worst_case`. The counters bound requests, never
+dollars; nothing here grants a request a door did not state.
+
 `remote` is what a door that holds no project admits from its caller's
 engine: `admit_observation` (the host observer's document only, rows about
 paths the request states or files directly inside a stated folder,
@@ -201,9 +242,12 @@ with its door code and words. Pure: no file, no network.
   with a wildcard arm that records an unknown kind as `unknown` and stops on an unknown outcome,
   never proceeds.
 - This crate never depends on `nika-compile-cognition`.
+- It reads the checker (`nika-check`, L0) for one inference only, `infer_permits`, the facts
+  `judge::Effects` states; the checker never depends back. A downward edge, admitted by the
+  layer rule; the registry row names it.
 
 ## 4. Related
 
-- ADR-146 (this split) · ADR-140 (the seats' doors) · ADR-145 (the clause readings) · ADR-144
-  (the re-export precedent) · D-2026-07-09-N1
+- ADR-146 (this split) · ADR-152 (the authority's descent) · ADR-140 (the seats' doors) ·
+  ADR-145 (the clause readings) · ADR-144 (the re-export precedent) · D-2026-07-09-N1
 - `docs/crate-specs/nika-compile-cognition.md` · the doors, the owner of the orchestration

@@ -5,7 +5,8 @@
 //! the next line answers, with the identity an answer names (and the compiler's question as it
 //! asks it, when one waits), and one snapshot of the request,
 //! the compiler's last word on it (its draft and its calls' receipt included), the intelligence
-//! selected to prepare it, the candidate under review with its exact bytes, the saved workflow,
+//! selected to prepare it, the authoring knowledge it reads (admitted, refused or none), the
+//! candidate under review with its exact bytes, the saved workflow,
 //! the run requested last and the last observed run, each workflow with the reach its exact
 //! bytes declare. The session builds
 //! it from its own state; a terminal, the plain loop or a remote door renders it and decides
@@ -39,9 +40,10 @@ fn question_witness<S: serde::Serializer>(id: &QuestionId, out: S) -> Result<S::
 }
 
 /// What the next line answers, by the session's one precedence: a requested run's cost review,
-/// the one-time cost decision, the choice of intelligence, a proposal's consent, a run's gate,
-/// then the values a question, a run input or an activation asks. Hosts route a line through the
-/// session with it; none keeps a routing bit of its own.
+/// the one-time cost decision, the choice of intelligence, the knowledge choice a held line waits
+/// for, a proposal's consent, a run's gate, then the values a question, a run input or an
+/// activation asks. Hosts route a line through the session with it; none keeps a routing bit of
+/// its own.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
@@ -58,6 +60,13 @@ pub enum Waiting {
     CostChoice,
     /// The first screen: the intelligence the human prepares with.
     IntelligenceChoice,
+    /// The knowledge the configuration names was refused ([`Knowledge::Refused`]): the line that
+    /// would have reached a model next waits here, exactly as typed and sent nowhere, for the one
+    /// supported action (`/knowledge embedded`, which resumes it once); `cancel` drops it.
+    KnowledgeChoice {
+        /// The line held, exactly as typed.
+        line: String,
+    },
     /// A proposal waits for its Save consent; nothing is written before it, and Save is never
     /// a Run.
     Consent {
@@ -262,6 +271,10 @@ pub struct Work {
     /// The intelligence the session prepares with, as selected and resolved: configured facts,
     /// never a receipt of what a call served ([`Work::with_intelligence`]).
     pub intelligence: Option<Intelligence>,
+    /// The authoring knowledge the session reads now ([`Work::with_knowledge`]); absent from the
+    /// wire when the session does not state it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub knowledge: Option<Knowledge>,
     /// What the next line answers.
     pub waiting: Waiting,
     /// The question [`Waiting::Question`] names, while it waits ([`Work::with_question`]);
@@ -330,10 +343,14 @@ pub struct Authoring {
     /// What the compile's authoring calls reported, when it made any: the one actual-call
     /// evidence of the snapshot, beside the [`Intelligence`] that was only selected.
     pub calls: Option<AuthoringCalls>,
+    /// How long the compile's other stages took, as its decision record states them; `None`
+    /// when it names neither a knowledge qualification time nor a trial.
+    pub stages: Option<StageTimes>,
 }
 
 impl Authoring {
-    /// What a host shows of a compile outcome: its word, its draft and its calls' receipt.
+    /// What a host shows of a compile outcome: its word, its draft, its calls' receipt and the
+    /// time its other stages took.
     #[must_use]
     pub fn of(outcome: &CompileOutcome) -> Self {
         Self {
@@ -343,6 +360,58 @@ impl Authoring {
             candidate: (outcome.candidate.as_deref()).map(|source| Witness::of(source.as_bytes())),
             draft: outcome.candidate.clone(),
             calls: (outcome.provenance.authoring.as_ref()).map(AuthoringCalls::of),
+            stages: (outcome.provenance.decision.as_ref()).and_then(StageTimes::of),
+        }
+    }
+}
+
+/// The time a compile's stages beside its authoring calls took, read from its decision record
+/// and never re-derived or summed: the Foundry knowledge qualification (its references asked of
+/// the decision seat as one batch, `knowledge_qualification.elapsed_ms`) and each trial of a
+/// candidate (`rehearsal.reports`). A time the record does not state is `None`, never zero.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct StageTimes {
+    /// The wall time of the knowledge qualification, when the compile states one.
+    pub qualification_ms: Option<u64>,
+    /// Each trial of a candidate, in the order the preparation ran them.
+    pub trials: Vec<TrialTime>,
+}
+
+impl StageTimes {
+    /// The stage times a decision record states; `None` when it states neither.
+    fn of(decision: &serde_json::Value) -> Option<Self> {
+        let qualification_ms = decision["knowledge_qualification"]["elapsed_ms"].as_u64();
+        let reports = decision["rehearsal"]["reports"].as_array();
+        let trials: Vec<TrialTime> = reports.into_iter().flatten().map(TrialTime::of).collect();
+        let stated = qualification_ms.is_some() || !trials.is_empty();
+        stated.then_some(Self {
+            qualification_ms,
+            trials,
+        })
+    }
+}
+
+/// One trial of a candidate through an allowlist of its record: how far it went, how long it ran
+/// and the runtime bound the host gave it; never its outputs, texts or failure message.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct TrialTime {
+    /// How far it went (`completed` · `stopped` · `never_attempted`).
+    pub attempt: Option<String>,
+    /// The wall time it ran, when it was attempted.
+    pub elapsed_ms: Option<u64>,
+    /// The runtime bound the host gave it.
+    pub runtime_bound_ms: Option<u64>,
+}
+
+impl TrialTime {
+    /// The allowlisted facts of one trial report.
+    fn of(report: &serde_json::Value) -> Self {
+        Self {
+            attempt: name(&report["attempt"]),
+            elapsed_ms: report["elapsed_ms"].as_u64(),
+            runtime_bound_ms: report["runtime_bound_ms"].as_u64(),
         }
     }
 }
@@ -614,6 +683,47 @@ impl Author {
         self.transport = Some(transport);
         self
     }
+}
+
+/// The authoring knowledge a session reads beside the card, as it stands now: a release the
+/// strict door admitted, a source the configuration names that was refused, or none read. A
+/// configured fact, never a receipt: whether a call presented the knowledge is the compiler's own
+/// record ([`AuthoringCalls`]). It grants nothing.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum Knowledge {
+    /// A release the strict door admitted, pinned for the session and admitted again at each use.
+    Admitted {
+        /// Where its bytes are read from: `embedded` (the release this build embeds) or `disk`.
+        source: &'static str,
+        /// The release's version, as its manifest names it.
+        version: Option<String>,
+        /// The sha256 of its manifest's bytes: the release's `SNAPSHOT_SHA256`.
+        manifest_sha256: String,
+        /// Who chose it: `default` (nothing named), `conversation` (chosen in it, for it alone)
+        /// or the layer that named it (`host`).
+        by: &'static str,
+    },
+    /// A source the configuration names, refused: nothing of it is read, nothing else replaces it
+    /// silently, and a line that would reach a model waits ([`Waiting::KnowledgeChoice`]).
+    Refused {
+        /// What was named: `snapshot` (a release root) or `pack` (composed for one request).
+        source: &'static str,
+        /// The layer that named it: `environment` or `host`.
+        by: &'static str,
+        /// The refusal's stable code (`ADMISSION_UNTRUSTED` · `PACK_NOT_ADMITTED` …).
+        code: String,
+        /// The cause, in the refusing door's words; no host path. The session's `/details` keeps
+        /// the whole diagnostic.
+        cause: String,
+    },
+    /// No knowledge is read: turned off, not read under the strategy `off`, or a configuration
+    /// refused before any knowledge resolved.
+    Unread {
+        /// Why, in the session's words.
+        why: String,
+    },
 }
 
 /// The decision seat selected for finite choices. Selected is not consulted: whether it answered
@@ -1188,6 +1298,7 @@ impl Work {
             request,
             authoring: None,
             intelligence: None,
+            knowledge: None,
             waiting,
             question: None,
             answered: None,
@@ -1210,6 +1321,13 @@ impl Work {
     #[must_use]
     pub fn with_intelligence(mut self, intelligence: Option<Intelligence>) -> Self {
         self.intelligence = intelligence;
+        self
+    }
+
+    /// The same snapshot with the authoring knowledge the session reads.
+    #[must_use]
+    pub fn with_knowledge(mut self, knowledge: Option<Knowledge>) -> Self {
+        self.knowledge = knowledge;
         self
     }
 

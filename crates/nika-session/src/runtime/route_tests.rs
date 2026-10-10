@@ -109,12 +109,7 @@ fn a_none_factory_is_not_called_to_classify_a_typed_model_answer() {
     let pref = crate::intelligence::UserIntelligencePreference::new(IntelligenceKind::None, None);
     let mut session = SessionRuntime::open_with(
         dir.path(),
-        crate::intelligence::IntelligenceCensus {
-            seats: vec![],
-            api_keys: vec![],
-            locals: vec![],
-            provider_context: Vec::new(),
-        },
+        crate::intelligence::IntelligenceCensus::new(vec![], vec![], vec![]),
         &pref,
         None,
         Box::new(move |_| {
@@ -418,12 +413,7 @@ fn new_work_the_reader_missed_asks_for_an_intelligence_and_keeps_the_line() {
     let line = "Fais-moi le total de ce qu'on a encaissé dans ./data/ventes.csv (uniquement les ventes payées) et mets ça dans ./out/total.md";
     let mut s = SessionRuntime::open_unchosen(
         dir.path(),
-        crate::intelligence::IntelligenceCensus {
-            seats: vec![],
-            api_keys: vec![],
-            locals: vec![],
-            provider_context: Vec::new(),
-        },
+        crate::intelligence::IntelligenceCensus::new(vec![], vec![], vec![]),
         None,
         Box::new(|_| Box::new(NoReasoner)),
     );
@@ -455,12 +445,7 @@ fn a_template_inside_a_business_request_reaches_authoring_intact() {
     let line = "Each training form submission in ./submissions.json should produce a personal completion certificate for the person who submitted it. Fill the template in the same file with the submitter's name and the date part of their submission time. PDF rendering and email delivery are not available in this environment: prepare the certificate texts only and do not send anything. Save ./out/certificates.json as a list of {submission, to, text} in submission order, `to` being the submitter's own email. The submission field in each output row must be the submission id string, not the complete submission object.";
     let mut s = SessionRuntime::open_unchosen(
         dir.path(),
-        crate::intelligence::IntelligenceCensus {
-            seats: vec![],
-            api_keys: vec![],
-            locals: vec![],
-            provider_context: Vec::new(),
-        },
+        crate::intelligence::IntelligenceCensus::new(vec![], vec![], vec![]),
         None,
         Box::new(|_| Box::new(NoReasoner)),
     );

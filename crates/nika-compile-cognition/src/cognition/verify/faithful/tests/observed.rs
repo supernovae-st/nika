@@ -13,7 +13,7 @@
 //! request stays contested. Every question over the run keeps the run's receipts on its record,
 //! never its texts.
 
-use super::declined::{HELD, assert_held};
+use super::declined::{assert_held, unresolved};
 use super::*;
 
 /// Why a run read in part, or one that did not write every output it was read for, decides
@@ -29,10 +29,6 @@ const UNPOINTED: &str = "the judge named a part in the trial run but no task tha
 /// Why a run whose inputs never exercise some part of the request decides nothing.
 const UNEXERCISED: &str =
     "the trial run's inputs never exercise some part of the request: it proves no whole output";
-/// Why naming, over the run, a task with no effect the request could leave unasked decides
-/// nothing.
-const READ_ONLY_OVER_RUN: &str =
-    "the judge named a task with no effect the request could leave unasked, which decides nothing";
 /// The texts [`observed`] holds.
 const READ: &str = r#"[{"id":1,"status":"open"},{"id":2,"status":"cancelled"}]"#;
 const WROTE: &str = r#"[{"id":1,"status":"open"}]"#;
@@ -41,18 +37,14 @@ const WROTE: &str = r#"[{"id":1,"status":"open"}]"#;
 const OVER_A_PART: [&str; 5] = ["carried", "missing", "unexercised", "superseded", "none"];
 
 /// The options of the question over a run of [`CANDIDATE`]: every part of [`ORDERS`], whatever
-/// the bytes made of it.
-const OVER_THE_RUN: [&str; 9] = [
-    "consistent",
-    "unexercised",
-    "part-0",
-    "part-1",
-    "part-2",
-    "task-load",
-    "task-keep",
-    "task-save",
-    "none",
-];
+/// the bytes made of it, then each of `open`, the tasks the engine's facts leave open.
+fn over_the_run(open: &[&str]) -> Value {
+    let mut options = vec!["consistent", "unexercised", "part-0", "part-1", "part-2"];
+    let tasks: Vec<String> = open.iter().map(|task| format!("task-{task}")).collect();
+    options.extend(tasks.iter().map(String::as_str));
+    options.push("none");
+    json!(options)
+}
 
 /// What the record of a question over [`observed`] keeps of it: the digests and sizes of its
 /// texts, never the texts.
@@ -174,7 +166,6 @@ async fn a_part_a_later_correction_supersedes_asks_nothing_of_the_candidate() {
         "part-0",
         "part-1",
         "task-load",
-        "task-keep",
         "task-save",
         "none"
     ]);
@@ -200,12 +191,12 @@ async fn a_consistent_run_read_whole_carries_the_request() {
     let Judged {
         verdict, binding, ..
     } = provided(ORDERS, &judge, Some(&observation)).await;
+    // Every part carried, the engine's facts settle every task: no extra question.
     let asked = [
         "verify-request",
         "verify-part-0",
         "verify-part-1",
         "verify-part-2",
-        "verify-extra",
         "verify-observed",
     ];
     assert_eq!(ids(&verdict), asked);
@@ -213,10 +204,10 @@ async fn a_consistent_run_read_whole_carries_the_request() {
     assert_eq!(verdict.judgments, [judgment]);
     assert_eq!(lists(&verdict), found(&[], &[], &[], &["unfaithful"], &[]));
     assert!(verdict.settled() && !verdict.doubted());
-    assert_eq!(counts(&verdict), (6, 6, 6));
+    assert_eq!(counts(&verdict), (5, 5, 5));
     let run = record(&verdict, "verify-observed");
     assert_eq!(run["role"], "judge_observed");
-    assert_eq!(run["options"], json!(OVER_THE_RUN));
+    assert_eq!(run["options"], over_the_run(&[]));
     witnessed(&verdict, &observation);
     let sent = judge.sent.lock().unwrap();
     let (shown, before) = sent.split_last().unwrap();
@@ -245,7 +236,6 @@ async fn a_consistent_run_decides_the_parts_the_localization_left_open() {
         (Part, Choose("carried")),
         (ObservedPart, Choose("carried")),
         (ObservedPart, Choose("carried")),
-        (Extra, Choose("only_requested")),
         (Observed, Choose("consistent")),
     ]);
     let observation = observed(true, true);
@@ -260,7 +250,6 @@ async fn a_consistent_run_decides_the_parts_the_localization_left_open() {
         "verify-part-2",
         "verify-observed-part-0",
         "verify-observed-part-1",
-        "verify-extra",
         "verify-observed",
     ];
     assert_eq!(ids(&verdict), asked);
@@ -272,14 +261,14 @@ async fn a_consistent_run_decides_the_parts_the_localization_left_open() {
         assert_eq!(over["clause"], clause);
     }
     let run = record(&verdict, "verify-observed");
-    assert_eq!(run["options"], json!(OVER_THE_RUN));
+    assert_eq!(run["options"], over_the_run(&[]));
     witnessed(&verdict, &observation);
     let judgment = carried(ORDERS, "verify-observed", MODEL, &binding);
     assert_eq!(verdict.judgments, [judgment]);
     assert_eq!(verdict.settled_by, Some("verify-observed"));
     assert_eq!(lists(&verdict), found(&[], &[], &[], &["unfaithful"], &[]));
     assert!(verdict.settled() && !verdict.doubted());
-    assert_eq!(counts(&verdict), (9, 9, 8));
+    assert_eq!(counts(&verdict), (8, 8, 7));
     let sent = judge.sent.lock().unwrap();
     shown_the_run(&sent[5], &observation, Some(ORDER_PARTS[0]));
     shown_the_run(&sent[6], &observation, Some(ORDER_PARTS[1]));
@@ -306,7 +295,7 @@ async fn a_part_the_run_never_exercises_stays_open_and_the_request_contested() {
                 &["unfaithful"],
                 &[OPEN_AFTER_RUN],
             ),
-            (7, 7, 7),
+            (6, 6, 6),
         ),
         (
             Choose("none"),
@@ -317,7 +306,7 @@ async fn a_part_the_run_never_exercises_stays_open_and_the_request_contested() {
                 &["unfaithful"],
                 &[OPEN_AFTER_RUN],
             ),
-            (7, 7, 6),
+            (6, 6, 5),
         ),
     ];
     for (over_the_run, expected, calls) in cases {
@@ -328,7 +317,6 @@ async fn a_part_the_run_never_exercises_stays_open_and_the_request_contested() {
             (Point, Choose("no_task")),
             (Part, Choose("carried")),
             (ObservedPart, over_the_run),
-            (Extra, Choose("only_requested")),
         ]);
         let observation = observed(true, true);
         let Judged { verdict, .. } = provided(ORDERS, &judge, Some(&observation)).await;
@@ -339,7 +327,6 @@ async fn a_part_the_run_never_exercises_stays_open_and_the_request_contested() {
             "verify-point-1",
             "verify-part-2",
             "verify-observed-part-1",
-            "verify-extra",
         ];
         assert_eq!(ids(&verdict), asked, "{over_the_run:?}");
         assert_eq!(lists(&verdict), expected, "{over_the_run:?}");
@@ -355,7 +342,6 @@ async fn a_part_the_run_never_exercises_stays_open_and_the_request_contested() {
         (Part, Choose("carried")),
         (Part, Choose("carried")),
         (ObservedPart, Choose("unexercised")),
-        (Extra, Choose("only_requested")),
     ]);
     let Judged { verdict, .. } = provided(ORDERS, &judge, Some(&observed(true, true))).await;
     let open = found(
@@ -429,7 +415,11 @@ async fn an_undecided_extra_question_leaves_the_question_over_the_run() {
     script.extend([(Extra, Choose("none")), (Observed, Choose("consistent"))]);
     let judge = Scripted::new(script);
     let observation = observed(true, true);
-    let Judged { verdict, .. } = provided(ORDERS, &judge, Some(&observation)).await;
+    let policy = AuthoringPolicy::new(MODEL, 256, Duration::from_secs(2));
+    let provider = Judge::Provider(&policy, &judge);
+    let request = CompileRequest::create(ORDERS);
+    let run = Some(&observation);
+    let Judged { verdict, .. } = judged(ORDERS, &request, &elsewhere(), &provider, run).await;
     let asked = [
         "verify-request",
         "verify-part-0",
@@ -510,9 +500,10 @@ async fn a_run_read_in_part_or_not_writing_every_output_is_never_asked_over() {
         unwritten,
         skipped,
     ] {
-        let judge = Scripted::new(undisputed("unfaithful", 3, None));
+        let located = Some((Locate, Choose("unlocated")));
+        let judge = Scripted::new(undisputed("unfaithful", 3, located));
         let Judged { verdict, .. } = provided(ORDERS, &judge, Some(&observation)).await;
-        assert_eq!(ids(&verdict).last(), Some(&"verify-extra"));
+        assert_eq!(ids(&verdict).last(), Some(&"verify-doubt"));
         let disputed = found(&[], &[], &[ORDERS], &["unfaithful"], &[PARTIAL]);
         assert_eq!(lists(&verdict), disputed, "{observation}");
         assert_eq!(verdict.judgments, NO_JUDGMENT);
@@ -525,7 +516,6 @@ async fn a_run_read_in_part_or_not_writing_every_output_is_never_asked_over() {
         (Part, Choose("none")),
         (Part, Choose("carried")),
         (Part, Choose("carried")),
-        (Extra, Choose("only_requested")),
     ]);
     let Judged { verdict, .. } = provided(ORDERS, &judge, Some(&observed(true, false))).await;
     let open = found(
@@ -553,27 +543,27 @@ async fn a_part_named_in_the_run_asks_its_task_over_the_run() {
         (
             Choose("task-keep"),
             found(&[(part, keep)], &[], &[], &["unfaithful"], &[]),
-            (7, 7, 7),
+            (6, 6, 6),
         ),
         (
             Choose("omitted"),
             found(&[(part, omitted)], &[], &[], &["unfaithful"], &[]),
-            (7, 7, 7),
+            (6, 6, 6),
         ),
         (
             Choose("no_task"),
             found(&[], &[], &[ORDERS], &["unfaithful"], &[UNPOINTED]),
-            (7, 7, 7),
+            (6, 6, 6),
         ),
         (
             Choose("none"),
             found(&[], &[], &[ORDERS], &["unfaithful"], &[NO_CHOICE]),
-            (7, 7, 6),
+            (6, 6, 5),
         ),
         (
             Fail,
             found(&[], &[ORDERS], &[], &["unfaithful"], &[]),
-            (7, 6, 6),
+            (6, 5, 5),
         ),
     ];
     for (pointed, expected, calls) in cases {
@@ -585,7 +575,7 @@ async fn a_part_named_in_the_run_asks_its_task_over_the_run() {
         ));
         judge.script.lock().unwrap().push_back((Point, pointed));
         let Judged { verdict, .. } = provided(ORDERS, &judge, Some(&observation)).await;
-        let asked = &ids(&verdict)[5..];
+        let asked = &ids(&verdict)[4..];
         assert_eq!(asked, ["verify-observed", "verify-observed-point-1"]);
         let point = record(&verdict, "verify-observed-point-1");
         assert_eq!(point["role"], "judge_point");
@@ -608,35 +598,40 @@ async fn a_part_named_in_the_run_asks_its_task_over_the_run() {
 }
 
 /// Over the run, a task the judge names doing something the request does not ask is a defect
-/// whose note says so (here a write the request never names), unless it only reads the source
-/// or writes the destination the request names: that answer decides nothing, and the request
-/// stays contested saying so; a question over the run left without a
-/// choice (NONE, an answer that is no JSON choice) decides nothing and the request stays
-/// contested; one that gets no answer stops, the request unknown, never contested.
+/// whose note says so (here a write the request never names, the one task the engine's facts
+/// leave open, so the extra question asks about it first). A task the facts settle (the read of
+/// the source, the write of the output a carried part states) is no option there, so naming it
+/// is no choice; a question over the run left without a choice (NONE, an answer that is no JSON
+/// choice) decides nothing and the request stays contested; one that gets no answer stops, the
+/// request unknown, never contested.
 #[tokio::test]
 async fn a_task_named_in_the_run_is_a_defect_and_no_choice_decides_nothing() {
     let extra = "the judge points to the task save, which in the trial run does something the request does not ask";
     let undecided = found(&[], &[], &[ORDERS], &["unfaithful"], &[NO_CHOICE]);
-    let read_only = found(&[], &[], &[ORDERS], &["unfaithful"], &[READ_ONLY_OVER_RUN]);
     let cases = [
         (
             Choose("task-save"),
             found(&[(EXTRA_DEFECT, extra)], &[], &[], &["unfaithful"], &[]),
             (6, 6, 6),
         ),
-        (Choose("task-load"), read_only.clone(), (6, 6, 6)),
-        (Choose("task-save"), read_only, (6, 6, 6)),
-        (Choose("none"), undecided.clone(), (6, 6, 5)),
+        (Choose("task-load"), undecided.clone(), (5, 5, 4)),
+        (Choose("task-save"), undecided.clone(), (5, 5, 4)),
+        (Choose("none"), undecided.clone(), (5, 5, 4)),
         (
             Fail,
             found(&[], &[ORDERS], &[], &["unfaithful"], &[]),
-            (6, 5, 5),
+            (5, 4, 4),
         ),
-        (Prose, undecided, (6, 6, 5)),
+        (Prose, undecided, (5, 5, 4)),
     ];
-    let elsewhere = CANDIDATE.replace("./out/open.json", "./out/elsewhere.json");
+    let elsewhere = elsewhere();
     for (k, (reply, expected, calls)) in cases.into_iter().enumerate() {
-        let judge = Scripted::new(undisputed("unfaithful", 3, Some((Observed, reply))));
+        let mut script = undisputed("unfaithful", 3, None);
+        if k == 0 {
+            script.push((Extra, Choose("only_requested")));
+        }
+        script.push((Observed, reply));
+        let judge = Scripted::new(script);
         let observation = observed(true, true);
         let candidate = if k == 0 {
             elsewhere.as_str()
@@ -660,10 +655,11 @@ async fn a_task_named_in_the_run_is_a_defect_and_no_choice_decides_nothing() {
 
 /// The whole request asked over the run offers every part, the ones the bytes answered
 /// superseded or asking no operation included (the run may show them asked), then `unexercised`
-/// beside `consistent`: inputs that never exercise some part of the request prove no whole output,
-/// so that answer decides nothing, like a task named there that only reads the request's own
-/// source. Either way the rejected request stays contested with why, no judgment is made and the
-/// candidate is held, never READY.
+/// beside `consistent`, then the tasks the engine's facts leave open (here the write of a part
+/// answered as asking nothing): inputs that never exercise some part of the request prove no
+/// whole output, so that answer decides nothing, nor does naming a task the facts settle, which
+/// is no option. Either way the rejected request stays unresolved, contested with why, no
+/// judgment is made and the candidate is held, never READY.
 #[tokio::test]
 async fn the_run_question_offers_every_part_and_an_unexercised_request_is_held() {
     let localized = [
@@ -682,10 +678,7 @@ async fn the_run_question_offers_every_part_and_an_unexercised_request_is_held()
         "verify-observed",
     ];
     let observation = observed(true, true);
-    for (answer, why) in [
-        ("unexercised", UNEXERCISED),
-        ("task-load", READ_ONLY_OVER_RUN),
-    ] {
+    for (answer, why, consumed) in [("unexercised", UNEXERCISED, 6), ("task-load", NO_CHOICE, 5)] {
         let mut script = localized.to_vec();
         script.push((Observed, Choose(answer)));
         let judge = Scripted::new(script);
@@ -693,17 +686,17 @@ async fn the_run_question_offers_every_part_and_an_unexercised_request_is_held()
         assert_eq!(ids(&verdict), asked, "{answer}");
         let run = record(&verdict, "verify-observed");
         assert_eq!(run["role"], "judge_observed");
-        assert_eq!(run["options"], json!(OVER_THE_RUN), "{answer}");
-        assert_eq!(run["choice"], answer);
+        assert_eq!(run["options"], over_the_run(&["save"]), "{answer}");
         let held = found(&[], &[], &[ORDERS], &["unfaithful"], &[why]);
         assert_eq!(lists(&verdict), held, "{answer}");
         assert_eq!(verdict.judgments, NO_JUDGMENT);
         assert_eq!(verdict.settled_by, None);
-        assert_eq!(counts(&verdict), (6, 6, 6), "{answer}");
+        assert_eq!(counts(&verdict), (6, 6, consumed), "{answer}");
         assert_eq!(verdict.declined, Declined::Rejected);
         assert!(verdict.doubted() && !verdict.stopped, "{answer}");
+        assert!(verdict.unresolved(), "{answer}");
         witnessed(&verdict, &observation);
-        assert_held(&verdict, HELD);
+        assert_held(&verdict, &unresolved(3));
         let sent = judge.sent.lock().unwrap();
         let (shown, _) = sent.split_last().unwrap();
         assert_eq!(shown.kind, Observed);

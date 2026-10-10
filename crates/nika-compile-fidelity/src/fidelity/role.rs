@@ -5,9 +5,36 @@
 //! the path law): a rooted literal the reader states only as a destination is also realized as
 //! a route of an endpoint the request states, by a send to exactly that URL ([`routes`]). It
 //! reads typed contracts (the reader's `url` bindings, the candidate's sending tasks), never a
-//! word list, and grants no path.
+//! word list, and grants no path. [`stated_routes`] names those routes for an observer of the
+//! project's files: a route is no file.
 
 use serde_json::Value;
+
+use crate::plan::Plan;
+
+/// The origins a request states: the reader's `url` bindings, as written.
+pub(super) fn origins(plan: &Plan) -> Vec<&str> {
+    (plan.bindings.iter())
+        .filter(|binding| binding.role == "url")
+        .map(|binding| binding.literal.as_str())
+        .collect()
+}
+
+/// The destinations `intent` states that `doc` realizes only as an endpoint's route, as Law 1
+/// reads them: each a literal the reader states only as a destination, no `permits.fs` entry
+/// covers (a path the candidate opens stays a file), and a send reaches at exactly that route
+/// of a URL the request states (Law 1's route witness). Such a route names no file of the
+/// project; nothing here grants a path.
+#[must_use]
+pub fn stated_routes(intent: &str, doc: &Value) -> Vec<String> {
+    let plan = crate::lexicon::read(intent).plan;
+    let sent = routes(doc, &origins(&plan));
+    let file =
+        |path: &String| super::granted(doc, "read", path) || super::granted(doc, "write", path);
+    (crate::hot::stated_destinations(intent).into_iter())
+        .filter(|path| sent.contains(path) && !file(path))
+        .collect()
+}
 
 /// The routes the candidate sends to on a URL the request states (`origins`, the reader's `url`
 /// bindings): for each sending `nika:fetch` (any method but GET), the part of its URL after one
@@ -56,8 +83,42 @@ fn expanded(doc: &Value, text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::routes;
+    use super::{routes, stated_routes};
     use serde_json::json;
+
+    /// A destination the request states is a route when a send reaches exactly it on the sink
+    /// the request states. A send to another origin, a GET, a request stating no origin, a
+    /// route the candidate also opens as a file and a path the request reads are none.
+    #[test]
+    fn a_stated_route_is_a_destination_a_send_reaches_never_a_file() {
+        let intent = "Read ./in.txt, write the report to ./out.txt, then send a POST to \
+            /notifications/stock on the local sink http://127.0.0.1:57468.";
+        let sink = "http://127.0.0.1:57468/notifications/stock";
+        let doc = |url: &str, method: &str, files: &[&str]| {
+            let args = json!({"url": url, "method": method});
+            json!({"permits": {"fs": {"read": ["./in.txt"], "write": files}},
+                "tasks": {"post": {"invoke": {"tool": "nika:fetch", "args": args}}}})
+        };
+        let stock = doc(sink, "POST", &["./out.txt"]);
+        assert_eq!(stated_routes(intent, &stock), ["/notifications/stock"]);
+        let unstated = intent.replace(" on the local sink http://127.0.0.1:57468", "");
+        assert!(stated_routes(&unstated, &stock).is_empty(), "{unstated}");
+        let read = "Read /notifications/stock, then write it to ./out.txt for the sink \
+            http://127.0.0.1:57468.";
+        assert!(
+            stated_routes(read, &stock).is_empty(),
+            "a path read is a file"
+        );
+        let elsewhere = "http://127.0.0.1:9/notifications/stock";
+        for (url, method, files) in [
+            (elsewhere, "POST", &["./out.txt"][..]),
+            (sink, "GET", &["./out.txt"][..]),
+            (sink, "POST", &["./out.txt", "/notifications/stock"][..]),
+        ] {
+            let found = stated_routes(intent, &doc(url, method, files));
+            assert!(found.is_empty(), "{url} {method} {files:?}: {found:?}");
+        }
+    }
 
     /// Each sending fetch's route after a stated origin, its constants read; a GET, another
     /// origin, an input-borne origin and a non-fetch effect send to no stated route.

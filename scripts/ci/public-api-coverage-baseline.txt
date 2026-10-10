@@ -78,6 +78,7 @@ nika-serve
 nika-service-execution
 nika-session
 nika-session-change
+nika-session-intelligence
 nika-source
 nika-store
 nika-tmpl

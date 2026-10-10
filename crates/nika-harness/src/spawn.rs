@@ -606,9 +606,13 @@ impl SpawnedHarness {
 
     /// The Codex completion profile, proven on the exact codex the adapter will run before
     /// any session opens: the MCP servers the configuration defines (plugins off), then the
-    /// whole profile read back — every tool feature off, no MCP server enabled. Returns the
-    /// child environment carrying it (`CODEX_CONFIG`) and pinning that binary (`CODEX_PATH`).
-    async fn codex_profile_env(&self) -> Result<Vec<(String, String)>, HarnessError> {
+    /// whole profile read back — every tool feature off, no MCP server enabled, or, for a
+    /// conversation, exactly `nika`'s (its name and server). Returns the child environment
+    /// carrying it (`CODEX_CONFIG`) and pinning that binary (`CODEX_PATH`).
+    async fn codex_profile_env(
+        &self,
+        nika: Option<(&str, serde_json::Value)>,
+    ) -> Result<Vec<(String, String)>, HarnessError> {
         use crate::authoring::acp::codex;
         let parent: BTreeMap<String, String> = std::env::vars().collect();
         let env = compose_env(&parent, &self.adapter.passthrough_env);
@@ -617,7 +621,7 @@ impl SpawnedHarness {
         let binary = binary.to_string_lossy().into_owned();
         let not_effective = |reason: String| HarnessError::Refused {
             reason: format!(
-                "the Codex ACP completion profile is not effective: {reason}; no session was \
+                "the Codex ACP profile is not effective: {reason}; no session was \
                  opened; no fallback"
             ),
         };
@@ -642,8 +646,12 @@ impl SpawnedHarness {
                 defined.status
             )));
         }
-        let config =
-            codex::config(&codex::defined_servers(&defined.stdout).map_err(not_effective)?);
+        let defined = codex::defined_servers(&defined.stdout).map_err(not_effective)?;
+        let config = match &nika {
+            Some((name, server)) => (codex::conversation_config(&defined, name, server.clone()))
+                .map_err(not_effective)?,
+            None => codex::config(&defined),
+        };
         let overrides = codex::overrides(&config);
         let features = self
             .run_bounded(
@@ -661,7 +669,11 @@ impl SpawnedHarness {
                 "codex mcp list",
             )
             .await?;
-        codex::judge_servers(&servers.stdout).map_err(not_effective)?;
+        match nika {
+            Some((name, _)) => codex::judge_conversation(&servers.stdout, name),
+            None => codex::judge_servers(&servers.stdout),
+        }
+        .map_err(not_effective)?;
         Ok(vec![
             ("CODEX_CONFIG".to_owned(), config.to_string()),
             ("CODEX_PATH".to_owned(), binary),
@@ -870,7 +882,7 @@ impl SpawnedHarness {
         self.probe_version().await?;
         let profile_env = match self.completion {
             Some(one_shot) if one_shot.profile == crate::authoring::acp::Profile::Codex => {
-                self.codex_profile_env().await?
+                self.codex_profile_env(None).await?
             }
             _ => Vec::new(),
         };
@@ -891,8 +903,18 @@ impl SpawnedHarness {
         // stream drops the driver, the driver drops the child, and
         // kill_on_drop reaps it — the cancel-safety contract.
         let (completion, marks) = (self.completion, call.map(|(_, marks)| marks));
-        let stream = drive_with_child(stdout, stdin, request, child, completion, idle, marks);
+        let meta = self.session_meta();
+        let stream = drive_with_child(stdout, stdin, request, child, completion, idle, marks, meta);
         Ok((stream, idle))
+    }
+
+    /// The options this seat's sessions send with `session/new`: a one-shot's audited profile, or
+    /// an agent session's own (a Claude Code session shows its thinking, whatever the role).
+    pub(crate) fn session_meta(&self) -> Option<serde_json::Value> {
+        match self.completion {
+            Some(one_shot) => one_shot.session_meta(),
+            None => crate::authoring::acp::agent_meta(&self.adapter.id),
+        }
     }
 }
 
@@ -928,7 +950,8 @@ impl Door for SpawnedHarness {
 /// The driver with the child's lifetime tied to the stream — the child
 /// handle parks inside a wrapper stream so its `Drop` (and the OS kill
 /// underneath) fires exactly when the consumer lets go. `idle` bounds each
-/// frame read and each write ([`crate::client::drive_profile`]).
+/// frame read and each write; `meta` rides `session/new`
+/// ([`crate::client::drive_profile`]).
 fn drive_with_child(
     stdout: tokio::process::ChildStdout,
     stdin: tokio::process::ChildStdin,
@@ -937,8 +960,10 @@ fn drive_with_child(
     completion: Option<OneShot>,
     idle: std::time::Duration,
     progress: Option<crate::authoring::acp::Progress>,
+    meta: Option<serde_json::Value>,
 ) -> HarnessEventStream {
-    let inner = crate::client::drive_profile(stdout, stdin, request, idle, completion, progress);
+    let inner =
+        crate::client::drive_profile(stdout, stdin, request, idle, completion, progress, meta);
     #[cfg(unix)]
     let group = completion.and_then(|_| child.id());
     Box::pin(ChildStream {
@@ -1433,6 +1458,9 @@ kid.wait()
         );
     }
 }
+
+/// A persistent conversation on the spawned adapter (`crate::conversation`).
+mod conversation;
 
 #[cfg(test)]
 mod completion_tests;

@@ -4798,6 +4798,7 @@ dependencies = [
  "nika-compile-behavior",
  "nika-compile-reader",
  "nika-schema",
+ "nika-types",
  "serde_json",
  "sha2 0.10.9",
 ]
@@ -4813,11 +4814,13 @@ dependencies = [
 name = "nika-compile-seats"
 version = "0.123.0-preview.1"
 dependencies = [
+ "nika-check",
  "nika-compile",
  "nika-compile-fidelity",
  "nika-compile-reader",
  "nika-kernel",
  "nika-pack",
+ "nika-providers",
  "nika-schema",
  "serde",
  "serde_json",
@@ -5208,11 +5211,13 @@ name = "nika-mcp"
 version = "0.123.0-preview.1"
 dependencies = [
  "blake3",
+ "getrandom 0.3.4",
  "nika-builtin",
  "nika-catalog",
  "nika-check",
  "nika-cli-host",
  "nika-graph",
+ "nika-harness",
  "nika-kernel",
  "nika-migrate",
  "nika-onboard",
@@ -5222,10 +5227,12 @@ dependencies = [
  "nika-sandbox-landlock",
  "nika-sandbox-seatbelt",
  "nika-schema",
+ "nika-session-change",
  "proptest",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
+ "tokio",
 ]
 
 [[package]]
@@ -5571,31 +5578,40 @@ dependencies = [
  "nika-catalog",
  "nika-cli-host",
  "nika-compile",
- "nika-compile-cognition",
  "nika-compile-seats",
  "nika-dap",
  "nika-display",
  "nika-error",
  "nika-event",
  "nika-fs",
- "nika-harness",
- "nika-http",
  "nika-kernel",
  "nika-onboard",
  "nika-providers",
  "nika-runtime",
  "nika-schema",
  "nika-session-change",
+ "nika-session-intelligence",
  "nika-source",
  "nika-trace",
  "nika-types",
- "nika-verb-infer",
  "nika-vocab",
  "serde",
  "serde_json",
  "tempfile",
- "thiserror 2.0.20",
  "tokio",
+]
+
+[[package]]
+name = "nika-session-agent"
+version = "0.123.0-preview.1"
+dependencies = [
+ "blake3",
+ "nika-kernel",
+ "nika-session-change",
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -5637,6 +5653,34 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "nika-session-intelligence"
+version = "0.123.0-preview.1"
+dependencies = [
+ "blake3",
+ "nika-catalog",
+ "nika-cli-host",
+ "nika-compile-cognition",
+ "nika-compile-seats",
+ "nika-display",
+ "nika-error",
+ "nika-event",
+ "nika-harness",
+ "nika-http",
+ "nika-kernel",
+ "nika-onboard",
+ "nika-providers",
+ "nika-runtime",
+ "nika-session-change",
+ "nika-types",
+ "nika-verb-infer",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.20",
  "tokio",
 ]
 

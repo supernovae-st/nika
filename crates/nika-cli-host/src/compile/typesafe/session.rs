@@ -372,7 +372,8 @@ const UNAVAILABLE: &str = "decision journal unavailable; nothing sent";
 impl SessionSeat {
     /// One attempt journaled `in_flight` BEFORE its request can leave (one call sent, its cost
     /// unknown; an interruption leaves « may have been sent »), then settled with what `settle`
-    /// makes of the result. `None`: the journal is unavailable and nothing was sent.
+    /// makes of the result and how long it took (`elapsed_ms`). `None`: the journal is
+    /// unavailable and nothing was sent.
     async fn attempt<T>(
         &self,
         in_flight: Value,
@@ -380,8 +381,11 @@ impl SessionSeat {
         settle: impl FnOnce(&T) -> Value,
     ) -> Option<T> {
         let slot = self.begin_attempt(in_flight)?;
+        let started = std::time::Instant::now();
         let result = send.await;
-        self.settle_attempt(slot, settle(&result));
+        let mut settled = settle(&result);
+        settled["elapsed_ms"] = json!(u64::try_from(started.elapsed().as_millis()).ok());
+        self.settle_attempt(slot, settled);
         Some(result)
     }
 

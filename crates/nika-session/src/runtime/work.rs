@@ -53,9 +53,9 @@ fn beside_any_answer(line: &str) -> bool {
 
 impl SessionRuntime {
     /// What the next line answers, by the one precedence every host shares: a requested run's
-    /// cost review, the one-time cost decision, the choice of intelligence, a proposal's consent,
-    /// a run's gate, then the value an authoring question, a run input or an activation asks;
-    /// else a new turn.
+    /// cost review, the one-time cost decision, the choice of intelligence, the knowledge choice
+    /// a held line waits for, a proposal's consent, a run's gate, then the value an authoring
+    /// question, a run input or an activation asks; else a new turn.
     #[must_use]
     pub fn waiting(&self) -> Waiting {
         if let Some(review) = self.waiting_review() {
@@ -64,6 +64,8 @@ impl SessionRuntime {
             Waiting::CostChoice
         } else if self.pending_choice {
             Waiting::IntelligenceChoice
+        } else if let Some(line) = &self.knowledge.held {
+            Waiting::KnowledgeChoice { line: line.clone() }
         } else if let Some(proposal) = self.pending_proposal() {
             Waiting::Consent { proposal }
         } else if let Some(gate) = self.waiting_gate() {
@@ -120,6 +122,7 @@ impl SessionRuntime {
                 )),
             },
             Waiting::IntelligenceChoice => self.choose(line.trim()),
+            Waiting::KnowledgeChoice { .. } => self.choose_knowledge(line),
             Waiting::Consent { .. } => match shown {
                 Waiting::Consent { proposal } => self.consent_to(proposal, line.trim()),
                 _ if declines(line) => self.consent(line.trim()),
@@ -215,6 +218,7 @@ impl SessionRuntime {
         )
         .with_authoring(self.last_outcome.as_ref().map(Authoring::of))
         .with_intelligence(Some(self.intelligence_work()))
+        .with_knowledge(Some(self.knowledge_work()))
         .with_question(self.pending_question())
         .with_answered(self.last_answer.clone())
     }
@@ -236,6 +240,8 @@ impl SessionRuntime {
                 Selected::new("local", Some(provider.clone()), None)
             }
             IntelligenceKind::None => Selected::new("none", None, None),
+            // A kind this session does not know (ADR-150), as the contract degrades a type.
+            _ => Selected::new("other", None, None),
         }
         .resolved(
             chosen.model.clone(),
@@ -255,6 +261,8 @@ impl SessionRuntime {
             AuthoringSeat::Unavailable { why } => {
                 Author::new("unavailable", None, Some(why.clone()))
             }
+            // A seat this session does not know (ADR-150) is one it cannot honor.
+            other => Author::new("unavailable", None, Some(other.line())),
         };
         let context = self.authoring_context();
         let decision = (context.decision())

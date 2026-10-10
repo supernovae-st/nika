@@ -15,10 +15,14 @@
 //! `session` and `foreign`, each a fixed set of saturating `frames` counts and `last_ms`, when the
 //! last of them was completed (null before any); and `ended_by`, null while the driver had not
 //! ended, else `completed`, `transport` or the exact category of the frame it failed on (a refused
-//! answer to the prompt as `turn_*`, in Nika's words). Every time counts from the call's start,
-//! like its `elapsed_ms`. No text is kept: a frame is read only to choose its category, and no
-//! prompt, answer, thought, method, tag, stop spelling, identifier, path, tool argument, other
-//! metadata or error message is retained or emitted.
+//! answer to the prompt as `turn_*`, in Nika's words). `session` also says when its first thought
+//! and its first answer were completed (`first_thought_ms`, `first_answer_ms`) and its last update
+//! by exact word with its time (`last_update`: `kind`, `ms`), each null before any, so a record
+//! tells a call silent until its first answer from one that thought first, and what its agent
+//! last wrote before a silence. Every time counts from the call's start, like its `elapsed_ms`. No
+//! text is kept: a frame is read only to choose its category, and no prompt, answer, thought,
+//! method, tag, stop spelling, identifier, path, tool argument, other metadata or error message is
+//! retained or emitted.
 //!
 //! What a count proves is narrow. A thought, usage or status frame proves that the adapter wrote
 //! that frame, not that a model kept working, which model served it or what it cost. No completed
@@ -186,6 +190,22 @@ impl Frame {
         }
     }
 
+    /// Whether the frame is one of this session's updates (an answer, thought, usage, status, tool,
+    /// media, plan or other update), never a request, nor an answer or error to the prompt.
+    const fn is_update(self) -> bool {
+        matches!(
+            self,
+            Self::Answer
+                | Self::Thought
+                | Self::Usage
+                | Self::Status
+                | Self::Tool
+                | Self::Media
+                | Self::Plan
+                | Self::OtherUpdate
+        )
+    }
+
     /// Whether the frame shows this session's agent working, which re-arms the call's deadline.
     const fn rearms(self) -> bool {
         matches!(
@@ -268,6 +288,11 @@ pub(super) struct Activity {
     /// This session's counts, in [`SESSION`] order, each saturating.
     session: [u32; SESSION.len()],
     session_last: Option<Instant>,
+    /// When this session's first thought and first answer were completed.
+    first_thought: Option<Instant>,
+    first_answer: Option<Instant>,
+    /// This session's last update, and when it was completed.
+    last_update: Option<(Frame, Instant)>,
     /// The other frames' counts, in [`FOREIGN`] order, each saturating.
     foreign: [u32; FOREIGN.len()],
     foreign_last: Option<Instant>,
@@ -305,6 +330,14 @@ impl Activity {
         *last = Some(at);
         if frame.rearms() {
             self.rearmed = Some(at);
+        }
+        match frame {
+            Frame::Thought => self.first_thought = self.first_thought.or(Some(at)),
+            Frame::Answer => self.first_answer = self.first_answer.or(Some(at)),
+            _ => {}
+        }
+        if frame.is_update() {
+            self.last_update = Some((frame, at));
         }
         self.current = Some(Ending::Frame(frame));
     }
@@ -345,9 +378,13 @@ impl Activity {
             let pairs = words.iter().zip(counts);
             Value::Object(pairs.map(|(w, n)| ((*w).to_owned(), json!(n))).collect())
         };
+        let update = |(frame, at): (Frame, Instant)| json!({"kind": frame.word(), "ms": ms(at)});
         json!({"from_ms": ms(from),
             "session": {"frames": frames(&SESSION, &self.session),
-                "last_ms": self.session_last.map(ms)},
+                "last_ms": self.session_last.map(ms),
+                "first_thought_ms": self.first_thought.map(ms),
+                "first_answer_ms": self.first_answer.map(ms),
+                "last_update": self.last_update.map(update)},
             "foreign": {"frames": frames(&FOREIGN, &self.foreign),
                 "last_ms": self.foreign_last.map(ms)},
             "ended_by": self.ended.map(Ending::word)})

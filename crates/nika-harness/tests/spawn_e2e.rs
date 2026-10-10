@@ -109,6 +109,71 @@ async fn a_real_child_completes_the_dialogue_and_no_key_var_crosses() {
     assert_eq!(chunks, vec!["leaked:none"]);
 }
 
+/// A fake agent that answers its one prompt with the `_meta` its `session/new` carried, as JSON
+/// (`null` when there was none).
+const META_ECHO: &str = r#"
+import json, sys
+
+def send(obj):
+    sys.stdout.write(json.dumps(obj) + "\n")
+    sys.stdout.flush()
+
+def recv():
+    return json.loads(sys.stdin.readline())
+
+init = recv()
+send({"jsonrpc": "2.0", "id": init["id"], "result": {"protocolVersion": 1}})
+new = recv()
+meta = new["params"].get("_meta")
+send({"jsonrpc": "2.0", "id": new["id"], "result": {"sessionId": "s-meta"}})
+prompt = recv()
+send({"jsonrpc": "2.0", "method": "session/update", "params": {
+    "sessionId": "s-meta",
+    "update": {"sessionUpdate": "agent_message_chunk",
+               "content": {"type": "text", "text": json.dumps(meta)}}}})
+send({"jsonrpc": "2.0", "id": prompt["id"], "result": {"stopReason": "end_turn"}})
+"#;
+
+/// The answer one agent session of adapter `id` gives through the real spawn: the `_meta` its
+/// `session/new` carried.
+async fn session_meta_of(id: &str) -> serde_json::Value {
+    let dir = std::env::temp_dir().join(format!("nika-harness-meta-{}-{id}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmpdir");
+    let _guard = tempfile_guard::Guard(dir.clone());
+    let script = dir.join("meta_echo.py");
+    std::fs::write(&script, META_ECHO).expect("script written");
+    let adapter = HarnessAdapter::new(id, "python3")
+        .expect("id ok")
+        .with_args(vec![script.to_string_lossy().into_owned()]);
+    let mut stream = SpawnedHarness::new(adapter)
+        .run_agent(HarnessRequest::new("hello", "/tmp"))
+        .await
+        .expect("the spawn succeeds");
+    loop {
+        match std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await {
+            Some(Ok(HarnessEvent::Completed { outcome })) => {
+                return serde_json::from_str(&outcome.output).expect("the echo is JSON");
+            }
+            Some(Ok(_)) => {}
+            Some(Err(e)) => panic!("stream error: {e}"),
+            None => panic!("the session ended without its answer"),
+        }
+    }
+}
+
+/// The `agent:` seat of a Claude Code adapter opens each session asking to see the agent's
+/// thinking summary, and asks nothing else: its own loop, tools and settings stay the agent's.
+/// A Codex agent session sends no options at all.
+#[tokio::test]
+async fn a_claude_code_agent_session_asks_to_see_its_thinking() {
+    let shown = serde_json::json!({"type": "adaptive", "display": "summarized"});
+    assert_eq!(
+        session_meta_of("claude-code").await,
+        serde_json::json!({"claudeCode": {"options": {"thinking": shown}}})
+    );
+    assert_eq!(session_meta_of("codex").await, serde_json::Value::Null);
+}
+
 #[tokio::test]
 async fn dropping_the_stream_reaps_the_child() {
     // A fake agent that answers the handshake then sleeps forever —

@@ -29,13 +29,13 @@ const ORIGINAL: &str = "Sort the payments. Budget: $2.";
 
 /// A session with no intelligence chosen: the deterministic reader, no seat is ever asked.
 fn literal(root: &Path) -> SessionRuntime {
-    let none = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::None,
-        model: None,
-        locus: DataLocus::None,
-        ready: false,
-        why: None,
-    };
+    let none = ResolvedSessionIntelligence::new(
+        IntelligenceKind::None,
+        None,
+        DataLocus::None,
+        false,
+        None,
+    );
     SessionRuntime::open(root, none, Box::new(NoReasoner))
 }
 
@@ -358,17 +358,17 @@ fn restated(s: &SessionRuntime, line: &str) -> bool {
 /// cfg(test) transport: nothing leaves the machine), so an admitted budget opens its account.
 fn priced(root: &Path) -> SessionRuntime {
     let model = "deepseek/deepseek-v4-pro";
-    let selected = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Api {
+    let selected = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Api {
             provider: "deepseek".into(),
         },
-        model: Some(model.into()),
-        locus: DataLocus::Metered {
+        Some(model.into()),
+        DataLocus::Metered {
             provider: "deepseek".into(),
         },
-        ready: true,
-        why: None,
-    };
+        true,
+        None,
+    );
     let reasoner = ProviderReasoner {
         model: model.into(),
         label: "DeepSeek".into(),

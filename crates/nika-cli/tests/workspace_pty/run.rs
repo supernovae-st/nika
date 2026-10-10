@@ -29,7 +29,22 @@ fn a_run_is_followed_from_its_frames_before_it_settles() {
     let rig = Rig::new("live");
     std::fs::write(rig.path("slow.nika"), SLOW).expect("slow");
     let mut term = rig.spawn("13-live", 120, 36);
-    wait_workspace(&mut term);
+    followed_to_its_settlement(&mut term);
+}
+
+/// The same proof with the terminal read in 64-byte slices: the settlement
+/// and the rows asserted with it hold on one complete frame, whatever the
+/// scheduling (the race a whole read only shows under load).
+#[test]
+fn a_run_is_followed_to_a_complete_settled_frame_read_in_slices() {
+    let rig = Rig::new("live-sliced");
+    std::fs::write(rig.path("slow.nika"), SLOW).expect("slow");
+    let mut term = rig.spawn("13-live-sliced", 120, 36).reading_at_most(64);
+    followed_to_its_settlement(&mut term);
+}
+
+fn followed_to_its_settlement(term: &mut Term) {
+    wait_workspace(term);
     term.send("run slow.nika\r");
     term.wait_until("the leg bound to the bytes it runs", |s| {
         s.contains("graph · the bytes") && s.contains("it was asked over")
@@ -37,7 +52,10 @@ fn a_run_is_followed_from_its_frames_before_it_settles() {
     term.wait_until("the first task done, the run not settled", |s| {
         s.contains("✔ first") && s.contains("○ second") && !s.contains("settled · succeeded")
     });
-    term.wait_until("the settlement", |s| s.contains("settled · succeeded"));
+    // A settled frame can outgrow the process's line buffer: the rows
+    // asserted below are judged on one complete native frame, never on
+    // the header a first write already repainted.
+    term.wait_workspace_frame("the settlement", |s| s.contains("settled · succeeded"));
     let shown = term.text();
     for said in [
         "events and the settlement, whole",
@@ -562,4 +580,107 @@ fn an_explicit_save_and_run_lands_the_shown_bytes_and_one_real_result() {
     term.leave();
     assert_eq!(journal_bytes(&rig), traces, "closing repeats no Run");
     assert_eq!(rig.tree(), files, "closing writes no file");
+}
+
+/// 15 · A settled run's story folds to one row at its commit: the run's
+/// label, its state and the reader key. Scrolled back to an older run, `F2`
+/// opens that run's own words (never the newer run's below it), a press on
+/// its row opens the same words, and each close gives back the exact screen:
+/// the same rows of the conversation and the unsent draft. In both sizes
+/// and in the ASCII column.
+#[test]
+fn an_old_folded_run_reads_whole_at_its_reading_position() {
+    for (tag, ascii, (cols, rows)) in [
+        ("15-history-120x40", false, (120, 40)),
+        ("15-history-80x24", false, (80, 24)),
+        ("15-history-ascii", true, (80, 24)),
+    ] {
+        let rig = Rig::new(tag);
+        let (args, sep): (&[&str], &str) = if ascii {
+            (&["--ascii"], " - ")
+        } else {
+            (&[], " · ")
+        };
+        let env = [("NO_COLOR", "1"), ("NIKA_REDUCED_MOTION", "1")];
+        let env: &[(&str, &str)] = if ascii { &env } else { &[] };
+        let mut term = rig.spawn_with(tag, args, cols, rows, env);
+        an_old_run_read_at_its_position(&mut term, sep);
+        term.leave();
+    }
+}
+
+/// Run the diamond, ask for the long help card, run the single workflow:
+/// the diamond's folded story stands far above. Scrolled back to it, `F2`
+/// and a press on its row each open its words; closing returns the screen.
+fn an_old_run_read_at_its_position(term: &mut Term, sep: &str) {
+    let text = |screen: &vt::Screen| screen.lines().join("\n");
+    let folded = format!("{sep}succeeded{sep}F2");
+    // The project's list stands in the aside from 120 columns only: the
+    // workspace is up at every size once its composer invites a line.
+    term.wait_until("the workspace at this size", |s| {
+        s.on_alt() && s.contains("Ctrl+O") && (s.contains("nika ›") || s.contains("nika >"))
+    });
+    // A turn has ended once its result names the workflow: the story was
+    // committed (and folded) before it, in view where the rows allow.
+    let ended = |name: &'static str| move |s: &vt::Screen| s.contains("Done") && s.contains(name);
+    term.send("run diamond.nika\r");
+    term.wait_workspace_frame(
+        "the diamond's story folded at its commit",
+        ended("`diamond.nika`"),
+    );
+    let old = run_label(&term.text()).expect("the diamond's run");
+    let fold = format!("{old}{folded}");
+    term.send("/help\r");
+    // The help card's last word stands on its last row at every width.
+    term.wait_workspace_frame("a long reply after it", |s| s.contains("read)."));
+    term.send("run single.nika\r");
+    term.wait_workspace_frame(
+        "the single run's story folded below",
+        ended("`single.nika`"),
+    );
+    term.send("keep this draft");
+    term.wait_workspace_frame("the unsent draft", |s| s.contains("keep this draft"));
+    for _ in 0..16 {
+        if term.screen.contains(&fold) {
+            break;
+        }
+        term.keys(PAGE_UP);
+    }
+    term.wait_workspace_frame("scrolled back to the diamond's folded story", |s| {
+        s.contains(&fold) && text(s).matches(&folded).count() == 1
+    });
+    let before = term.text();
+    let opened = |s: &vt::Screen| {
+        s.lines()[0].contains("Full run story") && s.contains("fetch") && s.contains("join")
+    };
+    term.send("\x1bOQ");
+    term.wait_workspace_frame("the diamond's own words, whole", opened);
+    term.send(ESC);
+    term.wait_workspace_frame("the same rows and draft after F2", |s| {
+        !s.lines()[0].contains("Full run story") && s.contains("keep this draft")
+    });
+    assert_eq!(
+        term.text(),
+        before,
+        "F2 returns the exact screen\n{}",
+        term.dump()
+    );
+    let (row, line) = (term.screen.lines().into_iter().enumerate())
+        .find(|(_, line)| line.contains(&fold))
+        .expect("the fold's row");
+    let byte = line.find(&fold).expect("the fold's words");
+    let column = unicode_width::UnicodeWidthStr::width(&line[..byte]) + 1;
+    let row = row + 1;
+    term.send(&format!("\x1b[<0;{column};{row}M\x1b[<0;{column};{row}m"));
+    term.wait_workspace_frame("the same words from a press on its row", opened);
+    term.send(ESC);
+    term.wait_workspace_frame("the same rows and draft after the press", |s| {
+        !s.lines()[0].contains("Full run story") && s.contains("keep this draft")
+    });
+    assert_eq!(
+        term.text(),
+        before,
+        "a press returns the exact screen\n{}",
+        term.dump()
+    );
 }

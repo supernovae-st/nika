@@ -22,6 +22,8 @@ mod final_gate;
 mod instants;
 mod record_scope;
 mod records;
+/// The selections an author states rather than copies, and the law that admits them.
+pub mod resolution;
 mod role;
 mod scope;
 pub use asked::{asked_names, asked_readings};
@@ -31,13 +33,14 @@ pub use final_gate::unbound_final_gate;
 #[doc(inline)]
 pub use nika_compile_behavior::instant_shape;
 pub use records::raw_text_as_records;
+pub use role::stated_routes;
 pub use scope::unsettled_performed;
 
 /// One structured diagnostic the judge returns and the seat repairs from.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Diagnostic {
     /// `parse` · `check` · `source` · `destination` · `gate` · `prohibition` · `literal` ·
-    /// `question` · `records`.
+    /// `question` · `records` · `resolution`.
     pub kind: &'static str,
     pub message: String,
 }
@@ -167,12 +170,35 @@ pub fn laws_observed(
     world: Option<&Value>,
     out: &mut Vec<Diagnostic>,
 ) {
+    laws_resolved(
+        intent,
+        plan,
+        doc,
+        (allowed, &[]),
+        waived,
+        clarified,
+        world,
+        out,
+    );
+}
+
+/// [`laws_observed`], where `covered` holds the literals the author's admitted selections cover
+/// ([`resolution::admitted`]: a public source the request names, sources chosen within a
+/// delegation, a routine new output): Law 2 counts them as stated, never as invented. Every
+/// other law judges the document unchanged.
+pub fn laws_resolved(
+    intent: &str,
+    plan: &Plan,
+    doc: &Value,
+    (allowed, covered): (&[String], &[String]),
+    waived: &[String],
+    clarified: &[String],
+    world: Option<&Value>,
+    out: &mut Vec<Diagnostic>,
+) {
     let mut literals = Vec::new();
     strings(doc, &mut literals);
-    let origins: Vec<&str> = (plan.bindings.iter())
-        .filter(|binding| binding.role == "url")
-        .map(|binding| binding.literal.as_str())
-        .collect();
+    let origins = role::origins(plan);
     stated_paths_in(intent, doc, (waived, clarified), world, &origins, out);
     approvals(plan, doc, out);
     invented_gates(plan, doc, out);
@@ -181,7 +207,7 @@ pub fn laws_observed(
     prohibitions(plan, doc, out);
     raw_text_as_records(doc, out);
     record_scope::record_laws(doc, world, out);
-    invented(intent, &literals, allowed, out);
+    invented_except(intent, &literals, (allowed, covered), out);
 }
 
 /// The values a human answered, as the texts a candidate may carry without inventing them.
@@ -792,6 +818,17 @@ pub fn prohibitions(plan: &Plan, doc: &Value, out: &mut Vec<Diagnostic>) {
 /// directories and stem, [`paths::composed_from`]; an address's origin and path,
 /// [`paths::origin_and_path`]), was answered by the human, or rides a `${{ }}` reference.
 pub fn invented(intent: &str, literals: &[String], allowed: &[String], out: &mut Vec<Diagnostic>) {
+    invented_except(intent, literals, (allowed, &[]), out);
+}
+
+/// [`invented`], where a token an admitted selection covers ([`resolution::same_literal`]) is
+/// stated: its provenance is the selection's, never the person's typing.
+pub fn invented_except(
+    intent: &str,
+    literals: &[String],
+    (allowed, covered): (&[String], &[String]),
+    out: &mut Vec<Diagnostic>,
+) {
     // The request and the human's answers are the words a path may be composed from.
     let mut stated = intent.to_owned();
     for value in allowed {
@@ -811,6 +848,7 @@ pub fn invented(intent: &str, literals: &[String], allowed: &[String], out: &mut
                 || token.contains("${{")
                 || lower.contains(&token.to_lowercase())
                 || allowed.iter().any(|a| a == token || a.contains(token))
+                || covered.iter().any(|c| resolution::same_literal(c, token))
             {
                 continue;
             }

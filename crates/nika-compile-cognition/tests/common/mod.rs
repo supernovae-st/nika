@@ -7,14 +7,16 @@
 
 /// The option each verifier question offers when it approves: the whole request (`faithful`), a
 /// clause or a part asked alone (`carried`), an observed run (`consistent`), the
-/// extra-operation question (`only_requested`) and the task question of a part judged missing
-/// (`no_task`). A closed choice offering none of them is no verifier question.
-pub(crate) const APPROVALS: [&str; 5] = [
+/// extra-operation question (`only_requested`), the task question of a part judged missing
+/// (`no_task`) and the question asking where a doubt nothing located is (`unlocated`: it names
+/// nothing, and carries nothing). A closed choice offering none of them is no verifier question.
+pub(crate) const APPROVALS: [&str; 6] = [
     "faithful",
     "carried",
     "consistent",
     "only_requested",
     "no_task",
+    "unlocated",
 ];
 
 /// Whether a closed choice offering `keys` is a verifier question.
@@ -29,9 +31,9 @@ pub(crate) fn approval(keys: &[String]) -> String {
 }
 
 /// The refusing option among `keys`: the request `unfaithful`, a clause or a part `missing`, the
-/// first task (`task-<id>`) a task question, the extra-operation question or an observed run
-/// offers, else a task question's `omitted` (a candidate naming no task), else the first part
-/// (`part-<k>`) an observed run offers.
+/// first task (`task-<id>`) a task question, the extra-operation question, an observed run or the
+/// question where a doubt is offers, else a task question's `omitted` (a candidate naming no
+/// task), else the first part (`part-<k>`) an observed run or that question offers.
 pub(crate) fn refusal(keys: &[String]) -> String {
     let offered = |key: &str| keys.iter().find(|k| *k == key);
     let prefixed = |prefix: &str| keys.iter().find(|k| k.starts_with(prefix));

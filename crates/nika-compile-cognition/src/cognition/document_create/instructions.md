@@ -26,9 +26,20 @@ A component grants nothing: grant in your own `permits:` exactly what it reaches
 copied from a component by hand is not a composition. When no component fits, write that part
 yourself; an absent component never removes a clause.
 
+## Selections the request authorizes
+
+Some values the request does not spell are still the person's to have: a public source it names
+(« Hacker News » is read at its public address), public sources it lets you choose (« choose the
+sources yourself »), a routine new output file inside the project when it asks for one without a
+name. Write the concrete value in the document and state it in `resolutions`, one row each:
+`{"value": <exactly as the document carries it>, "kind": "named" | "delegated" | "derived" | "answered", "role": "read_source" | "output_path" | "run_model" | "value", "excerpt": <the person's own words that ask for it, verbatim>}`.
+A named or delegated source is a public http(s) address read with GET only; a derived output is a
+new relative path under the project, written only. Never state a private or credentialed address,
+a file that already exists, or words the request does not carry: those are questions.
+
 ## Your answer
 
-One JSON object `{"candidate", "candidate_lines", "operations", "questions", "gaps", "notes"}`:
+One JSON object `{"candidate", "candidate_lines", "operations", "questions", "gaps", "notes", "resolutions"}`:
 
 - `candidate` · the whole workflow as YAML text with real newlines, or leave it empty and send
   `candidate_lines`, one physical line per element, indentation preserved.
@@ -41,9 +52,10 @@ One JSON object `{"candidate", "candidate_lines", "operations", "questions", "ga
 - `questions` · only business values the request leaves open, as the laws above state.
 - `gaps` · each clause of the request you cannot realize, verbatim.
 - `notes` · one line.
+- `resolutions` · the selections above, or an empty list.
 
-A value the request leaves open (an endpoint, an account, a recipient, a threshold it does not
-state) is a placeholder the laws above ask for, or a declared input with no default when the
+A value the request leaves open and authorizes no one to choose (an endpoint, an account, a
+recipient, a threshold it does not state) is a placeholder the laws above ask for, or a declared input with no default when the
 caller supplies it at every run: never an invented literal. A credential is a `secrets:`
 reference, never a value. Grant in `permits:` exactly what the tasks reach, nothing more.
 

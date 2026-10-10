@@ -87,6 +87,13 @@ Run, result, questions and the brand use the existing semantic color roles.
 
 ### The workspace screen (native entry and parent workflow inspection)
 
+The faces of the object in view, the header's composition and the project's
+data are the viewer member's (`nika-tui-view`, ADR-143 amendment of
+9 October 2026); `workspace::{candidate, inspect, project}`, the review card
+model and `render::own` re-export them item by item. The renderer keeps the
+check facade's audit fold (`workspace::inspect::read`), the aside routing over
+the live run and the review's place in the transcript.
+
 Bare `nika` on an interactive terminal opens the workspace. `NIKA_TUI=inline`
 selects the earlier inline presentation; plain and pipe behavior stay available.
 Below 60×16, focus presentation preserves the conversation. The Live host adapter

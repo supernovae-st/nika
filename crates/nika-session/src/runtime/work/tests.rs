@@ -228,13 +228,13 @@ fn the_snapshot_serializes_with_its_contract_and_waiting_kind() {
 
 /// A session with no intelligence chosen, so a value is bound as typed and nothing is sent.
 fn literal(root: &Path) -> SessionRuntime {
-    let none = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::None,
-        model: None,
-        locus: DataLocus::None,
-        ready: false,
-        why: None,
-    };
+    let none = ResolvedSessionIntelligence::new(
+        IntelligenceKind::None,
+        None,
+        DataLocus::None,
+        false,
+        None,
+    );
     SessionRuntime::open(root, none, Box::new(NoReasoner))
 }
 

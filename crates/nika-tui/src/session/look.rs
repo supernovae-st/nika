@@ -24,7 +24,7 @@ use nika_cli_host::oracle::{AuditOptions, audit_source};
 use nika_session::ProjectSnapshot;
 use nika_session::change::Witness;
 
-use crate::workspace::inspect::Inspected;
+use crate::workspace::inspect::{self, Inspected};
 
 /// The most bytes one look reads of a workflow.
 pub(crate) const LOOK_CAP: u64 = 1 << 20;
@@ -68,12 +68,12 @@ pub(crate) fn judge(path: String, witness: String, source: String) -> Inspected 
     match &judged {
         Ok(audit) => {
             let graph = nika_display::dag_art::project(&audit.wf, &audit.report);
-            Inspected::read(path, witness, source, Ok((audit, graph)))
+            inspect::read(path, witness, source, Ok((audit, graph)))
         }
         Err(refusal) => {
             let said = refusal.diagnostic();
             let refused = Err((said.code.to_string(), said.message));
-            Inspected::read(path, witness, source, refused)
+            inspect::read(path, witness, source, refused)
         }
     }
 }

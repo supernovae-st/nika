@@ -478,8 +478,14 @@ the seat decides: clause reading, feasible-plan ranking and semantic verificatio
 operations and the questions over a trial run), NONE allowed, never Foundry or knowledge
 selection, never authority. Each attempt records the question id and its offered keys
 (`task-<id>`, `part-<k>`), never the question's state, so a trial run's texts sent to the
-seat are not journaled here. `SessionSeat::finish` consumes the
-scope; Drop performs the same conservative closure on errors or cancellation.
+seat are not journaled here. Each attempt that left also records `elapsed_ms`, the time
+its transport took as measured here (the System One partition reads no clock). The one
+`TypesafeSeat` a Session keeps also keeps what its batches learned of the service's capacity
+(`system_one::Capacity`): a later batch starts under it, its requests split before they leave
+and naming that bound (`split_below`), so a qualification refused for capacity in one compile
+is not refused again at that size in the next. Nothing of it persists beyond the process.
+`SessionSeat::finish` consumes the scope; Drop performs the same conservative closure on
+errors or cancellation.
 The @2 observation records `scope_ended`; only fully answered or unsent attempts
 close as Closed. A send with no observed result stays Uncertain. Cost remains
 unknown after either state, never assigned to the author's account or priced0.
@@ -500,6 +506,10 @@ An empty compatible list, incompatible protocol and failed observation are disti
 from advertised models. JSON exposes `local_model_probes` and `inference_tested:false`;
 human rows state that inference was not tested. No opt-in leaves observations absent.
 The existing `Probe` and render function signatures remain compatible.
+
+A harness seat row reads its login check from the harness probe (`AdapterProbeRow::login`):
+a check that did not answer within its deadline is `sign-in unknown` in the harness's words,
+a warning that teaches no sign-in, never `not signed in`.
 
 The direct-API authoring backend records `cost_basis: unpriced; billing_unverified`. Its usage completeness and requested/observed model evidence are separate observations; this door does not calculate a catalog valuation or certify billing. Harness-provided descriptors retain their own basis.
 

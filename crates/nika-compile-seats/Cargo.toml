@@ -25,8 +25,10 @@ nika-compile          = { path = "../nika-compile", version = "0.123.0-preview.1
 nika-compile-reader   = { path = "../nika-compile-reader", version = "0.123.0-preview.1" }   # plan · lexicon::Reading — what the candidate composer judges a COLD plan against (lateral seats → reader, never back)
 nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.123.0-preview.1" } # behavior — the behavioural judge's run a rehearsal report is mapped to
 nika-schema           = { path = "../nika-schema", version = "0.123.0-preview.1" }           # document — the editor a document revision's edits go through, re-read and byte-proven
-nika-kernel           = { path = "../nika-kernel", version = "0.123.0-preview.1" }           # the provider seam a decision seat asks through, never a vendor
+nika-check            = { path = "../nika-check", version = "0.123.0-preview.1" }            # infer_permits — what each task of a judged candidate touches, the checker's own inference (judge::Effects)
+nika-kernel          = { path = "../nika-kernel", version = "0.123.0-preview.1" }           # the provider seam a decision seat asks through, never a vendor
 nika-pack             = { path = "../nika-pack", version = "0.123.0-preview.1" }             # the skeletons and the stdlib page the shelf cuts a seat's references from
+nika-providers        = { path = "../nika-providers", version = "0.123.0-preview.1", default-features = false } # Envelope · Seat · Wire — the request counters the authority over a seat's requests resolves (ADR-152)
 serde      = { workspace = true } # IgnoredAny · DeserializeOwned: a seat's answer shapes; a remote door's repeated-key law
 serde_json = { workspace = true, features = ["raw_value"] } # the closed choice's state, schema and provenance record · RawValue: a remote compile answer kept as the literal sent (remote::input)
 serde_json_canonicalizer = { workspace = true } # RFC 8785 number text of a knowledge release r2 (ryu-js · ECMAScript ties)

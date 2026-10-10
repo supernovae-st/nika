@@ -66,7 +66,11 @@ mod laws {
     pub(crate) use nika_compile::surface::{LINES, SELECT_BY_FIELD};
 }
 
-pub mod authority;
+/// The authority over a seat's requests (the bound a door states, the counters that enforce it,
+/// the account a receipt keeps) is owned by the size-cap member below the seats' doors since
+/// ADR-152: `nika_compile_seats::authority`. This path is kept and names the very same items.
+#[doc(inline)]
+pub use nika_compile_seats::authority;
 mod cognition;
 /// The bounded decision seats ([`decide`]) and the rehearsal port ([`rehearse`]), the two
 /// capabilities a host lends a preparation, are owned by the size-cap member below the seats'

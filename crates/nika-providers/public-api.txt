@@ -1451,6 +1451,264 @@ impl<T> nika_error::traits::AsAny for nika_providers::dispatch_journal::Dispatch
 pub fn nika_providers::dispatch_journal::DispatchJournal::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_providers::dispatch_journal::DispatchJournal
 pub type nika_providers::dispatch_journal::DispatchJournal::Output = T
+pub mod nika_providers::model_choice
+#[non_exhaustive] pub enum nika_providers::model_choice::Delegation
+pub nika_providers::model_choice::Delegation::Strongest
+impl core::clone::Clone for nika_providers::model_choice::Delegation
+pub fn nika_providers::model_choice::Delegation::clone(&self) -> nika_providers::model_choice::Delegation
+impl core::cmp::Eq for nika_providers::model_choice::Delegation
+impl core::cmp::PartialEq for nika_providers::model_choice::Delegation
+pub fn nika_providers::model_choice::Delegation::eq(&self, other: &nika_providers::model_choice::Delegation) -> bool
+impl core::fmt::Debug for nika_providers::model_choice::Delegation
+pub fn nika_providers::model_choice::Delegation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_providers::model_choice::Delegation
+pub fn nika_providers::model_choice::Delegation::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_providers::model_choice::Delegation
+impl core::marker::StructuralPartialEq for nika_providers::model_choice::Delegation
+impl<D> owo_colors::OwoColorize for nika_providers::model_choice::Delegation
+impl<T, U> core::convert::Into<U> for nika_providers::model_choice::Delegation where U: core::convert::From<T>
+pub fn nika_providers::model_choice::Delegation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::model_choice::Delegation where U: core::convert::Into<T>
+pub type nika_providers::model_choice::Delegation::Error = core::convert::Infallible
+pub fn nika_providers::model_choice::Delegation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::model_choice::Delegation where U: core::convert::TryFrom<T>
+pub type nika_providers::model_choice::Delegation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::model_choice::Delegation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::model_choice::Delegation where T: core::clone::Clone
+pub type nika_providers::model_choice::Delegation::Owned = T
+pub fn nika_providers::model_choice::Delegation::clone_into(&self, target: &mut T)
+pub fn nika_providers::model_choice::Delegation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::model_choice::Delegation where T: 'static + ?core::marker::Sized
+pub fn nika_providers::model_choice::Delegation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::model_choice::Delegation where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::Delegation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::model_choice::Delegation where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::Delegation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::model_choice::Delegation where T: core::clone::Clone
+pub unsafe fn nika_providers::model_choice::Delegation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::model_choice::Delegation
+pub fn nika_providers::model_choice::Delegation::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::model_choice::Delegation where T: 'static
+pub fn nika_providers::model_choice::Delegation::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::model_choice::Delegation
+pub type nika_providers::model_choice::Delegation::Output = T
+#[non_exhaustive] pub enum nika_providers::model_choice::ModelChoice
+pub nika_providers::model_choice::ModelChoice::Choose(alloc::vec::Vec<nika_providers::model_choice::ModelOffer>)
+pub nika_providers::model_choice::ModelChoice::Delegated
+pub nika_providers::model_choice::ModelChoice::Delegated::among: alloc::vec::Vec<nika_providers::model_choice::ModelOffer>
+pub nika_providers::model_choice::ModelChoice::Delegated::chosen: nika_providers::model_choice::ModelOffer
+pub nika_providers::model_choice::ModelChoice::Delegated::rule: &'static str
+pub nika_providers::model_choice::ModelChoice::Exact(nika_providers::model_choice::ModelOffer)
+pub nika_providers::model_choice::ModelChoice::Unsupported
+pub nika_providers::model_choice::ModelChoice::Unsupported::alternatives: alloc::vec::Vec<nika_providers::model_choice::ModelOffer>
+pub nika_providers::model_choice::ModelChoice::Unsupported::why: alloc::string::String
+impl core::clone::Clone for nika_providers::model_choice::ModelChoice
+pub fn nika_providers::model_choice::ModelChoice::clone(&self) -> nika_providers::model_choice::ModelChoice
+impl core::cmp::PartialEq for nika_providers::model_choice::ModelChoice
+pub fn nika_providers::model_choice::ModelChoice::eq(&self, other: &nika_providers::model_choice::ModelChoice) -> bool
+impl core::fmt::Debug for nika_providers::model_choice::ModelChoice
+pub fn nika_providers::model_choice::ModelChoice::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::model_choice::ModelChoice
+impl<D> owo_colors::OwoColorize for nika_providers::model_choice::ModelChoice
+impl<T, U> core::convert::Into<U> for nika_providers::model_choice::ModelChoice where U: core::convert::From<T>
+pub fn nika_providers::model_choice::ModelChoice::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::model_choice::ModelChoice where U: core::convert::Into<T>
+pub type nika_providers::model_choice::ModelChoice::Error = core::convert::Infallible
+pub fn nika_providers::model_choice::ModelChoice::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::model_choice::ModelChoice where U: core::convert::TryFrom<T>
+pub type nika_providers::model_choice::ModelChoice::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::model_choice::ModelChoice::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::model_choice::ModelChoice where T: core::clone::Clone
+pub type nika_providers::model_choice::ModelChoice::Owned = T
+pub fn nika_providers::model_choice::ModelChoice::clone_into(&self, target: &mut T)
+pub fn nika_providers::model_choice::ModelChoice::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::model_choice::ModelChoice where T: 'static + ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelChoice::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::model_choice::ModelChoice where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelChoice::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::model_choice::ModelChoice where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelChoice::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::model_choice::ModelChoice where T: core::clone::Clone
+pub unsafe fn nika_providers::model_choice::ModelChoice::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::model_choice::ModelChoice
+pub fn nika_providers::model_choice::ModelChoice::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::model_choice::ModelChoice where T: 'static
+pub fn nika_providers::model_choice::ModelChoice::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::model_choice::ModelChoice
+pub type nika_providers::model_choice::ModelChoice::Output = T
+#[non_exhaustive] pub enum nika_providers::model_choice::ModelRole
+pub nika_providers::model_choice::ModelRole::Author
+pub nika_providers::model_choice::ModelRole::Decision
+pub nika_providers::model_choice::ModelRole::Run
+impl core::clone::Clone for nika_providers::model_choice::ModelRole
+pub fn nika_providers::model_choice::ModelRole::clone(&self) -> nika_providers::model_choice::ModelRole
+impl core::cmp::Eq for nika_providers::model_choice::ModelRole
+impl core::cmp::Ord for nika_providers::model_choice::ModelRole
+pub fn nika_providers::model_choice::ModelRole::cmp(&self, other: &nika_providers::model_choice::ModelRole) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_providers::model_choice::ModelRole
+pub fn nika_providers::model_choice::ModelRole::eq(&self, other: &nika_providers::model_choice::ModelRole) -> bool
+impl core::cmp::PartialOrd for nika_providers::model_choice::ModelRole
+pub fn nika_providers::model_choice::ModelRole::partial_cmp(&self, other: &nika_providers::model_choice::ModelRole) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_providers::model_choice::ModelRole
+pub fn nika_providers::model_choice::ModelRole::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_providers::model_choice::ModelRole
+pub fn nika_providers::model_choice::ModelRole::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_providers::model_choice::ModelRole
+impl core::marker::StructuralPartialEq for nika_providers::model_choice::ModelRole
+impl<D> owo_colors::OwoColorize for nika_providers::model_choice::ModelRole
+impl<T, U> core::convert::Into<U> for nika_providers::model_choice::ModelRole where U: core::convert::From<T>
+pub fn nika_providers::model_choice::ModelRole::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::model_choice::ModelRole where U: core::convert::Into<T>
+pub type nika_providers::model_choice::ModelRole::Error = core::convert::Infallible
+pub fn nika_providers::model_choice::ModelRole::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::model_choice::ModelRole where U: core::convert::TryFrom<T>
+pub type nika_providers::model_choice::ModelRole::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::model_choice::ModelRole::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::model_choice::ModelRole where T: core::clone::Clone
+pub type nika_providers::model_choice::ModelRole::Owned = T
+pub fn nika_providers::model_choice::ModelRole::clone_into(&self, target: &mut T)
+pub fn nika_providers::model_choice::ModelRole::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::model_choice::ModelRole where T: 'static + ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelRole::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::model_choice::ModelRole where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelRole::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::model_choice::ModelRole where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelRole::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::model_choice::ModelRole where T: core::clone::Clone
+pub unsafe fn nika_providers::model_choice::ModelRole::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::model_choice::ModelRole
+pub fn nika_providers::model_choice::ModelRole::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::model_choice::ModelRole where T: 'static
+pub fn nika_providers::model_choice::ModelRole::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::model_choice::ModelRole
+pub type nika_providers::model_choice::ModelRole::Output = T
+#[non_exhaustive] pub struct nika_providers::model_choice::ModelAsk
+pub nika_providers::model_choice::ModelAsk::delegate: core::option::Option<nika_providers::model_choice::Delegation>
+pub nika_providers::model_choice::ModelAsk::model: core::option::Option<alloc::string::String>
+pub nika_providers::model_choice::ModelAsk::protocol: core::option::Option<nika_types::access::selection::AccessProtocol>
+pub nika_providers::model_choice::ModelAsk::provider: core::option::Option<alloc::string::String>
+pub nika_providers::model_choice::ModelAsk::via: core::option::Option<alloc::string::String>
+impl nika_providers::model_choice::ModelAsk
+pub fn nika_providers::model_choice::ModelAsk::new() -> Self
+impl core::clone::Clone for nika_providers::model_choice::ModelAsk
+pub fn nika_providers::model_choice::ModelAsk::clone(&self) -> nika_providers::model_choice::ModelAsk
+impl core::cmp::Eq for nika_providers::model_choice::ModelAsk
+impl core::cmp::PartialEq for nika_providers::model_choice::ModelAsk
+pub fn nika_providers::model_choice::ModelAsk::eq(&self, other: &nika_providers::model_choice::ModelAsk) -> bool
+impl core::default::Default for nika_providers::model_choice::ModelAsk
+pub fn nika_providers::model_choice::ModelAsk::default() -> nika_providers::model_choice::ModelAsk
+impl core::fmt::Debug for nika_providers::model_choice::ModelAsk
+pub fn nika_providers::model_choice::ModelAsk::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::model_choice::ModelAsk
+impl<D> owo_colors::OwoColorize for nika_providers::model_choice::ModelAsk
+impl<T, U> core::convert::Into<U> for nika_providers::model_choice::ModelAsk where U: core::convert::From<T>
+pub fn nika_providers::model_choice::ModelAsk::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::model_choice::ModelAsk where U: core::convert::Into<T>
+pub type nika_providers::model_choice::ModelAsk::Error = core::convert::Infallible
+pub fn nika_providers::model_choice::ModelAsk::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::model_choice::ModelAsk where U: core::convert::TryFrom<T>
+pub type nika_providers::model_choice::ModelAsk::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::model_choice::ModelAsk::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::model_choice::ModelAsk where T: core::clone::Clone
+pub type nika_providers::model_choice::ModelAsk::Owned = T
+pub fn nika_providers::model_choice::ModelAsk::clone_into(&self, target: &mut T)
+pub fn nika_providers::model_choice::ModelAsk::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::model_choice::ModelAsk where T: 'static + ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelAsk::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::model_choice::ModelAsk where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelAsk::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::model_choice::ModelAsk where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelAsk::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::model_choice::ModelAsk where T: core::clone::Clone
+pub unsafe fn nika_providers::model_choice::ModelAsk::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::model_choice::ModelAsk
+pub fn nika_providers::model_choice::ModelAsk::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::model_choice::ModelAsk where T: 'static
+pub fn nika_providers::model_choice::ModelAsk::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::model_choice::ModelAsk
+pub type nika_providers::model_choice::ModelAsk::Output = T
+#[non_exhaustive] pub struct nika_providers::model_choice::ModelInventory
+impl nika_providers::model_choice::ModelInventory
+pub fn nika_providers::model_choice::ModelInventory::choose(&self, role: nika_providers::model_choice::ModelRole, ask: &nika_providers::model_choice::ModelAsk) -> nika_providers::model_choice::ModelChoice
+pub fn nika_providers::model_choice::ModelInventory::from_probes(probes: &[nika_providers::probe::ProviderProbe]) -> Self
+pub fn nika_providers::model_choice::ModelInventory::offers(&self, role: nika_providers::model_choice::ModelRole) -> &[nika_providers::model_choice::ModelOffer]
+pub fn nika_providers::model_choice::ModelInventory::with_offers(self, role: nika_providers::model_choice::ModelRole, offers: alloc::vec::Vec<nika_providers::model_choice::ModelOffer>) -> Self
+impl core::clone::Clone for nika_providers::model_choice::ModelInventory
+pub fn nika_providers::model_choice::ModelInventory::clone(&self) -> nika_providers::model_choice::ModelInventory
+impl core::cmp::PartialEq for nika_providers::model_choice::ModelInventory
+pub fn nika_providers::model_choice::ModelInventory::eq(&self, other: &nika_providers::model_choice::ModelInventory) -> bool
+impl core::default::Default for nika_providers::model_choice::ModelInventory
+pub fn nika_providers::model_choice::ModelInventory::default() -> nika_providers::model_choice::ModelInventory
+impl core::fmt::Debug for nika_providers::model_choice::ModelInventory
+pub fn nika_providers::model_choice::ModelInventory::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::model_choice::ModelInventory
+impl<D> owo_colors::OwoColorize for nika_providers::model_choice::ModelInventory
+impl<T, U> core::convert::Into<U> for nika_providers::model_choice::ModelInventory where U: core::convert::From<T>
+pub fn nika_providers::model_choice::ModelInventory::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::model_choice::ModelInventory where U: core::convert::Into<T>
+pub type nika_providers::model_choice::ModelInventory::Error = core::convert::Infallible
+pub fn nika_providers::model_choice::ModelInventory::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::model_choice::ModelInventory where U: core::convert::TryFrom<T>
+pub type nika_providers::model_choice::ModelInventory::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::model_choice::ModelInventory::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::model_choice::ModelInventory where T: core::clone::Clone
+pub type nika_providers::model_choice::ModelInventory::Owned = T
+pub fn nika_providers::model_choice::ModelInventory::clone_into(&self, target: &mut T)
+pub fn nika_providers::model_choice::ModelInventory::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::model_choice::ModelInventory where T: 'static + ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelInventory::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::model_choice::ModelInventory where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelInventory::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::model_choice::ModelInventory where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelInventory::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::model_choice::ModelInventory where T: core::clone::Clone
+pub unsafe fn nika_providers::model_choice::ModelInventory::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::model_choice::ModelInventory
+pub fn nika_providers::model_choice::ModelInventory::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::model_choice::ModelInventory where T: 'static
+pub fn nika_providers::model_choice::ModelInventory::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::model_choice::ModelInventory
+pub type nika_providers::model_choice::ModelInventory::Output = T
+#[non_exhaustive] pub struct nika_providers::model_choice::ModelOffer
+pub nika_providers::model_choice::ModelOffer::model: alloc::string::String
+pub nika_providers::model_choice::ModelOffer::output_usd_per_million: core::option::Option<f64>
+pub nika_providers::model_choice::ModelOffer::route: nika_providers::resolve_access::AccessCandidate
+impl nika_providers::model_choice::ModelOffer
+pub fn nika_providers::model_choice::ModelOffer::new(model: impl core::convert::Into<alloc::string::String>, route: nika_providers::resolve_access::AccessCandidate, price: core::option::Option<f64>) -> Self
+impl core::clone::Clone for nika_providers::model_choice::ModelOffer
+pub fn nika_providers::model_choice::ModelOffer::clone(&self) -> nika_providers::model_choice::ModelOffer
+impl core::cmp::PartialEq for nika_providers::model_choice::ModelOffer
+pub fn nika_providers::model_choice::ModelOffer::eq(&self, other: &nika_providers::model_choice::ModelOffer) -> bool
+impl core::fmt::Debug for nika_providers::model_choice::ModelOffer
+pub fn nika_providers::model_choice::ModelOffer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::model_choice::ModelOffer
+impl<D> owo_colors::OwoColorize for nika_providers::model_choice::ModelOffer
+impl<T, U> core::convert::Into<U> for nika_providers::model_choice::ModelOffer where U: core::convert::From<T>
+pub fn nika_providers::model_choice::ModelOffer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::model_choice::ModelOffer where U: core::convert::Into<T>
+pub type nika_providers::model_choice::ModelOffer::Error = core::convert::Infallible
+pub fn nika_providers::model_choice::ModelOffer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::model_choice::ModelOffer where U: core::convert::TryFrom<T>
+pub type nika_providers::model_choice::ModelOffer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::model_choice::ModelOffer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::model_choice::ModelOffer where T: core::clone::Clone
+pub type nika_providers::model_choice::ModelOffer::Owned = T
+pub fn nika_providers::model_choice::ModelOffer::clone_into(&self, target: &mut T)
+pub fn nika_providers::model_choice::ModelOffer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::model_choice::ModelOffer where T: 'static + ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelOffer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::model_choice::ModelOffer where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelOffer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::model_choice::ModelOffer where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelOffer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::model_choice::ModelOffer where T: core::clone::Clone
+pub unsafe fn nika_providers::model_choice::ModelOffer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::model_choice::ModelOffer
+pub fn nika_providers::model_choice::ModelOffer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::model_choice::ModelOffer where T: 'static
+pub fn nika_providers::model_choice::ModelOffer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::model_choice::ModelOffer
+pub type nika_providers::model_choice::ModelOffer::Output = T
 pub mod nika_providers::plan
 #[non_exhaustive] pub enum nika_providers::plan::LaneVerdict
 pub nika_providers::plan::LaneVerdict::Admitted(nika_providers::plan::ResolvedLane)
@@ -2637,6 +2895,46 @@ impl<T> nika_error::traits::AsAny for nika_providers::admission::AdmissionState 
 pub fn nika_providers::admission::AdmissionState::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_providers::admission::AdmissionState
 pub type nika_providers::admission::AdmissionState::Output = T
+#[non_exhaustive] pub enum nika_providers::Delegation
+pub nika_providers::Delegation::Strongest
+impl core::clone::Clone for nika_providers::model_choice::Delegation
+pub fn nika_providers::model_choice::Delegation::clone(&self) -> nika_providers::model_choice::Delegation
+impl core::cmp::Eq for nika_providers::model_choice::Delegation
+impl core::cmp::PartialEq for nika_providers::model_choice::Delegation
+pub fn nika_providers::model_choice::Delegation::eq(&self, other: &nika_providers::model_choice::Delegation) -> bool
+impl core::fmt::Debug for nika_providers::model_choice::Delegation
+pub fn nika_providers::model_choice::Delegation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_providers::model_choice::Delegation
+pub fn nika_providers::model_choice::Delegation::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_providers::model_choice::Delegation
+impl core::marker::StructuralPartialEq for nika_providers::model_choice::Delegation
+impl<D> owo_colors::OwoColorize for nika_providers::model_choice::Delegation
+impl<T, U> core::convert::Into<U> for nika_providers::model_choice::Delegation where U: core::convert::From<T>
+pub fn nika_providers::model_choice::Delegation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::model_choice::Delegation where U: core::convert::Into<T>
+pub type nika_providers::model_choice::Delegation::Error = core::convert::Infallible
+pub fn nika_providers::model_choice::Delegation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::model_choice::Delegation where U: core::convert::TryFrom<T>
+pub type nika_providers::model_choice::Delegation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::model_choice::Delegation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::model_choice::Delegation where T: core::clone::Clone
+pub type nika_providers::model_choice::Delegation::Owned = T
+pub fn nika_providers::model_choice::Delegation::clone_into(&self, target: &mut T)
+pub fn nika_providers::model_choice::Delegation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::model_choice::Delegation where T: 'static + ?core::marker::Sized
+pub fn nika_providers::model_choice::Delegation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::model_choice::Delegation where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::Delegation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::model_choice::Delegation where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::Delegation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::model_choice::Delegation where T: core::clone::Clone
+pub unsafe fn nika_providers::model_choice::Delegation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::model_choice::Delegation
+pub fn nika_providers::model_choice::Delegation::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::model_choice::Delegation where T: 'static
+pub fn nika_providers::model_choice::Delegation::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::model_choice::Delegation
+pub type nika_providers::model_choice::Delegation::Output = T
 #[non_exhaustive] pub enum nika_providers::KeyAuth
 pub nika_providers::KeyAuth::Absent
 pub nika_providers::KeyAuth::Implausible
@@ -2721,6 +3019,96 @@ impl<T> nika_error::traits::AsAny for nika_providers::plan::LaneVerdict where T:
 pub fn nika_providers::plan::LaneVerdict::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_providers::plan::LaneVerdict
 pub type nika_providers::plan::LaneVerdict::Output = T
+#[non_exhaustive] pub enum nika_providers::ModelChoice
+pub nika_providers::ModelChoice::Choose(alloc::vec::Vec<nika_providers::model_choice::ModelOffer>)
+pub nika_providers::ModelChoice::Delegated
+pub nika_providers::ModelChoice::Delegated::among: alloc::vec::Vec<nika_providers::model_choice::ModelOffer>
+pub nika_providers::ModelChoice::Delegated::chosen: nika_providers::model_choice::ModelOffer
+pub nika_providers::ModelChoice::Delegated::rule: &'static str
+pub nika_providers::ModelChoice::Exact(nika_providers::model_choice::ModelOffer)
+pub nika_providers::ModelChoice::Unsupported
+pub nika_providers::ModelChoice::Unsupported::alternatives: alloc::vec::Vec<nika_providers::model_choice::ModelOffer>
+pub nika_providers::ModelChoice::Unsupported::why: alloc::string::String
+impl core::clone::Clone for nika_providers::model_choice::ModelChoice
+pub fn nika_providers::model_choice::ModelChoice::clone(&self) -> nika_providers::model_choice::ModelChoice
+impl core::cmp::PartialEq for nika_providers::model_choice::ModelChoice
+pub fn nika_providers::model_choice::ModelChoice::eq(&self, other: &nika_providers::model_choice::ModelChoice) -> bool
+impl core::fmt::Debug for nika_providers::model_choice::ModelChoice
+pub fn nika_providers::model_choice::ModelChoice::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::model_choice::ModelChoice
+impl<D> owo_colors::OwoColorize for nika_providers::model_choice::ModelChoice
+impl<T, U> core::convert::Into<U> for nika_providers::model_choice::ModelChoice where U: core::convert::From<T>
+pub fn nika_providers::model_choice::ModelChoice::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::model_choice::ModelChoice where U: core::convert::Into<T>
+pub type nika_providers::model_choice::ModelChoice::Error = core::convert::Infallible
+pub fn nika_providers::model_choice::ModelChoice::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::model_choice::ModelChoice where U: core::convert::TryFrom<T>
+pub type nika_providers::model_choice::ModelChoice::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::model_choice::ModelChoice::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::model_choice::ModelChoice where T: core::clone::Clone
+pub type nika_providers::model_choice::ModelChoice::Owned = T
+pub fn nika_providers::model_choice::ModelChoice::clone_into(&self, target: &mut T)
+pub fn nika_providers::model_choice::ModelChoice::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::model_choice::ModelChoice where T: 'static + ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelChoice::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::model_choice::ModelChoice where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelChoice::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::model_choice::ModelChoice where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelChoice::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::model_choice::ModelChoice where T: core::clone::Clone
+pub unsafe fn nika_providers::model_choice::ModelChoice::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::model_choice::ModelChoice
+pub fn nika_providers::model_choice::ModelChoice::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::model_choice::ModelChoice where T: 'static
+pub fn nika_providers::model_choice::ModelChoice::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::model_choice::ModelChoice
+pub type nika_providers::model_choice::ModelChoice::Output = T
+#[non_exhaustive] pub enum nika_providers::ModelRole
+pub nika_providers::ModelRole::Author
+pub nika_providers::ModelRole::Decision
+pub nika_providers::ModelRole::Run
+impl core::clone::Clone for nika_providers::model_choice::ModelRole
+pub fn nika_providers::model_choice::ModelRole::clone(&self) -> nika_providers::model_choice::ModelRole
+impl core::cmp::Eq for nika_providers::model_choice::ModelRole
+impl core::cmp::Ord for nika_providers::model_choice::ModelRole
+pub fn nika_providers::model_choice::ModelRole::cmp(&self, other: &nika_providers::model_choice::ModelRole) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_providers::model_choice::ModelRole
+pub fn nika_providers::model_choice::ModelRole::eq(&self, other: &nika_providers::model_choice::ModelRole) -> bool
+impl core::cmp::PartialOrd for nika_providers::model_choice::ModelRole
+pub fn nika_providers::model_choice::ModelRole::partial_cmp(&self, other: &nika_providers::model_choice::ModelRole) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_providers::model_choice::ModelRole
+pub fn nika_providers::model_choice::ModelRole::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_providers::model_choice::ModelRole
+pub fn nika_providers::model_choice::ModelRole::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_providers::model_choice::ModelRole
+impl core::marker::StructuralPartialEq for nika_providers::model_choice::ModelRole
+impl<D> owo_colors::OwoColorize for nika_providers::model_choice::ModelRole
+impl<T, U> core::convert::Into<U> for nika_providers::model_choice::ModelRole where U: core::convert::From<T>
+pub fn nika_providers::model_choice::ModelRole::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::model_choice::ModelRole where U: core::convert::Into<T>
+pub type nika_providers::model_choice::ModelRole::Error = core::convert::Infallible
+pub fn nika_providers::model_choice::ModelRole::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::model_choice::ModelRole where U: core::convert::TryFrom<T>
+pub type nika_providers::model_choice::ModelRole::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::model_choice::ModelRole::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::model_choice::ModelRole where T: core::clone::Clone
+pub type nika_providers::model_choice::ModelRole::Owned = T
+pub fn nika_providers::model_choice::ModelRole::clone_into(&self, target: &mut T)
+pub fn nika_providers::model_choice::ModelRole::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::model_choice::ModelRole where T: 'static + ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelRole::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::model_choice::ModelRole where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelRole::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::model_choice::ModelRole where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelRole::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::model_choice::ModelRole where T: core::clone::Clone
+pub unsafe fn nika_providers::model_choice::ModelRole::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::model_choice::ModelRole
+pub fn nika_providers::model_choice::ModelRole::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::model_choice::ModelRole where T: 'static
+pub fn nika_providers::model_choice::ModelRole::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::model_choice::ModelRole
+pub type nika_providers::model_choice::ModelRole::Output = T
 #[non_exhaustive] pub enum nika_providers::PinRefusal
 pub nika_providers::PinRefusal::NoPath
 pub nika_providers::PinRefusal::NoPath::message: alloc::string::String
@@ -3241,6 +3629,93 @@ impl<T> nika_error::traits::AsAny for nika_providers::admission::InferenceReceip
 pub fn nika_providers::admission::InferenceReceipt::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_providers::admission::InferenceReceipt
 pub type nika_providers::admission::InferenceReceipt::Output = T
+#[non_exhaustive] pub struct nika_providers::ModelAsk
+pub nika_providers::ModelAsk::delegate: core::option::Option<nika_providers::model_choice::Delegation>
+pub nika_providers::ModelAsk::model: core::option::Option<alloc::string::String>
+pub nika_providers::ModelAsk::protocol: core::option::Option<nika_types::access::selection::AccessProtocol>
+pub nika_providers::ModelAsk::provider: core::option::Option<alloc::string::String>
+pub nika_providers::ModelAsk::via: core::option::Option<alloc::string::String>
+impl nika_providers::model_choice::ModelAsk
+pub fn nika_providers::model_choice::ModelAsk::new() -> Self
+impl core::clone::Clone for nika_providers::model_choice::ModelAsk
+pub fn nika_providers::model_choice::ModelAsk::clone(&self) -> nika_providers::model_choice::ModelAsk
+impl core::cmp::Eq for nika_providers::model_choice::ModelAsk
+impl core::cmp::PartialEq for nika_providers::model_choice::ModelAsk
+pub fn nika_providers::model_choice::ModelAsk::eq(&self, other: &nika_providers::model_choice::ModelAsk) -> bool
+impl core::default::Default for nika_providers::model_choice::ModelAsk
+pub fn nika_providers::model_choice::ModelAsk::default() -> nika_providers::model_choice::ModelAsk
+impl core::fmt::Debug for nika_providers::model_choice::ModelAsk
+pub fn nika_providers::model_choice::ModelAsk::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::model_choice::ModelAsk
+impl<D> owo_colors::OwoColorize for nika_providers::model_choice::ModelAsk
+impl<T, U> core::convert::Into<U> for nika_providers::model_choice::ModelAsk where U: core::convert::From<T>
+pub fn nika_providers::model_choice::ModelAsk::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::model_choice::ModelAsk where U: core::convert::Into<T>
+pub type nika_providers::model_choice::ModelAsk::Error = core::convert::Infallible
+pub fn nika_providers::model_choice::ModelAsk::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::model_choice::ModelAsk where U: core::convert::TryFrom<T>
+pub type nika_providers::model_choice::ModelAsk::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::model_choice::ModelAsk::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::model_choice::ModelAsk where T: core::clone::Clone
+pub type nika_providers::model_choice::ModelAsk::Owned = T
+pub fn nika_providers::model_choice::ModelAsk::clone_into(&self, target: &mut T)
+pub fn nika_providers::model_choice::ModelAsk::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::model_choice::ModelAsk where T: 'static + ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelAsk::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::model_choice::ModelAsk where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelAsk::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::model_choice::ModelAsk where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelAsk::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::model_choice::ModelAsk where T: core::clone::Clone
+pub unsafe fn nika_providers::model_choice::ModelAsk::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::model_choice::ModelAsk
+pub fn nika_providers::model_choice::ModelAsk::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::model_choice::ModelAsk where T: 'static
+pub fn nika_providers::model_choice::ModelAsk::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::model_choice::ModelAsk
+pub type nika_providers::model_choice::ModelAsk::Output = T
+#[non_exhaustive] pub struct nika_providers::ModelInventory
+impl nika_providers::model_choice::ModelInventory
+pub fn nika_providers::model_choice::ModelInventory::choose(&self, role: nika_providers::model_choice::ModelRole, ask: &nika_providers::model_choice::ModelAsk) -> nika_providers::model_choice::ModelChoice
+pub fn nika_providers::model_choice::ModelInventory::from_probes(probes: &[nika_providers::probe::ProviderProbe]) -> Self
+pub fn nika_providers::model_choice::ModelInventory::offers(&self, role: nika_providers::model_choice::ModelRole) -> &[nika_providers::model_choice::ModelOffer]
+pub fn nika_providers::model_choice::ModelInventory::with_offers(self, role: nika_providers::model_choice::ModelRole, offers: alloc::vec::Vec<nika_providers::model_choice::ModelOffer>) -> Self
+impl core::clone::Clone for nika_providers::model_choice::ModelInventory
+pub fn nika_providers::model_choice::ModelInventory::clone(&self) -> nika_providers::model_choice::ModelInventory
+impl core::cmp::PartialEq for nika_providers::model_choice::ModelInventory
+pub fn nika_providers::model_choice::ModelInventory::eq(&self, other: &nika_providers::model_choice::ModelInventory) -> bool
+impl core::default::Default for nika_providers::model_choice::ModelInventory
+pub fn nika_providers::model_choice::ModelInventory::default() -> nika_providers::model_choice::ModelInventory
+impl core::fmt::Debug for nika_providers::model_choice::ModelInventory
+pub fn nika_providers::model_choice::ModelInventory::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::model_choice::ModelInventory
+impl<D> owo_colors::OwoColorize for nika_providers::model_choice::ModelInventory
+impl<T, U> core::convert::Into<U> for nika_providers::model_choice::ModelInventory where U: core::convert::From<T>
+pub fn nika_providers::model_choice::ModelInventory::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::model_choice::ModelInventory where U: core::convert::Into<T>
+pub type nika_providers::model_choice::ModelInventory::Error = core::convert::Infallible
+pub fn nika_providers::model_choice::ModelInventory::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::model_choice::ModelInventory where U: core::convert::TryFrom<T>
+pub type nika_providers::model_choice::ModelInventory::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::model_choice::ModelInventory::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::model_choice::ModelInventory where T: core::clone::Clone
+pub type nika_providers::model_choice::ModelInventory::Owned = T
+pub fn nika_providers::model_choice::ModelInventory::clone_into(&self, target: &mut T)
+pub fn nika_providers::model_choice::ModelInventory::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::model_choice::ModelInventory where T: 'static + ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelInventory::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::model_choice::ModelInventory where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelInventory::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::model_choice::ModelInventory where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelInventory::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::model_choice::ModelInventory where T: core::clone::Clone
+pub unsafe fn nika_providers::model_choice::ModelInventory::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::model_choice::ModelInventory
+pub fn nika_providers::model_choice::ModelInventory::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::model_choice::ModelInventory where T: 'static
+pub fn nika_providers::model_choice::ModelInventory::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::model_choice::ModelInventory
+pub type nika_providers::model_choice::ModelInventory::Output = T
 #[non_exhaustive] pub struct nika_providers::ModelNeed
 pub nika_providers::ModelNeed::agent: bool
 pub nika_providers::ModelNeed::infer: bool
@@ -3282,6 +3757,46 @@ impl<T> nika_error::traits::AsAny for nika_providers::plan::ModelNeed where T: '
 pub fn nika_providers::plan::ModelNeed::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_providers::plan::ModelNeed
 pub type nika_providers::plan::ModelNeed::Output = T
+#[non_exhaustive] pub struct nika_providers::ModelOffer
+pub nika_providers::ModelOffer::model: alloc::string::String
+pub nika_providers::ModelOffer::output_usd_per_million: core::option::Option<f64>
+pub nika_providers::ModelOffer::route: nika_providers::resolve_access::AccessCandidate
+impl nika_providers::model_choice::ModelOffer
+pub fn nika_providers::model_choice::ModelOffer::new(model: impl core::convert::Into<alloc::string::String>, route: nika_providers::resolve_access::AccessCandidate, price: core::option::Option<f64>) -> Self
+impl core::clone::Clone for nika_providers::model_choice::ModelOffer
+pub fn nika_providers::model_choice::ModelOffer::clone(&self) -> nika_providers::model_choice::ModelOffer
+impl core::cmp::PartialEq for nika_providers::model_choice::ModelOffer
+pub fn nika_providers::model_choice::ModelOffer::eq(&self, other: &nika_providers::model_choice::ModelOffer) -> bool
+impl core::fmt::Debug for nika_providers::model_choice::ModelOffer
+pub fn nika_providers::model_choice::ModelOffer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::model_choice::ModelOffer
+impl<D> owo_colors::OwoColorize for nika_providers::model_choice::ModelOffer
+impl<T, U> core::convert::Into<U> for nika_providers::model_choice::ModelOffer where U: core::convert::From<T>
+pub fn nika_providers::model_choice::ModelOffer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::model_choice::ModelOffer where U: core::convert::Into<T>
+pub type nika_providers::model_choice::ModelOffer::Error = core::convert::Infallible
+pub fn nika_providers::model_choice::ModelOffer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::model_choice::ModelOffer where U: core::convert::TryFrom<T>
+pub type nika_providers::model_choice::ModelOffer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::model_choice::ModelOffer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::model_choice::ModelOffer where T: core::clone::Clone
+pub type nika_providers::model_choice::ModelOffer::Owned = T
+pub fn nika_providers::model_choice::ModelOffer::clone_into(&self, target: &mut T)
+pub fn nika_providers::model_choice::ModelOffer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::model_choice::ModelOffer where T: 'static + ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelOffer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::model_choice::ModelOffer where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelOffer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::model_choice::ModelOffer where T: ?core::marker::Sized
+pub fn nika_providers::model_choice::ModelOffer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::model_choice::ModelOffer where T: core::clone::Clone
+pub unsafe fn nika_providers::model_choice::ModelOffer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::model_choice::ModelOffer
+pub fn nika_providers::model_choice::ModelOffer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::model_choice::ModelOffer where T: 'static
+pub fn nika_providers::model_choice::ModelOffer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::model_choice::ModelOffer
+pub type nika_providers::model_choice::ModelOffer::Output = T
 pub struct nika_providers::NoHttp
 impl core::clone::Clone for nika_providers::registry::NoHttp
 pub fn nika_providers::registry::NoHttp::clone(&self) -> nika_providers::registry::NoHttp

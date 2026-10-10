@@ -93,7 +93,19 @@ Two typed readings joined these modules on 2026-10-08, so every host reads the s
   and time bounds, the wall time, the stop reason or the engine's failure kind, and the
   reasoning and usage the provider reported. A fact the receipt does not hold is null, never
   guessed or summed; prompts, answers, proposed objects, served model names and error text never
-  pass.
+  pass. Its `stages` carry the time the compile's other stages took, as its decision record
+  states them (`StageTimes`): the knowledge qualification's wall time (`qualification_ms`, its
+  references asked of the decision seat as one batch) and each trial of a candidate in the order
+  run (`TrialTime`: how far it went, its `elapsed_ms` and the host's `runtime_bound_ms`), never
+  summed, null where the record states none, and absent when it states neither; no output,
+  read-back or failure text passes.
+  `Knowledge` is the authoring knowledge the session reads, one typed state: `admitted` (the
+  release's `source` — `embedded` or `disk` —, `version`, `manifest_sha256` and who chose it:
+  `default`, `conversation`, `host` or `environment`), `refused` (the named source's kind, the
+  layer that named it, the refusal's stable code and its cause, never a host path) or `unread`
+  (why none is read). It is a configured fact, never a call receipt. While a refused source
+  holds a line that would reach a model, `Waiting::KnowledgeChoice` carries that line exactly as
+  typed, between the intelligence choice and a proposal's consent in the precedence.
   `Answered` says what the last line typed for an authoring question did, as the session recorded
   it at the act: the question's witness and one act, `bound` (the key, the value and how the
   line gave it: `as_typed`, `offered_key`, `model_read` or `seat_default`), `dropped`, `restated`, `waits` (with
@@ -103,6 +115,16 @@ Two typed readings joined these modules on 2026-10-08, so every host reads the s
   a revision over a base (`operations` or `replaced`), each component witnessed on those bytes.
   `RunEnd` is the one reading of the run door's exit codes. It grants nothing: consents,
   answers and runs still go through the session's own doors.
+- **`tools`** — the tools a session serves to the intelligence that leads its conversation
+  (`CONTRACT` = `nika/author-tools@0`), typed once for Nika's own agent loop and for an ACP
+  agent's loop reaching them over MCP (`nika-mcp`'s conversation tool server). `NAMES` fixes
+  the 17 tool names, each a lowercase word an MCP client mounts unchanged (`mcp__nika__<name>`).
+  `SessionTools` is the one trait: `tools()` lists the `ToolDef`s (name, description, argument
+  JSON Schema, read-only), `call(ToolCall)` runs one call (name, arguments as sent, `meta` = the
+  caller's tool-use id when known) on the caller's thread and answers a `ToolReply` (text,
+  `is_error`, `ends_turn`: Nika's loop parks its run on it; MCP returns the text). The session
+  implements it against its own state; a loop or a transport only lists and relays, and no reply
+  grants anything. The Session writer owns the contract's evolution.
 
 ## 3. Boundary
 

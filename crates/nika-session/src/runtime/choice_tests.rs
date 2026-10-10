@@ -23,17 +23,16 @@ use crate::reasoner::{NoReasoner, ScriptedReasoner};
 fn an_unchosen_session_asks_in_context_and_resumes_the_waiting_line() {
     let dir = tree();
     let home = tempfile::tempdir().expect("home");
-    let census = IntelligenceCensus {
-        seats: vec![crate::intelligence::SeatSeen {
-            id: "codex".to_owned(),
-            product_present: true,
-            configured: true,
-            answers_here: true,
-        }],
-        api_keys: vec![],
-        locals: vec![],
-        provider_context: Vec::new(),
-    };
+    let census = IntelligenceCensus::new(
+        vec![crate::intelligence::SeatSeen::new(
+            "codex".to_owned(),
+            true,
+            true,
+            true,
+        )],
+        vec![],
+        vec![],
+    );
     let factory: ReasonerFactory = Box::new(|resolved| match &resolved.kind {
         IntelligenceKind::None => Box::new(NoReasoner),
         _ => Box::new(ScriptedReasoner::new(vec!["seated".to_owned()])),
@@ -110,19 +109,20 @@ fn an_unchosen_session_asks_in_context_and_resumes_the_waiting_line() {
 fn an_ambiguous_app_choice_waits_without_saving_or_resuming() {
     let dir = tree();
     let home = tempfile::tempdir().expect("home");
-    let census = IntelligenceCensus {
-        seats: ["copilot", "claude-code", "gemini-cli"]
-            .map(|id| crate::intelligence::SeatSeen {
-                id: id.to_owned(),
-                product_present: true,
-                configured: id != "copilot",
-                answers_here: id != "gemini-cli",
+    let census = IntelligenceCensus::new(
+        ["copilot", "claude-code", "gemini-cli"]
+            .map(|id| {
+                crate::intelligence::SeatSeen::new(
+                    id.to_owned(),
+                    true,
+                    id != "copilot",
+                    id != "gemini-cli",
+                )
             })
             .to_vec(),
-        api_keys: vec![],
-        locals: vec![],
-        provider_context: Vec::new(),
-    };
+        vec![],
+        vec![],
+    );
     let selections = Arc::new(AtomicUsize::new(0));
     let selected = Arc::clone(&selections);
     let factory: ReasonerFactory = Box::new(move |resolved| {
@@ -403,17 +403,16 @@ fn a_change_at_the_consent_prompt_revises_or_keeps_the_proposal_waiting() {
 fn a_kept_choice_that_cannot_answer_asks_in_context_and_resumes_the_line() {
     let dir = tree();
     let home = tempfile::tempdir().expect("home");
-    let census = IntelligenceCensus {
-        seats: vec![crate::intelligence::SeatSeen {
-            id: "gemini-cli".to_owned(),
-            product_present: true,
-            configured: true,
-            answers_here: false,
-        }],
-        api_keys: vec!["mistral".to_owned()],
-        locals: vec!["ollama".into()],
-        provider_context: Vec::new(),
-    };
+    let census = IntelligenceCensus::new(
+        vec![crate::intelligence::SeatSeen::new(
+            "gemini-cli".to_owned(),
+            true,
+            true,
+            false,
+        )],
+        vec!["mistral".to_owned()],
+        vec!["ollama".into()],
+    );
     let pref = UserIntelligencePreference::new(
         IntelligenceKind::Harness {
             seat: "gemini-cli".to_owned(),
@@ -503,17 +502,16 @@ fn unsettled_work_under_a_kept_unusable_choice_asks_in_context() {
     );
     let mut again = SessionRuntime::open_with(
         dir.path(),
-        IntelligenceCensus {
-            seats: vec![crate::intelligence::SeatSeen {
-                id: "gemini-cli".to_owned(),
-                product_present: true,
-                configured: false,
-                answers_here: false,
-            }],
-            api_keys: vec![],
-            locals: vec![],
-            provider_context: Vec::new(),
-        },
+        IntelligenceCensus::new(
+            vec![crate::intelligence::SeatSeen::new(
+                "gemini-cli".to_owned(),
+                true,
+                false,
+                false,
+            )],
+            vec![],
+            vec![],
+        ),
         &pref,
         None,
         Box::new(|_| Box::new(NoReasoner)),
@@ -625,17 +623,16 @@ fn unsettled_work_asks_in_context_with_the_authoring_reason() {
 fn the_intelligence_can_be_rechosen_in_session() {
     let dir = tree();
     let home = tempfile::tempdir().expect("home");
-    let census = IntelligenceCensus {
-        seats: vec![crate::intelligence::SeatSeen {
-            id: "codex".to_owned(),
-            product_present: true,
-            configured: true,
-            answers_here: true,
-        }],
-        api_keys: vec![],
-        locals: vec![],
-        provider_context: Vec::new(),
-    };
+    let census = IntelligenceCensus::new(
+        vec![crate::intelligence::SeatSeen::new(
+            "codex".to_owned(),
+            true,
+            true,
+            true,
+        )],
+        vec![],
+        vec![],
+    );
     let pref = UserIntelligencePreference::new(IntelligenceKind::None, None);
     let factory: ReasonerFactory = Box::new(|resolved| match &resolved.kind {
         IntelligenceKind::None => Box::new(NoReasoner),
@@ -694,18 +691,18 @@ fn the_intelligence_can_be_rechosen_in_session() {
 #[test]
 fn an_unserved_choice_refuses_with_its_fix() {
     let dir = tree();
-    let unserved = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Harness {
+    let unserved = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Harness {
             seat: "claude-code".to_owned(),
             transport: nika_types::access::HarnessTransport::Native,
         },
-        model: None,
-        locus: DataLocus::Remote {
+        None,
+        DataLocus::Remote {
             product: "claude-code".to_owned(),
         },
-        ready: false,
-        why: Some("`claude-code` is not installed on this machine — install it".to_owned()),
-    };
+        false,
+        Some("`claude-code` is not installed on this machine — install it".to_owned()),
+    );
     let mut s = SessionRuntime::open(dir.path(), unserved, Box::new(Seat("claude-code")));
     assert!(
         s.banner().contains("⚠ `claude-code` is not installed"),
@@ -835,18 +832,15 @@ fn selected(s: &SessionRuntime) -> (String, Option<String>, &'static str, bool) 
 fn a_choice_holds_for_this_conversation_and_resumes_with_it() {
     let dir = tree();
     let home = tempfile::tempdir().expect("home");
-    let census = |codex: bool| IntelligenceCensus {
-        seats: (codex.then(|| crate::intelligence::SeatSeen {
-            id: "codex".to_owned(),
-            product_present: true,
-            configured: true,
-            answers_here: true,
-        }))
-        .into_iter()
-        .collect(),
-        api_keys: vec![],
-        locals: vec!["ollama".to_owned()],
-        provider_context: Vec::new(),
+    let census = |codex: bool| {
+        IntelligenceCensus::new(
+            (codex
+                .then(|| crate::intelligence::SeatSeen::new("codex".to_owned(), true, true, true)))
+            .into_iter()
+            .collect(),
+            vec![],
+            vec!["ollama".to_owned()],
+        )
     };
     let factory = || -> ReasonerFactory {
         Box::new(|resolved| match &resolved.kind {
@@ -969,12 +963,7 @@ fn an_unreadable_kept_choice_stays_unavailable_never_the_default() {
         provider: "ollama".to_owned(),
     };
     let operator = UserIntelligencePreference::new(local, None);
-    let census = IntelligenceCensus {
-        seats: vec![],
-        api_keys: vec![],
-        locals: vec!["ollama".to_owned()],
-        provider_context: Vec::new(),
-    };
+    let census = IntelligenceCensus::new(vec![], vec![], vec!["ollama".to_owned()]);
     let factory: ReasonerFactory = Box::new(|resolved| match &resolved.kind {
         IntelligenceKind::None => Box::new(NoReasoner),
         _ => Box::new(ScriptedReasoner::new(vec!["seated".to_owned()])),
@@ -1037,12 +1026,7 @@ fn a_present_null_kept_choice_is_refused_and_the_journal_kept() {
         provider: "ollama".to_owned(),
     };
     let operator = UserIntelligencePreference::new(local, None);
-    let census = IntelligenceCensus {
-        seats: vec![],
-        api_keys: vec![],
-        locals: vec!["ollama".to_owned()],
-        provider_context: Vec::new(),
-    };
+    let census = IntelligenceCensus::new(vec![], vec![], vec!["ollama".to_owned()]);
     let factory: ReasonerFactory = Box::new(|_| Box::new(NoReasoner));
     let mut s =
         SessionRuntime::open_with(dir.path(), census, &operator, Some(home.path()), factory);

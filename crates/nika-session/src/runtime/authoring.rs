@@ -174,6 +174,10 @@ impl SessionRuntime {
                 if super::route::question_outside_money(intent, &round.money) {
                     return None;
                 }
+                // Under a refused knowledge source the line waits before the route reads it.
+                if let Some(held) = self.hold_for_knowledge(intent, self.routes_by_model()) {
+                    return Some(held);
+                }
                 let seat_reads = self.seat.has_model();
                 match self.classify(SessionPhase::Idle, intent).act {
                     // Work the deterministic reader did not recognise, routed
@@ -204,7 +208,8 @@ impl SessionRuntime {
                     self.refused_unsettled(out)
                 }
                 AuthoringSeat::Provider { .. } | AuthoringSeat::Harness { .. } => self
-                    .beside_goal(intent, earlier)
+                    .hold_for_knowledge(intent, true)
+                    .or_else(|| self.beside_goal(intent, earlier))
                     .unwrap_or_else(|| self.compile_under_seat(round)),
                 // No usable intelligence is chosen: ask here, in context,
                 // and resume this request under the resulting choice.
@@ -221,6 +226,8 @@ impl SessionRuntime {
                     self.last_outcome = Some(out);
                     TurnOutcome::Facts(text)
                 }
+                // A seat this session does not know never authors (ADR-150): unavailable.
+                _ => self.machinery(&AuthoringError::Seat(self.seat.line())),
             }),
             reading => Some(self.settle(round, reading)),
         }
@@ -761,12 +768,12 @@ impl SessionRuntime {
                     "{error} · this workflow-authoring request was not sent, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again"
                 ),
             )),
-            AuthoringError::Compiler(_) | AuthoringError::Runtime(_) => {
-                TurnOutcome::Refusal(Refusal::new(
-                    RefusalClass::AuthoringRefused,
-                    format!("{error} · nothing was written and nothing was substituted"),
-                ))
-            }
+            // The compiler's machinery, the session's runtime, or a failure this session does
+            // not know (ADR-150): a refusal that names it.
+            _ => TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::AuthoringRefused,
+                format!("{error} · nothing was written and nothing was substituted"),
+            )),
         }
     }
 
@@ -1133,9 +1140,9 @@ impl SessionRuntime {
             // the typed reading of the question asked.
             TurnAct::Answer => {}
             // UNKNOWN — a line the route could not read, a route that failed,
-            // a line no protocol answers — binds nothing: the question waits,
-            // unchanged, and says how to go on.
-            TurnAct::Unknown => {
+            // a line no protocol answers — and an act this session does not know
+            // (ADR-150) bind nothing: the question waits, unchanged, and says how to go on.
+            _ => {
                 // Nothing reads replies: a value question's sentence waits for the value alone.
                 let why = if decision.method == RoutingMethod::Fallback && !self.reads_answers() {
                     "that line is not a value on its own and no intelligence reads replies — nothing was bound · put a longer value in quotes".to_owned()
@@ -1247,8 +1254,9 @@ impl SessionRuntime {
     fn authoring_note(&self) -> String {
         match &self.seat {
             AuthoringSeat::Provider { model } => format!("authoring · {model}"),
-            AuthoringSeat::Harness { .. } | AuthoringSeat::Unavailable { .. } => self.seat.line(),
             AuthoringSeat::Deterministic { .. } => "authoring".to_owned(),
+            // A harness, an unavailable seat, or one this session does not know (ADR-150).
+            _ => self.seat.line(),
         }
     }
 }

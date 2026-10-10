@@ -168,9 +168,10 @@ async fn a_stopped_rejection_resumes_its_localization_in_a_later_round() {
 /// or a partial one, it is repeated with no call.
 #[tokio::test]
 async fn a_verdict_that_waited_for_a_run_is_resumed_over_a_whole_run() {
-    // The whole request rejected, its one part carried, no task doing more: nothing located,
-    // and no run of these bytes, so the doubt stays.
-    let judge = Script::new([Some("unfaithful"), Some("carried"), Some("only_requested")]);
+    // The whole request rejected, its one part carried, the write the output that part states (no
+    // extra question), no run of these bytes, and asked where its doubt is the judge names
+    // nothing: the doubt stays.
+    let judge = Script::new([Some("unfaithful"), Some("carried"), Some("unlocated")]);
     let request = CompileRequest::create(INTENT);
     let (first, waited) = declined(verdict(&judge, &request, ready(), 0, None).await);
     assert_eq!(waited.contested, [INTENT]);
@@ -208,12 +209,11 @@ async fn a_verdict_that_waited_for_a_run_is_resumed_over_a_whole_run() {
     let questions = [
         ("verify-request".to_owned(), true),
         ("verify-part-0".to_owned(), true),
-        ("verify-extra".to_owned(), true),
         ("verify-observed".to_owned(), false),
     ];
     assert_eq!(asked(&resumed), questions);
     assert_eq!(resumed["settled_by"], "verify-observed");
-    assert_eq!(resumed["read_back"], 3);
+    assert_eq!(resumed["read_back"], 2);
     let steps = route(&out);
     assert!(steps.iter().any(|step| step == RESUMED), "{steps:?}");
 }

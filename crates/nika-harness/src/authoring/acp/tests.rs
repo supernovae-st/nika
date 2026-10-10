@@ -47,6 +47,45 @@ fn the_profile_disables_builtins_disk_settings_and_other_mcp_before_query() {
     }
 }
 
+/// Every Claude Code session asks to see its thinking, whatever its role: the audited one-shot
+/// profile carries summarized adaptive thinking beside its own options, an agent session that
+/// alone. A thinking option already named is kept as given, a meta of another shape is left as
+/// it is, and Codex or any other adapter sends no options at all.
+#[test]
+fn every_claude_code_session_asks_to_see_its_thinking() {
+    let shown = json!({"type": "adaptive", "display": "summarized"});
+    assert_eq!(profile()["claudeCode"]["options"]["thinking"], shown);
+    assert_eq!(claude().session_meta(), Some(profile()));
+    let agent = json!({"claudeCode": {"options": {"thinking": shown.clone()}}});
+    assert_eq!(agent_meta("claude-code"), Some(agent));
+    let codex = OneShot {
+        role: Completion::Infer,
+        profile: Profile::Codex,
+    };
+    assert_eq!(codex.session_meta(), None);
+    for adapter in ["codex", "gemini", "kimi-code", "qwen-code", "claude"] {
+        assert_eq!(agent_meta(adapter), None, "{adapter}");
+    }
+    let own = json!({"claudeCode": {"options": {"thinking": {"type": "disabled"}, "maxTurns": 1}}});
+    assert_eq!(
+        show_thinking(own.clone()),
+        own,
+        "the caller's own thinking is kept"
+    );
+    for shape in [
+        json!({"claudeCode": "x"}),
+        json!({"claudeCode": {"options": []}}),
+        json!(7),
+    ] {
+        assert_eq!(show_thinking(shape.clone()), shape);
+    }
+    let beside = show_thinking(json!({"vendor": {"k": 1}}));
+    assert_eq!(
+        beside,
+        json!({"vendor": {"k": 1}, "claudeCode": {"options": {"thinking": shown}}})
+    );
+}
+
 #[test]
 fn text_only_and_configured_identity_never_become_served_or_free() {
     for tag in ["tool_call", "tool_call_update", "unexpected"] {
@@ -110,6 +149,7 @@ async fn unsupported_identity_stops_before_session_or_prompt() {
         Duration::from_secs(1),
         Some(claude()),
         None,
+        claude().session_meta(),
     );
     let first = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
     assert!(matches!(first, Some(Err(HarnessError::Refused { .. }))));
@@ -135,6 +175,11 @@ async fn admitted_wire_carries_strict_options_and_keeps_the_whole_answer() {
         let new = read(&mut r2).await;
         assert_eq!(new["method"], "session/new");
         assert_eq!(new["params"]["_meta"], profile());
+        let thinking = &new["params"]["_meta"]["claudeCode"]["options"]["thinking"];
+        assert_eq!(
+            *thinking,
+            json!({"type": "adaptive", "display": "summarized"})
+        );
         assert_eq!(new["params"]["mcpServers"], json!([]));
         write(&mut w2,json!({"jsonrpc":"2.0","id":new["id"],"result":{"sessionId":"s","models":{"currentModelId":"served-config","availableModels":[]}}})).await;
         let prompt = read(&mut r2).await;
@@ -155,6 +200,7 @@ async fn admitted_wire_carries_strict_options_and_keeps_the_whole_answer() {
         Duration::from_secs(1),
         Some(claude()),
         None,
+        claude().session_meta(),
     );
     let mut answer = None;
     while let Some(event) = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await {
@@ -220,6 +266,7 @@ async fn refuses_after_prompt(mode: &str) {
         Duration::from_secs(1),
         Some(claude()),
         None,
+        claude().session_meta(),
     );
     let first = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
     assert!(

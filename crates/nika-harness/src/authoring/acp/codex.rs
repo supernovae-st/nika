@@ -34,6 +34,10 @@ pub(crate) const NAME: &str = "@agentclientprotocol/codex-acp";
 pub(crate) const VERSION: &str = "1.13.1";
 /// The ACP mode applied and read back before the prompt.
 pub(crate) const MODE: &str = "read-only";
+/// The variable a conversation's Codex reads Nika's tool server bearer from
+/// (`bearer_token_env_var`): the bearer rides the adapter's environment only, never the
+/// configuration, a command line or a read-back.
+pub(crate) const BEARER_ENV: &str = "NIKA_MCP_BEARER";
 
 /// The configuration the adapter starts with, once `servers` (the MCP servers the user
 /// configuration defines) are known: every tool-bearing surface off.
@@ -58,6 +62,30 @@ pub(crate) fn config(servers: &[String]) -> Value {
         "cloud": {"skills": {"enabled": false}},
         "mcp_servers": mcp
     })
+}
+
+/// [`config`] for a conversation: Nika's tool server `server` mounted as `name`, the one MCP
+/// server the profile enables.
+///
+/// # Errors
+/// The configuration already defines a server of that name: mounting Nika's under it would
+/// merge both definitions.
+pub(crate) fn conversation_config(
+    servers: &[String],
+    name: &str,
+    server: Value,
+) -> Result<Value, String> {
+    if servers.iter().any(|defined| defined == name) {
+        return Err(format!(
+            "the Codex configuration defines an MCP server named `{name}`, the name Nika's \
+             conversation tool server mounts under; rename that server"
+        ));
+    }
+    let mut config = config(servers);
+    if let Some(mcp) = config.get_mut("mcp_servers").and_then(Value::as_object_mut) {
+        mcp.insert(name.to_owned(), server);
+    }
+    Ok(config)
 }
 
 /// The `-c key=value` overrides equivalent to [`config`] — the SAME object flattened, so the
@@ -138,6 +166,34 @@ pub(crate) fn judge_servers(listing: &[u8]) -> Result<(), String> {
     Err(format!(
         "MCP servers still enabled under the profile: {}",
         enabled.join(" · ")
+    ))
+}
+
+/// Under the conversation profile exactly one MCP server is enabled: Nika's, named `name`.
+///
+/// # Errors
+/// The servers enabled instead, by name.
+pub(crate) fn judge_conversation(listing: &[u8], name: &str) -> Result<(), String> {
+    let rows: Vec<Value> = serde_json::from_slice(listing)
+        .map_err(|_| "codex mcp list did not answer a JSON array".to_owned())?;
+    let enabled: Vec<&str> = (rows.iter())
+        .filter(|row| row.get("enabled").and_then(Value::as_bool) != Some(false))
+        .map(|row| {
+            row.get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("(unnamed)")
+        })
+        .collect();
+    if enabled == [name] {
+        return Ok(());
+    }
+    Err(format!(
+        "the conversation profile enables exactly Nika's MCP server `{name}`; enabled: {}",
+        if enabled.is_empty() {
+            "none".to_owned()
+        } else {
+            enabled.join(" · ")
+        }
     ))
 }
 

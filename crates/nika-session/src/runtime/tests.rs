@@ -43,10 +43,7 @@ impl SessionReasoner for Seat {
     }
 
     fn reason(&mut self, _prompt: &str) -> Result<Reply, crate::reasoner::ReasonError> {
-        Ok(Reply {
-            text: "seated".to_owned(),
-            usage_observed: false,
-        })
+        Ok(Reply::new("seated".to_owned(), false))
     }
 }
 
@@ -77,29 +74,23 @@ pub(super) fn tree() -> tempfile::TempDir {
 }
 
 pub(super) fn ready(kind: IntelligenceKind, locus: DataLocus) -> ResolvedSessionIntelligence {
-    ResolvedSessionIntelligence {
-        kind,
-        model: None,
-        locus,
-        ready: true,
-        why: None,
-    }
+    ResolvedSessionIntelligence::new(kind, None, locus, true, None)
 }
 
 /// A session on a harness seat (words only): authoring stays deterministic.
 pub(super) fn ready_with(dir: &Path, replies: Vec<&str>) -> SessionRuntime {
-    let seated = ResolvedSessionIntelligence {
-        kind: IntelligenceKind::Harness {
+    let seated = ResolvedSessionIntelligence::new(
+        IntelligenceKind::Harness {
             seat: "codex".to_owned(),
             transport: nika_types::access::HarnessTransport::Native,
         },
-        model: None,
-        locus: DataLocus::Remote {
+        None,
+        DataLocus::Remote {
             product: "codex".to_owned(),
         },
-        ready: true,
-        why: None,
-    };
+        true,
+        None,
+    );
     SessionRuntime::open(
         dir,
         seated,

@@ -104,6 +104,11 @@ pub struct Committed {
     /// that document ([`Committed::question`]); never on a cost, Run or
     /// prose question, so a presenter ties words to a question by identity.
     question: Option<String>,
+    /// On a run's story, the label and settled state word of the run the
+    /// shell observed typed and whole when the story was committed: the
+    /// workspace folds it to one row (`Desk::folded`). Set once, at commit,
+    /// and never recomputed: a later block never folds or unfolds it.
+    pub(crate) run: Option<(String, &'static str)>,
 }
 
 impl Committed {
@@ -115,6 +120,7 @@ impl Committed {
             text: text.into(),
             proposal: None,
             question: None,
+            run: None,
         }
     }
 
@@ -123,10 +129,8 @@ impl Committed {
     #[must_use]
     pub(crate) fn proposal(id: ProposalId, preview: impl Into<String>) -> Self {
         Self {
-            kind: Kind::Proposal,
-            text: preview.into(),
             proposal: Some(id),
-            question: None,
+            ..Self::new(Kind::Proposal, preview)
         }
     }
 
@@ -143,10 +147,8 @@ impl Committed {
     #[must_use]
     pub(crate) fn question(witness: impl Into<String>, text: impl Into<String>) -> Self {
         Self {
-            kind: Kind::Question,
-            text: text.into(),
-            proposal: None,
             question: Some(witness.into()),
+            ..Self::new(Kind::Question, text)
         }
     }
 

@@ -30,7 +30,7 @@ jaq-core = { workspace = true }
 jaq-std  = { workspace = true }
 jaq-json = { workspace = true }
 nika-cap = { path = "../nika-cap", version = "0.123.0-preview.1" }
-nika-providers = { path = "../nika-providers", version = "0.123.0-preview.1", default-features = false } # the request counters and the call observer a seat runs under; the authority stays here
+nika-providers = { path = "../nika-providers", version = "0.123.0-preview.1", default-features = false } # the call observer a seat runs under and the counters it charges (the authority over them descended to nika-compile-seats, ADR-152)
 unicode-normalization = { workspace = true, default-features = false } # the relation-canonical spelling probe compares texts under NFC (B24, prototype)
 
 [package.metadata.lore]

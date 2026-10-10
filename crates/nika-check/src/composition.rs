@@ -594,11 +594,11 @@ fn is_literal(v: &serde_json::Value) -> bool {
     !serde_json::to_string(v).unwrap_or_default().contains("${{")
 }
 
-/// Laws 3/4 — retain the conservative meet as the sole refusal gate.
-/// Attribution probes each declared side with the SAME predicate; different
-/// matching globs may both admit an effect yet share no entry in the meet.
-/// These probes explain a refusal, never grant authority or replace the meet.
-/// Needs are inferred effects, not the child's declared permissions.
+/// Laws 3/4 — the meet (a grant inside the other side's glob is kept at its
+/// narrower spelling · `nika_cap`) stays the sole refusal gate. Attribution
+/// probes each side with the SAME predicate; two incomparable globs may both
+/// admit an effect yet leave no entry in the meet. Probes explain a refusal,
+/// never grant authority. Needs are inferred effects, not declared permits.
 fn boundary_violations(
     needs: &Permits,
     parent: Option<&Permits>,

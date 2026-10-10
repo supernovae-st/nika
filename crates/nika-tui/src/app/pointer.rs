@@ -9,10 +9,12 @@
 //! button is held (within its bounds), and the marker of a transcript scrolled
 //! back returns it to its latest row as `End` does. A press on an offer of the
 //! typed choice painted selects it and gives the conversation the keys, at
-//! rest only; it never answers: `Enter` does. While the full diagnostic
-//! covers the frame, nothing under it takes the pointer. Hold Shift for the
-//! terminal's own selection/copy where supported; F4, F6, the separator keys,
-//! arrows, PageUp/PageDown, End and Enter remain the complete keyboard path.
+//! rest only; it never answers: `Enter` does. A press on a block the
+//! conversation shows short of whole opens its full words, as `F2` at that
+//! row does. While the full words cover the frame, nothing under them takes
+//! the pointer. Hold Shift for the terminal's own selection/copy where
+//! supported; F4, F6, the separator keys, arrows, PageUp/PageDown, End and
+//! Enter remain the complete keyboard path.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use nika_tui_view::Face;
@@ -20,6 +22,7 @@ use ratatui::layout::{Position, Rect};
 use ratatui::text::Line;
 use unicode_width::UnicodeWidthStr;
 
+use super::commands::diagnostic;
 use super::{
     Busy, Composer, ComposerAction, Conversation, Desk, Exit, Heard, LEAVE_WAITS, Presentation,
     Route, Shell, Signal, UiEvent, UiState, busy_key, is_ctrl_c,
@@ -127,6 +130,13 @@ fn route(state: &mut UiState, desk: &mut Desk, composer: &Composer, mouse: Mouse
     Route::Nothing
 }
 
+/// Where a plain left press lands; `None` for any other pointer event.
+fn pressed(mouse: MouseEvent) -> Option<Position> {
+    let plain = mouse.modifiers == KeyModifiers::NONE;
+    (plain && mouse.kind == MouseEventKind::Down(MouseButton::Left))
+        .then(|| Position::new(mouse.column, mouse.row))
+}
+
 /// The offer of the typed choice painted that a plain left press lands on,
 /// read from the rectangles the frame painted: the conversation's live area
 /// in the workspace, the foot of the focus view (also where it stands in for
@@ -137,10 +147,7 @@ fn offer_at_press(
     composer: &Composer,
     mouse: MouseEvent,
 ) -> Option<usize> {
-    let plain = mouse.modifiers == KeyModifiers::NONE;
-    if mouse.kind != MouseEventKind::Down(MouseButton::Left) || !plain {
-        return None;
-    }
+    let point = pressed(mouse)?;
     let workspace = (state.presentation == Presentation::Workspace)
         .then(|| desk.geometry(state.size))
         .flatten();
@@ -156,7 +163,6 @@ fn offer_at_press(
             (crate::render::focus_areas(frame, state, composer)[2], false)
         }
     };
-    let point = Position::new(mouse.column, mouse.row);
     crate::render::question::offer_at(state, composer, live, boxed, point)
 }
 
@@ -384,7 +390,7 @@ impl<C: Conversation + 'static> Shell<C> {
             self.desk.release();
             return Route::Nothing;
         }
-        let routed = match self.offer_pressed(mouse) {
+        let routed = match (self.offer_pressed(mouse)).or_else(|| self.block_pressed(mouse)) {
             Some(routed) => routed,
             None => route(&mut self.state, &mut self.desk, &self.composer, mouse),
         };
@@ -414,6 +420,16 @@ impl<C: Conversation + 'static> Shell<C> {
             return None;
         }
         press_offer(&self.state, &mut self.desk, &mut self.composer, mouse)
+    }
+
+    /// A plain press on a block the conversation shows short of whole opens
+    /// its full words, the block `F2` reads at that row: one geometry names
+    /// it ([`diagnostic::read_at`]). Nothing else changes.
+    fn block_pressed(&mut self, mouse: MouseEvent) -> Option<Route> {
+        let point = Some(pressed(mouse)?);
+        let at = diagnostic::read_at(&self.state, &self.desk, &self.composer, point)?;
+        self.diagnostic = Some(diagnostic::Diagnostic::of(self.state.transcript.get(at)?));
+        Some(Route::Repaint)
     }
 
     /// One event heard while a turn runs. An interruption acts now (the

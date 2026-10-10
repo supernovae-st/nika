@@ -43,10 +43,12 @@ mod durable_tests;
 mod fresh;
 mod history;
 mod inference;
+mod knowledge;
 mod landed;
 mod money_gate;
 // The lexical money reader grants no authority; admission stays here.
 use nika_onboard::compile::money as money_parse;
+mod observed;
 mod protocol;
 mod question;
 mod recovery;
@@ -63,7 +65,7 @@ mod work;
 pub use work::{GATE_NOT_SHOWN, NOTHING_SHOWN, REVIEW_NOT_SHOWN, VALUE_NOT_SHOWN};
 
 pub use decision::{DecisionAnswer, decision_answer};
-use decision::{is_gate_token, is_no, is_save_and_run, is_yes, local_command_of};
+use decision::{is_no, is_save_and_run, is_yes, local_command_of};
 use run_budget::ceiling_in;
 mod schedule;
 
@@ -344,6 +346,8 @@ pub struct SessionRuntime {
     /// This conversation's own explicit choice (named by its opener, chosen in it or kept by
     /// its history): it holds here only, never written as the operator's default.
     conversation: Option<ConversationChoice>,
+    /// This conversation's knowledge choice and the line it holds (`knowledge.rs`).
+    knowledge: knowledge::State,
     /// The last recovery card (a turn that could not be finished), kept so
     /// « what happened? » repeats it without a call.
     last_recovery: Option<String>,
@@ -456,6 +460,7 @@ impl SessionRuntime {
             interrupted: None,
             pending_choice: false,
             conversation: None,
+            knowledge: knowledge::State::default(),
             last_recovery: None,
             classifier: None,
             routes: Vec::new(),
@@ -480,6 +485,9 @@ impl SessionRuntime {
         }
         if self.pending_choice {
             return "Needs your choice of intelligence · the request waits".to_owned();
+        }
+        if let Some(status) = self.knowledge_status() {
+            return status;
         }
         if let Some(gate) = &self.pending_gate {
             return nika_cli_host::display::front_door::status::gate(&gate.workflow, &gate.task);
@@ -844,6 +852,7 @@ impl SessionRuntime {
         // A named authoring configuration this session cannot honor is the
         // same kind of warning: said at open, refused at the first seated turn.
         if let Some(why) = self.authoring_context.refusal() {
+            text.push_str(&self.knowledge_banner());
             let _ = write!(text, "\n  ⚠ authoring knowledge: {why}");
         }
         text
@@ -894,6 +903,7 @@ impl SessionRuntime {
             "/quit" | "/exit" => return TurnOutcome::Quit,
             _ if input.starts_with("/intelligence ") => return self.choose_unrecorded(input),
             "/intelligence" => return self.intelligence_screen(),
+            _ if knowledge::is_choice(input) => return self.knowledge_command(input),
             _ => {}
         }
         // An open authoring question owns the next line — before any
@@ -910,7 +920,8 @@ impl SessionRuntime {
             if let Err(refusal) = self.admit_money(original, true, false) {
                 return self.answer_refused(asked, refusal);
             }
-            let outcome = self.answer_question_unrecorded(input);
+            let held = self.hold_for_knowledge(original, self.answers_by_model());
+            let outcome = held.unwrap_or_else(|| self.answer_question_unrecorded(input));
             return self.keep_revising(outcome);
         }
         // A run waiting on a declared input owns the next line the same way.
@@ -965,7 +976,8 @@ impl SessionRuntime {
         if !self.chosen {
             return self.ask_for_intelligence(input, Need::Conversation);
         }
-        self.converse_unrecorded(input)
+        self.hold_for_knowledge(original, self.routes_by_model())
+            .unwrap_or_else(|| self.converse_unrecorded(input))
     }
 
     /// `/intelligence`: the first screen again when the census is known, the next line
@@ -1224,183 +1236,6 @@ impl SessionRuntime {
                 ),
             )),
         }
-    }
-
-    /// The refusal for an answer with no gate: the last one was answered,
-    /// or no run ever paused.
-    fn no_gate_waiting(&self) -> Refusal {
-        match &self.answered {
-            Some(id) => Refusal::new(
-                RefusalClass::AlreadyConsumed,
-                format!("the gate {id} was answered once — no run is waiting for an answer"),
-            ),
-            None => Refusal::new(RefusalClass::WrongState, "no run is waiting for an answer"),
-        }
-    }
-
-    /// What the door observed of the run it started for the human: the
-    /// exit code's meaning and the trace, remembered as a fact of this
-    /// session — never re-run, never re-authorized (attaching is
-    /// observation). A pause (exit 4) whose trace carries the gate
-    /// becomes the question asked to the human.
-    fn observe_run_unrecorded(&mut self, exit: u8, trace: Option<&Path>) -> TurnOutcome {
-        let root = self.snapshot.root.clone();
-        // The trace's own frames, when the door left one this session can
-        // read: the views below say what they prove, the line stays the fact.
-        let facts = trace.and_then(|t| crate::run_view::RunFacts::read(&under(&root, t)));
-        // This session's own settled run moves its rehearsed proof past what it completed
-        // writing; anything else, a refused advance included, keeps the rehearsed world.
-        if let (0, Some(f), Some(workflow)) = (exit, &facts, self.last_workflow.clone())
-            && f.terminal() == Some("succeeded")
-            && let Some(sha) = f.workflow_sha256()
-        {
-            let _ = self.advance_rehearsal(&workflow, sha, &f.completed_writes());
-        }
-        let line = self.observation_line(exit, trace, facts.is_none());
-        self.last_trace = trace.map(Path::to_path_buf);
-        if exit == 4
-            && let (Some(trace), Some(workflow)) = (trace, self.last_workflow.clone())
-            && let Some(gate) = PendingGate::from_trace(&workflow, trace)
-        {
-            let gated = aside::gated_tasks(&root.join(&workflow), &gate.task);
-            let view = facts.as_ref().map_or_else(
-                || gate.question(),
-                |f| f.gate(&workflow, &gate.message, &gate.mode, &gated),
-            );
-            let id = GateId::new(&gate.trace, &gate.task);
-            self.pending_gate = Some(gate);
-            return TurnOutcome::GateAsk {
-                id,
-                question: format!("{line}\n{view}"),
-            };
-        }
-        match (exit, facts, self.last_workflow.clone()) {
-            (0 | 1, Some(f), Some(workflow)) => {
-                TurnOutcome::Facts(format!("{}\n  {line}", f.result(&root, &workflow)))
-            }
-            _ => TurnOutcome::Facts(line),
-        }
-    }
-
-    /// `/proof` — what the last observed run's trace proves, through the
-    /// ONE verify door; before any run, where a proof will come from.
-    fn proof_unrecorded(&self) -> TurnOutcome {
-        let Some(trace) = &self.last_trace else {
-            return TurnOutcome::Facts(
-                "No run observed in this session yet · « run it » runs the accepted workflow once · `/proof` then reads the trace it leaves (`nika trace ls` lists earlier ones)".to_owned(),
-            );
-        };
-        match crate::run_view::RunFacts::read(&under(&self.snapshot.root, trace)) {
-            Some(facts) => TurnOutcome::Facts(facts.proof(&self.snapshot.root)),
-            None => TurnOutcome::Facts(format!(
-                "the trace `{shown}` cannot be read now · `nika trace verify {shown}` judges it from the shell",
-                shown = shown_trace(&self.snapshot.root, trace)
-            )),
-        }
-    }
-
-    /// The human's answer to a pending gate: the resume the door runs.
-    /// Nothing answers for the human; an empty line is not an answer.
-    fn answer_gate_unrecorded(&mut self, line: &str) -> TurnOutcome {
-        let Some(gate) = self.pending_gate.take() else {
-            return TurnOutcome::Refusal(self.no_gate_waiting());
-        };
-        // Leaving is always one line away: the gate keeps waiting in its
-        // paused trace (and in the record), nothing answers for the human.
-        if is_quit(line) {
-            self.pending_gate = Some(gate);
-            return TurnOutcome::Quit;
-        }
-        // « why? » beside the gate: what the answer lets happen, from the
-        // workflow's own bytes; the gate keeps waiting.
-        if crate::authoring::is_why(line) {
-            let text = aside::explain_gate(&gate, &self.snapshot.root);
-            self.pending_gate = Some(gate);
-            return TurnOutcome::Aside(text);
-        }
-        // A local command beside the gate answers from the session's own
-        // facts, the gate kept: a slash line is never the gate's answer.
-        if let Some(command) = local_command_of(line) {
-            self.pending_gate = Some(gate);
-            return self.answer_locally(command);
-        }
-        if let Some(outcome) = self.beside(line, "the gate still waits · nothing answers for you")
-        {
-            self.pending_gate = Some(gate);
-            return outcome;
-        }
-        if line.trim().is_empty() {
-            self.pending_gate = Some(gate);
-            return TurnOutcome::Refusal(Refusal::new(
-                RefusalClass::EmptyAnswer,
-                "the gate needs an answer — nothing answers for you",
-            ));
-        }
-        // A confirm gate takes its protocol tokens and nothing else: any
-        // other line is open language — a question about the gate explains
-        // it, a change belongs to the workflow (« no », then the change);
-        // neither answers the gate. Authority never comes from a reading.
-        if gate.mode == "confirm" && !is_gate_token(line) {
-            if let Err(refusal) = self.admit_gate_money(line) {
-                self.pending_gate = Some(gate);
-                return refusal;
-            }
-            if self.money_blocks_cognition() {
-                self.pending_gate = Some(gate);
-                return self.cognition_money_refusal();
-            }
-            let decision = self.classify(crate::turn::SessionPhase::GatePending, line);
-            let text = match decision.act {
-                crate::turn::TurnAct::Modify | crate::turn::TurnAct::Mixed => {
-                    "the gate takes a yes or a no — a change belongs to the workflow: answer `no`, then say the change".to_owned()
-                }
-                _ => format!(
-                    "{}\n  the gate still waits · `yes` or `no` answers it",
-                    aside::explain_gate(&gate, &self.snapshot.root)
-                ),
-            };
-            self.pending_gate = Some(gate);
-            return TurnOutcome::Aside(text);
-        }
-        if let Some(stale) = self.stale_gate(&gate) {
-            return stale;
-        }
-        self.answered = Some(GateId::new(&gate.trace, &gate.task));
-        let answer = gate.answer_arg(line);
-        self.finish_gate_money();
-        self.remember("(gate)", &format!("{} answered: {answer}", gate.task));
-        TurnOutcome::ResumeRequested {
-            workflow: gate.workflow,
-            trace: gate.trace,
-            answer,
-        }
-    }
-
-    fn observation_line(&mut self, exit: u8, trace: Option<&Path>, with_produced: bool) -> String {
-        // The run door's exit codes have one reading, shared with the work snapshot.
-        let meaning = crate::work::RunEnd::of(exit).meaning();
-        let line = match trace {
-            Some(t) => format!(
-                "run observed · exit {exit} · {meaning} · trace `{}`",
-                shown_trace(&self.snapshot.root, t)
-            ),
-            None => format!("run observed · exit {exit} · {meaning}"),
-        };
-        // The trace's git hygiene, once per run, and what a green run left behind
-        // (`run_view::{hygiene_note, produced}`).
-        let line = match crate::run_view::hygiene_note(self.snapshot.git_root.as_deref()) {
-            Some(note) => format!("{line}\n  {note}"),
-            None => line,
-        };
-        let produced = (self.last_workflow.as_ref())
-            .and_then(|w| crate::run_view::produced(&self.snapshot.root, w));
-        let line = match (exit, produced) {
-            (0, Some(produced)) if with_produced => format!("{line}\n  {produced}"),
-            _ => line,
-        };
-        self.last_run = Some((exit, line.clone()));
-        self.remember("(run)", &line);
-        line
     }
 
     fn intelligence_card(&self) -> String {

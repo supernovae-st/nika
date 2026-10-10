@@ -101,6 +101,7 @@ impl SessionRuntime {
             Some(waiting) if waiting == *id => {
                 if self.waiting_review().is_some()
                     || self.pending_choice
+                    || self.knowledge.held.is_some()
                     || self.pending.is_some()
                     || self.pending_gate.is_some()
                 {
@@ -108,7 +109,7 @@ impl SessionRuntime {
                 id,
                         RefusalClass::WrongState,
                         format!(
-                            "another prompt owns the next line (a run's cost review, the intelligence choice, a proposal or a paused run) — answer it first; the question {id} keeps waiting"
+                            "another prompt owns the next line (a run's cost review, the intelligence or knowledge choice, a proposal or a paused run) — answer it first; the question {id} keeps waiting"
                         ),
                     );
                 }

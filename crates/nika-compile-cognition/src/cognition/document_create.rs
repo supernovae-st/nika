@@ -19,7 +19,7 @@
 //! binds its native record to the final bytes.
 
 use super::native::{
-    self, Answer, Question, Shaped, Talk, cold, conclude, floor_refuses, judge, prelude,
+    self, Answer, Question, Shaped, Talk, cold, conclude, floor_refuses, judge_resolved, prelude,
     system_message,
 };
 use super::rehearsal::Rehearsals;
@@ -30,6 +30,7 @@ use super::sketch::{
 use super::{AuthoringPolicy, CompileOutcome, CompileRequest, Strategy};
 use crate::decide::DecisionSeat;
 use crate::fidelity::Diagnostic;
+use crate::fidelity::resolution::Resolution;
 use crate::{CompileError, lexicon::Reading};
 use nika_compile_seats::foundry::ComponentCatalog;
 use nika_compile_seats::foundry::document::{
@@ -46,7 +47,9 @@ pub(super) use nika_compile_seats::foundry::document::create::{ROUTE, bind, rece
 const INSTRUCTION: &str = include_str!("document_create/instructions.md");
 /// The whole-source answer the recovery reads, widened here by the document's operations.
 const SCHEMA: &str = include_str!("../../assets/native_answer_schema.json");
-const AGAIN: &str = "\nAnswer again in the same {\"candidate\", \"candidate_lines\", \"operations\", \"questions\", \"gaps\", \"notes\"} object: the whole corrected document, or operations over the last one with `candidate` left empty.";
+/// The selections an author states rather than copies, with their provenance.
+const RESOLUTIONS: &str = include_str!("../../assets/resolutions_schema.json");
+const AGAIN: &str = "\nAnswer again in the same {\"candidate\", \"candidate_lines\", \"operations\", \"questions\", \"gaps\", \"notes\", \"resolutions\"} object: the whole corrected document, or operations over the last one with `candidate` left empty.";
 const SPENT: &str =
     "The evidence refused this document and the rounds are spent: nothing is READY.";
 const REPEATED: &str = "The evidence refused this document with findings the author had already been asked to repair, so Nika stopped the door: nothing is READY.";
@@ -67,6 +70,8 @@ struct DocumentAnswer {
     gaps: Vec<String>,
     #[serde(default, deserialize_with = "crate::cognition::nullable_default")]
     notes: String,
+    #[serde(default, deserialize_with = "crate::cognition::nullable_default")]
+    resolutions: Vec<Value>,
 }
 
 impl Shaped for DocumentAnswer {
@@ -88,8 +93,9 @@ impl DocumentAnswer {
 fn answer_schema() -> Value {
     let mut schema = super::sketch::schema(SCHEMA);
     schema["properties"]["operations"] = document::answer_schema().0;
+    schema["properties"]["resolutions"] = super::sketch::schema(RESOLUTIONS);
     if let Some(required) = schema["required"].as_array_mut() {
-        required.push(json!("operations"));
+        required.extend([json!("operations"), json!("resolutions")]);
     }
     schema
 }
@@ -149,21 +155,29 @@ async fn draft<P: ProviderInferDyn>(
             honest.extend(answer.gaps.iter().cloned());
         }
         let stated = made(answer.written(), &answer.operations, last.as_ref(), catalog);
+        // The values the request authorizes without spelling them, each with its provenance.
+        let selections = Resolution::read_all(&answer.resolutions);
         let (found, made) = match stated {
             Ok(made) => {
                 let (allowed, clarified) = (&talk.allowed, &talk.clarified);
                 let questions = &answer.questions;
                 let observed = talk.observed.as_ref();
-                let mut found = judge(
-                    intent,
-                    reading,
-                    &made.source,
-                    questions,
-                    allowed,
-                    &[],
-                    clarified,
-                    observed,
-                );
+                let mut found = match &selections {
+                    Ok(rows) => judge_resolved(
+                        intent,
+                        reading,
+                        &made.source,
+                        questions,
+                        (allowed, rows),
+                        &[],
+                        clarified,
+                        observed,
+                    ),
+                    Err(why) => vec![Diagnostic {
+                        kind: "resolution",
+                        message: format!("the selections cannot be read: {why}"),
+                    }],
+                };
                 if found.is_empty() && !told && within(policy.repairs, round + 1) {
                     found = repairs::gaps_after_refusal(&answer.gaps, &honest, &refusal);
                     told = !found.is_empty();
@@ -188,6 +202,9 @@ async fn draft<P: ProviderInferDyn>(
         if let Some(made) = made {
             if found.is_empty() {
                 talk.messages.push(Message::text(Role::Assistant, text));
+                talk.resolved = (selections.unwrap_or_default().iter())
+                    .map(Resolution::to_json)
+                    .collect();
                 let (questions, gaps) = (answer.questions, answer.gaps);
                 let candidate = made.source.clone();
                 return Some((
@@ -349,6 +366,12 @@ fn settle(
     conclude(intent, reading, request, answer, talk, cold, done);
     if let Some((_, made)) = drafted {
         record(intent, made, done);
+        // The record keeps each selection with its provenance; none is a human answer.
+        if !talk.resolved.is_empty()
+            && let Some(plan) = done.provenance.plan.as_mut()
+        {
+            plan["resolutions"] = json!(talk.resolved);
+        }
     }
     done.provenance.strategy = Some(Strategy::Native);
 }

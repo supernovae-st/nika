@@ -6,9 +6,12 @@
 //! The lattice laws, at the strength that actually holds:
 //! * **union is EXACT** — `union(a,b).allows(x) == a.allows(x) || b.allows(x)`.
 //! * **intersect is a SOUND under-approximation** — `intersect(a,b).allows(x)`
-//!   implies `a.allows(x) && b.allows(x)` (one direction: two different globs
-//!   can both admit an atom yet share no pattern, so the string-intersection
-//!   meet omits it — safe for a ceiling, never grants what either denies).
+//!   implies `a.allows(x) && b.allows(x)` (one direction: two incomparable
+//!   globs can both admit an atom while neither contains the other, so the
+//!   subsumption-aware meet omits it — safe for a ceiling, never grants what
+//!   either denies). It is order-independent (`a ∩ b` admits what `b ∩ a`
+//!   admits — the static and runtime meets take opposite orders), and a
+//!   literal one side admits through the other side's glob survives it.
 //! * **bottom** — the empty boundary denies everything.
 //!
 //! Every plane of the boundary is generated and probed — `tools` · `net` ·
@@ -18,7 +21,7 @@
 //! grant, never a pattern, and generating one would property-test a semantics
 //! the language does not have.
 
-use nika_cap::{ExecPermit, FsPermits, NetPermits, Permits};
+use nika_cap::{ExecPermit, FsPermits, NetPermits, Permits, path_leaves_workspace};
 use proptest::prelude::*;
 
 fn tok() -> impl Strategy<Value = String> {
@@ -158,4 +161,112 @@ proptest! {
             a.allows_path(&p, false) || b.allows_path(&p, false)
         );
     }
+    /// The static check meets parent ∩ child, the runtime child ∩ parent:
+    /// both orders must admit exactly the same atoms on every plane.
+    #[test]
+    fn intersect_admits_the_same_atoms_in_either_order(
+        a in arb_permits(), b in arb_permits(), x in tok(), k in env_name(), p in path_probe(),
+    ) {
+        let (ab, ba) = (a.intersect(&b), b.intersect(&a));
+        prop_assert_eq!(ab.allows_tool(&x), ba.allows_tool(&x));
+        prop_assert_eq!(ab.allows_host(&x), ba.allows_host(&x));
+        prop_assert_eq!(ab.allows_program(&x), ba.allows_program(&x));
+        prop_assert_eq!(ab.allows_env_key(&k), ba.allows_env_key(&k));
+        for write in [false, true] {
+            prop_assert_eq!(ab.allows_path(&x, write), ba.allows_path(&x, write));
+            prop_assert_eq!(ab.allows_path(&p, write), ba.allows_path(&p, write));
+        }
+    }
+    /// Soundness over genuinely glob-shaped path grants (`**` · `*` · `.` ·
+    /// `..` · absolute · home-anchored), judged in both readings: the check's
+    /// (no home) and the run's (grants expanded against an operator home).
+    #[test]
+    fn path_intersect_is_sound_over_glob_shaped_grants(
+        a in path_grants(), b in path_grants(), p in path_probe(),
+    ) {
+        let (i, fa, fb) = (a.intersect(&b), &a.fs, &b.fs);
+        for home in [None, Some(HOME)] {
+            for write in [false, true] {
+                if i.allows_path_in(&p, write, home) {
+                    prop_assert!(
+                        a.allows_path_in(&p, write, home) && b.allows_path_in(&p, write, home),
+                        "the meet of {fa:?} and {fb:?} admits {p:?} (home {home:?})"
+                    );
+                }
+            }
+        }
+    }
+    /// The containment precision law: a workspace literal one side declares,
+    /// admitted by a workspace glob of the other side, survives the meet in
+    /// both orders. A grant that leaves the workspace or names `..` is
+    /// compared by its spelling only, by design.
+    #[test]
+    fn a_literal_admitted_by_the_other_sides_glob_survives_the_meet(
+        glob in path_grant(), literal in literal_path(),
+    ) {
+        prop_assume!(!path_leaves_workspace(&glob) && !glob.split('/').any(|seg| seg == ".."));
+        let side = |g: &str| {
+            let mut p = Permits::new();
+            p.fs = Some(FsPermits::new(vec![g.to_owned()], Vec::new()));
+            p
+        };
+        let (wide, narrow) = (side(&glob), side(&literal));
+        if wide.allows_path(&literal, false) {
+            prop_assert!(wide.intersect(&narrow).allows_path(&literal, false));
+            prop_assert!(narrow.intersect(&wide).allows_path(&literal, false));
+        }
+    }
+}
+
+/// The operator home the run-time reading expands `~/` grants against.
+const HOME: &str = "/home/op";
+
+/// One glob-shaped fs grant — every construct the path matcher reads.
+fn path_grant() -> impl Strategy<Value = String> {
+    (
+        prop::sample::select(vec!["", "./", "/", "~/"]),
+        prop::collection::vec(
+            prop::sample::select(vec!["a", "b", "ab", "*", "a*", "*.md", "**", ".", ".."]),
+            0..4,
+        ),
+    )
+        .prop_map(|(root, segs)| format!("{root}{}", segs.join("/")))
+}
+
+fn path_grants() -> impl Strategy<Value = Permits> {
+    (
+        prop::collection::vec(path_grant(), 0..3),
+        prop::collection::vec(path_grant(), 0..3),
+    )
+        .prop_map(|(read, write)| {
+            let mut p = Permits::new();
+            p.fs = Some(FsPermits::new(read, write));
+            p
+        })
+}
+
+/// A workspace literal path — no wildcard, no `..`, never absolute or
+/// home-anchored.
+fn literal_path() -> impl Strategy<Value = String> {
+    (
+        prop::sample::select(vec!["", "./"]),
+        prop::collection::vec(
+            prop::sample::select(vec!["a", "b", "ab", "x.md", "."]),
+            1..4,
+        ),
+    )
+        .prop_map(|(root, segs)| format!("{root}{}", segs.join("/")))
+}
+
+/// A probe path, relative, absolute (the operator home included) or
+/// climbing — the values the run asks the boundary about.
+fn path_probe() -> impl Strategy<Value = String> {
+    (
+        prop::sample::select(vec!["", "./", "/", "/home/op/", "../"]),
+        prop::collection::vec(
+            prop::sample::select(vec!["a", "b", "ab", "x.md", ".", ".."]),
+            0..4,
+        ),
+    )
+        .prop_map(|(root, segs)| format!("{root}{}", segs.join("/")))
 }
