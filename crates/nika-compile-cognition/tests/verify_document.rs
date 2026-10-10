@@ -17,7 +17,9 @@ use nika_compile_cognition::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion,
 use nika_compile_cognition::rehearse::{
     Attempt, EffectCounts, Rehearsal, RehearsalFuture, RehearsalReport, Rehearse,
 };
-use nika_compile_cognition::{Cognition, NoProvider, verify_document};
+use nika_compile_cognition::{
+    Cognition, NoProvider, Removal, verify_document, verify_document_with,
+};
 use nika_compile_fidelity::fidelity::resolution::Resolution;
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, ResponseFormat,
@@ -69,10 +71,12 @@ fn authored() -> Vec<Resolution> {
 }
 
 /// A decision seat answering each verifier question by its id (the whole request as `whole`,
-/// each part carried, nothing extra, where a doubt is as `doubt`), keeping every question.
+/// each part carried, nothing extra, where a doubt is as `doubt`, a removal claim as `removed`),
+/// keeping every question.
 struct Judge {
     whole: &'static str,
     doubt: &'static str,
+    removed: &'static str,
     asked: Mutex<Vec<ChoiceQuestion>>,
 }
 
@@ -81,8 +85,15 @@ impl Judge {
         Self {
             whole,
             doubt,
+            removed: "removed",
             asked: Mutex::new(Vec::new()),
         }
+    }
+
+    /// The same judge answering each removal claim as `removed`.
+    fn reading_removals(mut self, removed: &'static str) -> Self {
+        self.removed = removed;
+        self
     }
 
     fn ids(&self) -> Vec<String> {
@@ -104,6 +115,7 @@ impl DecisionSeat for Judge {
             "verify-extra" => "only_requested",
             "verify-doubt" => self.doubt,
             _ if id.starts_with("verify-part-") => "carried",
+            _ if id.starts_with("verify-removed-") => self.removed,
             _ => "none",
         };
         let choice = choice.to_owned();
@@ -365,4 +377,52 @@ async fn the_authoring_provider_judges_when_no_seat_is_permitted() {
         route.last().map(String::as_str),
         Some("verify: judged (authoring_provider)")
     );
+}
+
+/// The digest verified with one removal claim: the person's words cited as removing a feed a
+/// proposal they saw bound.
+async fn removing(judge: &Judge, words: &str) -> CompileOutcome {
+    let cognition = Cognition::<NoProvider> {
+        provider: None,
+        seat: Some(judge as &dyn DecisionSeat),
+    };
+    let selections = authored();
+    let claims = [Removal::new("https://techcrunch.com/feed", words)];
+    let request = CompileRequest::create(DELEGATING);
+    let document = digest();
+    let verified = verify_document_with(
+        &request,
+        &document,
+        (&selections, &[]),
+        &claims,
+        cognition,
+        None,
+    );
+    Box::pin(verified).await.unwrap()
+}
+
+/// A revision drops a feed on words the judge does not read as removing it: held before the
+/// whole request is asked, never READY, the claim named; its answer recorded.
+#[tokio::test]
+async fn a_removal_the_judge_does_not_confirm_holds_the_document() {
+    let judge = Judge::new("faithful", "unlocated").reading_removals("kept");
+    let out = removing(&judge, "en fait je voulais les articles d'aujourd'hui").await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert_eq!(judge.ids(), ["verify-removed-0"]);
+    let held = findings(&out, "removal");
+    assert!(
+        held.len() == 1 && held[0].contains("https://techcrunch.com/feed"),
+        "{held:?}"
+    );
+    assert_eq!(decision(&out)["removals"][0]["choice"], "kept");
+}
+
+/// Words the judge reads as removing the feed let the verdict run: READY on the whole request.
+#[tokio::test]
+async fn a_removal_the_judge_confirms_lets_the_verdict_run() {
+    let judge = Judge::new("faithful", "unlocated");
+    let out = removing(&judge, "enleve techcrunch").await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(judge.ids(), ["verify-removed-0", "verify-request"]);
+    assert_eq!(decision(&out)["removals"][0]["choice"], "removed");
 }

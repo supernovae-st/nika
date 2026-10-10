@@ -40,6 +40,8 @@ use crate::{
 mod faithful;
 mod grounding;
 mod held;
+/// The removal claims a revision makes, asked of the judge before the whole request.
+pub(super) mod removals;
 use faithful::{Pointed, whole};
 use grounding::grounding;
 use held::held_text;

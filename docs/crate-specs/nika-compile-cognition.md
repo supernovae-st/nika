@@ -1418,3 +1418,14 @@ then:
 
 Every route starts `conversation: document`; the room's final barrier, the money record, the
 observed-world record and the forensic record close it as for any compile.
+
+`verify_document_with(request, candidate, selections, removals, cognition, host)` is the same
+door for a revision that drops values a proposal the person saw bound (amended 2026-10-10). The
+Session passes each claim as a `Removal { value, words }` (seats' type, re-exported here): the value and the person's words it
+cites as removing it, whose authorship it checked. Before the whole request, the chosen judge is
+asked once per claim whether those words remove that value (`verify-removed-<k>`,
+`Removal::question`), every answer recorded as `decision.removals`. A claim the judge does not
+confirm (`kept`, NONE or no answer) keeps the document from READY, never proposed: a `removal`
+finding names the value and the words, with the repair (keep it, or ask the person). With no
+judge permitted the request stays pending, claims unasked. `verify_document` is this door with
+no claim.
