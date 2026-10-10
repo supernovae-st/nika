@@ -647,8 +647,11 @@ the model, else they are the role's ready offers.
 Roles never share offers. `from_probes` builds the Run and Author offers from the probe rows
 (each provider's own row or a harness seat serving it, over `candidates_for`) and the route's
 observed compatible listing, else the catalogue's models — row ids, then non-deprecated priced
-ids — on a vendor endpoint, a seat or the mock. An unobserved local or operator-pointed
-endpoint offers nothing. A list price is attached only on a USD-metered route. The decision
+ids — on a vendor endpoint, a seat or the mock. A model whose own price row is deprecated is
+retired upstream and never offered, though it still prices a recorded run (DeepSeek's
+`deepseek-chat` and `deepseek-reasoner`, discontinued 2026-07-24). No cloud route is listed
+today, so the catalogue speaks for it. An unobserved local or operator-pointed endpoint offers
+nothing. A list price is attached only on a USD-metered route. The decision
 seat is the host's own and enters through `with_offers(ModelRole::Decision, …)`. A ready
 offer is configured, not proven: a seat's acceptance of a model and a route's task limits are
 still judged where the route runs.
