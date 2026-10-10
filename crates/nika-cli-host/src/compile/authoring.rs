@@ -99,14 +99,15 @@ fn stamp_backend(
 }
 
 /// What the receipt states about a seated decision model's own client: a `typesafe/<jev>` seat
-/// sends each question once; a `provider/name` seat keeps its provider client's protocol retries.
+/// sends each question once, and a `provider/name` seat's provider client sends each request
+/// once (the provider transport never re-sends).
 /// Every door that seats a decision model (the CLI, Serve) states it in these words.
 #[must_use]
 pub fn decision_seat_note(model: &str) -> &'static str {
     if model.starts_with("typesafe/") {
         "outside this authority: its own single-attempt client"
     } else {
-        "outside this authority: its own client, protocol retries included"
+        "outside this authority: its own provider client, one attempt per request"
     }
 }
 
@@ -463,7 +464,7 @@ mod tests {
         );
         assert_eq!(
             decision_seat_note("vllm/loopback-seat"),
-            "outside this authority: its own client, protocol retries included"
+            "outside this authority: its own provider client, one attempt per request"
         );
     }
 }

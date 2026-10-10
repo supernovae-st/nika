@@ -522,8 +522,8 @@ fn a_redirecting_seat_receives_only_the_counted_requests() {
     }
 }
 
-/// The decision seat is outside the authoring authority (its own client, protocol retries
-/// included): the receipt says so whenever one is seated, and never counts its requests as the
+/// The decision seat is outside the authoring authority (its own provider client, one attempt per
+/// request): the receipt says so whenever one is seated, and never counts its requests as the
 /// authority's.
 #[test]
 fn a_seated_decision_model_is_stated_outside_the_authority() {
@@ -542,7 +542,7 @@ fn a_seated_decision_model_is_stated_outside_the_authority() {
     let authority = &doc["provenance"]["authoring"]["backend"]["authority"];
     assert_eq!(
         authority["decision_seat"],
-        "outside this authority: its own client, protocol retries included",
+        "outside this authority: its own provider client, one attempt per request",
         "{doc}"
     );
     let counted = authority["http_requests"]["sent"]
@@ -600,7 +600,7 @@ fn a_revision_seats_the_chosen_decision_model() {
     assert_eq!(authoring["context"][0]["call"], "revision", "{doc}");
     assert_eq!(
         authoring["backend"]["authority"]["decision_seat"],
-        "outside this authority: its own client, protocol retries included",
+        "outside this authority: its own provider client, one attempt per request",
         "{doc}"
     );
 }
