@@ -5675,6 +5675,7 @@ dependencies = [
  "nika-harness",
  "nika-http",
  "nika-kernel",
+ "nika-mcp",
  "nika-onboard",
  "nika-providers",
  "nika-runtime",

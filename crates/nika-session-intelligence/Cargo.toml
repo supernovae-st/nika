@@ -33,6 +33,7 @@ nika-runtime   = { path = "../nika-runtime", version = "0.123.0-preview.1" } # c
 nika-types     = { path = "../nika-types", version = "0.123.0-preview.1" }   # AccessClass · HarnessTransport · Timestamp
 nika-onboard   = { path = "../nika-onboard", version = "0.123.0-preview.1" } # the typed Compile surface, the conversation grammar and the pinned knowledge (lateral L4→L4 · never back)
 nika-harness   = { path = "../nika-harness", version = "0.123.0-preview.1", optional = true }  # the infer-grade seat (the harness reasoner and the subscription authoring seat)
+nika-mcp       = { path = "../nika-mcp", version = "0.123.0-preview.1", optional = true }  # conversation::ToolServer — the Session's tools served to the ACP agent that leads its conversation (lateral L4→L4 · nika-mcp never depends back)
 nika-display   = { path = "../nika-display", version = "0.123.0-preview.1" } # front_door::DataLocus — where the context goes (lateral L4→L4 · never back)
 nika-session-change = { path = "../nika-session-change", version = "0.123.0-preview.1" }  # change::Witness — the base a revision round compiled (lateral L4→L4 · never back)
 nika-session-agent = { path = "../nika-session-agent", version = "0.123.0-preview.1" }  # Model · Request · Reply — the conversation's model seam a selected API or local route answers (lateral L4→L4 · never back)
@@ -48,7 +49,7 @@ tokio      = { workspace = true }   # one current-thread runtime per inference
 [features]
 default = ["access-harness"]
 # The harness reasoner (an existing AI app's seat reasons with the human).
-access-harness = ["dep:nika-harness", "nika-cli-host/access-harness", "nika-verb-infer/access-harness", "nika-providers/access-harness"]
+access-harness = ["dep:nika-harness", "dep:nika-mcp", "nika-cli-host/access-harness", "nika-verb-infer/access-harness", "nika-providers/access-harness"]
 # The provider transport's test substitution (`reasoner::test_transport`) for the session's
 # loopback suites, which reach it through their dev-dependency; never default.
 test-support = []
