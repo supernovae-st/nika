@@ -4890,6 +4890,7 @@ pub fn nika_compile_seats::shelf::Templates::as_out(&mut self) -> outref::Out<'_
 impl<T> typenum::type_operators::Same for nika_compile_seats::shelf::Templates
 pub type nika_compile_seats::shelf::Templates::Output = T
 pub const nika_compile_seats::shelf::EVERYDAY: &[&str]
+pub fn nika_compile_seats::shelf::builtins_for(references: &[nika_compile_seats::shelf::Reference], plan: &nika_compile_reader::plan::Plan) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_seats::shelf::builtins_of(references: &[nika_compile_seats::shelf::Reference]) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_seats::shelf::callables(names: &[alloc::string::String]) -> alloc::vec::Vec<nika_compile_seats::shelf::Reference>
 pub fn nika_compile_seats::shelf::references(intent: &str, skeletons: usize) -> alloc::vec::Vec<nika_compile_seats::shelf::Reference>

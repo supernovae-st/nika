@@ -344,7 +344,12 @@ fn a_document_a_question_holds_back_is_witnessed_on_the_doors_own_bytes() {
 fn the_language_the_author_reads_is_the_specs_own_schema() {
     let sent: Value = serde_json::from_str(&language()).expect("compact JSON");
     let spec: Value = serde_json::from_str(nika_pack::schema_json()).expect("the pack's schema");
-    assert_eq!(sent, spec);
+    // A build with the prompt trims shows the same schema without its descriptions.
+    let shown = crate::shelf::trims::schema_text(spec);
+    assert_eq!(
+        sent,
+        serde_json::from_str::<Value>(&shown).expect("compact JSON")
+    );
     assert!(
         sent["properties"]["tasks"].is_object(),
         "the whole envelope rides it"

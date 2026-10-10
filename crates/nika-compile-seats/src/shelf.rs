@@ -8,7 +8,10 @@
 //! these names at their historical paths.
 
 use nika_compile::{HitKind, surface::sha256};
+use nika_compile_reader::plan::Plan;
 use serde_json::{Value, json};
+
+pub(crate) mod trims;
 
 /// One reference the seat received, as it was sent.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -145,7 +148,24 @@ pub fn references(intent: &str, skeletons: usize) -> Vec<Reference> {
 /// deduplicated in that order.
 #[must_use]
 pub fn builtins_of(references: &[Reference]) -> Vec<String> {
-    let mut names: Vec<String> = EVERYDAY.iter().map(|s| (*s).to_owned()).collect();
+    named_after(EVERYDAY, references)
+}
+
+/// [`builtins_of`] for a request the reader read as `plan` (amended 2026-10-10): a build with
+/// the prompt trims (`unstable-prompt-trims`, off by default) narrows the everyday set to what
+/// the plan's typed operations and effects reach (`trims::reached`); any other build keeps it.
+#[must_use]
+pub fn builtins_for(references: &[Reference], plan: &Plan) -> Vec<String> {
+    if trims::ON {
+        named_after(&trims::reached(plan), references)
+    } else {
+        builtins_of(references)
+    }
+}
+
+/// `everyday`, then every builtin the references name that it lacks.
+fn named_after(everyday: &[&str], references: &[Reference]) -> Vec<String> {
+    let mut names: Vec<String> = everyday.iter().map(|s| (*s).to_owned()).collect();
     let sources = references
         .iter()
         .filter(|r| matches!(r.kind, "skeleton" | "block" | "example"));

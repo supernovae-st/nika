@@ -35,6 +35,11 @@ serde_json_canonicalizer = { workspace = true } # RFC 8785 number text of a know
 thiserror  = { workspace = true }
 tokio      = { workspace = true } # the single decision call's bound
 
+[features]
+# The authoring prompt's trims, off until an evaluation measures authoring quality with and
+# without them (FCI-007): the schema without descriptions, callables scoped by the typed plan.
+unstable-prompt-trims = []
+
 [package.metadata.lore]
 daemon        = "forgeron"
 archetype     = "compiler-smith"

@@ -227,6 +227,19 @@ as an external consumer.
   carries what each `mode:` returns (the extract-modes page's table and feed section, which its
   section only points to) and the format of a feed's dates, RFC 3339 with an explicit offset as
   the engine normalizes them, until that page states it.
+  Amended 2026-10-10, the prompt trims (`shelf::trims`, behind the `unstable-prompt-trims`
+  feature, off by default per FCI-007). An evaluation measures authoring quality with and
+  without them before any default changes.
+  - `builtins_for(references, plan)` is `builtins_of` for the reader's typed plan: a trimmed
+    build narrows the everyday set to what the plan's operations and effects reach. It keeps
+    `read`, `write`, `glob`, `jq` and `date`, and adds `convert` for a computation, `prompt`
+    for an effect a human approves first, `fetch` for a fetched, looked-up or explored source
+    or an effect beyond a local file, and `notify` for a sent, notified or published effect.
+    A plan with nothing typed keeps the whole set.
+  - `foundry::document::create::language` drops every `description` annotation of the schema
+    it shows (29,749 bytes compact, 9,705 without them). Property names stay, an output's own
+    `description` field included.
+  A default build sends the whole prompt, as before. Both builds are witnessed.
 - `foundry` — recalled Foundry knowledge qualified by a decision seat before an author reads it
   (R3 · A1): `question` (one closed choice per reference, `applies` · `unrelated` · NONE),
   `verdict`, `qualify` (all references asked together; the unrelated leave the pack, the
