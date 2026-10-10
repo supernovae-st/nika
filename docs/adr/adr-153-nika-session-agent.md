@@ -19,7 +19,7 @@ inv: ["INV-019", "INV-025", "INV-027"]
 shadow_zones: []
 nika_codes: []
 timeline: "v0.123"
-follow_ups: ["the Session serves its tools through `nika_session_change::tools::SessionTools` and drives this loop for an intelligence that supports tools; the round driver stays reachable during the transition", "the Session's tree file and the project's pointer to it are written by the Session's history owner", "admission with the nika-session unit: mutation floor, canary through the Session, three-perspective review"]
+follow_ups: ["done (2d): the Session serves its tools through `nika_session_change::tools::SessionTools` and drives this loop for an API or local route; `NIKA_SESSION_DRIVER=rounds` keeps the round driver during the transition; an ACP agent leading over MCP remains to wire", "done (2d): the Session's history owner keeps the tree beside its journal, keyed by the project like the history itself, so no project pointer is written", "admission with the nika-session unit: mutation floor, canary through the Session, three-perspective review"]
 ---
 
 # ADR-153: nika-session-agent, the conversation the Session's selected intelligence leads

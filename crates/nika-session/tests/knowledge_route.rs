@@ -103,6 +103,7 @@ fn run_child(world: &World, scenario: &str, seat: &LoopbackSeat, env: &[(&str, &
         .env("PATH", "/usr/bin:/bin")
         .env("HOME", &world.home)
         .env("NIKA_KEYCHAIN", "off")
+        .env("NIKA_SESSION_DRIVER", "rounds")
         .env("NO_COLOR", "1")
         .env("NIKA_VLLM_BASE_URL", seat.base())
         .env("S03_CHILD", scenario)

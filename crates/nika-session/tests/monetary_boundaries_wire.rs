@@ -109,6 +109,7 @@ fn scenario(name: &str, expected_calls: usize) {
         .env("PATH", "/usr/bin:/bin")
         .env("HOME", &home)
         .env("NIKA_KEYCHAIN", "off")
+        .env("NIKA_SESSION_DRIVER", "rounds")
         .env("NIKA_VLLM_BASE_URL", seat.base())
         .env("MONETARY_ROOT", &root)
         .env("MONETARY_SCENARIO", name)

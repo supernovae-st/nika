@@ -55,6 +55,9 @@ fn connected(root: &Path, home: &Path, calls: &Arc<AtomicUsize>) -> SessionRunti
             }),
         }),
     );
+    // These connections are the round driver's: the conversation an intelligence leads is
+    // its own suite (`open_ux_journeys`).
+    session.agent = None;
     session.set_authoring_context(crate::authoring::AuthoringContext::from_settings(
         &nika_cli_host::compile::config::AuthoringSettings::none(),
         &nika_cli_host::compile::config::AuthoringSettings::none(),

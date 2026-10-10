@@ -216,6 +216,43 @@ grammar: one shown yes returns `RunReviewed { approve: true }` and the host answ
 once; a decline, leaving or `decline_run_review` (an interruption) sends nothing; the evidence,
 `/help` and `/status` answer beside it. The host keeps only the live child and its pipe.
 
+## The conversation an intelligence leads (ADR-153)
+
+A host door (`open_with`) opens the agent driver unless `NIKA_SESSION_DRIVER=rounds`, read once
+there, keeps the round driver; a route that cannot lead a conversation (a subscription seat, no
+intelligence, a scripted reasoner: `SessionReasoner::agent_model` is `None`) keeps it too. When
+it leads (`runtime/agent.rs`), a free line goes to `nika-session-agent`'s loop over the selected
+API or local route (`AgentModel`) and the Session's tools, after the read-only lines and before a
+pending proposal is discarded, while no authoring round, run input, activation or paused run
+owns the line. The run meets the gates of a reasoner call: the money that blocks cognition, the
+effort the route can carry, one admitted dispatch around the whole run, the preparation's Stop.
+
+The tools (`runtime/agent/tools.rs`, `assets/author_tools.json`) act on the conversation
+(`runtime/agent/conversation.rs`) and ask the Session's capabilities through an owned desk
+(`desk.rs`): a contained, bounded, redacted project read, the strict parser, the oracle facade,
+the embedded language pages, the model choice of this machine's routes, the pinned knowledge, one
+guarded public GET, the document operations and the judge (`judge_document`: the strict parser,
+the pure Check and the fidelity laws against the person's words from the current request on, the
+author's selections read on those words, the Session's own verified ones judged for scope). The
+rehearsal room is not open to a conversation's candidate yet (`trial` says so).
+
+Every value a candidate binds carries its provenance, checked against the person's cited lines
+as the tree made them durable (the tree's lines are indexed as they are appended): words cited
+must be in the cited line, an accepted offer must be an option the Session showed and that line
+answered, a kept value must be one a proposal the person saw bound. A revision that drops such a
+value unasked is refused at `propose` (a single-valued role, the output or the run model, takes
+another authorized value instead; the person's own words may remove one). Questions asked
+together get their own identities (`Waiting::Questions`, one at a time `Waiting::Question`); the
+line that answers closes them (`already_consumed`), a stale screen or another Session's identity
+answers nothing. `propose` shows the candidate through the consent door's proposal (`pending`,
+its identity the preview's witness); with acts, the person's line authorizes them only when it
+was written after this exact revision was shown and the candidate's reach is unchanged, and the
+turn's door then performs them through `consent_to`. A question withdraws a proposal shown; a
+reply that changes nothing leaves it waiting. The tree is kept beside the conversation history
+(`tree.jsonl`, in memory without history) and read back whole on reopen (a damaged tree is
+reported, never reset); the history keeps the conversation's evidence, never a question or a
+proposal.
+
 ## Exact schedule activation
 
 Saving a scheduled candidate activates nothing. Activation consumes Compile's

@@ -68,6 +68,11 @@ pub(super) struct Saved {
     /// exactly as before. A word this engine does not read is kept unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub knowledge: Option<String>,
+    /// What the conversation an intelligence leads holds as evidence (`agent.rs`: values,
+    /// provenance, delegations; never a question or a proposal); absent from records that had
+    /// none, whose bytes stay exactly as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<serde_json::Value>,
 }
 
 fn present<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<serde_json::Value>, D::Error> {
@@ -236,6 +241,11 @@ impl History {
             history.append(Event::Recovered)?;
         }
         Ok(history)
+    }
+
+    /// The history's own directory, for the conversation tree kept beside its journal.
+    pub(super) fn store_dir(&self) -> io::Result<OwnedDir> {
+        self.dir.try_clone()
     }
 
     fn replay(&mut self, file: File) -> io::Result<()> {
