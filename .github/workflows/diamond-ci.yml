@@ -148,7 +148,7 @@ jobs:
           shared-key: diamond
       - name: Install cargo-nextest (tests leg)
         if: matrix.job == 'tests'
-        uses: taiki-e/install-action@26e9283f268b880168bdbd2c545dfcd60ec2c6ab # v2
+        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2
         with:
           tool: cargo-nextest
       - name: Install bubblewrap (tests + funnel legs · the landlock jail proof RUNS · the funnel's consent leg runs a permits workflow)
@@ -237,7 +237,7 @@ jobs:
             --binary target/debug/nika --out "$RUNNER_TEMP/authoring-gauntlet"
       - name: Preserve authoring evidence
         if: always() && matrix.job == 'tests'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-authoring-gauntlet
           path: ${{ runner.temp }}/authoring-gauntlet
@@ -258,7 +258,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
           toolchain: stable
-      - uses: taiki-e/install-action@26e9283f268b880168bdbd2c545dfcd60ec2c6ab # cargo-deny
+      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # cargo-deny
         with:
           tool: cargo-deny
       - run: cargo deny --all-features check
@@ -286,7 +286,7 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           shared-key: diamond
-      - uses: taiki-e/install-action@26e9283f268b880168bdbd2c545dfcd60ec2c6ab # cargo-hack
+      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # cargo-hack
         with:
           tool: cargo-hack
       - name: check feature powerset (no dev deps)
@@ -365,7 +365,7 @@ jobs:
       # runner's to own; a production mutex to pass a test would be the wrong
       # owner, and `--test-threads=1` would serialize 1039 tests to hide one.
       - name: Install cargo-nextest (the process-per-test runner)
-        uses: taiki-e/install-action@26e9283f268b880168bdbd2c545dfcd60ec2c6ab # v2
+        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2
         with:
           tool: cargo-nextest
       # Same install as the rust tests/funnel legs. This job runs nika-cli
@@ -426,7 +426,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: taiki-e/install-action@26e9283f268b880168bdbd2c545dfcd60ec2c6ab # cargo-machete
+      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # cargo-machete
         with:
           tool: cargo-machete
       - name: check for unused dependencies
@@ -459,7 +459,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: crate-ci/typos@512fc24f32f44ab01972217aaaf3dc86ec234d53 # master
+      - uses: crate-ci/typos@7f9d0819ca1c008ade73f4b41fa9d258d48f605b # master
 
   # The declared rust-version is a public contract (consumers pin against
   # it), so it gets its own named gate: the workspace must build with
