@@ -36,7 +36,14 @@ Session's tools act on the Session, and only the Session's doors save, run or re
   with the reason the model reads. A call that repeats the previous one exactly, reply
   included, is said so to the model. Every request carries the branch's latest instructions,
   the conversation (a person's line followed by its citation, `(cited as u3)`) and the Session's
-  tool definitions.
+  tool definitions. `run::lead` is the same contract for an agent that runs its own loop and
+  keeps its own history (an ACP agent, a `Conversant`): `Agent::lead` sends the person's entry
+  as one prompt (the answer to a waiting call as `The person answered, cited as u3:`), reads the
+  turn's beats, asks the agent once to stop on Stop or a steering line, and records the calls a
+  `Relay` served (each as the agent's call and its reply, the one that waits for the person
+  parked), the transport's record (`Fact` `led_turn`) and the answer. The relay refuses a call
+  between turns and after a call that ended the turn; `transcript` gives an agent whose own
+  session did not see the conversation its cited lines and what the author said and asked.
 - `steer` — `Steering`, shared by the host and the run: `steer` lines enter after the current
   calls, `follow_up` lines when the model would end, `drain` returns both at Stop. A blank line
   is no line.

@@ -10,7 +10,9 @@
 //!
 //! - [`run`] · the loop over one [`run::Model`] and the Session's
 //!   [`SessionTools`](nika_session_change::tools::SessionTools): the calls it makes, the replies
-//!   it records, the turn a call ends until the person answers.
+//!   it records, the turn a call ends until the person answers. An agent with its own loop (an
+//!   ACP agent, [`run::Conversant`]) leads under the same contract: it reaches the tools through
+//!   a [`run::Relay`], and the tree records its calls, replies and answers the same way.
 //! - [`steer`] · the person's lines while a run is under way: a steering line enters after the
 //!   current calls, a follow-up line when the run would end, and Stop returns both unsent.
 //! - [`tree`] · the Session tree: every entry a conversation records, each with its parent,
@@ -42,6 +44,9 @@ pub mod steer;
 pub mod tree;
 
 pub use event::{AgentEvent, End};
-pub use run::{Agent, AgentError, Model, ModelError, Outcome, Reply, Request, Store};
+pub use run::{
+    Agent, AgentError, Beat, Conversant, Led, LedEnd, Model, ModelError, Outcome, Relay, Reply,
+    Request, Store,
+};
 pub use steer::{QueueMode, Steering};
 pub use tree::{Entry, EntryId, EntryKind, Tree, TreeError};
