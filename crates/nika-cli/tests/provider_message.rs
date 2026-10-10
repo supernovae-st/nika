@@ -145,12 +145,12 @@ fn the_person_reads_the_provider_words_and_never_the_key() {
         port,
     );
     assert!(!ran, "the refusal fails the Run: {run}");
-    for (door, shown) in [("run", &run), ("compile", &compile)] {
+    for (_door, shown) in [("run", &run), ("compile", &compile)] {
         assert!(
             shown.contains("Your credit balance is too low to access this API"),
-            "{door}: {shown}"
+            "the provider's words reach the door"
         );
-        assert!(!shown.contains(KEY), "{door}: {shown}");
+        assert!(!shown.contains(KEY), "the key never shows");
     }
     let written = files_holding(room.path(), KEY.as_bytes());
     assert!(written.is_empty(), "the key was written to {written:?}");

@@ -716,10 +716,10 @@ async fn every_wired_profile_relays_the_provider_message_without_the_key() {
             let shown = error.to_string();
             assert!(
                 shown.contains("Your credit balance is too low"),
-                "{id}: {shown}"
+                "the provider's words are relayed"
             );
             let key_shown = shown.contains("parity-test-key");
-            assert_eq!(key_shown, !requires_key, "{id}: {shown}");
+            assert!(key_shown != requires_key, "key visibility per route");
             assert!(!error.is_transient(), "{id}: prose is never classified");
         }
     }
@@ -767,11 +767,11 @@ async fn every_wired_profile_preserves_quota_failure_without_usage_or_retry() {
             assert!(diagnostic.contains("usage and billing unknown"));
             assert!(
                 diagnostic.contains("said: \"private prompt [withheld]"),
-                "{id}: {diagnostic}"
+                "the provider's words are relayed"
             );
             assert!(!diagnostic.contains("sk-secret"));
             let key_shown = diagnostic.contains("parity-test-key");
-            assert_eq!(key_shown, !requires_key, "{id}: {diagnostic}");
+            assert!(key_shown != requires_key, "key visibility per route");
         }
     }
 }

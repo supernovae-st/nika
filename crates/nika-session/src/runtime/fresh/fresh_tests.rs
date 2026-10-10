@@ -575,7 +575,7 @@ fn a_conversation_proposal_lands_on_the_bytes_it_was_shown_over() {
     let landed = facts(s.consent("yes"));
     assert!(
         landed.contains("the exact bytes it was shown over still hold for `./data/input.csv`"),
-        "{landed}"
+        "the landing names the held bytes"
     );
     assert!(
         root.path().join("copy-input.nika").exists(),
@@ -601,8 +601,7 @@ fn a_file_changed_after_a_conversation_proposal_withdraws_it() {
         why.text.contains(
             "the files this proposal reads changed since it was shown: `./data/input.csv`"
         ),
-        "{}",
-        why.text
+        "the withdrawal names the changed file"
     );
     assert!(
         !root.path().join("copy-input.nika").exists(),
@@ -621,8 +620,7 @@ fn a_conversation_proposal_is_judged_by_the_bytes_its_author_read() {
     let why = refused(s.consent("yes"));
     assert!(
         why.text.contains("changed since it was shown"),
-        "{}",
-        why.text
+        "the withdrawal says the file changed"
     );
     assert!(
         !root.path().join("copy-input.nika").exists(),

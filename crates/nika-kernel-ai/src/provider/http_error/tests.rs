@@ -62,8 +62,8 @@ fn the_credential_the_call_sent_never_survives() {
             ] {
                 let details = said(401, &raw, &[key]);
                 let shown = format!("{details} {details:?}");
-                assert!(!shown.contains(key), "{shown}");
-                assert!(shown.contains(WITHHELD), "{shown}");
+                assert!(!shown.contains(key), "the key is withheld");
+                assert!(shown.contains(WITHHELD), "the mark is shown");
             }
         }
     }
@@ -89,7 +89,7 @@ fn credential_shaped_words_are_withheld_without_being_known() {
     ] {
         let details = said(401, &format!("refused: {secret}, retry"), &[]);
         let expected = format!("refused: {WITHHELD}, retry");
-        assert_eq!(details.message(), Some(expected.as_str()), "{secret}");
+        assert_eq!(details.message(), Some(expected.as_str()), "withheld");
     }
     for (raw, shown) in [
         (
