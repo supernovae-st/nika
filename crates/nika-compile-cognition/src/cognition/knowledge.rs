@@ -15,7 +15,7 @@ pub(super) use nika_compile::surface::sha256;
 /// The references a seat reads and the Foundry fold, owned with the seats (ADR-146 descent).
 pub(super) use nika_compile_seats::foundry::{folded, qualified_with, reused, traced};
 pub(super) use nika_compile_seats::shelf::{
-    Reference, builtins_of, callables, references, rendered,
+    Reference, builtins_for, callables, references, rendered,
 };
 
 /// The identity every native call is stamped with: the engine, the embedded language pack,
@@ -162,7 +162,7 @@ mod tests {
             skeletons[0].text
         );
         assert!(refs.iter().any(|r| r.kind == "family"));
-        let names = builtins_of(&refs);
+        let names = nika_compile_seats::shelf::builtins_of(&refs);
         assert!(names.iter().any(|n| n == "read") && names.iter().any(|n| n == "jq"));
         let row = refs[0].receipt();
         assert_eq!(row["sha256"].as_str().map(str::len), Some(64));

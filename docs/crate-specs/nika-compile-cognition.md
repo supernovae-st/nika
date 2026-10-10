@@ -1288,7 +1288,11 @@ leaves to the author, a file read under a folder the person typed, the exact hos
 they typed). Its findings go through `resolution::selection_remedies`, so an unwritten
 destination or an invented literal names the selection that answers it before any question. A
 file the request asks for without naming it is derived and stated, asked only when the
-person's words leave its name to them.
+person's words leave its name to them. The prelude reads the callable contracts that
+`nika_compile_seats::shelf::builtins_for` selects over the reader's plan. A build with the
+prompt trims (`unstable-prompt-trims` on `nika-compile-seats`, off by default, amended
+2026-10-10) narrows them to the plan's typed reach and shows the schema without its
+descriptions; a default build sends the whole prompt.
 The native record of an accepted document keeps the rows (`plan.resolutions`): provenance,
 never a human answer. The private-plan door (policy `off`) and the sketch door do not carry
 selections yet (their emission would need the core's assembler to bind them), a documented

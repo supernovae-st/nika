@@ -290,7 +290,7 @@ pub(super) fn prelude<'a>(
             text: r.text.clone(),
         }));
     }
-    let callables = knowledge::callables(&knowledge::builtins_of(&references));
+    let callables = knowledge::callables(&knowledge::builtins_for(&references, &reading.plan));
     let sent: Vec<Value> = references
         .iter()
         .chain(callables.iter())
