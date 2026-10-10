@@ -273,6 +273,17 @@ paths the request states or files directly inside a stated folder,
 texts, a repeated key at any depth refused by `repeats_a_key`) and `Refusal`
 with its door code and words. Pure: no file, no network.
 
+`foundry::release::r2` admits a knowledge release of profile r2. The producer's export
+`PROFILE-R2.json` is embedded byte for byte and pinned by its sha256. Amended 2026-10-10,
+additively: a block may claim `OUTCOME_PROVEN` besides `CHECKED`.
+- F9 then requires its check receipt bound as for `CHECKED`.
+- It also requires an `outcome_receipt` (`engines`, `oracle_sha256`, `sha256`, `spec_sha`,
+  `worlds`, `correct`, `runs`, `verdict`) bound to the row's bytes, the target's specification
+  and the target binary, which must be one of `engines`.
+- At least one world, every one judged `OUTCOME_CORRECT` and each run at least once.
+An outcome receipt on any other proof level is refused. A release that never claims the level
+is admitted as before.
+
 ## 3. Boundary
 
 - Neither capability grants authority: a seat answers one closed choice the compiler

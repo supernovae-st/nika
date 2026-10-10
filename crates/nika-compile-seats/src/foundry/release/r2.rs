@@ -724,13 +724,34 @@ fn judge(
     Ok(())
 }
 
+/// The proof level of a block whose outcome recorded worlds proved (amended 2026-10-10).
+const OUTCOME_PROVEN: &str = "OUTCOME_PROVEN";
+
 /// F9: CHECKED exactly when a receipt binds the target verifier and specification to the row's
-/// bytes with a verdict the kind admits; any other proof level carries no receipt.
+/// bytes with a verdict the kind admits. `OUTCOME_PROVEN`, a level only a block carries (amended
+/// 2026-10-10), when that check receipt binds and an outcome receipt binds the same bytes and
+/// specification to recorded worlds the target binary ran, each judged correct ([`proven`]).
+/// Any other proof level carries neither receipt.
 fn evidence(kind: &Kind, id: &str, row: &Value, target: &Value, proof: &str) -> Checked<()> {
-    let receipt = row
-        .get("check_receipt")
-        .filter(|receipt| !receipt.is_null());
-    if proof == "CHECKED" {
+    let present = |key: &str| row.get(key).filter(|receipt| !receipt.is_null());
+    let (receipt, outcome) = (present("check_receipt"), present("outcome_receipt"));
+    if proof == OUTCOME_PROVEN && !outcome.is_some_and(|outcome| proven(outcome, row, target)) {
+        return refuse(
+            "F9",
+            "ROW_EVIDENCE",
+            format!(
+                "{id}: the outcome receipt is not bound to the file bytes, the spec and the target binary, or a world it ran was not judged correct"
+            ),
+        );
+    }
+    if proof != OUTCOME_PROVEN && outcome.is_some() {
+        return refuse(
+            "F9",
+            "ROW_EVIDENCE",
+            format!("{id}: an outcome receipt on a row whose proof level is not OUTCOME_PROVEN"),
+        );
+    }
+    if proof == "CHECKED" || proof == OUTCOME_PROVEN {
         let bound = receipt
             .filter(|receipt| receipt.is_object())
             .is_some_and(|receipt| {
@@ -758,6 +779,28 @@ fn evidence(kind: &Kind, id: &str, row: &Value, target: &Value, proof: &str) -> 
         );
     }
     Ok(())
+}
+
+/// Whether an outcome receipt binds the row's bytes and the target's specification to recorded
+/// worlds the target binary ran: at least one world, each judged correct, each run at least once.
+fn proven(outcome: &Value, row: &Value, target: &Value) -> bool {
+    let count = |key: &str| outcome[key].as_u64();
+    let on_target = (outcome["engines"].as_array()).is_some_and(|engines| {
+        engines
+            .iter()
+            .any(|engine| Some(engine) == target.get("binary"))
+    });
+    let judged = match (count("worlds"), count("correct"), count("runs")) {
+        (Some(worlds), Some(correct), Some(runs)) => {
+            worlds >= 1 && correct == worlds && runs >= worlds
+        }
+        _ => false,
+    };
+    outcome.get("sha256") == row.get("file_sha256")
+        && outcome.get("spec_sha") == target.get("spec_sha")
+        && outcome["verdict"] == "OUTCOME_CORRECT"
+        && on_target
+        && judged
 }
 
 /// F11: the body file is a pinned file of the kind's directory, its pin the row's `file_sha256`,
