@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 7095
+  classified_files: 7126
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 3922
+    authored: 3953
     authored-pin: 2
     generated: 266
     pinned-copy: 200
@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: c6aff5905724181eb2c38427214c8b2a0ad4e0a0e83b7bc819da46773f0109d2
+  sha256: f3b2a38e0231a345493e3aec5dff3dad25d896fca65a8b81e2260caa94bf0d82
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 85
-  aggregate_sha256: 21edeae6b23abc86df4cf7dc5181ad996afa93d8004ccccbdf655a3cb690d181
+  aggregate_sha256: 04b4b315644c8ee4506e18b53fa98c19b964868e49cc9a544a70cfa68fc69164
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,18 +151,18 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 2004
-  aggregate_sha256: debf1f9752657f8d674857e4e4bf5905452dc6a224c8391cda4f2010b47029a5
+  match_count: 2018
+  aggregate_sha256: a795caed0e6dd1bedcb0156c6934efc10aa8ecbf6161538162b4ff1324937c53
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
-  match_count: 773
-  aggregate_sha256: 79997109046d130d401b8d455664bbe2d25eaf190773d97893b3df95be544fa8
+  match_count: 780
+  aggregate_sha256: 428ce3e3e37076509a8c50339947d925e885c15d52658c57229a9fa84ec94eda
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
-  match_count: 391
-  aggregate_sha256: 6d4eaa5497571dbfaac5f2f7f0456f6a2b0f1f7a3e852b60b4b61c96d0b1cdbe
+  match_count: 393
+  aggregate_sha256: 50792440397f9b9131ea8acc64193a787f1f338bd038478ab92c72be28ca713a
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "scripts/sync-pack.sh is the ONE vendoring lane; the divergent crate-local duplicate was retired"
 - glob: "fuzz/**"
@@ -173,7 +173,7 @@ patterns:
 - glob: "docs/adr/**"
   class: authored
   match_count: 118
-  aggregate_sha256: 34c72595fcc95ce22abd042bbcbc28fcf3eac85044ce2e173ce71ac5597fe653
+  aggregate_sha256: abca431bbb27040e8ac6c726ab2c5748ecc19bb803ff5e7e98f80989c6e3cef4
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
 - glob: "docs/testimonials/**"
   class: testimonial
@@ -183,7 +183,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 143
-  aggregate_sha256: 51c7c418825c03522980f755f9039369454d83d485982f8fcee7bf1766b2c7fc
+  aggregate_sha256: 32c3efc06697959777855b7b96d2dd701e83aca184fa1614b49a545c4a6c069c
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
@@ -241,14 +241,14 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 23
-  aggregate_sha256: 9a774d395e8ace5374f48f0b6b4b10526681e3e8729c7cd634fa98ce2157a73b
+  match_count: 31
+  aggregate_sha256: 8a9a293ce42d476ab979a63a81bb7217669105d7dfe1e31e0d48b4f0d0b50ee6
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
   class: authored
   match_count: 31
-  aggregate_sha256: 455f6610df0d4b0a06b48a62e1616226ed1466b2c69a83f775622236be2753cd
+  aggregate_sha256: cb32cd5e93aee3aa0bc523c0608fe7be86659ce5c71dd10515a3acdaa0534d25
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
