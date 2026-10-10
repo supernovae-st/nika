@@ -57,16 +57,20 @@ pub(crate) enum Offered {
     Answer(String),
 }
 
+/// The key a selection of the knowledge decision belongs to.
+const KNOWLEDGE: &str = "knowledge";
+
 /// The typed choice `waiting` paints: its key, its question and its offers
-/// (at least one).
+/// (at least one). A typed question's, or the knowledge decision a held line
+/// waits for, whose offers are the exact lines the Session reads.
 pub(crate) fn choice(waiting: &Waiting) -> Option<(&str, &Asked, &[Offer])> {
-    let Waiting::QuestionDocument { key, asked } = waiting else {
-        return None;
+    let (key, asked) = match waiting {
+        Waiting::QuestionDocument { key, asked } => (key.as_str(), asked),
+        Waiting::Knowledge { asked } => (KNOWLEDGE, asked),
+        _ => return None,
     };
     match &asked.shape {
-        Shape::Choice(offers) if !offers.is_empty() => {
-            Some((key.as_str(), asked, offers.as_slice()))
-        }
+        Shape::Choice(offers) if !offers.is_empty() => Some((key, asked, offers.as_slice())),
         Shape::Choice(_) | Shape::Text | Shape::Literal => None,
     }
 }

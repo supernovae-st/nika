@@ -35,6 +35,9 @@ pub(crate) fn context(state: &UiState) -> Option<&'static str> {
         Waiting::Proposal => Some("A proposal waits · no command answers it · yes + Enter: Save"),
         Waiting::Gate => Some("A gate waits · no command answers it · approve or refuse"),
         Waiting::Choosing => Some("The intelligence choice waits · no command answers it"),
+        Waiting::Knowledge { .. } => {
+            Some("Your message waits · /knowledge embedded resumes it · cancel drops it")
+        }
         Waiting::Question { key } | Waiting::QuestionDocument { key, .. }
             if key == "unknown_cost" || key == "run_cost" =>
         {

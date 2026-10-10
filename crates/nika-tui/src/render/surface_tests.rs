@@ -426,3 +426,48 @@ fn a_typed_choice_shows_the_request_the_session_keeps() {
         "nothing kept, nothing shown"
     );
 }
+
+/// A line the Session holds for its knowledge opens the same surface:
+/// `Knowledge`, the held line as the request kept, the refusal, then its two
+/// exact acts as offers.
+#[test]
+fn a_held_line_opens_the_surface_with_its_two_acts() {
+    let offers = vec![
+        Offer::new("/knowledge embedded", "use the knowledge built into Nika"),
+        Offer::new("cancel", "drop your message"),
+    ];
+    let kept = Retained::new(Some("sum the amounts".to_owned()), Vec::new());
+    let asked = Asked::new(
+        "Not admitted (CODE): why",
+        "",
+        false,
+        Shape::Choice(offers),
+        "7:k",
+        7,
+    )
+    .retaining(kept);
+    let state = state(
+        Presentation::Focus,
+        (80, 24),
+        Waiting::knowledge(asked),
+        false,
+    );
+    let composer = composer(&state.waiting, "");
+    let buffer = draw(&state, &composer);
+    let (band, _) = band_of(&state, &composer).expect("the band");
+    let top = usize::from(band.y);
+    let shown: Vec<String> = (0..24).map(|y| row(&buffer, y)).collect();
+    assert_eq!(shown[top], "Knowledge · your message waits");
+    assert_eq!(shown[top + 1], "Request · sum the amounts");
+    assert_eq!(shown[top + 2], "Not admitted (CODE): why");
+    // The key column holds 16 cells: `cancel` pads to it, the longer key
+    // pushes its label along.
+    let act = |key: &str, does: &str| {
+        (shown.iter()).any(|line| line.trim_start().starts_with(key) && line.contains(does))
+    };
+    assert!(
+        act("/knowledge embedded", "· use the knowledge built into Nika"),
+        "{shown:#?}"
+    );
+    assert!(act("cancel", "· drop your message"), "{shown:#?}");
+}

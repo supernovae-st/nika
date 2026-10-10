@@ -589,6 +589,11 @@ fn narrower(waiting: &Waiting) -> &'static [&'static str] {
             ]
         }
         Waiting::QuestionDocument { .. } => &["Enter answers"],
+        Waiting::Knowledge { .. } => &[
+            "↑↓ choose · Enter acts · cancel drops your message",
+            "Enter acts · cancel drops it",
+            "Enter acts",
+        ],
         Waiting::Question { .. } => &["answer the question above"],
         Waiting::Proposal => &["yes + Enter: Save · no: cancel"],
         Waiting::Gate => &["approve or refuse"],

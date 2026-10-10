@@ -305,6 +305,18 @@ pub enum Waiting {
         /// answer to it names.
         asked: Asked,
     },
+    /// A line the Session holds, sent nowhere, because the knowledge the
+    /// configuration names was refused ([`Waiting::knowledge`]): its one
+    /// action, `/knowledge embedded`, resumes it once, and `cancel` drops it.
+    /// It is painted as a typed choice whose offers are those two exact
+    /// lines. It names no identity: whatever is sent while it waits is an
+    /// ordinary line.
+    #[non_exhaustive]
+    Knowledge {
+        /// The decision as this shell paints it: the refusal in the
+        /// Session's words, the held line as the request kept, the two acts.
+        asked: Asked,
+    },
     /// Consent on the exact bytes of a candidate.
     Proposal,
     /// A human gate inside a run.
@@ -322,13 +334,22 @@ impl Waiting {
         }
     }
 
+    /// The knowledge decision a held line waits for, painted as `asked`
+    /// ([`Waiting::Knowledge`]).
+    #[must_use]
+    pub fn knowledge(asked: Asked) -> Self {
+        Self::Knowledge { asked }
+    }
+
     /// The prompt naming the same waiting state as the plain loop.
     #[must_use]
     pub fn prompt(&self) -> &'static str {
         match self {
             Self::Free => "nika › ",
             Self::Choosing => "› ",
-            Self::Question { .. } | Self::QuestionDocument { .. } => "reply › ",
+            Self::Question { .. } | Self::QuestionDocument { .. } | Self::Knowledge { .. } => {
+                "reply › "
+            }
             Self::Proposal => "Save? › ",
             Self::Gate => "answer › ",
         }
@@ -353,6 +374,7 @@ impl Waiting {
             // The typed question's card stands right above the line: keys
             // only, `cancel` in the Session's own verb.
             Self::QuestionDocument { .. } => "Enter answers · cancel drops it",
+            Self::Knowledge { .. } => "↑↓ choose · Enter acts · cancel drops your message",
             Self::Question { .. } => "answer the question above · cancel to stop",
             Self::Proposal => "yes + Enter: Save · no: cancel · /show: inspect",
             Self::Gate => "approve or refuse · nothing else answers a gate",

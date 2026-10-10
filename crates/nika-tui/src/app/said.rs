@@ -288,9 +288,11 @@ mod tests {
                 );
             }
         }
+        let held = Asked::new("not admitted", "", false, currencies(), "7:knowledge", 7);
         for waiting in [
             Waiting::Free,
             Waiting::Choosing,
+            Waiting::knowledge(held),
             Waiting::Proposal,
             Waiting::Gate,
             Waiting::Question {

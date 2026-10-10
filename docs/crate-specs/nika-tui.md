@@ -387,6 +387,14 @@ the shell's own (`Ctrl+C`, `Ctrl+O`, `Ctrl+T`, `Ctrl+L`, `Shift+Tab`, the
 function keys) are the choice's, so none reaches the hidden transcript or
 leaves the workspace.
 
+A line the Session holds because the knowledge the configuration names was
+refused (`Waiting::Knowledge`, from `work::Waiting::KnowledgeChoice`) opens
+the same surface: `Knowledge · your message waits`, the held line as the
+request kept, the refusal in the Session's words (its source, layer, code and
+cause), then its two acts as offers, `/knowledge embedded` (resumes the line
+once with the release built into Nika) and `cancel` (drops it). Each act is
+sent as the exact ordinary line the Session reads; no identity is bound.
+
 A typed question that offers nothing (a text, an exact value) keeps its card
 above the answer line. In the fitting workspace, while the latest question
 block carries the witness of the typed question waiting, that card is the

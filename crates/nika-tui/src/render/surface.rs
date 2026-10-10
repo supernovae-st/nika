@@ -376,8 +376,11 @@ fn title(held: &Held<'_>, page: &Range<usize>, width: u16, state: &UiState) -> L
             surface::title(("Commands", &own(facts, state.ascii)), "Esc", width, glyphs)
         }
         Held::Choice { asked, offers, .. } => {
+            let knowledge = matches!(state.waiting, Waiting::Knowledge { .. });
             let mut facts = String::new();
-            if asked.mandatory {
+            if knowledge {
+                facts.push_str(" · your message waits");
+            } else if asked.mandatory {
                 facts.push_str(" · required");
             }
             if page.len() < offers.len() {
@@ -389,7 +392,8 @@ fn title(held: &Held<'_>, page: &Range<usize>, width: u16, state: &UiState) -> L
                     offers.len()
                 );
             }
-            surface::title(("Question", &own(&facts, state.ascii)), "", width, glyphs)
+            let name = if knowledge { "Knowledge" } else { "Question" };
+            surface::title((name, &own(&facts, state.ascii)), "", width, glyphs)
         }
     }
 }

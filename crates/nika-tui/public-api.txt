@@ -734,6 +734,8 @@ pub type nika_tui::model::Stopping::Output = T
 pub nika_tui::model::Waiting::Choosing
 pub nika_tui::model::Waiting::Free
 pub nika_tui::model::Waiting::Gate
+#[non_exhaustive] pub nika_tui::model::Waiting::Knowledge
+pub nika_tui::model::Waiting::Knowledge::asked: nika_tui::model::Asked
 pub nika_tui::model::Waiting::Proposal
 pub nika_tui::model::Waiting::Question
 pub nika_tui::model::Waiting::Question::key: alloc::string::String
@@ -743,6 +745,7 @@ pub nika_tui::model::Waiting::QuestionDocument::key: alloc::string::String
 impl nika_tui::model::Waiting
 pub fn nika_tui::model::Waiting::asked(key: impl core::convert::Into<alloc::string::String>, asked: nika_tui::model::Asked) -> Self
 pub fn nika_tui::model::Waiting::hint(&self) -> &'static str
+pub fn nika_tui::model::Waiting::knowledge(asked: nika_tui::model::Asked) -> Self
 pub fn nika_tui::model::Waiting::prompt(&self) -> &'static str
 impl core::clone::Clone for nika_tui::model::Waiting
 pub fn nika_tui::model::Waiting::clone(&self) -> nika_tui::model::Waiting
