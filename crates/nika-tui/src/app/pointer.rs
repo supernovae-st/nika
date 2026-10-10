@@ -518,6 +518,11 @@ impl<C: Conversation + 'static> Shell<C> {
                 }
                 Heard::Redraw
             }
+            // The repeat of a surface's activation queues nothing.
+            Busy::Hold if self.guard.working => {
+                self.state.completion = Some(super::ENTER_WAITS.to_owned());
+                Heard::Redraw
+            }
             Busy::Hold => {
                 self.queue_correction();
                 Heard::Redraw

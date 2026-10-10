@@ -114,9 +114,12 @@ resize clamps the rendered geometry without changing the chosen proportions.
 The Live host keeps only settled display choices in a versioned HOME preference
 file through `OwnedDir`. Painting performs no I/O; restoring an arrangement
 restores no Session authority. The command chooser names the conversation's
-supported commands and their effect/scope; selecting a slash command inserts
-it without submitting. `Ctrl+O` (or `Tab` in an empty composer) opens the
-palette. The palette, the slash list and a typed choice's offers open as one
+supported commands and their effect/scope. `Enter` runs the selected command
+once (the palette's without touching the draft; while a turn works it waits
+in the box instead) and `Tab` inserts it without submitting; a repeated
+`Enter` after a surface's activation counts once (taken while that turn works,
+and for half a second after it returns unless another key comes first).
+`Ctrl+O` (or `Tab` in an empty composer) opens the palette. The palette, the slash list and a typed choice's offers open as one
 opaque surface above the composer (`render::surface`, its plan in
 `nika_tui_view::workspace::surface`): a band from the transcript's first row
 down to the composer, joined to its box, sized from facts at rest, so

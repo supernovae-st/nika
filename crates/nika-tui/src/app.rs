@@ -183,6 +183,8 @@ struct Shell<C: Conversation> {
     /// The region that held the keys when the palette opened: cancelling the
     /// palette, or a view key chosen in it, gives the keys back there.
     palette_from: Option<crate::workspace::focus::Region>,
+    /// One surface activation, one act: its repeated `Enter` is taken.
+    guard: surface::Guard,
 }
 
 /// A terminal the renderer holds, between [`enter`] and [`run_on`].
@@ -252,6 +254,7 @@ pub fn run_on<C: Conversation + 'static>(
         hold: stop::Hold::default(),
         diagnostic: None,
         palette_from: None,
+        guard: surface::Guard::default(),
     };
     // The layout this conversation kept from an earlier session, if any.
     if let Some(conversation) = shell.conversation.as_ref()
@@ -555,12 +558,15 @@ impl<C: Conversation + 'static> Shell<C> {
     }
 
     fn on_key(&mut self, key: KeyEvent, broker: &mut Broker) -> io::Result<Step> {
+        if self.repeated_enter(&key) {
+            return Ok(Step::Stay);
+        }
         match self.catch(key) {
             Some(Caught::Read) => Ok(Step::Stay),
             // A view key the palette chose, pressed past the chooser.
             Some(Caught::Press(chosen)) => self.route_key(chosen, broker),
             // What the typed choice holding the line sent, bound to it.
-            Some(Caught::Sent(said)) => self.send(said, broker),
+            Some(Caught::Sent(said)) => self.send_activated(said, broker),
             None => self.route_key(key, broker),
         }
     }

@@ -227,7 +227,7 @@ fn the_band_hides_every_cell_down_to_the_composer() {
     assert!(title.ends_with("Esc"), "{title}");
     assert_eq!(open[usize::from(band.bottom())], "commands ›");
     assert!(
-        open[23].starts_with("↑↓ choose · Enter inserts"),
+        open[23].starts_with("↑↓ choose · Enter runs"),
         "{}",
         open[23]
     );

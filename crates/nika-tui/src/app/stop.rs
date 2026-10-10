@@ -55,7 +55,7 @@ fn command_typed<'c>(draft: &str, commands: &'c [String]) -> Option<&'c str> {
 }
 
 /// The hint when `Enter` keeps a command in the box while Nika works.
-fn command_waits(command: &str) -> String {
+pub(super) fn command_waits(command: &str) -> String {
     format!("Nika keeps working · {command} waits for your turn")
 }
 

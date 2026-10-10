@@ -11,8 +11,9 @@
 //! the cursor stands at the buffer's first or last line.
 //!
 //! The composer also keeps the command chooser (`chooser`): the slash list
-//! of a command being typed and the palette. Choosing inserts words into the
-//! draft and never sends them; `Enter` stays the only way a line leaves.
+//! of a command being typed and the palette. `Tab` inserts a command into
+//! the draft and never sends it; `Enter` is the one deliberate act a line
+//! leaves by, a chosen command included, once.
 //! It keeps the selection among a typed choice's offers too (`answer`):
 //! presentation only, the draft untouched; `Enter` on a selection answers.
 //!

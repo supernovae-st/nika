@@ -48,14 +48,18 @@ pub(crate) fn context(state: &UiState) -> Option<&'static str> {
 
 /// The hint row while the chooser shows, in the longest form a row `width`
 /// cells wide holds (the row keeps its height at rest): how to choose, that
-/// choosing never sends, and what `Enter` does with a whole command: it sends
-/// it, or, while Nika works, keeps it in the box for the human's turn.
+/// `Enter` runs the selected command once and `Tab` only inserts it, or,
+/// while Nika works, that the command waits in the box for the human's turn.
 pub(crate) fn hint(listing: &Listing<'_>, busy: bool, ascii: bool, width: u16) -> String {
     let forms = match (listing.door, listing.current()) {
+        (Door::Palette, _) if busy => vec![
+            "↑↓ choose · Enter keeps it for your turn · Esc: back to your draft".to_owned(),
+            "Enter keeps it for your turn · Esc: your draft".to_owned(),
+        ],
         (Door::Palette, _) => vec![
-            "↑↓ choose · Enter inserts, never sends · Esc: back to your draft".to_owned(),
-            "↑↓ choose · Enter inserts · Esc: your draft".to_owned(),
-            "Enter inserts · Esc: your draft".to_owned(),
+            "↑↓ choose · Enter runs · Tab inserts · Esc: back to your draft".to_owned(),
+            "↑↓ choose · Enter runs · Tab inserts · Esc".to_owned(),
+            "Enter runs · Tab inserts · Esc".to_owned(),
         ],
         (Door::Slash, Some(entry)) if listing.whole && busy => vec![
             format!(
@@ -71,9 +75,13 @@ pub(crate) fn hint(listing: &Listing<'_>, busy: bool, ascii: bool, width: u16) -
             ),
             format!("Enter sends {} · Esc hides", entry.name),
         ],
+        (Door::Slash, _) if busy => vec![
+            "↑↓ choose · Enter keeps it for your turn · Esc hides the list".to_owned(),
+            "Enter keeps it for your turn · Esc hides".to_owned(),
+        ],
         (Door::Slash, _) => vec![
-            "↑↓ choose · Tab or Enter inserts · Esc hides the list".to_owned(),
-            "Tab or Enter inserts · Esc hides".to_owned(),
+            "↑↓ choose · Enter runs · Tab inserts · Esc hides the list".to_owned(),
+            "Enter runs · Tab inserts · Esc hides".to_owned(),
         ],
     };
     let shown: Vec<String> = (forms.iter())

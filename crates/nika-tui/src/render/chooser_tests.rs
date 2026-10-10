@@ -152,7 +152,7 @@ fn a_slash_lists_the_commands_above_the_line_with_the_selection_and_its_detail()
     assert_eq!(shown[10], "nika › /");
     assert_eq!(
         shown[11],
-        "↑↓ choose · Tab or Enter inserts · Esc hides the list"
+        "↑↓ choose · Enter runs · Tab inserts · Esc hides the list"
     );
 }
 
@@ -245,7 +245,7 @@ fn the_palette_takes_the_composer_row_and_keeps_the_draft_out_of_view() {
     assert!(!shown.iter().any(|row| row.contains("my draft stays")));
     assert_eq!(
         shown[11],
-        "↑↓ choose · Enter inserts, never sends · Esc: back to your draft"
+        "↑↓ choose · Enter runs · Tab inserts · Esc: back to your draft"
     );
     composer.choose(key(KeyCode::Esc));
     let back = inline(&state, &composer, 80);
@@ -263,7 +263,7 @@ fn a_draft_set_aside_is_named_until_it_returns() {
     for c in "status".chars() {
         composer.choose(key(KeyCode::Char(c)));
     }
-    composer.choose(key(KeyCode::Enter));
+    composer.choose(key(KeyCode::Tab));
     let shown = inline(&state, &composer, 80);
     assert_eq!(
         shown[1],
@@ -289,7 +289,8 @@ fn the_ascii_column_draws_every_chooser_row_in_ascii() {
         "{shown:#?}"
     );
     assert!(
-        shown.contains(&"Up/Down choose - Tab or Enter inserts - Esc hides the list".to_owned()),
+        shown
+            .contains(&"Up/Down choose - Enter runs - Tab inserts - Esc hides the list".to_owned()),
         "{shown:#?}"
     );
 }

@@ -19,10 +19,11 @@
 //! region held them. Cancelling it (`Esc`, `Ctrl+O` again, or any key it
 //! does not read) gives the keys back to that region, the draft exact; a view
 //! key chosen in it is pressed from that region too, except the conversation
-//! navigation entries, which give the conversation the keys. Only a command chosen
-//! leaves the keys on the composer, where the `Enter` that sends it is the
-//! human's own act. Choosing never sends: a view key chosen is pressed
-//! through the ordinary path, exactly as if typed. The chooser offers what
+//! navigation entries, which give the conversation the keys. `Enter` on a
+//! command runs it once, the draft untouched (while Nika works it waits in
+//! the box instead); `Tab` inserts it and leaves the keys on the composer,
+//! where the `Enter` that sends it is the human's own act. A view key chosen
+//! is pressed through the ordinary path, exactly as if typed. The chooser offers what
 //! exists ([`catalog`]): the commands the conversation answers now, the view
 //! keys the presentation routes. While a turn works the same readers run
 //! first ([`Shell::catch_busy`]), so arrows and `Tab` choose without reaching
@@ -302,6 +303,7 @@ impl<C: Conversation + 'static> Shell<C> {
         match chosen {
             Chosen::Pass => None,
             Chosen::Read | Chosen::Inserted => Some(self.caught(Caught::Read)),
+            Chosen::Run(words) => Some(self.run_command(words)),
             Chosen::Press(key) if self.open_diagnostic(key) => Some(self.caught(Caught::Read)),
             Chosen::Press(key) => {
                 // These entries name the conversation, regardless of where

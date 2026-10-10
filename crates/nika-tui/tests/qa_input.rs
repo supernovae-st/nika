@@ -549,8 +549,9 @@ fn clicking_another_panel_closes_the_palette_and_keeps_the_clicked_focus() {
 }
 
 /// A view key chosen in the palette acts from the region that held the
-/// keys (`F6` from the preview reaches the aside); a command chosen moves
-/// the keys to the composer, so the separate `Enter` is the human's.
+/// keys (`F6` from the preview reaches the aside); a command inserted with
+/// `Tab` moves the keys to the composer, so the separate `Enter` is the
+/// human's.
 #[test]
 fn a_view_key_chosen_acts_from_the_region_that_held_the_keys() {
     let mut term = opened(80, 24, true);
@@ -565,7 +566,7 @@ fn a_view_key_chosen_acts_from_the_region_that_held_the_keys() {
     });
     term.send(CTRL_O);
     term.wait_text("commands ›");
-    term.send("status\r");
+    term.send("status\t");
     term.wait_until("/status inserted, the keys on the composer", |screen| {
         screen.contains("nika › /status") && !screen.contains(ASIDE)
     });
@@ -573,6 +574,57 @@ fn a_view_key_chosen_acts_from_the_region_that_held_the_keys() {
     term.wait_text(&format!("nika › {}", "/status".trim_end_matches('s')));
     nothing_sent(&mut term, "choosing in the palette");
     leave(&mut term);
+}
+
+/// `Enter` on a command in the palette runs it once, as its line, the draft
+/// untouched: the demo plays one turn per line, so a second line (a repeat,
+/// or the draft) would show its proposal. An `Enter` repeated in the same
+/// write counts once; paced, it says the turn works. Once the turn's answer
+/// is painted and the repeat window has passed, the draft's own `Enter`
+/// sends it.
+#[test]
+fn a_command_run_from_the_palette_runs_once_and_keeps_the_draft() {
+    for (paced, workspace) in [(false, false), (false, true), (true, false)] {
+        let at = format!("paced={paced} workspace={workspace}");
+        let args: &[&str] = if paced { &["--demo-pace", "900"] } else { &[] };
+        let mut term = Term::proto(args, 100, 32);
+        term.wait_prompt(FREE);
+        if workspace {
+            term.send("\x14");
+            term.wait_text(WORKSPACE);
+        }
+        term.send("keep me");
+        term.wait_text("nika › keep me");
+        term.send(CTRL_O);
+        term.wait_text("commands ›");
+        term.send("status");
+        term.wait_text("› /status");
+        term.send("\r\r");
+        if paced {
+            term.wait_until(&format!("{at}: the repeat waits for the turn"), |screen| {
+                screen.contains("Nika is working · Enter sends when it is your turn")
+            });
+        }
+        term.wait_until(&format!("{at}: /status ran"), |screen| {
+            screen.seen(QUESTION)
+                && screen
+                    .lines()
+                    .iter()
+                    .any(|row| row.contains(&format!("{REPLY} keep me")))
+        });
+        term.settle(SETTLE);
+        assert!(
+            !term.screen.seen(PROPOSAL),
+            "{at}: a second line was sent\n{}",
+            term.dump()
+        );
+        term.send("\r");
+        term.wait_until(
+            &format!("{at}: the draft sent by its own Enter"),
+            |screen| screen.seen(PROPOSAL),
+        );
+        leave(&mut term);
+    }
 }
 
 /// A paste is data in the palette's search and in a slash draft alike: a
@@ -603,8 +655,8 @@ fn a_paste_into_the_palette_or_a_slash_draft_is_data() {
     }
 }
 
-/// At a run's gate the chooser says no command answers it; choosing in the
-/// slash list or the palette fills the draft and the gate keeps waiting.
+/// At a run's gate the chooser says no command answers it; `Tab` in the slash
+/// list or the palette fills the draft and the gate keeps waiting.
 #[test]
 fn choosing_at_a_gate_fills_the_draft_and_never_answers_it() {
     for (cols, rows) in CHOOSER_SIZES {
@@ -621,7 +673,7 @@ fn choosing_at_a_gate_fills_the_draft_and_never_answers_it() {
         });
         term.send(CTRL_O);
         term.wait_text("commands ›");
-        term.send("inspect\r");
+        term.send("inspect\t");
         term.wait_until("/show inserted over /help", |screen| {
             screen.row_starting(&format!("{ANSWER} /show")).is_some()
         });
