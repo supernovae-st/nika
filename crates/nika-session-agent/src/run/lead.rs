@@ -29,12 +29,13 @@ use crate::tree::{EntryKind, Tree};
 const NO_TURN: &str = "No turn is under way: nothing runs until the person writes.";
 
 /// What a call after one that waits for the person reads.
-const WAITING: &str =
-    "Not run: the person was asked; end your turn now, their answer comes as their next line.";
+const WAITING: &str = "Not run: this turn waits for the person; end your turn now, their reply \
+comes as their next line.";
 
-/// What the agent reads after the reply of a call that waits for the person.
-const ASKED: &str =
-    "\n\n(Nika: the person was asked. End your turn now; their answer comes as their next line.)";
+/// What the agent reads after the reply of a call that waits for the person (a question asked,
+/// a proposal shown).
+const ASKED: &str = "\n\n(Nika: this waits for the person. End your turn now; their reply comes \
+as their next line.)";
 
 /// The name of the fact a led turn's transport record is kept under.
 pub const LED_TURN: &str = "led_turn";

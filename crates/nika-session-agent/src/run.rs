@@ -286,14 +286,17 @@ impl<'a> Agent<'a> {
     }
 
     /// Nika's own `note` (a failed run's facts, what to repair) starts a run with no person's
-    /// line. While a call waits for the person, nothing starts.
+    /// line. While a question waits for the person, nothing starts; a shown proposal the person's
+    /// words acted on (saved, run) waits for nothing more.
     pub fn note(
         &mut self,
         note: &str,
         model: &mut dyn Model,
         events: &mut dyn FnMut(AgentEvent),
     ) -> Outcome {
-        if let Some((call, _)) = self.tree.parked() {
+        if let Some((call, name)) = self.tree.parked()
+            && name != "propose"
+        {
             let call = call.to_owned();
             return Outcome::Failed {
                 error: AgentError::Parked { call },

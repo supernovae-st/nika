@@ -278,10 +278,12 @@ impl SessionRuntime {
     }
 
     /// Nika's own note to the conversation's author, as a turn with no person's line: none when
-    /// no conversation leads or a question waits for the person.
+    /// no conversation leads or a question waits for the person (a proposal the person's words
+    /// acted on waits for nothing more).
     fn agent_note(&mut self, note: &str) -> Option<TurnOutcome> {
         let tree = self.agent.as_ref().and_then(|d| d.tree.as_ref());
-        if !self.agent_leads() || tree.is_none_or(|tree| tree.parked().is_some()) {
+        let waits = |tree: &Tree| tree.parked().is_some_and(|(_, name)| name != "propose");
+        if !self.agent_leads() || tree.is_none_or(waits) {
             return None;
         }
         Some(self.agent_said(Said::Note(note)))
@@ -410,6 +412,7 @@ impl SessionRuntime {
             root: self.snapshot.root.clone(),
             probes: probes.unwrap_or_default(),
             knowledge: self.authoring_context.knowledge().cloned(),
+            admitted: None,
             verifier: Verifier {
                 seat: self.seat.clone(),
                 context: self.authoring_context.clone(),
@@ -549,6 +552,27 @@ impl SessionRuntime {
             .map(Tree::last_said)
             .unwrap_or_default();
         match outcome {
+            Outcome::Parked { name, queued, .. } if name == "propose" => {
+                // The proposal ended the turn: it is the turn's outcome, said in the words of the
+                // message that called `propose` (else its summary); the next line answers it.
+                let current = driver.toolbox.with(|c| c.candidate().cloned());
+                let Some(candidate) = current.filter(|c| decided.proposed == Some(c.number)) else {
+                    return TurnOutcome::Reply(said);
+                };
+                let text = if said.is_empty() {
+                    candidate.summary
+                } else {
+                    said
+                };
+                match self.agent_propose(driver, &text, decided.acts) {
+                    TurnOutcome::Proposal { id, preview } => TurnOutcome::Proposal {
+                        id,
+                        preview: unsent(&queued)
+                            .map_or(preview.clone(), |not| format!("{preview}\n{not}")),
+                    },
+                    other => other,
+                }
+            }
             Outcome::Parked { queued, .. } => {
                 // A question waits: the proposal shown is no longer what the next line answers.
                 self.pending = None;

@@ -14,11 +14,12 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use nika_cli_host::Theme;
 use nika_cli_host::oracle::{AuditOptions, Lanes};
 use nika_compile_fidelity::fidelity::resolution::Resolution;
-use nika_compile_seats::foundry::document;
+use nika_compile_seats::foundry::{ComponentCatalog, document};
 use nika_fs::OwnedDir;
 use nika_onboard::compile::copy::native;
 use nika_onboard::compile::room::JqHelper;
 use nika_onboard::compile::{CompileOutcome, CompileStatus};
+use nika_onboard::knowledge::Snapshot;
 use nika_onboard::knowledge::pin::KnowledgePin;
 use nika_providers::InferenceAdmission;
 use nika_providers::probe::ProviderProbe;
@@ -46,6 +47,8 @@ pub(crate) struct SessionDesk {
     pub(crate) probes: Vec<ProviderProbe>,
     pub(crate) knowledge: Option<KnowledgePin>,
     pub(crate) verifier: Verifier,
+    /// The pinned release, admitted once for the turn when a tool first reads it.
+    pub(crate) admitted: Option<Snapshot>,
 }
 
 /// The judge a conversation's document faces: the seat and decision model a compile round of
@@ -114,6 +117,18 @@ fn findings(out: &CompileOutcome) -> String {
         lines.push("the verifier did not settle the candidate".to_owned());
     }
     lines.join("\n")
+}
+
+impl SessionDesk {
+    /// The pinned release, admitted once for this turn.
+    fn release(&mut self) -> Result<&Snapshot, String> {
+        if self.admitted.is_none() {
+            let pin =
+                (self.knowledge.as_ref()).ok_or("the knowledge release is off in this Session")?;
+            self.admitted = Some(pin.reopen().map_err(|e| e.to_string())?);
+        }
+        (self.admitted.as_ref()).ok_or_else(|| "the knowledge release was not admitted".to_owned())
+    }
 }
 
 /// `text` cut at `PAGE_CHARS`, saying so.
@@ -311,15 +326,15 @@ impl Desk for SessionDesk {
     fn knowledge(&mut self, query: Option<&str>, skill: Option<&str>) -> Result<String, String> {
         let pin =
             (self.knowledge.as_ref()).ok_or("the knowledge release is off in this Session")?;
-        let snapshot = pin.reopen().map_err(|e| e.to_string())?;
+        let holdout = pin.exclude_corpus.clone();
+        let release = json!({"version": pin.version, "digest": pin.digest});
+        let snapshot = self.release()?;
         let words = skill.or(query).unwrap_or_default();
-        let pack =
-            (snapshot.pack(words, pin.exclude_corpus.as_deref())).map_err(|e| e.to_string())?;
+        let pack = (snapshot.pack(words, holdout.as_deref())).map_err(|e| e.to_string())?;
         let references: Vec<Value> = (pack.references.iter())
             .filter(|r| skill.is_none_or(|s| r.kind == "skill" && r.id.contains(s)))
             .map(|r| json!({"kind": r.kind, "id": r.id, "text": r.text}))
             .collect();
-        let release = json!({"version": pin.version, "digest": pin.digest});
         Ok(page(
             &json!({"release": release, "references": references}).to_string(),
         ))
@@ -330,7 +345,13 @@ impl Desk for SessionDesk {
     }
 
     fn compose(&mut self, source: &str, operations: &[Value]) -> Result<String, String> {
-        (document::apply(source, (operations, None), None, &[]))
+        // The release the Session pinned, lent as executable components as a compile round lends
+        // it, its held-out corpus out of reach: a pin that no longer reopens lends nothing.
+        let holdout = (self.knowledge.as_ref()).and_then(|pin| pin.exclude_corpus.clone());
+        let snapshot = self.release().ok();
+        let catalogue = snapshot.map(|snapshot| snapshot.catalogue(holdout.as_deref()));
+        let lent = (catalogue.as_ref()).map(|catalogue| catalogue as &dyn ComponentCatalog);
+        (document::apply(source, (operations, None), lent, &[]))
             .map(|applied| applied.source)
             .map_err(|refused| refused.join("\n"))
     }
@@ -398,8 +419,26 @@ impl Desk for SessionDesk {
         Ok(scope)
     }
 
-    fn trial(&mut self, _source: &str) -> Result<String, String> {
-        Err("the trial runs within `verify`: verify the candidate to try it, where nothing leaves the room, on the pages its sources answer".to_owned())
+    fn judged_now(
+        &mut self,
+        source: &str,
+        stated: &str,
+        selections: (&[Resolution], &[Resolution]),
+    ) -> Vec<String> {
+        let options = AuditOptions::new(None, None);
+        let audited =
+            nika_cli_host::oracle::audit_source(source, "candidate.nika", None, None, options);
+        let mut found: Vec<String> = match audited {
+            Ok(audit) => (audit.report.findings.iter())
+                .map(|f| format!("{}: {}", f.code.as_deref().unwrap_or(f.kind), f.message))
+                .collect(),
+            Err(e) => vec![format!("the candidate does not parse: {e}")],
+        };
+        let observed = nika_cli_host::compile::observe::world(&self.root, stated);
+        let laws =
+            nika_compile_cognition::judge_document(stated, source, selections, observed.as_ref());
+        found.extend(laws);
+        found
     }
 
     fn model_facts(&mut self, model: &str) -> Option<nika_session_change::work::ModelFacts> {

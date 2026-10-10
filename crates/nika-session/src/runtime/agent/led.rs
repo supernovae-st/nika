@@ -25,8 +25,8 @@ use crate::outcome::RefusalClass;
 
 /// What the agent reads after the instructions every conversation starts with.
 const NOTE: &str = "You lead this conversation with Nika's tools only: the `nika` server's \
-(`mcp__nika__<tool>`). When `ask` asks the person something, end your turn: their answer comes \
-as their next line.";
+(`mcp__nika__<tool>`). Call the tools a step needs together. When `ask` asks the person \
+something, end your turn: their answer comes as their next line.";
 
 /// The name of the fact that records which agent leads, over which transport.
 const LED_BY: &str = "led_by";

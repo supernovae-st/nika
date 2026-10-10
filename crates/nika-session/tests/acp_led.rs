@@ -419,8 +419,8 @@ fn assert_agent_read(world: &World) {
     assert_eq!(world.observed("foreign"), [rejected]);
 }
 
-/// The tree keeps who leads, each turn's record (the foreign tool denied with it), the call
-/// that waited for the person and the line that answered it.
+/// The tree keeps who leads, each turn's record (the foreign tool denied with it), the calls
+/// that waited for the person and the line that answered the first.
 fn assert_tree_kept(world: &World) {
     let tree = world.tree();
     let facts = entries(&tree, "fact");
@@ -431,9 +431,11 @@ fn assert_tree_kept(world: &World) {
     let denied =
         (facts.iter()).any(|f| f["kind"]["data"]["permissions"]["denied"] == json!(["Bash"]));
     assert!(denied, "{facts:#?}");
+    // The question, then, since a shown proposal ends the turn, the proposal.
     let parked = entries(&tree, "parked");
-    assert_eq!(parked.len(), 1);
+    assert_eq!(parked.len(), 2);
     assert_eq!(parked[0]["kind"]["call"], "toolu_ask");
+    assert_eq!(parked[1]["kind"]["call"], "toolu_propose");
     let answered = (entries(&tree, "user").into_iter())
         .any(|u| u["kind"]["cite"] == "u2" && u["kind"]["answers"] == "toolu_ask");
     assert!(answered, "{tree:#?}");

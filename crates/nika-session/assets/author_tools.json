@@ -50,7 +50,7 @@
   {
    "name": "candidate_write",
    "read_only": false,
-   "description": "Replace the candidate with a complete .nika document. In resolutions, state where every value the person did not spell out comes from, with the citation of their line and their own words; a value a revision they saw bound stays unless their words remove it (removed). Nothing is saved or run.",
+   "description": "Replace the candidate with a complete .nika document. In resolutions, state where every value the person did not spell out comes from, with the citation of their line and their own words; a value a revision they saw bound stays unless their words remove it (removed). The reply carries Nika's check findings and its laws (`findings`, empty when nothing stands against it) and the values it dropped: when none, propose in the same message. Nothing is saved or run.",
    "input_schema": {
     "type": "object",
     "properties": {
@@ -79,7 +79,7 @@
   {
    "name": "candidate_edit",
    "read_only": false,
-   "description": "Replace one exact, unique passage of the candidate. resolutions, when given, replace the candidate's; removed as for candidate_write. Nothing is saved or run.",
+   "description": "Replace one exact, unique passage of the candidate. resolutions, when given, replace the candidate's; removed as for candidate_write. The reply carries the same findings as candidate_write's. Nothing is saved or run.",
    "input_schema": {
     "type": "object",
     "properties": {
@@ -296,7 +296,7 @@
   {
    "name": "trial",
    "read_only": true,
-   "description": "Nika tries the candidate within verify and propose, where nothing leaves the room: call verify to try it. This tool runs nothing itself.",
+   "description": "The verification, its trial included: the same as verify. Nika tries the candidate where nothing leaves the room, on the pages its sources answered.",
    "input_schema": {
     "type": "object",
     "properties": {},
@@ -453,7 +453,7 @@
   {
    "name": "propose",
    "read_only": false,
-   "description": "Present the current candidate to the person: Nika verifies it first (check, fidelity with the selections' provenance, kept values, its trial) and refuses it with findings. To save, or save and run, on the person's explicit words, name the acts and cite their line written after this exact candidate was shown: Nika checks that the words still cover its effects, or the proposal waits for their consent.",
+   "description": "Present the current candidate to the person: Nika verifies it first (check, fidelity with the selections' provenance, kept values, its trial) and refuses it with findings. Shown, it ends your turn: write what you tell the person in the same message, before the call; their reply comes as their next line. To save, or save and run, on the person's explicit words, name the acts and cite their line written after this exact candidate was shown: Nika checks that the words still cover its effects, or the proposal waits for their consent.",
    "input_schema": {
     "type": "object",
     "properties": {

@@ -269,8 +269,11 @@ fn accepted_steps() -> Vec<Step> {
     vec![
         call("ask", plan_offer(&tech())),
         call("candidate_write", accepted_digest()),
-        call("propose", json!({})),
-        say("Voici le workflow : Hacker News et TechCrunch, résumé dans ./news/digest.md."),
+        call_saying(
+            "Voici le workflow : Hacker News et TechCrunch, résumé dans ./news/digest.md.",
+            "propose",
+            json!({}),
+        ),
     ]
 }
 
@@ -318,6 +321,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "trial_names_what_it_skips" => trial_names_what_it_skips(),
         "reads_a_project_file" => reads_sales(false),
         "a_read_file_changes" => reads_sales(true),
+        "write_carries_its_findings" => write_carries_its_findings(),
         other => panic!("unknown scenario {other}"),
     }
 }
@@ -388,9 +392,10 @@ fn delegated_sources() -> Scenario {
         script: Script {
             agent: vec![
                 call("candidate_write", write),
-                call("propose", json!({})),
-                say(
+                call_saying(
                     "J'ai choisi Hacker News, TechCrunch et Le Monde international ; le résumé va dans ./news/digest.md.",
+                    "propose",
+                    json!({}),
                 ),
             ],
             replies: Vec::new(),
@@ -417,8 +422,11 @@ fn partial_correction() -> Scenario {
         call("candidate_write", dropped),
         call("propose", json!({})),
         call("candidate_write", with_le_monde()),
-        call("propose", json!({})),
-        say("J'ai ajouté Le Monde international ; le reste ne change pas."),
+        call_saying(
+            "J'ai ajouté Le Monde international ; le reste ne change pas.",
+            "propose",
+            json!({}),
+        ),
     ]);
     Scenario {
         files: Vec::new(),
@@ -477,12 +485,14 @@ fn already_given() -> Scenario {
             agent: vec![
                 call("ask", plan_offer(&tech())),
                 call("candidate_write", typed),
-                call("propose", json!({})),
-                say("Voici le workflow : Hacker News, résumé dans ./news/digest.md."),
+                call_saying(
+                    "Voici le workflow : Hacker News, résumé dans ./news/digest.md.",
+                    "propose",
+                    json!({}),
+                ),
                 call("ask", again),
                 call("candidate_write", added),
-                call("propose", json!({})),
-                say("J'ai ajouté TechCrunch."),
+                call_saying("J'ai ajouté TechCrunch.", "propose", json!({})),
                 say("Oui, c'est noté : le résumé va déjà dans ./news/digest.md."),
             ],
             replies: Vec::new(),
@@ -496,8 +506,11 @@ fn reopen() -> Scenario {
     let mut agent = accepted_steps();
     agent.extend([
         call("candidate_write", with_le_monde()),
-        call("propose", json!({})),
-        say("J'ai ajouté Le Monde international ; le reste ne change pas."),
+        call_saying(
+            "J'ai ajouté Le Monde international ; le reste ne change pas.",
+            "propose",
+            json!({}),
+        ),
     ]);
     Scenario {
         files: Vec::new(),
@@ -622,8 +635,7 @@ fn complete_replacement() -> Scenario {
             "candidate_write",
             json!({"source": COUNT, "resolutions": [], "summary": "compte les lignes de ./data/ventes.csv"}),
         ),
-        call("propose", json!({})),
-        say("Nouveau workflow : il compte les lignes de ./data/ventes.csv et écrit le total dans ./out/total.txt."),
+        call_saying("Nouveau workflow : il compte les lignes de ./data/ventes.csv et écrit le total dans ./out/total.txt.", "propose", json!({})),
     ]);
     Scenario {
         files: vec![(
@@ -648,14 +660,12 @@ fn complete_replacement() -> Scenario {
 
 fn save_and_run_in_words() -> Scenario {
     let mut agent = accepted_steps();
-    agent.extend([
-        call(
-            "propose",
-            json!({"acts": ["save", "run"],
+    agent.extend([call_saying(
+        "C'est enregistré ; je le lance.",
+        "propose",
+        json!({"acts": ["save", "run"],
                 "authorized_by": {"message": "u3", "excerpt": SAVE_AND_RUN_WORDS}}),
-        ),
-        say("C'est enregistré ; je le lance."),
-    ]);
+    )]);
     Scenario {
         files: Vec::new(),
         history: false,
@@ -688,12 +698,12 @@ fn save_and_run_scope_changed() -> Scenario {
     let mut agent = accepted_steps();
     agent.extend([
         call("candidate_write", elsewhere),
-        call(
+        call_saying(
+            "Le fichier de sortie a changé : confirme l'enregistrement.",
             "propose",
             json!({"acts": ["save", "run"],
                 "authorized_by": {"message": "u3", "excerpt": SAVE_AND_RUN_WORDS}}),
         ),
-        say("Le fichier de sortie a changé : confirme l'enregistrement."),
     ]);
     Scenario {
         files: Vec::new(),
@@ -859,8 +869,11 @@ fn deflection_takes_the_recommendation() -> Scenario {
             agent: vec![
                 call("ask", yc_question()),
                 call("candidate_write", write),
-                call("propose", json!({})),
-                say("Je garde mon conseil : Hacker News et TechCrunch."),
+                call_saying(
+                    "Je garde mon conseil : Hacker News et TechCrunch.",
+                    "propose",
+                    json!({}),
+                ),
             ],
             replies: Vec::new(),
             picks: vec!["DELEGATE".to_owned()],
@@ -888,8 +901,11 @@ fn delegated_name() -> Scenario {
         call("ask", name.clone()),
         call("ask", name),
         call("candidate_write", renamed),
-        call("propose", json!({})),
-        say("J'ai choisi ./news/actualites-tech.md ; dis-moi si tu préfères un autre nom."),
+        call_saying(
+            "J'ai choisi ./news/actualites-tech.md ; dis-moi si tu préfères un autre nom.",
+            "propose",
+            json!({}),
+        ),
     ]);
     Scenario {
         files: Vec::new(),
@@ -933,8 +949,11 @@ fn source_swap() -> Scenario {
         ),
         say("Je garde Hacker News ; dis-moi si tu veux en changer."),
         call("candidate_write", swapped("u4", "change hacker news")),
-        call("propose", json!({})),
-        say("Hacker News est désormais lu par l'API Algolia."),
+        call_saying(
+            "Hacker News est désormais lu par l'API Algolia.",
+            "propose",
+            json!({}),
+        ),
     ]);
     Scenario {
         files: Vec::new(),
@@ -969,8 +988,11 @@ fn folder_line() -> Scenario {
     let mut agent = accepted_steps();
     agent.extend([
         call("candidate_write", moved),
-        call("propose", json!({})),
-        say("Le résumé va dans ./actualites/digest.md."),
+        call_saying(
+            "Le résumé va dans ./actualites/digest.md.",
+            "propose",
+            json!({}),
+        ),
     ]);
     Scenario {
         files: Vec::new(),
@@ -1004,9 +1026,11 @@ fn repaired_digest() -> Value {
     })
 }
 
-/// The proposal of the current revision with save and run, on the person's line `message`.
-fn run_on(message: &str, excerpt: &str) -> Step {
-    call(
+/// The proposal of the current revision with save and run, on the person's line `message`,
+/// shown with the author's words `said`.
+fn run_on(said: &str, message: &str, excerpt: &str) -> Step {
+    call_saying(
+        said,
         "propose",
         json!({"acts": ["save", "run"], "authorized_by": {"message": message, "excerpt": excerpt}}),
     )
@@ -1017,13 +1041,14 @@ fn run_on(message: &str, excerpt: &str) -> Step {
 fn failed_run_repaired() -> Scenario {
     let mut agent = accepted_steps();
     agent.extend([
-        run_on("u3", SAVE_AND_RUN_WORDS),
-        say("C'est enregistré ; je le lance."),
+        run_on("C'est enregistré ; je le lance.", "u3", SAVE_AND_RUN_WORDS),
         call("candidate_write", repaired_digest()),
-        run_on("u3", SAVE_AND_RUN_WORDS),
-        say("summarize a dépassé 30 s : je lui ai donné 7 minutes. Dis-moi si je relance."),
-        run_on("u4", FIX_AND_RUN),
-        say("Je relance la version corrigée."),
+        run_on(
+            "summarize a dépassé 30 s : je lui ai donné 7 minutes. Dis-moi si je relance.",
+            "u3",
+            SAVE_AND_RUN_WORDS,
+        ),
+        run_on("Je relance la version corrigée.", "u4", FIX_AND_RUN),
     ]);
     Scenario {
         files: Vec::new(),
@@ -1050,11 +1075,13 @@ fn failed_run_repaired() -> Scenario {
 fn complaint_after_success() -> Scenario {
     let mut agent = accepted_steps();
     agent.extend([
-        run_on("u3", SAVE_AND_RUN_WORDS),
-        say("C'est enregistré ; je le lance."),
+        run_on("C'est enregistré ; je le lance.", "u3", SAVE_AND_RUN_WORDS),
         call("candidate_write", repaired_digest()),
-        run_on("u4", "corrige et relance"),
-        say("Le résumé était vide : je corrige et je relance."),
+        run_on(
+            "Le résumé était vide : je corrige et je relance.",
+            "u4",
+            "corrige et relance",
+        ),
     ]);
     Scenario {
         files: Vec::new(),
@@ -1133,8 +1160,7 @@ fn tried(mode: &str, broken: &str, fixed: &str) -> Scenario {
                 call("candidate_write", stories(mode, broken)),
                 call("propose", json!({})),
                 call("candidate_write", stories(mode, fixed)),
-                call("propose", json!({})),
-                say(TRIED),
+                call_saying(TRIED, "propose", json!({})),
             ],
             replies: Vec::new(),
             picks: Vec::new(),
@@ -1158,8 +1184,11 @@ fn trial_names_what_it_skips() -> Scenario {
         script: Script {
             agent: vec![
                 call("candidate_write", write),
-                call("propose", json!({})),
-                say("Voici le workflow : il résume les stories et envoie le résumé."),
+                call_saying(
+                    "Voici le workflow : il résume les stories et envoie le résumé.",
+                    "propose",
+                    json!({}),
+                ),
             ],
             replies: Vec::new(),
             picks: Vec::new(),
@@ -1194,8 +1223,34 @@ fn reads_sales(changed: bool) -> Scenario {
         script: Script {
             agent: vec![
                 call("candidate_write", count_write()),
-                call("propose", json!({})),
-                say(COUNTED),
+                call_saying(COUNTED, "propose", json!({})),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// The counting workflow written once over an output path no word of the person names, then
+/// over the one they named, then proposed: no `check` or `verify` round trip.
+fn write_carries_its_findings() -> Scenario {
+    let invented = json!({"source": COUNT.replace("./out/total.txt", "./out/other.txt"),
+        "resolutions": [], "summary": "compte les lignes de ./data/ventes.csv"});
+    Scenario {
+        files: vec![("data/ventes.csv", SALES)],
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(COUNT_REQUEST)],
+        script: Script {
+            agent: vec![
+                call("candidate_write", invented),
+                call("candidate_write", count_write()),
+                call_saying(
+                    "Voici le workflow : il compte les lignes de ./data/ventes.csv.",
+                    "propose",
+                    json!({}),
+                ),
             ],
             replies: Vec::new(),
             picks: Vec::new(),

@@ -138,6 +138,21 @@ impl Seen {
         }
     }
 
+    /// The names of the tools the author called in the request's last assistant message.
+    pub(crate) fn called(&self) -> Vec<String> {
+        let messages = self.body["messages"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let last = (messages.iter()).rev().find(|m| m["role"] == "assistant");
+        (last
+            .and_then(|m| m["tool_calls"].as_array())
+            .into_iter()
+            .flatten())
+        .filter_map(|call| call["function"]["name"].as_str().map(str::to_owned))
+        .collect()
+    }
+
     /// The names of the tools the request offers.
     pub(crate) fn tools(&self) -> Vec<String> {
         (self.body["tools"].as_array().into_iter().flatten())

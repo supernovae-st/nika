@@ -406,7 +406,7 @@ fn a_partial_correction_keeps_every_unaffected_selection_and_its_provenance() {
         LE_MONDE_WORDS
     );
     // The author's first correction silently dropped TechCrunch: refused, with the reason.
-    let refused = journey.agent[6].last();
+    let refused = journey.agent[5].last();
     assert!(
         refused.contains("techcrunch.com"),
         "the refusal names the retained source the correction dropped: {refused}"
@@ -427,7 +427,7 @@ fn a_value_already_given_is_never_asked_again() {
     assert_ne!(outcome_kind(added), "question", "{added:#}");
     assert!(open_questions(added).is_empty(), "{:#}", work(added));
     assert_eq!(waiting(added), "consent", "{added:#}");
-    let settled = journey.agent[5].last();
+    let settled = journey.agent[4].last();
     assert!(
         settled.contains("news/digest.md"),
         "the refused ask returns the settled value to the author: {settled}"
@@ -474,7 +474,7 @@ fn a_reopened_session_keeps_selections_and_provenance_and_renews_identities() {
         assert!(source.contains(value), "{value}:\n{source}");
     }
     // The author's first request after the reopen carries the conversation it continues.
-    let resumed = &journey.agent[4];
+    let resumed = &journey.agent[3];
     for value in [ACCEPT, HACKER_NEWS, DIGEST] {
         assert!(
             resumed.text().contains(value),
@@ -900,11 +900,9 @@ fn a_failed_run_is_repaired_and_runs_again_only_on_new_words() {
         "{}",
         note.text()
     );
-    let stale = (journey.agent.iter()).any(|s| s.last().contains("`u3` does not authorize it"));
-    assert!(
-        stale,
-        "the words that ran the failed revision authorize nothing more"
-    );
+    // The words that ran the failed revision authorize nothing more: the repair waits for the
+    // person's consent. Shown, the proposal ended the turn, and the author reads the person's
+    // next line in place of the refusal.
     assert_eq!(waiting(repaired), "consent", "{repaired:#}");
     let again = journey.step(4);
     assert_eq!(outcome_kind(again), "run_requested", "{again:#}");
@@ -1064,5 +1062,27 @@ fn a_file_changed_after_the_proposal_withdraws_it_at_the_yes() {
     assert!(
         !files.iter().any(|f| f.as_str().is_some_and(is_workflow)),
         "{files:?}"
+    );
+}
+
+/// NIK-16 change 1: a write's reply carries Nika's check findings and its laws, so the author
+/// repairs an invented path at once and proposes with no `check` or `verify` round trip.
+#[test]
+fn a_write_reply_carries_its_findings_and_the_repaired_write_proposes() {
+    let journey = run("write_carries_its_findings");
+    assert_eq!(
+        journey.step(0)["outcome"]["kind"],
+        "proposal",
+        "{}",
+        journey.step(0)
+    );
+    let invented = answered(&journey, 1);
+    assert!(invented.contains("INVENTED LITERAL"), "{invented}");
+    let repaired = answered(&journey, 2);
+    assert!(repaired.contains("\"findings\":[]"), "{repaired}");
+    let names: Vec<String> = journey.agent.iter().flat_map(Seen::called).collect();
+    assert!(
+        !names.iter().any(|n| n == "check" || n == "verify"),
+        "{names:?}"
     );
 }
