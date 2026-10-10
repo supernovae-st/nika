@@ -3239,9 +3239,15 @@ impl<T> typenum::type_operators::Same for nika_compile_seats::judge::Constructio
 pub type nika_compile_seats::judge::Construction::Output = T
 #[non_exhaustive] pub struct nika_compile_seats::judge::Doubt
 impl nika_compile_seats::judge::Doubt
+pub const nika_compile_seats::judge::Doubt::HOLDING_PROBABILITY: f64
+pub const nika_compile_seats::judge::Doubt::LOCATING_PROBABILITY: f64
+pub fn nika_compile_seats::judge::Doubt::decides(records: &[serde_json::value::Value]) -> bool
+pub fn nika_compile_seats::judge::Doubt::locates(records: &[serde_json::value::Value]) -> bool
 pub fn nika_compile_seats::judge::Doubt::new(parts: alloc::vec::Vec<alloc::string::String>, open: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_compile_seats::judge::Doubt::question(&self, state: &serde_json::value::Value, effects: &nika_compile_seats::judge::Effects, records: &[serde_json::value::Value]) -> (serde_json::value::Value, alloc::string::String, alloc::vec::Vec<nika_compile_seats::decide::ChoiceOption>)
 pub fn nika_compile_seats::judge::Doubt::read(&self, key: &str) -> core::option::Option<nika_compile_seats::judge::Located>
+pub fn nika_compile_seats::judge::Doubt::reported(records: &[serde_json::value::Value], question: &str) -> core::option::Option<f64>
+pub fn nika_compile_seats::judge::Doubt::stated(records: &[serde_json::value::Value], restated: &[alloc::string::String]) -> core::option::Option<alloc::string::String>
 impl core::clone::Clone for nika_compile_seats::judge::Doubt
 pub fn nika_compile_seats::judge::Doubt::clone(&self) -> nika_compile_seats::judge::Doubt
 impl core::cmp::Eq for nika_compile_seats::judge::Doubt
@@ -4784,6 +4790,7 @@ pub fn nika_compile_seats::remote::stated(intent: &str) -> alloc::vec::Vec<alloc
 pub mod nika_compile_seats::repairs
 pub fn nika_compile_seats::repairs::carry_declined(out: &mut nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::repairs::gaps_after_refusal(gaps: &[alloc::string::String], honest: &[alloc::string::String], refusal: &[nika_compile_fidelity::fidelity::Diagnostic]) -> alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>
+pub fn nika_compile_seats::repairs::met(out: &nika_compile::types::CompileOutcome, declined: &[serde_json::value::Value], request: &str, bytes: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_seats::repairs::progressed(seen: &[alloc::vec::Vec<alloc::string::String>], key: &[alloc::string::String]) -> bool
 pub fn nika_compile_seats::repairs::stopped(route: &[alloc::string::String], rounds: &[serde_json::value::Value]) -> (core::option::Option<&'static str>, &'static str)
 pub mod nika_compile_seats::shelf

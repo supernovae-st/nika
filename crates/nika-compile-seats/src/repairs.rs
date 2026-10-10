@@ -4,8 +4,9 @@
 //! The laws that end the verifier's work: its repairs when no repair count bounds them
 //! ([`progressed`]), and its questions on bytes a judge already rejected, whose record
 //! carries each rejection to every round that replays it ([`carry_declined`]); the law of a
-//! gap an author first declares after a refusal ([`gaps_after_refusal`]); and why a native
-//! authoring talk ended with no candidate accepted ([`stopped`]).
+//! gap an author first declares after a refusal ([`gaps_after_refusal`]); why a native
+//! authoring talk ended with no candidate accepted ([`stopped`]); and the parts a repair attempt
+//! already met ([`met`]).
 
 use nika_compile::CompileOutcome;
 use nika_compile::surface::sha256;
@@ -62,6 +63,30 @@ pub fn carry_declined(out: &mut CompileOutcome) {
         }
         _ => out.provenance.plan = None,
     }
+}
+
+/// The parts earlier verdicts on other bytes of `request` sent to their author as defects, each
+/// once: the attempts `out` records and the ones a host carries (`declined`). A part a weighed
+/// verdict judges missing again after that repair attempt is stated rather than holding the
+/// person: on correct programs, a decision seat's parts answered not carried 9 times in 92, up
+/// to a confidence of 0.88 (balanced labels, 2026-10-10).
+#[must_use]
+pub fn met(out: &CompileOutcome, declined: &[Value], request: &str, bytes: &str) -> Vec<String> {
+    let attempts = (out.provenance.decision.as_ref())
+        .and_then(|decision| decision["semantic_verification"].as_array());
+    let mut met: Vec<String> = Vec::new();
+    for attempt in declined.iter().chain(attempts.into_iter().flatten()) {
+        if attempt["request"] != request || attempt["candidate_sha256"] == bytes {
+            continue;
+        }
+        for part in (attempt["defects"].as_array().into_iter().flatten()).filter_map(Value::as_str)
+        {
+            if !met.iter().any(|named| named == part) {
+                met.push(part.to_owned());
+            }
+        }
+    }
+    met
 }
 
 /// What a gap first declared after a refusal is told, before the refusal it followed.
@@ -135,9 +160,30 @@ pub fn stopped(route: &[String], rounds: &[Value]) -> (Option<&'static str>, &'s
 mod tests {
     use super::{CALL_FAILED, EXHAUSTED, NO_PROGRESS, UNREAD, stopped};
     use super::{
-        CompileOutcome, Diagnostic, Value, carry_declined, gaps_after_refusal, json, progressed,
-        sha256,
+        CompileOutcome, Diagnostic, Value, carry_declined, gaps_after_refusal, json, met,
+        progressed, sha256,
     };
+
+    /// The parts a repair attempt met: each defect an earlier attempt on other bytes of the same
+    /// request named, once, from this compile's attempts and the carried ones; the same bytes, or
+    /// another request, meet none.
+    #[test]
+    fn a_part_a_repair_attempt_met_is_named_once() {
+        let named = |bytes: &str, request: &str, defects: &[&str]| json!({"candidate_sha256": bytes, "request": request, "defects": defects});
+        let out = shown(
+            "now",
+            json!({}),
+            &[named("before", "ask", &["keep the rows"])],
+        );
+        let carried = [
+            named("older", "ask", &["keep the rows", "save the list"]),
+            named("now", "ask", &["read the file"]),
+            named("older", "another", &["send it"]),
+        ];
+        let parts = met(&out, &carried, "ask", "now");
+        assert_eq!(parts, ["keep the rows", "save the list"]);
+        assert!(met(&out, &[], "another", "now").is_empty());
+    }
 
     /// A gap first declared after a refusal is told back with that refusal, its remedy named;
     /// a gap declared before any refusal, or any gap with no refusal, is the author's.
