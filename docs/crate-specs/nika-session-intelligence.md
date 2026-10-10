@@ -104,3 +104,14 @@ public API job confirms the snapshot, which was written from a macOS render.
 - ADR-150 (this split) · ADR-125 (the native session) · ADR-133 (the portable session machine) ·
   ADR-144 (the change set's member, the re-export precedent) · D-2026-07-09-N1
 - `docs/crate-specs/nika-session.md` · the session, the owner of the conversation
+
+## The conversation's model and its page observer (2d)
+
+`reasoner::agent_model::AgentModel` is the selected API or local route as the model of a Session
+conversation: the same provider registry, preparation account, Stop and gates as the provider
+reasoner (a mute or silent local server refused before any wire call, a priced answer without
+usage and a provider's refusal not used), asked with the whole conversation and the Session's
+tools. `SessionReasoner::agent_model` names it for the paths that can lead (the provider reasoner);
+every other path keeps the round driver. `observe` fetches one public page with GET through the
+fetch client's guard (no private, local or credentialed address, 15 s, 512 KiB) and reports what a
+person would see of it, never its whole text.
