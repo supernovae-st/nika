@@ -278,7 +278,8 @@ fn request_body(
     provider_id: &str,
     names: &ToolNameMap,
 ) -> Result<Value, ProviderError> {
-    // DeepSeek asks the reasoning_content of every earlier turn back when a request carries tools.
+    // DeepSeek asks the reasoning_content of every earlier assistant turn back when a request
+    // carries tools, and refuses one without it: a turn that had none sends it empty.
     let reasoning_back = provider_id == "deepseek" && !req.tools.is_empty();
     let mut messages = Vec::new();
     for m in &req.messages {
@@ -474,7 +475,6 @@ fn push_message(
     }
     if reasoning_back
         && role == "assistant"
-        && !thoughts.is_empty()
         && out.len() > before
         && let Some(message) = out.last_mut()
     {

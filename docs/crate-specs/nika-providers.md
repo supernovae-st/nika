@@ -774,8 +774,9 @@ the readable `Thinking` text, and sends them back verbatim, in place. The Gemini
 a part's `thoughtSignature` as `Reasoning { wire: "gemini" }` just before that part's
 block and puts it back on the same part; a signature that came after the last part goes
 back after it. The DeepSeek profile reads `reasoning_content` as `Thinking` and returns it
-on the assistant message of a request that carries tools, as its thinking-mode tool calls
-require. Streams emit `InferEvent::Reasoning` in arrival order.
+on every assistant message of a request that carries tools, empty when a turn had none, as
+its thinking mode requires (it refuses a request whose assistant turn lacks the field).
+Streams emit `InferEvent::Reasoning` in arrival order.
 
 The state is opaque: a wire reads only its own, skips another's, and never sends a turn
 made of reasoning state alone (a caller that strips a tool call keeps none of it on the
