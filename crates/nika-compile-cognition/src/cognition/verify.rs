@@ -616,11 +616,17 @@ fn context(base: &Value) -> String {
 
 /// Whether a repeated verdict left its localization unfinished: a call got no answer, or it
 /// waited for a whole trial run that this call now has. Its whole-request answer stands (R6);
-/// what it never got is asked.
+/// what it never got is asked. An answer it got over a trial run this call does not have is
+/// never read back, so that verdict stands as it was: resumed, the bytes alone would settle
+/// what the run stood against.
 fn unfinished(earlier: &Verdict, observation: Option<&Value>) -> bool {
     let waited = (earlier.unsettled.iter()).any(|why| faithful::waited_for_a_run(why))
         && observation.is_some_and(faithful::trial_whole);
-    earlier.stopped || waited
+    let ran = observation.map(|observed| knowledge::sha256(&observed.to_string()));
+    let unrun = (earlier.earlier.iter())
+        .filter_map(|record| record["observation"]["sha256"].as_str())
+        .any(|sha| ran.as_deref() != Some(sha));
+    (earlier.stopped || waited) && !unrun
 }
 
 /// Each finding once, at its first place: a clause and the same part asked again name one

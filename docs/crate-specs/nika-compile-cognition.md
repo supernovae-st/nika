@@ -610,7 +610,11 @@ judge outvotes it there; a verdict that declined nothing may be asked again.
   admitted choice (over the bytes, or over the same observation) is read back from its record
   with no call (`read_back: true` on the question's record, counted in the attempt's
   `read_back`): the judge is never asked again what it answered, its rejection stands, and only
-  what it never got is asked. The route says `verify: same bytes, localization resumed`.
+  what it never got is asked. The route says `verify: same bytes, localization resumed`. An
+  attempt holding an answer over a trial run this call does not have (no run, or another one)
+  is not resumed: that answer cannot be read back, so the attempt stands as it was, repeated
+  with no call, and the bytes alone never settle what the run stood against (amended
+  2026-10-10).
 - **A verdict repeated from an attempt of this compile** (`same_bytes_as` set) is no progress:
   COLD's repairs end on it (`verify: no progress`); the sketch door reopens nothing from its
   defects and withdraws the candidate whatever count is left (`native: no progress`), its
