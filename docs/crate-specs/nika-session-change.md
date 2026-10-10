@@ -145,3 +145,15 @@ Two typed readings joined these modules on 2026-10-08, so every host reads the s
 - ADR-144 (this split) · ADR-125 (the native session) · ADR-126 (project changes from the
   session) · ADR-133 (the portable session machine) · D-2026-07-09-N1
 - `docs/crate-specs/nika-session.md` · the session, the owner of the conversation
+
+## A conversation's values on the work snapshot (2b)
+
+`work::conversation` types what a conversation an intelligence leads holds, additively on
+`nika/session-work@0`: `Binding` (a value, its `ValueRole`, the question key it fills, and its
+`Provenance`: kind, the person's citation, their words, the question and option an accepted offer
+names), `Delegation`, `AskedQuestion` (its identity as a witness, open or after its
+prerequisites, its `Offer`s with the concrete `OfferValue`s accepting each binds), and
+`Waiting::Questions` for several questions asked together. `Work::with_conversation` sets them;
+a snapshot without a conversation serializes none of these keys, so its bytes are unchanged.
+Values, provenance and delegations also read back (`Deserialize`): a Session keeps them across a
+reopen as evidence; questions and offers never are.

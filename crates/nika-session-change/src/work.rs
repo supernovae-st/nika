@@ -30,6 +30,12 @@ use crate::change::{ProjectChange, ProjectChangeSet, Witness, WorkflowAudit};
 use crate::outcome::{GateId, ProposalId, QuestionId, RefusalClass, ReviewId};
 use crate::world::World;
 
+mod conversation;
+pub use conversation::{
+    AskedQuestion, AskedState, Binding, Delegation, Offer, OfferValue, Provenance, ProvenanceKind,
+    ValueRole,
+};
+
 /// The version a host checks before reading a [`Work`].
 pub const CONTRACT: &str = "nika/session-work@0";
 
@@ -87,6 +93,14 @@ pub enum Waiting {
         /// is held in memory only, so an answer carried across a restart never matches.
         #[serde(serialize_with = "question_witness")]
         id: QuestionId,
+    },
+    /// The intelligence that leads the conversation asks several questions together
+    /// ([`Work::questions`] states them); the next line may answer any of them. Each identity
+    /// serializes as its witness.
+    Questions {
+        /// The identities of the questions open now, in the order asked.
+        #[serde(serialize_with = "conversation::witnesses")]
+        ids: Vec<QuestionId>,
     },
     /// A requested run waits for the value of one declared input.
     Input {
@@ -296,6 +310,16 @@ pub struct Work {
     pub run: Option<Run>,
     /// The automation rail, each field at its own stage.
     pub rail: Rail,
+    /// The values the candidate binds and where each comes from, when an intelligence leads
+    /// the conversation ([`Work::with_conversation`]); absent from the wire otherwise.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub bindings: Vec<Binding>,
+    /// The choices the person delegated, with their words.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub delegations: Vec<Delegation>,
+    /// The questions asked now, with their identities, open or after their prerequisites.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub questions: Vec<AskedQuestion>,
 }
 
 /// The request as the session keeps it: decisions, not chat.
@@ -1307,7 +1331,25 @@ impl Work {
             requested,
             run,
             rail,
+            bindings: Vec::new(),
+            delegations: Vec::new(),
+            questions: Vec::new(),
         }
+    }
+
+    /// The same snapshot with what a conversation led by an intelligence holds: the values the
+    /// candidate binds with their provenance, the person's delegations, the questions asked.
+    #[must_use]
+    pub fn with_conversation(
+        mut self,
+        bindings: Vec<Binding>,
+        delegations: Vec<Delegation>,
+        questions: Vec<AskedQuestion>,
+    ) -> Self {
+        self.bindings = bindings;
+        self.delegations = delegations;
+        self.questions = questions;
+        self
     }
 
     /// The same snapshot with the compiler's last word on the request.
