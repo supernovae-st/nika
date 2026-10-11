@@ -97,3 +97,19 @@ fn a_priced_route_lends_the_conversation_its_context_window() {
     assert!(super::route_window("ollama/llama3.2").is_none());
     assert!(super::route_window("no-route").is_none());
 }
+
+/// The words of `resolutions` go out once per call, in `candidate_write`'s schema;
+/// `candidate_edit` and `compose` carry its structure alone.
+#[test]
+fn the_resolution_words_are_sent_once() {
+    let defs = tools::definitions();
+    let sent: String = defs.iter().map(|t| t.input_schema.to_string()).collect();
+    let kinds = sent
+        .matches("named: a public source the person named")
+        .count();
+    assert_eq!(kinds, 1, "the words once");
+    let edit = defs.iter().find(|t| t.name == "candidate_edit");
+    let rows = edit.map(|t| t.input_schema["properties"]["resolutions"].clone());
+    let required = rows.map(|rows| rows["items"]["required"].clone());
+    assert_eq!(required, Some(json!(["value", "kind", "role", "message"])));
+}

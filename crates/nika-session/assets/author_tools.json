@@ -113,10 +113,10 @@
       "type": "string"
      },
      "resolutions": {
-      "$ref": "#/$defs/resolutions"
+      "$ref": "#/$defs/resolutions_short"
      },
      "removed": {
-      "$ref": "#/$defs/removed"
+      "$ref": "#/$defs/removed_short"
      }
     },
     "additionalProperties": false
@@ -290,7 +290,7 @@
       "type": "string"
      },
      "resolutions": {
-      "$ref": "#/$defs/resolutions"
+      "$ref": "#/$defs/resolutions_short"
      }
     },
     "required": [
@@ -599,6 +599,79 @@
       "type": "string",
       "minLength": 1,
       "description": "The person's own words in that line, verbatim."
+     }
+    },
+    "required": [
+     "value",
+     "message",
+     "excerpt"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "resolutions_short": {
+   "description": "As in candidate_write: where each value the person did not spell out comes from.",
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "value": {
+      "type": "string"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "named",
+       "delegated",
+       "derived",
+       "answered",
+       "offered",
+       "retained"
+      ]
+     },
+     "role": {
+      "$ref": "#/$defs/role"
+     },
+     "message": {
+      "type": "string",
+      "pattern": "^u[0-9]+$"
+     },
+     "excerpt": {
+      "type": "string",
+      "minLength": 1
+     },
+     "question": {
+      "type": "string"
+     },
+     "option": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "value",
+     "kind",
+     "role",
+     "message"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "removed_short": {
+   "description": "As in candidate_write: the person's words that remove a value they saw bound.",
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "value": {
+      "type": "string"
+     },
+     "message": {
+      "type": "string",
+      "pattern": "^u[0-9]+$"
+     },
+     "excerpt": {
+      "type": "string",
+      "minLength": 1
      }
     },
     "required": [
