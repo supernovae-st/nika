@@ -69,7 +69,10 @@ as an external consumer.
   (`RehearsalReport`, `Rehearsal`, `Attempt`, `RoomEvidence`, `EffectCounts`, `RehearsedOutput`),
   the host's observation of the copied world (`observed`: copies, final states, the ledger, the
   bounds, the refusal, the failure) and `judged_run`, which maps a report to the behavioural
-  judge's run (`targets_of` names the results a contract reads back). A completed run as a
+  judge's run (`targets_of` names the results a contract reads back). A run the room stopped
+  where a value it built crossed its data bound (a `Stopped` attempt, `NotRun`, no failure,
+  refusal `DataBounds`) is `Cause::DataBound` in the host's words, never the time bound
+  (amended 2026-10-11). A completed run as a
   verifier is shown it (`shown`, descended from the cognition's verifier at its size cap):
   `trial_shown` (the candidate's sha256, each input read and output read back with its text,
   `read_whole` and `written`, and, when the host counted it, the run's `flow` with what it means:
@@ -85,13 +88,15 @@ as an external consumer.
   core's `UNJUDGED_DEPENDENCY` finding on a parsed `invoke.workflow` task) and records the answer
   on `decision.composition`. `discharge_children` lifts that hold only for a clean closure of
   these exact bytes and then settles READY by the core's own law (`ready_by_law`). An MCP or
-  skill hold, a mandatory question or a refusal stays as it is. `arguments::evaluated` is the
-  law a host's room screen applies last, held by `nika-onboard` until its size cap (2026-10-08):
+  skill hold, a mandatory question or a refusal stays as it is. `arguments::evaluated`, held by
+  `nika-onboard` until its size cap (2026-10-08), is the law for a room with no bound of its own:
   in every task (its bindings, condition, fan-out collection, arguments and recovery value),
   the outputs and the model, it refuses a value the run would build before the room's write
   budget sees it (two template islands or more in one string, a CEL list holding a value
   reference, an array or an object holding a template that reads a value, or a template the
-  scanner cannot read), in the words of its field; the screen states each as a data bound.
+  scanner cannot read), in the words of its field, each a data bound. The onboard room no longer
+  screens with it: it bounds every value it builds and stops the run there (amended
+  2026-10-11).
   `record::report` and `record::usage` state one report (with the decision a preparation took
   on it) and a preparation's rehearsal spend as data in `decision.rehearsal`, held by
   `nika-compile-cognition` until its size cap (2026-10-08); no field grants authority.

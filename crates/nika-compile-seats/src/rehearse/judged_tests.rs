@@ -263,6 +263,29 @@ fn a_stop_keeps_its_evidence_so_an_earlier_invalidity_survives_it() {
     assert_eq!(verdict(&contract, &[run]), Verdict::InvalidHarness);
 }
 
+/// A run the room stopped where a value it built crossed its data bound ends on that bound, in
+/// the room's words, never on the time bound (2026-10-11): a stop without the refusal stays the
+/// time bound (above).
+#[test]
+fn a_stop_at_the_data_bound_is_never_the_time_bound() {
+    let contract = counted();
+    let targets: Vec<String> = targets_of(&contract).collect();
+    let mut bounded = observed(vec![copy(INPUT, TWO_PAID)], vec![absent(RESULT)], &[]);
+    bounded.refusal = Some(Refusal::DataBounds);
+    let words = "task count args.input builds a value over the room's bound of 4096 bytes";
+    let outcome = Rehearsal::NotRun {
+        reason: words.to_owned(),
+    };
+    let attempt = Attempt::Stopped { elapsed_ms: 40 };
+    let report = RehearsalReport::new(outcome, attempt, EffectCounts::none(), "candidate")
+        .with_room(RoomEvidence::new(true, true))
+        .with_observation(bounded);
+    let run = judged_run("observed", &report, &inputs(), &targets, &[]);
+    let failure = Failure::new("", "", Cause::data_bound(words));
+    assert_eq!(run.end, RunEnd::Failed(failure));
+    assert_eq!(verdict(&contract, &[run]), Verdict::NotRun);
+}
+
 #[test]
 fn a_missing_copy_receipt_is_an_invalid_harness_even_under_a_pass() {
     let contract = counted();
