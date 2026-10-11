@@ -760,7 +760,7 @@ fn the_selection_names_its_selector_and_the_builder_version() {
     let pack = Snapshot::legacy_fixture(&snap)
         .pack(DIGEST_INTENT, Some("sealed"))
         .unwrap();
-    assert_eq!(PACK_BUILDER, "nika-compile/knowledge-door-v7");
+    assert_eq!(PACK_BUILDER, "nika-compile/knowledge-door-v8");
     assert_eq!(pack.identity["door"]["builder"], PACK_BUILDER);
     let selector = &pack.selection["selector"];
     assert!(

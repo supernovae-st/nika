@@ -99,7 +99,8 @@ here. `knowledge` owns the strict admission of a Foundry knowledge release
 shared contract for producer and consumer, with common pinned vectors under
 `nika-onboard-knowledge/tests/knowledge-r1`) and the bounded BM25/graph composition
 shared by CLI,
-Session and Serve. Its text recall reads informative words (builder v7): a row
+Session and Serve. Its text recall reads informative words (builder v8), a
+family's by their light French stem (« importées » meets « importer »): a row
 that shares only a stopword with the request (« the », « with ») is not
 recalled, and every row it does reach is still presented whole, with no count or
 byte quota. The build embeds the current release, the r3 Foundry

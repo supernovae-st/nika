@@ -1998,6 +1998,7 @@ pub mod nika_compile_seats::foundry::recall
 pub fn nika_compile_seats::foundry::recall::block_metadata(row: &serde_json::value::Value) -> alloc::string::String
 pub fn nika_compile_seats::foundry::recall::interleave(sources: &[alloc::vec::Vec<(alloc::string::String, alloc::string::String)>]) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub fn nika_compile_seats::foundry::recall::rank<'a>(query: &str, rows: impl core::iter::traits::collect::IntoIterator<Item = &'a serde_json::value::Value>, text: impl core::ops::function::Fn(&serde_json::value::Value) -> alloc::string::String) -> alloc::vec::Vec<(alloc::string::String, f64)>
+pub fn nika_compile_seats::foundry::recall::rank_by_stems<'a>(query: &str, rows: impl core::iter::traits::collect::IntoIterator<Item = &'a serde_json::value::Value>, text: impl core::ops::function::Fn(&serde_json::value::Value) -> alloc::string::String) -> alloc::vec::Vec<(alloc::string::String, f64)>
 pub fn nika_compile_seats::foundry::recall::text_of(row: &serde_json::value::Value, fields: &[&str]) -> alloc::string::String
 pub fn nika_compile_seats::foundry::recall::tokens(text: &str) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_compile_seats::foundry::release

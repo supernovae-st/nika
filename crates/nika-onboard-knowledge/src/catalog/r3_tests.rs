@@ -202,3 +202,66 @@ fn the_qualified_blocks_claim_their_outcome_proof() {
         assert!(receipt["runs"].as_u64().unwrap() >= worlds, "{block}");
     }
 }
+
+/// Held-out French requests, each with the family it belongs to: those of the set whose family rank
+/// the light French stem moves on this release, up or down, frozen at the rank the door now gives
+/// it (`None`: not recalled). Without the stem these 8 requests ranked their family first 0 times,
+/// in the top three 5 times and recalled it 5 times; with it 1, 6 and 8 times. The rest of the set
+/// stays held out.
+const HELD_OUT: [(&str, &str, Option<usize>); 8] = [
+    (
+        "Le vendredi, rassemble ce qui a paru dans la semaine sur nos blogs suivis et envoie-le par mail.",
+        "family:scheduled-digest",
+        Some(3),
+    ),
+    (
+        "Quand un ticket est créé, enrichis-le avec l'historique du client puis pousse-le dans l'outil support.",
+        "family:event-driven-enrichment",
+        Some(3),
+    ),
+    (
+        "Regarde chaque jour si le document en ligne a été modifié et signale-moi les différences.",
+        "family:monitor-and-notify",
+        Some(3),
+    ),
+    (
+        "Étudie séparément les ventes, le marketing et le support, puis donne une vue d'ensemble.",
+        "family:parallel-analysis-and-synthesis",
+        Some(2),
+    ),
+    (
+        "Récupère le nom, l'adresse et le SIRET de chaque fournisseur à partir des contrats scannés.",
+        "family:structured-extraction-from-documents",
+        Some(3),
+    ),
+    (
+        "Vérifie que chaque adresse email de la liste est valide et écarte les mauvaises.",
+        "family:validate-and-quarantine",
+        Some(1),
+    ),
+    (
+        "Contrôle les données importées et sépare les lignes incomplètes des lignes correctes.",
+        "family:validate-and-quarantine",
+        Some(6),
+    ),
+    (
+        "Mets à jour les stocks dans l'ERP à partir du fichier, sans réappliquer ce qui a déjà été envoyé.",
+        "family:api-sync-with-idempotency",
+        Some(4),
+    ),
+];
+
+#[test]
+fn held_out_french_requests_rank_their_family_by_the_stems_of_their_words() {
+    let snapshot = current();
+    let moved: Vec<String> = (HELD_OUT.iter())
+        .filter_map(|&(request, family, frozen)| {
+            let pack = snapshot.pack(request, None).unwrap();
+            let rank = (families(&pack).iter())
+                .position(|id| id == family)
+                .map(|at| at + 1);
+            (rank != frozen).then(|| format!("{family} at {rank:?}, frozen {frozen:?}: {request}"))
+        })
+        .collect();
+    assert!(moved.is_empty(), "{moved:#?}");
+}
