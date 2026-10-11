@@ -6,7 +6,7 @@ date: "2026-09-03"
 phase: "pre-1.0 · one door"
 deciders: ["@ThibautMelen"]
 tags: ["architecture", "access", "harness", "providers", "runtime", "cli", "one-door"]
-affects_crates: ["nika-providers", "nika-runtime", "nika-cli-host", "nika-cli", "nika-service-execution", "nika-harness", "nika-verb-infer", "nika-verb-agent"]
+affects_crates: ["nika-providers", "nika-providers-access", "nika-runtime", "nika-cli-host", "nika-cli", "nika-service-execution", "nika-harness", "nika-verb-infer", "nika-verb-agent"]
 affects_layers: ["L1.5", "L2", "L3", "L4"]
 supersedes: []
 superseded_by: []
