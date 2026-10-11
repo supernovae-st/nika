@@ -195,9 +195,15 @@ as an external consumer.
   `HOLDING_PROBABILITY` (0.83, a confidence of 0.75 over three options, `faithful` offered
   first: a seat leans toward the option listed first, so another order needs a new
   calibration), an unweighed answer taken at its word; `Doubt::locates` lets this question's location name a defect only at
-  `LOCATING_PROBABILITY` (0.5); `Doubt::stated(records, restated)` words what the parts
-  overrule (any whole-request answer but `faithful`, with its probability, and each part a
-  repair attempt met that stands again). The verifier's question texts (`WHOLE`, `CLAUSE`, `PART`,
+  `LOCATING_PROBABILITY` (0.5); `Doubt::part_decides(records, question, options)` lets a part's
+  « missing » decide only at the same confidence read over that question's own options, NONE
+  counted (`PART_CONFIDENCE` 0.75: (1 + 0.75·(n − 1)) / n, 0.833 to 0.8 for the three to five
+  options a part question offers; amended 2026-10-11), `None` for an unweighed answer;
+  `Doubt::stated(records, restated)` and `Doubt::stated_with(records, restated, doubted)` word
+  what the parts overrule (any whole-request answer but `faithful`, with its probability, each
+  part a repair attempt met that stands again, and each part judged missing that decided
+  nothing, with its probability, « in the trial run » when a question over a run named it).
+  The verifier's question texts (`WHOLE`, `CLAUSE`, `PART`,
   `SUPERSEDED`, `NO_OPERATION`, `RESTRICTING`, `POINT`, `POINT_OMITTED`, `EXTRA`) and
   `part_question(k, count, text, restricting, base, reference)` live here since 2026-10-11,
   moved word for word from the verifier at `nika-compile-cognition`'s size cap: a part asked

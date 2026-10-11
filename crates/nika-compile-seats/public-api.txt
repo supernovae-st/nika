@@ -3241,13 +3241,16 @@ pub type nika_compile_seats::judge::Construction::Output = T
 impl nika_compile_seats::judge::Doubt
 pub const nika_compile_seats::judge::Doubt::HOLDING_PROBABILITY: f64
 pub const nika_compile_seats::judge::Doubt::LOCATING_PROBABILITY: f64
+pub const nika_compile_seats::judge::Doubt::PART_CONFIDENCE: f64
 pub fn nika_compile_seats::judge::Doubt::decides(records: &[serde_json::value::Value]) -> bool
 pub fn nika_compile_seats::judge::Doubt::locates(records: &[serde_json::value::Value]) -> bool
 pub fn nika_compile_seats::judge::Doubt::new(parts: alloc::vec::Vec<alloc::string::String>, open: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_compile_seats::judge::Doubt::part_decides(records: &[serde_json::value::Value], question: &str, options: usize) -> core::option::Option<bool>
 pub fn nika_compile_seats::judge::Doubt::question(&self, state: &serde_json::value::Value, effects: &nika_compile_seats::judge::Effects, records: &[serde_json::value::Value]) -> (serde_json::value::Value, alloc::string::String, alloc::vec::Vec<nika_compile_seats::decide::ChoiceOption>)
 pub fn nika_compile_seats::judge::Doubt::read(&self, key: &str) -> core::option::Option<nika_compile_seats::judge::Located>
 pub fn nika_compile_seats::judge::Doubt::reported(records: &[serde_json::value::Value], question: &str) -> core::option::Option<f64>
 pub fn nika_compile_seats::judge::Doubt::stated(records: &[serde_json::value::Value], restated: &[alloc::string::String]) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_seats::judge::Doubt::stated_with(records: &[serde_json::value::Value], restated: &[alloc::string::String], doubted: &[(alloc::string::String, alloc::string::String)]) -> core::option::Option<alloc::string::String>
 impl core::clone::Clone for nika_compile_seats::judge::Doubt
 pub fn nika_compile_seats::judge::Doubt::clone(&self) -> nika_compile_seats::judge::Doubt
 impl core::cmp::Eq for nika_compile_seats::judge::Doubt

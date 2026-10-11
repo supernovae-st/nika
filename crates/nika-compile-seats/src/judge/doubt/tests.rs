@@ -169,3 +169,85 @@ fn a_weighed_answer_decides_at_its_threshold_and_the_rest_is_stated() {
     assert_eq!(Doubt::stated(&whole("faithful", Some(0.9)), &[]), None);
     assert_eq!(Doubt::stated(&[], &[]), None);
 }
+
+/// A part judged « missing » decides at the confidence 0.75 read over its own question's options,
+/// NONE counted as the holding probability counts it: (1 + 0.75·(n − 1)) / n. The readings the
+/// same part of one candidate returned on identical bytes (0.57, then 0.44) decide nothing over
+/// any part question; an unweighed answer, a mass for the choice alone or another part's answer
+/// is taken at its word (`None`).
+#[test]
+fn a_part_judged_missing_decides_at_its_confidence_over_its_own_options() {
+    let missing = |p: f64| {
+        [json!({"question": "verify-part-1", "choice": "missing",
+            "probabilities": {"missing": p, "none": 1.0 - p}})]
+    };
+    let decides =
+        |records: &[Value], options| Doubt::part_decides(records, "verify-part-1", options);
+    for (options, at, below) in [
+        (2, 0.875, 0.874),
+        (3, 0.834, 0.833),
+        (4, 0.8125, 0.812),
+        (5, 0.8, 0.799),
+    ] {
+        assert_eq!(decides(&missing(at), options), Some(true), "{options} {at}");
+        assert_eq!(
+            decides(&missing(below), options),
+            Some(false),
+            "{options} {below}"
+        );
+    }
+    for (p, options) in [(0.44, 3), (0.44, 5), (0.57, 3), (0.57, 5)] {
+        assert_eq!(decides(&missing(p), options), Some(false), "{p} {options}");
+    }
+    let unweighed = [json!({"question": "verify-part-1", "choice": "missing"})];
+    assert_eq!(decides(&unweighed, 5), None);
+    let alone = [json!({"question": "verify-part-1", "choice": "missing",
+        "probabilities": {"missing": 0.3}})];
+    assert_eq!(
+        decides(&alone, 5),
+        None,
+        "a mass for the choice alone weighs nothing"
+    );
+    let other = Doubt::part_decides(&missing(0.99), "verify-part-0", 5);
+    assert_eq!(other, None, "another part's answer");
+}
+
+/// A part judged « missing » that decided nothing (below its confidence, or with no task failing
+/// it) is stated with the probability reported for it, alone or after a whole-request answer that
+/// decided nothing, and « in the trial run » when the question over a run named it; the parts no
+/// longer read as all carried.
+#[test]
+fn a_part_that_decided_nothing_is_stated_with_its_probability() {
+    let mut records = [
+        json!({"question": "verify-request", "choice": "faithful",
+            "probabilities": {"faithful": 0.4, "none": 0.6}}),
+        json!({"question": "verify-part-1", "choice": "missing",
+            "probabilities": {"missing": 0.7, "none": 0.3}}),
+    ];
+    let doubted = [(PARTS[1].to_owned(), "verify-part-1".to_owned())];
+    let said = Doubt::stated_with(&records, &[], &doubted).expect("a part is stated");
+    let part = format!(
+        "The verifier judged « {} » missing (reported at 0.70) without locating a defect, a part's answer that holds no proposal, so the workflow is proposed with this doubt stated.",
+        PARTS[1]
+    );
+    assert!(said.starts_with(&part), "{said}");
+    assert!(!said.contains("no part of the request"), "{said}");
+    assert_eq!(Doubt::stated_with(&records, &[], &[]), None);
+    records[0] = json!({"question": "verify-request", "choice": "unfaithful",
+        "probabilities": {"unfaithful": 0.65, "none": 0.35}});
+    let said = Doubt::stated_with(&records, &[], &doubted).expect("both are stated");
+    let both = format!(
+        "(reported at 0.65), a question that decides nothing on its own, and judged « {} » missing (reported at 0.70)",
+        PARTS[1]
+    );
+    assert!(said.contains(&both), "{said}");
+    let run = [json!({"question": "verify-observed", "choice": "part-1",
+        "probabilities": {"part-1": 0.35, "consistent": 0.65}})];
+    let over = [(PARTS[1].to_owned(), "verify-observed".to_owned())];
+    let said = Doubt::stated_with(&run, &[], &over).expect("a part named over the run is stated");
+    let named = format!(
+        "judged « {} » missing in the trial run (reported at 0.35)",
+        PARTS[1]
+    );
+    assert!(said.contains(&named), "{said}");
+}
