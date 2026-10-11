@@ -13,6 +13,7 @@ use nika_schema::raw::ForEachValue;
 use serde_json::Value;
 
 use super::{RanTask, RetryStamp, RunResult, SettleAs, VAR_TYPE_CODE, runtime_error_record};
+use crate::bags::ValueBags;
 use crate::errors::RuntimeError;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
@@ -24,13 +25,11 @@ pub(super) fn resolve_fan_out_items(
     collection: &ForEachValue,
     max_items: Option<u32>,
     boundary_with: &BTreeMap<String, Value>,
-    inputs: &BTreeMap<String, Value>,
-    consts: &BTreeMap<String, Value>,
-    secrets: &BTreeMap<String, Value>,
+    bags: ValueBags<'_>,
 ) -> Result<Vec<Value>, Box<SettleAs>> {
     let empty_records = BTreeMap::new();
-    let scope = Scope::workflow_with_value_authorities(&empty_records, inputs, consts, secrets)
-        .with_task_context(Some(boundary_with), None, None, None);
+    let scope =
+        (bags.scope(&empty_records)).with_task_context(Some(boundary_with), None, None, None);
     let items = resolve_collection(collection, max_items, &scope)?;
     if items.is_empty() {
         return Err(Box::new(SettleAs::SkippedGate {

@@ -28,6 +28,7 @@ use serde_json::Value;
 
 use crate::Runtime;
 use crate::agent_events::stamp_attempts;
+use crate::bags::ValueBags;
 use crate::dispatch::DispatchCtx;
 use crate::dispatch::DispatchOk;
 use crate::errors::RuntimeError;
@@ -234,15 +235,6 @@ pub(crate) struct RetryStamp {
     pub delay_ms: u64,
 }
 
-/// The three read-only value namespaces every lane threads whole
-/// (`inputs` · `const` · `secrets` — the value authorities are exactly
-/// three since `config:` died) — one alias, four signatures.
-type ValueBags<'a> = (
-    &'a BTreeMap<String, Value>,
-    &'a BTreeMap<String, Value>,
-    &'a BTreeMap<String, Value>,
-);
-
 /// The task's terminal result.
 pub(crate) enum RunResult {
     /// Success — the verb's value (or the `on_error: recover` value) +
@@ -341,9 +333,7 @@ where
         task: &RawTask,
         wf: &RawWorkflow,
         records: &BTreeMap<String, TaskRecord>,
-        inputs: &BTreeMap<String, Value>,
-        consts: &BTreeMap<String, Value>,
-        secrets: &BTreeMap<String, Value>,
+        bags: ValueBags<'_>,
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         resume_ctx: &crate::resume::ResumeContext,
@@ -352,6 +342,7 @@ where
         run_start: nika_kernel::tool_executor::ToolRunStart,
     ) -> Finish {
         let id = task.id.value.clone();
+        let ValueBags { inputs, consts, .. } = bags;
         // ── GATE-v2 (spec 03 §gate algebra) — structural per-edge
         //    admission over the derived edges · cannot error ──────────
         if let Some(finish) = gate_finish(task, id.clone(), records) {
@@ -362,13 +353,11 @@ where
         //    materializes, then `when:` judges over LOCAL names.
         //    Boundary errors settle failure OUTSIDE on_error scope
         //    (the armor covers the verb, not the boundary). ───────────
-        let boundary_with =
-            match render_boundary_with(task, &wf.tasks, records, inputs, consts, secrets) {
-                Ok(ns) => ns,
-                Err(err) => return with_error_finish(id, task, &err),
-            };
-        if let Some(finish) = when_finish(task, id.clone(), &boundary_with, inputs, consts, secrets)
-        {
+        let boundary_with = match render_boundary_with(task, &wf.tasks, records, bags) {
+            Ok(ns) => ns,
+            Err(err) => return with_error_finish(id, task, &err),
+        };
+        if let Some(finish) = when_finish(task, id.clone(), &boundary_with, bags) {
             return finish;
         }
 
@@ -403,7 +392,7 @@ where
                 wf,
                 boundary_with,
                 records,
-                (inputs, consts, secrets),
+                bags,
                 permits,
                 types,
                 ledger,
@@ -491,7 +480,7 @@ where
         wf: &RawWorkflow,
         boundary_with: BTreeMap<String, Value>,
         records: &BTreeMap<String, TaskRecord>,
-        (inputs, consts, secrets): ValueBags<'_>,
+        bags: ValueBags<'_>,
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
@@ -505,7 +494,7 @@ where
                     wf,
                     boundary_with,
                     records,
-                    (inputs, consts, secrets),
+                    bags,
                     permits,
                     types,
                     ledger,
@@ -521,7 +510,7 @@ where
                     &spanned.value,
                     &boundary_with,
                     records,
-                    (inputs, consts, secrets),
+                    bags,
                     permits,
                     types,
                     ledger,
@@ -582,7 +571,7 @@ where
         wf: &RawWorkflow,
         with_ns: BTreeMap<String, Value>,
         records: &BTreeMap<String, TaskRecord>,
-        (inputs, consts, secrets): ValueBags<'_>,
+        bags: ValueBags<'_>,
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
@@ -591,8 +580,7 @@ where
     ) -> SettleAs {
         // `with:` materialized at the boundary (spec 03 §dispatch
         // pipeline) — the single lane consumes it as rendered.
-        let scope = Scope::workflow_with_value_authorities(records, inputs, consts, secrets)
-            .with_task_context(Some(&with_ns), None, None, permits);
+        let scope = (bags.scope(records)).with_task_context(Some(&with_ns), None, None, permits);
         let started = self.clock.now();
         let witness = std::sync::Arc::new(PermitWitness::new());
         let attempt = self.attempt_loop((task, wf), &scope, types, ledger, &witness, run_start);
@@ -612,7 +600,7 @@ where
         collection: &ForEachValue,
         boundary_with: &BTreeMap<String, Value>,
         records: &BTreeMap<String, TaskRecord>,
-        (inputs, consts, secrets): ValueBags<'_>,
+        bags: ValueBags<'_>,
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
@@ -623,9 +611,7 @@ where
             collection,
             task.max_items.as_ref().map(|m| m.value),
             boundary_with,
-            inputs,
-            consts,
-            secrets,
+            bags,
         ) {
             Ok(items) => items,
             Err(settle) => return *settle,
@@ -644,15 +630,7 @@ where
                 .map(|(index, item)| {
                     let locals = IterationLocals { item, index };
                     let iteration = self.run_iteration(
-                        task,
-                        wf,
-                        records,
-                        (inputs, consts, secrets),
-                        locals,
-                        permits,
-                        types,
-                        ledger,
-                        run_start,
+                        task, wf, records, bags, locals, permits, types, ledger, run_start,
                     );
                     fan_out::started_on_first_poll(index, began.get(index), iteration)
                 }),
@@ -691,7 +669,7 @@ where
             usage: UsageSplit::default().with_calls(&calls).carried(),
             result,
         };
-        let scope = Self::fan_out_finally_scope(records, (inputs, consts, secrets), permits);
+        let scope = Self::fan_out_finally_scope(records, bags, permits);
         let seams = (ledger, run_start);
         self.settle_after_finally((task, wf, &scope), ran, integrity, seams, started)
             .await
@@ -711,11 +689,10 @@ where
     /// `Scope::workflow` would drop it to None (the cleanup-bypass gap).
     fn fan_out_finally_scope<'a>(
         records: &'a BTreeMap<String, TaskRecord>,
-        (inputs, consts, secrets): ValueBags<'a>,
+        bags: ValueBags<'a>,
         permits: Option<&'a Permits>,
     ) -> Scope<'a> {
-        Scope::workflow_with_value_authorities(records, inputs, consts, secrets)
-            .with_task_context(None, None, None, permits)
+        (bags.scope(records)).with_task_context(None, None, None, permits)
     }
 
     /// One `for_each` iteration · per-iteration `with:` + locals +
@@ -728,7 +705,7 @@ where
         task: &RawTask,
         wf: &RawWorkflow,
         records: &BTreeMap<String, TaskRecord>,
-        (inputs, consts, secrets): ValueBags<'_>,
+        bags: ValueBags<'_>,
         locals: IterationLocals<'_>,
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
@@ -739,9 +716,7 @@ where
             task,
             &wf.tasks,
             records,
-            inputs,
-            consts,
-            secrets,
+            bags,
             Some(locals.item),
             Some(locals.index),
         ) {
@@ -769,13 +744,12 @@ where
                 return ran;
             }
         };
-        let scope = Scope::workflow_with_value_authorities(records, inputs, consts, secrets)
-            .with_task_context(
-                Some(&with_ns),
-                Some(locals.item),
-                Some(locals.index),
-                permits,
-            );
+        let scope = (bags.scope(records)).with_task_context(
+            Some(&with_ns),
+            Some(locals.item),
+            Some(locals.index),
+            permits,
+        );
         let witness = std::sync::Arc::new(PermitWitness::new());
         let attempt = self.attempt_loop((task, wf), &scope, types, ledger, &witness, run_start);
         let mut ran = nika_builtin::witness::scope_attempt_witness(witness.clone(), attempt).await;
@@ -1264,14 +1238,12 @@ fn when_finish(
     task: &RawTask,
     id: String,
     boundary_with: &BTreeMap<String, Value>,
-    inputs: &BTreeMap<String, Value>,
-    consts: &BTreeMap<String, Value>,
-    secrets: &BTreeMap<String, Value>,
+    bags: ValueBags<'_>,
 ) -> Option<Finish> {
     let gate = task.when.as_ref()?;
     let empty_records = BTreeMap::new();
-    let scope = Scope::workflow_with_value_authorities(&empty_records, inputs, consts, secrets)
-        .with_task_context(Some(boundary_with), None, None, None);
+    let scope =
+        (bags.scope(&empty_records)).with_task_context(Some(boundary_with), None, None, None);
     let settle = match eval_gate(&gate.value, &scope) {
         Ok(true) => return None,
         Ok(false) => SettleAs::SkippedGate {

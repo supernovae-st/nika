@@ -80,9 +80,7 @@ pub(crate) struct PendingRecovery {
 #[derive(Clone, Copy)]
 pub(crate) struct ResolveScope<'a> {
     pub wf: &'a RawWorkflow,
-    pub inputs: &'a BTreeMap<String, Value>,
-    pub consts: &'a BTreeMap<String, Value>,
-    pub secrets: &'a BTreeMap<String, Value>,
+    pub bags: crate::bags::ValueBags<'a>,
     pub resume_ctx: &'a ResumeContext,
     pub jq_clock: nika_cap::JqClock,
     pub run_start: nika_kernel::tool_executor::ToolRunStart,
@@ -570,6 +568,5 @@ fn parked_render_scope<'a>(
     view: &'a BTreeMap<String, TaskRecord>,
     with_ns: &'a BTreeMap<String, Value>,
 ) -> Scope<'a> {
-    Scope::workflow_with_value_authorities(view, scope.inputs, scope.consts, scope.secrets)
-        .with_task_context(Some(with_ns), None, None, None)
+    (scope.bags.scope(view)).with_task_context(Some(with_ns), None, None, None)
 }

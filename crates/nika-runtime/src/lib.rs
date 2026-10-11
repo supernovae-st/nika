@@ -52,6 +52,7 @@ mod admit;
 mod admit_resolved_tests;
 mod agent_events;
 pub mod approval;
+mod bags;
 pub mod child;
 pub mod compose;
 pub mod config;
@@ -124,13 +125,7 @@ use serde_json::Value;
 pub(crate) use nika_runtime_laws::{contract, errors, integrity, origins, secret, stamp, witness};
 pub use nika_runtime_laws::{identity, sandbox_select};
 
-/// The three read-only value namespaces the run's close reads (inputs ·
-/// consts · secrets) — the `task` module's own alias, spelled once here.
-type ValueBags<'a> = (
-    &'a BTreeMap<String, Value>,
-    &'a BTreeMap<String, Value>,
-    &'a BTreeMap<String, Value>,
-);
+use bags::ValueBags;
 
 pub use admit::{
     access_pin_refusal, budget_floor_refusal, budget_floor_refusal_bound,
@@ -168,8 +163,6 @@ pub use nika_secret::{
     NoSecrets, SecretResolveError, WorkflowSecretResolver, source_is_runtime_resolvable,
 };
 pub use stamp::{DeterministicStamper, EventSink, Stamper, SystemStamper, VecSink};
-
-use expr::Scope;
 
 /// Composer-owned execution knobs (spec §2).
 /// The run's verdict + the result records (spec §2).
@@ -385,14 +378,11 @@ pub struct Runtime<S, T, H, P, D, C> {
     resumed_from: Option<String>,
 }
 
-/// One wave's read-only value scope — (`inputs` · `const` · `secrets` ·
-/// `permits` · `types`), a single loan the pipeline fan-out threads
-/// whole (the named-type map is the `returns:` contract environment ·
-/// spec 09 · W3).
+/// One wave's read-only value scope — (the value bags · `permits` ·
+/// `types`), a single loan the pipeline fan-out threads whole (the
+/// named-type map is the `returns:` contract environment · spec 09 · W3).
 type WaveScope<'a> = (
-    &'a BTreeMap<String, Value>,
-    &'a BTreeMap<String, Value>,
-    &'a BTreeMap<String, Value>,
+    ValueBags<'a>,
     Option<&'a nika_schema::types::Permits>,
     &'a BTreeMap<String, nika_types::types::NikaType>,
 );
@@ -839,9 +829,7 @@ struct EnvelopeValues {
 /// drops them UNEMITTED, they re-run on `--resume`).
 fn parked_scope<'a>(
     wf: &'a RawWorkflow,
-    inputs: &'a BTreeMap<String, Value>,
-    consts: &'a BTreeMap<String, Value>,
-    secrets: &'a BTreeMap<String, Value>,
+    bags: ValueBags<'a>,
     resume_ctx: &'a resume::ResumeContext,
     jq_clock: nika_cap::JqClock,
     run_start: nika_kernel::tool_executor::ToolRunStart,
@@ -849,9 +837,7 @@ fn parked_scope<'a>(
     let parked = recover::ParkedRecoveries::new();
     let resolve_scope = recover::ResolveScope {
         wf,
-        inputs,
-        consts,
-        secrets,
+        bags,
         resume_ctx,
         jq_clock,
         run_start,
@@ -1056,15 +1042,12 @@ where
         // The spend ledger carries leaf debits and the run cost gate.
         let run_ledger =
             ledger::RunLedger::new(self.config.max_cost_usd).started_at(self.clock.now());
-        let (mut parked, resolve_scope) = parked_scope(
-            wf,
-            &inputs,
-            &consts,
-            &secrets,
-            &resume_ctx,
-            jq_clock,
-            run_start,
-        );
+        let bags = ValueBags {
+            inputs: &inputs,
+            consts: &consts,
+            secrets: &secrets,
+        };
+        let (mut parked, resolve_scope) = parked_scope(wf, bags, &resume_ctx, jq_clock, run_start);
 
         for wave in &report.waves {
             let early = self
@@ -1098,7 +1081,7 @@ where
         Ok(self.close_run(
             wf,
             (records, ok, cache_hits),
-            (&inputs, &consts, &secrets),
+            bags,
             &workflow_name,
             &run_ledger,
             stamper,
@@ -1115,14 +1098,14 @@ where
         &self,
         wf: &RawWorkflow,
         (records, ok, cache_hits): (BTreeMap<String, DataflowTaskRecord>, bool, Vec<String>),
-        (inputs, consts, secrets): ValueBags<'_>,
+        bags: ValueBags<'_>,
         workflow_name: &str,
         run_ledger: &ledger::RunLedger,
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> RunOutcome {
-        let mut outputs = resolve_outputs(wf, &records, inputs, consts, secrets);
-        crate::secret::scrub_outputs(&mut outputs, secrets);
+        let mut outputs = resolve_outputs(wf, &records, bags);
+        crate::secret::scrub_outputs(&mut outputs, bags.secrets);
         let snapshot = run_ledger.snapshot_at(self.clock.now());
         let (ok, settlement) = settlement::finalize_outputs(
             wf,
@@ -1169,19 +1152,14 @@ where
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> Result<Option<RunOutcome>, RuntimeError> {
-        let (wf, inputs, consts, secrets) = (
-            resolve_scope.wf,
-            resolve_scope.inputs,
-            resolve_scope.consts,
-            resolve_scope.secrets,
-        );
+        let (wf, bags) = (resolve_scope.wf, resolve_scope.bags);
         let frozen = std::mem::take(records);
         let streamed = self
             .dispatch_settle_wave(
                 wave,
                 wf,
                 &frozen,
-                (inputs, consts, secrets, permits, types),
+                (bags, permits, types),
                 resolve_scope.resume_ctx,
                 (resolve_scope.jq_clock, resolve_scope.run_start),
                 run_ledger,
@@ -1283,13 +1261,11 @@ where
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> Result<(BTreeMap<String, DataflowTaskRecord>, Option<WorkflowPause>), RuntimeError> {
-        let (inputs, consts, secrets, permits, types) = scope;
+        let (bags, permits, types) = scope;
         let (jq_clock, run_start) = execution;
         let resolve_scope = recover::ResolveScope {
             wf,
-            inputs,
-            consts,
-            secrets,
+            bags,
             resume_ctx,
             jq_clock,
             run_start,
@@ -1317,8 +1293,8 @@ where
                     // Buffered retains its polling frame while a workflow task
                     // polls a child runtime on this same thread.
                     Box::pin(self.run_task_pipeline(
-                        task, wf, frozen, inputs, consts, secrets, permits, types, resume_ctx,
-                        ledger, jq_clock, run_start,
+                        task, wf, frozen, bags, permits, types, resume_ctx, ledger, jq_clock,
+                        run_start,
                     ))
                 },
             ))
@@ -1331,8 +1307,8 @@ where
                     &finish,
                     wf,
                     frozen,
-                    inputs,
-                    consts,
+                    bags.inputs,
+                    bags.consts,
                     resume_ctx.markers(),
                     &|text: &str| resume_ctx.leaks_secret(text),
                     &self.approvals,
@@ -1436,11 +1412,9 @@ fn emit_paused(
 fn resolve_outputs(
     wf: &RawWorkflow,
     records: &BTreeMap<String, DataflowTaskRecord>,
-    inputs: &BTreeMap<String, Value>,
-    consts: &BTreeMap<String, Value>,
-    secrets: &BTreeMap<String, Value>,
+    bags: ValueBags<'_>,
 ) -> BTreeMap<String, Value> {
-    let scope = Scope::workflow_with_value_authorities(records, inputs, consts, secrets);
+    let scope = bags.scope(records);
     wf.outputs
         .iter()
         .filter_map(|(key, decl)| {

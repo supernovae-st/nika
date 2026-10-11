@@ -13,8 +13,9 @@ use nika_schema::raw::RawTask;
 use nika_schema::source::Spanned;
 use serde_json::Value;
 
+use crate::bags::ValueBags;
 use crate::errors::RuntimeError;
-use crate::expr::{self, Scope};
+use crate::expr;
 use crate::record::TaskRecord;
 
 /// The boundary `with:` render (spec 03 §dispatch pipeline) — ALL
@@ -26,15 +27,12 @@ pub(super) fn render_boundary_with(
     task: &RawTask,
     tasks: &[Spanned<RawTask>],
     records: &BTreeMap<String, TaskRecord>,
-    inputs: &BTreeMap<String, Value>,
-    consts: &BTreeMap<String, Value>,
-    secrets: &BTreeMap<String, Value>,
+    bags: ValueBags<'_>,
 ) -> Result<BTreeMap<String, Value>, RuntimeError> {
     // `with: { tok: "${{ secrets.X }}" }` resolves here (MINOR-B); rendering
     // performs no effect, so the task context carries no permits.
     let groups = folded_groups(task, tasks);
-    let scope = Scope::workflow_with_value_authorities(records, inputs, consts, secrets)
-        .with_groups(&groups);
+    let scope = bags.scope(records).with_groups(&groups);
     let fan_out = task.for_each.is_some();
     task.with
         .iter()
@@ -99,21 +97,18 @@ fn folded_groups(task: &RawTask, tasks: &[Spanned<RawTask>]) -> BTreeMap<String,
 /// entries cannot reference each other · spec 04). `tasks` binds the
 /// fan-in membership exactly as the boundary render does, so a fold
 /// re-rendered inside an iteration resolves to the same array.
-#[allow(clippy::too_many_arguments)] // the run-scoped reads + the loop locals
 pub(super) fn render_with(
     task: &RawTask,
     tasks: &[Spanned<RawTask>],
     records: &BTreeMap<String, TaskRecord>,
-    inputs: &BTreeMap<String, Value>,
-    consts: &BTreeMap<String, Value>,
-    secrets: &BTreeMap<String, Value>,
+    bags: ValueBags<'_>,
     item: Option<&Value>,
     index: Option<usize>,
 ) -> Result<BTreeMap<String, Value>, RuntimeError> {
     // `with: { tok: "${{ secrets.X }}" }` resolves here (MINOR-B); rendering
     // performs no effect, so the task context carries no permits.
     let groups = folded_groups(task, tasks);
-    let scope = Scope::workflow_with_value_authorities(records, inputs, consts, secrets)
+    let scope = (bags.scope(records))
         .with_groups(&groups)
         .with_task_context(None, item, index, None);
     task.with
