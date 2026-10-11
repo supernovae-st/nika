@@ -34,6 +34,13 @@ const REPEATED: &str = "\n\n(Nika: this call and its reply repeat the previous c
 /// Why a call after a steering line is not run.
 const STEERED: &str = "Not run: the person wrote meanwhile; read their message first.";
 
+/// What each call of a message cut at the output limit reads: none of them runs.
+const CUT: &str = "Not run: your message was cut at the output limit; re-issue the call with \
+complete arguments.";
+
+/// What the person reads under an answer cut at the output limit.
+const CUT_ANSWER: &str = "\n… (this answer was cut at the output limit)";
+
 /// One request: the instructions, the conversation and the tools the model may call.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -449,6 +456,8 @@ impl<'a> Agent<'a> {
                     };
                 }
             };
+            // A message cut at the output limit runs none of its calls; its answer says so.
+            let cut = matches!(reply.stop, StopReason::MaxTokens);
             let (text, calls) = match self.record_reply(reply, events) {
                 Ok(recorded) => recorded,
                 Err(error) => return Outcome::Failed { error },
@@ -474,11 +483,15 @@ impl<'a> Agent<'a> {
                         }
                         continue;
                     }
+                    Ok(false) if cut => {
+                        let text = format!("{text}{CUT_ANSWER}");
+                        return Outcome::Answered { text };
+                    }
                     Ok(false) => return Outcome::Answered { text },
                     Err(error) => return Outcome::Failed { error },
                 }
             }
-            match self.run_calls(&calls, &mut last, events) {
+            match self.run_calls(&calls, cut, &mut last, events) {
                 Ok(Some((call, name))) => {
                     let queued = pairs(&self.steering.drain());
                     return Outcome::Parked { call, name, queued };
@@ -554,6 +567,7 @@ impl<'a> Agent<'a> {
     fn run_calls(
         &mut self,
         made: &[Call],
+        cut: bool,
         last: &mut Option<(String, Value, String)>,
         events: &mut dyn FnMut(AgentEvent),
     ) -> Result<Option<(String, String)>, AgentError> {
@@ -567,6 +581,7 @@ impl<'a> Agent<'a> {
                     "Not run: the turn ended on `{by}`, which waits for the person's answer; \
                      call it again afterwards if it is still needed."
                 )),
+                None if cut => Some(CUT.to_owned()),
                 None if self.steering.pending(QueueMode::Steer) => Some(STEERED.to_owned()),
                 None => None,
             };

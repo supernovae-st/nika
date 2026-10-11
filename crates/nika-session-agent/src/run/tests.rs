@@ -124,6 +124,18 @@ fn calls_to(made: &[(&str, &str, &str)]) -> Result<Reply, ModelError> {
     Ok(Reply::new(blocks, StopReason::ToolUse).with_usage(TokenUsage::new(10, 5)))
 }
 
+/// A message cut at the output limit while it wrote `name`'s arguments: the provider passes
+/// them on as the text they were.
+#[allow(clippy::unnecessary_wraps)]
+fn cut_call(id: &str, name: &str) -> Result<Reply, ModelError> {
+    let half = ContentBlock::ToolUse {
+        id: id.into(),
+        name: name.into(),
+        input: Value::String(r#"{"path": "a.ni"#.into()),
+    };
+    Ok(Reply::new(vec![half], StopReason::MaxTokens))
+}
+
 /// A message that only reasoned: no word and no call.
 #[allow(clippy::unnecessary_wraps)]
 fn thinks(thought: &str) -> Result<Reply, ModelError> {
@@ -234,6 +246,31 @@ fn a_run_goes_on_until_the_model_answers_without_a_call() {
 }
 
 /// No step, turn or call quota ends a run: only the model's answer does.
+#[test]
+fn a_message_cut_at_the_output_limit_runs_none_of_its_calls() {
+    let (mut tree, mut lines) = fresh();
+    let tools = Tools::new();
+    let cut_words = Reply::new(
+        vec![ContentBlock::Text {
+            text: "Le résumé est".into(),
+        }],
+        StopReason::MaxTokens,
+    );
+    let mut model = Script::new(vec![
+        cut_call("c1", "read"),
+        calls_to(&[("c2", "read", "a.nika")]),
+        Ok(cut_words),
+    ]);
+    let outcome =
+        Agent::new(&mut tree, &mut lines, &tools, &now).prompt("read it", &mut model, &mut |_| {});
+    // The cut call never ran; the author read why, and its complete call ran.
+    assert_eq!(tools.called(), [("read".into(), Some("c2".to_owned()))]);
+    let refused = last_results(&model.seen[1]);
+    assert_eq!(refused, [("c1".into(), CUT.into(), true)]);
+    let marked = format!("Le résumé est{CUT_ANSWER}");
+    assert!(matches!(&outcome, Outcome::Answered { text } if *text == marked));
+}
+
 #[test]
 fn no_quota_ends_a_long_run() {
     let (mut tree, mut lines) = fresh();
