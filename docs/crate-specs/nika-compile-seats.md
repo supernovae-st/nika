@@ -273,7 +273,10 @@ as an external consumer.
   `insert_text`, `push`, `remove`, `rename`; `compose` an admitted component, `rebind` one
   through its receipt; or a whole `replace` that claims no preservation) and states their
   record, whose preservation claim says what each operation proved; the revision door that
-  asks for them and judges the result stays in `nika-compile-cognition`.
+  asks for them and judges the result stays in `nika-compile-cognition`. `qualified_with` opens
+  the whole reach of a lent catalogue to a seat (`foundry::reach`: every other admitted entry
+  and embedded template asked by its descriptor); without a seat nobody asks a descriptor, so
+  nothing is widened, the author reads the recalled pack and the coverage says why.
 
 `authority` is the authority over a seat's requests, descended from the seats' doors at their
 size cap (2026-10-09, ADR-152) and kept at `nika_compile_cognition::authority`: `Authority`
