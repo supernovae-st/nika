@@ -14,12 +14,13 @@ use nika_kernel::provider::{
     InferRequest, InferResponse, Message, ReasoningEffort, Role, StopReason,
 };
 use nika_onboard::compile::AuthoringReasoning;
+use nika_providers::ResolvedProvider;
 use nika_providers::authoring::{policy::completion_bounds, preparation::PreparationCosts};
 use nika_providers::probe::{LocalLiveness, local_run_gate};
 use nika_session_agent::{AgentEvent, Model, ModelError, Reply, Request};
 use nika_types::cost::UnpricedReason;
 
-use super::{ReasonError, allowance_ceiling, block_on, provider_config, provider_http};
+use super::{ProviderHttp, allowance_ceiling, provider_config, provider_http};
 
 /// One conversation's model: a `provider/name` route of the provider registry.
 #[derive(Debug, Clone)]
@@ -27,6 +28,24 @@ pub struct AgentModel {
     model: String,
     admission: Option<nika_providers::InferenceAdmission>,
     effort: Option<AuthoringReasoning>,
+    transport: Option<Arc<Transport>>,
+}
+
+/// The turn's one transport: the route resolved over one client, and the runtime its
+/// connections live on, built at the turn's first call and kept for its others. The admission
+/// and Stop still wrap each request.
+struct Transport {
+    runtime: tokio::runtime::Runtime,
+    provider: ResolvedProvider<ProviderHttp>,
+}
+
+impl std::fmt::Debug for Transport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let model = self.provider.wire_model();
+        f.debug_struct("Transport")
+            .field("model", &model)
+            .finish_non_exhaustive()
+    }
 }
 
 impl AgentModel {
@@ -37,6 +56,7 @@ impl AgentModel {
             model: model.into(),
             admission: None,
             effort: None,
+            transport: None,
         }
     }
 
@@ -99,31 +119,10 @@ impl Model for AgentModel {
         request: &Request,
         _events: &mut dyn FnMut(AgentEvent),
     ) -> Result<Reply, ModelError> {
-        let http = provider_http().map_err(ModelError::Failed)?;
-        let mut registry = nika_providers::ProviderRegistry::new(Arc::new(http), provider_config());
-        if let Some(admission) = &self.admission {
-            registry = registry.with_inference_admission(admission.clone());
-        }
-        let provider = (registry.resolve(&self.model))
-            .map_err(|error| ModelError::Failed(error.to_string()))?;
-        // A silent or mute local server refuses before any wire call, as a run's does.
-        if let Some(LocalLiveness::Mute(addr) | LocalLiveness::Silent(addr)) =
-            local_run_gate(&registry, &self.model)
-        {
-            return Err(ModelError::Failed(format!(
-                "the local endpoint {addr} does not answer · nothing was sent"
-            )));
-        }
-        let infer =
-            (self.infer_request(provider.wire_model(), request)).map_err(ModelError::Failed)?;
-        let answered = block_on(async { provider.infer_reported(infer).await }).map_err(
-            |error| match error {
-                ReasonError::Cancelled => ModelError::Stopped,
-                other => ModelError::Failed(other.to_string()),
-            },
-        )?;
-        let (response, _transport) =
-            answered.map_err(|(error, _report)| ModelError::Failed(error.to_string()))?;
+        let transport = self.transport()?;
+        let wire_model = transport.provider.wire_model();
+        let infer = (self.infer_request(wire_model, request)).map_err(ModelError::Failed)?;
+        let response = transport.asked(&infer)?;
         usable(&self.model, &response).map_err(ModelError::Failed)?;
         let reply = Reply::new(response.content, response.stop_reason).with_model(&self.model);
         Ok(if response.usage_reported {
@@ -131,6 +130,48 @@ impl Model for AgentModel {
         } else {
             reply
         })
+    }
+}
+
+impl AgentModel {
+    /// The turn's transport, built at its first call. A silent or mute local server refuses
+    /// before any wire call, as a run's does.
+    fn transport(&mut self) -> Result<Arc<Transport>, ModelError> {
+        if let Some(transport) = &self.transport {
+            return Ok(Arc::clone(transport));
+        }
+        let http = provider_http().map_err(ModelError::Failed)?;
+        let mut registry = nika_providers::ProviderRegistry::new(Arc::new(http), provider_config());
+        if let Some(admission) = &self.admission {
+            registry = registry.with_inference_admission(admission.clone());
+        }
+        let provider = (registry.resolve(&self.model))
+            .map_err(|error| ModelError::Failed(error.to_string()))?;
+        if let Some(LocalLiveness::Mute(addr) | LocalLiveness::Silent(addr)) =
+            local_run_gate(&registry, &self.model)
+        {
+            return Err(ModelError::Failed(format!(
+                "the local endpoint {addr} does not answer · nothing was sent"
+            )));
+        }
+        let runtime = (tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build())
+        .map_err(|error| ModelError::Failed(error.to_string()))?;
+        let transport = Arc::new(Transport { runtime, provider });
+        self.transport = Some(Arc::clone(&transport));
+        Ok(transport)
+    }
+}
+
+impl Transport {
+    /// The call, once, over the turn's transport; Stop ends it.
+    fn asked(&self, infer: &InferRequest) -> Result<InferResponse, ModelError> {
+        let call = PreparationCosts::while_active(self.provider.infer_reported(infer.clone()));
+        match self.runtime.block_on(call).ok_or(ModelError::Stopped)? {
+            Ok((response, _report)) => Ok(response),
+            Err((error, _report)) => Err(ModelError::Failed(error.to_string())),
+        }
     }
 }
 

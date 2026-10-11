@@ -6,6 +6,8 @@ use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
 use nika_types::access::AccessClass;
 
 use super::*;
+use crate::reasoner::test_transport;
+use crate::reasoner::wire::{Peer, response};
 
 /// A metered vendor route whose key is present: no call, no network, only the probe's facts.
 fn probes() -> Vec<ProviderProbe> {
@@ -107,4 +109,27 @@ fn a_tool_step_reaches_the_host_as_typed_activity() {
         ]
     );
     assert!(seen.iter().all(|a| !a.note.contains("secret-workflow")));
+}
+
+/// One person's line as the conversation's request.
+fn line() -> Request {
+    Request::new(None, vec![Message::text(Role::User, "go")], Vec::new())
+}
+
+/// The turn's calls share one transport: the first call builds it, the next ones reuse it.
+#[test]
+fn the_calls_of_a_turn_share_one_transport() {
+    let peer = Peer::start(vec![(200, response("Un.")), (200, response("Deux."))]);
+    let _http = test_transport::install(&peer.url);
+    let mut model = AgentModel::new("deepseek/deepseek-v4-pro");
+    model
+        .complete(&line(), &mut |_| {})
+        .expect("the first call");
+    let first = model.transport.clone().expect("built at the first call");
+    model
+        .complete(&line(), &mut |_| {})
+        .expect("the second call");
+    let kept = model.transport.as_ref().expect("kept for the turn");
+    assert!(Arc::ptr_eq(&first, kept));
+    assert_eq!(peer.bodies().len(), 2);
 }
