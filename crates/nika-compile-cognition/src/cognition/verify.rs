@@ -47,7 +47,9 @@ use grounding::grounding;
 use held::held_text;
 pub(super) use held::{HELD_TARGET, held, kept, preserve_unjudged, withdrawn};
 use nika_compile_clauses::parts::{parts, restricts};
-use nika_compile_seats::judge::{Construction, judged_state, state, told};
+use nika_compile_seats::judge::{
+    CLAUSE, Construction, NO_OPERATION, RESTRICTING, WHOLE, judged_state, state, told,
+};
 use nika_compile_seats::repairs::{carry_declined, met};
 
 /// Who judges a candidate: a decision seat the caller permits (its calls and usage are its own,
@@ -261,10 +263,6 @@ impl Verdict {
         self.defects.iter().cloned().chain(named).collect()
     }
 }
-
-const CLAUSE: &str = "Judge ONE clause of the user's request against the candidate workflow's actual bytes (candidate_nika). Read the whole request, the answers, the observed world and the candidate. carried: the candidate's program does exactly what this clause asks; an equivalent program counts (same rows, order, counts, values, effects and conditions). missing: the candidate omits the clause or does it differently (another order, count, negation, number or unit, target or condition). Task names, comments, labels and the words a step restates are claims, never evidence.";
-const NO_OPERATION: &str = "the clause asks nothing of the workflow (a courtesy, a sentence about the data) and restricts nothing";
-const WHOLE: &str = "Compare the WHOLE user request with the candidate workflow's actual bytes (candidate_nika). faithful: the program does everything the request asks, each operation in the stated order with the stated counts, negations, numbers and units, targets and conditions, and nothing it does not ask. unfaithful: anything is missing, extra or different. Task names, comments and labels are claims, never evidence.";
 
 const REPAIR_REFERENCE: &str = "The compiler emits the workflow from your plan as the reference below states: how it writes and what each tool it calls does, so you can read the candidate's bytes in the STATE. Your answer stays the complete JSON plan.";
 
@@ -699,7 +697,7 @@ async fn judge_clause<P: ProviderInferDyn>(
     let restricting = restricts(clause);
     let tasks = faithful::task_ids(base["candidate_nika"].as_str().unwrap_or_default());
     let instructions = if restricting {
-        format!("{CLAUSE} {}", faithful::RESTRICTING)
+        format!("{CLAUSE} {RESTRICTING}")
     } else {
         CLAUSE.to_owned()
     };
