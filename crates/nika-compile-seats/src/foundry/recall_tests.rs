@@ -46,6 +46,7 @@ fn a_french_request_recalls_by_its_content_words_never_by_its_articles() {
         json!({"id": "pages", "t": "Parcourir toutes les pages par identité stable"}),
         json!({"id": "markdown", "t": "fetch a source and convert it to markdown"}),
         json!({"id": "digest", "t": "Résumer les actualités du jour dans un dossier"}),
+        json!({"id": "imperative", "t": "fais moi"}),
     ];
     let seed = "Récupère les dernières actualités tech de Y Combinator et TechCrunch, fais-moi un résumé et sauvegarde-le en Markdown dans un dossier.";
     let ranked: Vec<String> = (rank(seed, &rows, |r| text_of(r, &["t"])).into_iter())

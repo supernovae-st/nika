@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 02 · Parallel fan-out + merge — the core DAG pattern.
+#
+# You never write "run these in parallel". You write what each task NEEDS,
+# and the shape of the graph falls out: three tasks that need nothing from
+# each other are three tasks the engine may run at once. Concurrency is a
+# consequence of the dependencies, not an instruction.
+#
+# Demonstrates ·
+#   - implicit parallelism · no deps between three tasks → one wave, run together
+#   - `const:` · a fixed value baked into the file, never caller-supplied
+#   - `with:` value edges · what a task binds is what it waits for
+#   - `${{ tasks.<id>.output }}` · reading an upstream result
+#
+# DAG shape ·   angle ─┐
+#               cost  ─┼─→ synthesize
+#               risk  ─┘
+#
+# Run · nika run examples/02-parallel-fanout.nika
+
+nika: parallel-fanout
+
+# The dry twin, on purpose: this file teaches SHAPE, and the twin makes the
+# shape visible — it echoes each prompt back, so `synthesize`'s output shows
+# the three upstream answers arriving inside it. Swap in any real model
+# (`--model ollama/qwen3.5:4b`) and only the prose changes, never the graph.
+model: mock/echo
+
+permits: {}   # pure compute · no file, no host, no program (see 01)
+
+const:
+  topic: "adopting Rust for a backend rewrite"
+
+tasks:
+  # No task below names another, so the engine puts all three in wave 1 and
+  # runs them concurrently. `nika check` prints the waves it derived — read
+  # that plan before you reach for a knob to make something parallel.
+  angle:
+    infer:
+      prompt: "Give the strategic angle on · ${{ const.topic }}"
+      max_tokens: 512
+
+  cost:
+    infer:
+      prompt: "Give the cost angle on · ${{ const.topic }}"
+      max_tokens: 512
+
+  risk:
+    infer:
+      prompt: "Give the risk angle on · ${{ const.topic }}"
+      max_tokens: 512
+
+  # The merge. `with:` does two jobs at once: it aliases the upstream outputs
+  # to short local names, and — because a binding IS a dependency — it is what
+  # puts this task in wave 2. Bind three tasks, wait for three tasks.
+  synthesize:
+    with:
+      a: ${{ tasks.angle.output }}
+      c: ${{ tasks.cost.output }}
+      r: ${{ tasks.risk.output }}
+    infer:
+      prompt: |
+        Synthesize one recommendation from three analyses.
+        Strategy · ${{ with.a }}
+        Cost · ${{ with.c }}
+        Risk · ${{ with.r }}
+      max_tokens: 1024
+
+# The return value · read it with `--output json` (see 01).
+outputs:
+  recommendation: ${{ tasks.synthesize.output }}

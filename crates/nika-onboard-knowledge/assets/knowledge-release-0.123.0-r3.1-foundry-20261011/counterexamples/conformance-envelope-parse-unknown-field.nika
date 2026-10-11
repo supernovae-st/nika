@@ -1,0 +1,8 @@
+# Expected: NIKA-PARSE-005 at CHECK.
+nika: e32-parse-unknown-field
+# INTENT: NIKA-PARSE-005 (unknown field in strict mode)
+tasks:
+  step:
+    unknown_field_xyzzy: "this should fail"
+    exec:
+      command: ["echo", "hello"]

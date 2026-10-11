@@ -15,7 +15,7 @@ use super::vectors::{expected, identity_for, outcome, payload, vectors_of, write
 use super::{RefusalCode, admit, admit_memory};
 
 /// The INDEX both sides pin: the producer's copy holds the same bytes.
-const INDEX_SHA256: &str = "a03f212e87cf46294124063b4b095fd1e91920fe87b199ab69c652ff66d3cc44";
+const INDEX_SHA256: &str = "312bc5d7e48a6402d225cb62e1a007d90229bd5ee1f9f02496d285f01c481fad";
 
 #[test]
 fn profile_r2_codes_are_the_contracts_thirty_eight() {
@@ -45,7 +45,7 @@ fn profile_r2_codes_are_the_contracts_thirty_eight() {
 #[test]
 fn every_shared_r2_vector_gives_its_exact_verdict_in_memory_and_on_disk() {
     let (_, vectors) = vectors_of("knowledge-r2", INDEX_SHA256);
-    assert_eq!(vectors.len(), 61, "the pinned vector count");
+    assert_eq!(vectors.len(), 71, "the pinned vector count");
     let (mut failures, mut memory_runs, mut disk_runs) = (Vec::new(), 0, 0);
     for (name, vector) in &vectors {
         let files = payload(vector, &vectors);
@@ -74,6 +74,6 @@ fn every_shared_r2_vector_gives_its_exact_verdict_in_memory_and_on_disk() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
-    assert_eq!(memory_runs, 61);
-    assert_eq!(disk_runs, if cfg!(unix) { 59 } else { 0 });
+    assert_eq!(memory_runs, 71);
+    assert_eq!(disk_runs, if cfg!(unix) { 69 } else { 0 });
 }

@@ -1,0 +1,15 @@
+# Expected: NIKA-SEC-005 at CHECK (static literal — the floor-parity
+# lint · 01-envelope §permits) AND at RUN for the dynamic form.
+nika: sec04-ssrf-private-192
+
+permits:
+  net:
+    http: ["192.168.1.1"]
+  tools: ["nika:fetch"]
+
+tasks:
+  attack:
+    invoke:
+      tool: nika:fetch
+      args:
+        url: "http://192.168.1.1/admin/config"

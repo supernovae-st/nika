@@ -1,0 +1,29 @@
+nika: p49-multi-csv-group-totals
+const:
+  output_path: ./out/regions.md
+permits:
+  fs: { read: ["./reports/**"], write: ["./out/**"] }
+  tools: ["nika:glob", "nika:read", "nika:write"]
+tasks:
+  discover:
+    invoke: { tool: "nika:glob", args: { pattern: "./reports/*.csv" } }
+  read_all:
+    with: { paths: "${{ tasks.discover.output }}" }
+    for_each: { items: "${{ with.paths }}", fail_fast: true }
+    invoke: { tool: "nika:read", args: { path: "${{ item }}" } }
+  parse_all:
+    with: { docs: "${{ tasks.read_all.output }}" }
+    for_each: { items: "${{ with.docs }}", fail_fast: true }
+    invoke: { tool: "nika:convert", args: { input: "${{ item }}", from: csv, to: json } }
+  totals:
+    with: { tables: "${{ tasks.parse_all.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { tables: "${{ with.tables }}" }
+        expression: '[.tables[][]] | group_by(.region) | map({region: .[0].region, total: (map(.ventes | tonumber) | add)}) | {totals: ., under_2000: [.[] | select(.total < 2000) | .region]}'
+  write_report:
+    with: { computed: "${{ tasks.totals.output }}" }
+    invoke: { tool: "nika:write", args: { path: "${{ const.output_path }}", content: "${{ with.computed }}", overwrite: true, create_dirs: true } }
+outputs:
+  totals: ${{ tasks.totals.output }}

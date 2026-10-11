@@ -1,0 +1,49 @@
+nika: p62-records-group-totals
+const:
+  source_path: "./data/sales.json"
+  group_key: ["region"]
+  sum_fields: [["amount"], ["units"]]
+  report_path: "./out/totals-by-group.json"
+permits:
+  fs: { read: ["./data/sales.json"], write: ["./out/totals-by-group.json"] }
+  tools: ["nika:read", "nika:write"]
+tasks:
+  totals_read:
+    invoke: { tool: "nika:read", args: { path: "${{ const.source_path }}" } }
+  totals_group:
+    with: { raw: "${{ tasks.totals_read.output }}" }
+    invoke:
+      tool: nika:jq
+      args:
+        input: { raw: "${{ with.raw }}", group_key: "${{ const.group_key }}", sum_fields: "${{ const.sum_fields }}" }
+        expression: |
+          # a key path walked through objects only: anything else on the way reads null, never an error
+          def at($path): reduce $path[] as $key (.; if type == "object" then .[$key] else null end);
+          .group_key as $gk | .sum_fields as $sf
+          | ($sf | map(join("."))) as $names
+          | (.raw | fromjson | if type == "array" then . else error("the source document is not a JSON array of records") end) as $records
+          # a record is grouped by a text or a number at the group key (1 and 1.0 alike, "1" apart); others are not
+          | [$records[] | select(type == "object" and (at($gk) | type == "string" or type == "number"))] as $grouped
+          # groups in order of their first record
+          | (reduce $grouped[] as $r ([];
+              ($r | at($gk)) as $k
+              | (first(range(0; length) as $i | select(.[$i].key == $k) | $i) // null) as $i
+              | if $i == null then . + [{key: $k, records: [$r]}] else .[$i].records += [$r] end)) as $acc
+          # each sum adds, in source order, the numbers at its key path; any other value is counted, never summed
+          | [$acc[] | .records as $rs
+             | {key, count: ($rs | length),
+                sums: (reduce range(0; $sf | length) as $j ({}; .[$names[$j]] = ([$rs[] | at($sf[$j]) | select(type == "number")] | add // 0)))}] as $groups
+          | {
+              groups: $groups,
+              report: {
+                records: ($records | length), grouped: ($grouped | length), groups: ($groups | length),
+                ungrouped: (($records | length) - ($grouped | length)),
+                not_numbers: (reduce range(0; $sf | length) as $j ({}; .[$names[$j]] = ([$grouped[] | at($sf[$j]) | select(type != "number")] | length)))
+              }
+            }
+  totals_write:
+    with: { groups: "${{ tasks.totals_group.output.groups }}" }
+    invoke: { tool: "nika:write", args: { path: "${{ const.report_path }}", content: "${{ with.groups }}" } }
+outputs:
+  groups: ${{ tasks.totals_group.output.groups }}
+  report: ${{ tasks.totals_group.output.report }}

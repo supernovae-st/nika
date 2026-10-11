@@ -1,0 +1,66 @@
+nika: p59-feeds-items-on-local-date
+const:
+  feeds: ["https://example.com/news/rss.xml", "https://example.org/blog/atom.xml"]
+  tz: "Europe/Paris"
+  max_per_feed: 10
+permits:
+  tools: ["nika:fetch"]
+  net: { http: ["example.com", "example.org"] }
+tasks:
+  feeds_clock:
+    invoke: { tool: "nika:date", args: { op: now, tz: "${{ const.tz }}" } }
+  feeds_window:
+    with: { now: "${{ tasks.feeds_clock.output }}" }
+    invoke:
+      tool: nika:jq
+      args:
+        input: { now: "${{ with.now }}" }
+        expression: |
+          # today's local date and the zone's offset now, e.g. 2026-10-10 and +04:00
+          (.now | capture("^(?<day>[0-9]{4}-[0-9]{2}-[0-9]{2})T.*(?<offset>[+-][0-9]{2}:[0-9]{2})$")) as $now
+          | ($now.day + "T12:00:00Z" | fromdateiso8601 + 86400 | todate | .[0:10]) as $next
+          # today's and tomorrow's local midnights, first written with the offset in force now
+          | [$now.day + "T00:00:00" + $now.offset, $next + "T00:00:00" + $now.offset]
+  feeds_offsets:
+    with: { midnights: "${{ tasks.feeds_window.output }}" }
+    for_each: { items: "${{ with.midnights }}", max_parallel: 2 }
+    invoke: { tool: "nika:date", args: { op: format, input: "${{ item }}", format: "%:z", tz: "${{ const.tz }}" } }
+  feeds_fetch:
+    for_each: { items: "${{ const.feeds }}", max_parallel: 4, fail_fast: false }
+    timeout: "20s"
+    on_error: { skip: true, on_codes: ["NIKA-BUILTIN-FETCH-001", "NIKA-TIMEOUT-001"] }
+    invoke: { tool: "nika:fetch", args: { url: "${{ item }}", mode: feed } }
+  feeds_today:
+    with: { now: "${{ tasks.feeds_clock.output }}", offsets: "${{ tasks.feeds_offsets.output }}", fetched: "${{ tasks.feeds_fetch.output }}" }
+    invoke:
+      tool: nika:jq
+      args:
+        input: { now: "${{ with.now }}", offsets: "${{ with.offsets }}", fetched: "${{ with.fetched }}", sources: "${{ const.feeds }}", max: "${{ const.max_per_feed }}" }
+        expression: |
+          # an item's instant: its publication date, else its update date when the feed gives only that
+          def instant: (.published // .updated) as $date
+            | if ($date | type) == "string" then ($date | try fromdateiso8601 catch null) else null end;
+          (.now[0:10]) as $day
+          | ($day + "T12:00:00Z" | fromdateiso8601 + 86400 | todate | .[0:10]) as $next
+          # each midnight with the offset in force at that midnight: exact across a daylight-saving change
+          | ($day + "T00:00:00" + .offsets[0] | fromdateiso8601) as $start
+          | ($next + "T00:00:00" + .offsets[1] | fromdateiso8601) as $end
+          | .max as $max
+          | (.fetched // []) as $fetched
+          | [range(0; .sources | length) as $i | {source: .sources[$i], feed: $fetched[$i]}]
+          | {
+              today_items: [.[] | {
+                source: .source,
+                read: (.feed != null),
+                items: ([(.feed.items // [])[] | instant as $at
+                         | select($at != null and $at >= $start and $at < $end)
+                         | {title: .title, link: .link, published: (.published // .updated), summary: .summary}]
+                        | .[0:$max])
+              }],
+              undated: ([.[] | (.feed.items // [])[] | select(instant == null)] | length),
+              failed_sources: ([.[] | select(.feed == null)] | length)
+            }
+outputs:
+  today_items: ${{ tasks.feeds_today.output.today_items }}
+  undated: ${{ tasks.feeds_today.output.undated }}
+  failed_sources: ${{ tasks.feeds_today.output.failed_sources }}

@@ -1,0 +1,41 @@
+nika: p53-lookup-enrich-by-key
+model: mock/echo
+inputs:
+  email: { type: string, required: false, default: "ana@acme.example" }
+  company: { type: string, required: false, default: "Acme" }
+const:
+  reference_path: ./data/companies.json
+  out_path: ./out/lead.json
+  match_field: name
+permits:
+  fs: { read: ["./data/companies.json"], write: ["./out/lead.json"] }
+  tools: ["nika:read", "nika:jq", "nika:assert", "nika:write"]
+tasks:
+  read_reference:
+    invoke: { tool: "nika:read", args: { path: "${{ const.reference_path }}" } }
+  parse_reference:
+    with: { raw: "${{ tasks.read_reference.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.raw }}", expression: "fromjson" } }
+  lookup:
+    with: { rows: "${{ tasks.parse_reference.output }}", key: "${{ inputs.company }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { rows: "${{ with.rows }}", key: "${{ with.key }}" }
+        expression: "(.key | ascii_downcase) as $k | [.rows[] | select((.${{ const.match_field }} | ascii_downcase) == $k)] | first"
+  require_match:
+    with: { found: "${{ tasks.lookup.output }}" }
+    invoke: { tool: "nika:assert", args: { condition: "${{ with.found != null }}", message: "no reference row matches the company; the lead is not enriched" } }
+  enrich:
+    after: { require_match: success }
+    with: { found: "${{ tasks.lookup.output }}", email: "${{ inputs.email }}", company: "${{ inputs.company }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { found: "${{ with.found }}", email: "${{ with.email }}", company: "${{ with.company }}" }
+        expression: "{ email: .email, company: .company, segment: .found.segment, country: .found.country } | tojson"
+  write_out:
+    with: { content: "${{ tasks.enrich.output }}" }
+    invoke: { tool: "nika:write", args: { path: "${{ const.out_path }}", content: "${{ with.content }}" } }
+outputs:
+  enriched: ${{ tasks.enrich.output }}

@@ -1,0 +1,14 @@
+# Expected: NIKA-VAR-008 at CHECK.
+# C17 · unclosed ${{ opener → NIKA-VAR-008 at parse.
+# Spec: 04-variables §escaping: "An unclosed ${{ ... is rejected at parse time ·
+# NIKA-VAR-008 · validation_error". This is in a prompt-position string.
+nika: c17-unclosed-and-empty
+
+tasks:
+  t:
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./out/cel/c17-ran.json"
+        content: { v: "broken ${{ inputs.x " }       # opener with no closing }}
+        create_dirs: true

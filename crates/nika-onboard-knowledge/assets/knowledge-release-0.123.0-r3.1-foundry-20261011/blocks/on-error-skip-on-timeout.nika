@@ -1,0 +1,15 @@
+nika: p29-on-error-skip-codes
+permits:
+  tools: ["nika:fetch"]
+  net: { http: ["api.example.com"] }
+tasks:
+  slow:
+    timeout: "5s"
+    invoke: { tool: "nika:fetch", args: { url: "https://api.example.com/v1/slow", mode: raw } }
+    on_error: { skip: true, on_codes: ["NIKA-TIMEOUT-001"] }
+  after_slow:
+    after: { slow: skipped }
+    with: { why: "${{ tasks.slow.error }}" }
+    invoke: { tool: "nika:jq", args: { input: { why: "${{ with.why }}" }, expression: ".why" } }
+outputs:
+  why: ${{ tasks.after_slow.output }}

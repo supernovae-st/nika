@@ -1,0 +1,12 @@
+# Expected: check-reject (gate verdict). PERMITS: agent tool outside the tools: whitelist.
+nika: sec15-agent-tool-outside-whitelist
+
+permits:
+  tools: ["nika:fetch"]
+
+tasks:
+  attack:
+    agent:
+      model: mock/echo
+      prompt: "list all files in the system"
+      tools: ["nika:read", "nika:write"]

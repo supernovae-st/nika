@@ -1,0 +1,33 @@
+nika: boundary-keys-case-insensitive
+const:
+  prospects_path: "./crm/prospects.json"
+  directory_path: "./crm/directory.json"
+permits:
+  fs: { read: ["./crm/prospects.json", "./crm/directory.json"] }
+  tools: ["nika:read", "nika:jq"]
+tasks:
+  prospects_read:
+    invoke: { tool: "nika:read", args: { path: "${{ const.prospects_path }}" } }
+  directory_read:
+    invoke: { tool: "nika:read", args: { path: "${{ const.directory_path }}" } }
+  enrich:
+    with: { prospects: "${{ tasks.prospects_read.output }}", directory: "${{ tasks.directory_read.output }}" }
+    invoke:
+      tool: nika:jq
+      args:
+        input: { prospects: "${{ with.prospects }}", directory: "${{ with.directory }}" }
+        expression: |
+          # the directory indexed by e-mail address: ASCII letters folded, surrounding spaces removed
+          def key: ascii_downcase | trim;
+          (reduce (.directory | fromjson | .[]) as $entry ({}; .[$entry.email | key] += [$entry.company])) as $index
+          # a company already in the CRM is kept; one directory company fills it; two are a conflict
+          | [.prospects | fromjson | .[] | ($index[.email | key] // [] | unique) as $found
+             | {id, company: (.company // (if ($found | length) == 1 then $found[0] else null end)),
+                source: (if .company != null then "crm" elif ($found | length) == 1 then "directory"
+                         elif ($found | length) > 1 then "conflict" else null end)}]
+          | {enriched: ., unmatched: [.[] | select(.source == null) | .id],
+             conflicts: [.[] | select(.source == "conflict") | .id]}
+outputs:
+  enriched: ${{ tasks.enrich.output.enriched }}
+  unmatched: ${{ tasks.enrich.output.unmatched }}
+  conflicts: ${{ tasks.enrich.output.conflicts }}

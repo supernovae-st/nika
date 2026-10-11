@@ -1,0 +1,24 @@
+nika: boundary-ties-arrival-order
+const:
+  messages_path: "./inbox/messages.json"
+  top: 3
+permits:
+  fs: { read: ["./inbox/messages.json"] }
+  tools: ["nika:read", "nika:jq"]
+tasks:
+  messages_read:
+    invoke: { tool: "nika:read", args: { path: "${{ const.messages_path }}" } }
+  urgent:
+    with: { raw: "${{ tasks.messages_read.output }}" }
+    invoke:
+      tool: nika:jq
+      args:
+        input: { raw: "${{ with.raw }}", top: "${{ const.top }}" }
+        expression: |
+          # the most urgent messages first
+          .top as $top
+          | (.raw | fromjson | sort_by(.urgency) | reverse) as $ranked
+          | {urgent: [$ranked[0:$top][] | .id], first: $ranked[0].id}
+outputs:
+  urgent: ${{ tasks.urgent.output.urgent }}
+  first: ${{ tasks.urgent.output.first }}

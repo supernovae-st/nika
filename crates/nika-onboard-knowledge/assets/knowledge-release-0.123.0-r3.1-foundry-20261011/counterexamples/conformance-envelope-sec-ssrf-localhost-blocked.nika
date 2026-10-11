@@ -1,0 +1,20 @@
+# Expected: NIKA-SEC-005 at CHECK (static literal — the floor-parity
+# lint · 01-envelope §permits) AND at RUN for the dynamic form.
+# NOTE (#395 · nika#395): the boundary deliberately does NOT name
+# `127.0.0.1` — an exact loopback literal in `net.http` would be the
+# author's declassification (01-envelope §permits · exact-loopback
+# declassification) and the floor would lawfully clear. The attack
+# shape is the UN-declassified fetch.
+nika: sec01-ssrf-localhost
+
+permits:
+  net:
+    http: ["api.example.com"]
+  tools: ["nika:fetch"]
+
+tasks:
+  attack:
+    invoke:
+      tool: nika:fetch
+      args:
+        url: "http://127.0.0.1/api/internal"
