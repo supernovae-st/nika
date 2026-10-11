@@ -1492,7 +1492,7 @@ pub const nika_tui::session::acquire::FILE_CAP: u64
 pub const nika_tui::session::acquire::JOURNAL_CAP: u64
 pub mod nika_tui::session::feed
 #[non_exhaustive] pub enum nika_tui::session::feed::Observed
-pub nika_tui::session::feed::Observed::Activity(nika_display::activity::Activity)
+pub nika_tui::session::feed::Observed::Activity(alloc::boxed::Box<nika_display::activity::Activity>)
 pub nika_tui::session::feed::Observed::Asked
 pub nika_tui::session::feed::Observed::Asked::look: core::option::Option<alloc::boxed::Box<nika_tui_view::workspace::inspect::Inspected>>
 pub nika_tui::session::feed::Observed::Asked::resume: bool
