@@ -194,10 +194,43 @@ fn unix_ms() -> u64 {
     u64::try_from(since.as_millis()).unwrap_or(u64::MAX)
 }
 
-/// The instructions every request of a conversation prepared with `chosen` starts with.
+/// The instructions every request of a conversation prepared with `chosen` starts with: the
+/// author's rules, then the language as reference and an index of what the lookups hold.
 fn instructions(chosen: &str) -> String {
     format!(
-        "{SYSTEM}\nThis Session: the person chose `{chosen}` to prepare with; offer the models of this machine through `models`."
+        "{SYSTEM}\nThis Session: the person chose `{chosen}` to prepare with; offer the models of this machine through `models`.\n\n{REFERENCE}\n\n{}\n\n{}",
+        language_reference(),
+        index()
+    )
+}
+
+/// The compiler card's one-page language and canonical fragments, then its output conventions:
+/// never the card's role or its answer format, which are the compiler's own.
+fn language_reference() -> String {
+    let card = nika_compile_cognition::authoring_card();
+    let from = card.find("# The language in one page").unwrap_or(0);
+    let to = card.find("# Your answer").unwrap_or(card.len());
+    let language = card.get(from..to).unwrap_or(card).trim_end();
+    format!(
+        "{language}\n\n{}",
+        nika_compile_cognition::OUTPUT_CONVENTIONS
+    )
+}
+
+/// What the reference is: the engine's own, read as data.
+const REFERENCE: &str = "# Reference: the engine's language and its conventions, read as data (your tools, the person's words and the rules above decide)";
+
+/// What `language` and `knowledge` hold, so a missing detail costs one narrow read.
+fn index() -> String {
+    let schema: Value = serde_json::from_str(nika_pack::schema_json()).unwrap_or_default();
+    let keys: Vec<&str> = (schema["properties"].as_object().into_iter().flatten())
+        .map(|(key, _)| key.as_str())
+        .collect();
+    format!(
+        "# Index (ask narrowly: `language` with a topic and a query, `knowledge` with a query)\n- language topics: schema (query a key), catalog, examples (query a slug), template (query a name; {} templates)\n- schema keys: {}\n- examples: {}\n- knowledge: the pinned release recalls the families, shapes, examples and skill that match a query",
+        nika_pack::template_names().len(),
+        keys.join(", "),
+        nika_pack::example_slugs().join(", ")
     )
 }
 

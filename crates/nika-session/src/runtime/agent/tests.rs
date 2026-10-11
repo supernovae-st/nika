@@ -113,3 +113,21 @@ fn the_resolution_words_are_sent_once() {
     let required = rows.map(|rows| rows["items"]["required"].clone());
     assert_eq!(required, Some(json!(["value", "kind", "role", "message"])));
 }
+
+/// The author reads the language and an index up front, never the compiler's role or answer.
+#[test]
+fn the_instructions_carry_the_language_and_an_index() {
+    let told = instructions("deepseek/deepseek-flash");
+    assert!(told.contains("# The language in one page"), "the language");
+    assert!(told.contains("# Output conventions"), "its conventions");
+    assert!(
+        !told.contains("# Your answer"),
+        "never the compiler's answer"
+    );
+    let keys = told
+        .lines()
+        .find_map(|line| line.strip_prefix("- schema keys: "));
+    let envelope = "const, inputs, model, nika, outputs, permits, run, secrets, tasks";
+    assert_eq!(keys, Some(envelope), "the schema keys");
+    assert!(index().len() < 3_000, "the index stays short");
+}

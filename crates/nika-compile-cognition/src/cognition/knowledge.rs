@@ -35,12 +35,13 @@ use nika_compile::surface::spec_pin;
 /// The compiler-owned authoring card: local fidelity laws, language summary
 /// and emitted shapes. It is versioned with this engine, independently from
 /// the canonical Spec pack; every call records its actual digest.
-pub(super) fn card() -> &'static str {
+#[must_use]
+pub fn card() -> &'static str {
     include_str!("../../assets/native_authoring_card.md")
 }
 
 /// The engine's output conventions sent after its authoring card.
-pub(super) const CONVENTIONS: &str = include_str!("../../assets/native_output_conventions.md");
+pub const CONVENTIONS: &str = include_str!("../../assets/native_output_conventions.md");
 
 /// The catalog's output facts for the workflow model the human already answered, sent in the
 /// opening so the seat sizes a default `max_tokens` before it writes a candidate (the card
