@@ -602,7 +602,11 @@ fn usage_from(u: &Value) -> Option<TokenUsage> {
 fn map_finish(raw: Option<&str>) -> StopReason {
     match raw {
         Some("stop") => StopReason::EndTurn,
-        Some("length") => StopReason::MaxTokens,
+        // Mistral's `model_length` is the context length reached: cut, as at the output cap.
+        Some("length" | "model_length") => StopReason::MaxTokens,
+        // DeepSeek's resource and abort finishes, and the `error` finish of OpenRouter and
+        // Mistral: the provider interrupted the generation.
+        Some("insufficient_system_resource" | "aborted" | "error") => StopReason::Interrupted,
         Some("tool_calls") => StopReason::ToolUse,
         Some("content_filter") => StopReason::ContentFilter,
         Some(other) => StopReason::Unknown(other.to_owned()),

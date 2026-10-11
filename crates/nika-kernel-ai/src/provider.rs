@@ -376,8 +376,21 @@ pub enum StopReason {
     ToolUse,
     /// Content was filtered.
     ContentFilter,
+    /// The provider interrupted the generation on its side (`DeepSeek`
+    /// `insufficient_system_resource` · `aborted`, an `OpenRouter` or Mistral `error` finish,
+    /// Anthropic `pause_turn`): the content is incomplete, never a normal end.
+    Interrupted,
     /// Unknown/provider-specific reason.
     Unknown(String),
+}
+
+impl StopReason {
+    /// Whether the answer is incomplete: cut at the output limit, or interrupted by the
+    /// provider. Such an answer is never a normal end, whatever its text looks like.
+    #[must_use]
+    pub fn is_incomplete(&self) -> bool {
+        matches!(self, Self::MaxTokens | Self::Interrupted)
+    }
 }
 
 /// An LLM inference response.

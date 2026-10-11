@@ -545,7 +545,11 @@ fn parse_response(
 fn map_stop(raw: Option<&str>) -> StopReason {
     match raw {
         Some("end_turn") => StopReason::EndTurn,
-        Some("max_tokens") => StopReason::MaxTokens,
+        // `model_context_window_exceeded`: the response filled the model's context window,
+        // truncated as at the output cap.
+        Some("max_tokens" | "model_context_window_exceeded") => StopReason::MaxTokens,
+        // A paused server-tool loop: incomplete content, never a normal end.
+        Some("pause_turn") => StopReason::Interrupted,
         Some("stop_sequence") => StopReason::StopSequence,
         Some("tool_use") => StopReason::ToolUse,
         Some("refusal") => StopReason::ContentFilter,

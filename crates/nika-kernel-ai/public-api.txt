@@ -1409,10 +1409,13 @@ impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::provider::ResponseF
 #[non_exhaustive] pub enum nika_kernel_ai::provider::StopReason
 pub nika_kernel_ai::provider::StopReason::ContentFilter
 pub nika_kernel_ai::provider::StopReason::EndTurn
+pub nika_kernel_ai::provider::StopReason::Interrupted
 pub nika_kernel_ai::provider::StopReason::MaxTokens
 pub nika_kernel_ai::provider::StopReason::StopSequence
 pub nika_kernel_ai::provider::StopReason::ToolUse
 pub nika_kernel_ai::provider::StopReason::Unknown(alloc::string::String)
+impl nika_kernel_ai::provider::StopReason
+pub fn nika_kernel_ai::provider::StopReason::is_incomplete(&self) -> bool
 impl core::clone::Clone for nika_kernel_ai::provider::StopReason
 pub fn nika_kernel_ai::provider::StopReason::clone(&self) -> nika_kernel_ai::provider::StopReason
 impl core::cmp::Eq for nika_kernel_ai::provider::StopReason

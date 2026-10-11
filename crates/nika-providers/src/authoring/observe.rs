@@ -351,6 +351,7 @@ fn stop(reason: &StopReason) -> (&'static str, Option<&str>) {
         StopReason::StopSequence => ("stop_sequence", None),
         StopReason::ToolUse => ("tool_use", None),
         StopReason::ContentFilter => ("content_filter", None),
+        StopReason::Interrupted => ("interrupted", None),
         StopReason::Unknown(detail) => ("unknown", Some(detail.as_str())),
         _ => ("unknown", None),
     }
