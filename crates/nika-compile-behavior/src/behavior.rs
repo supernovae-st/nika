@@ -333,6 +333,20 @@ pub enum Cause {
     Unparsable { path: String },
     /// Any other failure: no structured fact ties it to a stated stop.
     Unclassified,
+    /// The host stopped the run where a value it built crossed the room's data bound, in the
+    /// host's words: a construct the document chose, never the fixture's (2026-10-11).
+    #[non_exhaustive]
+    DataBound { reason: String },
+}
+
+impl Cause {
+    /// [`Self::DataBound`], in the host's words.
+    #[must_use]
+    pub fn data_bound(reason: impl Into<String>) -> Self {
+        Self::DataBound {
+            reason: reason.into(),
+        }
+    }
 }
 
 /// One failed run.

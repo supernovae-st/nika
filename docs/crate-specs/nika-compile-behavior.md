@@ -59,7 +59,9 @@ sentence now reads as this crate, which declares those two dependencies itself).
   is never certified: a structured `StopFact` (source, operation, field, value) consistent with
   the stop a stated rule predicts names no data or policy independent of the workflow, so it
   stays unattested, and one no stated rule predicts is a defect. An error code or message is
-  never a stop, and a host time bound is no run. Values compare
+  never a stop, and a host time bound is no run; nor is the room's data bound
+  (`Cause::DataBound`, in the host's words: a value the run built crossed it, a construct the
+  document chose, never the fixture's; added 2026-10-11). Values compare
   exactly (strict JSON with exact decimal numbers, the `nika:convert` CSV reading, each bound to
   the sha256 of its bytes): `70` and `70.0` agree, rows compare as a multiset or block by block
   where a sort orders them, a cut through tied rows admits any of them unless ties keep file
