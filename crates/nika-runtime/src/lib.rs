@@ -151,8 +151,8 @@ pub use pause::WorkflowPause;
 // public types keep their `nika_runtime::…` paths below.
 // ADR-130 · the task vocabulary has ONE owner (nika-dataflow); the historical
 // `nika_runtime::…` paths are re-exports of it, never a twin.
-pub use nika_dataflow::DataflowError;
 use nika_dataflow::TaskRecord as DataflowTaskRecord;
+pub use nika_dataflow::{DataflowError, ValueBound};
 pub use nika_dataflow::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
 pub(crate) use nika_dataflow::{expr, jq, record};
 // The shared execution driver (`ServiceExecutionDriver` + `AuthorizedRuntime`
@@ -376,6 +376,8 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// a continuation renders as one — never inferred from a nonce.
     /// `None` = a fresh run.
     resumed_from: Option<String>,
+    /// The bound a rehearsal room puts on every value the run builds; `None` outside a room.
+    value_bound: Option<Arc<ValueBound>>,
 }
 
 /// One wave's read-only value scope — (the value bags · `permits` ·
@@ -427,6 +429,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             resume_compat: None,
             resume_unverified: None,
             resumed_from: None,
+            value_bound: None,
             access_pin: None,
             access_probes: Vec::new(),
             boot_access_fields: Vec::new(),
@@ -557,6 +560,16 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_cancel(mut self, cancel: CancelCtx) -> Self {
         self.cancel = Some(cancel);
+        self
+    }
+
+    /// The bound a rehearsal room puts on the values this run builds: every scope the run reads
+    /// a value in counts against it, a value over it fails its task
+    /// ([`DataflowError::ValueBound`]) and the bound keeps the first crossing, which the room
+    /// reads to end the run.
+    #[must_use]
+    pub fn with_value_bound(mut self, bound: Arc<ValueBound>) -> Self {
+        self.value_bound = Some(bound);
         self
     }
 
@@ -1046,6 +1059,7 @@ where
             inputs: &inputs,
             consts: &consts,
             secrets: &secrets,
+            bound: self.value_bound.as_deref(),
         };
         let (mut parked, resolve_scope) = parked_scope(wf, bags, &resume_ctx, jq_clock, run_start);
 

@@ -16,6 +16,7 @@ pub use nika_runtime::TaskErrorRecord
 pub use nika_runtime::TaskRecord
 pub use nika_runtime::TaskStatus
 pub use nika_runtime::TerminalCause
+pub use nika_runtime::ValueBound
 pub use nika_runtime::VecSink
 pub use nika_runtime::WorkflowSecretResolver
 pub use nika_runtime::effective_workflow
@@ -1023,6 +1024,7 @@ pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_secret_resolver(self, resol
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_skills(self, skills: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_source_sha256(self, hex: alloc::string::String) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_source_sha256_lf(self, hex: alloc::string::String) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_value_bound(self, bound: alloc::sync::Arc<nika_dataflow::bound::ValueBound>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_var_overrides(self, overrides: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_child_runner(self, runner: alloc::sync::Arc<dyn nika_runtime::child::ChildRunner>) -> Self

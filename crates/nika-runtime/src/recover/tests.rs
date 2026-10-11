@@ -343,6 +343,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
             inputs: &vars,
             consts: &BTreeMap::new(),
             secrets: &secrets,
+            bound: None,
         },
         resume_ctx: &resume_ctx,
         jq_clock: nika_cap::JqClock::at(nika_types::timestamp::Timestamp::EPOCH),
