@@ -466,16 +466,18 @@ async fn observed(answers: Vec<Answer>) -> (CompileOutcome, Vec<Meta>, Canned) {
 // ── Product parity with the reference ───────────────────────────────────────────────────────
 
 /// Reviewed prompt identities for [`three_calls`] under the unchanged legacy framing.
-/// Captured after commit 4470d33de sent each callable contract as its whole stdlib section
-/// (no longer cut at 2,000 characters); before it, after commit 98c24b617462 added
-/// temporal-shape and jq date-time conventions to `native_output_conventions.md`. Both are
-/// included in the System message retained by all three calls. The assertions below
-/// independently compare the observer with the legacy framing over each exact request before
-/// checking these values.
+/// Captured after commits 1fbc82ec5 (what each fetch mode returns), bc932aca3 (the date, jq
+/// and JSON API laws) and 29b107114 (the card example without a copied output cap) changed
+/// the callable contracts and the card; before them, after commit 4470d33de sent each
+/// callable contract as its whole stdlib section (no longer cut at 2,000 characters), and
+/// before it, after commit 98c24b617462 added temporal-shape and jq date-time conventions to
+/// `native_output_conventions.md`. All are included in the System message retained by all
+/// three calls. The assertions below independently compare the observer with the legacy
+/// framing over each exact request before checking these values.
 const REVIEWED_PROMPTS: [&str; 3] = [
-    "c7d66f6b71306dc5ba085ea88fef0558cb96b36d1c601f9667a58d7436bb0206",
-    "7413516c7e9b98e104d124bcb9102d4923979902b2b229a94e396af0bb0f8b99",
-    "f4add747564fa2b971c9debc462945920df07a4aae9fa93b7ce8d117bd0b126f",
+    "b7f8794b698df441076f78ff15edd7ddbae5b25dbd6d55cff02732921355e96a",
+    "235ac3a95a0aee0b92a265b9693f8a40248c401a261f0645fc63d198bba4e6fb",
+    "610a4cd6f6d4831899db3a0e91e47c47a0981ad79bd00c4b824db63178486cbe",
 ];
 /// Legacy response identities, unchanged by the new prompt conventions.
 const PRE_CHANGE_FRAMED: [&str; 3] = [
