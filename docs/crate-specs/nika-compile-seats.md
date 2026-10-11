@@ -239,6 +239,12 @@ as an external consumer.
   carries what each `mode:` returns (the extract-modes page's table and feed section, which its
   section only points to) and the format of a feed's dates, RFC 3339 with an explicit offset as
   the engine normalizes them, until that page states it.
+  Amended 2026-10-11, from what runs measured, until the stdlib page states it: the
+  `nika:fetch` contract also says what a JSON API needs (`mode: jq` with an expression, or
+  `mode: raw` read with `fromjson`; the default `markdown` never returns a JSON value),
+  `nika:date` that `add` and `subtract` apply their span in the `tz:` zone's calendar (`P1D` is
+  23 or 25 hours across a DST change, `PT24H` exactly 24), and `nika:jq` its one-value law (a
+  stream wrapped in `[ … ]`).
   Amended 2026-10-10, the prompt trims (`shelf::trims`, behind the `unstable-prompt-trims`
   feature, off by default per FCI-007). An evaluation measures authoring quality with and
   without them before any default changes.
