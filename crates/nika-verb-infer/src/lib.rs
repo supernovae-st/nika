@@ -516,6 +516,10 @@ where
             // `NIKA-AGENT-005` sibling): the usage-absence gate.
             refuse_unusable_response(&response, model, incurred(&usage_total, &transport_total))?;
             let text = response_text(&response);
+            // A cut answer is never the output, never validated (NIKA-INFER-005).
+            let spend = incurred(&usage_total, &transport_total);
+            refuse_interrupted_answer(&response, model, &spend)?;
+            refuse_cut_answer(&text, &response, model, input.max_tokens, spend)?;
 
             let (Some(schema), Some(validator)) = (input.schema.as_ref(), validator.as_ref())
             else {
@@ -764,6 +768,62 @@ fn refuse_blank_answer(text: &str, usage: &TokenUsage, model: &str) -> Result<()
             None,
             Some(model.to_owned()),
         )),
+    })
+}
+
+/// NIKA-INFER-005: the provider says it stopped at the output cap after a visible answer had
+/// begun. That answer is cut: never the output, never validated against `schema:` (a repair
+/// under the same cap would be cut again). A blank one stays the empty-answer gate's
+/// (NIKA-INFER-004). The message names who set the cap; an absent `max_tokens` is never
+/// imputed to the task.
+fn refuse_cut_answer(
+    text: &str,
+    response: &InferResponse,
+    model: &str,
+    max_tokens: Option<u32>,
+    spend: Box<SpendOnFailure>,
+) -> Result<(), VerbInferError> {
+    if !matches!(response.stop_reason, StopReason::MaxTokens) || text.trim().is_empty() {
+        return Ok(());
+    }
+    let usage = &response.usage;
+    let reasoning =
+        (usage.thinking_tokens.unwrap_or(0)).saturating_add(usage.reasoning_tokens.unwrap_or(0));
+    let cap = max_tokens.map_or_else(
+        || "no max_tokens on the task: the provider's default cap".to_owned(),
+        |cap| format!("the task's max_tokens {cap}"),
+    );
+    let detail = format!(
+        "{cap}, {} output tokens, {reasoning} of them reasoning: raise max_tokens, or \
+         recover the partial answer through on_error:",
+        usage.output_tokens
+    );
+    Err(VerbInferError::AnswerCut {
+        model: model.to_owned(),
+        detail,
+        partial_output: text.to_owned(),
+        stop_reason: (response.finish_reason_raw.clone())
+            .unwrap_or_else(|| "max_tokens".to_owned()),
+        spend,
+    })
+}
+
+/// An answer the provider interrupted on its side (`StopReason::Interrupted`) is never the
+/// output: a provider call that failed (`NIKA-INFER-001`), transient, so the author's `retry:`
+/// decides. It carries no `partial_output`, which is the output cap's contract (NIKA-INFER-005).
+fn refuse_interrupted_answer(
+    response: &InferResponse,
+    model: &str,
+    spend: &SpendOnFailure,
+) -> Result<(), VerbInferError> {
+    if response.stop_reason != StopReason::Interrupted {
+        return Ok(());
+    }
+    Err(VerbInferError::AnswerInterrupted {
+        model: model.to_owned(),
+        stop_reason: (response.finish_reason_raw.clone())
+            .unwrap_or_else(|| "interrupted".to_owned()),
+        spend: Box::new(spend.clone()),
     })
 }
 

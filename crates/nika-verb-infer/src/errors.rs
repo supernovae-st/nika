@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `VerbInferError` — the `infer` verb error surface (NIKA-430..435).
+//! `VerbInferError` — the `infer` verb error surface (NIKA-430..436).
 //!
 //! Constants are registry-owned in `nika_error::codes` (same pattern as
 //! the M2 computer-use ranges); the spec-level rows are
-//! `NIKA-INFER-001..004` in `nika-spec spec/05-errors.md` — 430 maps to
+//! `NIKA-INFER-001..005` in `nika-spec spec/05-errors.md` — 430 maps to
 //! 001 (provider call), 431 maps to 002 (schema validation), 434 maps to
-//! 003 (usage unmetered), 435 maps to 004 (empty answer · #651).
+//! 003 (usage unmetered), 435 maps to 004 (empty answer · #651), 436 maps
+//! to 005 (answer cut at the output cap).
 
 use nika_error::codes::{self, NikaCode};
 use nika_error::traits::NikaErrorCode;
@@ -117,6 +118,47 @@ pub enum VerbInferError {
         spend: Box<SpendOnFailure>,
     },
 
+    /// The provider stopped at the output cap (`max_tokens`) after a visible answer had
+    /// begun (NIKA-436 · wire `NIKA-INFER-005`): the answer is cut, so it is never the task
+    /// output and never validated against `schema:` (a repair under the same cap would be
+    /// cut again). The text received rides `partial_output` for an `on_error:` recovery; an
+    /// empty answer stays [`Self::EmptyAnswer`].
+    #[error(
+        "infer answer on `{model}` was cut at the output cap (stop reason `{stop_reason}`) — {detail}"
+    )]
+    #[diagnostic(code(nika::verb::infer_answer_cut))]
+    AnswerCut {
+        /// The model whose answer was cut (`provider/name`).
+        model: String,
+        /// Who set the cap and how the output tokens split, with the remedy.
+        detail: String,
+        /// The visible text received before the cut (spec 05 `partial_output`).
+        partial_output: String,
+        /// The provider's own word for the stop (`max_tokens` · `length` · `MAX_TOKENS`).
+        stop_reason: String,
+        /// The spend of the round-trips that ran, the cut one included (billed in full).
+        spend: Box<SpendOnFailure>,
+    },
+
+    /// The provider interrupted the generation on its side (`StopReason::Interrupted` ·
+    /// NIKA-430 · wire `NIKA-INFER-001`, a provider call that failed): the answer is incomplete,
+    /// so it is never the task output and carries no `partial_output` (the output cap's
+    /// contract). The provider can serve the next call: the author's `retry:` decides.
+    #[error(
+        "infer answer on `{model}` was interrupted by the provider (stop reason \
+         `{stop_reason}`): the answer is incomplete; the task's retry: decides"
+    )]
+    #[diagnostic(code(nika::verb::infer_answer_interrupted))]
+    AnswerInterrupted {
+        /// The model whose answer was interrupted (`provider/name`).
+        model: String,
+        /// The provider's own word for the stop (`insufficient_system_resource` · `aborted` ·
+        /// `error` · `pause_turn`).
+        stop_reason: String,
+        /// The spend of the round-trips that ran, the interrupted one included.
+        spend: Box<SpendOnFailure>,
+    },
+
     /// The output never satisfied the task `schema:` within the retry budget.
     #[error("structured output failed schema validation after {attempts} attempt(s): {detail}")]
     #[diagnostic(code(nika::verb::infer_schema_validation))]
@@ -165,6 +207,8 @@ impl VerbInferError {
             | Self::SchemaRefused { spend, .. }
             | Self::UsageUnmetered { spend, .. }
             | Self::EmptyAnswer { spend, .. }
+            | Self::AnswerCut { spend, .. }
+            | Self::AnswerInterrupted { spend, .. }
             | Self::SchemaValidation { spend, .. } => spend.has_signal().then_some(spend),
             Self::HarnessAccess { .. }
             | Self::Harness { .. }
@@ -172,16 +216,35 @@ impl VerbInferError {
             | Self::ModelResolution { .. } => None,
         }
     }
+
+    /// The record's `details` (spec 05) of a cut answer: the text received and the
+    /// provider's stop reason. Every other failure, and any other error, carries none.
+    #[must_use]
+    pub fn details_of(err: &dyn NikaErrorCode) -> Option<serde_json::Value> {
+        match err.as_any().downcast_ref::<Self>()? {
+            Self::AnswerCut {
+                partial_output,
+                stop_reason,
+                ..
+            } => Some(serde_json::json!({
+                "partial_output": partial_output,
+                "stop_reason": stop_reason,
+            })),
+            _ => None,
+        }
+    }
 }
 
 impl NikaErrorCode for VerbInferError {
     fn nika_code(&self) -> NikaCode {
         match self {
-            Self::ProviderCall { .. } | Self::SchemaRefused { .. } | Self::HarnessAccess { .. } => {
-                codes::NIKA_430
-            }
+            Self::ProviderCall { .. }
+            | Self::SchemaRefused { .. }
+            | Self::HarnessAccess { .. }
+            | Self::AnswerInterrupted { .. } => codes::NIKA_430,
             Self::UsageUnmetered { .. } => codes::NIKA_434,
             Self::EmptyAnswer { .. } => codes::NIKA_435,
+            Self::AnswerCut { .. } => codes::NIKA_436,
             Self::SchemaValidation { .. } => codes::NIKA_431,
             Self::InvalidParam { .. } => codes::NIKA_432,
             Self::ModelResolution { .. } => codes::NIKA_433,
@@ -194,7 +257,8 @@ impl NikaErrorCode for VerbInferError {
     /// → `NIKA-INFER-002` (schema validation) · `NIKA-433` (model resolution)
     /// is the `NIKA-INFER-001` family (a provider-resolution failure) ·
     /// `NIKA-434` → `NIKA-INFER-003` (usage unmetered) · `NIKA-435` →
-    /// `NIKA-INFER-004` (empty answer · #651). `NIKA-432` (`InvalidParam`)
+    /// `NIKA-INFER-004` (empty answer · #651) · `NIKA-436` → `NIKA-INFER-005`
+    /// (answer cut at the output cap). `NIKA-432` (`InvalidParam`)
     /// has NO spec row (an upstream-reject guard) — it keeps its numeric
     /// wire form via the trait default.
     fn spec_code(&self) -> String {
@@ -202,9 +266,11 @@ impl NikaErrorCode for VerbInferError {
             Self::ProviderCall { .. }
             | Self::SchemaRefused { .. }
             | Self::HarnessAccess { .. }
-            | Self::ModelResolution { .. } => "NIKA-INFER-001".to_owned(),
+            | Self::ModelResolution { .. }
+            | Self::AnswerInterrupted { .. } => "NIKA-INFER-001".to_owned(),
             Self::UsageUnmetered { .. } => "NIKA-INFER-003".to_owned(),
             Self::EmptyAnswer { .. } => "NIKA-INFER-004".to_owned(),
+            Self::AnswerCut { .. } => "NIKA-INFER-005".to_owned(),
             Self::SchemaValidation { .. } => "NIKA-INFER-002".to_owned(),
             Self::InvalidParam { .. } | Self::Harness { .. } => self.nika_code().to_string(),
         }
@@ -215,6 +281,8 @@ impl NikaErrorCode for VerbInferError {
             // Inherit the provider's own retry classification (rate limits
             // and 5xx are transient; auth and model-not-found are not): the
             // transport never re-sends, so the author's `retry:` decides.
+            // The provider interrupted the generation on its side: the next call can be served.
+            Self::AnswerInterrupted { .. } => true,
             Self::ProviderCall { source, .. } => source.is_transient(),
             // Only a session death heals on retry — of the SAME route.
             Self::Harness { source } => source.is_transient(),
@@ -224,6 +292,7 @@ impl NikaErrorCode for VerbInferError {
             Self::HarnessAccess { .. }
             | Self::SchemaRefused { .. }
             | Self::EmptyAnswer { .. }
+            | Self::AnswerCut { .. }
             | Self::SchemaValidation { .. }
             | Self::UsageUnmetered { .. }
             | Self::InvalidParam { .. }
