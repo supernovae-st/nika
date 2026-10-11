@@ -532,7 +532,7 @@
        "offered",
        "retained"
       ],
-      "description": "named: a public source the person named, resolved to its address · delegated: chosen within a choice the person left to you · derived: a routine new output they asked for without naming it · answered: a value they typed · offered: a value of an option of yours they accepted (with question and option) · retained: kept unchanged from a revision they saw."
+      "description": "named: a public source the person named, resolved to its address · delegated: chosen within a choice the person left to you · derived: a routine new output they asked for without naming it, a file read under a folder they typed, or the exact host of an address they typed · answered: a value they typed · offered: a value of an option of yours they accepted (with question and option) · retained: kept unchanged from a revision they saw."
      },
      "role": {
       "$ref": "#/$defs/role"

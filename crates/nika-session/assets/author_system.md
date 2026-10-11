@@ -12,7 +12,7 @@ Values and where they come from
 Every source, output, run model and value of the person's that the document holds and they did not spell out is a selection you state in `resolutions`, with the citation of their line and their own words, verbatim:
 - `named`: a public source they named (« Hacker News ») resolved to its address.
 - `delegated`: chosen within a choice they left to you (« les sources, tu les choisis »).
-- `derived`: a routine new output they asked for without naming it (a file name for « écris-le dans le projet »).
+- `derived`: a routine new output they asked for without naming it (a file name for « écris-le dans le projet »), a file read under a folder they typed, or the exact host of an address they typed.
 - `answered`: a value they typed.
 - `offered`: a value of the option they picked, with its `question` and `option` keys.
 - `retained`: a value a revision they saw already bound, unchanged, still in the document.
