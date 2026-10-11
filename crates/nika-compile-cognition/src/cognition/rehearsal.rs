@@ -44,12 +44,13 @@ struct Checked {
     run: Run,
     spent_before: Usage,
     room_bytes: u64,
-    /// The room's refusal of these bytes before any attempt, when the report was one.
+    /// The room's refusal of these bytes, when the report was one.
     refused: Option<Refused>,
 }
 
-/// The room's refusal of one candidate's exact bytes before any attempt: a source-only
-/// [`Rehearsal::NotRun`] whose host named its [`Refusal`] class, and the host's words.
+/// The room's refusal of one candidate's exact bytes, before any attempt or by a data bound that
+/// stopped the run: a source-only [`Rehearsal::NotRun`] whose host named its [`Refusal`] class,
+/// and the host's words.
 #[derive(Clone, Debug)]
 pub(super) struct Refused {
     pub(super) refusal: Refusal,
@@ -173,7 +174,9 @@ impl<'a> Rehearsals<'a> {
         let entry = crate::rehearse::record::report(&report, bound, &run, &decided(&result));
         let refused = match (&report.outcome, report.observation.refusal) {
             (Rehearsal::NotRun { reason }, Some(refusal))
-                if matches!(report.attempt, Attempt::NeverAttempted) =>
+                if matches!(report.attempt, Attempt::NeverAttempted)
+                    || refusal == Refusal::DataBounds
+                        && matches!(report.attempt, Attempt::Stopped { .. }) =>
             {
                 let reason = reason.clone();
                 Some(Refused { refusal, reason })
@@ -243,8 +246,8 @@ impl<'a> Rehearsals<'a> {
     }
 
     /// Why no run of exactly `candidate` exists, when this call's last report was the room's
-    /// refusal of those bytes before any attempt; `None` for another candidate, a run that
-    /// began, or no host.
+    /// refusal of those bytes ([`Refused`]); `None` for another candidate, any other run, or no
+    /// host.
     pub(super) fn refused(&self, candidate: &str) -> Option<&Refused> {
         let last = self
             .last
@@ -538,9 +541,11 @@ fn classify(candidate: &str, report: &RehearsalReport, end: &RunEnd) -> Result {
             message: json!({"kind": "run_failure", "task": task, "code": code, "message": message})
                 .to_string(),
         }),
+        // A run the room stopped at its data bound proceeds as a refusal before it does.
         Rehearsal::NotRun { .. }
             if matches!(report.attempt, Attempt::NeverAttempted)
-                && matches!(end, RunEnd::NotRun { .. }) =>
+                && matches!(end, RunEnd::NotRun { .. })
+                || matches!(end, RunEnd::Failed(f) if matches!(f.cause, Cause::DataBound { .. })) =>
         {
             Result::Proceed
         }
