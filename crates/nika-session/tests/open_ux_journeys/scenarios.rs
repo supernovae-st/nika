@@ -320,6 +320,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "trial_kept_nothing" => tried("feed", RFC_822_BROKEN, RFC_822_FIXED),
         "trial_names_what_it_skips" => trial_names_what_it_skips(),
         "own_filter" => own_filter(),
+        "two_edits" => two_edits(),
         "reads_a_project_file" => reads_sales(false),
         "a_read_file_changes" => reads_sales(true),
         "write_carries_its_findings" => write_carries_its_findings(),
@@ -1154,7 +1155,7 @@ pub(crate) const TRIED_ON: &str =
 pub(crate) fn feeds(name: &str) -> Vec<(&'static str, &'static str)> {
     match name {
         "trial_offset" => vec![(STORIES, NO_OFFSET)],
-        "trial_kept_nothing" | "trial_names_what_it_skips" | "own_filter" => {
+        "trial_kept_nothing" | "trial_names_what_it_skips" | "own_filter" | "two_edits" => {
             vec![(STORIES, STORIES_RSS)]
         }
         _ => Vec::new(),
@@ -1183,6 +1184,29 @@ fn tried(mode: &str, broken: &str, fixed: &str) -> Scenario {
                 call("candidate_write", stories(mode, broken)),
                 call("propose", json!({})),
                 call("candidate_write", stories(mode, fixed)),
+                call_saying(TRIED, "propose", json!({})),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// I4c item 1: the broken filter and the workflow's name changed by one `candidate_edit`.
+fn two_edits() -> Scenario {
+    let edits = json!({"edits": [
+        {"old": RFC_822_BROKEN, "new": RFC_822_FIXED},
+        {"old": "nika: today-stories", "new": "nika: stories-of-the-day"}]});
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(STORIES_REQUEST)],
+        script: Script {
+            agent: vec![
+                call("candidate_write", stories("feed", RFC_822_BROKEN)),
+                call("candidate_edit", edits),
                 call_saying(TRIED, "propose", json!({})),
             ],
             replies: Vec::new(),

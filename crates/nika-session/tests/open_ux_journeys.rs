@@ -849,6 +849,20 @@ fn a_name_left_to_the_author_is_never_asked_again() {
     assert!(said(named).contains(&changed), "{}", said(named));
 }
 
+/// I4c item 1, the Pi study: one `candidate_edit` carries several edits, each read in the
+/// original candidate, and lands them as one revision.
+#[test]
+fn two_edits_in_one_call_make_one_revision() {
+    let journey = run("two_edits");
+    let proposed = journey.step(0);
+    assert_eq!(outcome_kind(proposed), "proposal", "{proposed:#}");
+    let shown = candidate(proposed);
+    assert!(shown.contains("nika: stories-of-the-day"), "the name edit");
+    assert!(shown.contains("startswith"), "the filter edit");
+    let edited = (journey.agent.iter()).any(|s| s.last().contains(r#""revision":2"#));
+    assert!(edited, "two edits, one revision");
+}
+
 /// The evaluator's tickets, biz24-07 and all-tags cells: an author's own filters, programs, globs
 /// and rights state no selection and are never asked. The author reads it in its instructions and
 /// in `candidate_write`, and its own jq filter, stated nowhere, is proposed at once.

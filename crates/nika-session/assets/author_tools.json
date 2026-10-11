@@ -79,7 +79,7 @@
   {
    "name": "candidate_edit",
    "read_only": false,
-   "description": "Replace one exact, unique passage of the candidate. resolutions, when given, replace the candidate's; removed as for candidate_write. The reply carries the same findings as candidate_write's. Nothing is saved or run.",
+   "description": "Replace exact, unique passages of the candidate as one revision: old and new for one passage, or edits for several, each old passage found once in the candidate and none overlapping another. resolutions, when given, replace the candidate's; removed as for candidate_write. The reply carries the same findings as candidate_write's. Nothing is saved or run.",
    "input_schema": {
     "type": "object",
     "properties": {
@@ -88,6 +88,26 @@
      },
      "new": {
       "type": "string"
+     },
+     "edits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "type": "object",
+       "properties": {
+        "old": {
+         "type": "string"
+        },
+        "new": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "old",
+        "new"
+       ],
+       "additionalProperties": false
+      }
      },
      "summary": {
       "type": "string"
@@ -99,10 +119,6 @@
       "$ref": "#/$defs/removed"
      }
     },
-    "required": [
-     "old",
-     "new"
-    ],
     "additionalProperties": false
    }
   },

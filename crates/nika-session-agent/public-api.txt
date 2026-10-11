@@ -371,6 +371,7 @@ pub type nika_session_agent::conversation::Conversation::Output = T
 impl<T> zvariant::optional::NoneValue for nika_session_agent::conversation::Conversation where T: core::default::Default
 pub type nika_session_agent::conversation::Conversation::NoneType = T
 pub fn nika_session_agent::conversation::Conversation::null_value() -> T
+pub fn nika_session_agent::conversation::edited(source: &str, pairs: &[(alloc::string::String, alloc::string::String)]) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub type nika_session_agent::conversation::Facts<'a> = &'a mut dyn core::ops::function::FnMut(&str) -> core::option::Option<nika_session_change::work::conversation::ModelFacts>
 pub type nika_session_agent::conversation::Mint<'a> = &'a mut dyn core::ops::function::FnMut(&str) -> nika_session_change::outcome::QuestionId
 pub mod nika_session_agent::event
