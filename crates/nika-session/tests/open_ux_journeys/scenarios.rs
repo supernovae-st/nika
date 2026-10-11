@@ -14,6 +14,11 @@ use serde_json::{Value, json};
 use super::peer::{Script, Step, call, call_saying, hold, say, think};
 
 /// The Session's reading of the sentence that accepts the plan: its recommended option.
+/// The Session's reading of each cited consent the journey's author claims: save and run.
+fn consented(reads: usize) -> Vec<String> {
+    vec!["save_and_run".to_owned(); reads]
+}
+
 fn accepted_pick() -> Vec<String> {
     vec!["recommended".to_owned()]
 }
@@ -62,6 +67,8 @@ pub(crate) const REPLACE: &str = "non laisse tomber tout ca, je veux plutot comp
 pub(crate) const SAVE_AND_RUN: &str = "parfait, enregistre-le puis lance-le";
 /// The words of `SAVE_AND_RUN` that ask for both acts.
 pub(crate) const SAVE_AND_RUN_WORDS: &str = "enregistre-le puis lance-le";
+/// A genuine line after the proposal that asks for an explanation and consents to nothing.
+pub(crate) const EXPLAIN: &str = "explique-moi comment il choisit les articles";
 /// A request the author starts on.
 pub(crate) const START_A: &str = "resume moi les news tech de hacker news";
 /// A line steered into the run under way.
@@ -305,6 +312,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "complete_replacement" => complete_replacement(),
         "save_and_run_in_words" => save_and_run_in_words(),
         "save_and_run_scope_changed" => save_and_run_scope_changed(),
+        "explanation_cited_as_consent" => explanation_cited_as_consent(),
         "steer_mid_run" => steer_mid_run(),
         "follow_up_after_run" => follow_up_after_run(),
         "stop_mid_request" => stop_mid_request(),
@@ -683,7 +691,35 @@ fn save_and_run_in_words() -> Scenario {
         script: Script {
             agent,
             replies: Vec::new(),
-            picks: accepted_pick(),
+            picks: [accepted_pick(), consented(1)].concat(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// The person asks how the workflow picks its articles; the author cites that real, later line as
+/// if it consented to saving and running the proposal.
+fn explanation_cited_as_consent() -> Scenario {
+    let mut agent = accepted_steps();
+    agent.extend([call_saying(
+        "Je l'enregistre et je le lance.",
+        "propose",
+        json!({"acts": ["save", "run"],
+                "authorized_by": {"message": "u3", "excerpt": "explique-moi comment"}}),
+    )]);
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![
+            Act::Turn(REQUEST),
+            Act::Submit(ACCEPT),
+            Act::Submit(EXPLAIN),
+        ],
+        script: Script {
+            agent,
+            replies: Vec::new(),
+            picks: [accepted_pick(), vec!["NONE".to_owned()]].concat(),
             verdicts: Vec::new(),
         },
     }
@@ -1088,7 +1124,7 @@ fn failed_run_repaired() -> Scenario {
         script: Script {
             agent,
             replies: Vec::new(),
-            picks: accepted_pick(),
+            picks: [accepted_pick(), consented(2)].concat(),
             verdicts: Vec::new(),
         },
     }
@@ -1121,7 +1157,7 @@ fn complaint_after_success() -> Scenario {
         script: Script {
             agent,
             replies: Vec::new(),
-            picks: accepted_pick(),
+            picks: [accepted_pick(), consented(2)].concat(),
             verdicts: Vec::new(),
         },
     }

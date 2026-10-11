@@ -65,14 +65,16 @@ pub(crate) trait Desk: Send {
     fn model_facts(&mut self, model: &str) -> Option<ModelFacts>;
 }
 
-/// What a run decided that the Session acts on after it: a proposal shown, and the acts the
-/// person's own words authorized for it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// What a run decided that the Session acts on after it: a proposal shown, the acts an author
+/// claims the person's own words authorized for it, and those words.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Decided {
     /// The candidate revision proposed last, when one was.
     pub(crate) proposed: Option<u64>,
     /// The acts the person's words authorized, when any.
     pub(crate) acts: Option<Acts>,
+    /// The person's line cited for them, which the Session's door reads before it acts.
+    pub(crate) cited: Option<String>,
 }
 
 /// A question's identity, from the context it was asked in.
@@ -134,7 +136,7 @@ impl Toolbox {
     pub(crate) fn end(&self) -> Decided {
         let mut state = self.state();
         state.turn = None;
-        state.decided
+        state.decided.clone()
     }
 
     /// Read or change the conversation.
@@ -425,9 +427,14 @@ impl Parts<'_> {
             .collect();
         let authorized = self.conversation.propose(&citations, args, (scope, open));
         let acts = authorized.as_ref().ok().copied().flatten();
+        let cited = acts.and_then(|_| {
+            let message = args["authorized_by"]["message"].as_str()?;
+            citations.get(message).map(|line| line.text.clone())
+        });
         *self.decided = Decided {
             proposed: revision,
             acts,
+            cited,
         };
         let said = match (&authorized, acts) {
             (_, Some(acts)) if acts.run => {

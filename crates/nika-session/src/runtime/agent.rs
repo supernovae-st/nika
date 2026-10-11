@@ -29,7 +29,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use nika_fs::OwnedDir;
 use nika_providers::InferenceAdmission;
-use nika_session_agent::conversation::{Acts, Conversation, Pick};
+use nika_session_agent::conversation::{
+    Acts, Conversation, NOT_A_CONSENT, NOT_READ_AS_CONSENT, Pick,
+};
 use nika_session_agent::{
     Agent, AgentEvent, EntryKind, Observed, Outcome, QueueMode, QueuedState, Relay, Steering, Tree,
 };
@@ -64,7 +66,7 @@ pub(super) struct Driver {
     tree: Option<Tree>,
     store: TreeFile,
     damaged: Option<String>,
-    authorized: Option<(ProposalId, Acts)>,
+    authorized: Option<(ProposalId, Acts, String)>,
     /// The card of the proposal the conversation showed last: the goal its preview states,
     /// the choices it shows included, and the keys of those choices.
     card: Option<(String, Vec<String>)>,
@@ -663,7 +665,7 @@ impl SessionRuntime {
                 } else {
                     said
                 };
-                match self.agent_propose(driver, &text, decided.acts) {
+                match self.agent_propose(driver, &text, decided.acts.zip(decided.cited)) {
                     TurnOutcome::Proposal { id, preview } => TurnOutcome::Proposal {
                         id,
                         preview: unsent(&queued)
@@ -690,7 +692,7 @@ impl SessionRuntime {
                 let current = driver.toolbox.with(|c| c.candidate().map(|c| c.number));
                 match decided.proposed {
                     Some(revision) if current == Some(revision) => {
-                        self.agent_propose(driver, &text, decided.acts)
+                        self.agent_propose(driver, &text, decided.acts.zip(decided.cited))
                     }
                     _ => TurnOutcome::Reply(text),
                 }
@@ -721,7 +723,7 @@ impl SessionRuntime {
         &mut self,
         driver: &mut Driver,
         said: &str,
-        acts: Option<Acts>,
+        acts: Option<(Acts, String)>,
     ) -> TurnOutcome {
         let Some(candidate) = driver.toolbox.with(|c| c.candidate().cloned()) else {
             return TurnOutcome::Reply(said.to_owned());
@@ -762,7 +764,7 @@ impl SessionRuntime {
         self.bind_read_basis(&id, &set, &seen.unwrap_or_default());
         self.pending = Some(set);
         driver.card = Some((goal, keys));
-        driver.authorized = acts.map(|acts| (id.clone(), acts));
+        driver.authorized = acts.map(|(acts, cited)| (id.clone(), acts, cited));
         // A value the person saw bound and this revision changes is said in words.
         let changed = driver.toolbox.with(|c| c.changed().join(" · "));
         let said = if changed.is_empty() {
@@ -817,11 +819,30 @@ impl SessionRuntime {
     }
 
     /// The consent the person's own words gave for the proposal this turn made, taken once:
-    /// the turn's door answers it through the consent door (`save & run`, or `yes` to save).
-    pub(super) fn agent_authorized(&mut self) -> Option<(ProposalId, &'static str)> {
-        let (id, acts) = self.agent.as_mut()?.authorized.take()?;
-        let word = if acts.run { "save & run" } else { "yes" };
-        (self.pending_proposal().as_ref() == Some(&id)).then_some((id, word))
+    /// the turn's door answers it through the consent door (`save & run`, or `yes` to save)
+    /// when the cited line consents ([`Pick::consented`], read by the Session's own reading).
+    ///
+    /// # Errors
+    ///
+    /// Why the claim authorizes nothing: the proposal then waits at the door.
+    pub(super) fn agent_authorized(
+        &mut self,
+    ) -> Result<Option<(ProposalId, &'static str)>, &'static str> {
+        let Some((id, acts, cited)) = self.agent.as_mut().and_then(|d| d.authorized.take()) else {
+            return Ok(None);
+        };
+        if self.pending_proposal().as_ref() != Some(&id) {
+            return Ok(None);
+        }
+        let asked = QuestionId::new(id.to_string(), &self.questions.asker());
+        let read = |prompt: &str| self.reason_with_money(prompt, true).ok().map(|r| r.text);
+        if Pick::consented(&cited, acts.run, asked, read) {
+            return Ok(Some((id, if acts.run { "save & run" } else { "yes" })));
+        }
+        if let Some(driver) = self.agent.as_mut() {
+            driver.run_note = Some(NOT_READ_AS_CONSENT.to_owned());
+        }
+        Err(NOT_A_CONSENT)
     }
 
     /// What the next line answers when the conversation's intelligence asked: one question, or

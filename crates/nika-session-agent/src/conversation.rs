@@ -32,7 +32,7 @@ mod pick;
 
 use self::answer::Answered;
 pub use self::edit::edited;
-pub use self::pick::Pick;
+pub use self::pick::{NOT_A_CONSENT, NOT_READ_AS_CONSENT, Pick};
 
 /// How a question gets its identity from its context.
 pub type Mint<'a> = &'a mut dyn FnMut(&str) -> QuestionId;

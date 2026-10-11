@@ -650,6 +650,28 @@ fn save_and_run_said_in_words_cover_the_candidate_they_designate() {
     assert_eq!(judged.count(), 0, "no second verdict for the bytes shown");
 }
 
+/// A real line written after the proposal is not consent because it is cited as one: the person
+/// asked for an explanation, so an author claiming it authorizes saving and running gets no act,
+/// and the proposal waits for the person's consent.
+#[test]
+fn a_request_for_an_explanation_cited_as_consent_authorizes_nothing() {
+    let journey = run("explanation_cited_as_consent");
+    let said = journey.step(2);
+    assert_ne!(outcome_kind(said), "run_requested", "{said:#}");
+    assert!(work(said)["saved"].is_null(), "nothing saved: {said:#}");
+    assert!(work(said)["requested"].is_null(), "nothing run: {said:#}");
+    let files = journey.report["files"].as_array().unwrap();
+    assert!(
+        files.iter().all(|f| !is_workflow(f.as_str().unwrap())),
+        "{files:?}"
+    );
+    assert_eq!(
+        waiting(said),
+        "consent",
+        "the proposal waits for the person's consent"
+    );
+}
+
 #[test]
 fn save_and_run_words_never_cover_a_candidate_whose_effects_changed() {
     let journey = run("save_and_run_scope_changed");

@@ -192,8 +192,9 @@ impl SessionRuntime {
         // The person's own words authorized the acts for the proposal this turn made: the
         // consent door performs them, by its identity, as for a consent typed at it.
         match self.agent_authorized() {
-            Some((proposal, word)) => self.consent_to(&proposal, word),
-            None => outcome,
+            Ok(Some((proposal, word))) => self.consent_to(&proposal, word),
+            Ok(None) => outcome,
+            Err(why) => with_note(outcome, why),
         }
     }
 
