@@ -6,7 +6,7 @@
 //! under the 100-line fn-length ratchet without growing the loop file
 //! past 1,500.
 
-use nika_kernel::ai::provider::{ContentBlock, InferResponse, Message, Role};
+use nika_kernel::ai::provider::{ContentBlock, InferResponse, Message, Role, StopReason};
 use nika_kernel::runtime::agent::AgentStopReason;
 
 use crate::shape;
@@ -60,6 +60,21 @@ pub(crate) fn budget_weight(usage: &nika_kernel::ai::provider::TokenUsage) -> u6
         .input_tokens
         .saturating_sub(usage.cache_read_tokens.unwrap_or(0))
         .saturating_add(usage.output_tokens)
+}
+
+/// NIKA-AGENT-006: a final message the provider stopped at the output cap is cut, not a
+/// completion (the rule of the `infer` verb's NIKA-INFER-005); a blank one is left to the
+/// final-text path.
+pub(crate) fn refuse_cut_final(response: &InferResponse, text: &str) -> Result<(), VerbAgentError> {
+    if !matches!(response.stop_reason, StopReason::MaxTokens) || text.trim().is_empty() {
+        return Ok(());
+    }
+    Err(VerbAgentError::FinalCut {
+        partial_output: text.to_owned(),
+        stop_reason: (response.finish_reason_raw.clone())
+            .unwrap_or_else(|| "max_tokens".to_owned()),
+        spend: Box::default(), // decorated at the return seam
+    })
 }
 
 /// Stop before another request when the cumulative token budget is met.
@@ -228,4 +243,53 @@ pub(crate) fn classify_explicit_done(
         }
         Err(err) => Err(err),
     }
+}
+
+/// The words a call of a cut message is answered with: it was not run (the message was cut at
+/// the output limit, so its arguments may be incomplete) and is re-issued whole, the rule of the
+/// Session's agent.
+pub(crate) const NOT_RUN_CUT: &str =
+    "not run: your message was cut at the output limit; re-issue the call with complete arguments";
+
+/// `NIKA-INFER-001`, transient: a turn the provider interrupted on its side is never acted on,
+/// neither its text nor its calls.
+pub(crate) fn refuse_interrupted(response: &InferResponse) -> Result<(), VerbAgentError> {
+    if response.stop_reason != StopReason::Interrupted {
+        return Ok(());
+    }
+    Err(VerbAgentError::TurnInterrupted {
+        stop_reason: (response.finish_reason_raw.clone())
+            .unwrap_or_else(|| "interrupted".to_owned()),
+        spend: Box::default(), // decorated at the return seam
+    })
+}
+
+/// The ids of the calls a message cut at the output limit carries, when it carries any: none of
+/// them is dispatched, whatever its arguments look like (the finish field decides, never the
+/// text).
+pub(crate) fn cut_call_ids(response: &InferResponse) -> Option<Vec<String>> {
+    if response.stop_reason != StopReason::MaxTokens {
+        return None;
+    }
+    let ids: Vec<String> = (response.content.iter())
+        .filter_map(|block| match block {
+            ContentBlock::ToolUse { id, .. } => Some(id.clone()),
+            _ => None,
+        })
+        .collect();
+    (!ids.is_empty()).then_some(ids)
+}
+
+/// Feed a cut message back with every call answered [`NOT_RUN_CUT`] under its own id, so the
+/// model re-issues them whole on its next turn.
+pub(crate) fn feed_cut_calls(messages: &mut Vec<Message>, response: InferResponse, ids: &[String]) {
+    messages.push(Message::new(Role::Assistant, response.content));
+    let results = (ids.iter())
+        .map(|id| ContentBlock::ToolResult {
+            tool_use_id: id.clone(),
+            content: NOT_RUN_CUT.to_owned(),
+            is_error: true,
+        })
+        .collect();
+    messages.push(Message::new(Role::User, results));
 }

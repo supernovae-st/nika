@@ -628,3 +628,114 @@ async fn full_weight_prompt_tokens_still_exhaust_the_budget() {
         "the verdict names the count and the cache arithmetic: {rendered}"
     );
 }
+
+/// NIKA-AGENT-006: a final message the provider stopped at the output cap is cut, not a
+/// completion. Its text and the stop reason ride the record's details.
+#[tokio::test]
+async fn a_final_message_cut_at_the_cap_fails_with_its_partial_text() {
+    let mut cut = text_response("The three stories are: first, the");
+    cut.stop_reason = StopReason::MaxTokens;
+    cut.finish_reason_raw = Some("length".to_owned());
+    let r = rig(
+        MockProvider::new("mock").enqueue_response(cut),
+        MockToolExecutor::new(),
+        Vec::new(),
+    );
+    let err = (r.verb.run(AgentInput::new("brief me")).await)
+        .expect_err("a cut final message is not a completion");
+    let VerbAgentError::FinalCut {
+        partial_output,
+        stop_reason,
+        ..
+    } = &err
+    else {
+        panic!("expected FinalCut, got {err:?}");
+    };
+    assert_eq!(partial_output, "The three stories are: first, the");
+    assert_eq!(stop_reason, "length");
+    assert_eq!(err.spec_code(), "NIKA-AGENT-006");
+    assert_eq!(err.nika_code(), nika_error::codes::NIKA_470);
+    assert!(!err.is_transient(), "the same cap cuts again");
+    assert_eq!(
+        VerbAgentError::details_of(&err),
+        Some(serde_json::json!({
+            "partial_output": "The three stories are: first, the",
+            "stop_reason": "length",
+        }))
+    );
+}
+
+/// A message cut at the output limit runs none of its calls, whatever its arguments look like:
+/// each is answered « not run » under its own id and the loop goes on, under the task's limits.
+#[tokio::test]
+async fn a_cut_message_runs_none_of_its_calls_and_asks_to_reissue() {
+    let mut cut = tool_use_response("t1", "nika:write", serde_json::json!({"path": "notes.md"}));
+    cut.stop_reason = StopReason::MaxTokens;
+    cut.finish_reason_raw = Some("length".to_owned());
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(cut)
+            .enqueue_response(text_response("re-issued and done")),
+        MockToolExecutor::new(),
+        vec![def("nika:write")],
+    );
+    let mut input = AgentInput::new("write the notes");
+    input.tools = vec!["nika:write".to_owned()];
+    let out = (r.verb.run(input).await).expect("the loop goes on");
+    assert_eq!(
+        out.output,
+        AgentValue::Text("re-issued and done".to_owned())
+    );
+    assert!(
+        r.tools.captured_calls().is_empty(),
+        "no call of a cut message runs"
+    );
+    let requests = r.provider.captured_requests();
+    // The words themselves (not the constant), so the red probe on the pre-step turn.rs runs.
+    let not_run = "not run: your message was cut at the output limit; re-issue the call with \
+                   complete arguments";
+    let answered = (requests[1].messages.iter())
+        .flat_map(|m| m.content.iter())
+        .any(|block| {
+            matches!(block, ContentBlock::ToolResult { tool_use_id, content, is_error: true }
+                if tool_use_id == "t1" && content == not_run)
+        });
+    assert!(
+        answered,
+        "the call is answered « not run » under its own id"
+    );
+}
+
+/// A turn the provider interrupted on its side is never acted on: it fails as a mid-loop
+/// provider call (NIKA-INFER-001), transient, in the provider's own word, and no call runs.
+#[tokio::test]
+async fn an_interrupted_turn_fails_as_a_transient_provider_call() {
+    let mut interrupted =
+        tool_use_response("t1", "nika:write", serde_json::json!({"path": "notes.md"}));
+    interrupted.stop_reason = StopReason::Interrupted;
+    interrupted.finish_reason_raw = Some("insufficient_system_resource".to_owned());
+    let r = rig(
+        MockProvider::new("mock").enqueue_response(interrupted),
+        MockToolExecutor::new(),
+        vec![def("nika:write")],
+    );
+    let mut input = AgentInput::new("write the notes");
+    input.tools = vec!["nika:write".to_owned()];
+    let err = (r.verb.run(input).await).expect_err("an interrupted turn is not acted on");
+    assert!(
+        matches!(err, VerbAgentError::TurnInterrupted { .. }),
+        "{err:?}"
+    );
+    assert_eq!(err.spec_code(), "NIKA-INFER-001");
+    assert_eq!(err.nika_code(), nika_error::codes::NIKA_463);
+    assert!(err.is_transient(), "the author's retry: decides");
+    assert_eq!(VerbAgentError::details_of(&err), None);
+    assert!(
+        err.to_string().contains("insufficient_system_resource"),
+        "{err}"
+    );
+    assert!(
+        r.tools.captured_calls().is_empty(),
+        "no call of an interrupted turn runs"
+    );
+}

@@ -524,6 +524,11 @@ where
                     turn::feed_done_repair(&mut st.messages, response, &repair);
                     continue;
                 }
+                TurnVerdict::CutCalls(ids) => {
+                    budget.check(st.turns, &st.last_text)?;
+                    turn::feed_cut_calls(&mut st.messages, response, &ids);
+                    continue;
+                }
                 TurnVerdict::ContinueText => {
                     st.last_text.clone_from(&text);
                     budget.check(st.turns, &st.last_text)?;
@@ -1262,6 +1267,8 @@ enum TurnVerdict {
         /// `Completed` (natural) or `ExplicitCompletion` (`nika:done`).
         stop_reason: AgentStopReason,
     },
+    /// Answer every call of a message cut at the output limit « not run » (`turn::feed_cut_calls`).
+    CutCalls(Vec<String>),
     /// Continue: dispatch these (validated, non-sentinel) tool calls.
     Dispatch(Vec<ToolUse>),
     /// Continue: a `nika:done` `result:` missed the task `schema:` and
@@ -1297,6 +1304,12 @@ fn classify_turn(
         })
         .collect();
 
+    turn::refuse_interrupted(response)?;
+    if let Some(ids) = turn::cut_call_ids(response) {
+        turn::token_budget_gate(ctx.input.max_tokens_total, ctx.total_tokens, ctx.last_text)?;
+        return Ok(TurnVerdict::CutCalls(ids));
+    }
+
     // Terminal 1 · a concluded answer is a SUCCESS even if it spent the
     // last token (budgets stop CONTINUING, they don't fail a finished run).
     if tool_uses.is_empty() {
@@ -1304,6 +1317,7 @@ fn classify_turn(
             turn::token_budget_gate(ctx.input.max_tokens_total, ctx.total_tokens, text)?;
             return Ok(TurnVerdict::ContinueText);
         }
+        turn::refuse_cut_final(response, text)?;
         return Ok(final_text_verdict(
             text.to_owned(),
             AgentStopReason::Completed,

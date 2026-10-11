@@ -152,6 +152,12 @@ ONLY inside an agent whitelist (the loop sentinel).
 | NIKA_463 | `Inference` (wraps provider error mid-loop) | NIKA-INFER-001 (shared provider class · #468) | inherited |
 | NIKA_464 | `SchemaValidation` (final message vs schema) | NIKA-INFER-002 (shared schema class · #468) | `false` |
 | NIKA_465 | `InvalidParam` (empty prompt · temp range) | — | `false` |
+| NIKA_470 | `FinalCut { partial_output, stop_reason }` (final message stopped at the output cap) | NIKA-AGENT-006 | `false` |
+
+The agent block 460-469 is full; `FinalCut` takes 470 in the Verb range. An
+agent turn runs under the provider's own output cap (the agent declares no
+per-turn `max_tokens`), so the remedy is a shorter final message or an
+`on_error:` recovery of `details.partial_output`.
 
 ## §5 · Scope fences
 
