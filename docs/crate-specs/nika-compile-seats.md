@@ -197,7 +197,13 @@ as an external consumer.
   calibration), an unweighed answer taken at its word; `Doubt::locates` lets this question's location name a defect only at
   `LOCATING_PROBABILITY` (0.5); `Doubt::stated(records, restated)` words what the parts
   overrule (any whole-request answer but `faithful`, with its probability, and each part a
-  repair attempt met that stands again). `Removal { value, words }`
+  repair attempt met that stands again). The verifier's question texts (`WHOLE`, `CLAUSE`, `PART`,
+  `SUPERSEDED`, `NO_OPERATION`, `RESTRICTING`, `POINT`, `POINT_OMITTED`, `EXTRA`) and
+  `part_question(k, count, text, restricting, base, reference)` live here since 2026-10-11,
+  moved word for word from the verifier at `nika-compile-cognition`'s size cap: a part asked
+  alone (`verify-part-<k>`) offers `carried`, `missing`, `superseded` when a later part follows,
+  `no_operation` in a request of several parts when it restricts nothing, then NONE.
+  `Removal { value, words }`
   (`#[non_exhaustive]`, `new`) is a claim that the person's cited words remove a value a
   proposal they saw bound; `Removal::question(k, stated)` is the closed question whether they do
   (`verify-removed-<k>`: `removed`, `kept`, NONE; amended 2026-10-10). The

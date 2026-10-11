@@ -3387,15 +3387,25 @@ impl<T> nika_error::traits::AsAny for nika_compile_seats::judge::Removal where T
 pub fn nika_compile_seats::judge::Removal::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_seats::judge::Removal
 pub type nika_compile_seats::judge::Removal::Output = T
+pub const nika_compile_seats::judge::CLAUSE: &str
 pub const nika_compile_seats::judge::CREATED: &str
+pub const nika_compile_seats::judge::EXTRA: &str
+pub const nika_compile_seats::judge::NO_OPERATION: &str
+pub const nika_compile_seats::judge::PART: &str
+pub const nika_compile_seats::judge::POINT: &str
+pub const nika_compile_seats::judge::POINT_OMITTED: &str
+pub const nika_compile_seats::judge::RESTRICTING: &str
 pub const nika_compile_seats::judge::REVISED: &str
 pub const nika_compile_seats::judge::REVISED_APPENDED: &str
 pub const nika_compile_seats::judge::REVISED_DOCUMENT: &str
 pub const nika_compile_seats::judge::REVISED_OVER_DOCUMENT: &str
+pub const nika_compile_seats::judge::SUPERSEDED: &str
+pub const nika_compile_seats::judge::WHOLE: &str
 pub fn nika_compile_seats::judge::authoring(base: &mut serde_json::value::Value, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::judge::judged_state(intent: &str, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome, candidate: &str) -> serde_json::value::Value
 pub fn nika_compile_seats::judge::lent(catalog: core::option::Option<&dyn nika_compile_seats::foundry::component::ComponentCatalog>, out: &mut nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::judge::over_document(base: &mut serde_json::value::Value, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome)
+pub fn nika_compile_seats::judge::part_question(k: usize, count: usize, text: &str, restricting: bool, base: &serde_json::value::Value, reference: &str) -> nika_compile_seats::decide::ChoiceQuestion
 pub fn nika_compile_seats::judge::state(intent: &str, request: &nika_compile::types::CompileRequest, candidate: &str) -> serde_json::value::Value
 pub fn nika_compile_seats::judge::told(state: &serde_json::value::Value, reference: &str, text: &str) -> alloc::string::String
 pub mod nika_compile_seats::objects

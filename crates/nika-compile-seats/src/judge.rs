@@ -18,11 +18,16 @@ use serde_json::{Value, json};
 use crate::foundry::ComponentCatalog;
 use crate::foundry::witness::witness;
 
+mod clause;
 mod construction;
 mod doubt;
 mod effects;
 mod framing;
 mod removal;
+pub use clause::{
+    CLAUSE, EXTRA, NO_OPERATION, PART, POINT, POINT_OMITTED, RESTRICTING, SUPERSEDED, WHOLE,
+    part_question,
+};
 pub use construction::{Construction, Construed};
 pub use doubt::{Doubt, Located};
 pub use effects::Effects;
