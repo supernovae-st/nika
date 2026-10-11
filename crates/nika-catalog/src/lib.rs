@@ -45,6 +45,9 @@ pub mod error;
 #[cfg(all(feature = "serde", feature = "providers", feature = "capabilities"))]
 pub mod export;
 pub mod lookup;
+// A model's output facts: its recorded limit and what an authoring seat reads of it.
+#[cfg(all(feature = "providers", feature = "capabilities"))]
+mod output;
 pub mod suggest;
 pub mod types;
 pub mod validate;
@@ -77,6 +80,10 @@ pub use lookup::{
 };
 #[cfg(feature = "mcp")]
 pub use lookup::{find_mcp_server, is_known_mcp_server, resolve_mcp_name};
+#[cfg(all(feature = "serde", feature = "providers", feature = "capabilities"))]
+pub use output::output_caps;
+#[cfg(all(feature = "providers", feature = "capabilities"))]
+pub use output::{generated_cap, model_output_limit};
 
 // ── Iteration helpers ───────────────────────────────────────────────────
 
