@@ -284,7 +284,7 @@ pub(crate) struct ActivityWire {
 }
 
 /// One tool the conversation's intelligence called, as its run observed it: never its
-/// arguments or reply.
+/// arguments, and of its reply only why it failed (bounded, the secret shapes redacted).
 #[derive(Clone, Debug, PartialEq, Serialize)]
 struct ToolWire {
     call: String,
@@ -296,6 +296,8 @@ struct ToolWire {
     at_ms: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     reply_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reply: Option<String>,
 }
 
 /// A physical compiler call an activity reported; `model` is the requested one. When it left,
@@ -354,6 +356,7 @@ impl ActivityWire {
             elapsed_ms: tool.elapsed_ms,
             at_ms: tool.at_ms,
             reply_bytes: tool.reply_bytes,
+            reply: tool.reply.clone(),
         });
         Self {
             phase,

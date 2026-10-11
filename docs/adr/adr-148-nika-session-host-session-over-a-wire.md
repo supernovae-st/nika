@@ -117,6 +117,11 @@ The owners that would naturally host this adapter stand at the 15,000 prod-LOC w
     its own line from another's, which a native client has nothing else to go by for (a door
     without an op refuses that op this way). A line naming none, or an invalid one, is refused
     naming none.
+11. **A failed tool step says why** (amended 2026-10-11). The activity of a tool step that
+    failed carries the tool's reply as a host may show it (`tool.reply`): the obvious secret
+    shapes redacted first (the context broker's own filter), on one line, at most 512 bytes. A
+    step that started or finished carries none, and no step carries a call's arguments: a host,
+    the TUI or an evaluator reads why a call failed without the conversation's state.
 
 ## Consequences
 

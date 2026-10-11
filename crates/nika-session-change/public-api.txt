@@ -1693,6 +1693,7 @@ pub nika_session_change::tools::ToolReply::text: alloc::string::String
 impl nika_session_change::tools::ToolReply
 pub fn nika_session_change::tools::ToolReply::ends_turn(text: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_session_change::tools::ToolReply::error(text: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_session_change::tools::ToolReply::excerpt(&self) -> alloc::string::String
 pub fn nika_session_change::tools::ToolReply::ok(text: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_session_change::tools::ToolReply
 pub fn nika_session_change::tools::ToolReply::clone(&self) -> nika_session_change::tools::ToolReply
@@ -1747,6 +1748,7 @@ impl<T> typenum::type_operators::Same for nika_session_change::tools::ToolReply
 pub type nika_session_change::tools::ToolReply::Output = T
 pub const nika_session_change::tools::CONTRACT: &str
 pub const nika_session_change::tools::NAMES: [&str; 17]
+pub const nika_session_change::tools::REPLY_EXCERPT_BYTES: usize
 pub trait nika_session_change::tools::SessionTools: core::marker::Send + core::marker::Sync
 pub fn nika_session_change::tools::SessionTools::call(&self, call: nika_session_change::tools::ToolCall) -> nika_session_change::tools::ToolReply
 pub fn nika_session_change::tools::SessionTools::tools(&self) -> alloc::vec::Vec<nika_session_change::tools::ToolDef>

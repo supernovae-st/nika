@@ -614,6 +614,7 @@ pub nika_session_agent::observe::ToolStep::at_ms: u64
 pub nika_session_agent::observe::ToolStep::call: alloc::string::String
 pub nika_session_agent::observe::ToolStep::elapsed_ms: core::option::Option<u64>
 pub nika_session_agent::observe::ToolStep::name: alloc::string::String
+pub nika_session_agent::observe::ToolStep::reply: core::option::Option<alloc::string::String>
 pub nika_session_agent::observe::ToolStep::reply_bytes: core::option::Option<u64>
 pub nika_session_agent::observe::ToolStep::state: nika_session_agent::observe::StepState
 impl core::clone::Clone for nika_session_agent::observe::ToolStep
@@ -2766,6 +2767,7 @@ pub nika_session_agent::ToolStep::at_ms: u64
 pub nika_session_agent::ToolStep::call: alloc::string::String
 pub nika_session_agent::ToolStep::elapsed_ms: core::option::Option<u64>
 pub nika_session_agent::ToolStep::name: alloc::string::String
+pub nika_session_agent::ToolStep::reply: core::option::Option<alloc::string::String>
 pub nika_session_agent::ToolStep::reply_bytes: core::option::Option<u64>
 pub nika_session_agent::ToolStep::state: nika_session_agent::observe::StepState
 impl core::clone::Clone for nika_session_agent::observe::ToolStep

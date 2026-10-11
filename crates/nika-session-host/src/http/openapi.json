@@ -165,12 +165,13 @@
       "SessionTool": {
         "type": "object",
         "required": ["call", "name", "state"],
-        "description": "One tool the conversation's intelligence called, as its run observed it — never its arguments or reply: the call's identity, the tool, `started`, `finished` or `failed`, and the milliseconds it took once it answered.",
+        "description": "One tool the conversation's intelligence called, as its run observed it — never its arguments: the call's identity, the tool, `started`, `finished` or `failed`, the milliseconds it took once it answered, and once it failed why (`reply`).",
         "properties": {
           "call": {"type": "string"},
           "name": {"type": "string"},
           "state": {"enum": ["started", "finished", "failed"]},
-          "elapsed_ms": {"type": "integer", "minimum": 0}
+          "elapsed_ms": {"type": "integer", "minimum": 0},
+          "reply": {"type": "string", "maxLength": 512, "description": "failed only: the tool's reply as a host may show it, its obvious secret shapes redacted first (API keys, private key blocks, password, token and secret values), on one line, at most 512 bytes and cut marked …"}
         }
       },
       "SessionOutcome": {

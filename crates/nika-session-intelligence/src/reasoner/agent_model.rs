@@ -271,7 +271,8 @@ pub fn model_facts(
 }
 
 /// The sink a turn's tool steps go to: each real step as the Session's typed activity, its
-/// call, its tool, where it is and the time it took (never its arguments or reply).
+/// call, its tool, where it is, the time it took and, once it failed, why (its reply's excerpt;
+/// never its arguments, never a reply that did not fail).
 #[must_use]
 pub fn tool_steps(hook: nika_onboard::activity::ActivityHook) -> nika_session_agent::StepSink {
     use nika_onboard::activity::{ToolState, tool_activity};
@@ -283,7 +284,10 @@ pub fn tool_steps(hook: nika_onboard::activity::ActivityHook) -> nika_session_ag
             _ => ToolState::Failed,
         };
         let mut activity = tool_activity(&step.call, &step.name, state, step.elapsed_ms);
-        activity.tool = (activity.tool).map(|mark| mark.timed(step.at_ms, step.reply_bytes));
+        activity.tool = (activity.tool).map(|mark| {
+            mark.timed(step.at_ms, step.reply_bytes)
+                .with_reply(step.reply.clone())
+        });
         hook(&activity);
     })
 }

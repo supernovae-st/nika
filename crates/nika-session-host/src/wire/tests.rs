@@ -325,3 +325,23 @@ fn a_call_and_a_tool_name_their_time_and_size_only_when_known() {
         .collect();
     assert_eq!(keys, ["model", "ordinal", "role", "state"]);
 }
+
+/// A failed tool step names why on the wire (`reply`, the excerpt its run reported); a step
+/// that did not fail carries none, as both doors write the same frame.
+#[test]
+fn a_failed_tool_step_names_why_on_the_wire() {
+    let failed =
+        nika_session::activity::tool_activity("toolu_c", "compose", ToolState::Failed, Some(9));
+    let why = Some("no block serves `feeds`: the key [redacted] expired".to_owned());
+    let mut told = failed.clone();
+    told.tool = (told.tool).map(|mark| mark.with_reply(why));
+    let expected = serde_json::json!({
+        "phase": "authoring", "note": "compose failed · 9 ms", "done": true,
+        "tool": {"call": "toolu_c", "name": "compose", "state": "failed", "elapsed_ms": 9,
+            "reply": "no block serves `feeds`: the key [redacted] expired"}
+    });
+    let shown = serde_json::to_value(ActivityWire::of(&told)).expect("activity");
+    assert_eq!(shown, expected);
+    let silent = serde_json::to_value(ActivityWire::of(&failed)).expect("activity");
+    assert!(silent["tool"].get("reply").is_none());
+}

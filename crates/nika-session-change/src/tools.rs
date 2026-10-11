@@ -145,7 +145,31 @@ impl ToolReply {
             ends_turn,
         }
     }
+
+    /// The reply as a host may show it, to say why a call failed: the obvious secret shapes
+    /// redacted first (the context broker's own filter), on one line, at most
+    /// [`REPLY_EXCERPT_BYTES`] bytes, cut at a character boundary and marked `…`.
+    #[must_use]
+    pub fn excerpt(&self) -> String {
+        let (redacted, _kinds) = nika_cli_host::context_redaction::redact(&self.text);
+        let spaced: String = redacted
+            .chars()
+            .map(|c| if c.is_control() { ' ' } else { c })
+            .collect();
+        let line = spaced.split_whitespace().collect::<Vec<_>>().join(" ");
+        if line.len() <= REPLY_EXCERPT_BYTES {
+            return line;
+        }
+        let mut end = REPLY_EXCERPT_BYTES - '…'.len_utf8();
+        while !line.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}…", &line[..end])
+    }
 }
+
+/// The most bytes of a failed reply a host is shown ([`ToolReply::excerpt`]).
+pub const REPLY_EXCERPT_BYTES: usize = 512;
 
 /// The tools one session serves. A loop or a transport lists them and hands each call over,
 /// on its own thread: [`SessionTools::call`] may block for as long as the tool runs, and the
@@ -195,6 +219,25 @@ mod tests {
             assert_eq!((reply.is_error, reply.ends_turn), (is_error, ends_turn));
         }
         assert_eq!(ToolReply::ends_turn("asked").text, "asked");
+    }
+
+    /// A failed reply reaches a host as an excerpt: its secret shapes redacted before anything
+    /// is cut, on one line, within the bound and at a character boundary.
+    #[test]
+    fn a_failed_reply_is_shown_redacted_on_one_line_within_its_bound() {
+        let text = "compose refused\nblock `feeds` needs key sk-live-ABCDEFGH12345678 here\n\
+                    token=hunter2 trailing";
+        let shown = ToolReply::error(text).excerpt();
+        assert!(
+            shown == "compose refused block `feeds` needs key [redacted] here token=[redacted]",
+            "the reply is shown redacted, on one line"
+        );
+        assert!(!shown.contains("ABCDEFGH12345678") && !shown.contains("hunter2"));
+        let long = ToolReply::error("é".repeat(400)).excerpt();
+        assert!(long.len() <= REPLY_EXCERPT_BYTES && long.ends_with('…'));
+        assert_eq!(long.trim_end_matches('…'), "é".repeat(254));
+        let short = ToolReply::error("no block\tnamed `feeds`\u{1b}[0m").excerpt();
+        assert_eq!(short, "no block named `feeds` [0m");
     }
 
     /// A session tree journals calls and replies: the wire names are the field names, and a

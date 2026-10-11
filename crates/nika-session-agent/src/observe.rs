@@ -3,9 +3,10 @@
 
 //! The Session's tools as both loops reach them — Nika's loop calls them, an ACP agent's relay
 //! wraps them — each real call reported as steps to the turn's sink: started, then finished or
-//! failed with the time it took. A step names the call and the tool, never its arguments or its
-//! reply, so what a host shows of an agent's work carries no file content or secret. Between
-//! turns no sink watches, and nothing is reported.
+//! failed with the time it took. A step names the call and the tool, never its arguments; of its
+//! reply only a failed call's excerpt ([`ToolReply::excerpt`]: bounded, on one line, its secret
+//! shapes redacted), so a host can say why a call failed and still shows no file content or
+//! secret. Between turns no sink watches, and nothing is reported.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -41,6 +42,8 @@ pub struct ToolStep {
     pub at_ms: u64,
     /// The size of its reply in bytes, once it answered (never the reply).
     pub reply_bytes: Option<u64>,
+    /// Why it failed, as a host may show it ([`ToolReply::excerpt`]); `None` unless it failed.
+    pub reply: Option<String>,
 }
 
 /// Where a turn's steps go.
@@ -88,25 +91,26 @@ impl SessionTools for Observed {
             format!("step-{n}")
         });
         let at_ms = crate::tree::unix_ms(SystemTime::now());
-        let step = |state, elapsed_ms, reply_bytes| ToolStep {
+        let step = |state, elapsed_ms, reply_bytes, why| ToolStep {
             call: id.clone(),
             name: call.name.clone(),
             state,
             elapsed_ms,
             at_ms,
             reply_bytes,
+            reply: why,
         };
-        sink(&step(StepState::Started, None, None));
+        sink(&step(StepState::Started, None, None, None));
         let started = Instant::now();
         let reply = self.tools.call(call.clone());
         let elapsed = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
-        let state = if reply.is_error {
-            StepState::Failed
+        let (state, why) = if reply.is_error {
+            (StepState::Failed, Some(reply.excerpt()))
         } else {
-            StepState::Finished
+            (StepState::Finished, None)
         };
         let size = u64::try_from(reply.text.len()).unwrap_or(u64::MAX);
-        sink(&step(state, Some(elapsed), Some(size)));
+        sink(&step(state, Some(elapsed), Some(size), why));
         reply
     }
 }
