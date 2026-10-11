@@ -823,6 +823,19 @@ mod tests {
         assert_eq!(body["stream"], true);
     }
 
+    /// The catalog's reasoning facts for Claude on this API are this wire's behavior: no
+    /// thinking block unless a task's budget asks, so the model does not reason by default.
+    #[test]
+    fn catalog_reasoning_facts_match_this_wire() {
+        use nika_catalog::types::model::ThinkingOff;
+        let model = "claude-sonnet-4-5-20250929";
+        let facts = nika_catalog::model_capabilities("anthropic", model).reasoning_facts;
+        assert_eq!(facts.reasons_by_default, Some(false));
+        assert_eq!(facts.thinking_off, Some(ThinkingOff::ByDefault));
+        let plain = body_of(model, &req(vec![Message::text(Role::User, "x")]), false);
+        assert!(plain.expect("body").get("thinking").is_none());
+    }
+
     #[test]
     fn tool_round_trip_blocks_shape() {
         let messages = vec![

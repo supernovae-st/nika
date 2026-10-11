@@ -986,3 +986,20 @@ fn deepseek_stream_reasoning_maps_to_thinking_before_the_answer() {
         "{out:?}"
     );
 }
+
+/// The catalog's reasoning facts for `DeepSeek`'s direct route are this wire's behavior: a plain
+/// call leaves the model its own (thinking) default, and no `.nika` control reaches the off
+/// switch the provider documents (`thinking: {type: disabled}`): a budget is never written.
+#[test]
+fn deepseek_catalog_reasoning_facts_match_this_wire() {
+    use nika_catalog::types::model::ThinkingOff;
+    let mut budget = req(vec![Message::text(Role::User, "x")]);
+    budget.thinking_budget = Some(0);
+    for model in ["deepseek-flash", "deepseek-v4-pro"] {
+        let facts = nika_catalog::model_capabilities("deepseek", model).reasoning_facts;
+        assert_eq!(facts.reasons_by_default, Some(true), "{model}");
+        assert_eq!(facts.thinking_off, Some(ThinkingOff::NotReached), "{model}");
+        let body = body_of(model, &budget, false, true, "deepseek").expect("body");
+        assert!(body.get("thinking").is_none(), "{model}: {body}");
+    }
+}
