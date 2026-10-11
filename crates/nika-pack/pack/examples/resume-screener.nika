@@ -115,6 +115,7 @@ tasks:
     on_error:
       recover: null
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 1200                 # a rubric row, not an essay
       prompt: |
         Role · ${{ const.role }}
@@ -168,6 +169,7 @@ tasks:
       shortlist: ${{ tasks.shortlist.output }}
     when: ${{ size(with.shortlist) > 0 }}   # nobody cleared the bar · spend nothing
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 2000
       prompt: |
         Write the screening brief for these shortlisted candidates ·

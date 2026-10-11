@@ -41,6 +41,7 @@ tasks:
   brief:
     infer:
       prompt: "Write a two-sentence brief on · ${{ inputs.topic }}"
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 512
 
 outputs:

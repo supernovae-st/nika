@@ -49,6 +49,7 @@ permits:                            # the blast radius · default-deny once pres
 tasks:
   brief:
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 600
       # SLOT: the creative direction · style · constraints. Keep slot markers
       # out of the block below — it is prompt TEXT, not YAML, so a stray

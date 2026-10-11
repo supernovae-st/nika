@@ -63,6 +63,7 @@ tasks:
         Extract facts only. Never write a level or a belt.
         stem=${{ item.stem }}
         ${{ item.text }}
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 256
       schema:
         type: object

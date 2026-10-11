@@ -52,6 +52,7 @@ tasks:
       n: ${{ index }}       # its 0-based position
     infer:
       prompt: "Translate to locale '${{ with.locale }}' (#${{ with.n }}) · ${{ const.source }}"
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 256
 
   collect:
@@ -61,6 +62,7 @@ tasks:
       translations: ${{ tasks.translate.output }}
     infer:
       prompt: "Combine these translations into a localization table · ${{ with.translations }}"
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 1024
 
 # Both the array and the table, so the ordering guarantee is visible · read

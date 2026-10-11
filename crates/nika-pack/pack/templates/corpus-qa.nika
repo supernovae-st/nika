@@ -94,6 +94,7 @@ tasks:
       hits: ${{ tasks.retrieve.output }}
     when: ${{ size(with.hits) > 0 }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 500                # SLOT: answer spend ceiling
       prompt: |
         Answer from these passages only and cite their ids.

@@ -70,6 +70,7 @@ tasks:
     infer:
       prompt: 'Review clarity and missing explanations. Document: ${{ const.document
         }}'
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 2048
       schema:
         type: object
@@ -93,6 +94,7 @@ tasks:
     infer:
       prompt: 'Review unsupported claims and internal contradictions. Document: ${{
         const.document }}'
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 2048
       schema:
         type: object

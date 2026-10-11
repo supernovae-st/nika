@@ -58,6 +58,7 @@ tasks:
     with:
       crawl_site: ${{ tasks.crawl_site.output }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 1200
       # SLOT: the one model job · what should the brief capture? Keep slot
       # markers out of the block below — it is prompt TEXT, not YAML, so a

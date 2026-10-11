@@ -62,6 +62,7 @@ tasks:
     with:
       gather: ${{ tasks.gather.output }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 800               # SLOT: the spend ceiling · sized for the SEAT, not the answer
       # The marker below is a VALUE, not a comment. The parser drops
       # comments, so a `# SLOT:` line could never make `check` refuse —

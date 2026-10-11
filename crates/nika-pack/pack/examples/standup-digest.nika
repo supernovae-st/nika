@@ -53,6 +53,7 @@ tasks:
       today: ${{ tasks.today.output }}
       history: ${{ tasks.history.output }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 400          # a standup note is short · the ceiling says so
       prompt: |
         Date · ${{ with.today }}

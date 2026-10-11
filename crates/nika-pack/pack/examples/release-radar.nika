@@ -144,6 +144,7 @@ tasks:
       entries: ${{ tasks.feed.entries }}
     when: ${{ with.go == true && size(with.fresh) > 0 }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 500
       prompt: |
         New releases appeared on our dependency radar (RFC 6902 patch

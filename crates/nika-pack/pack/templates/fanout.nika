@@ -121,6 +121,7 @@ tasks:
     on_error:
       recover: null                 # a failed item yields null at its index · the batch lives
     infer:                          # SLOT: the per-item job (any verb)
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 2000              # SLOT: the per-ITEM ceiling · think + answer · multiply by the fan width
       # The marker below is a VALUE, not a comment. The parser drops
       # comments, so a `# SLOT:` line could never make `check` refuse —
@@ -168,6 +169,7 @@ tasks:
     with:
       survivors: ${{ tasks.survivors.output }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 3000              # SLOT: the fan-in ceiling · think + answer
       # SLOT: the fan-in · the survivors array (failed items filtered). Keep
       # slot markers out of the block below — it is prompt TEXT, not YAML.

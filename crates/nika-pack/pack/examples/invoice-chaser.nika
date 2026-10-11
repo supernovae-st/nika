@@ -68,6 +68,7 @@ tasks:
       overdue: ${{ tasks.overdue.output }}
     when: ${{ size(with.overdue) > 0 }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 900       # a ceiling makes the cost report a number, not UNBOUNDED
       prompt: |
         Draft one short, polite payment reminder email per overdue invoice ·

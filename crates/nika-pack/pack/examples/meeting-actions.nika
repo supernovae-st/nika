@@ -52,6 +52,7 @@ tasks:
     with:
       transcript: ${{ tasks.transcript.output }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 3000                 # think block + the actions JSON · a ceiling makes the cost report a number, not UNBOUNDED
       prompt: |
         Extract every action item from this meeting transcript ·

@@ -539,7 +539,8 @@ vision (base64 image parts · never a public URL) · structured output.
 - **Reasoning spends tokens** · `kimi-k3` reasons before it answers and the
   reasoning draws from the SAME `max_tokens` budget · a tight `max_tokens: 64`
   can return an EMPTY completion (the whole budget went to thinking). Give it
-  room · 512 is the practical floor for a real answer.
+  room · 16,384 for a full answer, or a low `run.reasoning.effort` the route
+  documents (`NIKA-INFER-004` names the empty answer).
 - **Temperature is server-fixed at 1.0** for `kimi-k3` · a workflow
   `temperature:` is accepted but the k3 seat overrides it server-side (the
   engine does not fight the server) · the non-thinking Kimi seats honor it.

@@ -73,6 +73,7 @@ tasks:
     with:
       queue: ${{ tasks.queue.output }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 4000                 # think block + the whole queue in one call · a ceiling, not UNBOUNDED
       prompt: |
         Triage every ticket in this queue ·

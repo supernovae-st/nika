@@ -199,6 +199,7 @@ tasks:
       revenue: ${{ tasks.revenue.output }}
     when: ${{ with.go == true }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 1200               # the cost report becomes a ceiling, not UNBOUNDED
       prompt: |
         Market signal · ${{ with.news }}

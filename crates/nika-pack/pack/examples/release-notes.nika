@@ -115,6 +115,7 @@ tasks:
       history: ${{ tasks.history.output }}
     when: ${{ with.history != null && size(with.history) > 0 }}  # a refused gate skips history (null) · an empty log has nothing to draft either
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 3000                 # think block + the notes JSON
       prompt: |
         Write release notes from these commits ·

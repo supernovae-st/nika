@@ -210,6 +210,7 @@ tasks:
       todo_sweep: ${{ tasks.todo_sweep.output }}
     when: ${{ with.todo_sweep != null && size(with.todo_sweep) > 0 }}  # skipped (null) or an empty sweep · no page to write
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 2500                 # a review page · not the whole diff back
       prompt: |
         Changed files, or the notice that the diff was unavailable ·

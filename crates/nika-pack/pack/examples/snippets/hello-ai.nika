@@ -24,6 +24,7 @@ tasks:
   greet:
     infer:
       prompt: "Say hello in one sentence."
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 1024   # the house seat THINKS first — think block + answer both count (measured on this prompt shape: 64 returns EMPTY)
 
 outputs:

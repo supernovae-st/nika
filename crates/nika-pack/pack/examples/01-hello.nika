@@ -48,6 +48,7 @@ tasks:
       # A short greeting on the small non-reasoning seat does not need a
       # thinking budget. If you later choose a reasoning model, raise this
       # cap to cover its thinking as well as its visible answer.
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 128
 
 # The return value. It does NOT appear on the live run — that surface shows
