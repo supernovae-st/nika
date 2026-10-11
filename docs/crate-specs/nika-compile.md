@@ -686,6 +686,35 @@ observation remains unjudged. Computed-only or otherwise unrecognized reads
 produce no recorded basis, never a claim that all reads hold. This bounded
 slice does not prove complete jq coverage or business correctness.
 
+## The documented low effort (added 2026-10-11)
+
+A draft read whole runs at its seat's documented low effort. `seat_cap::lowered` holds when
+all of these do:
+
+- the reader admits the request whole under the strict HOT contract (an effort said in a
+  clause of its own is left unread);
+- no constraint sits beside its work;
+- every model step of the plan is a typed Draft (`budget::drafts_only`);
+- the seat's exact catalog row records reasoning and documents a `low` effort (`output_caps`,
+  read from `nika-catalog` like the generated cap since the same day's descent at the 15k
+  wall; the room stays `REASONING_MAX_TOKENS`).
+
+The assembler then declares `run.reasoning.effort: low` on the document it emits. For a
+creation, the native door writes it into the candidate's own text
+(`budget::declared_low_effort`, kept only when the literal projection reads exactly that
+addition), unless the candidate declares `run.reasoning` or `run.access`; a revision keeps its
+base's `run:` block. Either way an Applied finding on `run.reasoning.effort` carries
+`LOW_EFFORT_DECLARED`, so the proposal says it and the person can ask for more. The intent is
+read with its typographic apostrophes folded, as the HOT door reads it.
+
+Two limitations are stated, not solved:
+
+- words a draft's object carries (« Résume le texte fourni en réfléchissant longuement »)
+  reach its prompt, not this law, so the low effort is declared beside them;
+- the level reaches only the exact direct route. A run behind an operator's base-URL override
+  refuses every request that carries it, with nothing sent (`nika-providers`
+  `wire/reasoning`).
+
 ## Door cognition, knowledge and reproducibility
 
 `provenance.cognition` names the cognition an outcome used. `deterministicOnly`

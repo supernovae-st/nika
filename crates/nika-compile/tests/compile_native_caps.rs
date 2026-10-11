@@ -7,10 +7,14 @@
 //! surfaced as the check's `reasoning-cap` guidance, and a cap the catalog knows the seat
 //! cannot serve is refused with its repair. These keyless answer rounds hold an admitted finish
 //! for its round's judge (R4 A11, step 2).
+//! A request the reader admits whole as drafts gets the seat's documented low effort declared in
+//! the candidate's own text (2026-10-11).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
+use nika_compile::surface::literal_projection;
 use nika_compile::{
     CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, compile, intent_sha256,
 };
+use nika_compile_fidelity::fidelity::budget::LOW_EFFORT_DECLARED;
 use serde_json::json;
 
 mod common;
@@ -20,6 +24,8 @@ const DEFAULT: &str = "Résume notes.md en trois lignes dans digest.md.";
 const NAMED_700: &str = "Résume notes.md en trois lignes dans digest.md, avec max_tokens 700.";
 const NAMED_4000: &str = "Résume notes.md en trois lignes dans digest.md, avec max_tokens 4000.";
 const FLASH: &str = "deepseek/deepseek-flash";
+/// Drafts the reader admits whole (HOT under the strict contract).
+const WHOLE: &str = "Résume ./notes/brief.md en 3 puces dans ./out/resume.md";
 
 /// The seat's summary candidate: the length lives in the prompt, the ceiling in `max_tokens`.
 fn candidate(cap: u64) -> String {
@@ -158,5 +164,54 @@ fn an_unknown_seat_or_the_mock_gets_no_claim_and_keeps_every_cap() {
         );
         assert!(refusals(&out).is_empty(), "{model}: {:?}", refusals(&out));
         assert!(!guided(&out), "{model}: no reasoning claim without a row");
+    }
+}
+
+/// A candidate for [`WHOLE`], its cap stated, with the `run:` block given before its tasks.
+fn brief(run: &str) -> String {
+    candidate(16_384)
+        .replace("./notes.md", "./notes/brief.md")
+        .replace("./digest.md", "./out/resume.md")
+        .replace("in three lines", "in 3 bullets")
+        .replacen("\ntasks:", &format!("\n{run}tasks:"), 1)
+}
+
+/// What the proposal says of an effort the door declared.
+fn declared(out: &CompileOutcome) -> Vec<&str> {
+    out.diagnostics
+        .iter()
+        .filter(|d| d.kind == DiagnosticKind::Applied && d.target == "run.reasoning.effort")
+        .map(|d| d.message.as_str())
+        .collect()
+}
+
+/// Drafts read whole, seated on a model whose row documents `low`, get it declared in the
+/// candidate's own text (atop a `run:` block it has) and said in the proposal, two properties
+/// judged apart: the candidate means the seated source plus the declaration (AST equivalence),
+/// and every other byte is the seated source's (source preservation). An effort or a route the
+/// candidate declares stays, and the summaries above, which the reader does not admit whole,
+/// keep their bytes.
+#[test]
+fn drafts_read_whole_get_the_documented_low_effort_in_their_own_text() {
+    let low = "  reasoning:\n    effort: low\n";
+    let clock = "run:\n  clock: virtual\n";
+    let seat = |source: String| source.replacen("mock/echo", FLASH, 1);
+    for (run, inserted) in [("", format!("run:\n{low}")), (clock, low.to_owned())] {
+        let out = replayed(WHOLE, &brief(run), FLASH);
+        let seated = seat(brief(run));
+        let candidate = out.candidate.clone().unwrap_or_default();
+        let mut meant = literal_projection(&seated).expect("the seated source");
+        meant["run"]["reasoning"] = json!({"effort": "low"});
+        let read = literal_projection(&candidate);
+        assert_eq!(read, Some(meant), "AST: only the declaration ({run})");
+        let kept = candidate.replacen(&inserted, "", 1);
+        assert_eq!(kept, seated, "source: every other byte ({run})");
+        assert_eq!(declared(&out), [LOW_EFFORT_DECLARED], "{run}");
+    }
+    let high = "run:\n  reasoning:\n    effort: high\n";
+    for run in [high, "run:\n  access:\n    via: deepseek\n"] {
+        let out = replayed(WHOLE, &brief(run), FLASH);
+        assert_eq!(out.candidate, Some(seat(brief(run))), "{run}");
+        assert!(declared(&out).is_empty(), "{run}: {:?}", out.diagnostics);
     }
 }

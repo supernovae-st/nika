@@ -11,7 +11,11 @@
 
 use serde_json::{Value, json};
 
-use crate::{CompileOutcome, DiagnosticKind};
+use crate::plan::Plan;
+use crate::{CompileOutcome, DiagnosticKind, HotPolicy};
+/// What a declared low effort tells the person, under the proposal.
+pub(crate) use nika_compile_fidelity::fidelity::budget::LOW_EFFORT_DECLARED as LOW_EFFORT;
+use nika_compile_fidelity::fidelity::budget::{self, ReasoningFacts};
 
 /// The generated cap on a seat the catalog records as reasoning: room for a thinking trace
 /// before the visible answer. 1200 was measured too small (openai/gpt-5-mini · `NIKA-INFER-002
@@ -51,6 +55,40 @@ pub fn output_caps(model: &str) -> Option<Value> {
         name,
         REASONING_MAX_TOKENS,
     ))
+}
+
+/// Whether a workflow on `seat` gets the documented low effort (2026-10-11): a request the
+/// reader admits whole under the strict contract (an effort said in a clause of its own is left
+/// unread) with no constraint beside its work, whose plan's model steps are typed drafts
+/// ([`budget::drafts_only`]), on a seat whose exact row lists `low`.
+pub(crate) fn lowered(seat: Option<&str>, intent: &str, plan: &Plan) -> bool {
+    let intent = &crate::lexicon::fold_apostrophes(intent);
+    let reading = crate::lexicon::read(intent);
+    let whole = crate::doors::admit_hot(intent, &reading, HotPolicy::Strict).is_ok();
+    let facts = seat
+        .and_then(output_caps)
+        .map(|caps| ReasoningFacts::of_caps(&caps));
+    whole
+        && reading.plan.constraints.is_empty()
+        && budget::drafts_only(plan)
+        && facts.is_some_and(|f| f.reasons_by_default && f.low_effort)
+}
+
+/// [`lowered`] on a native candidate for a creation's words `intent`, declared in its own text
+/// ([`budget::declared_low_effort`]) unless it declares `run.reasoning` (the person's or the
+/// author's) or `run.access` (a route the level may not reach); kept only when the parser reads
+/// exactly that addition.
+pub(crate) fn low_effort(source: &str, intent: &str) -> Option<String> {
+    let before = crate::edit::literal_projection(source)?;
+    let plan = crate::lexicon::read(intent).plan;
+    let chosen = !before["run"]["reasoning"].is_null() || !before["run"]["access"].is_null();
+    if chosen || !lowered(before["model"].as_str(), intent, &plan) {
+        return None;
+    }
+    let mut after = before.clone();
+    after["run"]["reasoning"] = json!({"effort": "low"});
+    let edited = budget::declared_low_effort(source)?;
+    (crate::edit::literal_projection(&edited)? == after).then_some(edited)
 }
 
 /// The model-neutral cap the compiler generates for a language task that states none: room for
@@ -200,5 +238,71 @@ mod tests {
             json!("Say hi in three lines")
         );
         assert_eq!(fill_defaults(&filled), None, "nothing is missing any more");
+    }
+
+    /// Drafts the reader admits whole, on a seat documenting `low`, get it declared in the
+    /// candidate's own text, atop a `run:` block it has. A declared effort or route, a constraint
+    /// beside the work, a stated effort the reader cannot read, other work, or a seat that
+    /// documents no `low` declares nothing.
+    #[test]
+    fn the_documented_low_effort_is_declared_only_for_drafts_read_whole() {
+        let whole = "Résume ./notes/brief.md en 3 puces dans ./out/resume.md";
+        let source = "nika: digest\nmodel: deepseek/deepseek-flash\ntasks:\n  draft:\n    infer:\n      prompt: \"Summarize\"\n      max_tokens: 16384\n";
+        let block = |run: &str| source.replacen("\ntasks:", &format!("\nrun:\n{run}tasks:"), 1);
+        let low = "  reasoning:\n    effort: low\n";
+        assert_eq!(low_effort(source, whole), Some(block(low)));
+        let pro = source.replacen("deepseek-flash", "deepseek-v4-pro", 1);
+        let declared = low_effort(&pro, whole).expect("the pro row documents low too");
+        assert!(declared.contains(low), "{declared}");
+        let clock = "  clock: virtual\n";
+        let atop = low_effort(&block(clock), whole);
+        assert_eq!(atop, Some(block(&format!("{low}{clock}"))));
+        let high = block("  reasoning:\n    effort: high\n");
+        assert_eq!(low_effort(&high, whole), None, "a declared effort stays");
+        let routed = block("  access:\n    via: openrouter\n");
+        assert_eq!(low_effort(&routed, whole), None, "a chosen route stays");
+        // Typographic apostrophes folded, as the HOT door folds them.
+        let curly = "Résume l’article de ./notes/brief.md en 3 puces dans ./out/resume.md";
+        assert_eq!(low_effort(source, curly), Some(block(low)));
+        for intent in [
+            "Résume ./notes/brief.md en 3 puces dans ./out/resume.md. Keep the tone formal.",
+            "Read ./notes/brief.md, summarize it in three bullets, and write the summary to ./out/summary.md. Think hard.",
+            "Read ./data/invoice.txt, extract the supplier, the date and the amount, and write them to ./out/invoice.json",
+            "Résume notes.md en trois lignes dans digest.md.",
+        ] {
+            assert_eq!(low_effort(source, intent), None, "{intent}");
+        }
+        for seat in ["deepseek-reasoner", "deepseek-chat"] {
+            let seated = source.replacen("deepseek-flash", seat, 1);
+            assert_eq!(low_effort(&seated, whole), None, "{seat}");
+        }
+        for seat in ["mock/echo", "acme/unheard-of-model", "${{ inputs.seat }}"] {
+            let seated = source.replacen("deepseek/deepseek-flash", seat, 1);
+            assert_eq!(low_effort(&seated, whole), None, "{seat}");
+        }
+    }
+
+    /// The declaration's two properties, judged apart: the document means the source plus
+    /// `run.reasoning.effort: low` and nothing else (AST equivalence), and every byte of the source
+    /// outside the inserted lines stands as written (source preservation), with or without a
+    /// `run:` block, a comment and a flow mapping in it.
+    #[test]
+    fn the_declaration_is_the_only_change_in_meaning_and_in_bytes() {
+        let whole = "Résume ./notes/brief.md en 3 puces dans ./out/resume.md";
+        let bare = "nika: digest\n# the author's own note\nmodel: deepseek/deepseek-flash\ntasks:\n  draft:\n    infer: { prompt: 'Summarize', max_tokens: 16384 }\n";
+        let clocked = bare.replacen("\ntasks:", "\nrun:\n  clock: virtual\ntasks:", 1);
+        let low = "  reasoning:\n    effort: low\n";
+        for (source, inserted) in [
+            (bare.to_owned(), format!("run:\n{low}")),
+            (clocked, low.to_owned()),
+        ] {
+            let edited = low_effort(&source, whole).expect("drafts read whole on a low seat");
+            let mut meant = crate::edit::literal_projection(&source).expect("a document");
+            meant["run"]["reasoning"] = json!({"effort": "low"});
+            let read = crate::edit::literal_projection(&edited);
+            assert_eq!(read, Some(meant), "AST: only the declaration");
+            let kept = edited.replacen(&inserted, "", 1);
+            assert_eq!(kept, source, "source: every other byte");
+        }
     }
 }

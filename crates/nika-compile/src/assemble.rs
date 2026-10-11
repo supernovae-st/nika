@@ -455,6 +455,11 @@ fn assembled(
     if !read::lowered(&d, lowering, out) {
         return Ok(());
     }
+    if crate::seat_cap::lowered(d.root["model"].as_str(), intent, plan) {
+        d.root["run"]["reasoning"] = json!({"effort": "low"});
+        let said = crate::seat_cap::LOW_EFFORT.to_owned();
+        crate::finding(out, DiagnosticKind::Applied, "run.reasoning.effort", said);
+    }
     settle_candidate(
         plan,
         &b,
