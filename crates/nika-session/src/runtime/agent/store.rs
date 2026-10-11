@@ -49,6 +49,14 @@ impl TreeFile {
         }
     }
 
+    /// The history directory the tree is kept in; none for a tree no file keeps.
+    pub(crate) fn dir(&self) -> Option<&OwnedDir> {
+        match &self.target {
+            Target::Home(dir) => Some(dir),
+            Target::Memory(_) => None,
+        }
+    }
+
     /// The citations, shared with the tools.
     pub(crate) fn citations(&self) -> Arc<Mutex<Citations>> {
         Arc::clone(&self.citations)

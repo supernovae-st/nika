@@ -489,6 +489,7 @@ impl SessionRuntime {
             probes: probes.unwrap_or_default(),
             knowledge: self.authoring_context.knowledge().cloned(),
             admitted: None,
+            judged: (driver.store.dir()).and_then(|dir| dir.try_clone().ok()),
             verifier: Verifier {
                 seat: self.seat.clone(),
                 context: self.authoring_context.clone(),

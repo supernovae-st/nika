@@ -49,6 +49,29 @@ pub(crate) struct SessionDesk {
     pub(crate) verifier: Verifier,
     /// The pinned release, admitted once for the turn when a tool first reads it.
     pub(crate) admitted: Option<Snapshot>,
+    /// Where the bytes each verification judged are kept (the history directory); none without
+    /// history.
+    pub(crate) judged: Option<OwnedDir>,
+}
+
+/// The most of one judged candidate the Session keeps.
+const JUDGED_BYTES: usize = 256 * 1024;
+
+/// Keep the bytes a verification judged, redacted and bounded, as `verified/<sha256>.nika` under
+/// `dir`: the name is the digest the verify record carries, so a hold can be checked against its
+/// exact bytes once the candidate is rewritten. Kept once; best effort, as no verdict waits on it.
+pub(super) fn keep_judged(dir: &OwnedDir, source: &str) {
+    let name = format!("{}.nika", nika_compile::surface::sha256(source));
+    let (text, _) = nika_cli_host::context_redaction::redact(source);
+    let mut end = text.len().min(JUDGED_BYTES);
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    if let Ok(kept) = dir.create_below(&["verified"])
+        && !kept.exists(&name).unwrap_or(true)
+    {
+        let _ = kept.write_once(&name, text.get(..end).unwrap_or_default());
+    }
 }
 
 /// The judge a conversation's document faces: the seat and decision model a compile round of
@@ -412,6 +435,9 @@ impl Desk for SessionDesk {
             Some(&scoped),
         )
         .map_err(|e| e.to_string())?;
+        if let Some(dir) = &self.judged {
+            keep_judged(dir, source);
+        }
         let (_, tried) = scoped.finish().into_parts();
         kept(verifier)?.keep(&out);
         if out.status != CompileStatus::Ready {

@@ -157,3 +157,19 @@ fn a_ready_verdict_keeps_its_stated_doubt() {
     assert_eq!(desk::stated_doubt(&out).as_deref(), Some(said));
     assert_eq!(desk::stated_doubt(&nika_compile::initial()), None);
 }
+
+/// The bytes a verification judged are kept once, redacted, by the digest its record carries.
+#[test]
+fn the_bytes_a_verification_judged_are_kept_by_their_digest() {
+    let home = tempfile::tempdir().expect("a home");
+    let dir = nika_fs::OwnedDir::create(home.path(), &["h"]).expect("the history");
+    let source = "nika: news\n# key sk-live-ABCDEFGH12345678\n";
+    desk::keep_judged(&dir, source);
+    desk::keep_judged(&dir, source);
+    let name = format!("{}.nika", nika_compile::surface::sha256(source));
+    let verified = dir.open_below(&["verified"]).expect("kept under verified/");
+    let kept = verified.read(&name).expect("kept by its digest");
+    assert!(kept.starts_with("nika: news\n"), "the judged bytes");
+    assert!(!kept.contains("ABCDEFGH12345678"), "redacted");
+    assert_eq!(verified.names().expect("listed").len(), 1, "kept once");
+}
