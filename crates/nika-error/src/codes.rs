@@ -175,7 +175,7 @@ pub use registry::*;
 ///
 /// Every registered code has a help string. This is used by miette's
 /// Help text for the Verb range (430-479 · infer 430-439 · exec 440-449 ·
-/// invoke 450-459 · agent 460-469). Split out of `code_help` to keep it under the 100-line
+/// invoke 450-459 · agent 460-469 and 470-479). Split out of `code_help` to keep it under the 100-line
 /// function cap as the verb crates land.
 fn verb_help(num: u16) -> &'static str {
     match num {
@@ -196,6 +196,9 @@ fn verb_help(num: u16) -> &'static str {
         }
         435 => {
             "The provider spent tokens yet the visible answer is empty — a thinking model ate the whole budget on its reasoning trace. Raise `max_tokens` (the reasoning share lives inside it), set an explicit `thinking.budget_tokens`, or pick a no-think variant."
+        }
+        436 => {
+            "The provider stopped at the output cap (`max_tokens`): the answer is cut, so it is not the task output. Raise `max_tokens` (a model that reasons by default spends part of the cap on reasoning), or recover the partial answer from error.details.partial_output through `on_error:`."
         }
         440 => {
             "The command exited non-zero. Inspect stderr, or use capture: structured to branch on the exit code instead of failing."
@@ -236,6 +239,9 @@ fn verb_help(num: u16) -> &'static str {
         }
         469 => {
             "The provider returned no token usage for a priced model, so the budget cannot meter the call — the loop refuses rather than continue invisibly (fail-closed). Point at a backend that reports usage (every first-party wire does), or accept the spend unbudgeted explicitly."
+        }
+        470 => {
+            "The agent's final message stopped at the output cap (`max_tokens`): it is cut, not a completion. Raise the turn's `max_tokens`, or recover the partial message from error.details.partial_output through `on_error:`."
         }
         _ => "Verb execution failed. Check the task definition against the spec for this verb.",
     }
