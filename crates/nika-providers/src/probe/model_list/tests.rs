@@ -2,6 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 use super::*;
 use nika_kernel::http::{HttpError, HttpResponse};
+use nika_kernel::secret::Secret;
 use std::{collections::BTreeMap, sync::Mutex};
 
 #[test]
@@ -90,4 +91,95 @@ async fn one_get_has_no_auth_body_redirect_or_inference_and_exact_endpoint() {
         assert!(!sent[0].follow_redirects);
         assert_eq!(sent[0].timeout, Some(Duration::from_millis(1000)));
     }
+}
+
+/// A keyed route's listing endpoint: one scripted answer (status and body), or no answer at all.
+struct Keyed(Mutex<Vec<HttpRequest>>, Option<(u16, String)>);
+impl HttpGetDyn for Keyed {
+    async fn get(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
+        let url = request.url.clone();
+        self.0.lock().expect("requests").push(request);
+        match &self.1 {
+            Some((status, body)) => Ok(HttpResponse::new(
+                *status,
+                BTreeMap::new(),
+                body.clone().into_bytes().into(),
+                url,
+            )),
+            None => Err(HttpError::Connection {
+                reason: "refused".to_owned(),
+            }),
+        }
+    }
+}
+
+const ENDPOINT: &str = "https://api.deepseek.com/v1/models";
+const KEY: &str = "sk-test-cloud-listing-0000000000000000";
+
+#[tokio::test]
+async fn an_authenticated_listing_sends_its_own_key_once_and_reads_the_list() {
+    let body = r#"{"object":"list","data":[{"id":"deepseek-flash","object":"model"}]}"#;
+    let wire = Keyed(Mutex::new(Vec::new()), Some((200, body.to_owned())));
+    let key = Secret::new(KEY);
+    let (auth, listing) = probe_cloud_listing(&wire, ENDPOINT, &key, Duration::from_secs(3)).await;
+    assert_eq!(auth, Some(KeyAuth::Ok));
+    assert_eq!(listing.models, ["deepseek-flash"]);
+    assert_eq!(listing.available(), Some(true));
+    let sent = wire.0.lock().expect("requests");
+    assert_eq!(sent.len(), 1, "one request, never re-sent");
+    assert_eq!(sent[0].url, ENDPOINT);
+    assert_eq!(sent[0].method, nika_kernel::http::HttpMethod::Get);
+    assert!(
+        sent[0].headers.get("authorization") == Some(&format!("Bearer {KEY}")),
+        "the route's own key, to its own base"
+    );
+    assert_eq!(sent[0].headers.len(), 1);
+    assert!(sent[0].body.is_none() && !sent[0].follow_redirects);
+    assert_eq!(sent[0].timeout, Some(Duration::from_secs(3)));
+}
+
+#[tokio::test]
+async fn a_refused_key_reads_key_refused_in_the_providers_words_never_the_key() {
+    for (status, rung) in [(401, KeyAuth::Unauthorized), (403, KeyAuth::Forbidden)] {
+        let body = format!(
+            r#"{{"error":{{"message":"Incorrect API key provided: {KEY}","type":"invalid_request_error","code":"invalid_api_key"}}}}"#
+        );
+        let wire = Keyed(Mutex::new(Vec::new()), Some((status, body)));
+        let key = Secret::new(KEY);
+        let (auth, listing) =
+            probe_cloud_listing(&wire, ENDPOINT, &key, Duration::from_secs(3)).await;
+        assert_eq!(auth, Some(rung), "{status}");
+        assert_eq!(
+            listing.available(),
+            None,
+            "{status}: a refusal proves no model"
+        );
+        let failure = listing.failure.clone().expect("the refusal is stated");
+        assert!(
+            failure.starts_with("the provider refused the key"),
+            "the refusal is stated as such"
+        );
+        assert!(
+            failure.contains("Incorrect API key provided"),
+            "the provider's own words ride along"
+        );
+        assert!(
+            !failure.contains(KEY),
+            "{status}: the key reached the words"
+        );
+        assert!(
+            !format!("{listing:?}").contains(KEY),
+            "{status}: the key reached a record"
+        );
+    }
+}
+
+#[tokio::test]
+async fn no_answer_leaves_the_key_configured_not_validated() {
+    let wire = Keyed(Mutex::new(Vec::new()), None);
+    let key = Secret::new(KEY);
+    let (auth, listing) = probe_cloud_listing(&wire, ENDPOINT, &key, Duration::from_secs(3)).await;
+    assert_eq!(auth, None);
+    assert_eq!(listing.available(), None);
+    assert_eq!(wire.0.lock().expect("requests").len(), 1, "never re-sent");
 }

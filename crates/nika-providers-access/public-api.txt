@@ -46,6 +46,7 @@ impl<T> nika_error::traits::AsAny for nika_providers_access::probe::ExecutionLoc
 pub fn nika_providers_access::probe::ExecutionLocus::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_providers_access::probe::KeyAuth
 pub nika_providers_access::probe::KeyAuth::Absent
+pub nika_providers_access::probe::KeyAuth::Forbidden
 pub nika_providers_access::probe::KeyAuth::Implausible
 pub nika_providers_access::probe::KeyAuth::Ok
 pub nika_providers_access::probe::KeyAuth::PaymentRequired
@@ -219,12 +220,14 @@ pub fn nika_providers_access::probe::ProviderProbe::as_any(&self) -> &(dyn core:
 pub nika_providers_access::probe::ProviderReadiness::access: nika_types::access::AccessClass
 pub nika_providers_access::probe::ProviderReadiness::configured: bool
 pub nika_providers_access::probe::ProviderReadiness::execution_locus: nika_providers_access::probe::ExecutionLocus
+pub nika_providers_access::probe::ProviderReadiness::key_auth: core::option::Option<nika_providers_access::probe::KeyAuth>
 pub nika_providers_access::probe::ProviderReadiness::model_available: core::option::Option<bool>
 pub nika_providers_access::probe::ProviderReadiness::model_listing: core::option::Option<nika_providers_access::probe::ModelListing>
 pub nika_providers_access::probe::ProviderReadiness::priced: bool
 pub nika_providers_access::probe::ProviderReadiness::reachable: core::option::Option<bool>
 pub nika_providers_access::probe::ProviderReadiness::recognized: bool
 impl nika_providers_access::probe::ProviderReadiness
+pub fn nika_providers_access::probe::ProviderReadiness::key_refused(&self) -> bool
 pub fn nika_providers_access::probe::ProviderReadiness::new(recognized: bool, configured: bool, reachable: core::option::Option<bool>, model_available: core::option::Option<bool>, priced: bool, execution_locus: nika_providers_access::probe::ExecutionLocus, access: nika_types::access::AccessClass) -> Self
 impl core::clone::Clone for nika_providers_access::probe::ProviderReadiness
 pub fn nika_providers_access::probe::ProviderReadiness::clone(&self) -> nika_providers_access::probe::ProviderReadiness

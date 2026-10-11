@@ -892,3 +892,18 @@ suites stay here too, beside the admission account and the retry route they buil
 observations with; the probe-to-candidates bridge test stays beside the registry it reads.
 `judge`, `pin_matches`, `named_infer_grade_ready` and `checkpoint_text_safe` became the member's
 documented public seams, which `model_choice`, `plan` and `admission::checkpoint` call.
+
+## Census readiness of keyed cloud routes (2026-10-10)
+
+`ProviderRegistry::cloud_listing_target(provider)` names where a keyed OpenAI-compatible route
+lists its models and with which key: the route's own effective chat endpoint (a gateway override
+included) with `/chat/completions` replaced by `/models`, and the key injected for its canonical
+id. Any other wire family, a keyless route or a route without a key has no target.
+`probe::probe_cloud_listing` sends that one request: a bodyless GET with the key in one
+`authorization` header, no redirect, its own deadline, never re-sent. Its answer is the key's rung
+(`KeyAuth::Ok` on a 200, `Unauthorized` on a 401, `Forbidden` on a 403, `None` when no HTTP answer
+could be judged) and the listing; a refusal's listing states the provider's words as every
+provider error is reduced, with the key withheld. The Session's census takes it once per keyed
+route (the census take, all routes at once); `ProviderReadiness::key_auth` keeps the rung and
+`key_refused()` reads it. `ModelInventory::from_probes` never offers a key-refused route, and a
+listed route's own listing governs its offers, as for a local route.

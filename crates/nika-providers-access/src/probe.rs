@@ -146,6 +146,11 @@ pub struct ProviderReadiness {
     pub model_available: Option<bool>,
     /// The separate protocol/model observation; absent when no probe was requested.
     pub model_listing: Option<ModelListing>,
+    /// What an authenticated model listing learned of the route's key: `Ok` when the provider
+    /// listed with it, `Unauthorized` or `Forbidden` when it refused it (« key refused », never
+    /// ready). `None` when no authenticated listing answered: the key is configured, not
+    /// validated.
+    pub key_auth: Option<KeyAuth>,
     /// The vendored pricing snapshot carries list rates for this provider.
     pub priced: bool,
     /// Where the EFFECTIVE endpoint executes (override-aware · P0-20).
@@ -175,10 +180,21 @@ impl ProviderReadiness {
             reachable,
             model_available,
             model_listing: None,
+            key_auth: None,
             priced,
             execution_locus,
             access,
         }
+    }
+
+    /// Whether an authenticated listing saw the provider refuse the route's key (401 · 403):
+    /// « key refused », never ready, whatever the key's presence says.
+    #[must_use]
+    pub fn key_refused(&self) -> bool {
+        matches!(
+            self.key_auth,
+            Some(KeyAuth::Unauthorized | KeyAuth::Forbidden)
+        )
     }
 }
 
@@ -279,6 +295,9 @@ pub enum KeyAuth {
     Unauthorized,
     /// Live probe: HTTP 402 (quota / billing).
     PaymentRequired,
+    /// Live probe: HTTP 403 — the provider refused this key what it asked (a key it does not
+    /// accept for this route); never « ready ».
+    Forbidden,
     /// Live probe: the endpoint accepted the key (2xx).
     Ok,
 }
@@ -293,6 +312,7 @@ impl KeyAuth {
             Self::Implausible => "implausible",
             Self::Unauthorized => "401",
             Self::PaymentRequired => "402",
+            Self::Forbidden => "403",
             Self::Ok => "ok",
         }
     }
@@ -320,7 +340,7 @@ pub fn classify_key_value(prefixes: &[&str], value: &str) -> KeyAuth {
     KeyAuth::Present
 }
 
-/// Classify a live auth probe's HTTP status. 401 and 402 are first-class
+/// Classify a live auth probe's HTTP status. 401, 402 and 403 are first-class
 /// rungs; anything else stays `Present` (the value existed, the probe
 /// did not prove Ok).
 #[must_use]
@@ -329,6 +349,7 @@ pub fn classify_http_status(status: u16) -> KeyAuth {
         200..=299 => KeyAuth::Ok,
         401 => KeyAuth::Unauthorized,
         402 => KeyAuth::PaymentRequired,
+        403 => KeyAuth::Forbidden,
         _ => KeyAuth::Present,
     }
 }

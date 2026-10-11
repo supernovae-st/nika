@@ -7,7 +7,7 @@
 use nika_types::access::{AccessClass, AccessProtocol};
 
 use super::{Delegation, ModelAsk, ModelChoice, ModelInventory, ModelOffer, ModelRole};
-use crate::probe::{ExecutionLocus, ModelListing, ProviderProbe, ProviderReadiness};
+use crate::probe::{ExecutionLocus, KeyAuth, ModelListing, ProviderProbe, ProviderReadiness};
 use crate::resolve_access::AccessCandidate;
 
 const API: Option<AccessProtocol> = Some(AccessProtocol::Api);
@@ -317,4 +317,26 @@ fn retired_or_unlisted_models_are_not_offered() {
     listed.readiness.model_listing = Some(compatible_listing(&["deepseek-flash"]));
     let governed = names(&ModelInventory::from_probes(&[listed]));
     assert_eq!(governed, ["deepseek/deepseek-flash"], "the listing governs");
+}
+
+/// A route whose key the provider refused when it was listed is never offered; the listing of a
+/// route that accepted its key still governs.
+#[test]
+fn a_route_whose_key_was_refused_offers_nothing() {
+    // The rehearsal backend's `mock` offers ride every inventory: judge the deepseek route only.
+    let names = |inventory: &ModelInventory| -> Vec<String> {
+        let offers = inventory.offers(ModelRole::Run).iter();
+        let on_route = offers.filter(|o| o.route.access == "deepseek");
+        on_route.map(|o| o.model.clone()).collect()
+    };
+    let mut refused = probe("deepseek", AccessClass::Api, ExecutionLocus::Cloud);
+    refused.readiness.key_auth = Some(KeyAuth::Unauthorized);
+    assert!(names(&ModelInventory::from_probes(&[refused])).is_empty());
+    let mut listed = probe("deepseek", AccessClass::Api, ExecutionLocus::Cloud);
+    listed.readiness.key_auth = Some(KeyAuth::Ok);
+    listed.readiness.model_listing = Some(compatible_listing(&["deepseek-flash"]));
+    assert_eq!(
+        names(&ModelInventory::from_probes(&[listed])),
+        ["deepseek/deepseek-flash"]
+    );
 }

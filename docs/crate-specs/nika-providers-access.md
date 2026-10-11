@@ -26,9 +26,10 @@ provider layer, and the provider layer reaches them downward. They move here wit
 
 ## 2. Surface
 
-- `probe` — `PingState`, `ExecutionLocus` (with `classify`), `ProviderReadiness`,
-  `ProviderProbe`, `KeyAuth`, `classify_key_value`, `classify_http_status`, `ModelListing`
-  (`new`, `available`) and the `AccessClass` vocabulary. Probing stays in `nika-providers`:
+- `probe` — `PingState`, `ExecutionLocus` (with `classify`), `ProviderReadiness` (with the
+  `key_auth` an authenticated listing learned and `key_refused()`), `ProviderProbe`, `KeyAuth`
+  (`Forbidden` for a 403), `classify_key_value`, `classify_http_status`, `ModelListing` (`new`,
+  `available`) and the `AccessClass` vocabulary. Probing stays in `nika-providers`:
   key presence, local pings, local liveness and the model-list GET with its parser.
 - `resolve_access` — the access plan resolved over probe rows, its candidates, pins, witnesses
   and refusals. `judge`, `pin_matches` and `named_infer_grade_ready` became documented public

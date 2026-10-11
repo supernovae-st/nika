@@ -4,7 +4,8 @@
 use nika_kernel::http::{HttpGetDyn, HttpRequest};
 use std::{collections::BTreeSet, time::Duration};
 
-use nika_providers_access::probe::ModelListing;
+use nika_kernel::secret::Secret;
+use nika_providers_access::probe::{KeyAuth, ModelListing, classify_http_status};
 
 /// The listing one HTTP answer states: a compatible list, or why not.
 fn listing_of(status: u16, body: &[u8]) -> ModelListing {
@@ -78,6 +79,48 @@ pub async fn probe_model_listing<H: HttpGetDyn>(http: &H, endpoint: &str) -> Mod
         }
         Ok(_) => ModelListing::new("model-list transport changed the endpoint"),
         Err(_) => ModelListing::new("model-list transport did not return a usable response"),
+    }
+}
+
+/// Send one bounded, authenticated GET to a keyed cloud route's own listing endpoint
+/// ([`crate::ProviderRegistry::cloud_listing_target`]), at census time: the route's key rides one
+/// `authorization` header of this one request and nothing records it; no redirect is followed and
+/// nothing is re-sent, inferred or downloaded. The answer states the key's rung and the listing:
+/// a 200 lists the route's models; a 401 or 403 refuses the key, with the provider's own words
+/// reduced as every provider error is (the key withheld); `None` when no HTTP answer could be
+/// judged, so the key stays configured, not validated.
+pub async fn probe_cloud_listing<H: HttpGetDyn>(
+    http: &H,
+    endpoint: &str,
+    key: &Secret,
+    deadline: Duration,
+) -> (Option<KeyAuth>, ModelListing) {
+    let mut request = HttpRequest::get(endpoint);
+    request.follow_redirects = false;
+    request.timeout = Some(deadline);
+    request.headers.insert(
+        "authorization".to_owned(),
+        format!("Bearer {}", key.expose()),
+    );
+    match http.get(request).await {
+        Ok(response) if response.final_url == endpoint => {
+            let auth = classify_http_status(response.status);
+            let mut listing = listing_of(response.status, &response.body);
+            if matches!(auth, KeyAuth::Unauthorized | KeyAuth::Forbidden) {
+                let said =
+                    crate::wire::status_error(response.status, &response.body, None, Some(key));
+                listing.failure = Some(format!("the provider refused the key: {said}"));
+            }
+            (Some(auth), listing)
+        }
+        Ok(_) => (
+            None,
+            ModelListing::new("model-list transport changed the endpoint"),
+        ),
+        Err(_) => (
+            None,
+            ModelListing::new("model-list transport did not return a usable response"),
+        ),
     }
 }
 

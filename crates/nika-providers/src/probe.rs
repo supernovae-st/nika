@@ -27,7 +27,7 @@ use std::time::{Duration, Instant};
 use crate::ProviderRegistry;
 
 mod model_list;
-pub use model_list::probe_model_listing;
+pub use model_list::{probe_cloud_listing, probe_model_listing};
 // The probe's facts live in the size-cap member (D-2026-07-09-N1); their paths stay here.
 pub use nika_providers_access::probe::{
     AccessClass, ExecutionLocus, KeyAuth, ModelListing, PingState, ProviderProbe,
@@ -740,6 +740,29 @@ mod tests {
         );
         assert_eq!(classify_http_status(401), KeyAuth::Unauthorized);
         assert_eq!(classify_http_status(402), KeyAuth::PaymentRequired);
+        assert_eq!(classify_http_status(403), KeyAuth::Forbidden);
+        assert_eq!(KeyAuth::Forbidden.as_str(), "403");
+        assert!(!KeyAuth::Forbidden.is_ready());
+        // Only a listing's 401 or 403 refuses a key; presence alone, or no answer, never does.
+        let mut readiness = ProviderReadiness::new(
+            true,
+            true,
+            None,
+            None,
+            true,
+            ExecutionLocus::Cloud,
+            AccessClass::Api,
+        );
+        assert!(!readiness.key_refused(), "configured, not validated");
+        for (rung, refused) in [
+            (KeyAuth::Ok, false),
+            (KeyAuth::Present, false),
+            (KeyAuth::Unauthorized, true),
+            (KeyAuth::Forbidden, true),
+        ] {
+            readiness.key_auth = Some(rung);
+            assert!(readiness.key_refused() == refused, "{rung:?}");
+        }
         assert_eq!(classify_http_status(200), KeyAuth::Ok);
         assert_eq!(KeyAuth::Unauthorized.as_str(), "401");
         assert_eq!(KeyAuth::PaymentRequired.as_str(), "402");

@@ -1971,6 +1971,7 @@ pub fn nika_providers::probe::env_present(name: &str) -> bool
 pub fn nika_providers::probe::harness_access_probe(id: impl core::convert::Into<alloc::string::String>, serves: alloc::vec::Vec<alloc::string::String>, acp_present: bool, configured: bool, product_present: bool) -> nika_providers_access::probe::ProviderProbe
 pub fn nika_providers::probe::local_run_gate<H>(registry: &nika_providers::registry::ProviderRegistry<H>, model: &str) -> core::option::Option<nika_providers::probe::LocalLiveness> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
 pub fn nika_providers::probe::ping_addr(url: &str) -> core::option::Option<alloc::string::String>
+pub async fn nika_providers::probe::probe_cloud_listing<H: nika_kernel_core::io::http::HttpGetDyn>(http: &H, endpoint: &str, key: &nika_kernel_core::infra::secret::Secret, deadline: core::time::Duration) -> (core::option::Option<nika_providers_access::probe::KeyAuth>, nika_providers_access::probe::ModelListing)
 pub async fn nika_providers::probe::probe_model_listing<H: nika_kernel_core::io::http::HttpGetDyn>(http: &H, endpoint: &str) -> nika_providers_access::probe::ModelListing
 pub fn nika_providers::probe::spawn_local_liveness(addr: &str) -> std::sync::mpsc::Receiver<nika_providers::probe::LocalLiveness>
 pub fn nika_providers::probe::spawn_ping(addr: &str, timeout: core::time::Duration) -> std::sync::mpsc::Receiver<core::option::Option<u64>>
@@ -2167,6 +2168,7 @@ pub fn nika_providers::registry::ProviderRegistry<H>::new(http: alloc::sync::Arc
 pub fn nika_providers::registry::ProviderRegistry<H>::profiles(&self) -> &[nika_providers::profile::Profile]
 pub fn nika_providers::registry::ProviderRegistry<H>::resolve(&self, model: &str) -> core::result::Result<nika_providers::registry::ResolvedProvider<H>, nika_kernel_ai::provider::ProviderError>
 impl<H> nika_providers::registry::ProviderRegistry<H>
+pub fn nika_providers::registry::ProviderRegistry<H>::cloud_listing_target(&self, provider: &str) -> core::option::Option<(alloc::string::String, nika_kernel_core::infra::secret::Secret)>
 pub fn nika_providers::registry::ProviderRegistry<H>::effective_base_url(&self, provider: &str) -> core::option::Option<&str>
 pub fn nika_providers::registry::ProviderRegistry<H>::supports_response_format(&self, model: &str) -> bool
 pub fn nika_providers::registry::ProviderRegistry<H>::with_inference_admission(self, admission: nika_providers::admission::InferenceAdmission) -> Self
@@ -3241,6 +3243,7 @@ pub fn nika_providers::registry::ProviderRegistry<H>::new(http: alloc::sync::Arc
 pub fn nika_providers::registry::ProviderRegistry<H>::profiles(&self) -> &[nika_providers::profile::Profile]
 pub fn nika_providers::registry::ProviderRegistry<H>::resolve(&self, model: &str) -> core::result::Result<nika_providers::registry::ResolvedProvider<H>, nika_kernel_ai::provider::ProviderError>
 impl<H> nika_providers::registry::ProviderRegistry<H>
+pub fn nika_providers::registry::ProviderRegistry<H>::cloud_listing_target(&self, provider: &str) -> core::option::Option<(alloc::string::String, nika_kernel_core::infra::secret::Secret)>
 pub fn nika_providers::registry::ProviderRegistry<H>::effective_base_url(&self, provider: &str) -> core::option::Option<&str>
 pub fn nika_providers::registry::ProviderRegistry<H>::supports_response_format(&self, model: &str) -> bool
 pub fn nika_providers::registry::ProviderRegistry<H>::with_inference_admission(self, admission: nika_providers::admission::InferenceAdmission) -> Self
