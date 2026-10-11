@@ -245,6 +245,8 @@ crates/nika-catalog-codegen/
 │   │                                      must stay ≤1,000 to keep headroom
 │   │                                      under the 1,500-LOC file cap for
 │   │                                      Session 2b field additions.)
+│   ├── reasoning.rs           (~45 LOC — `caps.reasoning_facts` schema +
+│   │                                      emit as a typed ReasoningFacts.)
 │   ├── pricing.rs             (~180 LOC — pricing TOML schema + rate
 │   │                                      bounds + 7-axis emit.)
 │   ├── tags.rs                (~160 LOC — tag_variant() map +

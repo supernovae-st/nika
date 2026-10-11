@@ -174,6 +174,16 @@ scope = { providers = ["openai", "openrouter"] }
 match = { kind = "prefix_any", prefixes = ["gpt-4"] }
 caps  = { tokenizer = "cl100k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 
+# [8a] Claude on Anthropic's own API: the caps of [9], plus the reasoning facts of the
+#      Anthropic wire: no thinking unless a task's thinking budget asks, and thinking counts
+#      in max_tokens (Anthropic extended-thinking docs, 2026-10-10). Other providers keep
+#      [9], with no facts recorded.
+[[rules]]
+name  = "claude-on-anthropic"
+scope = { providers = ["anthropic"] }
+match = { kind = "prefix_any", prefixes = ["claude"] }
+caps  = { reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching", "streaming-thinking", "thinking-budget"], json_mode = "schema", reasoning_facts = { by_default = false, in_output_cap = true, off = "by-default" } }
+
 # [9] Any model starting with "claude", on ANY provider. Legacy matched
 #     lower.starts_with("claude") independent of provider. PDF confirmed
 #     for "all active Claude models" per Anthropic docs.
@@ -230,13 +240,13 @@ caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek"
 name  = "deepseek-v4-pro-thinking"
 scope = { providers = ["deepseek"] }
 match = { kind = "exact", model = "deepseek-v4-pro" }
-caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort"], json_mode = "object", reasoning_efforts = ["low", "high", "max"] }
+caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort"], json_mode = "object", reasoning_efforts = ["low", "high", "max"], reasoning_facts = { by_default = true, in_output_cap = true, off = "not-reached" } }
 
 [[rules]]
 name  = "deepseek-current-thinking"
 scope = { providers = ["deepseek"] }
 match = { kind = "exact", model = "deepseek-flash" }
-caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort"], json_mode = "object", reasoning_efforts = ["low", "high", "max"] }
+caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort"], json_mode = "object", reasoning_efforts = ["low", "high", "max"], reasoning_facts = { by_default = true, in_output_cap = true, off = "not-reached" } }
 
 # [12] Any other DeepSeek model — loses vision (API limitation).
 #      ⚠ NO StructuredOutputNative (same json_object-only constraint).
@@ -290,7 +300,17 @@ routing_complete = true
 name  = "gemini-2-5-pro"
 scope = { providers = ["gemini", "vertex"] }
 match = { kind = "prefix_any", prefixes = ["gemini-2.5-pro"] }
-caps  = { reasoning = true, tokenizer = "gemini", input_modalities = ["audio", "image", "pdf", "text", "video"], output_modalities = ["text"], supported_parameters = ["web-search"], json_mode = "schema" }
+caps  = { reasoning = true, tokenizer = "gemini", input_modalities = ["audio", "image", "pdf", "text", "video"], output_modalities = ["text"], supported_parameters = ["web-search"], json_mode = "schema", reasoning_facts = { by_default = true, in_output_cap = true, off = "never" } }
+
+# [17a] Gemini 2.5 Flash itself on the Gemini API: the caps of [17], plus its reasoning
+#       facts (thinks by default, thinking counts in maxOutputTokens, and a task's
+#       `thinking: { budget_tokens: 0 }` turns it off on the Gemini wire). -lite, -image and
+#       Vertex keep [17], with no facts recorded.
+[[rules]]
+name  = "gemini-2-5-flash-api"
+scope = { providers = ["gemini"] }
+match = { kind = "exact", model = "gemini-2.5-flash" }
+caps  = { reasoning = true, tokenizer = "gemini", input_modalities = ["audio", "image", "text", "video"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls", "reasoning-effort", "web-search"], json_mode = "schema", reasoning_facts = { by_default = true, in_output_cap = true, off = "budget-zero" } }
 
 # [17] Gemini 2.5 Flash — multimodal (audio + image + text + video).
 #      Video confirmed max 10/prompt via LiteLLM verification.

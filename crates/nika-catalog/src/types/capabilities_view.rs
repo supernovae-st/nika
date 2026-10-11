@@ -7,7 +7,7 @@
 //! the Connectome can provide alternative capability sources (overlay from
 //! `pck`, runtime discovery, etc.) without coupling to the concrete struct.
 
-use super::model::{ModelCapabilities, ReasoningLevel, TokenLimitParam};
+use super::model::{ModelCapabilities, ReasoningFacts, ReasoningLevel, TokenLimitParam};
 use super::{JsonMode, Modality, ParamFlag, TokenizerFamily};
 
 /// Read-only view of a model's capabilities.
@@ -55,6 +55,11 @@ pub trait ModelCapabilitiesView {
     /// not know them qualifies none.
     fn reasoning_efforts(&self) -> &[ReasoningLevel] {
         &[]
+    }
+    /// What the source records of the model's reasoning; a source that records none knows
+    /// nothing (every fact unknown).
+    fn reasoning_facts(&self) -> ReasoningFacts {
+        ReasoningFacts::default()
     }
 }
 
@@ -111,6 +116,10 @@ impl ModelCapabilitiesView for ModelCapabilities {
     fn reasoning_efforts(&self) -> &[ReasoningLevel] {
         self.reasoning_efforts
     }
+    #[inline]
+    fn reasoning_facts(&self) -> ReasoningFacts {
+        self.reasoning_facts
+    }
 }
 
 #[cfg(test)]
@@ -134,6 +143,7 @@ mod tests {
         assert_eq!(caps.tokenizer(), None);
         assert!(caps.supported_parameters().is_empty());
         assert!(caps.reasoning_efforts().is_empty());
+        assert_eq!(caps.reasoning_facts(), ReasoningFacts::default());
         let listed = caps.with_reasoning_efforts(&[ReasoningLevel::Max]);
         assert_eq!(listed.reasoning_efforts(), &[ReasoningLevel::Max]);
     }
@@ -154,6 +164,7 @@ mod tests {
             max_output_tokens: Some(64_000),
             json_mode: Some(JsonMode::Schema),
             reasoning_efforts: &[ReasoningLevel::Max],
+            reasoning_facts: ReasoningFacts::new(Some(true), Some(true), None),
         };
         let caps: &dyn ModelCapabilitiesView = &caps;
 
@@ -177,6 +188,10 @@ mod tests {
         assert_eq!(caps.tokenizer(), Some(TokenizerFamily::O200k));
         assert_eq!(caps.supported_parameters(), [ParamFlag::ReasoningEffort]);
         assert_eq!(caps.reasoning_efforts(), &[ReasoningLevel::Max]);
+        assert_eq!(
+            caps.reasoning_facts(),
+            ReasoningFacts::new(Some(true), Some(true), None)
+        );
     }
 
     #[test]

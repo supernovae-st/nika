@@ -117,6 +117,7 @@ mod error;
 mod mcp_servers;
 mod pricing;
 mod providers;
+mod reasoning;
 mod schema;
 mod tags;
 

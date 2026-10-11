@@ -189,6 +189,7 @@ pub nika_catalog::capabilities::CapPatch::max_output_tokens: core::option::Optio
 pub nika_catalog::capabilities::CapPatch::output_modalities: core::option::Option<&'static [nika_catalog::modality::Modality]>
 pub nika_catalog::capabilities::CapPatch::reasoning: core::option::Option<bool>
 pub nika_catalog::capabilities::CapPatch::reasoning_efforts: core::option::Option<&'static [nika_catalog::model::ReasoningLevel]>
+pub nika_catalog::capabilities::CapPatch::reasoning_facts: core::option::Option<nika_catalog::model::ReasoningFacts>
 pub nika_catalog::capabilities::CapPatch::supported_parameters: core::option::Option<&'static [nika_catalog::param_flag::ParamFlag]>
 pub nika_catalog::capabilities::CapPatch::supports_stop_sequences: core::option::Option<bool>
 pub nika_catalog::capabilities::CapPatch::supports_system_messages: core::option::Option<bool>
@@ -239,6 +240,7 @@ pub fn nika_catalog::capabilities::CapPatchBuilder::max_output_tokens(self, v: u
 pub fn nika_catalog::capabilities::CapPatchBuilder::output_modalities(self, v: &'static [nika_catalog::modality::Modality]) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::reasoning(self, v: bool) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::reasoning_efforts(self, v: &'static [nika_catalog::model::ReasoningLevel]) -> Self
+pub fn nika_catalog::capabilities::CapPatchBuilder::reasoning_facts(self, v: nika_catalog::model::ReasoningFacts) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::supported_parameters(self, v: &'static [nika_catalog::param_flag::ParamFlag]) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::supports_stop_sequences(self, v: bool) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::supports_system_messages(self, v: bool) -> Self
@@ -314,6 +316,7 @@ pub fn nika_catalog::capabilities_view::ModelCapabilitiesView::max_output_tokens
 pub fn nika_catalog::capabilities_view::ModelCapabilitiesView::output_modalities(&self) -> &[nika_catalog::modality::Modality]
 pub fn nika_catalog::capabilities_view::ModelCapabilitiesView::reasoning(&self) -> bool
 pub fn nika_catalog::capabilities_view::ModelCapabilitiesView::reasoning_efforts(&self) -> &[nika_catalog::model::ReasoningLevel]
+pub fn nika_catalog::capabilities_view::ModelCapabilitiesView::reasoning_facts(&self) -> nika_catalog::model::ReasoningFacts
 pub fn nika_catalog::capabilities_view::ModelCapabilitiesView::supported_parameters(&self) -> &[nika_catalog::param_flag::ParamFlag]
 pub fn nika_catalog::capabilities_view::ModelCapabilitiesView::supports_stop_sequences(&self) -> bool
 pub fn nika_catalog::capabilities_view::ModelCapabilitiesView::supports_system_messages(&self) -> bool
@@ -328,6 +331,7 @@ pub fn nika_catalog::model::ModelCapabilities::max_output_tokens(&self) -> core:
 pub fn nika_catalog::model::ModelCapabilities::output_modalities(&self) -> &[nika_catalog::modality::Modality]
 pub fn nika_catalog::model::ModelCapabilities::reasoning(&self) -> bool
 pub fn nika_catalog::model::ModelCapabilities::reasoning_efforts(&self) -> &[nika_catalog::model::ReasoningLevel]
+pub fn nika_catalog::model::ModelCapabilities::reasoning_facts(&self) -> nika_catalog::model::ReasoningFacts
 pub fn nika_catalog::model::ModelCapabilities::supported_parameters(&self) -> &[nika_catalog::param_flag::ParamFlag]
 pub fn nika_catalog::model::ModelCapabilities::supports_stop_sequences(&self) -> bool
 pub fn nika_catalog::model::ModelCapabilities::supports_system_messages(&self) -> bool
@@ -1581,6 +1585,47 @@ impl<T> core::convert::From<T> for nika_catalog::model::ReasoningLevel
 pub fn nika_catalog::model::ReasoningLevel::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::model::ReasoningLevel where T: 'static
 pub fn nika_catalog::model::ReasoningLevel::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_catalog::model::ThinkingOff
+pub nika_catalog::model::ThinkingOff::BudgetZero
+pub nika_catalog::model::ThinkingOff::ByDefault
+pub nika_catalog::model::ThinkingOff::Never
+pub nika_catalog::model::ThinkingOff::NotReached
+impl core::clone::Clone for nika_catalog::model::ThinkingOff
+pub fn nika_catalog::model::ThinkingOff::clone(&self) -> nika_catalog::model::ThinkingOff
+impl core::cmp::Eq for nika_catalog::model::ThinkingOff
+impl core::cmp::PartialEq for nika_catalog::model::ThinkingOff
+pub fn nika_catalog::model::ThinkingOff::eq(&self, other: &nika_catalog::model::ThinkingOff) -> bool
+impl core::fmt::Debug for nika_catalog::model::ThinkingOff
+pub fn nika_catalog::model::ThinkingOff::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_catalog::model::ThinkingOff
+pub fn nika_catalog::model::ThinkingOff::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_catalog::model::ThinkingOff
+impl core::marker::StructuralPartialEq for nika_catalog::model::ThinkingOff
+impl<D> owo_colors::OwoColorize for nika_catalog::model::ThinkingOff
+impl<T, U> core::convert::Into<U> for nika_catalog::model::ThinkingOff where U: core::convert::From<T>
+pub fn nika_catalog::model::ThinkingOff::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::model::ThinkingOff where U: core::convert::Into<T>
+pub type nika_catalog::model::ThinkingOff::Error = core::convert::Infallible
+pub fn nika_catalog::model::ThinkingOff::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::model::ThinkingOff where U: core::convert::TryFrom<T>
+pub type nika_catalog::model::ThinkingOff::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::model::ThinkingOff::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::model::ThinkingOff where T: core::clone::Clone
+pub type nika_catalog::model::ThinkingOff::Owned = T
+pub fn nika_catalog::model::ThinkingOff::clone_into(&self, target: &mut T)
+pub fn nika_catalog::model::ThinkingOff::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::model::ThinkingOff where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::model::ThinkingOff::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::model::ThinkingOff where T: ?core::marker::Sized
+pub fn nika_catalog::model::ThinkingOff::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::model::ThinkingOff where T: ?core::marker::Sized
+pub fn nika_catalog::model::ThinkingOff::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::model::ThinkingOff where T: core::clone::Clone
+pub unsafe fn nika_catalog::model::ThinkingOff::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::model::ThinkingOff
+pub fn nika_catalog::model::ThinkingOff::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::model::ThinkingOff where T: 'static
+pub fn nika_catalog::model::ThinkingOff::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_catalog::model::TokenLimitParam
 pub nika_catalog::model::TokenLimitParam::MaxCompletionTokens
 pub nika_catalog::model::TokenLimitParam::MaxOutputTokens
@@ -1674,6 +1719,7 @@ pub nika_catalog::model::ModelCapabilities::max_output_tokens: core::option::Opt
 pub nika_catalog::model::ModelCapabilities::output_modalities: &'static [nika_catalog::modality::Modality]
 pub nika_catalog::model::ModelCapabilities::reasoning: bool
 pub nika_catalog::model::ModelCapabilities::reasoning_efforts: &'static [nika_catalog::model::ReasoningLevel]
+pub nika_catalog::model::ModelCapabilities::reasoning_facts: nika_catalog::model::ReasoningFacts
 pub nika_catalog::model::ModelCapabilities::supported_parameters: &'static [nika_catalog::param_flag::ParamFlag]
 pub nika_catalog::model::ModelCapabilities::supports_stop_sequences: bool
 pub nika_catalog::model::ModelCapabilities::supports_system_messages: bool
@@ -1683,6 +1729,7 @@ pub nika_catalog::model::ModelCapabilities::tokenizer: core::option::Option<nika
 impl nika_catalog::model::ModelCapabilities
 pub const fn nika_catalog::model::ModelCapabilities::new(token_limit_param: nika_catalog::model::TokenLimitParam, supports_temperature: bool, supports_stop_sequences: bool, reasoning: bool, input_modalities: &'static [nika_catalog::modality::Modality], output_modalities: &'static [nika_catalog::modality::Modality], tokenizer: core::option::Option<nika_catalog::tokenizer::TokenizerFamily>, supported_parameters: &'static [nika_catalog::param_flag::ParamFlag], supports_system_messages: bool, context_window_tokens: core::option::Option<u32>, max_output_tokens: core::option::Option<u32>, json_mode: core::option::Option<nika_catalog::json_mode::JsonMode>) -> Self
 pub const fn nika_catalog::model::ModelCapabilities::with_reasoning_efforts(self, levels: &'static [nika_catalog::model::ReasoningLevel]) -> Self
+pub const fn nika_catalog::model::ModelCapabilities::with_reasoning_facts(self, facts: nika_catalog::model::ReasoningFacts) -> Self
 impl core::clone::Clone for nika_catalog::model::ModelCapabilities
 pub fn nika_catalog::model::ModelCapabilities::clone(&self) -> nika_catalog::model::ModelCapabilities
 impl core::cmp::Eq for nika_catalog::model::ModelCapabilities
@@ -1701,6 +1748,7 @@ pub fn nika_catalog::model::ModelCapabilities::max_output_tokens(&self) -> core:
 pub fn nika_catalog::model::ModelCapabilities::output_modalities(&self) -> &[nika_catalog::modality::Modality]
 pub fn nika_catalog::model::ModelCapabilities::reasoning(&self) -> bool
 pub fn nika_catalog::model::ModelCapabilities::reasoning_efforts(&self) -> &[nika_catalog::model::ReasoningLevel]
+pub fn nika_catalog::model::ModelCapabilities::reasoning_facts(&self) -> nika_catalog::model::ReasoningFacts
 pub fn nika_catalog::model::ModelCapabilities::supported_parameters(&self) -> &[nika_catalog::param_flag::ParamFlag]
 pub fn nika_catalog::model::ModelCapabilities::supports_stop_sequences(&self) -> bool
 pub fn nika_catalog::model::ModelCapabilities::supports_system_messages(&self) -> bool
@@ -1864,6 +1912,50 @@ impl<T> core::convert::From<T> for nika_catalog::model::PricingSnapshot
 pub fn nika_catalog::model::PricingSnapshot::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::model::PricingSnapshot where T: 'static
 pub fn nika_catalog::model::PricingSnapshot::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::model::ReasoningFacts
+pub nika_catalog::model::ReasoningFacts::counts_in_output_cap: core::option::Option<bool>
+pub nika_catalog::model::ReasoningFacts::reasons_by_default: core::option::Option<bool>
+pub nika_catalog::model::ReasoningFacts::thinking_off: core::option::Option<nika_catalog::model::ThinkingOff>
+impl nika_catalog::model::ReasoningFacts
+pub const fn nika_catalog::model::ReasoningFacts::new(reasons_by_default: core::option::Option<bool>, counts_in_output_cap: core::option::Option<bool>, thinking_off: core::option::Option<nika_catalog::model::ThinkingOff>) -> Self
+impl core::clone::Clone for nika_catalog::model::ReasoningFacts
+pub fn nika_catalog::model::ReasoningFacts::clone(&self) -> nika_catalog::model::ReasoningFacts
+impl core::cmp::Eq for nika_catalog::model::ReasoningFacts
+impl core::cmp::PartialEq for nika_catalog::model::ReasoningFacts
+pub fn nika_catalog::model::ReasoningFacts::eq(&self, other: &nika_catalog::model::ReasoningFacts) -> bool
+impl core::default::Default for nika_catalog::model::ReasoningFacts
+pub fn nika_catalog::model::ReasoningFacts::default() -> nika_catalog::model::ReasoningFacts
+impl core::fmt::Debug for nika_catalog::model::ReasoningFacts
+pub fn nika_catalog::model::ReasoningFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_catalog::model::ReasoningFacts
+pub fn nika_catalog::model::ReasoningFacts::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_catalog::model::ReasoningFacts
+impl core::marker::StructuralPartialEq for nika_catalog::model::ReasoningFacts
+impl<D> owo_colors::OwoColorize for nika_catalog::model::ReasoningFacts
+impl<T, U> core::convert::Into<U> for nika_catalog::model::ReasoningFacts where U: core::convert::From<T>
+pub fn nika_catalog::model::ReasoningFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::model::ReasoningFacts where U: core::convert::Into<T>
+pub type nika_catalog::model::ReasoningFacts::Error = core::convert::Infallible
+pub fn nika_catalog::model::ReasoningFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::model::ReasoningFacts where U: core::convert::TryFrom<T>
+pub type nika_catalog::model::ReasoningFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::model::ReasoningFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::model::ReasoningFacts where T: core::clone::Clone
+pub type nika_catalog::model::ReasoningFacts::Owned = T
+pub fn nika_catalog::model::ReasoningFacts::clone_into(&self, target: &mut T)
+pub fn nika_catalog::model::ReasoningFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::model::ReasoningFacts where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::model::ReasoningFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::model::ReasoningFacts where T: ?core::marker::Sized
+pub fn nika_catalog::model::ReasoningFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::model::ReasoningFacts where T: ?core::marker::Sized
+pub fn nika_catalog::model::ReasoningFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::model::ReasoningFacts where T: core::clone::Clone
+pub unsafe fn nika_catalog::model::ReasoningFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::model::ReasoningFacts
+pub fn nika_catalog::model::ReasoningFacts::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::model::ReasoningFacts where T: 'static
+pub fn nika_catalog::model::ReasoningFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_catalog::param_flag
 #[non_exhaustive] pub enum nika_catalog::param_flag::ParamFlag
 pub nika_catalog::param_flag::ParamFlag::BatchApi
@@ -2850,6 +2942,7 @@ pub nika_catalog::types::capabilities::CapPatch::max_output_tokens: core::option
 pub nika_catalog::types::capabilities::CapPatch::output_modalities: core::option::Option<&'static [nika_catalog::modality::Modality]>
 pub nika_catalog::types::capabilities::CapPatch::reasoning: core::option::Option<bool>
 pub nika_catalog::types::capabilities::CapPatch::reasoning_efforts: core::option::Option<&'static [nika_catalog::model::ReasoningLevel]>
+pub nika_catalog::types::capabilities::CapPatch::reasoning_facts: core::option::Option<nika_catalog::model::ReasoningFacts>
 pub nika_catalog::types::capabilities::CapPatch::supported_parameters: core::option::Option<&'static [nika_catalog::param_flag::ParamFlag]>
 pub nika_catalog::types::capabilities::CapPatch::supports_stop_sequences: core::option::Option<bool>
 pub nika_catalog::types::capabilities::CapPatch::supports_system_messages: core::option::Option<bool>
@@ -2900,6 +2993,7 @@ pub fn nika_catalog::capabilities::CapPatchBuilder::max_output_tokens(self, v: u
 pub fn nika_catalog::capabilities::CapPatchBuilder::output_modalities(self, v: &'static [nika_catalog::modality::Modality]) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::reasoning(self, v: bool) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::reasoning_efforts(self, v: &'static [nika_catalog::model::ReasoningLevel]) -> Self
+pub fn nika_catalog::capabilities::CapPatchBuilder::reasoning_facts(self, v: nika_catalog::model::ReasoningFacts) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::supported_parameters(self, v: &'static [nika_catalog::param_flag::ParamFlag]) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::supports_stop_sequences(self, v: bool) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::supports_system_messages(self, v: bool) -> Self
@@ -2975,6 +3069,7 @@ pub fn nika_catalog::types::capabilities_view::ModelCapabilitiesView::max_output
 pub fn nika_catalog::types::capabilities_view::ModelCapabilitiesView::output_modalities(&self) -> &[nika_catalog::modality::Modality]
 pub fn nika_catalog::types::capabilities_view::ModelCapabilitiesView::reasoning(&self) -> bool
 pub fn nika_catalog::types::capabilities_view::ModelCapabilitiesView::reasoning_efforts(&self) -> &[nika_catalog::model::ReasoningLevel]
+pub fn nika_catalog::types::capabilities_view::ModelCapabilitiesView::reasoning_facts(&self) -> nika_catalog::model::ReasoningFacts
 pub fn nika_catalog::types::capabilities_view::ModelCapabilitiesView::supported_parameters(&self) -> &[nika_catalog::param_flag::ParamFlag]
 pub fn nika_catalog::types::capabilities_view::ModelCapabilitiesView::supports_stop_sequences(&self) -> bool
 pub fn nika_catalog::types::capabilities_view::ModelCapabilitiesView::supports_system_messages(&self) -> bool
@@ -2989,6 +3084,7 @@ pub fn nika_catalog::model::ModelCapabilities::max_output_tokens(&self) -> core:
 pub fn nika_catalog::model::ModelCapabilities::output_modalities(&self) -> &[nika_catalog::modality::Modality]
 pub fn nika_catalog::model::ModelCapabilities::reasoning(&self) -> bool
 pub fn nika_catalog::model::ModelCapabilities::reasoning_efforts(&self) -> &[nika_catalog::model::ReasoningLevel]
+pub fn nika_catalog::model::ModelCapabilities::reasoning_facts(&self) -> nika_catalog::model::ReasoningFacts
 pub fn nika_catalog::model::ModelCapabilities::supported_parameters(&self) -> &[nika_catalog::param_flag::ParamFlag]
 pub fn nika_catalog::model::ModelCapabilities::supports_stop_sequences(&self) -> bool
 pub fn nika_catalog::model::ModelCapabilities::supports_system_messages(&self) -> bool
@@ -3995,6 +4091,47 @@ impl<T> core::convert::From<T> for nika_catalog::model::ReasoningLevel
 pub fn nika_catalog::model::ReasoningLevel::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::model::ReasoningLevel where T: 'static
 pub fn nika_catalog::model::ReasoningLevel::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_catalog::types::model::ThinkingOff
+pub nika_catalog::types::model::ThinkingOff::BudgetZero
+pub nika_catalog::types::model::ThinkingOff::ByDefault
+pub nika_catalog::types::model::ThinkingOff::Never
+pub nika_catalog::types::model::ThinkingOff::NotReached
+impl core::clone::Clone for nika_catalog::model::ThinkingOff
+pub fn nika_catalog::model::ThinkingOff::clone(&self) -> nika_catalog::model::ThinkingOff
+impl core::cmp::Eq for nika_catalog::model::ThinkingOff
+impl core::cmp::PartialEq for nika_catalog::model::ThinkingOff
+pub fn nika_catalog::model::ThinkingOff::eq(&self, other: &nika_catalog::model::ThinkingOff) -> bool
+impl core::fmt::Debug for nika_catalog::model::ThinkingOff
+pub fn nika_catalog::model::ThinkingOff::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_catalog::model::ThinkingOff
+pub fn nika_catalog::model::ThinkingOff::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_catalog::model::ThinkingOff
+impl core::marker::StructuralPartialEq for nika_catalog::model::ThinkingOff
+impl<D> owo_colors::OwoColorize for nika_catalog::model::ThinkingOff
+impl<T, U> core::convert::Into<U> for nika_catalog::model::ThinkingOff where U: core::convert::From<T>
+pub fn nika_catalog::model::ThinkingOff::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::model::ThinkingOff where U: core::convert::Into<T>
+pub type nika_catalog::model::ThinkingOff::Error = core::convert::Infallible
+pub fn nika_catalog::model::ThinkingOff::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::model::ThinkingOff where U: core::convert::TryFrom<T>
+pub type nika_catalog::model::ThinkingOff::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::model::ThinkingOff::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::model::ThinkingOff where T: core::clone::Clone
+pub type nika_catalog::model::ThinkingOff::Owned = T
+pub fn nika_catalog::model::ThinkingOff::clone_into(&self, target: &mut T)
+pub fn nika_catalog::model::ThinkingOff::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::model::ThinkingOff where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::model::ThinkingOff::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::model::ThinkingOff where T: ?core::marker::Sized
+pub fn nika_catalog::model::ThinkingOff::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::model::ThinkingOff where T: ?core::marker::Sized
+pub fn nika_catalog::model::ThinkingOff::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::model::ThinkingOff where T: core::clone::Clone
+pub unsafe fn nika_catalog::model::ThinkingOff::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::model::ThinkingOff
+pub fn nika_catalog::model::ThinkingOff::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::model::ThinkingOff where T: 'static
+pub fn nika_catalog::model::ThinkingOff::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_catalog::types::model::TokenLimitParam
 pub nika_catalog::types::model::TokenLimitParam::MaxCompletionTokens
 pub nika_catalog::types::model::TokenLimitParam::MaxOutputTokens
@@ -4088,6 +4225,7 @@ pub nika_catalog::types::model::ModelCapabilities::max_output_tokens: core::opti
 pub nika_catalog::types::model::ModelCapabilities::output_modalities: &'static [nika_catalog::modality::Modality]
 pub nika_catalog::types::model::ModelCapabilities::reasoning: bool
 pub nika_catalog::types::model::ModelCapabilities::reasoning_efforts: &'static [nika_catalog::model::ReasoningLevel]
+pub nika_catalog::types::model::ModelCapabilities::reasoning_facts: nika_catalog::model::ReasoningFacts
 pub nika_catalog::types::model::ModelCapabilities::supported_parameters: &'static [nika_catalog::param_flag::ParamFlag]
 pub nika_catalog::types::model::ModelCapabilities::supports_stop_sequences: bool
 pub nika_catalog::types::model::ModelCapabilities::supports_system_messages: bool
@@ -4097,6 +4235,7 @@ pub nika_catalog::types::model::ModelCapabilities::tokenizer: core::option::Opti
 impl nika_catalog::model::ModelCapabilities
 pub const fn nika_catalog::model::ModelCapabilities::new(token_limit_param: nika_catalog::model::TokenLimitParam, supports_temperature: bool, supports_stop_sequences: bool, reasoning: bool, input_modalities: &'static [nika_catalog::modality::Modality], output_modalities: &'static [nika_catalog::modality::Modality], tokenizer: core::option::Option<nika_catalog::tokenizer::TokenizerFamily>, supported_parameters: &'static [nika_catalog::param_flag::ParamFlag], supports_system_messages: bool, context_window_tokens: core::option::Option<u32>, max_output_tokens: core::option::Option<u32>, json_mode: core::option::Option<nika_catalog::json_mode::JsonMode>) -> Self
 pub const fn nika_catalog::model::ModelCapabilities::with_reasoning_efforts(self, levels: &'static [nika_catalog::model::ReasoningLevel]) -> Self
+pub const fn nika_catalog::model::ModelCapabilities::with_reasoning_facts(self, facts: nika_catalog::model::ReasoningFacts) -> Self
 impl core::clone::Clone for nika_catalog::model::ModelCapabilities
 pub fn nika_catalog::model::ModelCapabilities::clone(&self) -> nika_catalog::model::ModelCapabilities
 impl core::cmp::Eq for nika_catalog::model::ModelCapabilities
@@ -4115,6 +4254,7 @@ pub fn nika_catalog::model::ModelCapabilities::max_output_tokens(&self) -> core:
 pub fn nika_catalog::model::ModelCapabilities::output_modalities(&self) -> &[nika_catalog::modality::Modality]
 pub fn nika_catalog::model::ModelCapabilities::reasoning(&self) -> bool
 pub fn nika_catalog::model::ModelCapabilities::reasoning_efforts(&self) -> &[nika_catalog::model::ReasoningLevel]
+pub fn nika_catalog::model::ModelCapabilities::reasoning_facts(&self) -> nika_catalog::model::ReasoningFacts
 pub fn nika_catalog::model::ModelCapabilities::supported_parameters(&self) -> &[nika_catalog::param_flag::ParamFlag]
 pub fn nika_catalog::model::ModelCapabilities::supports_stop_sequences(&self) -> bool
 pub fn nika_catalog::model::ModelCapabilities::supports_system_messages(&self) -> bool
@@ -4278,6 +4418,50 @@ impl<T> core::convert::From<T> for nika_catalog::model::PricingSnapshot
 pub fn nika_catalog::model::PricingSnapshot::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::model::PricingSnapshot where T: 'static
 pub fn nika_catalog::model::PricingSnapshot::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::types::model::ReasoningFacts
+pub nika_catalog::types::model::ReasoningFacts::counts_in_output_cap: core::option::Option<bool>
+pub nika_catalog::types::model::ReasoningFacts::reasons_by_default: core::option::Option<bool>
+pub nika_catalog::types::model::ReasoningFacts::thinking_off: core::option::Option<nika_catalog::model::ThinkingOff>
+impl nika_catalog::model::ReasoningFacts
+pub const fn nika_catalog::model::ReasoningFacts::new(reasons_by_default: core::option::Option<bool>, counts_in_output_cap: core::option::Option<bool>, thinking_off: core::option::Option<nika_catalog::model::ThinkingOff>) -> Self
+impl core::clone::Clone for nika_catalog::model::ReasoningFacts
+pub fn nika_catalog::model::ReasoningFacts::clone(&self) -> nika_catalog::model::ReasoningFacts
+impl core::cmp::Eq for nika_catalog::model::ReasoningFacts
+impl core::cmp::PartialEq for nika_catalog::model::ReasoningFacts
+pub fn nika_catalog::model::ReasoningFacts::eq(&self, other: &nika_catalog::model::ReasoningFacts) -> bool
+impl core::default::Default for nika_catalog::model::ReasoningFacts
+pub fn nika_catalog::model::ReasoningFacts::default() -> nika_catalog::model::ReasoningFacts
+impl core::fmt::Debug for nika_catalog::model::ReasoningFacts
+pub fn nika_catalog::model::ReasoningFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_catalog::model::ReasoningFacts
+pub fn nika_catalog::model::ReasoningFacts::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_catalog::model::ReasoningFacts
+impl core::marker::StructuralPartialEq for nika_catalog::model::ReasoningFacts
+impl<D> owo_colors::OwoColorize for nika_catalog::model::ReasoningFacts
+impl<T, U> core::convert::Into<U> for nika_catalog::model::ReasoningFacts where U: core::convert::From<T>
+pub fn nika_catalog::model::ReasoningFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::model::ReasoningFacts where U: core::convert::Into<T>
+pub type nika_catalog::model::ReasoningFacts::Error = core::convert::Infallible
+pub fn nika_catalog::model::ReasoningFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::model::ReasoningFacts where U: core::convert::TryFrom<T>
+pub type nika_catalog::model::ReasoningFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::model::ReasoningFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::model::ReasoningFacts where T: core::clone::Clone
+pub type nika_catalog::model::ReasoningFacts::Owned = T
+pub fn nika_catalog::model::ReasoningFacts::clone_into(&self, target: &mut T)
+pub fn nika_catalog::model::ReasoningFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::model::ReasoningFacts where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::model::ReasoningFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::model::ReasoningFacts where T: ?core::marker::Sized
+pub fn nika_catalog::model::ReasoningFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::model::ReasoningFacts where T: ?core::marker::Sized
+pub fn nika_catalog::model::ReasoningFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::model::ReasoningFacts where T: core::clone::Clone
+pub unsafe fn nika_catalog::model::ReasoningFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::model::ReasoningFacts
+pub fn nika_catalog::model::ReasoningFacts::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::model::ReasoningFacts where T: 'static
+pub fn nika_catalog::model::ReasoningFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_catalog::types::param_flag
 #[non_exhaustive] pub enum nika_catalog::types::param_flag::ParamFlag
 pub nika_catalog::types::param_flag::ParamFlag::BatchApi
@@ -6091,6 +6275,7 @@ pub nika_catalog::types::CapPatch::max_output_tokens: core::option::Option<u32>
 pub nika_catalog::types::CapPatch::output_modalities: core::option::Option<&'static [nika_catalog::modality::Modality]>
 pub nika_catalog::types::CapPatch::reasoning: core::option::Option<bool>
 pub nika_catalog::types::CapPatch::reasoning_efforts: core::option::Option<&'static [nika_catalog::model::ReasoningLevel]>
+pub nika_catalog::types::CapPatch::reasoning_facts: core::option::Option<nika_catalog::model::ReasoningFacts>
 pub nika_catalog::types::CapPatch::supported_parameters: core::option::Option<&'static [nika_catalog::param_flag::ParamFlag]>
 pub nika_catalog::types::CapPatch::supports_stop_sequences: core::option::Option<bool>
 pub nika_catalog::types::CapPatch::supports_system_messages: core::option::Option<bool>
@@ -6141,6 +6326,7 @@ pub fn nika_catalog::capabilities::CapPatchBuilder::max_output_tokens(self, v: u
 pub fn nika_catalog::capabilities::CapPatchBuilder::output_modalities(self, v: &'static [nika_catalog::modality::Modality]) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::reasoning(self, v: bool) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::reasoning_efforts(self, v: &'static [nika_catalog::model::ReasoningLevel]) -> Self
+pub fn nika_catalog::capabilities::CapPatchBuilder::reasoning_facts(self, v: nika_catalog::model::ReasoningFacts) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::supported_parameters(self, v: &'static [nika_catalog::param_flag::ParamFlag]) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::supports_stop_sequences(self, v: bool) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::supports_system_messages(self, v: bool) -> Self
@@ -6534,6 +6720,7 @@ pub nika_catalog::types::ModelCapabilities::max_output_tokens: core::option::Opt
 pub nika_catalog::types::ModelCapabilities::output_modalities: &'static [nika_catalog::modality::Modality]
 pub nika_catalog::types::ModelCapabilities::reasoning: bool
 pub nika_catalog::types::ModelCapabilities::reasoning_efforts: &'static [nika_catalog::model::ReasoningLevel]
+pub nika_catalog::types::ModelCapabilities::reasoning_facts: nika_catalog::model::ReasoningFacts
 pub nika_catalog::types::ModelCapabilities::supported_parameters: &'static [nika_catalog::param_flag::ParamFlag]
 pub nika_catalog::types::ModelCapabilities::supports_stop_sequences: bool
 pub nika_catalog::types::ModelCapabilities::supports_system_messages: bool
@@ -6543,6 +6730,7 @@ pub nika_catalog::types::ModelCapabilities::tokenizer: core::option::Option<nika
 impl nika_catalog::model::ModelCapabilities
 pub const fn nika_catalog::model::ModelCapabilities::new(token_limit_param: nika_catalog::model::TokenLimitParam, supports_temperature: bool, supports_stop_sequences: bool, reasoning: bool, input_modalities: &'static [nika_catalog::modality::Modality], output_modalities: &'static [nika_catalog::modality::Modality], tokenizer: core::option::Option<nika_catalog::tokenizer::TokenizerFamily>, supported_parameters: &'static [nika_catalog::param_flag::ParamFlag], supports_system_messages: bool, context_window_tokens: core::option::Option<u32>, max_output_tokens: core::option::Option<u32>, json_mode: core::option::Option<nika_catalog::json_mode::JsonMode>) -> Self
 pub const fn nika_catalog::model::ModelCapabilities::with_reasoning_efforts(self, levels: &'static [nika_catalog::model::ReasoningLevel]) -> Self
+pub const fn nika_catalog::model::ModelCapabilities::with_reasoning_facts(self, facts: nika_catalog::model::ReasoningFacts) -> Self
 impl core::clone::Clone for nika_catalog::model::ModelCapabilities
 pub fn nika_catalog::model::ModelCapabilities::clone(&self) -> nika_catalog::model::ModelCapabilities
 impl core::cmp::Eq for nika_catalog::model::ModelCapabilities
@@ -6561,6 +6749,7 @@ pub fn nika_catalog::model::ModelCapabilities::max_output_tokens(&self) -> core:
 pub fn nika_catalog::model::ModelCapabilities::output_modalities(&self) -> &[nika_catalog::modality::Modality]
 pub fn nika_catalog::model::ModelCapabilities::reasoning(&self) -> bool
 pub fn nika_catalog::model::ModelCapabilities::reasoning_efforts(&self) -> &[nika_catalog::model::ReasoningLevel]
+pub fn nika_catalog::model::ModelCapabilities::reasoning_facts(&self) -> nika_catalog::model::ReasoningFacts
 pub fn nika_catalog::model::ModelCapabilities::supported_parameters(&self) -> &[nika_catalog::param_flag::ParamFlag]
 pub fn nika_catalog::model::ModelCapabilities::supports_stop_sequences(&self) -> bool
 pub fn nika_catalog::model::ModelCapabilities::supports_system_messages(&self) -> bool
@@ -8347,6 +8536,7 @@ pub nika_catalog::CapPatch::max_output_tokens: core::option::Option<u32>
 pub nika_catalog::CapPatch::output_modalities: core::option::Option<&'static [nika_catalog::modality::Modality]>
 pub nika_catalog::CapPatch::reasoning: core::option::Option<bool>
 pub nika_catalog::CapPatch::reasoning_efforts: core::option::Option<&'static [nika_catalog::model::ReasoningLevel]>
+pub nika_catalog::CapPatch::reasoning_facts: core::option::Option<nika_catalog::model::ReasoningFacts>
 pub nika_catalog::CapPatch::supported_parameters: core::option::Option<&'static [nika_catalog::param_flag::ParamFlag]>
 pub nika_catalog::CapPatch::supports_stop_sequences: core::option::Option<bool>
 pub nika_catalog::CapPatch::supports_system_messages: core::option::Option<bool>
@@ -8397,6 +8587,7 @@ pub fn nika_catalog::capabilities::CapPatchBuilder::max_output_tokens(self, v: u
 pub fn nika_catalog::capabilities::CapPatchBuilder::output_modalities(self, v: &'static [nika_catalog::modality::Modality]) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::reasoning(self, v: bool) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::reasoning_efforts(self, v: &'static [nika_catalog::model::ReasoningLevel]) -> Self
+pub fn nika_catalog::capabilities::CapPatchBuilder::reasoning_facts(self, v: nika_catalog::model::ReasoningFacts) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::supported_parameters(self, v: &'static [nika_catalog::param_flag::ParamFlag]) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::supports_stop_sequences(self, v: bool) -> Self
 pub fn nika_catalog::capabilities::CapPatchBuilder::supports_system_messages(self, v: bool) -> Self
@@ -8790,6 +8981,7 @@ pub nika_catalog::ModelCapabilities::max_output_tokens: core::option::Option<u32
 pub nika_catalog::ModelCapabilities::output_modalities: &'static [nika_catalog::modality::Modality]
 pub nika_catalog::ModelCapabilities::reasoning: bool
 pub nika_catalog::ModelCapabilities::reasoning_efforts: &'static [nika_catalog::model::ReasoningLevel]
+pub nika_catalog::ModelCapabilities::reasoning_facts: nika_catalog::model::ReasoningFacts
 pub nika_catalog::ModelCapabilities::supported_parameters: &'static [nika_catalog::param_flag::ParamFlag]
 pub nika_catalog::ModelCapabilities::supports_stop_sequences: bool
 pub nika_catalog::ModelCapabilities::supports_system_messages: bool
@@ -8799,6 +8991,7 @@ pub nika_catalog::ModelCapabilities::tokenizer: core::option::Option<nika_catalo
 impl nika_catalog::model::ModelCapabilities
 pub const fn nika_catalog::model::ModelCapabilities::new(token_limit_param: nika_catalog::model::TokenLimitParam, supports_temperature: bool, supports_stop_sequences: bool, reasoning: bool, input_modalities: &'static [nika_catalog::modality::Modality], output_modalities: &'static [nika_catalog::modality::Modality], tokenizer: core::option::Option<nika_catalog::tokenizer::TokenizerFamily>, supported_parameters: &'static [nika_catalog::param_flag::ParamFlag], supports_system_messages: bool, context_window_tokens: core::option::Option<u32>, max_output_tokens: core::option::Option<u32>, json_mode: core::option::Option<nika_catalog::json_mode::JsonMode>) -> Self
 pub const fn nika_catalog::model::ModelCapabilities::with_reasoning_efforts(self, levels: &'static [nika_catalog::model::ReasoningLevel]) -> Self
+pub const fn nika_catalog::model::ModelCapabilities::with_reasoning_facts(self, facts: nika_catalog::model::ReasoningFacts) -> Self
 impl core::clone::Clone for nika_catalog::model::ModelCapabilities
 pub fn nika_catalog::model::ModelCapabilities::clone(&self) -> nika_catalog::model::ModelCapabilities
 impl core::cmp::Eq for nika_catalog::model::ModelCapabilities
@@ -8817,6 +9010,7 @@ pub fn nika_catalog::model::ModelCapabilities::max_output_tokens(&self) -> core:
 pub fn nika_catalog::model::ModelCapabilities::output_modalities(&self) -> &[nika_catalog::modality::Modality]
 pub fn nika_catalog::model::ModelCapabilities::reasoning(&self) -> bool
 pub fn nika_catalog::model::ModelCapabilities::reasoning_efforts(&self) -> &[nika_catalog::model::ReasoningLevel]
+pub fn nika_catalog::model::ModelCapabilities::reasoning_facts(&self) -> nika_catalog::model::ReasoningFacts
 pub fn nika_catalog::model::ModelCapabilities::supported_parameters(&self) -> &[nika_catalog::param_flag::ParamFlag]
 pub fn nika_catalog::model::ModelCapabilities::supports_stop_sequences(&self) -> bool
 pub fn nika_catalog::model::ModelCapabilities::supports_system_messages(&self) -> bool

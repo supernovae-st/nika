@@ -1440,3 +1440,6 @@ mod provenance_tests {
 
 #[cfg(test)]
 mod capabilities_proptests;
+
+#[cfg(test)]
+mod reasoning_facts_tests;

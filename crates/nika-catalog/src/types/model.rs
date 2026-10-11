@@ -52,6 +52,51 @@ impl ReasoningLevel {
     }
 }
 
+/// What the catalog records of a model's reasoning on the routes this engine serves: whether it
+/// reasons when the request names no reasoning control, whether that reasoning is spent inside the
+/// request's output cap, and how a `.nika` file turns it off. A `None` is not recorded: unknown,
+/// never a default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub struct ReasoningFacts {
+    /// The model reasons when the request names no reasoning control.
+    pub reasons_by_default: Option<bool>,
+    /// Its reasoning is spent inside the request's output cap: a cap too small leaves no answer.
+    pub counts_in_output_cap: Option<bool>,
+    /// How a `.nika` file turns its reasoning off on this engine.
+    pub thinking_off: Option<ThinkingOff>,
+}
+
+impl ReasoningFacts {
+    /// These facts; `None` for each one not recorded.
+    #[must_use]
+    pub const fn new(
+        reasons_by_default: Option<bool>,
+        counts_in_output_cap: Option<bool>,
+        thinking_off: Option<ThinkingOff>,
+    ) -> Self {
+        Self {
+            reasons_by_default,
+            counts_in_output_cap,
+            thinking_off,
+        }
+    }
+}
+
+/// How a `.nika` file turns a model's reasoning off on this engine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ThinkingOff {
+    /// Nothing to do: the model reasons only when a task's `thinking: { budget_tokens }` asks.
+    ByDefault,
+    /// A task's `thinking: { budget_tokens: 0 }`.
+    BudgetZero,
+    /// The provider documents a switch this engine does not send: no `.nika` control reaches it.
+    NotReached,
+    /// The provider documents none: its reasoning cannot be turned off.
+    Never,
+}
+
 /// Capabilities of a specific model on a specific provider.
 ///
 /// Provider-aware: the same model name gets different treatment depending
@@ -148,6 +193,10 @@ pub struct ModelCapabilities {
     /// when no rule qualifies any (R4 B16).
     #[cfg(feature = "capabilities")]
     pub reasoning_efforts: &'static [ReasoningLevel],
+    /// What the catalog records of this model's reasoning ([`ReasoningFacts`]); unknown
+    /// where no rule records it.
+    #[cfg(feature = "capabilities")]
+    pub reasoning_facts: ReasoningFacts,
 }
 
 impl Default for ModelCapabilities {
@@ -171,6 +220,8 @@ impl Default for ModelCapabilities {
             json_mode: None,
             #[cfg(feature = "capabilities")]
             reasoning_efforts: &[],
+            #[cfg(feature = "capabilities")]
+            reasoning_facts: ReasoningFacts::new(None, None, None),
         }
     }
 }
@@ -227,6 +278,7 @@ impl ModelCapabilities {
             max_output_tokens,
             json_mode,
             reasoning_efforts: &[],
+            reasoning_facts: ReasoningFacts::new(None, None, None),
         }
     }
 
@@ -235,6 +287,14 @@ impl ModelCapabilities {
     #[cfg(feature = "capabilities")]
     pub const fn with_reasoning_efforts(mut self, levels: &'static [ReasoningLevel]) -> Self {
         self.reasoning_efforts = levels;
+        self
+    }
+
+    /// The same capabilities with these recorded reasoning facts.
+    #[must_use]
+    #[cfg(feature = "capabilities")]
+    pub const fn with_reasoning_facts(mut self, facts: ReasoningFacts) -> Self {
+        self.reasoning_facts = facts;
         self
     }
 

@@ -444,3 +444,28 @@ nor a successful inference call or the server's internal reasoning effort.
 
 They descended from `nika-compile`'s seat sizing, which keeps the room it generates and reads
 them here; no record or rule changed.
+
+## Reasoning facts
+
+`ModelCapabilities.reasoning_facts` (`ReasoningFacts`, also read through
+`ModelCapabilitiesView::reasoning_facts`) records three facts, each `None` when
+no rule records it: `reasons_by_default` (the model reasons when the request
+names no reasoning control), `counts_in_output_cap` (that reasoning is spent
+inside the request's output cap, so a cap too small leaves no answer) and
+`thinking_off` (`ThinkingOff`: how a `.nika` file turns it off on this engine,
+`ByDefault`, `BudgetZero`, `NotReached` or `Never`). A rule writes them as
+`reasoning_facts = { by_default, in_output_cap, off }`; `[defaults]` records
+none, so an unrecorded model stays unknown rather than assumed from its name
+or its `reasoning` flag.
+
+The rows recorded on 2026-10-10: DeepSeek `deepseek-flash` and
+`deepseek-v4-pro` on the direct API (reasons, counted, `NotReached`: the
+documented `thinking: {type: disabled}` is never sent), `gemini-2.5-flash` on
+the Gemini API (reasons, counted, `BudgetZero`), `gemini-2.5-pro` (reasons,
+counted, `Never`: the API floor is 128) and Claude on Anthropic's API (does not
+reason unless a budget asks, counted, `ByDefault`). Two rules carry facts for
+one provider ahead of a broader rule, `claude-on-anthropic` and
+`gemini-2-5-flash-api`, and repeat its caps; a catalog test keeps them equal.
+nika-providers tests pin `thinking_off` and `reasons_by_default` to what each
+wire sends. Facts describe documented and observed behavior, not a guarantee
+of a given call's reasoning.

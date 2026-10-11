@@ -21,7 +21,7 @@
 //! is useless without the generated rule table. The gate lives at the
 //! `pub mod capabilities;` declaration in `types/mod.rs`.
 
-use super::model::{ModelCapabilities, ReasoningLevel, TokenLimitParam};
+use super::model::{ModelCapabilities, ReasoningFacts, ReasoningLevel, TokenLimitParam};
 use super::region::Region;
 use super::{JsonMode, Modality, ParamFlag, TokenizerFamily};
 
@@ -94,6 +94,8 @@ pub struct CapPatch {
     // ── R4 B16 addition ────────────────────────────────────────────────
     /// Per-field override for [`ModelCapabilities::reasoning_efforts`].
     pub reasoning_efforts: Option<&'static [ReasoningLevel]>,
+    /// Per-field override for [`ModelCapabilities::reasoning_facts`].
+    pub reasoning_facts: Option<ReasoningFacts>,
 }
 
 impl CapPatch {
@@ -140,6 +142,7 @@ impl CapPatch {
             max_output_tokens,
             json_mode,
             reasoning_efforts,
+            reasoning_facts,
         );
         self
     }
@@ -209,6 +212,11 @@ impl CapPatch {
                 .reasoning_efforts
                 .or(defaults.reasoning_efforts)
                 .unwrap_or(&[]),
+            // Unknown unless a rule records them: never required of `[defaults]`.
+            reasoning_facts: self
+                .reasoning_facts
+                .or(defaults.reasoning_facts)
+                .unwrap_or_default(),
         }
     }
 
@@ -371,6 +379,12 @@ impl CapPatchBuilder {
     #[must_use]
     pub fn reasoning_efforts(mut self, v: &'static [ReasoningLevel]) -> Self {
         self.inner.reasoning_efforts = Some(v);
+        self
+    }
+    /// Set [`CapPatch::reasoning_facts`].
+    #[must_use]
+    pub fn reasoning_facts(mut self, v: ReasoningFacts) -> Self {
+        self.inner.reasoning_facts = Some(v);
         self
     }
     /// Consume the builder, returning the assembled [`CapPatch`].
@@ -640,6 +654,7 @@ mod tests {
             max_output_tokens: None,
             json_mode: None,
             reasoning_efforts: Some(&[]),
+            reasoning_facts: None,
         }
     }
 
@@ -728,6 +743,8 @@ mod tests {
             json_mode: Some(JsonMode::Schema),
             // R4 B16
             reasoning_efforts: Some(&[ReasoningLevel::High]),
+            // Reasoning facts
+            reasoning_facts: Some(ReasoningFacts::new(Some(true), None, None)),
         };
         let merged = base.merge_with(patch);
         // Session 2a
@@ -753,6 +770,25 @@ mod tests {
         assert_eq!(merged.json_mode, Some(JsonMode::Schema));
         // R4 B16
         assert_eq!(merged.reasoning_efforts, Some(&[ReasoningLevel::High][..]));
+        assert_eq!(
+            merged.reasoning_facts,
+            Some(ReasoningFacts::new(Some(true), None, None))
+        );
+    }
+
+    #[test]
+    fn reasoning_facts_stay_unknown_unless_a_rule_records_them() {
+        let defaults = toml_like_defaults();
+        let recorded = ReasoningFacts::new(Some(true), Some(true), None);
+        let rule = CapPatchBuilder::default().reasoning_facts(recorded).build();
+        assert_eq!(rule.materialize(&defaults).reasoning_facts, recorded);
+        let silent = CapPatchBuilder::default().reasoning(true).build();
+        assert_eq!(
+            silent.materialize(&defaults).reasoning_facts,
+            ReasoningFacts::default(),
+            "a reasoning model with no recorded facts stays unknown, never assumed"
+        );
+        assert_eq!(rule.merge_with(silent).reasoning_facts, Some(recorded));
     }
 
     #[test]
