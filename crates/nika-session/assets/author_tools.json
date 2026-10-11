@@ -512,6 +512,11 @@
       "type": "string",
       "minLength": 1,
       "description": "The person's own words in that line, verbatim."
+     },
+     "replaced_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The value their words give in its place, as they typed it in that line."
      }
     },
     "required": [
@@ -583,6 +588,10 @@
       "pattern": "^u[0-9]+$"
      },
      "excerpt": {
+      "type": "string",
+      "minLength": 1
+     },
+     "replaced_by": {
       "type": "string",
       "minLength": 1
      }

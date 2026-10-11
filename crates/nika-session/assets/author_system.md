@@ -16,7 +16,7 @@ Every source, output, run model and value of the person's that the document hold
 - `answered`: a value they typed.
 - `offered`: a value of the option they picked, with its `question` and `option` keys.
 - `retained`: a value a revision they saw already bound, unchanged, still in the document.
-Such a value without a selection the person's words support is invented and refused. A value a revision they saw bound stays unless words of theirs that name it remove it (`removed`). Words you had to ask about never name the value they were ambiguous about: its provenance is the answer.
+Such a value without a selection the person's words support is invented and refused. A value a revision they saw bound stays unless words of theirs that name it remove it (`removed`); words that give its replacement remove it too (`removed` with `replaced_by`, the new value as they typed it), and so does a choice of it they left to you. Words you had to ask about never name the value they were ambiguous about: its provenance is the answer.
 Your own implementation within them states no selection and is never asked: the filters, programs and prompts you write, and the globs and rights over the sources and outputs they chose.
 
 Asking

@@ -556,17 +556,37 @@ impl Conversation {
     fn removal(&self, citations: &Citations, row: &Value) -> Result<String, String> {
         let text = |field: &str| row[field].as_str().unwrap_or_default();
         let (value, message, excerpt) = (text("value"), text("message"), text("excerpt"));
+        let replaced_by = row["replaced_by"].as_str();
         match citations.get(message) {
             Some(line) if in_line(line, excerpt, None) && self.names(excerpt, value) => {
                 Ok(value.to_owned())
             }
+            // Words that give it its replacement, typed in the same line, remove it too.
+            Some(line)
+                if in_line(line, excerpt, None)
+                    && replaced_by.is_some_and(|new| typed(&line.text, new)) =>
+            {
+                Ok(value.to_owned())
+            }
+            // So does the line that left its choice to Nika: it is replaced within that choice.
+            Some(line) if in_line(line, excerpt, None) && self.left_with(message, value) => {
+                Ok(value.to_owned())
+            }
             Some(line) if in_line(line, excerpt, None) => Err(format!(
-                "« {excerpt} » does not name `{value}`: a value the person saw bound is removed only by words that name it (its address, its host's name or the name it was offered under); ask them whether they meant to drop it"
+                "« {excerpt} » does not name `{value}`: a value the person saw bound is removed only by words that name it (its address, its host's name or the name it was offered under), by words that give its replacement (`replaced_by`, typed in that line) or by a choice of it they left to you; ask them whether they meant to drop it"
             )),
             _ => Err(format!(
                 "`{value}` is stated as removed by « {excerpt} », which is not in the person's line {message}"
             )),
         }
+    }
+
+    /// Whether the person's line `message` left the choice of `value`'s role to Nika.
+    fn left_with(&self, message: &str, value: &str) -> bool {
+        let role = (self.accepted.iter()).find(|kept| same_literal(&kept.value, value));
+        role.is_some_and(|kept| {
+            (self.delegations.iter()).any(|d| d.message == message && d.scope == kept.role)
+        })
     }
 
     /// Whether the person's words `excerpt` name `value`: the value as written, its host's own
