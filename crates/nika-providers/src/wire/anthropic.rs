@@ -120,6 +120,18 @@ fn wiring_bug() -> ProviderError {
     }
 }
 
+/// The key that marks a prompt-cache breakpoint, at the top level (automatic) or on a block.
+const CACHE_CONTROL: &str = "cache_control";
+
+/// Whether a request asks for prompt caching (5-minute TTL): the automatic marker caches the
+/// conversation up to its last block, and a breakpoint on the last tool keeps the tools' prefix
+/// across calls. A one-shot request (one message, no tool) asks for neither, since a write costs
+/// 1.25 times the input it caches and nothing would read it; nor does a request that names its
+/// own `cache_control`, which stays alone.
+fn caches_prompt(req: &InferRequest, turns: usize) -> bool {
+    (turns > 1 || !req.tools.is_empty()) && !req.extra.params.contains_key(CACHE_CONTROL)
+}
+
 /// Build the HTTP request (headers + JSON body).
 fn build_request(
     rp: &ResolvedProvider<impl Sized>,
@@ -189,6 +201,7 @@ fn request_body(
         }
     }
 
+    let cached = caches_prompt(req, messages.len());
     let mut body = json!({
         "model": model,
         "max_tokens": req.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
@@ -208,7 +221,10 @@ fn request_body(
         obj.insert("stop_sequences".to_owned(), json!(req.stop_sequences));
     }
     if !req.tools.is_empty() {
-        push_tools(obj, req, names);
+        push_tools(obj, req, names, cached);
+    }
+    if cached {
+        obj.insert(CACHE_CONTROL.to_owned(), json!({ "type": "ephemeral" }));
     }
     if let Some(budget) = req.thinking_budget {
         obj.insert(
@@ -376,8 +392,13 @@ fn strip_unsupported(obj: &mut serde_json::Map<String, Value>) {
 /// Insert `tools` + `tool_choice`. Each tool name is sanitized to the
 /// wire-legal charset (`^[a-zA-Z0-9_-]{1,64}$` · NIKA-463); the model echoes
 /// the sanitized name in `tool_use`, restored to the canonical id on parse.
-fn push_tools(obj: &mut serde_json::Map<String, Value>, req: &InferRequest, names: &ToolNameMap) {
-    let tools: Vec<Value> = req
+fn push_tools(
+    obj: &mut serde_json::Map<String, Value>,
+    req: &InferRequest,
+    names: &ToolNameMap,
+    cached: bool,
+) {
+    let mut tools: Vec<Value> = req
         .tools
         .iter()
         .map(|t| {
@@ -388,6 +409,9 @@ fn push_tools(obj: &mut serde_json::Map<String, Value>, req: &InferRequest, name
             })
         })
         .collect();
+    if let Some(Value::Object(last)) = tools.last_mut().filter(|_| cached) {
+        last.insert(CACHE_CONTROL.to_owned(), json!({ "type": "ephemeral" }));
+    }
     obj.insert("tools".to_owned(), Value::Array(tools));
     let choice = match &req.tool_choice {
         ToolChoice::Required => json!({ "type": "any" }),
@@ -834,6 +858,42 @@ mod tests {
         assert_eq!(facts.thinking_off, Some(ThinkingOff::ByDefault));
         let plain = body_of(model, &req(vec![Message::text(Role::User, "x")]), false);
         assert!(plain.expect("body").get("thinking").is_none());
+    }
+
+    /// A conversation or a request with tools carries the automatic marker and a breakpoint on its
+    /// last tool, two of the four slots; a one-shot request and one that names its own
+    /// `cache_control` carry nothing of ours.
+    #[test]
+    fn prompt_cache_markers_ride_conversations_and_tools_only() {
+        let ephemeral = serde_json::json!({ "type": "ephemeral" });
+        let one_shot = req(vec![Message::text(Role::User, "salut")]);
+        let body = body_of("m", &one_shot, false).expect("body");
+        assert!(body.get(CACHE_CONTROL).is_none(), "{body}");
+        let mut tools = one_shot.clone();
+        tools.tools = Vec::from(
+            ["a", "b"].map(|name| ToolDef::new(name, "", serde_json::json!({"type":"object"}))),
+        );
+        let body = body_of("m", &tools, false).expect("body");
+        assert_eq!(body[CACHE_CONTROL], ephemeral);
+        assert!(body["tools"][0].get(CACHE_CONTROL).is_none(), "{body}");
+        assert_eq!(body["tools"][1][CACHE_CONTROL], ephemeral);
+        let mut conversation = one_shot.clone();
+        conversation
+            .messages
+            .push(Message::text(Role::Assistant, "bonjour"));
+        conversation
+            .messages
+            .push(Message::text(Role::User, "encore"));
+        let body = body_of("m", &conversation, false).expect("body");
+        assert_eq!(body[CACHE_CONTROL], ephemeral);
+        let mut own = tools.clone();
+        let hour = serde_json::json!({ "type": "ephemeral", "ttl": "1h" });
+        own.extra
+            .params
+            .insert(CACHE_CONTROL.to_owned(), hour.clone());
+        let body = body_of("m", &own, false).expect("body");
+        assert_eq!(body[CACHE_CONTROL], hour, "the caller's own marker, alone");
+        assert!(body["tools"][1].get(CACHE_CONTROL).is_none(), "{body}");
     }
 
     #[test]
