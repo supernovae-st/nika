@@ -43,8 +43,6 @@ pub(crate) trait Desk: Send {
     fn models(&mut self, role: &str, ask: &Value) -> Result<String, String>;
     /// The pinned knowledge release: a search or a skill.
     fn knowledge(&mut self, query: Option<&str>, skill: Option<&str>) -> Result<String, String>;
-    /// One public GET, observed.
-    fn observe(&mut self, url: &str) -> Result<String, String>;
     /// Document operations applied to `source`: the new source.
     fn compose(&mut self, source: &str, operations: &[Value]) -> Result<String, String>;
     /// The candidate judged whole against what the person `stated`, with its selections
@@ -196,6 +194,15 @@ impl SessionTools for Toolbox {
     }
 
     fn call(&self, call: ToolCall) -> ToolReply {
+        // An observation reads one public page and no conversation state: it runs outside the
+        // lock, so the observations of one message run side by side.
+        if call.name == "observe" {
+            if self.state().turn.is_none() {
+                return ToolReply::error(NO_TURN);
+            }
+            let url = call.arguments["url"].as_str().unwrap_or_default();
+            return reply(nika_session_intelligence::observe::observe(url).map(|s| s.to_string()));
+        }
         let mut state = self.state();
         let State {
             conversation,
@@ -238,7 +245,6 @@ impl SessionTools for Toolbox {
                 let (query, skill) = (text("query"), text("skill"));
                 reply(parts.desk.knowledge(query.as_deref(), skill.as_deref()))
             }
-            "observe" => reply(parts.desk.observe(&text("url").unwrap_or_default())),
             "compose" => parts.compose(args),
             // The trial runs within the verification: `trial` asks for both.
             "verify" | "trial" => parts.verify(),

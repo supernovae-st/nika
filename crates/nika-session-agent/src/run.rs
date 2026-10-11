@@ -11,6 +11,7 @@
 //! repeats the previous one exactly, reply included, is said so to the model, never stopped.
 //! Every entry reaches the Session's file before the tree takes it.
 
+use std::collections::VecDeque;
 use std::io;
 
 use nika_kernel::CancelCtx;
@@ -34,6 +35,9 @@ const REPEATED: &str = "\n\n(Nika: this call and its reply repeat the previous c
 
 /// Why a call after a steering line is not run.
 const STEERED: &str = "Not run: the person wrote meanwhile; read their message first.";
+
+/// The one tool whose consecutive calls run side by side: it reads a public page, nothing else.
+const OBSERVE: &str = "observe";
 
 /// What each call of a message cut at the output limit reads: none of them runs.
 const CUT: &str = "Not run: your message was cut at the output limit; re-issue the call with \
@@ -576,7 +580,8 @@ impl<'a> Agent<'a> {
         events: &mut dyn FnMut(AgentEvent),
     ) -> Result<Option<(String, String)>, AgentError> {
         let mut parked: Option<(String, String)> = None;
-        for (call, name, input) in made {
+        let mut ahead: VecDeque<ToolReply> = VecDeque::new();
+        for (k, (call, name, input)) in made.iter().enumerate() {
             if parked.is_none() && self.cancel.is_cancelled() {
                 break;
             }
@@ -604,8 +609,19 @@ impl<'a> Agent<'a> {
                 call: call.clone(),
                 name: name.clone(),
             });
-            let asked = ToolCall::new(name.clone(), input.clone()).with_meta(call.clone());
-            let mut reply = self.tools.call(asked);
+            let mut reply = match ahead.pop_front() {
+                Some(reply) => reply,
+                None if name == OBSERVE => {
+                    let run = made.get(k..).unwrap_or_default();
+                    let len = run.iter().take_while(|(_, n, _)| n == OBSERVE).count();
+                    ahead = self.observe_all(run.get(..len).unwrap_or_default());
+                    (ahead.pop_front()).unwrap_or_else(|| ToolReply::error("nothing observed"))
+                }
+                None => {
+                    let asked = ToolCall::new(name.clone(), input.clone()).with_meta(call.clone());
+                    self.tools.call(asked)
+                }
+            };
             events(AgentEvent::ToolEnd {
                 call: call.clone(),
                 name: name.clone(),
@@ -626,6 +642,29 @@ impl<'a> Agent<'a> {
             }
         }
         Ok(parked)
+    }
+
+    /// Consecutive observations of one message, side by side: each reads one public page and no
+    /// conversation state. Their replies come back in the message's order.
+    fn observe_all(&self, run: &[Call]) -> VecDeque<ToolReply> {
+        let tools = self.tools;
+        std::thread::scope(|scope| {
+            let handles: Vec<_> = (run.iter())
+                .map(|(call, name, input)| {
+                    let asked = ToolCall::new(name.clone(), input.clone()).with_meta(call.clone());
+                    std::thread::Builder::new()
+                        .name("nika-observe".to_owned())
+                        .spawn_scoped(scope, move || tools.call(asked))
+                })
+                .collect();
+            (handles.into_iter())
+                .map(|handle| match handle {
+                    Ok(running) => (running.join())
+                        .unwrap_or_else(|_| ToolReply::error("the observation stopped")),
+                    Err(why) => ToolReply::error(format!("the observation did not start: {why}")),
+                })
+                .collect()
+        })
     }
 
     /// Record the queued lines of `mode` as the person's lines; returns whether any entered.

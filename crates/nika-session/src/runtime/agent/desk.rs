@@ -340,10 +340,6 @@ impl Desk for SessionDesk {
         ))
     }
 
-    fn observe(&mut self, url: &str) -> Result<String, String> {
-        nika_session_intelligence::observe::observe(url).map(|seen| seen.to_string())
-    }
-
     fn compose(&mut self, source: &str, operations: &[Value]) -> Result<String, String> {
         // The release the Session pinned, lent as executable components as a compile round lends
         // it, its held-out corpus out of reach: a pin that no longer reopens lends nothing.

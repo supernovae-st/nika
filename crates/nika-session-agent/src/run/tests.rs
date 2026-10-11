@@ -3,6 +3,8 @@
 
 use std::collections::VecDeque;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
 use nika_kernel::provider::Role;
 use nika_session_change::tools::ToolDef as SessionToolDef;
@@ -63,6 +65,9 @@ impl Model for Script {
 struct Tools {
     calls: Mutex<Vec<ToolCall>>,
     hook: Box<dyn Fn(&ToolCall) + Send + Sync>,
+    /// The observations running now, and the most that ran at once.
+    observing: AtomicUsize,
+    most: AtomicUsize,
 }
 
 impl Tools {
@@ -74,6 +79,8 @@ impl Tools {
         Self {
             calls: Mutex::new(Vec::new()),
             hook: Box::new(hook),
+            observing: AtomicUsize::new(0),
+            most: AtomicUsize::new(0),
         }
     }
 
@@ -100,6 +107,13 @@ impl SessionTools for Tools {
         match call.name.as_str() {
             "read" => ToolReply::ok(format!("contents of {}", call.arguments["path"])),
             "ask" => ToolReply::ends_turn("asked q1"),
+            "observe" => {
+                let now = self.observing.fetch_add(1, Ordering::SeqCst) + 1;
+                self.most.fetch_max(now, Ordering::SeqCst);
+                std::thread::sleep(Duration::from_millis(80));
+                self.observing.fetch_sub(1, Ordering::SeqCst);
+                ToolReply::ok(format!("page of {}", call.arguments["url"]))
+            }
             other => ToolReply::error(format!("no tool `{other}`")),
         }
     }
@@ -332,6 +346,33 @@ fn nothing_before_a_replayed_thinking_block_is_stubbed() {
         json!({"source": "nika: second"}),
     ];
     assert_eq!(inputs, whole);
+}
+
+#[test]
+fn the_observations_of_one_message_run_side_by_side_in_its_order() {
+    let (mut tree, mut lines) = fresh();
+    let tools = Tools::new();
+    let observe = |id: &str, url: &str| ContentBlock::ToolUse {
+        id: id.into(),
+        name: "observe".into(),
+        input: json!({"url": url}),
+    };
+    let blocks = vec![
+        observe("c1", "https://a.example"),
+        observe("c2", "https://b.example"),
+        observe("c3", "https://c.example"),
+    ];
+    let mut model = Script::new(vec![
+        Ok(Reply::new(blocks, StopReason::ToolUse)),
+        says("Read."),
+    ]);
+    let outcome =
+        Agent::new(&mut tree, &mut lines, &tools, &now).prompt("observe", &mut model, &mut |_| {});
+    assert!(matches!(outcome, Outcome::Answered { .. }));
+    assert!(tools.most.load(Ordering::SeqCst) >= 2, "side by side");
+    let results = last_results(&model.seen[1]);
+    let order: Vec<&str> = results.iter().map(|(id, ..)| id.as_str()).collect();
+    assert_eq!(order, ["c1", "c2", "c3"]);
 }
 
 #[test]
