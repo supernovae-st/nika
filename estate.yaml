@@ -89,7 +89,7 @@ files:
     - "docs/adr/adr-*.md YAML frontmatter"
 - path: "fuzz/Cargo.lock"
   class: generated
-  sha256: 7cff149f2835802017be09dd9ba931917085230f9d7c2a31d7334301da41c7ca
+  sha256: f3bdf39e69af6451e064472baf3817a7874001a8a1fcbde6b9d5bd46a8926c29
   evidence: "cargo's resolver writes it for the fuzz workspace; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against fuzz/Cargo.toml)"
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 90
-  aggregate_sha256: 392a50f1116ac1f480f306ebffe6f8407ff554c5d7ed3a544bf27c114da51058
+  aggregate_sha256: a247d6463f6a6a49ed8ef4e104b510ddf874f4836dae4cf217034794c99ce3e5
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 397
-  aggregate_sha256: 06ebd5c6234aeb109d6b4fd1ab12fed5b7520b96b4e288b7a998262975d3f728
+  aggregate_sha256: a348d99ea5ad30321bcc48690470cd98a4d8cc1e8f8249c8962528a2e2fcacba
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "scripts/sync-pack.sh is the ONE vendoring lane; the divergent crate-local duplicate was retired"
 - glob: "fuzz/**"
