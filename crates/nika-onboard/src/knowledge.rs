@@ -7,11 +7,12 @@
 //! beside the card — the families the intent belongs to, their patterns and the checked blocks
 //! that realize them (and the solved examples and the skill of the leading family, which a
 //! policy-R release never holds) — plus the repair principles the release wires to diagnostic
-//! codes, for the repair rounds. Deterministic retrieval (BM25 over the rows' text and the
-//! release's graph) with no count or byte quota: every row the recall reaches is presented whole,
-//! in relevance order, and stated — the selection record names every row it selected, why, and
-//! whether it was presented or excluded (and for what reason); the identity carries the release's
-//! version, its `SNAPSHOT_SHA256` (the sha256 of its manifest's bytes) and this builder's version.
+//! codes, for the repair rounds. Deterministic retrieval (BM25 over the rows' informative words and
+//! the release's graph) with no count or byte quota: every row the recall reaches is presented
+//! whole, in relevance order, and stated — the selection record names every row it selected, why,
+//! and whether it was presented or excluded (and for what reason); the identity carries the
+//! release's version, its `SNAPSHOT_SHA256` (the sha256 of its manifest's bytes) and this builder's
+//! version.
 //! The order of what is taken is relevance — each recalled family, then the direct text match, in
 //! turn — never the rows' ids, and a block is presented with the holes, effects, capabilities,
 //! known failures and version its row states. The selection is this door's own (Rust BM25 over
@@ -99,7 +100,9 @@ pub fn redact_host_paths(identity: &mut serde_json::Value) {
 /// v5 retains up to eight matching blocks so broader project coverage preserves specific obligations.
 /// v6 drops every count and byte quota: each row the recall reaches is presented whole (files,
 /// block metadata, every repair principle of a code).
-pub const PACK_BUILDER: &str = "nika-compile/knowledge-door-v6";
+/// v7 recalls by informative words: a row that shares only stopwords with the request (« the »,
+/// « with ») is not reached.
+pub const PACK_BUILDER: &str = "nika-compile/knowledge-door-v7";
 
 /// Why the knowledge door refused a source: a named source is never replaced by no knowledge.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -432,8 +435,8 @@ impl Snapshot {
         Ok(pack)
     }
 
-    /// 1 · the families by BM25 over their need, title and facets, every one the request shares a
-    /// word with.
+    /// 1 · the families by BM25 over their need, title and facets, every one the request shares an
+    /// informative word with.
     fn recall_families(&self, intent: &str, composition: &mut Composition) -> Vec<(String, f64)> {
         let families = rank(intent, self.rows("families"), |r| {
             text_of(r, &["title", "need", "facets"])
@@ -945,7 +948,7 @@ impl Composition {
         });
         if !recalled {
             self.selection["no_match"] = json!(
-                "no family, pattern or example shares a word with the request: nothing is presented, and the seat reads the card alone"
+                "no family, pattern or example shares an informative word with the request: nothing is presented, and the seat reads the card alone"
             );
         }
     }

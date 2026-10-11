@@ -309,11 +309,45 @@ fn bm25_ranks_the_row_that_shares_the_rare_words_first() {
     let ranked = rank("summarize tickets", &rows, |r| text_of(r, &["t"]));
     assert_eq!(ranked[0].0, "b", "{ranked:?}");
     assert_eq!(ranked.len(), 1, "no shared word, no hit: {ranked:?}");
-    // A shared small word is a hit too (« the »), ranked below the rare words.
+    // A shared stopword is no hit (« the »): every row and request share it.
     let ranked = rank("summarize the tickets", &rows, |r| text_of(r, &["t"]));
-    assert_eq!(ranked.len(), 2, "{ranked:?}");
+    assert_eq!(ranked.len(), 1, "{ranked:?}");
     assert_eq!(ranked[0].0, "b");
-    assert_eq!(ranked[1].0, "a");
+}
+
+/// Over the release this build embeds, every row the text recall presents shares an informative
+/// word with the request. A ten-word authoring request used to reach 22 of its 26 examples and
+/// all 16 skills through « the », « and » and « with » alone.
+#[test]
+fn the_embedded_release_recalls_a_row_by_an_informative_word_only() {
+    let identity = bundled::identity().expect("issued");
+    let snapshot = bundled::admit(Some(&identity)).expect("admitted");
+    let intent = "Summarize notes.txt in three bullet points and write them to summary.md";
+    let asked: BTreeSet<String> = (tokens(intent).into_iter())
+        .filter(|word| !nika_compile::text::STOPWORDS.contains(&word.as_str()))
+        .collect();
+    let pack = snapshot.pack(intent, None).expect("composed");
+    for (list, fields) in [
+        ("patterns", &["title", "purpose", "notes"][..]),
+        ("blocks", &["title", "purpose"][..]),
+        ("examples", &["intent", "title"][..]),
+        ("skills", &["title", "scope", "when"][..]),
+    ] {
+        let entries = pack.selection[list].as_array().expect("a list");
+        // Only the text recall: a block reached by the patterns it realizes says so.
+        for entry in entries
+            .iter()
+            .filter(|e| e["why"].as_str().is_some_and(|w| w.starts_with("bm25")))
+        {
+            let id = entry["id"].as_str().expect("an id");
+            let row = (snapshot.rows(list).iter().find(|r| r["id"] == id)).expect("its row");
+            let words = tokens(&text_of(row, fields));
+            assert!(
+                words.iter().any(|word| asked.contains(word)),
+                "{list} {id} shares no informative word with the request"
+            );
+        }
+    }
 }
 
 /// A synthetic snapshot: each row file written from its rows, each root file under `foundry/`,
@@ -726,7 +760,7 @@ fn the_selection_names_its_selector_and_the_builder_version() {
     let pack = Snapshot::legacy_fixture(&snap)
         .pack(DIGEST_INTENT, Some("sealed"))
         .unwrap();
-    assert_eq!(PACK_BUILDER, "nika-compile/knowledge-door-v6");
+    assert_eq!(PACK_BUILDER, "nika-compile/knowledge-door-v7");
     assert_eq!(pack.identity["door"]["builder"], PACK_BUILDER);
     let selector = &pack.selection["selector"];
     assert!(

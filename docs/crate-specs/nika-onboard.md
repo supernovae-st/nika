@@ -96,7 +96,10 @@ only the explicit recovery reservation added to its existing allowance.
 (`nika-knowledge-release/2`, profile `nika-knowledge-release-profile/r1`: the
 shared contract for producer and consumer, with common pinned vectors under
 `tests/knowledge-r1`) and the bounded BM25/graph composition shared by CLI,
-Session and Serve. The build embeds the current release, the r2 run contract
+Session and Serve. Its text recall reads informative words (builder v7): a row
+that shares only a stopword with the request (« the », « with ») is not
+recalled, and every row it does reach is still presented whole, with no count or
+byte quota. The build embeds the current release, the r2 run contract
 (profile r2, `policy-r2`, embedded whole from its directory and admitted against
 its issued snapshot), and retains the a8 and R3 releases for earlier pins
 (`knowledge::bundled`); a pin naming a release this build does not embed meets

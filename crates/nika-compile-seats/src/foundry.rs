@@ -370,6 +370,8 @@ pub fn reused(
 #[cfg(test)]
 mod reach_tests;
 #[cfg(test)]
+mod recall_tests;
+#[cfg(test)]
 mod reuse_tests;
 #[cfg(test)]
 mod tests;
