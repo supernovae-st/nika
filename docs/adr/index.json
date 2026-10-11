@@ -1129,7 +1129,7 @@
       "date": "2026-07-31",
       "filename": "adr-110-nika-cli-host-member-split.md",
       "tags": ["architecture","crates","split","size-cap","host-integration"],
-      "affects_crates": ["nika-cli","nika-cli-host"],
+      "affects_crates": ["nika-cli","nika-cli-host","nika-cli-host-typesafe"],
       "affects_layers": ["L4"],
       "supersedes": [],
       "superseded_by": [],

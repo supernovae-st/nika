@@ -468,6 +468,8 @@ file atomically in the same self-ignoring directory; a write that fails is named
 verdicts not kept · `<path>` · `<error>` · a later round could ask a judge again on bytes it
 rejected ») and carried in the machine document's `declined_record_error`.
 
+`compile::typesafe` is a re-export of the size-cap member `nika-cli-host-typesafe` since
+2026-10-11 (see its crate spec and the ADR-110 amendment): every path below stays.
 `compile::typesafe::session` owns the operator-selected typed decision adapter
 and its observation journal beside the one TypeSafe transport. Session supplies
 an explicit admission verdict and persists the observations; conversation text

@@ -25,6 +25,7 @@ nika-check-analyzer
 nika-check-wasm
 nika-cli
 nika-cli-host
+nika-cli-host-typesafe
 nika-clock
 nika-compile
 nika-compile-behavior

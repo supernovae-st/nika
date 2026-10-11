@@ -4670,6 +4670,7 @@ dependencies = [
  "nika-builtin",
  "nika-catalog",
  "nika-check",
+ "nika-cli-host-typesafe",
  "nika-dap",
  "nika-display",
  "nika-error",
@@ -4700,6 +4701,23 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml_edit",
+ "url",
+]
+
+[[package]]
+name = "nika-cli-host-typesafe"
+version = "0.123.0-preview.1"
+dependencies = [
+ "bytes",
+ "jiff",
+ "nika-display",
+ "nika-http",
+ "nika-kernel",
+ "nika-onboard",
+ "nika-providers",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
  "url",
 ]
 

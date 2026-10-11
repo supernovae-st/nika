@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+//! # nika-cli-host-typesafe — the `TypeSafe` System One decision seat
+//!
+//! A size-cap member of the nika-cli unit (L4 · D-2026-07-09-N1 · the ADR-110 amendment):
+//! `nika-cli-host` re-exports this crate whole as `compile::typesafe`, so every path stays, and
+//! the edge is lateral, never back.
+//!
 //! A `TypeSafe` System One seat behind the compiler's bounded-decision capability.
 //!
 //! One unary `POST /v1/systemone` per question, or per request of a batch of independent
@@ -13,6 +19,12 @@
 //! identity; the compiler revalidates the choice against the options it offered. `nika compile`
 //! (`--decision-model typesafe/<jev>`) and the Session (an operator-selected seat) share this ONE
 //! adapter. A vendor is a seat, never an owner.
+
+#![cfg_attr(
+    test,
+    allow(clippy::unwrap_used, clippy::expect_used, clippy::unreachable)
+)]
+
 pub mod batch;
 pub mod session;
 
@@ -150,9 +162,11 @@ impl TypesafeSeat {
         Self::new(key, model)
     }
 
-    /// The key this seat resolved, as a [`Secret`]: the private capture policy exposes it only to
-    /// withhold it from captured Text; it is never printed or logged.
-    pub(crate) fn key(&self) -> &Secret {
+    /// The key this seat resolved, as a [`Secret`] (redacted from `Debug`, zeroized on drop): the
+    /// host's private capture policy exposes it only to withhold it from captured Text; it is never
+    /// printed or logged.
+    #[must_use]
+    pub fn key(&self) -> &Secret {
         &self.key
     }
 
