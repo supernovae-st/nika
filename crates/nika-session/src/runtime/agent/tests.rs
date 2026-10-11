@@ -173,3 +173,23 @@ fn the_bytes_a_verification_judged_are_kept_by_their_digest() {
     assert!(!kept.contains("ABCDEFGH12345678"), "redacted");
     assert_eq!(verified.names().expect("listed").len(), 1, "kept once");
 }
+
+/// The author is told to declare a documented `low` effort for writing tasks, and the `models`
+/// tool's offers carry the efforts the catalog documents for each model.
+#[test]
+fn the_author_sees_the_efforts_a_run_model_documents() {
+    let told = instructions("deepseek/deepseek-flash");
+    assert!(
+        told.contains("declare `run: { reasoning: { effort: low } }`"),
+        "the rule"
+    );
+    let caps = desk::model_caps("deepseek/deepseek-v4-flash").expect("a catalogued model");
+    assert!(
+        caps["reasoning_efforts"].is_array(),
+        "its efforts, as the catalog lists them"
+    );
+    assert!(
+        desk::model_caps("mock/mock-default").is_none(),
+        "a mock documents none"
+    );
+}

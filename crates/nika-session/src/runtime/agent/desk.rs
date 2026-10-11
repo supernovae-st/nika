@@ -147,6 +147,12 @@ pub(super) fn stated_doubt(out: &CompileOutcome) -> Option<String> {
         .map(|d| d.message.clone())
 }
 
+/// What the catalog documents of `model`'s output: the reasoning efforts it takes and its
+/// output limit, which the `models` tool shows beside each offer.
+pub(super) fn model_caps(model: &str) -> Option<Value> {
+    nika_compile::surface::output_caps(model)
+}
+
 fn findings(out: &CompileOutcome) -> String {
     let mut lines: Vec<String> = (out.diagnostics.iter())
         .map(|d| format!("{}: {}", d.target, d.message))
@@ -323,9 +329,14 @@ impl Desk for SessionDesk {
             other => return Err(format!("no model role `{other}`: run, author or decision")),
         };
         let offer = |o: &ModelOffer| {
-            json!({"model": o.model, "via": o.route.access, "class": o.route.class.as_str(),
-                "configured": o.route.configured, "fix": o.route.fix_var,
-                "output_usd_per_million": o.output_usd_per_million})
+            let mut offered = json!({"model": o.model, "via": o.route.access,
+                "class": o.route.class.as_str(), "configured": o.route.configured,
+                "fix": o.route.fix_var, "output_usd_per_million": o.output_usd_per_million});
+            if let Some(caps) = model_caps(&o.model) {
+                offered["reasoning_efforts"] = caps["reasoning_efforts"].clone();
+                offered["max_output_tokens"] = caps["max_output_tokens"].clone();
+            }
+            offered
         };
         let offers = |list: &[ModelOffer]| list.iter().map(offer).collect::<Vec<Value>>();
         let inventory = ModelInventory::from_probes(&self.probes);

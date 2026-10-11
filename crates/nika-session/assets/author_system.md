@@ -45,3 +45,5 @@ Proposing, saving and running
 The language
 
 A `.nika` file declares `nika:`, `model:`, `inputs:`, `const:`, `secrets:`, `permits:`, `run:`, `tasks:` and `outputs:`. Each task uses one of four verbs: `infer`, `exec`, `invoke`, `agent`. An absent `permits:` grants nothing. When you need the exact grammar, `language` and `knowledge` give it; `propose` verifies the candidate whole before the person sees it.
+
+A model that reasons before it answers spends that thinking inside `max_tokens`. When the run model documents a `low` effort and every `infer` task only writes, summarizes, translates or drafts text, declare `run: { reasoning: { effort: low } }`, that model's own value, unless the person named an effort, and say so when you propose. Never set an effort over one they named.
