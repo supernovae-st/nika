@@ -4436,6 +4436,7 @@ pub nika_session_change::work::Work::contract: &'static str
 pub nika_session_change::work::Work::delegations: alloc::vec::Vec<nika_session_change::work::Delegation>
 pub nika_session_change::work::Work::intelligence: core::option::Option<nika_session_change::work::Intelligence>
 pub nika_session_change::work::Work::knowledge: core::option::Option<nika_session_change::work::Knowledge>
+pub nika_session_change::work::Work::open_choices: alloc::vec::Vec<nika_session_change::work::AskedQuestion>
 pub nika_session_change::work::Work::question: core::option::Option<nika_session_change::work::Question>
 pub nika_session_change::work::Work::questions: alloc::vec::Vec<nika_session_change::work::AskedQuestion>
 pub nika_session_change::work::Work::queued: alloc::vec::Vec<nika_session_change::work::Queued>
@@ -4453,6 +4454,7 @@ pub fn nika_session_change::work::Work::with_authoring(self, authoring: core::op
 pub fn nika_session_change::work::Work::with_conversation(self, bindings: alloc::vec::Vec<nika_session_change::work::Binding>, delegations: alloc::vec::Vec<nika_session_change::work::Delegation>, questions: alloc::vec::Vec<nika_session_change::work::AskedQuestion>) -> Self
 pub fn nika_session_change::work::Work::with_intelligence(self, intelligence: core::option::Option<nika_session_change::work::Intelligence>) -> Self
 pub fn nika_session_change::work::Work::with_knowledge(self, knowledge: core::option::Option<nika_session_change::work::Knowledge>) -> Self
+pub fn nika_session_change::work::Work::with_open_choices(self, open_choices: alloc::vec::Vec<nika_session_change::work::AskedQuestion>) -> Self
 pub fn nika_session_change::work::Work::with_question(self, question: core::option::Option<&nika_compile::types::CompileQuestion>) -> Self
 pub fn nika_session_change::work::Work::with_queued(self, queued: alloc::vec::Vec<nika_session_change::work::Queued>) -> Self
 impl core::clone::Clone for nika_session_change::work::Work

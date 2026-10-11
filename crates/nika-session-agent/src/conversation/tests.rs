@@ -112,7 +112,7 @@ fn proposed(asker: &Arc<Incarnation>) -> (Conversation, Citations) {
     assert!(!reply.is_error, "{reply:?}");
     assert!(conversation.dropped().is_empty());
     assert_eq!(
-        conversation.propose(&lines, &json!({}), "S1".into()),
+        conversation.propose(&lines, &json!({}), ("S1".into(), Vec::new())),
         Ok(None)
     );
     (conversation, lines)
@@ -342,7 +342,7 @@ fn words_cover_only_the_revision_whose_proposal_they_answered() {
     // Another scope: nothing authorized, the new proposal waits.
     let (mut conversation, mut lines) = proposed(&asker);
     lines.record(20, u3());
-    let refused = conversation.propose(&lines, &said, "S2".into());
+    let refused = conversation.propose(&lines, &said, ("S2".into(), Vec::new()));
     assert!(refused.is_err(), "{refused:?}");
     assert_eq!(
         conversation.shown.as_ref().map(|s| s.scope.as_str()),
@@ -351,7 +351,7 @@ fn words_cover_only_the_revision_whose_proposal_they_answered() {
     // The same scope the words answered: save and run.
     let (mut conversation, mut lines) = proposed(&asker);
     lines.record(20, u3());
-    let acts = conversation.propose(&lines, &said, "S1".into());
+    let acts = conversation.propose(&lines, &said, ("S1".into(), Vec::new()));
     assert_eq!(
         acts,
         Ok(Some(Acts {
@@ -360,14 +360,18 @@ fn words_cover_only_the_revision_whose_proposal_they_answered() {
         }))
     );
     // Those words ran that revision: a repair proposed on them, whatever it changed, is not theirs.
-    let again = conversation.propose(&lines, &said, "S2".into());
+    let again = conversation.propose(&lines, &said, ("S2".into(), Vec::new()));
     let stale = again.is_err_and(|why| why.contains("`u3` does not authorize it"));
     assert!(stale, "stale words authorize nothing");
     // Words written before the proposal was shown authorize nothing.
     let (mut conversation, lines) = proposed(&asker);
     let early =
         json!({"acts": ["save"], "authorized_by": {"message": "u1", "excerpt": "un digest"}});
-    assert!(conversation.propose(&lines, &early, "S1".into()).is_err());
+    assert!(
+        conversation
+            .propose(&lines, &early, ("S1".into(), Vec::new()))
+            .is_err()
+    );
 }
 
 #[test]

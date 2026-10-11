@@ -1130,3 +1130,40 @@ fn a_thought_only_answer_never_ends_a_turn_in_silence() {
     let asked = journey.agent[1].last();
     assert!(asked.contains("no words and no call"), "{asked}");
 }
+
+/// On a French news request, the first turn ends with a proposal that shows its
+/// open choices with their defaults, and no question; the person's « oui » keeps every default,
+/// bound as the option picked with that line, and saves the workflow.
+#[test]
+fn a_news_request_is_proposed_at_once_and_a_yes_keeps_the_defaults_shown() {
+    let journey = run("open_defaults");
+    let (proposed, saved) = (journey.step(0), journey.step(1));
+    assert_eq!(outcome_kind(proposed), "proposal", "{proposed:#}");
+    assert!(open_questions(proposed).is_empty(), "nothing asked first");
+    let card = proposed["outcome"]["text"].as_str().unwrap_or_default();
+    assert!(card.contains("open choices"), "{card}");
+    assert!(card.contains("`hn` Hacker News (default): https://news.ycombinator.com"));
+    assert!(card.contains("`notes` notes/: ./notes/digest.md"), "{card}");
+    let shown = work(proposed)["open_choices"]
+        .as_array()
+        .map_or(0, Vec::len);
+    assert_eq!(shown, 3, "the machine door shows them");
+    assert!(work(saved)["saved"]["workflow"].is_string(), "{saved:#}");
+    for value in [HACKER_NEWS, DIGEST] {
+        assert_eq!(provenance(saved, value), ("offered".into(), "u2".into()));
+    }
+    assert_eq!(journey.agent.len(), 2, "the consent reached no author");
+}
+
+/// A pick of another option binds it and the proposal shown waits for the author's
+/// revision: the « oui » that follows is held, and nothing is saved.
+#[test]
+fn a_pick_of_another_option_holds_the_proposal_until_a_revision() {
+    let journey = run("open_pick_other");
+    let (picked, held) = (journey.step(1), journey.step(2));
+    assert_eq!(provenance(picked, YC_BLOG), ("offered".into(), "u2".into()));
+    assert_eq!(outcome_kind(held), "held", "{held:#}");
+    let why = held["outcome"]["text"].as_str().unwrap_or_default();
+    assert!(why.contains("picked `blog`"), "{why}");
+    assert!(work(held)["saved"].is_null(), "nothing saved");
+}

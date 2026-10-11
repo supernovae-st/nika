@@ -131,3 +131,18 @@ fn the_instructions_carry_the_language_and_an_index() {
     assert_eq!(keys, Some(envelope), "the schema keys");
     assert!(index().len() < 3_000, "the index stays short");
 }
+
+/// The author never needs to ask the person how a workflow writes a file: its instructions show
+/// the language's own write, with its arguments.
+#[test]
+fn the_instructions_show_how_a_workflow_writes_a_file() {
+    let told = instructions("deepseek/deepseek-flash");
+    assert!(
+        told.contains("tool: \"nika:write\", args: { path:"),
+        "the write"
+    );
+    assert!(
+        told.contains("how to write something in a workflow"),
+        "never asked"
+    );
+}

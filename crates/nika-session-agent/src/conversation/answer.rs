@@ -54,10 +54,25 @@ impl Answered {
             _ => "could not be read as one of the offers".to_owned(),
         }
     }
+
+    /// Why the proposal that shows this choice cannot be saved as it is: the person picked an
+    /// option other than the default it carries.
+    fn instead(&self) -> Option<String> {
+        let Pick::Offer(picked) = &self.pick else {
+            return None;
+        };
+        let default = recommended(&self.question).map(|offer| offer.key.as_str());
+        (default != Some(picked.as_str())).then(|| {
+            format!(
+                "the person picked `{picked}` for `{}` with {}, and this proposal carries its default",
+                self.question.key, self.cite
+            )
+        })
+    }
 }
 
 /// The one offer a question recommends, when it recommends exactly one.
-fn recommended(question: &AskedQuestion) -> Option<&Offer> {
+pub(super) fn recommended(question: &AskedQuestion) -> Option<&Offer> {
     let mut recommended = question.options.iter().filter(|offer| offer.recommended);
     match (recommended.next(), recommended.next()) {
         (Some(only), None) => Some(only),
@@ -66,11 +81,11 @@ fn recommended(question: &AskedQuestion) -> Option<&Offer> {
 }
 
 impl Conversation {
-    /// The questions the person's `line` answers that only a reading can settle: the ones the
-    /// whole line does not pick by protocol.
+    /// The questions the person's `line` answers that only a reading can settle, and the choices
+    /// the proposal shows: the ones the whole line does not pick by protocol.
     #[must_use]
     pub fn to_read(&self, line: &str) -> Vec<AskedQuestion> {
-        (self.asked.iter())
+        (self.asked.iter().chain(&self.open))
             .filter(|question| Pick::of_line(question, line).is_none())
             .cloned()
             .collect()
@@ -79,8 +94,9 @@ impl Conversation {
     /// The person's line `cite` (its words, `line`) answered the questions asked now: they
     /// answer nothing again. What it picks — by protocol, else by `read` (the Session's reading
     /// of each question, by key) — is bound by the Session itself: the offer picked, or, for a
-    /// line that leaves the choice to Nika, the recommended offer as delegated. Returns what the
-    /// author reads of it, one line per question.
+    /// line that leaves the choice to Nika, the recommended offer as delegated. A choice the
+    /// proposal shows is bound only by such a pick; any other line leaves it open with its
+    /// default. Returns what the author reads of it, one line per question.
     pub fn answered_by(
         &mut self,
         cite: &str,
@@ -100,11 +116,33 @@ impl Conversation {
             said.push(self.take(&answer, line));
             self.answered.insert(answer.question.key.clone(), answer);
         }
+        for question in std::mem::take(&mut self.open) {
+            let pick = Pick::of_line(&question, line).or_else(|| read.get(&question.key).cloned());
+            let Some(pick @ (Pick::Offer(_) | Pick::Delegated)) = pick else {
+                self.open.push(question);
+                continue;
+            };
+            let answer = Answered {
+                question,
+                cite: cite.to_owned(),
+                pick,
+            };
+            let mut words = self.take(&answer, line);
+            // Another option than the default the proposal carries: the author revises first.
+            if let Some(why) = answer.instead() {
+                self.picked_other.push(why);
+                words.push_str(
+                    ": the proposal shown carries its default, so write this pick in the candidate and propose again",
+                );
+            }
+            said.push(words);
+            self.answered.insert(answer.question.key.clone(), answer);
+        }
         said
     }
 
     /// Bind what one answer picked; the author's line about it.
-    fn take(&mut self, answer: &Answered, line: &str) -> String {
+    pub(super) fn take(&mut self, answer: &Answered, line: &str) -> String {
         let (question, cite) = (&answer.question, answer.cite.as_str());
         let key = question.key.as_str();
         match &answer.pick {

@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The tool server of one agent conversation: the session's own tools
-//! ([`SessionTools`], `nika/author-tools@0`), served to the ACP agent that leads the
+//! ([`SessionTools`], `nika/author-tools@1`), served to the ACP agent that leads the
 //! conversation, over MCP, under the name [`SERVER_NAME`] (the agent sees
 //! `mcp__nika__<tool>`).
 //!

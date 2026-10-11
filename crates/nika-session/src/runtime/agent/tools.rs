@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The tools the Session serves to the intelligence that leads its conversation
-//! (`nika/author-tools@0`). A tool reads or changes the conversation ([`Conversation`]) and asks
+//! (`nika/author-tools@1`). A tool reads or changes the conversation ([`Conversation`]) and asks
 //! the Session's own capabilities ([`Desk`]: the project, the oracle, the judge); it never writes
 //! a project file, runs a workflow or grants anything. `ask` ends the turn when it asks; every
 //! other reply is text the model reads. The tools live as long as the conversation: Nika's own
@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use nika_compile_fidelity::fidelity::resolution::Resolution;
 use nika_session_change::outcome::QuestionId;
 use nika_session_change::tools::{SessionTools, ToolCall, ToolDef, ToolReply};
-use nika_session_change::work::ModelFacts;
+use nika_session_change::work::{AskedQuestion, ModelFacts};
 use serde_json::{Value, json};
 
 use nika_session_agent::conversation::{Acts, Citations, Conversation, edited};
@@ -249,7 +249,7 @@ impl SessionTools for Toolbox {
             // The trial runs within the verification: `trial` asks for both.
             "verify" | "trial" => parts.verify(),
             "ask" => parts.ask(args, call.meta.as_deref()),
-            "propose" => parts.propose(args),
+            "propose" => parts.propose(args, call.meta.as_deref()),
             "new_request" => {
                 let citations = parts.citations();
                 parts.conversation.replace(&citations, args)
@@ -305,7 +305,8 @@ impl Parts<'_> {
             return reply;
         };
         let stated = self.citations().stated(self.conversation.since());
-        let (authored, host) = self.conversation.selections();
+        let (authored, mut host) = self.conversation.selections();
+        host.extend(Conversation::defaults(self.conversation.open()));
         let findings = self.desk.judged_now(&source, &stated, (&authored, &host));
         written["findings"] = json!(findings);
         written["dropped"] = json!(self.conversation.dropped());
@@ -358,8 +359,9 @@ impl Parts<'_> {
         }
     }
 
-    /// The candidate judged whole: what it dropped, then the judge. Returns its scope.
-    fn judged(&mut self) -> Result<String, String> {
+    /// The candidate judged whole, the defaults of the choices `open` shows stated by the
+    /// Session: what it dropped, then the judge. Returns its scope.
+    fn judged(&mut self, open: &[AskedQuestion]) -> Result<String, String> {
         let source = self
             .source()
             .ok_or("no candidate to judge: write one with candidate_write")?;
@@ -368,13 +370,15 @@ impl Parts<'_> {
             return Err(dropped.join("\n"));
         }
         let stated = self.citations().stated(self.conversation.since());
-        let (authored, host) = self.conversation.selections();
+        let (authored, mut host) = self.conversation.selections();
+        host.extend(Conversation::defaults(open));
         self.desk.verify(&source, &stated, (&authored, &host))
     }
 
     fn verify(&mut self) -> ToolReply {
         let revision = self.conversation.candidate().map(|c| c.number);
-        match self.judged() {
+        let open = self.conversation.open().to_vec();
+        match self.judged(&open) {
             Ok(_) => ToolReply::ok(json!({"verdict": "ready", "revision": revision}).to_string()),
             Err(findings) => ToolReply::error(findings),
         }
@@ -388,15 +392,29 @@ impl Parts<'_> {
         (self.conversation).ask(&citations, args, call, (&mut mint, &mut facts))
     }
 
-    /// Judge the candidate, then show it; with the person's words, the acts they authorize.
-    fn propose(&mut self, args: &Value) -> ToolReply {
-        let scope = match self.judged() {
+    /// Judge the candidate with the choices it shows (`open`, read first), then show it; with
+    /// the person's words, the acts they authorize.
+    fn propose(&mut self, args: &Value, call: Option<&str>) -> ToolReply {
+        let citations = self.citations();
+        let open = {
+            let (mint, desk) = (&mut *self.mint, &mut *self.desk);
+            let mut mint = |context: &str| mint(context);
+            let mut facts = |model: &str| desk.model_facts(model);
+            (self.conversation).open_choices(&citations, args, call, (&mut mint, &mut facts))
+        };
+        let open = match open {
+            Ok(open) => open,
+            Err(refused) => return ToolReply::error(refused),
+        };
+        let scope = match self.judged(&open) {
             Ok(scope) => scope,
             Err(findings) => return ToolReply::error(findings),
         };
         let revision = self.conversation.candidate().map(|c| c.number);
-        let citations = self.citations();
-        let authorized = self.conversation.propose(&citations, args, scope);
+        let shown: Vec<Value> = (open.iter())
+            .map(|q| json!({"key": q.key, "id": q.id.as_str()}))
+            .collect();
+        let authorized = self.conversation.propose(&citations, args, (scope, open));
         let acts = authorized.as_ref().ok().copied().flatten();
         *self.decided = Decided {
             proposed: revision,
@@ -413,6 +431,9 @@ impl Parts<'_> {
         let mut text = json!({"revision": revision, "proposal": said});
         if let Err(why) = authorized {
             text["why"] = Value::String(why);
+        }
+        if !shown.is_empty() {
+            text["open"] = Value::Array(shown);
         }
         // Shown, the proposal ends the turn: the person's next line answers it.
         ToolReply::ends_turn(text.to_string())

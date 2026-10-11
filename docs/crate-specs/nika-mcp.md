@@ -80,7 +80,7 @@ sandbox). The effectful `run` path is gated behind `permits:` and lives in
 
 `conversation` serves a session's own tools to the ACP agent that leads its conversation. The
 tools are the session's (`nika_session_change::tools::SessionTools`, contract
-`nika/author-tools@0`): this crate exposes and relays them, never interprets one, and holds no
+`nika/author-tools@1`): this crate exposes and relays them, never interprets one, and holds no
 authority of its own (lateral L4→L4 edge to `nika-session-change`, which never depends back).
 
 - `dispatch` (crate-private, pure over the trait): `initialize` (version negotiation as the

@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The tools a session serves to the intelligence that leads its conversation
-//! (`nika/author-tools@0`), typed once for every loop that calls them: Nika's own agent loop
+//! (`nika/author-tools@1`), typed once for every loop that calls them: Nika's own agent loop
 //! over a provider, and an ACP agent's loop reaching them over MCP. The session implements
 //! [`SessionTools`] against its own state; a loop or a transport lists the definitions, hands
 //! each call over and relays the reply. Neither interprets a tool, and no reply grants anything:
@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// The version a loop or a transport checks before relaying these tools.
-pub const CONTRACT: &str = "nika/author-tools@0";
+pub const CONTRACT: &str = "nika/author-tools@1";
 
 /// The tool names the contract fixes, in the order a session lists them.
 pub const NAMES: [&str; 17] = [
@@ -205,7 +205,7 @@ mod tests {
             assert!(!name.contains("__") && !name.ends_with('_'), "`{name}`");
         }
         assert_eq!(seen.len(), 17);
-        assert_eq!(CONTRACT, "nika/author-tools@0");
+        assert_eq!(CONTRACT, "nika/author-tools@1");
     }
 
     #[test]

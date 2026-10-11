@@ -26,6 +26,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 mod answer;
+mod choices;
 mod edit;
 mod pick;
 
@@ -141,6 +142,11 @@ pub struct Conversation {
     changed: Vec<String>,
     /// The values the last proposal the person saw bound, as it bound them.
     seen: Vec<Binding>,
+    /// The choices the last proposal shows with their defaults ([`Conversation::open`]).
+    open: Vec<AskedQuestion>,
+    /// Why the proposal shown cannot be saved as it is: an option of its choices the person
+    /// picked instead of the default it carries, until the author proposes again.
+    picked_other: Vec<String>,
 }
 
 /// What a Session keeps of a conversation across a reopen: the evidence, never an authority
@@ -703,10 +709,12 @@ impl Conversation {
         (authored, host)
     }
 
-    /// `propose`: the candidate is shown to the person. With acts, the person's own line
+    /// `propose`: the candidate is shown to the person, with the choices `open` shows beside it
+    /// with their defaults ([`Conversation::open_choices`]). With acts, the person's own line
     /// authorizes them only when it was written after this exact revision's proposal was shown
-    /// and the candidate may do nothing more than that revision could (`scope`). Returns the
-    /// acts to perform, or why none is authorized (the proposal then waits for consent).
+    /// and the candidate may do nothing more than that revision could (`scope`); a proposal that
+    /// shows choices waits for the person's consent to them, their next line. Returns the acts to
+    /// perform, or why none is authorized (the proposal then waits for consent).
     ///
     /// # Errors
     ///
@@ -715,7 +723,7 @@ impl Conversation {
         &mut self,
         citations: &Citations,
         args: &Value,
-        scope: String,
+        (scope, open): (String, Vec<AskedQuestion>),
     ) -> Result<Option<Acts>, String> {
         let number = (self.candidate.as_ref())
             .map(|c| c.number)
@@ -728,7 +736,10 @@ impl Conversation {
             run: acts.contains(&"run"),
         };
         self.changed = self.changes_since_seen();
-        let authorized = if wanted.save {
+        let authorized = if wanted.save && !open.is_empty() {
+            // Choices shown with their defaults are the person's to see: no earlier line consents.
+            Err("this proposal shows choices with their defaults the person has not seen: it waits for their consent".to_owned())
+        } else if wanted.save {
             let said = &args["authorized_by"];
             let message = said["message"].as_str().unwrap_or_default();
             let excerpt = said["excerpt"].as_str().unwrap_or_default();
@@ -754,6 +765,8 @@ impl Conversation {
         };
         self.accepted.clone_from(&self.bindings);
         self.seen.clone_from(&self.bindings);
+        self.open = open;
+        self.picked_other.clear();
         // What the person is shown now: a line authorizes acts only when written after it, so
         // one line authorizes one proposal, never a later revision (a repair after a run).
         self.shown = Some(Shown {
