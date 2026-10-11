@@ -175,7 +175,7 @@ pub(super) fn compile(
             decision_provider.as_ref().and_then(|seat| seat.key()),
         ];
         let keys = keys.iter().flatten().map(|key| key.expose());
-        let keys = keys.chain(typesafe.as_ref().map(super::typesafe::TypesafeSeat::key));
+        let keys = keys.chain(typesafe.as_ref().map(|seat| seat.key().expose()));
         let scope = (args.authoring_model.as_deref(), max_tokens, timeout);
         let rooms = (host, catalog);
         let work = seated(&request, (harness.as_ref(), provider.as_ref()), seat, rooms);

@@ -314,7 +314,7 @@ impl Diagnosis {
                 row["response_bytes"] = json!(response.body.len());
                 row["response_sha256"] = json!(sha256(&response.body));
                 let parsed = serde_json::from_slice::<Value>(&response.body);
-                if String::from_utf8_lossy(&response.body).contains(seat.key()) {
+                if String::from_utf8_lossy(&response.body).contains(seat.key().expose()) {
                     row["key_reflected"] = json!(true);
                 } else {
                     row["body"] = match &parsed {
@@ -396,7 +396,10 @@ fn the_services_capacity_refusals_under_the_operators_seat() {
     let about = json!({"questions": 1, "malformed": "a question type the service does not define"});
     diagnosis.send(wire, "malformed-question", &invalid, &about);
     let text = std::fs::read_to_string(&path).unwrap();
-    assert!(!text.contains(seat.key()), "the key reached the receipt");
+    assert!(
+        !text.contains(seat.key().expose()),
+        "the key reached the receipt"
+    );
 }
 
 /// ONE further request of the same diagnosis (ignored by default: it is paid): one question
@@ -425,5 +428,8 @@ fn one_question_past_the_longest_question_capacity_under_the_operators_seat() {
         "basis": "1.3 x the 20294-word question answered with 31991 reported input tokens"});
     diagnosis.send((&runtime, &seat), "one-question-1.3x", &body, &about);
     let text = std::fs::read_to_string(&path).unwrap();
-    assert!(!text.contains(seat.key()), "the key reached the receipt");
+    assert!(
+        !text.contains(seat.key().expose()),
+        "the key reached the receipt"
+    );
 }

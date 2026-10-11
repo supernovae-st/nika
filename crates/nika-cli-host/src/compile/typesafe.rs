@@ -18,6 +18,7 @@ pub mod session;
 
 use nika_http::{HttpConfig, NetBoundary, ReqwestHttp};
 use nika_kernel::http::{HttpPostDyn as _, HttpRequest, HttpResponse};
+use nika_kernel::secret::Secret;
 pub use nika_onboard::compile::decide::system_one::Usage;
 use nika_onboard::compile::decide::{
     BatchFuture, ChoiceAnswer, ChoiceBatch, ChoiceFuture, ChoiceQuestion, DecisionError,
@@ -31,9 +32,10 @@ const ENDPOINT: &str = "https://api.typesafe.ai";
 /// The deadline of the ONE request a question sends.
 pub const TIMEOUT: Duration = Duration::from_secs(20);
 
-/// A `TypeSafe` System One decision seat. It holds its key; it has no `Debug` on purpose.
+/// A `TypeSafe` System One decision seat. It holds its key as a [`Secret`]; it has no `Debug`
+/// on purpose.
 pub struct TypesafeSeat {
-    key: String,
+    key: Secret,
     model: String,
     name: String,
     base: String,
@@ -92,7 +94,7 @@ pub type ExchangeFuture<'a> =
 /// The key is absent, empty or malformed, or the endpoint is refused.
 pub fn seat(model: &str) -> Result<nika_onboard::remote_door::decision::Opened, String> {
     let seat = TypesafeSeat::from_env(model)?;
-    let key = nika_kernel::secret::Secret::new(seat.key.as_str());
+    let key = seat.key.clone();
     Ok((Box::new(seat), key))
 }
 
@@ -125,7 +127,7 @@ impl TypesafeSeat {
             return Err("TYPESAFE_BASE_URL must be https, or http on loopback".to_owned());
         }
         Ok(Self {
-            key,
+            key: Secret::new(key),
             model: model.to_owned(),
             name: format!("typesafe/{model}"),
             base: base.trim_end_matches('/').to_owned(),
@@ -148,9 +150,9 @@ impl TypesafeSeat {
         Self::new(key, model)
     }
 
-    /// The key this seat resolved, borrowed by this crate's private capture policy so the key
-    /// is withheld from captured Text; never printed, logged or exposed outside the crate.
-    pub(crate) fn key(&self) -> &str {
+    /// The key this seat resolved, as a [`Secret`]: the private capture policy exposes it only to
+    /// withhold it from captured Text; it is never printed or logged.
+    pub(crate) fn key(&self) -> &Secret {
         &self.key
     }
 
@@ -222,9 +224,10 @@ impl TypesafeSeat {
         let mut request = HttpRequest::post(format!("{}/v1/systemone", self.base));
         request.follow_redirects = false;
         request.timeout = Some(self.timeout);
-        request
-            .headers
-            .insert("authorization".to_owned(), format!("Bearer {}", self.key));
+        request.headers.insert(
+            "authorization".to_owned(),
+            format!("Bearer {}", self.key.expose()),
+        );
         request
             .headers
             .insert("content-type".to_owned(), "application/json".to_owned());
