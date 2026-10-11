@@ -223,13 +223,7 @@ pub fn access_class_for(provider: &str) -> nika_types::access::AccessClass {
 /// `NIKA-PROVIDER-NNN` codes stay per-adapter runtime errors (spec 05).
 pub const PREFIX_REFUSAL_CODE: &str = "NIKA-PROVIDER";
 
-/// Catalog aliases (`grok` → `xai`, `claude` → `anthropic`) resolve to
-/// the canonical provider id this binary seeds. Unknown names pass
-/// through so the unknown-provider arm still names the raw prefix.
-#[must_use]
-pub fn canonical_provider(id: &str) -> &str {
-    nika_catalog::find_provider(id).map_or(id, |row| row.id)
-}
+pub use nika_providers_access::canonical_provider;
 
 /// Why a `model:` cannot resolve in THIS binary (#320 / #761).
 ///

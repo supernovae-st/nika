@@ -21,7 +21,7 @@ fn a_port_or_unrelated_document_never_proves_models() {
         r#"{"object":"unrelated","data":[]}"#,
         r#"{"data":[{"id":"x","object":"unrelated"}]}"#,
     ] {
-        let got = ModelListing::response(200, body.as_bytes());
+        let got = listing_of(200, body.as_bytes());
         assert_eq!(got.protocol_compatible, Some(false), "{body}");
         assert_eq!(got.available(), None, "{body}");
         assert!(got.models.is_empty());
@@ -29,10 +29,10 @@ fn a_port_or_unrelated_document_never_proves_models() {
 }
 #[test]
 fn empty_compatible_listing_is_distinct_from_unknown_and_advertised_models() {
-    let empty = ModelListing::response(200, br#"{"object":"list","data":[]}"#);
+    let empty = listing_of(200, br#"{"object":"list","data":[]}"#);
     assert_eq!(empty.protocol_compatible, Some(true));
     assert_eq!(empty.available(), Some(false));
-    let full = ModelListing::response(
+    let full = listing_of(
         200,
         br#"{"data":[{"id":"local-a"},{"id":"local-b","object":"model"}]}"#,
     );
@@ -41,7 +41,7 @@ fn empty_compatible_listing_is_distinct_from_unknown_and_advertised_models() {
     assert_eq!(full.failure, None);
     for status in [204, 301, 302, 401, 404, 429, 500] {
         assert_eq!(
-            ModelListing::response(status, br#"{"data":[{"id":"x"}]}"#).available(),
+            listing_of(status, br#"{"data":[{"id":"x"}]}"#).available(),
             None
         );
     }
@@ -50,19 +50,13 @@ fn empty_compatible_listing_is_distinct_from_unknown_and_advertised_models() {
 fn cardinality_size_and_nested_duplicate_bounds_are_fail_closed() {
     let rows = vec![serde_json::json!({"id":"x"}); 1025];
     let many = serde_json::json!({"data":rows}).to_string();
-    assert_eq!(
-        ModelListing::response(200, many.as_bytes()).available(),
-        None
-    );
+    assert_eq!(listing_of(200, many.as_bytes()).available(), None);
     let huge = vec![b' '; 262_145];
-    assert_eq!(ModelListing::response(200, &huge).available(), None);
+    assert_eq!(listing_of(200, &huge).available(), None);
     let long = serde_json::json!({"data":[{"id":"x".repeat(513)}]}).to_string();
-    assert_eq!(
-        ModelListing::response(200, long.as_bytes()).available(),
-        None
-    );
+    assert_eq!(listing_of(200, long.as_bytes()).available(), None);
     let nested = br#"{"data":[{"id":"x","metadata":{"a":1,"a":2}}]}"#;
-    assert_eq!(ModelListing::response(200, nested).available(), None);
+    assert_eq!(listing_of(200, nested).available(), None);
 }
 struct Wire(Mutex<Vec<HttpRequest>>, bool);
 impl HttpGetDyn for Wire {

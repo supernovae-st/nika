@@ -2,15 +2,15 @@ pub mod nika_service_execution
 pub use nika_service_execution::ExecutionAccessPlan
 pub mod nika_service_execution::access
 pub use nika_service_execution::access::first_modelless_task
-pub fn nika_service_execution::access::access_probes_env() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
+pub fn nika_service_execution::access::access_probes_env() -> alloc::vec::Vec<nika_providers_access::probe::ProviderProbe>
 pub fn nika_service_execution::access::boot_access_fields(plan: &nika_providers::plan::ExecutionAccessPlan) -> alloc::vec::Vec<(&'static str, nika_types::resource::Value)>
 pub fn nika_service_execution::access::declared_requirement(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::access::selection::AccessRequirement>
 pub fn nika_service_execution::access::lane_rows(plan: &nika_providers::plan::ExecutionAccessPlan) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn nika_service_execution::access::model_needs(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> alloc::vec::Vec<nika_providers::plan::ModelNeed>
-pub fn nika_service_execution::access::provider_probes_env() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
+pub fn nika_service_execution::access::provider_probes_env() -> alloc::vec::Vec<nika_providers_access::probe::ProviderProbe>
 pub fn nika_service_execution::access::resolve_plan(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, model_override: core::option::Option<&str>, pin: core::option::Option<&str>) -> nika_providers::plan::ExecutionAccessPlan
-pub fn nika_service_execution::access::resolve_plan_over(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, model_override: core::option::Option<&str>, pin: core::option::Option<&str>, probes: &[nika_providers::probe::ProviderProbe]) -> nika_providers::plan::ExecutionAccessPlan
-pub fn nika_service_execution::access::verb_needs(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_providers::resolve_access::VerbNeeds
+pub fn nika_service_execution::access::resolve_plan_over(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, model_override: core::option::Option<&str>, pin: core::option::Option<&str>, probes: &[nika_providers_access::probe::ProviderProbe]) -> nika_providers::plan::ExecutionAccessPlan
+pub fn nika_service_execution::access::verb_needs(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_providers_access::resolve_access::VerbNeeds
 pub mod nika_service_execution::inputs
 #[non_exhaustive] pub enum nika_service_execution::inputs::BindingFault
 pub nika_service_execution::inputs::BindingFault::EnvNameMissing
@@ -1125,7 +1125,7 @@ pub fn nika_service_execution::AuthorizedRuntime::resumed_from(&self) -> core::o
 pub async fn nika_service_execution::AuthorizedRuntime::run(&self, stamper: &mut dyn nika_event::stamp::Stamper, sink: &mut dyn nika_event::stamp::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime_laws::errors::RuntimeError>
 pub fn nika_service_execution::AuthorizedRuntime::with_access_pin(self, pin: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_service_execution::AuthorizedRuntime::with_access_plan(self, plan: nika_providers::plan::ExecutionAccessPlan) -> core::result::Result<Self, nika_runtime_laws::sandbox_select::ComposeError>
-pub fn nika_service_execution::AuthorizedRuntime::with_access_probes(self, probes: alloc::vec::Vec<nika_providers::probe::ProviderProbe>) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_access_probes(self, probes: alloc::vec::Vec<nika_providers_access::probe::ProviderProbe>) -> Self
 pub fn nika_service_execution::AuthorizedRuntime::with_boot_access_fields(self, fields: alloc::vec::Vec<(&'static str, nika_types::resource::Value)>) -> Self
 pub fn nika_service_execution::AuthorizedRuntime::with_cancel(self, cancel: nika_types::cancel::CancelCtx) -> Self
 pub fn nika_service_execution::AuthorizedRuntime::with_input_origins(self, origins: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::origins::InputOrigin>) -> Self
@@ -1510,7 +1510,7 @@ pub fn nika_service_execution::ServiceExecutionDriver::for_local_interface(conte
 pub fn nika_service_execution::ServiceExecutionDriver::new(context: nika_execution::service::ExecutionContext<'_>, display_root: impl core::convert::Into<std::path::PathBuf>) -> core::option::Option<Self>
 pub const fn nika_service_execution::ServiceExecutionDriver::report(&self) -> &nika_check::CheckReport
 pub fn nika_service_execution::ServiceExecutionDriver::resolve_access_plan(&self, model_override: core::option::Option<&str>, pin: core::option::Option<&str>) -> nika_providers::plan::ExecutionAccessPlan
-pub fn nika_service_execution::ServiceExecutionDriver::resolve_access_plan_over(&self, model_override: core::option::Option<&str>, pin: core::option::Option<&str>, probes: &[nika_providers::probe::ProviderProbe]) -> nika_providers::plan::ExecutionAccessPlan
+pub fn nika_service_execution::ServiceExecutionDriver::resolve_access_plan_over(&self, model_override: core::option::Option<&str>, pin: core::option::Option<&str>, probes: &[nika_providers_access::probe::ProviderProbe]) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_service_execution::ServiceExecutionDriver::root_source(&self) -> &str
 pub const fn nika_service_execution::ServiceExecutionDriver::skills(&self) -> &nika_schema::skill::ResolvedSkills
 pub fn nika_service_execution::ServiceExecutionDriver::with_child_trace_factory(self, factory: alloc::sync::Arc<dyn nika_service_execution::ChildTraceFactory>) -> Self

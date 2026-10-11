@@ -13,7 +13,7 @@
 //!
 //! The runtime's trace writers call [`durable_calls`], [`durable_pricing`] and
 //! [`route_label`]. The account's observation has a durable form too
-//! ([`project_observation`], `InferenceReceipt::durable_observation`,
+//! ([`project_observation`], nika-providers' `InferenceReceipt::durable_observation`,
 //! `nika/inference-cost-observation@2`), which the admission reading law reads;
 //! no journal, trace or session writer emits it yet. Pricing, consent and
 //! journal judgment keep the exact in-memory endpoint. An origin groups every
@@ -367,8 +367,10 @@ impl Withheld {
     }
 }
 
-/// Checkpoint metadata must remain exact: refuse instead of redacting identity.
-pub(crate) fn checkpoint_text_safe(endpoint: &str, text: &str) -> bool {
+/// Checkpoint metadata must remain exact: refuse instead of redacting identity. Whether `text`
+/// holds none of `endpoint`'s host-private material (the admission checkpoint's seam).
+#[must_use]
+pub fn checkpoint_text_safe(endpoint: &str, text: &str) -> bool {
     let mut private = Vec::new();
     private_material(endpoint, &mut private);
     !holds(text, &private)
@@ -687,18 +689,6 @@ pub fn project_route(route: &Value) -> Value {
         "origin": origin})
 }
 
-impl crate::InferenceReceipt {
-    /// This receipt's observation in its durable form ([`project_observation`]):
-    /// what a journal row, a trace or a saved session may keep, while
-    /// [`Self::observation`] stays the exact `@1` in memory. Null when the account
-    /// wrote something outside the closed schema, a drift its producer tests fail
-    /// on and a record every reader refuses as unreadable.
-    #[must_use]
-    pub fn durable_observation(&self) -> Value {
-        project_observation(&self.observation()).unwrap_or(Value::Null)
-    }
-}
-
 /// Whether `origin` is exactly the origin [`route_origin`] writes for itself.
 fn is_origin(origin: &str) -> bool {
     route_origin(origin).as_deref() == Some(origin)
@@ -923,8 +913,3 @@ fn lists(listed: &Value, allowed: &[(String, &'static str)]) -> bool {
         shaped && known && ordered
     })
 }
-
-#[cfg(test)]
-mod observation_tests;
-#[cfg(test)]
-mod tests;

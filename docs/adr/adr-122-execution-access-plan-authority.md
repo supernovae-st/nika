@@ -165,3 +165,11 @@ require their separate executable fixtures.
 See [One Door proof boundaries](../architecture/one-door-proof-boundaries.md)
 for the distinction between source tests, same-job replay preservation,
 cross-run comparison and published-artifact provenance.
+
+## Amendment · member note, 2026-10-10 (D-2026-07-09-N1)
+
+The access plan's resolver (`resolve_access`), the probe facts it judges and the route identity
+moved to `nika-providers-access`, a size-cap member of the nika-providers unit (L1.5, lateral
+`nika-providers → nika-providers-access`, never back), when `nika-providers` reached its
+production-line cap. The authority this record states is unchanged: the same functions judge the
+same plan, under their historical `nika_providers::resolve_access` path, which re-exports them.

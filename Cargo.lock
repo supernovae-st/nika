@@ -5345,12 +5345,26 @@ dependencies = [
  "nika-clock",
  "nika-harness",
  "nika-kernel",
+ "nika-providers-access",
  "nika-types",
  "proptest",
  "serde",
  "serde_json",
  "sha2 0.10.9",
  "tokio",
+ "url",
+]
+
+[[package]]
+name = "nika-providers-access"
+version = "0.123.0-preview.1"
+dependencies = [
+ "nika-catalog",
+ "nika-harness",
+ "nika-types",
+ "proptest",
+ "serde",
+ "serde_json",
  "url",
 ]
 

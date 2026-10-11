@@ -1743,7 +1743,7 @@ pub nika_onboard::guard::KnownWorld::mcp_servers: alloc::collections::btree::set
 pub nika_onboard::guard::KnownWorld::verbs: alloc::collections::btree::set::BTreeSet<alloc::string::String>
 impl nika_onboard::guard::KnownWorld
 pub fn nika_onboard::guard::KnownWorld::audit(&self, reply: &str) -> alloc::vec::Vec<nika_onboard::guard::Finding>
-pub fn nika_onboard::guard::KnownWorld::audit_over(&self, reply: &str, probes: &[nika_providers::probe::ProviderProbe]) -> alloc::vec::Vec<nika_onboard::guard::Finding>
+pub fn nika_onboard::guard::KnownWorld::audit_over(&self, reply: &str, probes: &[nika_providers_access::probe::ProviderProbe]) -> alloc::vec::Vec<nika_onboard::guard::Finding>
 pub fn nika_onboard::guard::KnownWorld::correct(reply: &str, findings: &[nika_onboard::guard::Finding]) -> alloc::string::String
 pub fn nika_onboard::guard::KnownWorld::installed(root: &std::path::Path) -> Self
 impl core::clone::Clone for nika_onboard::guard::KnownWorld

@@ -1,0 +1,454 @@
+pub mod nika_providers_access
+pub mod nika_providers_access::probe
+pub use nika_providers_access::probe::AccessClass
+pub enum nika_providers_access::probe::ExecutionLocus
+pub nika_providers_access::probe::ExecutionLocus::Cloud
+pub nika_providers_access::probe::ExecutionLocus::Lan
+pub nika_providers_access::probe::ExecutionLocus::Loopback
+pub nika_providers_access::probe::ExecutionLocus::Remote
+pub nika_providers_access::probe::ExecutionLocus::Unknown
+impl nika_providers_access::probe::ExecutionLocus
+pub fn nika_providers_access::probe::ExecutionLocus::classify(effective: core::option::Option<&str>, default: &str) -> Self
+pub const fn nika_providers_access::probe::ExecutionLocus::label(self) -> &'static str
+impl core::clone::Clone for nika_providers_access::probe::ExecutionLocus
+pub fn nika_providers_access::probe::ExecutionLocus::clone(&self) -> nika_providers_access::probe::ExecutionLocus
+impl core::cmp::Eq for nika_providers_access::probe::ExecutionLocus
+impl core::cmp::PartialEq for nika_providers_access::probe::ExecutionLocus
+pub fn nika_providers_access::probe::ExecutionLocus::eq(&self, other: &nika_providers_access::probe::ExecutionLocus) -> bool
+impl core::fmt::Debug for nika_providers_access::probe::ExecutionLocus
+pub fn nika_providers_access::probe::ExecutionLocus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_providers_access::probe::ExecutionLocus
+impl core::marker::StructuralPartialEq for nika_providers_access::probe::ExecutionLocus
+impl<D> owo_colors::OwoColorize for nika_providers_access::probe::ExecutionLocus
+impl<T, U> core::convert::Into<U> for nika_providers_access::probe::ExecutionLocus where U: core::convert::From<T>
+pub fn nika_providers_access::probe::ExecutionLocus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers_access::probe::ExecutionLocus where U: core::convert::Into<T>
+pub type nika_providers_access::probe::ExecutionLocus::Error = core::convert::Infallible
+pub fn nika_providers_access::probe::ExecutionLocus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers_access::probe::ExecutionLocus where U: core::convert::TryFrom<T>
+pub type nika_providers_access::probe::ExecutionLocus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers_access::probe::ExecutionLocus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers_access::probe::ExecutionLocus where T: core::clone::Clone
+pub type nika_providers_access::probe::ExecutionLocus::Owned = T
+pub fn nika_providers_access::probe::ExecutionLocus::clone_into(&self, target: &mut T)
+pub fn nika_providers_access::probe::ExecutionLocus::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers_access::probe::ExecutionLocus where T: 'static + ?core::marker::Sized
+pub fn nika_providers_access::probe::ExecutionLocus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers_access::probe::ExecutionLocus where T: ?core::marker::Sized
+pub fn nika_providers_access::probe::ExecutionLocus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers_access::probe::ExecutionLocus where T: ?core::marker::Sized
+pub fn nika_providers_access::probe::ExecutionLocus::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers_access::probe::ExecutionLocus where T: core::clone::Clone
+pub unsafe fn nika_providers_access::probe::ExecutionLocus::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers_access::probe::ExecutionLocus
+pub fn nika_providers_access::probe::ExecutionLocus::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers_access::probe::ExecutionLocus where T: 'static
+pub fn nika_providers_access::probe::ExecutionLocus::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_providers_access::probe::KeyAuth
+pub nika_providers_access::probe::KeyAuth::Absent
+pub nika_providers_access::probe::KeyAuth::Implausible
+pub nika_providers_access::probe::KeyAuth::Ok
+pub nika_providers_access::probe::KeyAuth::PaymentRequired
+pub nika_providers_access::probe::KeyAuth::Present
+pub nika_providers_access::probe::KeyAuth::Unauthorized
+impl nika_providers_access::probe::KeyAuth
+pub const fn nika_providers_access::probe::KeyAuth::as_str(self) -> &'static str
+pub const fn nika_providers_access::probe::KeyAuth::is_ready(self) -> bool
+impl core::clone::Clone for nika_providers_access::probe::KeyAuth
+pub fn nika_providers_access::probe::KeyAuth::clone(&self) -> nika_providers_access::probe::KeyAuth
+impl core::cmp::Eq for nika_providers_access::probe::KeyAuth
+impl core::cmp::PartialEq for nika_providers_access::probe::KeyAuth
+pub fn nika_providers_access::probe::KeyAuth::eq(&self, other: &nika_providers_access::probe::KeyAuth) -> bool
+impl core::fmt::Debug for nika_providers_access::probe::KeyAuth
+pub fn nika_providers_access::probe::KeyAuth::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_providers_access::probe::KeyAuth
+impl core::marker::StructuralPartialEq for nika_providers_access::probe::KeyAuth
+impl<D> owo_colors::OwoColorize for nika_providers_access::probe::KeyAuth
+impl<T, U> core::convert::Into<U> for nika_providers_access::probe::KeyAuth where U: core::convert::From<T>
+pub fn nika_providers_access::probe::KeyAuth::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers_access::probe::KeyAuth where U: core::convert::Into<T>
+pub type nika_providers_access::probe::KeyAuth::Error = core::convert::Infallible
+pub fn nika_providers_access::probe::KeyAuth::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers_access::probe::KeyAuth where U: core::convert::TryFrom<T>
+pub type nika_providers_access::probe::KeyAuth::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers_access::probe::KeyAuth::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers_access::probe::KeyAuth where T: core::clone::Clone
+pub type nika_providers_access::probe::KeyAuth::Owned = T
+pub fn nika_providers_access::probe::KeyAuth::clone_into(&self, target: &mut T)
+pub fn nika_providers_access::probe::KeyAuth::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers_access::probe::KeyAuth where T: 'static + ?core::marker::Sized
+pub fn nika_providers_access::probe::KeyAuth::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers_access::probe::KeyAuth where T: ?core::marker::Sized
+pub fn nika_providers_access::probe::KeyAuth::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers_access::probe::KeyAuth where T: ?core::marker::Sized
+pub fn nika_providers_access::probe::KeyAuth::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers_access::probe::KeyAuth where T: core::clone::Clone
+pub unsafe fn nika_providers_access::probe::KeyAuth::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers_access::probe::KeyAuth
+pub fn nika_providers_access::probe::KeyAuth::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers_access::probe::KeyAuth where T: 'static
+pub fn nika_providers_access::probe::KeyAuth::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub enum nika_providers_access::probe::PingState
+pub nika_providers_access::probe::PingState::Reachable(u64)
+pub nika_providers_access::probe::PingState::Unreachable
+impl core::clone::Clone for nika_providers_access::probe::PingState
+pub fn nika_providers_access::probe::PingState::clone(&self) -> nika_providers_access::probe::PingState
+impl core::cmp::Eq for nika_providers_access::probe::PingState
+impl core::cmp::PartialEq for nika_providers_access::probe::PingState
+pub fn nika_providers_access::probe::PingState::eq(&self, other: &nika_providers_access::probe::PingState) -> bool
+impl core::fmt::Debug for nika_providers_access::probe::PingState
+pub fn nika_providers_access::probe::PingState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_providers_access::probe::PingState
+impl core::marker::StructuralPartialEq for nika_providers_access::probe::PingState
+impl<D> owo_colors::OwoColorize for nika_providers_access::probe::PingState
+impl<T, U> core::convert::Into<U> for nika_providers_access::probe::PingState where U: core::convert::From<T>
+pub fn nika_providers_access::probe::PingState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers_access::probe::PingState where U: core::convert::Into<T>
+pub type nika_providers_access::probe::PingState::Error = core::convert::Infallible
+pub fn nika_providers_access::probe::PingState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers_access::probe::PingState where U: core::convert::TryFrom<T>
+pub type nika_providers_access::probe::PingState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers_access::probe::PingState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers_access::probe::PingState where T: core::clone::Clone
+pub type nika_providers_access::probe::PingState::Owned = T
+pub fn nika_providers_access::probe::PingState::clone_into(&self, target: &mut T)
+pub fn nika_providers_access::probe::PingState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers_access::probe::PingState where T: 'static + ?core::marker::Sized
+pub fn nika_providers_access::probe::PingState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers_access::probe::PingState where T: ?core::marker::Sized
+pub fn nika_providers_access::probe::PingState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers_access::probe::PingState where T: ?core::marker::Sized
+pub fn nika_providers_access::probe::PingState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers_access::probe::PingState where T: core::clone::Clone
+pub unsafe fn nika_providers_access::probe::PingState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers_access::probe::PingState
+pub fn nika_providers_access::probe::PingState::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers_access::probe::PingState where T: 'static
+pub fn nika_providers_access::probe::PingState::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers_access::probe::ModelListing
+pub nika_providers_access::probe::ModelListing::failure: core::option::Option<alloc::string::String>
+pub nika_providers_access::probe::ModelListing::http_status: core::option::Option<u16>
+pub nika_providers_access::probe::ModelListing::models: alloc::vec::Vec<alloc::string::String>
+pub nika_providers_access::probe::ModelListing::protocol_compatible: core::option::Option<bool>
+impl nika_providers_access::probe::ModelListing
+pub fn nika_providers_access::probe::ModelListing::available(&self) -> core::option::Option<bool>
+pub fn nika_providers_access::probe::ModelListing::new(reason: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_providers_access::probe::ModelListing
+pub fn nika_providers_access::probe::ModelListing::clone(&self) -> nika_providers_access::probe::ModelListing
+impl core::cmp::Eq for nika_providers_access::probe::ModelListing
+impl core::cmp::PartialEq for nika_providers_access::probe::ModelListing
+pub fn nika_providers_access::probe::ModelListing::eq(&self, other: &nika_providers_access::probe::ModelListing) -> bool
+impl core::fmt::Debug for nika_providers_access::probe::ModelListing
+pub fn nika_providers_access::probe::ModelListing::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers_access::probe::ModelListing
+impl serde_core::ser::Serialize for nika_providers_access::probe::ModelListing
+pub fn nika_providers_access::probe::ModelListing::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_providers_access::probe::ModelListing
+impl<T, U> core::convert::Into<U> for nika_providers_access::probe::ModelListing where U: core::convert::From<T>
+pub fn nika_providers_access::probe::ModelListing::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers_access::probe::ModelListing where U: core::convert::Into<T>
+pub type nika_providers_access::probe::ModelListing::Error = core::convert::Infallible
+pub fn nika_providers_access::probe::ModelListing::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers_access::probe::ModelListing where U: core::convert::TryFrom<T>
+pub type nika_providers_access::probe::ModelListing::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers_access::probe::ModelListing::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers_access::probe::ModelListing where T: core::clone::Clone
+pub type nika_providers_access::probe::ModelListing::Owned = T
+pub fn nika_providers_access::probe::ModelListing::clone_into(&self, target: &mut T)
+pub fn nika_providers_access::probe::ModelListing::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers_access::probe::ModelListing where T: 'static + ?core::marker::Sized
+pub fn nika_providers_access::probe::ModelListing::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers_access::probe::ModelListing where T: ?core::marker::Sized
+pub fn nika_providers_access::probe::ModelListing::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers_access::probe::ModelListing where T: ?core::marker::Sized
+pub fn nika_providers_access::probe::ModelListing::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers_access::probe::ModelListing where T: core::clone::Clone
+pub unsafe fn nika_providers_access::probe::ModelListing::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers_access::probe::ModelListing
+pub fn nika_providers_access::probe::ModelListing::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers_access::probe::ModelListing where T: 'static
+pub fn nika_providers_access::probe::ModelListing::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers_access::probe::ProviderProbe
+pub nika_providers_access::probe::ProviderProbe::endpoint: alloc::string::String
+pub nika_providers_access::probe::ProviderProbe::fix_var: alloc::string::String
+pub nika_providers_access::probe::ProviderProbe::id: alloc::string::String
+pub nika_providers_access::probe::ProviderProbe::key_present: bool
+pub nika_providers_access::probe::ProviderProbe::product_present: bool
+pub nika_providers_access::probe::ProviderProbe::readiness: nika_providers_access::probe::ProviderReadiness
+pub nika_providers_access::probe::ProviderProbe::requires_key: bool
+pub nika_providers_access::probe::ProviderProbe::serves: alloc::vec::Vec<alloc::string::String>
+pub nika_providers_access::probe::ProviderProbe::structured_native: bool
+impl nika_providers_access::probe::ProviderProbe
+pub fn nika_providers_access::probe::ProviderProbe::new(id: impl core::convert::Into<alloc::string::String>, requires_key: bool, key_present: bool, fix_var: impl core::convert::Into<alloc::string::String>, structured_native: bool, readiness: nika_providers_access::probe::ProviderReadiness, endpoint: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_providers_access::probe::ProviderProbe::with_product_present(self, present: bool) -> Self
+pub fn nika_providers_access::probe::ProviderProbe::with_serves(self, serves: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_providers_access::probe::ProviderProbe
+pub fn nika_providers_access::probe::ProviderProbe::clone(&self) -> nika_providers_access::probe::ProviderProbe
+impl core::cmp::Eq for nika_providers_access::probe::ProviderProbe
+impl core::cmp::PartialEq for nika_providers_access::probe::ProviderProbe
+pub fn nika_providers_access::probe::ProviderProbe::eq(&self, other: &nika_providers_access::probe::ProviderProbe) -> bool
+impl core::fmt::Debug for nika_providers_access::probe::ProviderProbe
+pub fn nika_providers_access::probe::ProviderProbe::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers_access::probe::ProviderProbe
+impl<D> owo_colors::OwoColorize for nika_providers_access::probe::ProviderProbe
+impl<T, U> core::convert::Into<U> for nika_providers_access::probe::ProviderProbe where U: core::convert::From<T>
+pub fn nika_providers_access::probe::ProviderProbe::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers_access::probe::ProviderProbe where U: core::convert::Into<T>
+pub type nika_providers_access::probe::ProviderProbe::Error = core::convert::Infallible
+pub fn nika_providers_access::probe::ProviderProbe::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers_access::probe::ProviderProbe where U: core::convert::TryFrom<T>
+pub type nika_providers_access::probe::ProviderProbe::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers_access::probe::ProviderProbe::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers_access::probe::ProviderProbe where T: core::clone::Clone
+pub type nika_providers_access::probe::ProviderProbe::Owned = T
+pub fn nika_providers_access::probe::ProviderProbe::clone_into(&self, target: &mut T)
+pub fn nika_providers_access::probe::ProviderProbe::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers_access::probe::ProviderProbe where T: 'static + ?core::marker::Sized
+pub fn nika_providers_access::probe::ProviderProbe::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers_access::probe::ProviderProbe where T: ?core::marker::Sized
+pub fn nika_providers_access::probe::ProviderProbe::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers_access::probe::ProviderProbe where T: ?core::marker::Sized
+pub fn nika_providers_access::probe::ProviderProbe::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers_access::probe::ProviderProbe where T: core::clone::Clone
+pub unsafe fn nika_providers_access::probe::ProviderProbe::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers_access::probe::ProviderProbe
+pub fn nika_providers_access::probe::ProviderProbe::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers_access::probe::ProviderProbe where T: 'static
+pub fn nika_providers_access::probe::ProviderProbe::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers_access::probe::ProviderReadiness
+pub nika_providers_access::probe::ProviderReadiness::access: nika_types::access::AccessClass
+pub nika_providers_access::probe::ProviderReadiness::configured: bool
+pub nika_providers_access::probe::ProviderReadiness::execution_locus: nika_providers_access::probe::ExecutionLocus
+pub nika_providers_access::probe::ProviderReadiness::model_available: core::option::Option<bool>
+pub nika_providers_access::probe::ProviderReadiness::model_listing: core::option::Option<nika_providers_access::probe::ModelListing>
+pub nika_providers_access::probe::ProviderReadiness::priced: bool
+pub nika_providers_access::probe::ProviderReadiness::reachable: core::option::Option<bool>
+pub nika_providers_access::probe::ProviderReadiness::recognized: bool
+impl nika_providers_access::probe::ProviderReadiness
+pub fn nika_providers_access::probe::ProviderReadiness::new(recognized: bool, configured: bool, reachable: core::option::Option<bool>, model_available: core::option::Option<bool>, priced: bool, execution_locus: nika_providers_access::probe::ExecutionLocus, access: nika_types::access::AccessClass) -> Self
+impl core::clone::Clone for nika_providers_access::probe::ProviderReadiness
+pub fn nika_providers_access::probe::ProviderReadiness::clone(&self) -> nika_providers_access::probe::ProviderReadiness
+impl core::cmp::Eq for nika_providers_access::probe::ProviderReadiness
+impl core::cmp::PartialEq for nika_providers_access::probe::ProviderReadiness
+pub fn nika_providers_access::probe::ProviderReadiness::eq(&self, other: &nika_providers_access::probe::ProviderReadiness) -> bool
+impl core::fmt::Debug for nika_providers_access::probe::ProviderReadiness
+pub fn nika_providers_access::probe::ProviderReadiness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers_access::probe::ProviderReadiness
+impl<D> owo_colors::OwoColorize for nika_providers_access::probe::ProviderReadiness
+impl<T, U> core::convert::Into<U> for nika_providers_access::probe::ProviderReadiness where U: core::convert::From<T>
+pub fn nika_providers_access::probe::ProviderReadiness::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers_access::probe::ProviderReadiness where U: core::convert::Into<T>
+pub type nika_providers_access::probe::ProviderReadiness::Error = core::convert::Infallible
+pub fn nika_providers_access::probe::ProviderReadiness::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers_access::probe::ProviderReadiness where U: core::convert::TryFrom<T>
+pub type nika_providers_access::probe::ProviderReadiness::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers_access::probe::ProviderReadiness::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers_access::probe::ProviderReadiness where T: core::clone::Clone
+pub type nika_providers_access::probe::ProviderReadiness::Owned = T
+pub fn nika_providers_access::probe::ProviderReadiness::clone_into(&self, target: &mut T)
+pub fn nika_providers_access::probe::ProviderReadiness::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers_access::probe::ProviderReadiness where T: 'static + ?core::marker::Sized
+pub fn nika_providers_access::probe::ProviderReadiness::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers_access::probe::ProviderReadiness where T: ?core::marker::Sized
+pub fn nika_providers_access::probe::ProviderReadiness::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers_access::probe::ProviderReadiness where T: ?core::marker::Sized
+pub fn nika_providers_access::probe::ProviderReadiness::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers_access::probe::ProviderReadiness where T: core::clone::Clone
+pub unsafe fn nika_providers_access::probe::ProviderReadiness::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers_access::probe::ProviderReadiness
+pub fn nika_providers_access::probe::ProviderReadiness::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers_access::probe::ProviderReadiness where T: 'static
+pub fn nika_providers_access::probe::ProviderReadiness::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_providers_access::probe::classify_http_status(status: u16) -> nika_providers_access::probe::KeyAuth
+pub fn nika_providers_access::probe::classify_key_value(prefixes: &[&str], value: &str) -> nika_providers_access::probe::KeyAuth
+pub mod nika_providers_access::resolve_access
+#[non_exhaustive] pub enum nika_providers_access::resolve_access::PinRefusal
+pub nika_providers_access::resolve_access::PinRefusal::NoPath
+pub nika_providers_access::resolve_access::PinRefusal::NoPath::message: alloc::string::String
+pub nika_providers_access::resolve_access::PinRefusal::PinUnsatisfied
+pub nika_providers_access::resolve_access::PinRefusal::PinUnsatisfied::message: alloc::string::String
+pub nika_providers_access::resolve_access::PinRefusal::Unavailable
+pub nika_providers_access::resolve_access::PinRefusal::Unavailable::message: alloc::string::String
+pub nika_providers_access::resolve_access::PinRefusal::UnknownToken
+pub nika_providers_access::resolve_access::PinRefusal::UnknownToken::message: alloc::string::String
+impl core::clone::Clone for nika_providers_access::resolve_access::PinRefusal
+pub fn nika_providers_access::resolve_access::PinRefusal::clone(&self) -> nika_providers_access::resolve_access::PinRefusal
+impl core::cmp::Eq for nika_providers_access::resolve_access::PinRefusal
+impl core::cmp::PartialEq for nika_providers_access::resolve_access::PinRefusal
+pub fn nika_providers_access::resolve_access::PinRefusal::eq(&self, other: &nika_providers_access::resolve_access::PinRefusal) -> bool
+impl core::fmt::Debug for nika_providers_access::resolve_access::PinRefusal
+pub fn nika_providers_access::resolve_access::PinRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers_access::resolve_access::PinRefusal
+impl<D> owo_colors::OwoColorize for nika_providers_access::resolve_access::PinRefusal
+impl<T, U> core::convert::Into<U> for nika_providers_access::resolve_access::PinRefusal where U: core::convert::From<T>
+pub fn nika_providers_access::resolve_access::PinRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers_access::resolve_access::PinRefusal where U: core::convert::Into<T>
+pub type nika_providers_access::resolve_access::PinRefusal::Error = core::convert::Infallible
+pub fn nika_providers_access::resolve_access::PinRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers_access::resolve_access::PinRefusal where U: core::convert::TryFrom<T>
+pub type nika_providers_access::resolve_access::PinRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers_access::resolve_access::PinRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers_access::resolve_access::PinRefusal where T: core::clone::Clone
+pub type nika_providers_access::resolve_access::PinRefusal::Owned = T
+pub fn nika_providers_access::resolve_access::PinRefusal::clone_into(&self, target: &mut T)
+pub fn nika_providers_access::resolve_access::PinRefusal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers_access::resolve_access::PinRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_providers_access::resolve_access::PinRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers_access::resolve_access::PinRefusal where T: ?core::marker::Sized
+pub fn nika_providers_access::resolve_access::PinRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers_access::resolve_access::PinRefusal where T: ?core::marker::Sized
+pub fn nika_providers_access::resolve_access::PinRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers_access::resolve_access::PinRefusal where T: core::clone::Clone
+pub unsafe fn nika_providers_access::resolve_access::PinRefusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers_access::resolve_access::PinRefusal
+pub fn nika_providers_access::resolve_access::PinRefusal::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers_access::resolve_access::PinRefusal where T: 'static
+pub fn nika_providers_access::resolve_access::PinRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers_access::resolve_access::AccessCandidate
+pub nika_providers_access::resolve_access::AccessCandidate::access: alloc::string::String
+pub nika_providers_access::resolve_access::AccessCandidate::billing: nika_types::access::BillingClass
+pub nika_providers_access::resolve_access::AccessCandidate::class: nika_types::access::AccessClass
+pub nika_providers_access::resolve_access::AccessCandidate::configured: bool
+pub nika_providers_access::resolve_access::AccessCandidate::fix_var: core::option::Option<alloc::string::String>
+pub nika_providers_access::resolve_access::AccessCandidate::readiness: core::option::Option<nika_types::access::SeatReadiness>
+pub nika_providers_access::resolve_access::AccessCandidate::trust: nika_types::access::Trust
+impl nika_providers_access::resolve_access::AccessCandidate
+pub fn nika_providers_access::resolve_access::AccessCandidate::new(access: impl core::convert::Into<alloc::string::String>, class: nika_types::access::AccessClass, configured: bool) -> Self
+pub fn nika_providers_access::resolve_access::AccessCandidate::with_billing(self, billing: nika_types::access::BillingClass) -> Self
+pub fn nika_providers_access::resolve_access::AccessCandidate::with_fix_var(self, var: impl core::convert::Into<alloc::string::String>) -> Self
+pub const fn nika_providers_access::resolve_access::AccessCandidate::with_readiness(self, readiness: nika_types::access::SeatReadiness) -> Self
+pub const fn nika_providers_access::resolve_access::AccessCandidate::with_trust(self, trust: nika_types::access::Trust) -> Self
+impl core::clone::Clone for nika_providers_access::resolve_access::AccessCandidate
+pub fn nika_providers_access::resolve_access::AccessCandidate::clone(&self) -> nika_providers_access::resolve_access::AccessCandidate
+impl core::cmp::Eq for nika_providers_access::resolve_access::AccessCandidate
+impl core::cmp::PartialEq for nika_providers_access::resolve_access::AccessCandidate
+pub fn nika_providers_access::resolve_access::AccessCandidate::eq(&self, other: &nika_providers_access::resolve_access::AccessCandidate) -> bool
+impl core::fmt::Debug for nika_providers_access::resolve_access::AccessCandidate
+pub fn nika_providers_access::resolve_access::AccessCandidate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers_access::resolve_access::AccessCandidate
+impl<D> owo_colors::OwoColorize for nika_providers_access::resolve_access::AccessCandidate
+impl<T, U> core::convert::Into<U> for nika_providers_access::resolve_access::AccessCandidate where U: core::convert::From<T>
+pub fn nika_providers_access::resolve_access::AccessCandidate::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers_access::resolve_access::AccessCandidate where U: core::convert::Into<T>
+pub type nika_providers_access::resolve_access::AccessCandidate::Error = core::convert::Infallible
+pub fn nika_providers_access::resolve_access::AccessCandidate::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers_access::resolve_access::AccessCandidate where U: core::convert::TryFrom<T>
+pub type nika_providers_access::resolve_access::AccessCandidate::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers_access::resolve_access::AccessCandidate::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers_access::resolve_access::AccessCandidate where T: core::clone::Clone
+pub type nika_providers_access::resolve_access::AccessCandidate::Owned = T
+pub fn nika_providers_access::resolve_access::AccessCandidate::clone_into(&self, target: &mut T)
+pub fn nika_providers_access::resolve_access::AccessCandidate::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers_access::resolve_access::AccessCandidate where T: 'static + ?core::marker::Sized
+pub fn nika_providers_access::resolve_access::AccessCandidate::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers_access::resolve_access::AccessCandidate where T: ?core::marker::Sized
+pub fn nika_providers_access::resolve_access::AccessCandidate::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers_access::resolve_access::AccessCandidate where T: ?core::marker::Sized
+pub fn nika_providers_access::resolve_access::AccessCandidate::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers_access::resolve_access::AccessCandidate where T: core::clone::Clone
+pub unsafe fn nika_providers_access::resolve_access::AccessCandidate::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers_access::resolve_access::AccessCandidate
+pub fn nika_providers_access::resolve_access::AccessCandidate::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers_access::resolve_access::AccessCandidate where T: 'static
+pub fn nika_providers_access::resolve_access::AccessCandidate::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers_access::resolve_access::AccessRefusal
+pub nika_providers_access::resolve_access::AccessRefusal::model: alloc::string::String
+pub nika_providers_access::resolve_access::AccessRefusal::provider: alloc::string::String
+pub nika_providers_access::resolve_access::AccessRefusal::rejected: alloc::vec::Vec<nika_types::access::AccessRejection>
+impl nika_providers_access::resolve_access::AccessRefusal
+pub fn nika_providers_access::resolve_access::AccessRefusal::new(model: impl core::convert::Into<alloc::string::String>, provider: impl core::convert::Into<alloc::string::String>, rejected: alloc::vec::Vec<nika_types::access::AccessRejection>) -> Self
+impl core::clone::Clone for nika_providers_access::resolve_access::AccessRefusal
+pub fn nika_providers_access::resolve_access::AccessRefusal::clone(&self) -> nika_providers_access::resolve_access::AccessRefusal
+impl core::cmp::Eq for nika_providers_access::resolve_access::AccessRefusal
+impl core::cmp::PartialEq for nika_providers_access::resolve_access::AccessRefusal
+pub fn nika_providers_access::resolve_access::AccessRefusal::eq(&self, other: &nika_providers_access::resolve_access::AccessRefusal) -> bool
+impl core::fmt::Debug for nika_providers_access::resolve_access::AccessRefusal
+pub fn nika_providers_access::resolve_access::AccessRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers_access::resolve_access::AccessRefusal
+impl<D> owo_colors::OwoColorize for nika_providers_access::resolve_access::AccessRefusal
+impl<T, U> core::convert::Into<U> for nika_providers_access::resolve_access::AccessRefusal where U: core::convert::From<T>
+pub fn nika_providers_access::resolve_access::AccessRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers_access::resolve_access::AccessRefusal where U: core::convert::Into<T>
+pub type nika_providers_access::resolve_access::AccessRefusal::Error = core::convert::Infallible
+pub fn nika_providers_access::resolve_access::AccessRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers_access::resolve_access::AccessRefusal where U: core::convert::TryFrom<T>
+pub type nika_providers_access::resolve_access::AccessRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers_access::resolve_access::AccessRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers_access::resolve_access::AccessRefusal where T: core::clone::Clone
+pub type nika_providers_access::resolve_access::AccessRefusal::Owned = T
+pub fn nika_providers_access::resolve_access::AccessRefusal::clone_into(&self, target: &mut T)
+pub fn nika_providers_access::resolve_access::AccessRefusal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers_access::resolve_access::AccessRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_providers_access::resolve_access::AccessRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers_access::resolve_access::AccessRefusal where T: ?core::marker::Sized
+pub fn nika_providers_access::resolve_access::AccessRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers_access::resolve_access::AccessRefusal where T: ?core::marker::Sized
+pub fn nika_providers_access::resolve_access::AccessRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers_access::resolve_access::AccessRefusal where T: core::clone::Clone
+pub unsafe fn nika_providers_access::resolve_access::AccessRefusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers_access::resolve_access::AccessRefusal
+pub fn nika_providers_access::resolve_access::AccessRefusal::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers_access::resolve_access::AccessRefusal where T: 'static
+pub fn nika_providers_access::resolve_access::AccessRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers_access::resolve_access::VerbNeeds
+pub nika_providers_access::resolve_access::VerbNeeds::agent: bool
+pub nika_providers_access::resolve_access::VerbNeeds::infer: bool
+impl nika_providers_access::resolve_access::VerbNeeds
+pub fn nika_providers_access::resolve_access::VerbNeeds::new(infer: bool, agent: bool) -> Self
+impl core::clone::Clone for nika_providers_access::resolve_access::VerbNeeds
+pub fn nika_providers_access::resolve_access::VerbNeeds::clone(&self) -> nika_providers_access::resolve_access::VerbNeeds
+impl core::cmp::Eq for nika_providers_access::resolve_access::VerbNeeds
+impl core::cmp::PartialEq for nika_providers_access::resolve_access::VerbNeeds
+pub fn nika_providers_access::resolve_access::VerbNeeds::eq(&self, other: &nika_providers_access::resolve_access::VerbNeeds) -> bool
+impl core::default::Default for nika_providers_access::resolve_access::VerbNeeds
+pub fn nika_providers_access::resolve_access::VerbNeeds::default() -> nika_providers_access::resolve_access::VerbNeeds
+impl core::fmt::Debug for nika_providers_access::resolve_access::VerbNeeds
+pub fn nika_providers_access::resolve_access::VerbNeeds::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_providers_access::resolve_access::VerbNeeds
+impl core::marker::StructuralPartialEq for nika_providers_access::resolve_access::VerbNeeds
+impl<D> owo_colors::OwoColorize for nika_providers_access::resolve_access::VerbNeeds
+impl<T, U> core::convert::Into<U> for nika_providers_access::resolve_access::VerbNeeds where U: core::convert::From<T>
+pub fn nika_providers_access::resolve_access::VerbNeeds::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers_access::resolve_access::VerbNeeds where U: core::convert::Into<T>
+pub type nika_providers_access::resolve_access::VerbNeeds::Error = core::convert::Infallible
+pub fn nika_providers_access::resolve_access::VerbNeeds::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers_access::resolve_access::VerbNeeds where U: core::convert::TryFrom<T>
+pub type nika_providers_access::resolve_access::VerbNeeds::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers_access::resolve_access::VerbNeeds::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers_access::resolve_access::VerbNeeds where T: core::clone::Clone
+pub type nika_providers_access::resolve_access::VerbNeeds::Owned = T
+pub fn nika_providers_access::resolve_access::VerbNeeds::clone_into(&self, target: &mut T)
+pub fn nika_providers_access::resolve_access::VerbNeeds::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers_access::resolve_access::VerbNeeds where T: 'static + ?core::marker::Sized
+pub fn nika_providers_access::resolve_access::VerbNeeds::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers_access::resolve_access::VerbNeeds where T: ?core::marker::Sized
+pub fn nika_providers_access::resolve_access::VerbNeeds::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers_access::resolve_access::VerbNeeds where T: ?core::marker::Sized
+pub fn nika_providers_access::resolve_access::VerbNeeds::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers_access::resolve_access::VerbNeeds where T: core::clone::Clone
+pub unsafe fn nika_providers_access::resolve_access::VerbNeeds::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers_access::resolve_access::VerbNeeds
+pub fn nika_providers_access::resolve_access::VerbNeeds::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers_access::resolve_access::VerbNeeds where T: 'static
+pub fn nika_providers_access::resolve_access::VerbNeeds::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_providers_access::resolve_access::access_plan_map(models: &[alloc::string::String], probes: &[nika_providers_access::probe::ProviderProbe], pin: core::option::Option<&str>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::access::AccessPlan>
+pub fn nika_providers_access::resolve_access::candidates_for(probes: &[nika_providers_access::probe::ProviderProbe], provider: &str) -> alloc::vec::Vec<nika_providers_access::resolve_access::AccessCandidate>
+pub fn nika_providers_access::resolve_access::first_ready_harness(probes: &[nika_providers_access::probe::ProviderProbe]) -> core::option::Option<&str>
+pub fn nika_providers_access::resolve_access::judge(candidate: &nika_providers_access::resolve_access::AccessCandidate, provider: &str, allow_providers: core::option::Option<&[alloc::string::String]>, pin: core::option::Option<&str>) -> core::option::Option<nika_types::access::AccessRejection>
+pub const fn nika_providers_access::resolve_access::named_infer_grade_ready(_rt: nika_types::access::HarnessRuntime, _probes: &[nika_providers_access::probe::ProviderProbe]) -> bool
+pub fn nika_providers_access::resolve_access::pin_matches(pin: &str, candidate: &nika_providers_access::resolve_access::AccessCandidate) -> bool
+pub fn nika_providers_access::resolve_access::provider_of(model: &str) -> &str
+pub fn nika_providers_access::resolve_access::refuse_pin<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers_access::probe::ProviderProbe], pin: &str) -> core::option::Option<nika_providers_access::resolve_access::PinRefusal>
+pub fn nika_providers_access::resolve_access::refuse_pin_for_verbs<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers_access::probe::ProviderProbe], pin: &str, has_infer: bool, has_agent: bool) -> core::option::Option<nika_providers_access::resolve_access::PinRefusal>
+pub fn nika_providers_access::resolve_access::refuse_pin_with<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers_access::probe::ProviderProbe], pin: &str, verbs: nika_providers_access::resolve_access::VerbNeeds) -> core::option::Option<nika_providers_access::resolve_access::PinRefusal>
+pub fn nika_providers_access::resolve_access::resolve_access(model: &str, candidates: &[nika_providers_access::resolve_access::AccessCandidate], allow_providers: core::option::Option<&[alloc::string::String]>, pin: core::option::Option<&str>) -> core::result::Result<nika_types::access::AccessPlan, nika_providers_access::resolve_access::AccessRefusal>
+pub mod nika_providers_access::route_identity
+pub fn nika_providers_access::route_identity::canonical_endpoint(endpoint: &str) -> bool
+pub fn nika_providers_access::route_identity::checkpoint_text_safe(endpoint: &str, text: &str) -> bool
+pub fn nika_providers_access::route_identity::durable_calls(calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
+pub fn nika_providers_access::route_identity::durable_pricing(pricing: &str, calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
+pub fn nika_providers_access::route_identity::project_observation(observation: &serde_json::value::Value) -> core::option::Option<serde_json::value::Value>
+pub fn nika_providers_access::route_identity::project_route(route: &serde_json::value::Value) -> serde_json::value::Value
+pub fn nika_providers_access::route_identity::route_label(route: &nika_types::cost::inference::InferenceRoute) -> alloc::string::String
+pub fn nika_providers_access::route_identity::route_origin(endpoint: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_providers_access::canonical_provider(id: &str) -> &str

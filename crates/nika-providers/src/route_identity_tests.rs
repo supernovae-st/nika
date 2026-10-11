@@ -4,10 +4,13 @@
 //! origin below is what it serializes. The E29 frozen table's hand-derived
 //! literals are checked row for row; a row the parser contradicted would be an
 //! E29 derivation defect, reported beside the original literal, never folded in.
-use super::*;
+// route_identity is the size-cap member's; these suites stay here, beside the admission
+// and retry they build their observations with.
 use crate::admission::{DeclaredTariff, TariffUnit, UnknownCostChoice};
 use crate::retry::BillingRoute;
+use crate::route_identity::*;
 use nika_types::cost::Cost;
+use nika_types::cost::{InferenceCall, InferenceRoute};
 use nika_types::token_usage::TokenUsage;
 use proptest::prelude::*;
 use std::time::Duration;

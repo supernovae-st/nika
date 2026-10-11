@@ -692,23 +692,6 @@ fn billing_evidence_override_reaches_the_plan() {
     assert_eq!(plan.billing, BillingClass::CreditMetered);
 }
 
-#[test]
-fn candidates_bridge_reads_the_probe_truth() {
-    use crate::registry::{ProviderRegistry, ProvidersConfig};
-    let registry = ProviderRegistry::without_http(ProvidersConfig::new());
-    let probes = crate::probe::collect_provider_probes(&registry);
-    let candidates = candidates_for(&probes, "ollama");
-    assert_eq!(candidates.len(), 1);
-    assert_eq!(candidates[0].access, "ollama");
-    assert_eq!(candidates[0].class, AccessClass::Local);
-    // Keyless local: no fix var to teach.
-    assert!(candidates[0].fix_var.is_none());
-    let candidates = candidates_for(&probes, "mistral");
-    assert_eq!(candidates.len(), 1);
-    assert_eq!(candidates[0].class, AccessClass::Api);
-    assert!(candidates[0].fix_var.is_some());
-}
-
 /// The plan carries the chosen candidate's rung (ADR-134): a seat on PATH
 /// is discovered, a keyless local path is declared, only a probe that
 /// answered is observed — never above the evidence.

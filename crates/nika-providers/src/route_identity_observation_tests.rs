@@ -6,18 +6,22 @@
 //! field as written. Named free text holding endpoint material is withheld by
 //! instance pointer; an unknown key is dropped and counted at its parent, never
 //! named; a malformed `@2` does not project at all.
-use super::*;
+// route_identity is the size-cap member's; this suite stays here, beside the admission
+// account whose observations it projects.
 use crate::admission::{
     AdmissionState, DeclaredTariff, HardMonetaryCap, InferenceAdmission, TariffUnit,
     UnknownCostChoice, UnknownCostPolicy, observation_consistent, observation_readable,
     observation_route,
 };
+use crate::route_identity::*;
 use nika_kernel::ai::provider::{
     ContentBlock, InferResponse, StopReason, TokenUsage, UsageCompleteness,
 };
 use nika_types::cost::Cost;
 use proptest::prelude::*;
+use serde_json::Value;
 use serde_json::json;
+use std::fmt::Write as _;
 use std::time::Duration;
 
 /// Public synthetic sentinel planted in the configured endpoint path.

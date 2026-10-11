@@ -16,6 +16,7 @@ nika-catalog = { path = "../nika-catalog", version = "0.123.0-preview.1", featur
 nika-types   = { path = "../nika-types", version = "0.123.0-preview.1" }   # the shared did-you-mean metric (MODELS rung)
 nika-clock   = { path = "../nika-clock", version = "0.123.0-preview.1" }   # the admission review's system clock (SystemClock behind the kernel ClockDyn · L1 under L1.5)
 nika-harness = { path = "../nika-harness", version = "0.123.0-preview.1", optional = true } # PATH-only ACP rows (access-harness)
+nika-providers-access = { path = "../nika-providers-access", version = "0.123.0-preview.1" } # the probe facts, the access plan and route identity (size-cap member · D-2026-07-09-N1)
 serde        = { workspace = true } # bounded JSON rejects duplicate response fields
 serde_json   = { workspace = true }
 sha2         = { workspace = true } # the authoring observer's prompt and answer digests
@@ -29,7 +30,7 @@ url          = { workspace = true } # route identity: the WHATWG parse the trans
 
 [features]
 # Composer + CLI admission: include shipped agentic-CLI rows (never handshake).
-access-harness = ["dep:nika-harness"]
+access-harness = ["dep:nika-harness", "nika-providers-access/access-harness"]
 
 [dev-dependencies]
 proptest   = { workspace = true }

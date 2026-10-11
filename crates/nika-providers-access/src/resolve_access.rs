@@ -167,14 +167,15 @@ const fn unproven_seat(c: &AccessCandidate) -> bool {
 #[must_use]
 pub fn provider_of(model: &str) -> &str {
     let prefix = model.split_once('/').map_or(model, |(prefix, _)| prefix);
-    crate::profile::canonical_provider(prefix)
+    crate::canonical_provider(prefix)
 }
 
 /// A pin names a path by its ID or by its CLASS wire string —
 /// `--access ollama` and `--access local` both read naturally, and the
 /// shipped agentic CLI tokens (`claude-code` · `codex` · …) ride the
 /// same grammar.
-pub(crate) fn pin_matches(pin: &str, candidate: &AccessCandidate) -> bool {
+#[must_use]
+pub fn pin_matches(pin: &str, candidate: &AccessCandidate) -> bool {
     pin == candidate.access || pin == candidate.class.as_str()
 }
 
@@ -201,7 +202,8 @@ fn order_key(c: &AccessCandidate) -> (u8, &str, bool, &'static str, &'static str
 /// The first failing step wins the witness (research §7.2 steps 4→5→6:
 /// access · policy · pin) — deterministic, and the earliest layer is
 /// the one whose fix line helps most.
-pub(crate) fn judge(
+#[must_use]
+pub fn judge(
     candidate: &AccessCandidate,
     provider: &str,
     allow_providers: Option<&[String]>,
@@ -675,8 +677,12 @@ pub fn first_ready_infer_harness(probes: &[ProviderProbe]) -> Option<&str> {
     })
 }
 
+/// Whether the harness seat `rt` can author with plain text here: its product binary is
+/// present and signed in, and the runtime meets the infer grade (the plan's and the model
+/// choice's seam).
 #[cfg(feature = "access-harness")]
-pub(crate) fn named_infer_grade_ready(rt: HarnessRuntime, probes: &[ProviderProbe]) -> bool {
+#[must_use]
+pub fn named_infer_grade_ready(rt: HarnessRuntime, probes: &[ProviderProbe]) -> bool {
     // W3-F1 · the infer-grade seat spawns the PRODUCT binary: its presence
     // is the readiness, never the ACP speaker's.
     probes.iter().any(|probe| {
@@ -688,11 +694,13 @@ pub(crate) fn named_infer_grade_ready(rt: HarnessRuntime, probes: &[ProviderProb
     })
 }
 
+/// Whether the harness seat `rt` can author with plain text here: its product binary is
+/// present and signed in, and the runtime meets the infer grade (the plan's and the model
+/// choice's seam). Without `access-harness` no seat is
+/// infer-grade.
 #[cfg(not(feature = "access-harness"))]
-pub(crate) const fn named_infer_grade_ready(
-    _rt: HarnessRuntime,
-    _probes: &[ProviderProbe],
-) -> bool {
+#[must_use]
+pub const fn named_infer_grade_ready(_rt: HarnessRuntime, _probes: &[ProviderProbe]) -> bool {
     false
 }
 
@@ -753,7 +761,7 @@ fn classify_pin_refusal(model: &str, pin: &str, refusal: &AccessRefusal) -> PinR
 /// must not (a `mock/echo` rehearsal is always an offered path).
 #[must_use]
 pub fn candidates_for(probes: &[ProviderProbe], provider: &str) -> Vec<AccessCandidate> {
-    let provider = crate::profile::canonical_provider(provider);
+    let provider = crate::canonical_provider(provider);
     if provider == "mock" {
         return vec![AccessCandidate::new("mock", AccessClass::Mock, true)];
     }

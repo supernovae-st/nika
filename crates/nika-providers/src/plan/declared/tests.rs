@@ -90,6 +90,9 @@ fn refusal(plan: &ExecutionAccessPlan) -> (&'static str, String) {
         PinRefusal::PinUnsatisfied { message } => ("1801", message),
         PinRefusal::NoPath { message } => ("1800", message),
         PinRefusal::Unavailable { message } => ("1803", message),
+        // The enum is the access member's and `#[non_exhaustive]`: an unclassified
+        // class fails every code assertion, with its shape.
+        other => return ("unclassified", format!("{other:?}")),
     };
     (code, message.clone())
 }

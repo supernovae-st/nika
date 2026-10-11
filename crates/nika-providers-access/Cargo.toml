@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#
+# nika-providers-access · L1.5 · how this machine reaches an intelligence: the facts a provider
+# probe states, the access plan resolved over them and the identity of the route a call takes.
+# Size-cap member of the nika-providers unit (D-2026-07-09-N1 · ADR-122 member note):
+# nika-providers → nika-providers-access, never back.
+[package]
+name        = "nika-providers-access"
+description = "L1.5 member of the nika-providers unit — the facts a provider probe states (readiness ladder, execution locus, key auth, model listing), the access plan resolved over them and the identity of the route a call takes; pure values and judgments, no I/O (D-2026-07-09-N1)"
+
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1.5 member of the nika-providers unit.
+
+[lints]
+workspace = true
+
+[dependencies]
+nika-catalog = { path = "../nika-catalog", version = "0.123.0-preview.1", features = ["providers", "pricing"] } # find_provider (the canonical id) · PRICING_SCHEMA (route identity)
+nika-types   = { path = "../nika-types", version = "0.123.0-preview.1" }   # the access vocabulary · the net loopback law · cost routes
+nika-harness = { path = "../nika-harness", version = "0.123.0-preview.1", optional = true } # infer-grade seats (access-harness)
+serde        = { workspace = true } # ModelListing serializes into doctor's document
+serde_json   = { workspace = true }
+url          = { workspace = true } # route identity: the WHATWG parse the transport connects with (nika-types net law)
+
+[features]
+# Seats judged at their infer grade (nika-harness rows); nika-providers' own `access-harness`
+# enables it, so the unit keeps one feature.
+access-harness = ["dep:nika-harness"]
+
+[dev-dependencies]
+proptest = { workspace = true }

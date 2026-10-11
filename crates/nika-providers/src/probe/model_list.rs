@@ -4,58 +4,30 @@
 use nika_kernel::http::{HttpGetDyn, HttpRequest};
 use std::{collections::BTreeSet, time::Duration};
 
-/// A model-list response, not evidence that any advertised model can infer.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-#[non_exhaustive]
-pub struct ModelListing {
-    /// None when no HTTP response could be judged.
-    pub protocol_compatible: Option<bool>,
-    /// Observed status, absent on transport failure.
-    pub http_status: Option<u16>,
-    /// Validated advertised identifiers; never downloaded or invoked.
-    pub models: Vec<String>,
-    /// Bounded diagnostic without endpoint credentials or response contents.
-    pub failure: Option<String>,
-}
-impl ModelListing {
-    /// An unobserved capability with a fixed, non-secret reason.
-    #[must_use]
-    pub fn new(reason: impl Into<String>) -> Self {
-        Self {
-            protocol_compatible: None,
-            http_status: None,
-            models: Vec::new(),
-            failure: Some(reason.into()),
-        }
+use nika_providers_access::probe::ModelListing;
+
+/// The listing one HTTP answer states: a compatible list, or why not.
+fn listing_of(status: u16, body: &[u8]) -> ModelListing {
+    let mut out = ModelListing::new("model-list response is not compatible");
+    out.http_status = Some(status);
+    out.protocol_compatible = Some(false);
+    if status != 200 {
+        out.failure = Some(format!(
+            "model-list HTTP status {status}; redirects are not followed"
+        ));
+        return out;
     }
-    /// Whether a compatible listing advertises any model. Incompatible/unobserved
-    /// data cannot prove that no model exists.
-    #[must_use]
-    pub fn available(&self) -> Option<bool> {
-        (self.protocol_compatible == Some(true)).then_some(!self.models.is_empty())
+    if body.len() > 262_144 {
+        out.failure = Some("model-list response exceeds 256 KiB".into());
+        return out;
     }
-    fn response(status: u16, body: &[u8]) -> Self {
-        let mut out = Self::new("model-list response is not compatible");
-        out.http_status = Some(status);
-        out.protocol_compatible = Some(false);
-        if status != 200 {
-            out.failure = Some(format!(
-                "model-list HTTP status {status}; redirects are not followed"
-            ));
-            return out;
-        }
-        if body.len() > 262_144 {
-            out.failure = Some("model-list response exceeds 256 KiB".into());
-            return out;
-        }
-        let Some(models) = model_ids(body) else {
-            return out;
-        };
-        out.models = models;
-        out.protocol_compatible = Some(true);
-        out.failure = None;
-        out
-    }
+    let Some(models) = model_ids(body) else {
+        return out;
+    };
+    out.models = models;
+    out.protocol_compatible = Some(true);
+    out.failure = None;
+    out
 }
 
 fn model_ids(body: &[u8]) -> Option<Vec<String>> {
@@ -102,7 +74,7 @@ pub async fn probe_model_listing<H: HttpGetDyn>(http: &H, endpoint: &str) -> Mod
     request.timeout = Some(Duration::from_millis(1000));
     match http.get(request).await {
         Ok(response) if response.final_url == endpoint => {
-            ModelListing::response(response.status, &response.body)
+            listing_of(response.status, &response.body)
         }
         Ok(_) => ModelListing::new("model-list transport changed the endpoint"),
         Err(_) => ModelListing::new("model-list transport did not return a usable response"),

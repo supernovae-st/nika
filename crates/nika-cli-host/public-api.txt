@@ -1299,8 +1299,8 @@ pub fn nika_cli_host::fix_ladder::judge_round(before: &str, after: &str, attempt
 pub fn nika_cli_host::fix_ladder::splice(source: &mut alloc::string::String, old: &str, new: &str, kind: &'static str, repairs: &mut alloc::vec::Vec<nika_display::repair_render::Repair>) -> bool
 pub fn nika_cli_host::fix_ladder::try_w2_hoist(report: &nika_check::CheckReport, source: &mut alloc::string::String, repairs: &mut alloc::vec::Vec<nika_display::repair_render::Repair>, stop_notes: &mut nika_display::repair_render::StopNotes) -> core::option::Option<bool>
 pub mod nika_cli_host::harness
-pub fn nika_cli_host::harness::access_probes_with_harness() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
-pub fn nika_cli_host::harness::harness_provider_rows() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
+pub fn nika_cli_host::harness::access_probes_with_harness() -> alloc::vec::Vec<nika_providers_access::probe::ProviderProbe>
+pub fn nika_cli_host::harness::harness_provider_rows() -> alloc::vec::Vec<nika_providers_access::probe::ProviderProbe>
 pub mod nika_cli_host::help_card
 pub enum nika_cli_host::help_card::HelpKind
 pub nika_cli_host::help_card::HelpKind::All
@@ -1648,7 +1648,7 @@ pub nika_cli_host::machine_truth::MachineTruth::cloud_key_slots: usize
 pub nika_cli_host::machine_truth::MachineTruth::local: usize
 pub nika_cli_host::machine_truth::MachineTruth::wired: usize
 impl nika_cli_host::machine_truth::MachineTruth
-pub fn nika_cli_host::machine_truth::MachineTruth::from_probes(probes: &[nika_providers::probe::ProviderProbe]) -> Self
+pub fn nika_cli_host::machine_truth::MachineTruth::from_probes(probes: &[nika_providers_access::probe::ProviderProbe]) -> Self
 pub fn nika_cli_host::machine_truth::MachineTruth::from_registry(registry: &nika_providers::registry::ProviderRegistry) -> Self
 pub fn nika_cli_host::machine_truth::MachineTruth::wired_facet(&self) -> alloc::string::String
 impl core::clone::Clone for nika_cli_host::machine_truth::MachineTruth
@@ -2052,7 +2052,7 @@ pub fn nika_cli_host::metrics::Facts::null_value() -> T
 pub fn nika_cli_host::metrics::record(path: &std::path::Path, event: nika_cli_host::metrics::EventKind, facts: nika_cli_host::metrics::Facts) -> core::io::error::Result<()>
 pub fn nika_cli_host::metrics::record_if_enabled(event: nika_cli_host::metrics::EventKind, facts: nika_cli_host::metrics::Facts)
 pub mod nika_cli_host::models_rung
-pub fn nika_cli_host::models_rung::access_decisions(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> alloc::vec::Vec<(alloc::string::String, core::result::Result<nika_types::access::AccessPlan, nika_providers::resolve_access::AccessRefusal>)>
+pub fn nika_cli_host::models_rung::access_decisions(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> alloc::vec::Vec<(alloc::string::String, core::result::Result<nika_types::access::AccessPlan, nika_providers_access::resolve_access::AccessRefusal>)>
 pub fn nika_cli_host::models_rung::boot_access_fields(plan: &nika_providers::plan::ExecutionAccessPlan) -> alloc::vec::Vec<(&'static str, nika_types::resource::Value)>
 pub fn nika_cli_host::models_rung::capacity_findings(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_display::check_models::ModelFinding>
 pub fn nika_cli_host::models_rung::chosen_over(candidates: usize, outranked: &[nika_types::access::AccessRejection]) -> alloc::string::String
@@ -2061,8 +2061,8 @@ pub fn nika_cli_host::models_rung::dials_a_model(wf: &nika_schema::raw::workflow
 pub fn nika_cli_host::models_rung::pricing_section(report: &nika_check::CheckReport, model_findings: &[nika_display::check_models::ModelFinding]) -> serde_json::value::Value
 pub fn nika_cli_host::models_rung::thinking_findings(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_display::check_models::ModelFinding>
 pub fn nika_cli_host::models_rung::unresolvable_models(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_display::check_models::ModelsAudit
-pub fn nika_cli_host::models_rung::unresolvable_models_for_plan(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, probes: &[nika_providers::probe::ProviderProbe], plan: core::option::Option<&nika_providers::plan::ExecutionAccessPlan>) -> nika_display::check_models::ModelsAudit
-pub fn nika_cli_host::models_rung::unresolvable_models_over(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, probes: &[nika_providers::probe::ProviderProbe]) -> nika_display::check_models::ModelsAudit
+pub fn nika_cli_host::models_rung::unresolvable_models_for_plan(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, probes: &[nika_providers_access::probe::ProviderProbe], plan: core::option::Option<&nika_providers::plan::ExecutionAccessPlan>) -> nika_display::check_models::ModelsAudit
+pub fn nika_cli_host::models_rung::unresolvable_models_over(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, probes: &[nika_providers_access::probe::ProviderProbe]) -> nika_display::check_models::ModelsAudit
 pub fn nika_cli_host::models_rung::verdict_layers(plan: &nika_providers::plan::ExecutionAccessPlan, valid: bool, capacity: &[nika_display::check_models::ModelFinding]) -> nika_display::check_render::layers::VerdictLayers
 pub fn nika_cli_host::models_rung::verdict_layers_for(plan: &nika_providers::plan::ExecutionAccessPlan, valid: bool, capacity: &[nika_display::check_models::ModelFinding], modelless: core::option::Option<&str>) -> nika_display::check_render::layers::VerdictLayers
 pub mod nika_cli_host::notify
@@ -2902,10 +2902,10 @@ pub nika_cli_host::probe::Probe::clients_registry: nika_cli_host::clients_regist
 pub nika_cli_host::probe::Probe::config_path: core::option::Option<alloc::string::String>
 pub nika_cli_host::probe::Probe::image: nika_cli_host::probe::ImageProbe
 pub nika_cli_host::probe::Probe::kits: alloc::vec::Vec<nika_cli_host::probe::KitProbe>
-pub nika_cli_host::probe::Probe::local_pings: alloc::vec::Vec<(alloc::string::String, alloc::string::String, nika_providers::probe::PingState)>
+pub nika_cli_host::probe::Probe::local_pings: alloc::vec::Vec<(alloc::string::String, alloc::string::String, nika_providers_access::probe::PingState)>
 pub nika_cli_host::probe::Probe::models: nika_models::ModelsProbe
 pub nika_cli_host::probe::Probe::pricing: nika_cli_host::probe::PricingProbe
-pub nika_cli_host::probe::Probe::providers: alloc::vec::Vec<nika_providers::probe::ProviderProbe>
+pub nika_cli_host::probe::Probe::providers: alloc::vec::Vec<nika_providers_access::probe::ProviderProbe>
 pub nika_cli_host::probe::Probe::recorded_runs: usize
 pub nika_cli_host::probe::Probe::retention: nika_dap::retention::RetentionConfig
 pub nika_cli_host::probe::Probe::retention_notes: alloc::vec::Vec<alloc::string::String>
@@ -3065,7 +3065,7 @@ pub type nika_cli_host::probe::TtsProbe::Output = T
 impl<T> zvariant::optional::NoneValue for nika_cli_host::probe::TtsProbe where T: core::default::Default
 pub type nika_cli_host::probe::TtsProbe::NoneType = T
 pub fn nika_cli_host::probe::TtsProbe::null_value() -> T
-pub fn nika_cli_host::probe::access_probes_with_harness() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
+pub fn nika_cli_host::probe::access_probes_with_harness() -> alloc::vec::Vec<nika_providers_access::probe::ProviderProbe>
 pub fn nika_cli_host::probe::adoption_state(probe: &nika_cli_host::probe::Probe) -> nika_cli_host::probe::AdoptionState
 pub fn nika_cli_host::probe::auth_class_witness(detail: &str) -> bool
 pub fn nika_cli_host::probe::capability_receipts(probe: &nika_cli_host::probe::Probe) -> alloc::vec::Vec<nika_cli_host::probe::HostCapabilityReceipt>

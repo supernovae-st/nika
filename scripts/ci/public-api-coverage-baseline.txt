@@ -66,6 +66,7 @@ nika-pack
 nika-pck-manifest
 nika-proof
 nika-providers
+nika-providers-access
 nika-registry-client
 nika-runtime
 nika-runtime-laws
