@@ -148,8 +148,7 @@ fn busy() -> serde_json::Value {
 fn a_busy_provider_is_asked_again_and_each_ask_is_counted() {
     let peer = Peer::start(vec![(429, busy()), (200, response("Voici."))]);
     let _http = test_transport::install(&peer.url);
-    let account = InferenceAdmission::new(Cost::new(20_000_000_000)).expect("an account");
-    let mut model = AgentModel::new("deepseek/deepseek-v4-pro").with_admission(account.clone());
+    let mut model = AgentModel::new("deepseek/deepseek-v4-pro");
     let reply = model
         .complete(&line(), &mut |_| {})
         .expect("answered after one wait");
@@ -186,4 +185,59 @@ fn a_busy_provider_is_not_asked_again_past_its_money_account() {
     assert!(said, "{error:?}");
     assert_eq!(peer.bodies().len(), 1);
     assert_eq!(account.snapshot().expect("a receipt").attempts.len(), 1);
+}
+
+/// A run's model calls reach the host as typed activity: started with its rank and when it
+/// left, then finished with how long it took and its tokens; a stopped one reads cancelled.
+#[test]
+fn a_model_call_reaches_the_host_with_its_time_and_tokens() {
+    use nika_onboard::activity::{Activity, CallState};
+    use std::sync::Mutex;
+
+    let seen: Arc<Mutex<Vec<Activity>>> = Arc::new(Mutex::new(Vec::new()));
+    let kept = Arc::clone(&seen);
+    let hook: nika_onboard::activity::ActivityHook =
+        Arc::new(move |activity: &Activity| kept.lock().expect("seen").push(activity.clone()));
+    let mut calls = model_calls(hook, "deepseek/deepseek-v4-pro");
+    calls(&AgentEvent::TurnStart { turn: 1 });
+    calls(&AgentEvent::Usage {
+        input_tokens: 4_570,
+        output_tokens: 41,
+    });
+    calls(&AgentEvent::MessageEnd {
+        entry: "e2".into(),
+        text: String::new(),
+        calls: 1,
+    });
+    calls(&AgentEvent::TurnStart { turn: 2 });
+    calls(&AgentEvent::AgentEnd {
+        end: nika_session_agent::End::Stopped,
+    });
+    let seen = seen.lock().expect("seen").clone();
+    let marks: Vec<_> = seen
+        .iter()
+        .map(|a| a.call.clone().expect("a call"))
+        .collect();
+    let states: Vec<_> = marks.iter().map(|m| (m.ordinal, m.state)).collect();
+    assert_eq!(
+        states,
+        [
+            (1, CallState::Started),
+            (1, CallState::Finished),
+            (2, CallState::Started),
+            (2, CallState::Cancelled)
+        ]
+    );
+    assert!(
+        marks
+            .iter()
+            .all(|m| m.role == "conversation" && m.at_ms.is_some())
+    );
+    assert_eq!(marks[0].elapsed_ms, None);
+    assert!(marks[1].elapsed_ms.is_some());
+    assert_eq!(
+        (marks[1].input_tokens, marks[1].output_tokens),
+        (Some(4_570), Some(41))
+    );
+    assert_eq!(marks[3].input_tokens, None);
 }

@@ -34,7 +34,7 @@ use nika_session_agent::{
     Agent, AgentEvent, EntryKind, Observed, Outcome, QueueMode, QueuedState, Relay, Steering, Tree,
 };
 use nika_session_change::tools::SessionTools;
-use nika_session_intelligence::reasoner::agent_model::{AgentModel, tool_steps};
+use nika_session_intelligence::reasoner::agent_model::{AgentModel, model_calls, tool_steps};
 use nika_types::access::HarnessTransport;
 use nika_types::cancel::CancelCtx;
 use serde_json::Value;
@@ -514,7 +514,13 @@ impl SessionRuntime {
             return refusal(RefusalClass::Io, "the conversation could not start");
         };
         let parked = tree.parked().is_some();
-        let mut events = |_: AgentEvent| {};
+        // The loop's model calls reach the host as typed activity (they were discarded).
+        let mut calls = (self.progress.listener()).map(|hook| model_calls(hook, model.model()));
+        let mut events = |event: AgentEvent| {
+            if let Some(calls) = calls.as_mut() {
+                calls(&event);
+            }
+        };
         let mut agent = Agent::new(tree, store, &**observed, &now)
             .with_steering(steering)
             .with_cancel(cancel)

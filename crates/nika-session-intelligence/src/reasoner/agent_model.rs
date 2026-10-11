@@ -282,13 +282,91 @@ pub fn tool_steps(hook: nika_onboard::activity::ActivityHook) -> nika_session_ag
             StepState::Finished => ToolState::Finished,
             _ => ToolState::Failed,
         };
-        hook(&tool_activity(
-            &step.call,
-            &step.name,
-            state,
-            step.elapsed_ms,
-        ));
+        let mut activity = tool_activity(&step.call, &step.name, state, step.elapsed_ms);
+        activity.tool = (activity.tool).map(|mark| mark.timed(step.at_ms, step.reply_bytes));
+        hook(&activity);
     })
+}
+
+/// The role a conversation's model call reads as.
+const CONVERSATION: &str = "conversation";
+
+/// The sink a turn's model calls go to: each request of the conversation's loop as the
+/// Session's typed activity: its rank in the run, the route asked, when it left, how long it
+/// took and the tokens the provider reported (never its prompt or its answer). A request the run
+/// stopped reads cancelled.
+pub fn model_calls(
+    hook: nika_onboard::activity::ActivityHook,
+    model: &str,
+) -> impl FnMut(&AgentEvent) + use<> {
+    let mut calls = ModelCalls {
+        hook,
+        model: model.to_owned(),
+        open: None,
+        tokens: None,
+    };
+    move |event| calls.event(event)
+}
+
+/// A run's model calls: the one under way (its rank, when it left, its clock) and the tokens
+/// its response reported.
+struct ModelCalls {
+    hook: nika_onboard::activity::ActivityHook,
+    model: String,
+    open: Option<(u32, u64, std::time::Instant)>,
+    tokens: Option<(u64, u64)>,
+}
+
+impl ModelCalls {
+    fn event(&mut self, event: &AgentEvent) {
+        use nika_onboard::activity::CallState;
+        match event {
+            AgentEvent::TurnStart { turn } => {
+                let at = nika_session_agent::tree::unix_ms(std::time::SystemTime::now());
+                self.open = Some((*turn, at, std::time::Instant::now()));
+                self.tokens = None;
+                self.report(*turn, at, CallState::Started, None);
+            }
+            AgentEvent::Usage {
+                input_tokens,
+                output_tokens,
+            } => self.tokens = Some((*input_tokens, *output_tokens)),
+            AgentEvent::MessageEnd { .. } => self.close(CallState::Finished),
+            AgentEvent::AgentEnd { end } => match end {
+                nika_session_agent::End::Stopped => self.close(CallState::Cancelled),
+                _ => self.close(CallState::Finished),
+            },
+            _ => {}
+        }
+    }
+
+    /// The call under way returned (or was stopped): reported once, with what it took.
+    fn close(&mut self, state: nika_onboard::activity::CallState) {
+        if let Some((rank, at, started)) = self.open.take() {
+            let elapsed = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+            self.report(rank, at, state, Some(elapsed));
+        }
+    }
+
+    fn report(
+        &self,
+        rank: u32,
+        at: u64,
+        state: nika_onboard::activity::CallState,
+        elapsed: Option<u64>,
+    ) {
+        let mut activity =
+            nika_onboard::activity::call_activity(rank, CONVERSATION, &self.model, state);
+        let tokens = self.tokens.filter(|_| elapsed.is_some());
+        activity.call = (activity.call).map(|mark| {
+            let mark = mark.timed(at, elapsed);
+            match tokens {
+                Some((input, output)) => mark.with_tokens(input, output),
+                None => mark,
+            }
+        });
+        (self.hook)(&activity);
+    }
 }
 
 /// The infer verb's gates on an answer: a priced route that reported no usage spent real money

@@ -92,3 +92,17 @@ fn between_turns_no_sink_watches_and_the_call_still_answers() {
     assert!(steps.lock().unwrap().is_empty());
     assert_eq!(observed.tools().len(), 1);
 }
+
+/// A step says when its call began, the same at its start and its end, and, once answered, the
+/// size of the reply, never the reply.
+#[test]
+fn a_step_says_when_its_call_began_and_how_large_its_reply_was() {
+    let (observed, steps) = watched();
+    observed.call(ToolCall::new("read", json!({"path": "a.nika"})).with_meta("toolu_9"));
+    let steps = steps.lock().unwrap().clone();
+    assert_eq!(steps[0].at_ms, steps[1].at_ms);
+    assert!(steps[0].at_ms > 0);
+    assert_eq!(steps[0].reply_bytes, None);
+    let size = u64::try_from("the file's secret contents".len()).unwrap();
+    assert_eq!(steps[1].reply_bytes, Some(size));
+}

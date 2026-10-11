@@ -278,3 +278,50 @@ fn a_stopped_turn_and_a_tool_step_are_typed_on_the_wire() {
     let shown = serde_json::to_value(ActivityWire::of(&tool)).expect("activity");
     assert_eq!(shown, expected);
 }
+
+/// A model call names when it left, how long it took and its tokens, and a tool call when it
+/// began and its reply's size, on the wire; a mark that reported none of them names none.
+#[test]
+fn a_call_and_a_tool_name_their_time_and_size_only_when_known() {
+    use nika_session::activity::{CallState, ToolMark, call_activity};
+
+    let mut call = call_activity(
+        2,
+        "conversation",
+        "deepseek/deepseek-v4-pro",
+        CallState::Finished,
+    );
+    call.call = call
+        .call
+        .map(|mark| mark.timed(1_000, Some(250)).with_tokens(4_570, 41));
+    let shown = serde_json::to_value(ActivityWire::of(&call)).expect("activity");
+    let expected = serde_json::json!({"ordinal": 2, "role": "conversation",
+        "model": "deepseek/deepseek-v4-pro", "state": "finished", "at_ms": 1000,
+        "elapsed_ms": 250, "input_tokens": 4570, "output_tokens": 41});
+    assert_eq!(shown["call"], expected);
+    let mut tool =
+        nika_session::activity::tool_activity("toolu_1", "verify", ToolState::Finished, Some(42));
+    tool.tool = tool.tool.map(|mark: ToolMark| mark.timed(900, Some(312)));
+    let shown = serde_json::to_value(ActivityWire::of(&tool)).expect("activity");
+    assert_eq!(
+        (
+            shown["tool"]["at_ms"].as_u64(),
+            shown["tool"]["reply_bytes"].as_u64()
+        ),
+        (Some(900), Some(312))
+    );
+    let bare = call_activity(
+        1,
+        "conversation",
+        "deepseek/deepseek-v4-pro",
+        CallState::Started,
+    );
+    let shown = serde_json::to_value(ActivityWire::of(&bare)).expect("activity");
+    let keys: Vec<&str> = shown["call"]
+        .as_object()
+        .expect("a call")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(keys, ["model", "ordinal", "role", "state"]);
+}
