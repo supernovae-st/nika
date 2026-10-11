@@ -306,12 +306,6 @@ fn structure_words(body: &str) -> Vec<String> {
 
 // ── normalization ───────────────────────────────────────────────────────
 
-/// Function words that carry no retrieval signal, on top of the router's
-/// English list. French articles, pronouns and politeness; English request
-/// scaffolding (« please », « I want », « help me »). Signal words such as
-/// « each », « before » or « only » are deliberately absent.
-const EXTRA_STOPWORDS: &str = include_str!("../assets/retrieve_stopwords.txt");
-
 /// Alias table · `keys => pattern words`, entries separated by `;`. Keys are
 /// folded lowercase tokens (diacritics removed), so a French user who types
 /// without accents lands on the same entry. Expansion ADDS the pattern words
@@ -346,7 +340,7 @@ fn lexicon() -> &'static Lexicon {
     LEXICON.get_or_init(|| {
         let mut stopwords: BTreeSet<&'static str> =
             crate::text::STOPWORDS.iter().copied().collect();
-        stopwords.extend(EXTRA_STOPWORDS.split_whitespace());
+        stopwords.extend(crate::text::RETRIEVAL_STOPWORDS.split_whitespace());
         let mut aliases: BTreeMap<&'static str, Vec<&'static str>> = BTreeMap::new();
         for entry in ALIASES.split(';') {
             if let Some((keys, words)) = entry.split_once("=>") {

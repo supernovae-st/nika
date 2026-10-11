@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! Text helpers the compiler and the onboarding surface share: the routing stopwords and
-//! the banner reader. Re-homed here at the member split so the member never depends back
-//! on `nika-onboard` (ADR-137 · the ADR-115 law).
+//! Text helpers the compiler and the onboarding surface share: the routing stopwords, the
+//! retrieval stopwords and the banner reader. Re-homed here at the member split so the member
+//! never depends back on `nika-onboard` (ADR-137 · the ADR-115 law).
+
+/// Function words that carry no retrieval signal, on top of [`STOPWORDS`], whitespace-separated
+/// and folded (no diacritics): French articles, pronouns and politeness; English request
+/// scaffolding (« please », « I want », « help me »). Signal words such as « each », « before »
+/// or « only » are deliberately absent.
+pub const RETRIEVAL_STOPWORDS: &str = include_str!("../assets/retrieve_stopwords.txt");
 
 /// Function words + Nika envelope keywords that carry zero routing signal —
 /// stripped from the query so an all-boilerplate `--from` (`the` · `workflow`
