@@ -200,9 +200,9 @@ fn leaks(value: &Value) -> Vec<String> {
 }
 
 /// The fields W9 copies at an object, compared one by one.
-fn assert_copied(written: &Value, durable: &Value, keys: &[&str], at: &str) {
+fn assert_copied(written: &Value, durable: &Value, keys: &[&str]) {
     for key in keys {
-        assert_eq!(written.get(key), durable.get(key), "{at}/{key}");
+        assert!(written.get(key) == durable.get(key), "{key} is copied");
     }
 }
 
@@ -256,45 +256,44 @@ const CATALOG_KEYS: &[&str] = &[
     "usage",
 ];
 
-fn assert_projects_as_written(name: &str, written: &Value) {
+fn assert_projects_as_written(written: &Value) {
     let durable = project_observation(written).expect("an @1 observation projects");
-    assert_eq!(
-        durable["schema"], "nika/inference-cost-observation@2",
-        "{name}"
+    assert!(
+        durable["schema"] == "nika/inference-cost-observation@2",
+        "the durable schema"
     );
-    assert_eq!(durable["withheld"], json!([]), "{name}: {durable}");
-    assert!(leaks(&durable).is_empty(), "{name}: {durable}");
-    assert_eq!(
-        project_observation(&durable).as_ref(),
-        Some(&durable),
-        "{name}: identity"
+    assert!(durable["withheld"] == json!([]), "nothing is withheld");
+    assert!(leaks(&durable).is_empty(), "the durable form leaks nothing");
+    assert!(
+        project_observation(&durable).as_ref() == Some(&durable),
+        "a projection projects to itself"
     );
-    assert!(observation_readable(&durable), "{name}");
-    assert_eq!(
-        observation_consistent(&durable),
-        observation_consistent(written),
-        "{name}: the arithmetic reads the same"
+    assert!(observation_readable(&durable), "the durable form reads");
+    assert!(
+        observation_consistent(&durable) == observation_consistent(written),
+        "the arithmetic reads the same"
     );
-    assert_copied(written, &durable, TOP_KEYS, name);
+    assert_copied(written, &durable, TOP_KEYS);
     let choice = &written["unknown_cost"];
     if choice.is_null() {
-        assert_eq!(durable["unknown_cost"], Value::Null, "{name}");
+        assert!(durable["unknown_cost"].is_null(), "no choice is added");
     } else {
         let projected = &durable["unknown_cost"];
-        assert_copied(choice, projected, CHOICE_KEYS, name);
-        assert_eq!(projected.get("endpoint"), None, "{name}");
+        assert_copied(choice, projected, CHOICE_KEYS);
+        assert!(projected.get("endpoint").is_none(), "no endpoint");
         let endpoint = choice["endpoint"].as_str().expect("an endpoint");
-        assert_eq!(projected["origin"], json!(route_origin(endpoint)), "{name}");
+        let origin = json!(route_origin(endpoint));
+        assert!(projected["origin"] == origin, "the origin is named");
     }
     let attempts = written["unknown_attempts"]
         .as_array()
         .expect("unknown attempts");
     for (i, attempt) in attempts.iter().enumerate() {
         let projected = &durable["unknown_attempts"][i];
-        assert_copied(attempt, projected, UNKNOWN_KEYS, name);
-        assert_eq!(
-            projected["choice"], durable["unknown_cost"],
-            "{name}: the same choice"
+        assert_copied(attempt, projected, UNKNOWN_KEYS);
+        assert!(
+            projected["choice"] == durable["unknown_cost"],
+            "the same choice"
         );
     }
     for (i, attempt) in written["attempts"]
@@ -304,10 +303,11 @@ fn assert_projects_as_written(name: &str, written: &Value) {
         .enumerate()
     {
         let projected = &durable["attempts"][i];
-        assert_copied(attempt, projected, CATALOG_KEYS, name);
+        assert_copied(attempt, projected, CATALOG_KEYS);
         let endpoint = attempt["endpoint"].as_str().expect("an endpoint");
-        assert_eq!(projected["origin"], json!(route_origin(endpoint)), "{name}");
-        assert_eq!(projected.get("endpoint"), None, "{name}");
+        let origin = json!(route_origin(endpoint));
+        assert!(projected["origin"] == origin, "the origin is named");
+        assert!(projected.get("endpoint").is_none(), "no endpoint");
     }
 }
 
@@ -325,11 +325,11 @@ fn every_observation_a_real_account_writes_projects_with_nothing_withheld() {
         ("declared", unknown_run(declared(choice()))),
         ("answered", answered_run()),
     ];
-    for (name, written) in &gateway_accounts {
+    for (_name, written) in &gateway_accounts {
         // The scanner sees the sentinel where the exact form keeps it.
-        assert!(!leaks(written).is_empty(), "{name}: {written}");
+        assert!(!leaks(written).is_empty(), "the scanner sees the sentinel");
     }
-    for (name, written) in [
+    for (_name, written) in [
         ("fresh", fresh.snapshot().expect("receipt").observation()),
         ("catalog", catalog_run(&catalog)),
         ("unbudgeted", catalog_run(&unbudgeted)),
@@ -342,7 +342,7 @@ fn every_observation_a_real_account_writes_projects_with_nothing_withheld() {
     .into_iter()
     .chain(gateway_accounts)
     {
-        assert_projects_as_written(name, &written);
+        assert_projects_as_written(&written);
     }
     let answered = answered_run();
     assert_eq!(
@@ -453,7 +453,6 @@ fn named_free_text_holding_endpoint_material_is_withheld_by_pointer() {
             &written,
             &durable,
             &["known_subtotal_nano_usd", "state", "unknown_calls"],
-            &form,
         );
     }
 }
