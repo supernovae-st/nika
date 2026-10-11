@@ -14,9 +14,46 @@
 //! task). A cap the person typed stays theirs. An `agent:` task states `max_tokens_total`,
 //! cumulative across its requests: no single request's cap is stated there, so none is judged.
 
+use nika_compile_reader::plan::{Op, Plan};
 use serde_json::Value;
 
 use super::{Diagnostic, resolution};
+
+/// What a declared low effort tells the person, under the proposal.
+pub const LOW_EFFORT_DECLARED: &str = "`run.reasoning.effort: low`, this model's documented low effort: the workflow only writes, summarizes or drafts text, and at its default effort the model spends most of its cap reasoning. Say if you want more.";
+
+/// Whether every model step of `plan` is a typed draft (write, summarize, translate): the plans
+/// a door declares the documented low effort for, where it reaches the route (2026-10-11).
+#[must_use]
+pub fn drafts_only(plan: &Plan) -> bool {
+    let model = |op: &Op| {
+        !matches!(
+            op,
+            Op::Read | Op::Fetch | Op::Lookup | Op::Search | Op::Compute
+        )
+    };
+    let work: Vec<Op> = plan
+        .steps
+        .iter()
+        .map(|step| step.op)
+        .filter(model)
+        .collect();
+    !work.is_empty() && work.iter().all(|op| *op == Op::Draft)
+}
+
+/// `source` with `run.reasoning.effort: low` declared in its own text: atop its `run:` block, at
+/// that block's indentation, else as a `run:` block before `tasks:`; `None` with neither. Text
+/// only: the caller keeps it when the parser reads exactly that addition (2026-10-11).
+#[must_use]
+pub fn declared_low_effort(source: &str) -> Option<String> {
+    let low = |unit: &str| format!("{unit}reasoning:\n{unit}{unit}effort: low\n");
+    if let Some((head, block)) = source.split_once("\nrun:\n") {
+        let unit = &block[..block.len() - block.trim_start_matches(' ').len()];
+        return Some(format!("{head}\nrun:\n{}{block}", low(unit)));
+    }
+    let (head, tasks) = source.split_once("\ntasks:")?;
+    Some(format!("{head}\nrun:\n{}tasks:{tasks}", low("  ")))
+}
 
 /// What a route says of its model's output, as the reasoning-budget law reads it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -211,6 +248,53 @@ mod tests {
         );
         let high = ReasoningFacts::of_caps(&caps(json!(["high"])));
         assert!(high.reasons_by_default && !high.low_effort, "{high:?}");
+    }
+
+    /// Drafts alone, beside reads, retrievals and computations, are the plans the low effort is
+    /// declared for; any other model step, or no model step at all, is not.
+    #[test]
+    fn only_a_plan_whose_model_steps_are_drafts_is_drafts_only() {
+        let of = |ops: &[Op]| {
+            let mut plan = Plan::default();
+            plan.steps = ops
+                .iter()
+                .map(|op| nika_compile_reader::plan::Step::new(*op, "", "", Vec::new()))
+                .collect();
+            plan
+        };
+        assert!(drafts_only(&of(&[Op::Read, Op::Draft])));
+        let fetched = of(&[Op::Fetch, Op::Compute, Op::Draft, Op::Draft]);
+        assert!(drafts_only(&fetched));
+        for ops in [
+            &[Op::Read, Op::Extract, Op::Draft][..],
+            &[Op::Classify, Op::Draft],
+            &[Op::Draft, Op::Validate],
+            &[Op::Explore],
+            &[Op::Read, Op::Compute],
+            &[],
+        ] {
+            assert!(!drafts_only(&of(ops)), "{ops:?}");
+        }
+    }
+
+    /// The declaration lands atop a `run:` block at its own indentation, else as a block before
+    /// `tasks:`, every other byte kept (source preservation; the meaning is judged by the caller
+    /// that parses it); a source with neither gets none.
+    #[test]
+    fn the_low_effort_is_declared_in_the_source_s_own_text() {
+        let tasks = "tasks:\n  draft:\n    infer: { prompt: \"Summarize\" }\n";
+        let bare = format!("nika: digest\n{tasks}");
+        let low = "  reasoning:\n    effort: low\n";
+        let declared = declared_low_effort(&bare);
+        assert_eq!(declared, Some(format!("nika: digest\nrun:\n{low}{tasks}")));
+        let wide = format!("nika: digest\nrun:\n    clock: virtual\n{tasks}");
+        let atop = declared_low_effort(&wide).unwrap_or_default();
+        let deeper = "run:\n    reasoning:\n        effort: low\n    clock: virtual\n";
+        assert!(atop.contains(deeper), "{atop}");
+        let kept = atop.replacen("    reasoning:\n        effort: low\n", "", 1);
+        assert_eq!(kept, wide, "source: every other byte");
+        let neither = declared_low_effort("nika: digest\nmodel: acme/thinker\n");
+        assert_eq!(neither, None);
     }
 
     /// The low effort is named, and settles a task, only where it reaches the route: elsewhere the

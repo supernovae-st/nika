@@ -60,6 +60,9 @@ impl<T> nika_error::traits::AsAny for nika_compile_fidelity::fidelity::budget::R
 pub fn nika_compile_fidelity::fidelity::budget::ReasoningFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_fidelity::fidelity::budget::ReasoningFacts
 pub type nika_compile_fidelity::fidelity::budget::ReasoningFacts::Output = T
+pub const nika_compile_fidelity::fidelity::budget::LOW_EFFORT_DECLARED: &str
+pub fn nika_compile_fidelity::fidelity::budget::declared_low_effort(source: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_fidelity::fidelity::budget::drafts_only(plan: &nika_compile_reader::plan::Plan) -> bool
 pub fn nika_compile_fidelity::fidelity::budget::reasoning(stated: &str, doc: &serde_json::value::Value, facts: &dyn core::ops::function::Fn(&str) -> core::option::Option<nika_compile_fidelity::fidelity::budget::ReasoningFacts>, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub mod nika_compile_fidelity::fidelity::keys
 pub fn nika_compile_fidelity::fidelity::keys::finding(kind: &str, message: &str) -> alloc::string::String

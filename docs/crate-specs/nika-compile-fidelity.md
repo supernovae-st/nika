@@ -493,3 +493,11 @@ them from the catalog's facts as `nika_compile::surface::output_caps` reports th
 records reasoning and documents effort levels reasons by default (a row recording reasoning
 alone records a capability, which a Claude row uses only when asked), and `low` among its levels
 reaches it. The law reads, calls and writes nothing else.
+
+The documented low effort a door declares (2026-10-11) is stated here too, pure:
+`drafts_only(plan)` says whether every model step of a reader's plan is a typed Draft (write,
+summarize, translate), beside reads, retrievals and computations; `declared_low_effort(source)`
+writes `run.reasoning.effort: low` into a source's own text, atop its `run:` block at that
+block's indentation or as a block before `tasks:` (text only: `nika-compile` keeps it when the
+parser reads exactly that addition); `LOW_EFFORT_DECLARED` is what the proposal says of it.
+Whether the request is read whole, and the seat's facts, are `nika-compile`'s.
