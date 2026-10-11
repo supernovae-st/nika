@@ -5619,6 +5619,7 @@ name = "nika-session"
 version = "0.123.0-preview.1"
 dependencies = [
  "blake3",
+ "jiff",
  "nika-builtin",
  "nika-cadence",
  "nika-catalog",

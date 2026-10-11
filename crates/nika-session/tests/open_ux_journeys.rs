@@ -102,6 +102,8 @@ fn run(name: &str) -> Journey {
         .env("HOME", &home)
         .env("NIKA_KEYCHAIN", "off")
         .env("NO_COLOR", "1")
+        // The person's machine is at UTC+4: the author is told its zone.
+        .env("TZ", "Asia/Dubai")
         .env("NIKA_VLLM_BASE_URL", peer.base())
         .env("OPEN_UX_CHILD", name)
         .env("OPEN_UX_ROOT", &root)
@@ -1172,4 +1174,16 @@ fn a_pick_of_another_option_holds_the_proposal_until_a_revision() {
     let why = held["outcome"]["text"].as_str().unwrap_or_default();
     assert!(why.contains("picked `blog`"), "{why}");
     assert!(work(held)["saved"].is_null(), "nothing saved");
+}
+
+/// « Today » is the person's day: the author is told the machine's IANA zone (here UTC+4) in
+/// the instructions a conversation starts with.
+#[test]
+fn the_author_is_told_the_persons_time_zone() {
+    let journey = run("own_filter");
+    let told = journey.agent[0].text();
+    assert!(
+        told.contains("The person's time zone is `Asia/Dubai`"),
+        "the zone is named"
+    );
 }

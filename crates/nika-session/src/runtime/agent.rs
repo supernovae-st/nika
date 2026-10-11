@@ -210,10 +210,18 @@ fn unix_ms() -> u64 {
 /// author's rules, then the language as reference and an index of what the lookups hold.
 fn instructions(chosen: &str) -> String {
     format!(
-        "{SYSTEM}\nThis Session: the person chose `{chosen}` to prepare with; offer the models of this machine through `models`.\n\n{REFERENCE}\n\n{}\n\n{}",
+        "{SYSTEM}\nThis Session: the person chose `{chosen}` to prepare with; offer the models of this machine through `models`.{}\n\n{REFERENCE}\n\n{}\n\n{}",
+        zone_line(),
         language_reference(),
         index()
     )
+}
+
+/// This machine's time zone, named to the author: a day the person means is a day there.
+fn zone_line() -> String {
+    (jiff::tz::TimeZone::system().iana_name())
+        .map(|zone| format!(" The person's time zone is `{zone}` (this machine's): a day they mean is a day there."))
+        .unwrap_or_default()
 }
 
 /// The compiler card's one-page language and canonical fragments, then its output conventions:
