@@ -32,6 +32,40 @@ fn every_tool_surface_is_off_and_each_configured_server_disabled() {
     assert_eq!(config["features"]["shell_tool"], json!(false));
 }
 
+/// A conversation keeps Codex's approval route to Nika on and every other feature off, its
+/// server mounted beside the disabled ones; the completion profile keeps the route off. With
+/// the route off, the live I4c conversation (2026-10-11) received
+/// `features.tool_call_mcp_elicitation=false` and Codex cancelled `candidate_write` without
+/// asking Nika.
+#[test]
+fn a_conversation_keeps_codexs_approval_route_to_nika_on() {
+    let server = json!({"url": "http://127.0.0.1:4242/mcp", "bearer_token_env_var": BEARER_ENV});
+    let conversation = conversation_config(&servers(), "nika", server.clone()).expect("no clash");
+    for feature in crate::infer::tool_free::DISABLED_FEATURES {
+        let on = *feature == APPROVAL_FEATURE;
+        assert_eq!(conversation["features"][*feature], json!(on), "{feature}");
+    }
+    assert_eq!(conversation["mcp_servers"]["nika"], server);
+    assert_eq!(
+        conversation["mcp_servers"]["olympus"],
+        json!({"enabled": false})
+    );
+    let flattened = overrides(&conversation);
+    assert!(
+        flattened
+            .iter()
+            .any(|o| o == "features.tool_call_mcp_elicitation=true"),
+        "{flattened:?}"
+    );
+    assert_eq!(
+        config(&servers())["features"][APPROVAL_FEATURE],
+        json!(false),
+        "the completion profile keeps the route off"
+    );
+    let clash = conversation_config(&["nika".to_owned()], "nika", server).expect_err("a clash");
+    assert!(clash.contains("rename that server"), "{clash}");
+}
+
 /// The read-back judges exactly what the adapter receives: the overrides
 /// are the configuration flattened, with quoted keys where TOML needs them.
 #[test]

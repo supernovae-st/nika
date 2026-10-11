@@ -607,8 +607,9 @@ impl SpawnedHarness {
     /// The Codex completion profile, proven on the exact codex the adapter will run before
     /// any session opens: the MCP servers the configuration defines (plugins off), then the
     /// whole profile read back — every tool feature off, no MCP server enabled, or, for a
-    /// conversation, exactly `nika`'s (its name and server). Returns the child environment
-    /// carrying it (`CODEX_CONFIG`) and pinning that binary (`CODEX_PATH`).
+    /// conversation, exactly `nika`'s (its name and server) and Codex's approval route to
+    /// Nika on. Returns the child environment carrying it (`CODEX_CONFIG`) and pinning that
+    /// binary (`CODEX_PATH`).
     async fn codex_profile_env(
         &self,
         nika: Option<(&str, serde_json::Value)>,
@@ -660,7 +661,13 @@ impl SpawnedHarness {
                 "codex features list",
             )
             .await?;
-        crate::infer::tool_free::judge_features(&String::from_utf8_lossy(&features.stdout))
+        let kept: &[&str] = if nika.is_some() {
+            &[codex::APPROVAL_FEATURE]
+        } else {
+            &[]
+        };
+        let listed = String::from_utf8_lossy(&features.stdout);
+        crate::infer::tool_free::judge_features_keeping(&listed, kept)
             .map_err(|refused| not_effective(refused.to_string()))?;
         let servers = self
             .run_bounded(
@@ -1464,3 +1471,7 @@ mod conversation;
 
 #[cfg(test)]
 mod completion_tests;
+
+#[cfg(test)]
+#[cfg(unix)]
+mod codex_profile_tests;
