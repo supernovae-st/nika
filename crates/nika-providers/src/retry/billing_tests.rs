@@ -223,3 +223,92 @@ async fn s80_dispatch_without_http_response_keeps_request_endpoint_but_no_final_
     assert!(calls[0].usage.is_none());
     assert_eq!(calls[0].known_estimate(), None);
 }
+
+const ANTHROPIC: &str = "https://api.anthropic.com/v1/messages";
+
+/// A complete answer of `model` whose input (300,000 tokens) holds 100,000 read from the cache and
+/// 100,000 written to it, as the wire's `meter` reports them, with 10,000 output tokens.
+fn wrote(model: &str, meter: fn(&mut TokenUsage, u64)) -> InferResponse {
+    let mut usage = TokenUsage::new(300_000, 10_000);
+    usage.cache_read_tokens = Some(100_000);
+    meter(&mut usage, 100_000);
+    let mut r = InferResponse::new(vec![], usage, StopReason::EndTurn);
+    r.usage_completeness = UsageCompleteness::Complete;
+    r.gen_ai.response_model = Some(model.into());
+    r
+}
+
+fn created(usage: &mut TokenUsage, tokens: u64) {
+    usage.cache_creation_tokens = Some(tokens);
+}
+
+fn written(usage: &mut TokenUsage, tokens: u64) {
+    usage.cache_write_tokens = Some(tokens);
+}
+
+/// A call that wrote to the cache stays priced at the row's own write rate. Claude Sonnet 4.5's
+/// row: input $3, cache read $0.30, cache write $3.75 and output $15 per million, so 100,000
+/// uncached, 100,000 read, 100,000 written and 10,000 output tokens cost $0.855, whichever meter
+/// the wire reports the writes in.
+#[test]
+fn a_cache_write_prices_at_the_rows_write_rate() {
+    let model = "claude-sonnet-4-5";
+    let route =
+        BillingRoute::new("anthropic".into(), model.into(), ANTHROPIC.into()).expect("route");
+    let meters: [fn(&mut TokenUsage, u64); 2] = [created, written];
+    for meter in meters {
+        let call = observe(Some(&route), Some(&wrote(model, meter)), None);
+        assert_eq!(call.known_estimate(), Some(Cost::new(855_000_000)));
+    }
+    let mut both = wrote(model, created);
+    both.usage.cache_write_tokens = Some(100_000);
+    assert_eq!(
+        observe(Some(&route), Some(&both), None).known_estimate(),
+        Some(Cost::new(855_000_000)),
+        "two meters that agree"
+    );
+    both.usage.cache_write_tokens = Some(99_999);
+    assert_eq!(
+        observe(Some(&route), Some(&both), None).known_estimate(),
+        None,
+        "two meters that disagree"
+    );
+    let mut over = wrote(model, created);
+    over.usage.input_tokens = 199_999;
+    assert_eq!(
+        observe(Some(&route), Some(&over), None).known_estimate(),
+        None,
+        "cache subsets larger than the input"
+    );
+}
+
+/// A row that states no write rate, an admission tariff and a declared tariff price no cache
+/// write: the call stays unknown, while the same route without a write stays priced.
+#[test]
+fn a_cache_write_without_a_stated_write_rate_stays_unknown() {
+    let model = "gpt-4o-2024-08-06";
+    let openai = BillingRoute::new(
+        "openai".into(),
+        model.into(),
+        "https://api.openai.com/v1/chat/completions".into(),
+    )
+    .expect("route");
+    assert_eq!(
+        observe(Some(&openai), Some(&wrote(model, written)), None).known_estimate(),
+        None
+    );
+    let mut read_only = wrote(model, written);
+    read_only.usage.cache_write_tokens = None;
+    assert!(
+        observe(Some(&openai), Some(&read_only), None)
+            .known_estimate()
+            .is_some()
+    );
+    let deepseek = route(OFFICIAL);
+    let mut r = response();
+    r.usage.cache_creation_tokens = Some(10);
+    assert_eq!(
+        observe(Some(&deepseek), Some(&r), None).known_estimate(),
+        None
+    );
+}
