@@ -88,6 +88,7 @@ const UNEXERCISED: &str =
     "the trial run's inputs never exercise some part of the request: it proves no whole output";
 const UNPOINTED: &str = "the judge named a part in the trial run but no task that fails it";
 const ALTERNATIVE: &str = "the judge named a part in the trial run, then no offer fitting it";
+const DOUBTED_OVER_RUN: &str = "the judge named a part in the trial run below its confidence";
 
 /// The reason a part is missing: no task performs its operation.
 pub(super) const OMITTED: &str = "the judge finds no task performing it";
@@ -124,6 +125,9 @@ fn split(intent: &str) -> Vec<Part> {
 enum State {
     /// Carried by the bytes (carried, superseded, no operation) or shown carried by the run.
     Settled,
+    /// A weighed « missing » that decides nothing ([`Doubt::part_decides`]) or that no task
+    /// fails, by the question that asked it: stated with the proposal, never a hold (2026-10-11).
+    Doubted(String),
     /// Judged missing, with the judge's reason.
     Defect(String),
     /// Judged missing, then no task fails it: nothing decided it.
@@ -144,6 +148,8 @@ enum Observed {
     Carried,
     Defect(String, String),
     Unsettled(&'static str),
+    /// The part named over the run below its confidence ([`Doubt::part_decides`]): stated.
+    Doubted(usize),
     Stopped,
 }
 
@@ -331,11 +337,21 @@ async fn locate<P: ProviderInferDyn>(
                 return None;
             }
             Observed::Unsettled(why) => why,
+            Observed::Doubted(k) => {
+                parts[k].state = State::Doubted("verify-observed".to_owned());
+                DOUBTED_OVER_RUN
+            }
         },
     };
     // No whole-request answer declined these bytes (a weighed one): its parts carry the request.
     if verdict.doubt.is_empty() && !open && undecided.is_none() {
-        verdict.stated = Doubt::stated(&verdict.records, &restated);
+        let doubted: Vec<(String, String)> = (parts.iter())
+            .filter_map(|part| match &part.state {
+                State::Doubted(id) => Some((part.text.clone(), id.clone())),
+                _ => None,
+            })
+            .collect();
+        verdict.stated = Doubt::stated_with(&verdict.records, &restated, &doubted);
         return Some("verify-parts");
     }
     // No run decides it, no part is open and nothing is extra: asked once where it is.
@@ -394,7 +410,7 @@ async fn doubted<P: ProviderInferDyn>(
                     verdict.contested.push(text);
                     return Some(true);
                 }
-                State::Settled | State::Unknown => return Some(false),
+                State::Settled | State::Doubted(_) | State::Unknown => return Some(false),
             }
         }
         Some(Located::Task(task)) => {
@@ -417,7 +433,7 @@ fn keep(parts: &[Part], verdict: &mut Verdict) -> bool {
     let mut open = false;
     for part in parts {
         match &part.state {
-            State::Settled => {}
+            State::Settled | State::Doubted(_) => {}
             State::Defect(note) => {
                 verdict.defects.push(part.text.clone());
                 verdict.notes.push((part.text.clone(), note.clone()));
@@ -476,9 +492,19 @@ async fn localize<P: ProviderInferDyn>(
                 verdict.consumed += 1;
                 State::Settled
             }
+            Some("missing")
+                if Doubt::part_decides(&verdict.records, &question.id, question.options.len())
+                    == Some(false) =>
+            {
+                verdict.consumed += 1;
+                State::Doubted(question.id.clone())
+            }
             Some("missing") => {
                 verdict.consumed += 1;
-                verdict.decline(Declined::Rejected);
+                let weighed = Doubt::reported(&verdict.records, &question.id).is_some();
+                if !weighed {
+                    verdict.decline(Declined::Rejected);
+                }
                 let id = format!("verify-point-{k}");
                 let state = (asked.base, asked.reference);
                 let pointed = point(
@@ -490,8 +516,13 @@ async fn localize<P: ProviderInferDyn>(
                     verdict,
                     out,
                 );
-                match pointed.await {
-                    Some(pointed) => missing(pointed, ""),
+                match pointed.await.map(|pointed| missing(pointed, "")) {
+                    Some(State::Contested) if weighed => State::Doubted(question.id.clone()),
+                    Some(State::Defect(note)) if weighed => {
+                        verdict.decline(Declined::Rejected);
+                        State::Defect(note)
+                    }
+                    Some(state) => state,
                     None => return,
                 }
             }
@@ -587,7 +618,8 @@ fn named<'t>(key: &str, tasks: &'t [String]) -> Option<&'t str> {
 /// trial run: carried settles an open part, and only notes a broken restriction (a run of some
 /// inputs never removes a defect located in the bytes: it stays, for a repair); superseded, only
 /// offered an open part, settles it; missing confirms a broken restriction, or asks an open
-/// part's task over the run; unexercised, or no choice, leaves it as it stood.
+/// part's task over the run, unless weighed below its confidence ([`Doubt::part_decides`]);
+/// unexercised, or no choice, leaves it as it stood.
 async fn over_run<P: ProviderInferDyn>(
     parts: &mut [Part],
     (asked, confirming): (&Asked<'_, '_, P>, bool),
@@ -629,6 +661,9 @@ async fn over_run<P: ProviderInferDyn>(
                     _ => State::Settled,
                 };
             }
+            Some("missing")
+                if Doubt::part_decides(&verdict.records, &question.id, question.options.len())
+                    == Some(false) => {}
             Some("missing") => {
                 verdict.consumed += 1;
                 verdict.decline(Declined::Rejected);
@@ -699,7 +734,7 @@ fn observed_question<P: ProviderInferDyn>(
     let doubtful = match part.state {
         State::Unknown | State::Contested => true,
         State::Defect(_) => part.restricting,
-        State::Settled => false,
+        State::Settled | State::Doubted(_) => false,
     };
     if !doubtful {
         return None;
@@ -799,7 +834,8 @@ fn unasked(task: &str) -> ChoiceOption {
 /// carried: the discriminating observation a doubt asks for. Every part is offered, the ones
 /// answered superseded or asking no operation included: the run may show them asked; so is each
 /// task the engine's facts leave open ([`Effects`]). A clause the judge settled `no_fit` is shown
-/// as its own history ([`Construction::recall`]).
+/// as its own history ([`Construction::recall`]). A part named weighed below its confidence is
+/// stated, never asked why ([`Doubt::part_decides`], 2026-10-11).
 async fn observe<P: ProviderInferDyn>(
     parts: &[Part],
     asked: &Asked<'_, '_, P>,
@@ -869,6 +905,10 @@ async fn observe<P: ProviderInferDyn>(
     let Some(k) = chosen else {
         return Observed::Unsettled(NO_CHOICE_OVER_RUN);
     };
+    let decides = Doubt::part_decides(&verdict.records, "verify-observed", question.options.len());
+    if decides == Some(false) {
+        return Observed::Doubted(k);
+    }
     verdict.consumed += 1;
     verdict.decline(Declined::Rejected);
     let part = &parts[k].text;

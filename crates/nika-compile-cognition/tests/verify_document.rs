@@ -77,7 +77,7 @@ fn authored() -> Vec<Resolution> {
 /// A decision seat answering each verifier question by its id (the whole request as `whole`,
 /// each part as `part` and the task question it leads to as `point`, nothing extra, where a doubt
 /// is as `doubt`, a removal claim as `removed`), keeping every question. It weighs its
-/// whole-request answer and its doubt's location only when told to.
+/// whole-request answer, its doubt's location and its parts only when told to.
 struct Judge {
     whole: &'static str,
     doubt: &'static str,
@@ -86,6 +86,8 @@ struct Judge {
     removed: &'static str,
     /// The probability it reports for its whole-request answer and for its doubt's location.
     weighed: (Option<f64>, Option<f64>),
+    /// The probability it reports for each part's answer.
+    parts_weighed: Option<f64>,
     asked: Mutex<Vec<ChoiceQuestion>>,
 }
 
@@ -98,6 +100,7 @@ impl Judge {
             point: "none",
             removed: "removed",
             weighed: (None, None),
+            parts_weighed: None,
             asked: Mutex::new(Vec::new()),
         }
     }
@@ -106,6 +109,12 @@ impl Judge {
     /// `doubt`, the rest of each distribution on NONE, as a decision model reports them.
     fn weighing(mut self, whole: f64, doubt: f64) -> Self {
         self.weighed = (Some(whole), Some(doubt));
+        self
+    }
+
+    /// The same judge weighing each part's answer at `part`, the rest on NONE.
+    fn weighing_parts(mut self, part: f64) -> Self {
+        self.parts_weighed = Some(part);
         self
     }
 
@@ -148,6 +157,7 @@ impl DecisionSeat for Judge {
         let weighed = match id {
             "verify-request" => self.weighed.0,
             "verify-doubt" => self.weighed.1,
+            _ if id.starts_with("verify-part-") => self.parts_weighed,
             _ => None,
         };
         if let Some(p) = weighed {
@@ -569,4 +579,78 @@ async fn a_part_a_repair_attempt_met_is_stated_when_judged_missing_again() {
         said.len() == 1 && said[0].contains("missing again after a repair attempt"),
         "{said:?}"
     );
+}
+
+/// A part judged « missing » that its judge weighs below the confidence its question needs (0.7,
+/// under 0.8 with five options) decides nothing: no task is asked, nothing is declined, and each
+/// such part is stated with the proposal, READY on the parts (2026-10-11).
+#[tokio::test]
+async fn a_weighed_missing_part_below_its_confidence_is_stated_never_held() {
+    let judge = Judge::new("faithful", "unlocated")
+        .weighing(0.45, 0.2)
+        .judging_parts("missing", "task-write_digest")
+        .weighing_parts(0.7);
+    let out = verified(&CompileRequest::create(DELEGATING), Some(&judge)).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(out.candidate.as_deref(), Some(digest().as_str()));
+    let ids = judge.ids();
+    assert!(ids.iter().any(|id| id == "verify-part-0"), "{ids:?}");
+    assert!(
+        !ids.iter().any(|id| id.starts_with("verify-point-")),
+        "{ids:?}"
+    );
+    let attempt = &decision(&out)["semantic_verification"][0];
+    assert_eq!(attempt["settled_by"], "verify-parts", "{attempt:#}");
+    assert_eq!(attempt["rejected"], false, "{attempt:#}");
+    let said = findings(&out, "verify_doubt");
+    let stated = "missing (reported at 0.70) without locating a defect";
+    assert!(said.len() == 1 && said[0].contains(stated), "{said:?}");
+    assert_eq!(attempt["stated_doubt"], said[0].as_str(), "{attempt:#}");
+    assert!(findings(&out, "verify_held").is_empty(), "{out:#?}");
+}
+
+/// At or above that confidence (0.9) a part judged « missing » decides: the task the judge names
+/// is a defect for the author, the document kept as the preview with what to repair; a part no
+/// task fails is stated with the proposal, never held.
+#[tokio::test]
+async fn a_confident_missing_part_repairs_when_located_and_is_stated_when_not() {
+    let judge = Judge::new("faithful", "unlocated")
+        .weighing(0.45, 0.2)
+        .judging_parts("missing", "task-write_digest")
+        .weighing_parts(0.9);
+    let out = verified(&CompileRequest::create(DELEGATING), Some(&judge)).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert!(out.candidate.is_some(), "kept as the preview");
+    assert!(judge.ids().iter().any(|id| id == "verify-point-0"));
+    let attempt = &decision(&out)["semantic_verification"][0];
+    let defects = attempt["defects"].as_array().map_or(0, Vec::len);
+    assert!(defects > 0, "{attempt:#}");
+    assert_eq!(attempt["rejected"], true, "{attempt:#}");
+    let judge = Judge::new("faithful", "unlocated")
+        .weighing(0.45, 0.2)
+        .judging_parts("missing", "no_task")
+        .weighing_parts(0.9);
+    let out = verified(&CompileRequest::create(DELEGATING), Some(&judge)).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(judge.ids().iter().any(|id| id == "verify-point-0"));
+    let attempt = &decision(&out)["semantic_verification"][0];
+    assert_eq!(attempt["settled_by"], "verify-parts", "{attempt:#}");
+    let said = findings(&out, "verify_doubt");
+    let stated = "missing (reported at 0.90) without locating a defect";
+    assert!(said.len() == 1 && said[0].contains(stated), "{said:?}");
+}
+
+/// An answer reported with no distribution is taken at its word, as before: a part judged
+/// « missing » that no task fails stays contested and keeps the document from READY, with
+/// nothing stated.
+#[tokio::test]
+async fn an_unweighed_missing_part_no_task_fails_still_holds() {
+    let judge = Judge::new("faithful", "unlocated")
+        .weighing(0.45, 0.2)
+        .judging_parts("missing", "no_task");
+    let out = verified(&CompileRequest::create(DELEGATING), Some(&judge)).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    let attempt = &decision(&out)["semantic_verification"][0];
+    assert_eq!(attempt["settled_by"], Value::Null, "{attempt:#}");
+    assert!(findings(&out, "verify_doubt").is_empty(), "{out:#?}");
 }

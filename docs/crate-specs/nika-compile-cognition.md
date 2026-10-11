@@ -555,9 +555,18 @@ extra carry the request (judgment and `settled_by` `verify-parts`); over a whole
 question over the run comes first. A part judged missing with its reason is a defect sent to the
 author for a repair; judged missing again on other bytes of the same request after that attempt
 (`repairs::met`, over this compile's attempts and the carried ones), it is stated, never held
-for the person. What the parts overrule is stated, never held and never a question to the person
+for the person. A part's weighed « missing » decides only at the confidence 0.75 read over its
+own question's options (`Doubt::part_decides`, amended 2026-10-11, after identical bytes moved
+one part's answer across the old cut): below it the part declines nothing, is never asked why
+and is stated; at or above it, a reason makes it a defect as above, and no task failing it
+states it instead of leaving it contested. A stated part is not asked again over a trial run:
+the question over the whole run decides, and carrying the request it states nothing. The same
+confidence gates the questions over a run, over each one's own options: a part the whole-run
+question names below it is stated « in the trial run », never asked why, and an open part shown
+missing there below it keeps its state. What the
+parts overrule is stated, never held and never a question to the person
 about the verifier: the attempt keeps `stated_doubt`, and an Applied `verify_doubt` finding says
-it in words for the proposal (`Doubt::stated`), the person's consent unchanged. A location the
+it in words for the proposal (`Doubt::stated_with`), the person's consent unchanged. A location the
 doubt question weighs below `Doubt::LOCATING_PROBABILITY` names nothing. An answer reported with
 no distribution (a provider judge's, or a mass for its choice alone) is taken at its word, as
 before; one read back from an earlier attempt keeps what its seat reported (`probabilities`,
