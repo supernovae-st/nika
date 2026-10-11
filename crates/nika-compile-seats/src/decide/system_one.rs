@@ -191,6 +191,13 @@ pub fn criteria(question: &ChoiceQuestion) -> Map<String, Value> {
         .collect()
 }
 
+/// The option keys in the order the request's `criteria` carries them: the wire order a record
+/// keeps beside the question's own order.
+#[must_use]
+pub fn sent_order(question: &ChoiceQuestion) -> Vec<String> {
+    criteria(question).into_iter().map(|(key, _)| key).collect()
+}
+
 /// The state the request carries once: what every question reads alike ([`Carried::common`]),
 /// or `{}` when they read nothing alike and are not all `null` (every question reads the request
 /// state, so it never holds what one of them does not read).
@@ -867,12 +874,14 @@ impl Partition {
         (at.iter().filter_map(each))
             .map(|(item, answer, outcome)| {
                 let mut record = json!({"question": item.question.id,
-                    "options": item.question.keys(), "outcome": word.unwrap_or(outcome)});
+                    "options": item.question.keys(), "options_sent": sent_order(&item.question),
+                    "outcome": word.unwrap_or(outcome)});
                 match (word, answer) {
                     (Some(_), _) => {}
                     (None, Ok(answer)) => {
                         record["choice"] = json!(answer.choice);
                         record["confidence"] = json!(answer.confidence);
+                        record["probabilities"] = json!(answer.probabilities);
                     }
                     (None, Err(error)) => record["error"] = json!(error.0),
                 }
