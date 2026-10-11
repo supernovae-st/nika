@@ -97,7 +97,9 @@ fn block_len(block: &ContentBlock) -> usize {
         ContentBlock::Text { text } | ContentBlock::Thinking { text } => text.len(),
         ContentBlock::ToolUse { name, input, .. } => name.len() + input.to_string().len(),
         ContentBlock::ToolResult { content, .. } => content.len(),
-        _ => 0,
+        // A block this estimate does not name (an image, a provider's opaque reasoning state)
+        // weighs what it carries on the wire.
+        other => serde_json::to_string(other).map_or(0, |wire| wire.len()),
     }
 }
 

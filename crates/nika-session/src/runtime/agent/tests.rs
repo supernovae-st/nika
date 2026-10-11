@@ -80,3 +80,20 @@ fn a_call_between_turns_reaches_no_capability() {
     assert!(toolbox.with(|c| c.questions().is_empty()));
     assert_eq!(toolbox.end(), Decided::default());
 }
+
+/// A priced route lends the conversation its tariff's context window; a route no tariff prices,
+/// or no route at all, lends none.
+#[test]
+fn a_priced_route_lends_the_conversation_its_context_window() {
+    let window = super::route_window("deepseek/deepseek-v4-pro").expect("a priced route");
+    let tariff = nika_catalog::admission::InferenceTariff::new(
+        "deepseek",
+        "deepseek-v4-pro",
+        "https://api.deepseek.com/v1/chat/completions",
+    );
+    let tokens = tariff.map(|tariff| tariff.context_tokens);
+    assert_eq!(Some(window.tokens), tokens);
+    assert!(window.reserve > 0 && window.reserve < window.tokens);
+    assert!(super::route_window("ollama/llama3.2").is_none());
+    assert!(super::route_window("no-route").is_none());
+}

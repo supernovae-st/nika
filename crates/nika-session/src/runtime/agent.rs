@@ -170,6 +170,23 @@ fn could_not_start(why: &str) -> TurnOutcome {
     )
 }
 
+/// The context window of the route `model` as its tariff states it, so the conversation is
+/// compacted before a request its route could not take; none for a route no tariff prices (a
+/// local or an unknown one), whose conversation grows as before.
+fn route_window(model: &str) -> Option<nika_session_agent::compact::Window> {
+    let (provider, name) = model.split_once('/')?;
+    let config = nika_session_intelligence::reasoner::provider_config();
+    let registry = nika_providers::ProviderRegistry::without_http(config);
+    let provider = nika_providers::canonical_provider(provider);
+    let profile = (registry.profiles().iter()).find(|profile| profile.id == provider)?;
+    let endpoint = registry.effective_base_url(provider)?;
+    let wire = profile.resolve_model(name);
+    let tariff = nika_catalog::admission::InferenceTariff::new(provider, wire, endpoint)?;
+    Some(nika_session_agent::compact::Window::of(
+        tariff.context_tokens,
+    ))
+}
+
 fn unix_ms() -> u64 {
     let since = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -526,6 +543,9 @@ impl SessionRuntime {
             .with_cancel(cancel)
             .with_reading(&read)
             .with_note(run_note);
+        if let Some(window) = route_window(model.model()) {
+            agent = agent.with_window(window);
+        }
         let outcome = match (said, parked) {
             (Said::Note(note), _) => agent.note(note, model, &mut events),
             (Said::Line(line), true) => agent.answer(line, model, &mut events),
