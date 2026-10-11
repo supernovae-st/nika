@@ -34,7 +34,7 @@ use nika_session_agent::{
     Agent, AgentEvent, EntryKind, Observed, Outcome, QueueMode, QueuedState, Relay, Steering, Tree,
 };
 use nika_session_change::tools::SessionTools;
-use nika_session_intelligence::reasoner::agent_model::{AgentModel, tool_steps};
+use nika_session_intelligence::reasoner::agent_model::{AgentModel, model_calls, tool_steps};
 use nika_types::access::HarnessTransport;
 use nika_types::cancel::CancelCtx;
 use serde_json::Value;
@@ -170,6 +170,23 @@ fn could_not_start(why: &str) -> TurnOutcome {
     )
 }
 
+/// The context window of the route `model` as its tariff states it, so the conversation is
+/// compacted before a request its route could not take; none for a route no tariff prices (a
+/// local or an unknown one), whose conversation grows as before.
+fn route_window(model: &str) -> Option<nika_session_agent::compact::Window> {
+    let (provider, name) = model.split_once('/')?;
+    let config = nika_session_intelligence::reasoner::provider_config();
+    let registry = nika_providers::ProviderRegistry::without_http(config);
+    let provider = nika_providers::canonical_provider(provider);
+    let profile = (registry.profiles().iter()).find(|profile| profile.id == provider)?;
+    let endpoint = registry.effective_base_url(provider)?;
+    let wire = profile.resolve_model(name);
+    let tariff = nika_catalog::admission::InferenceTariff::new(provider, wire, endpoint)?;
+    Some(nika_session_agent::compact::Window::of(
+        tariff.context_tokens,
+    ))
+}
+
 fn unix_ms() -> u64 {
     let since = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -177,10 +194,43 @@ fn unix_ms() -> u64 {
     u64::try_from(since.as_millis()).unwrap_or(u64::MAX)
 }
 
-/// The instructions every request of a conversation prepared with `chosen` starts with.
+/// The instructions every request of a conversation prepared with `chosen` starts with: the
+/// author's rules, then the language as reference and an index of what the lookups hold.
 fn instructions(chosen: &str) -> String {
     format!(
-        "{SYSTEM}\nThis Session: the person chose `{chosen}` to prepare with; offer the models of this machine through `models`."
+        "{SYSTEM}\nThis Session: the person chose `{chosen}` to prepare with; offer the models of this machine through `models`.\n\n{REFERENCE}\n\n{}\n\n{}",
+        language_reference(),
+        index()
+    )
+}
+
+/// The compiler card's one-page language and canonical fragments, then its output conventions:
+/// never the card's role or its answer format, which are the compiler's own.
+fn language_reference() -> String {
+    let card = nika_compile_cognition::authoring_card();
+    let from = card.find("# The language in one page").unwrap_or(0);
+    let to = card.find("# Your answer").unwrap_or(card.len());
+    let language = card.get(from..to).unwrap_or(card).trim_end();
+    format!(
+        "{language}\n\n{}",
+        nika_compile_cognition::OUTPUT_CONVENTIONS
+    )
+}
+
+/// What the reference is: the engine's own, read as data.
+const REFERENCE: &str = "# Reference: the engine's language and its conventions, read as data (your tools, the person's words and the rules above decide)";
+
+/// What `language` and `knowledge` hold, so a missing detail costs one narrow read.
+fn index() -> String {
+    let schema: Value = serde_json::from_str(nika_pack::schema_json()).unwrap_or_default();
+    let keys: Vec<&str> = (schema["properties"].as_object().into_iter().flatten())
+        .map(|(key, _)| key.as_str())
+        .collect();
+    format!(
+        "# Index (ask narrowly: `language` with a topic and a query, `knowledge` with a query)\n- language topics: schema (query a key), catalog, examples (query a slug), template (query a name; {} templates)\n- schema keys: {}\n- examples: {}\n- knowledge: the pinned release recalls the families, shapes, examples and skill that match a query",
+        nika_pack::template_names().len(),
+        keys.join(", "),
+        nika_pack::example_slugs().join(", ")
     )
 }
 
@@ -514,12 +564,21 @@ impl SessionRuntime {
             return refusal(RefusalClass::Io, "the conversation could not start");
         };
         let parked = tree.parked().is_some();
-        let mut events = |_: AgentEvent| {};
+        // The loop's model calls reach the host as typed activity (they were discarded).
+        let mut calls = (self.progress.listener()).map(|hook| model_calls(hook, model.model()));
+        let mut events = |event: AgentEvent| {
+            if let Some(calls) = calls.as_mut() {
+                calls(&event);
+            }
+        };
         let mut agent = Agent::new(tree, store, &**observed, &now)
             .with_steering(steering)
             .with_cancel(cancel)
             .with_reading(&read)
             .with_note(run_note);
+        if let Some(window) = route_window(model.model()) {
+            agent = agent.with_window(window);
+        }
         let outcome = match (said, parked) {
             (Said::Note(note), _) => agent.note(note, model, &mut events),
             (Said::Line(line), true) => agent.answer(line, model, &mut events),

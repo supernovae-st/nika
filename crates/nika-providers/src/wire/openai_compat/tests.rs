@@ -921,3 +921,68 @@ fn unbounded_duplicate_handling_stays_compatible() {
     let response = parse_response(&rp, raw, &ToolNameMap::from_tools(&[])).expect("legacy parse");
     assert_eq!(response.usage.input_tokens, 1);
 }
+
+#[test]
+fn deepseek_reasoning_reads_as_thinking_and_rides_back_only_with_tools() {
+    let fake = FakeHttp::with_json(200, "{}");
+    let rp = resolved_with(&fake, "deepseek", "fixture");
+    let body = br#"{"id":"cc_r","choices":[{"message":{"reasoning_content":"je pese",
+            "content":null,"tool_calls":[{"id":"call_1","function":{"name":"add","arguments":"{}"}}]},
+            "finish_reason":"tool_calls"}],
+            "usage":{"prompt_tokens":1,"completion_tokens":2}}"#;
+    let resp = parse_response(&rp, body, &ToolNameMap::default()).expect("parse");
+    assert_eq!(resp.content.len(), 2);
+    assert!(matches!(&resp.content[0], ContentBlock::Thinking { text } if text == "je pese"));
+    assert!(matches!(&resp.content[1], ContentBlock::ToolUse { id, .. } if id == "call_1"));
+
+    // DeepSeek asks a tool turn's reasoning back, on that assistant message.
+    let result = ContentBlock::ToolResult {
+        tool_use_id: "call_1".into(),
+        content: "2".into(),
+        is_error: false,
+    };
+    let mut r = req(vec![
+        Message::text(Role::User, "bonjour"),
+        Message::text(Role::Assistant, "bonjour"),
+        Message::text(Role::User, "calcule"),
+        Message::new(Role::Assistant, resp.content),
+        Message::new(Role::User, vec![result]),
+    ]);
+    r.tools = vec![ToolDef::new("add", "adds", json!({"type":"object"}))];
+    let sent = body_of("deepseek-chat", &r, false, true, "deepseek").expect("body");
+    assert_eq!(sent["messages"][3]["reasoning_content"], "je pese");
+    assert_eq!(sent["messages"][3]["tool_calls"][0]["id"], "call_1");
+    assert!(sent["messages"][4].get("reasoning_content").is_none());
+    // A turn that had no reasoning still carries the field, empty: DeepSeek refuses one without.
+    assert_eq!(sent["messages"][1]["reasoning_content"], "");
+    assert!(sent["messages"][0].get("reasoning_content").is_none());
+
+    // Without tools, or on another provider, the reasoning is not sent.
+    let mut bare = r.clone();
+    bare.tools.clear();
+    for (request, provider) in [(&bare, "deepseek"), (&r, "openai")] {
+        let sent = body_of("m", request, false, true, provider).expect("body");
+        let assistant = &sent["messages"][3];
+        assert_eq!(assistant["tool_calls"][0]["id"], "call_1", "{provider}");
+        assert!(assistant.get("reasoning_content").is_none(), "{provider}");
+        assert!(
+            sent["messages"][1].get("reasoning_content").is_none(),
+            "{provider}"
+        );
+    }
+}
+
+#[test]
+fn deepseek_stream_reasoning_maps_to_thinking_before_the_answer() {
+    let mut m = CompatMapper::new(ToolNameMap::default());
+    let out = m.map(r#"{"choices":[{"delta":{"reasoning_content":"je pese","content":null}}]}"#);
+    assert!(
+        matches!(out.as_slice(), [Ok(InferEvent::Thinking { text })] if text == "je pese"),
+        "{out:?}"
+    );
+    let out = m.map(r#"{"choices":[{"delta":{"reasoning_content":"","content":"ok"}}]}"#);
+    assert!(
+        matches!(out.as_slice(), [Ok(InferEvent::Delta { text })] if text == "ok"),
+        "{out:?}"
+    );
+}

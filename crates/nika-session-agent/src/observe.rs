@@ -9,7 +9,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
 use nika_session_change::tools::{SessionTools, ToolCall, ToolDef, ToolReply};
 
@@ -37,6 +37,10 @@ pub struct ToolStep {
     pub state: StepState,
     /// How long it took, in milliseconds, once it answered.
     pub elapsed_ms: Option<u64>,
+    /// When it began, in Unix milliseconds.
+    pub at_ms: u64,
+    /// The size of its reply in bytes, once it answered (never the reply).
+    pub reply_bytes: Option<u64>,
 }
 
 /// Where a turn's steps go.
@@ -83,13 +87,16 @@ impl SessionTools for Observed {
             let n = self.unnamed.fetch_add(1, Ordering::Relaxed) + 1;
             format!("step-{n}")
         });
-        let step = |state, elapsed_ms| ToolStep {
+        let at_ms = crate::tree::unix_ms(SystemTime::now());
+        let step = |state, elapsed_ms, reply_bytes| ToolStep {
             call: id.clone(),
             name: call.name.clone(),
             state,
             elapsed_ms,
+            at_ms,
+            reply_bytes,
         };
-        sink(&step(StepState::Started, None));
+        sink(&step(StepState::Started, None, None));
         let started = Instant::now();
         let reply = self.tools.call(call.clone());
         let elapsed = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
@@ -98,7 +105,8 @@ impl SessionTools for Observed {
         } else {
             StepState::Finished
         };
-        sink(&step(state, Some(elapsed)));
+        let size = u64::try_from(reply.text.len()).unwrap_or(u64::MAX);
+        sink(&step(state, Some(elapsed), Some(size)));
         reply
     }
 }

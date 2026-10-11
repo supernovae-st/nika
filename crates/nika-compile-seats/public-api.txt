@@ -3241,13 +3241,16 @@ pub type nika_compile_seats::judge::Construction::Output = T
 impl nika_compile_seats::judge::Doubt
 pub const nika_compile_seats::judge::Doubt::HOLDING_PROBABILITY: f64
 pub const nika_compile_seats::judge::Doubt::LOCATING_PROBABILITY: f64
+pub const nika_compile_seats::judge::Doubt::PART_CONFIDENCE: f64
 pub fn nika_compile_seats::judge::Doubt::decides(records: &[serde_json::value::Value]) -> bool
 pub fn nika_compile_seats::judge::Doubt::locates(records: &[serde_json::value::Value]) -> bool
 pub fn nika_compile_seats::judge::Doubt::new(parts: alloc::vec::Vec<alloc::string::String>, open: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_compile_seats::judge::Doubt::part_decides(records: &[serde_json::value::Value], question: &str, options: usize) -> core::option::Option<bool>
 pub fn nika_compile_seats::judge::Doubt::question(&self, state: &serde_json::value::Value, effects: &nika_compile_seats::judge::Effects, records: &[serde_json::value::Value]) -> (serde_json::value::Value, alloc::string::String, alloc::vec::Vec<nika_compile_seats::decide::ChoiceOption>)
 pub fn nika_compile_seats::judge::Doubt::read(&self, key: &str) -> core::option::Option<nika_compile_seats::judge::Located>
 pub fn nika_compile_seats::judge::Doubt::reported(records: &[serde_json::value::Value], question: &str) -> core::option::Option<f64>
 pub fn nika_compile_seats::judge::Doubt::stated(records: &[serde_json::value::Value], restated: &[alloc::string::String]) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_seats::judge::Doubt::stated_with(records: &[serde_json::value::Value], restated: &[alloc::string::String], doubted: &[(alloc::string::String, alloc::string::String)]) -> core::option::Option<alloc::string::String>
 impl core::clone::Clone for nika_compile_seats::judge::Doubt
 pub fn nika_compile_seats::judge::Doubt::clone(&self) -> nika_compile_seats::judge::Doubt
 impl core::cmp::Eq for nika_compile_seats::judge::Doubt
@@ -3387,15 +3390,25 @@ impl<T> nika_error::traits::AsAny for nika_compile_seats::judge::Removal where T
 pub fn nika_compile_seats::judge::Removal::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_seats::judge::Removal
 pub type nika_compile_seats::judge::Removal::Output = T
+pub const nika_compile_seats::judge::CLAUSE: &str
 pub const nika_compile_seats::judge::CREATED: &str
+pub const nika_compile_seats::judge::EXTRA: &str
+pub const nika_compile_seats::judge::NO_OPERATION: &str
+pub const nika_compile_seats::judge::PART: &str
+pub const nika_compile_seats::judge::POINT: &str
+pub const nika_compile_seats::judge::POINT_OMITTED: &str
+pub const nika_compile_seats::judge::RESTRICTING: &str
 pub const nika_compile_seats::judge::REVISED: &str
 pub const nika_compile_seats::judge::REVISED_APPENDED: &str
 pub const nika_compile_seats::judge::REVISED_DOCUMENT: &str
 pub const nika_compile_seats::judge::REVISED_OVER_DOCUMENT: &str
+pub const nika_compile_seats::judge::SUPERSEDED: &str
+pub const nika_compile_seats::judge::WHOLE: &str
 pub fn nika_compile_seats::judge::authoring(base: &mut serde_json::value::Value, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::judge::judged_state(intent: &str, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome, candidate: &str) -> serde_json::value::Value
 pub fn nika_compile_seats::judge::lent(catalog: core::option::Option<&dyn nika_compile_seats::foundry::component::ComponentCatalog>, out: &mut nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::judge::over_document(base: &mut serde_json::value::Value, request: &nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome)
+pub fn nika_compile_seats::judge::part_question(k: usize, count: usize, text: &str, restricting: bool, base: &serde_json::value::Value, reference: &str) -> nika_compile_seats::decide::ChoiceQuestion
 pub fn nika_compile_seats::judge::state(intent: &str, request: &nika_compile::types::CompileRequest, candidate: &str) -> serde_json::value::Value
 pub fn nika_compile_seats::judge::told(state: &serde_json::value::Value, reference: &str, text: &str) -> alloc::string::String
 pub mod nika_compile_seats::objects
@@ -3445,6 +3458,7 @@ pub fn nika_compile_seats::reasoning::response_identity(response: &nika_kernel_a
 pub fn nika_compile_seats::reasoning::stamp_references(out: &mut nika_compile::types::CompileOutcome, before: usize, receipts: &serde_json::value::Value)
 pub fn nika_compile_seats::reasoning::withheld(text: &str, known: &[&str], reason: &str) -> serde_json::value::Value
 pub mod nika_compile_seats::rehearse
+pub use nika_compile_seats::rehearse::StepFlow
 pub mod nika_compile_seats::rehearse::arguments
 pub fn nika_compile_seats::rehearse::arguments::evaluated(workflow: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<(), alloc::string::String>
 pub mod nika_compile_seats::rehearse::record
@@ -4257,12 +4271,14 @@ pub nika_compile_seats::rehearse::RehearsalReport::admitted_digest: alloc::strin
 pub nika_compile_seats::rehearse::RehearsalReport::attempt: nika_compile_seats::rehearse::Attempt
 pub nika_compile_seats::rehearse::RehearsalReport::candidate_sha256: alloc::string::String
 pub nika_compile_seats::rehearse::RehearsalReport::effects: nika_compile_seats::rehearse::EffectCounts
+pub nika_compile_seats::rehearse::RehearsalReport::flow: alloc::vec::Vec<nika_compile_behavior::behavior::StepFlow>
 pub nika_compile_seats::rehearse::RehearsalReport::observation: nika_compile_seats::rehearse::Observation
 pub nika_compile_seats::rehearse::RehearsalReport::outcome: nika_compile_seats::rehearse::Rehearsal
 pub nika_compile_seats::rehearse::RehearsalReport::room: nika_compile_seats::rehearse::RoomEvidence
 impl nika_compile_seats::rehearse::RehearsalReport
 pub fn nika_compile_seats::rehearse::RehearsalReport::new(outcome: nika_compile_seats::rehearse::Rehearsal, attempt: nika_compile_seats::rehearse::Attempt, effects: nika_compile_seats::rehearse::EffectCounts, candidate_sha256: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_compile_seats::rehearse::RehearsalReport::with_admitted_digest(self, admitted_digest: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_compile_seats::rehearse::RehearsalReport::with_flow(self, flow: alloc::vec::Vec<nika_compile_behavior::behavior::StepFlow>) -> Self
 pub fn nika_compile_seats::rehearse::RehearsalReport::with_observation(self, observation: nika_compile_seats::rehearse::Observation) -> Self
 pub fn nika_compile_seats::rehearse::RehearsalReport::with_room(self, room: nika_compile_seats::rehearse::RoomEvidence) -> Self
 impl core::clone::Clone for nika_compile_seats::rehearse::RehearsalReport
@@ -4887,6 +4903,7 @@ pub fn nika_compile_seats::shelf::Templates::as_out(&mut self) -> outref::Out<'_
 impl<T> typenum::type_operators::Same for nika_compile_seats::shelf::Templates
 pub type nika_compile_seats::shelf::Templates::Output = T
 pub const nika_compile_seats::shelf::EVERYDAY: &[&str]
+pub fn nika_compile_seats::shelf::builtins_for(references: &[nika_compile_seats::shelf::Reference], plan: &nika_compile_reader::plan::Plan) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_seats::shelf::builtins_of(references: &[nika_compile_seats::shelf::Reference]) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_seats::shelf::callables(names: &[alloc::string::String]) -> alloc::vec::Vec<nika_compile_seats::shelf::Reference>
 pub fn nika_compile_seats::shelf::references(intent: &str, skeletons: usize) -> alloc::vec::Vec<nika_compile_seats::shelf::Reference>

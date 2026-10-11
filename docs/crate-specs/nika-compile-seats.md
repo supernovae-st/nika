@@ -72,7 +72,10 @@ as an external consumer.
   judge's run (`targets_of` names the results a contract reads back). A completed run as a
   verifier is shown it (`shown`, descended from the cognition's verifier at its size cap):
   `trial_shown` (the candidate's sha256, each input read and output read back with its text,
-  `read_whole` and `written`), `trial_whole` (at least one output, each written by the run, every
+  `read_whole` and `written`, and, when the host counted it, the run's `flow` with what it means:
+  amended 2026-10-10, `RehearsalReport::with_flow` carries each task's items received and
+  returned into the judged run and a host's card reads a passing trial's flow from the report),
+  `trial_whole` (at least one output, each written by the run, every
   text read whole) and `trial_receipts` (each text's role, path, size and sha256, never the text).
   A host may also offer a read-only composition check, `Rehearse::compose`. It answers
   `Composed`: `Unoffered` (the default), `Unresolved` or `Refused` with the reason, or a clean
@@ -192,9 +195,21 @@ as an external consumer.
   `HOLDING_PROBABILITY` (0.83, a confidence of 0.75 over three options, `faithful` offered
   first: a seat leans toward the option listed first, so another order needs a new
   calibration), an unweighed answer taken at its word; `Doubt::locates` lets this question's location name a defect only at
-  `LOCATING_PROBABILITY` (0.5); `Doubt::stated(records, restated)` words what the parts
-  overrule (any whole-request answer but `faithful`, with its probability, and each part a
-  repair attempt met that stands again). `Removal { value, words }`
+  `LOCATING_PROBABILITY` (0.5); `Doubt::part_decides(records, question, options)` lets a part's
+  « missing » decide only at the same confidence read over that question's own options, NONE
+  counted (`PART_CONFIDENCE` 0.75: (1 + 0.75·(n − 1)) / n, 0.833 to 0.8 for the three to five
+  options a part question offers; amended 2026-10-11), `None` for an unweighed answer;
+  `Doubt::stated(records, restated)` and `Doubt::stated_with(records, restated, doubted)` word
+  what the parts overrule (any whole-request answer but `faithful`, with its probability, each
+  part a repair attempt met that stands again, and each part judged missing that decided
+  nothing, with its probability, « in the trial run » when a question over a run named it).
+  The verifier's question texts (`WHOLE`, `CLAUSE`, `PART`,
+  `SUPERSEDED`, `NO_OPERATION`, `RESTRICTING`, `POINT`, `POINT_OMITTED`, `EXTRA`) and
+  `part_question(k, count, text, restricting, base, reference)` live here since 2026-10-11,
+  moved word for word from the verifier at `nika-compile-cognition`'s size cap: a part asked
+  alone (`verify-part-<k>`) offers `carried`, `missing`, `superseded` when a later part follows,
+  `no_operation` in a request of several parts when it restricts nothing, then NONE.
+  `Removal { value, words }`
   (`#[non_exhaustive]`, `new`) is a claim that the person's cited words remove a value a
   proposal they saw bound; `Removal::question(k, stated)` is the closed question whether they do
   (`verify-removed-<k>`: `removed`, `kept`, NONE; amended 2026-10-10). The
@@ -219,7 +234,30 @@ as an external consumer.
   `Objects`, `answer_shaped`, `syntax_target`), descended from the doors on 2026-10-07.
 - `shelf` — the references an authoring seat reads beside its card (`Reference`, `references`:
   the embedded recall's skeletons and families; `callables` and `builtins_of`: the stdlib
-  contracts they name; `rendered`), receipted by digest.
+  contracts they name, after the everyday set `EVERYDAY`; `rendered`), receipted by digest.
+  Amended 2026-10-10: the everyday set includes `nika:date`, and the `nika:fetch` contract
+  carries what each `mode:` returns (the extract-modes page's table and feed section, which its
+  section only points to) and the format of a feed's dates, RFC 3339 with an explicit offset as
+  the engine normalizes them, until that page states it.
+  Amended 2026-10-11, from what runs measured, until the stdlib page states it: the
+  `nika:fetch` contract also says what a JSON API needs (`mode: jq` with an expression, or
+  `mode: raw` read with `fromjson`; the default `markdown` never returns a JSON value),
+  `nika:date` that `add` and `subtract` apply their span in the `tz:` zone's calendar (`P1D` is
+  23 or 25 hours across a DST change, `PT24H` exactly 24), and `nika:jq` its one-value law (a
+  stream wrapped in `[ … ]`).
+  Amended 2026-10-10, the prompt trims (`shelf::trims`, behind the `unstable-prompt-trims`
+  feature, off by default per FCI-007). An evaluation measures authoring quality with and
+  without them before any default changes.
+  - `builtins_for(references, plan)` is `builtins_of` for the reader's typed plan: a trimmed
+    build narrows the everyday set to what the plan's operations and effects reach. It keeps
+    `read`, `write`, `glob`, `jq` and `date`, and adds `convert` for a computation, `prompt`
+    for an effect a human approves first, `fetch` for a fetched, looked-up or explored source
+    or an effect beyond a local file, and `notify` for a sent, notified or published effect.
+    A plan with nothing typed keeps the whole set.
+  - `foundry::document::create::language` drops every `description` annotation of the schema
+    it shows (29,749 bytes compact, 9,705 without them). Property names stay, an output's own
+    `description` field included.
+  A default build sends the whole prompt, as before. Both builds are witnessed.
 - `foundry` — recalled Foundry knowledge qualified by a decision seat before an author reads it
   (R3 · A1): `question` (one closed choice per reference, `applies` · `unrelated` · NONE),
   `verdict`, `qualify` (all references asked together; the unrelated leave the pack, the
@@ -252,6 +290,17 @@ paths the request states or files directly inside a stated folder,
 `observed`, `TRIAL_BYTES` 1 MiB in all), `Observed::admit` (both, from JSON
 texts, a repeated key at any depth refused by `repeats_a_key`) and `Refusal`
 with its door code and words. Pure: no file, no network.
+
+`foundry::release::r2` admits a knowledge release of profile r2. The producer's export
+`PROFILE-R2.json` is embedded byte for byte and pinned by its sha256. Amended 2026-10-10,
+additively: a block may claim `OUTCOME_PROVEN` besides `CHECKED`.
+- F9 then requires its check receipt bound as for `CHECKED`.
+- It also requires an `outcome_receipt` (`engines`, `oracle_sha256`, `sha256`, `spec_sha`,
+  `worlds`, `correct`, `runs`, `verdict`) bound to the row's bytes, the target's specification
+  and the target binary, which must be one of `engines`.
+- At least one world, every one judged `OUTCOME_CORRECT` and each run at least once.
+An outcome receipt on any other proof level is refused. A release that never claims the level
+is admitted as before.
 
 ## 3. Boundary
 

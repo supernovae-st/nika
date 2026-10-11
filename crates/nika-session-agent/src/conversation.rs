@@ -26,9 +26,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 mod answer;
+mod edit;
 mod pick;
 
 use self::answer::Answered;
+pub use self::edit::edited;
 pub use self::pick::Pick;
 
 /// How a question gets its identity from its context.

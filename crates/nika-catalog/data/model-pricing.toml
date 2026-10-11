@@ -209,11 +209,14 @@ context_window_tokens = 1000000
 open_weights = true
 status = "deprecated"
 
+# Discontinued upstream 2026-07-24 (DeepSeek API change log, 2026-04-24): kept for recorded
+# runs, never offered.
 [[rules]]
 provider = "deepseek"
 model_pattern = "deepseek-reasoner"
 input_per_million = 0.15
 output_per_million = 0.6
+status = "deprecated"
 
 [[rules]]
 provider = "deepseek"
@@ -246,11 +249,14 @@ max_output_tokens = 384000
 context_window_tokens = 1000000
 open_weights = true
 
+# Discontinued upstream 2026-07-24 (DeepSeek API change log, 2026-04-24): kept for recorded
+# runs, never offered.
 [[rules]]
 provider = "deepseek"
 model_pattern = "deepseek-chat"
 input_per_million = 0.15
 output_per_million = 0.6
+status = "deprecated"
 
 # ── google (34 models) ──
 

@@ -137,7 +137,10 @@ output and every record carry no path.
 
 ## 5. Module map
 
-`behavior` (the contract and the report types) · `behavior/requested` (the contract a plan
+`behavior` (the contract and the report types; a `Run` also carries its `flow`, each task's
+`StepFlow` of items received and returned as a host counted them, `emptied` when a task
+returned nothing from a non-empty input: a fact, never a verdict, amended 2026-10-10) ·
+`behavior/requested` (the contract a plan
 states) · `behavior/provenance` (what a sentence of the closed language proves) ·
 `behavior/composed` (a computation the reader states in pieces) · `behavior/pipeline` (the
 relation's ordered steps) · `behavior/evaluate` (the relation over the records a run consumed) ·

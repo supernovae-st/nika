@@ -246,6 +246,29 @@ pub fn admitted(
     covered
 }
 
+/// What a law's remedy adds for an author who states selections (amended 2026-10-10): the
+/// unwritten-destination law and Law 2 name only a placeholder the person answers, while the
+/// person's words may already authorize the value within an admitted scope. The document door
+/// and a Session's author answer with `resolutions`, so each such finding names the selection
+/// they state instead, and a value they may derive visibly never becomes a question. The
+/// selection is then judged by [`admitted`] like any other: the person's words, its scope.
+pub fn selection_remedies(out: &mut [Diagnostic]) {
+    for diagnostic in out {
+        let remedy = match diagnostic.kind {
+            "destination" => DERIVED_OUTPUT,
+            "literal" => STATED_VALUE,
+            _ => continue,
+        };
+        diagnostic.message.push_str(remedy);
+    }
+}
+
+/// The selection that answers a file the request asks to write without naming it.
+const DERIVED_OUTPUT: &str = " Here that file is stated, not asked: write it to a new relative path under the project named after what it holds, grant exactly that path in `permits.fs.write`, and state it in `resolutions` as `derived` for `output_path` with the person's words that ask for it, verbatim. Ask `const.output_path` only when those words leave the name to the person.";
+
+/// The selections that answer a literal the request does not spell.
+const STATED_VALUE: &str = " When the person's words authorize this value without spelling it (a public source they name or leave to you, read with GET; a new output file they ask for without naming it; a file read under a folder they typed), keep it and state it in `resolutions` with those words, verbatim, instead of asking.";
+
 /// Why `selection` is refused, or `None` when it is admitted.
 fn refusal(
     stated: &str,
@@ -1230,5 +1253,64 @@ mod tests {
         assert!(covered.is_empty(), "{covered:?}");
         assert!(refused[0].starts_with("OUT OF SCOPE: `./notes.txt` is not a public address"));
         assert!(refused[0].contains("is stated as answered"), "{refused:?}");
+    }
+
+    #[test]
+    fn a_selection_door_is_told_the_stated_route_before_a_question() {
+        // Red before 2026-10-10: both laws named only a placeholder question, so a routine
+        // output the person's words authorize became a question to them.
+        let mut plan = crate::plan::Plan::default();
+        plan.effects.push(crate::plan::Effect::new(
+            crate::plan::EffectVerb::Write,
+            "un dossier du projet",
+            "écris le résumé en Markdown dans un dossier du projet",
+            crate::plan::EffectPolicy::Automatic,
+        ));
+        let laws = |doc: &Value, covered: &[String]| {
+            let mut out = Vec::new();
+            let words = (&[][..], covered);
+            crate::fidelity::laws_resolved(REQUEST, &plan, doc, words, &[], &[], None, &mut out);
+            out
+        };
+        // A digest drafted and never written: the destination law, with its remedy.
+        let drafted = json!({"tasks": {"draft": {"infer": {"prompt": "Résume les news."}}}});
+        let mut out = laws(&drafted, &[]);
+        let unwritten = out.iter().position(|d| d.kind == "destination");
+        assert!(unwritten.is_some(), "{out:?}");
+        // Written under a name the author chose, never stated: Law 2, with its remedy.
+        let written = doc(&["https://news.ycombinator.com"], "GET", "./news/digest.md");
+        out.extend(laws(&written, &[]));
+        let foreign = Diagnostic {
+            kind: "check",
+            message: "NIKA-SEC-004: a check finding".to_owned(),
+        };
+        out.push(foreign.clone());
+        selection_remedies(&mut out);
+        let unwritten = &out[unwritten.unwrap_or_default()];
+        assert!(
+            unwritten.message.starts_with("UNWRITTEN DESTINATION")
+                && unwritten.message.ends_with(DERIVED_OUTPUT),
+            "{}",
+            unwritten.message
+        );
+        let invented: Vec<&Diagnostic> = out.iter().filter(|d| d.kind == "literal").collect();
+        assert_eq!(invented.len(), 2, "{out:?}");
+        assert!(
+            invented
+                .iter()
+                .all(|d| d.message.starts_with("INVENTED LITERAL")
+                    && d.message.ends_with(STATED_VALUE)),
+            "{invented:?}"
+        );
+        assert_eq!(out.last(), Some(&foreign));
+        // The route the remedy names is admitted: both literals stated, Law 2 is silent.
+        let rows = [
+            named("https://news.ycombinator.com", "Hacker News"),
+            derived("./news/digest.md"),
+        ];
+        let (covered, refused) = judge(&written, &rows, &[], None);
+        assert!(refused.is_empty(), "{refused:?}");
+        let stated = laws(&written, &covered);
+        assert!(stated.iter().all(|d| d.kind != "literal"), "{stated:?}");
     }
 }

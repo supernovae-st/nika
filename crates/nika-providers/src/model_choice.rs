@@ -236,7 +236,8 @@ fn unsupported(
 }
 
 /// The model names a route offers for `provider`: its observed listing; else the catalogue's
-/// (row ids, then non-deprecated priced ids) on a vendor endpoint, a seat or the mock; else none.
+/// (row ids, then priced ids; a model whose price row is deprecated is retired upstream and never
+/// offered) on a vendor endpoint, a seat or the mock; else none.
 fn route_models(probe: Option<&ProviderProbe>, provider: &str) -> Vec<String> {
     let listing = probe.and_then(|p| p.readiness.model_listing.as_ref());
     if let Some(listing) = listing.filter(|l| l.protocol_compatible == Some(true)) {
@@ -251,8 +252,13 @@ fn route_models(probe: Option<&ProviderProbe>, provider: &str) -> Vec<String> {
         .iter()
         .filter(|p| !p.is_deprecated() && pricing_provider_matches(p.provider, provider))
         .map(|p| p.model_pattern);
+    let retired = |name: &&str| {
+        nika_catalog::find_pricing_scoped(provider, name)
+            .is_some_and(nika_catalog::ModelPricing::is_deprecated)
+    };
     let mut seen = BTreeSet::new();
-    let names = row.iter().map(|m| m.model).chain(priced);
+    let kept = row.iter().map(|m| m.model).filter(|n| !retired(n));
+    let names = kept.chain(priced);
     let fresh = names.filter(|n| seen.insert(*n));
     fresh.map(str::to_owned).collect()
 }

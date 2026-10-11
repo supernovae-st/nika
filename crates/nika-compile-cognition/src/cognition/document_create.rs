@@ -178,6 +178,7 @@ async fn draft<P: ProviderInferDyn>(
                         message: format!("the selections cannot be read: {why}"),
                     }],
                 };
+                crate::fidelity::resolution::selection_remedies(&mut found);
                 if found.is_empty() && !told && within(policy.repairs, round + 1) {
                     found = repairs::gaps_after_refusal(&answer.gaps, &honest, &refusal);
                     told = !found.is_empty();

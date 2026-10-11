@@ -1160,6 +1160,9 @@ pub use nika_kernel_ai::provider::TokenUsage
 pub nika_kernel_ai::provider::ContentBlock::Image
 pub nika_kernel_ai::provider::ContentBlock::Image::detail: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::provider::ContentBlock::Image::source: alloc::string::String
+pub nika_kernel_ai::provider::ContentBlock::Reasoning
+pub nika_kernel_ai::provider::ContentBlock::Reasoning::state: serde_json::value::Value
+pub nika_kernel_ai::provider::ContentBlock::Reasoning::wire: alloc::string::String
 pub nika_kernel_ai::provider::ContentBlock::Text
 pub nika_kernel_ai::provider::ContentBlock::Text::text: alloc::string::String
 pub nika_kernel_ai::provider::ContentBlock::Thinking
@@ -1213,6 +1216,9 @@ pub nika_kernel_ai::provider::InferEvent::Done
 pub nika_kernel_ai::provider::InferEvent::Done::finish_reason_raw: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::provider::InferEvent::Done::request_id: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::provider::InferEvent::Done::stop_reason: nika_kernel_ai::provider::StopReason
+pub nika_kernel_ai::provider::InferEvent::Reasoning
+pub nika_kernel_ai::provider::InferEvent::Reasoning::state: serde_json::value::Value
+pub nika_kernel_ai::provider::InferEvent::Reasoning::wire: alloc::string::String
 pub nika_kernel_ai::provider::InferEvent::Thinking
 pub nika_kernel_ai::provider::InferEvent::Thinking::text: alloc::string::String
 pub nika_kernel_ai::provider::InferEvent::ToolUseDelta

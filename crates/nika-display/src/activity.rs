@@ -46,6 +46,14 @@ pub struct CallMark {
     pub model: String,
     /// Request lifecycle.
     pub state: CallState,
+    /// When the request left, in Unix milliseconds, when its producer reported it.
+    pub at_ms: Option<u64>,
+    /// Milliseconds it took, once it returned.
+    pub elapsed_ms: Option<u64>,
+    /// The input tokens the provider reported for it, cached ones included.
+    pub input_tokens: Option<u64>,
+    /// The output tokens the provider reported for it, reasoning included.
+    pub output_tokens: Option<u64>,
 }
 impl CallMark {
     /// Preserve the producer's exact role and requested identity.
@@ -56,7 +64,27 @@ impl CallMark {
             role: role.into(),
             model: model.into(),
             state,
+            at_ms: None,
+            elapsed_ms: None,
+            input_tokens: None,
+            output_tokens: None,
         }
+    }
+
+    /// When the request left (Unix milliseconds) and, once it returned, how long it took.
+    #[must_use]
+    pub fn timed(mut self, at_ms: u64, elapsed_ms: Option<u64>) -> Self {
+        self.at_ms = Some(at_ms);
+        self.elapsed_ms = elapsed_ms;
+        self
+    }
+
+    /// The input and output tokens the provider reported for the request.
+    #[must_use]
+    pub fn with_tokens(mut self, input: u64, output: u64) -> Self {
+        self.input_tokens = Some(input);
+        self.output_tokens = Some(output);
+        self
     }
 }
 /// Where one tool step of a conversation's run is.
@@ -84,6 +112,10 @@ pub struct ToolMark {
     pub state: ToolState,
     /// Milliseconds it took, once it answered.
     pub elapsed_ms: Option<u64>,
+    /// When the call began, in Unix milliseconds, when the run reported it.
+    pub at_ms: Option<u64>,
+    /// The size of its reply in bytes, once it answered (never the reply).
+    pub reply_bytes: Option<u64>,
 }
 
 impl ToolMark {
@@ -95,7 +127,17 @@ impl ToolMark {
             name: name.into(),
             state,
             elapsed_ms,
+            at_ms: None,
+            reply_bytes: None,
         }
+    }
+
+    /// When the call began (Unix milliseconds) and, once it answered, its reply's size.
+    #[must_use]
+    pub fn timed(mut self, at_ms: u64, reply_bytes: Option<u64>) -> Self {
+        self.at_ms = Some(at_ms);
+        self.reply_bytes = reply_bytes;
+        self
     }
 }
 
@@ -318,6 +360,34 @@ mod tests {
             ))
         );
         assert_eq!(failed.call, None);
+    }
+
+    /// A call keeps when it left, how long it took and its tokens; a tool call when it began
+    /// and its reply's size; neither changes the words a door prints.
+    #[test]
+    fn a_call_and_a_tool_keep_when_they_ran_and_their_size() {
+        let mut call = call_activity(
+            3,
+            "conversation",
+            "deepseek/deepseek-v4-pro",
+            CallState::Finished,
+        );
+        let before = call.line();
+        call.call = call
+            .call
+            .map(|mark| mark.timed(1_000, Some(250)).with_tokens(4_570, 41));
+        let mark = call.call.as_ref().expect("a call mark");
+        let kept = (
+            mark.at_ms,
+            mark.elapsed_ms,
+            mark.input_tokens,
+            mark.output_tokens,
+        );
+        assert_eq!(kept, (Some(1_000), Some(250), Some(4_570), Some(41)));
+        assert_eq!(call.line(), before);
+        let tool =
+            ToolMark::new("toolu_1", "verify", ToolState::Finished, Some(42)).timed(900, Some(312));
+        assert_eq!((tool.at_ms, tool.reply_bytes), (Some(900), Some(312)));
     }
 
     #[test]

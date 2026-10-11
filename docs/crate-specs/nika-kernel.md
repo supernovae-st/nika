@@ -230,6 +230,9 @@ pub enum ContentBlock {
     ToolUse { id: String, name: String, input: serde_json::Value },
     ToolResult { tool_use_id: String, content: String, is_error: bool },
     Thinking { text: String },
+    // Provider state asked back verbatim (Anthropic signed or redacted thinking, Gemini
+    // thoughtSignature); only the wire named by `wire` reads it and sends it back in place.
+    Reasoning { wire: String, state: serde_json::Value },
 }
 
 pub struct ToolDef { pub name: String, pub description: String, pub parameters: serde_json::Value }
@@ -280,6 +283,7 @@ pub enum InferEvent {
     ToolUseStart { id: String, name: String },
     ToolUseDelta { id: String, partial_json: String },
     Thinking(String),
+    Reasoning { wire: String, state: serde_json::Value }, // ContentBlock::Reasoning, in arrival order
     Usage(TokenUsage),
     Done { stop_reason: StopReason, request_id: Option<String>, finish_reason_raw: Option<String> },
 }

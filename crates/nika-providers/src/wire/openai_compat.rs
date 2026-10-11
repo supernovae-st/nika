@@ -278,9 +278,12 @@ fn request_body(
     provider_id: &str,
     names: &ToolNameMap,
 ) -> Result<Value, ProviderError> {
+    // DeepSeek asks the reasoning_content of every earlier assistant turn back when a request
+    // carries tools, and refuses one without it: a turn that had none sends it empty.
+    let reasoning_back = provider_id == "deepseek" && !req.tools.is_empty();
     let mut messages = Vec::new();
     for m in &req.messages {
-        push_message(&mut messages, m, names)?;
+        push_message(&mut messages, m, names, reasoning_back)?;
     }
 
     let mut body = json!({ "model": model, "messages": messages, "stream": stream });
@@ -409,6 +412,7 @@ fn push_message(
     out: &mut Vec<Value>,
     m: &nika_kernel::ai::provider::Message,
     names: &ToolNameMap,
+    reasoning_back: bool,
 ) -> Result<(), ProviderError> {
     let role = match m.role {
         Role::System => "system",
@@ -419,6 +423,7 @@ fn push_message(
     let mut texts = Vec::new();
     let mut parts = Vec::new();
     let mut tool_calls = Vec::new();
+    let mut thoughts = String::new();
     let mut has_image = false;
 
     for block in &m.content {
@@ -450,9 +455,11 @@ fn push_message(
             } => out.push(json!({
                 "role": "tool", "tool_call_id": tool_use_id, "content": content,
             })),
+            ContentBlock::Thinking { text } => thoughts.push_str(text),
             _ => {}
         }
     }
+    let before = out.len();
 
     if !tool_calls.is_empty() {
         let content = if texts.is_empty() {
@@ -465,6 +472,13 @@ fn push_message(
         out.push(json!({ "role": role, "content": parts }));
     } else if !texts.is_empty() {
         out.push(json!({ "role": role, "content": texts.join("\n") }));
+    }
+    if reasoning_back
+        && role == "assistant"
+        && out.len() > before
+        && let Some(message) = out.last_mut()
+    {
+        message["reasoning_content"] = json!(thoughts);
     }
     Ok(())
 }
@@ -486,6 +500,15 @@ fn parse_response(
     let msg = v.pointer("/choices/0/message");
 
     let mut content = Vec::new();
+    if let Some(text) = msg
+        .and_then(|m| m.pointer("/reasoning_content"))
+        .and_then(Value::as_str)
+        && !text.is_empty()
+    {
+        content.push(ContentBlock::Thinking {
+            text: text.to_owned(),
+        });
+    }
     if let Some(text) = msg
         .and_then(|m| m.pointer("/content"))
         .and_then(Value::as_str)
@@ -646,6 +669,15 @@ impl EventMapper for CompatMapper {
             .and_then(Value::as_str)
         {
             self.finish = Some(f.to_owned());
+        }
+        if let Some(text) = v
+            .pointer("/choices/0/delta/reasoning_content")
+            .and_then(Value::as_str)
+            && !text.is_empty()
+        {
+            out.push(Ok(InferEvent::Thinking {
+                text: text.to_owned(),
+            }));
         }
         if let Some(text) = v
             .pointer("/choices/0/delta/content")

@@ -17,6 +17,9 @@ use nika_compile::surface::{UNJUDGED_DEPENDENCY, parse, ready_by_law, sha256};
 use nika_compile::{CompileOutcome, CompileStatus, DiagnosticKind};
 use serde_json::json;
 
+/// What one task of a rehearsal received and returned ([`RehearsalReport::flow`]).
+pub use nika_compile_fidelity::behavior::StepFlow;
+
 pub mod arguments;
 #[cfg(test)]
 mod composed_tests;
@@ -229,6 +232,10 @@ pub struct RehearsalReport {
     pub admitted_digest: String,
     /// What the host observed of the copied world: the internal record [`judged_run`] reads.
     pub observation: Observation,
+    /// What each task received and returned, in the run's order, when the host counted it
+    /// (amended 2026-10-10): carried into the judged run and shown to the judge with it, and a
+    /// passing trial's flow for a host's card. Empty when the host counted nothing.
+    pub flow: Vec<StepFlow>,
 }
 
 impl RehearsalReport {
@@ -248,7 +255,15 @@ impl RehearsalReport {
             candidate_sha256: candidate_sha256.into(),
             admitted_digest: String::new(),
             observation: Observation::none(),
+            flow: Vec::new(),
         }
+    }
+
+    /// The same report with what each task received and returned.
+    #[must_use]
+    pub fn with_flow(mut self, flow: Vec<StepFlow>) -> Self {
+        self.flow = flow;
+        self
     }
 
     /// The same report with the host's room evidence.

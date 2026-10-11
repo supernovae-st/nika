@@ -275,3 +275,45 @@ fn the_machine_inventory_comes_from_probe_rows_and_the_catalogue() {
     // The rehearsal backend is compiled in: its catalogue models stay classed `mock`.
     assert_eq!(served(&offered, "mock"), ["mock/mock-default", "mock/echo"]);
 }
+
+/// `DeepSeek` discontinued `deepseek-chat` and `deepseek-reasoner` on 2026-07-24 (its API change
+/// log of 2026-04-24): the catalogue keeps them for recorded runs, but a model whose price row is
+/// retired is never offered. A live listing, where a route has one, governs what is offered.
+#[test]
+fn retired_or_unlisted_models_are_not_offered() {
+    let deepseek = probe("deepseek", AccessClass::Api, ExecutionLocus::Cloud);
+    let names = |inventory: &ModelInventory| -> Vec<String> {
+        let offers = inventory.offers(ModelRole::Run).iter();
+        let on_route = offers.filter(|o| o.route.access == "deepseek");
+        on_route.map(|o| o.model.clone()).collect()
+    };
+    let probes = std::slice::from_ref(&deepseek);
+    let offered = names(&ModelInventory::from_probes(probes));
+    for retired in ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"] {
+        assert!(
+            !offered.iter().any(|m| m == retired),
+            "{retired}: {offered:?}"
+        );
+        let name = retired.trim_start_matches("deepseek/");
+        let row = nika_catalog::find_pricing_scoped("deepseek", name);
+        assert!(
+            row.is_some_and(nika_catalog::ModelPricing::is_deprecated),
+            "{name} still prices a recorded run"
+        );
+    }
+    for current in ["deepseek/deepseek-flash", "deepseek/deepseek-v4-pro"] {
+        assert!(
+            offered.iter().any(|m| m == current),
+            "{current}: {offered:?}"
+        );
+    }
+    let mut listed = deepseek;
+    listed.readiness.model_listing = Some(ModelListing {
+        protocol_compatible: Some(true),
+        http_status: Some(200),
+        models: vec!["deepseek-flash".to_owned()],
+        failure: None,
+    });
+    let governed = names(&ModelInventory::from_probes(&[listed]));
+    assert_eq!(governed, ["deepseek/deepseek-flash"], "the listing governs");
+}

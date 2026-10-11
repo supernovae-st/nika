@@ -248,12 +248,18 @@ impl<T> tracing::instrument::WithSubscriber for nika_display::activity::Activity
 impl<T> typenum::type_operators::Same for nika_display::activity::ActivityScope
 pub type nika_display::activity::ActivityScope::Output = T
 #[non_exhaustive] pub struct nika_display::activity::CallMark
+pub nika_display::activity::CallMark::at_ms: core::option::Option<u64>
+pub nika_display::activity::CallMark::elapsed_ms: core::option::Option<u64>
+pub nika_display::activity::CallMark::input_tokens: core::option::Option<u64>
 pub nika_display::activity::CallMark::model: alloc::string::String
 pub nika_display::activity::CallMark::ordinal: u32
+pub nika_display::activity::CallMark::output_tokens: core::option::Option<u64>
 pub nika_display::activity::CallMark::role: alloc::string::String
 pub nika_display::activity::CallMark::state: nika_display::activity::CallState
 impl nika_display::activity::CallMark
 pub fn nika_display::activity::CallMark::new(ordinal: u32, role: &str, model: &str, state: nika_display::activity::CallState) -> Self
+pub fn nika_display::activity::CallMark::timed(self, at_ms: u64, elapsed_ms: core::option::Option<u64>) -> Self
+pub fn nika_display::activity::CallMark::with_tokens(self, input: u64, output: u64) -> Self
 impl core::clone::Clone for nika_display::activity::CallMark
 pub fn nika_display::activity::CallMark::clone(&self) -> nika_display::activity::CallMark
 impl core::cmp::Eq for nika_display::activity::CallMark
@@ -339,12 +345,15 @@ impl<T> zvariant::optional::NoneValue for nika_display::activity::Progress where
 pub type nika_display::activity::Progress::NoneType = T
 pub fn nika_display::activity::Progress::null_value() -> T
 #[non_exhaustive] pub struct nika_display::activity::ToolMark
+pub nika_display::activity::ToolMark::at_ms: core::option::Option<u64>
 pub nika_display::activity::ToolMark::call: alloc::string::String
 pub nika_display::activity::ToolMark::elapsed_ms: core::option::Option<u64>
 pub nika_display::activity::ToolMark::name: alloc::string::String
+pub nika_display::activity::ToolMark::reply_bytes: core::option::Option<u64>
 pub nika_display::activity::ToolMark::state: nika_display::activity::ToolState
 impl nika_display::activity::ToolMark
 pub fn nika_display::activity::ToolMark::new(call: &str, name: &str, state: nika_display::activity::ToolState, elapsed_ms: core::option::Option<u64>) -> Self
+pub fn nika_display::activity::ToolMark::timed(self, at_ms: u64, reply_bytes: core::option::Option<u64>) -> Self
 impl core::clone::Clone for nika_display::activity::ToolMark
 pub fn nika_display::activity::ToolMark::clone(&self) -> nika_display::activity::ToolMark
 impl core::cmp::Eq for nika_display::activity::ToolMark

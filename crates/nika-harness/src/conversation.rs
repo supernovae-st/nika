@@ -20,8 +20,11 @@
 //! Nika answers every `session/request_permission` itself: `allow_once` only for one of the
 //! offered tools on Nika's server, a rejection for everything else (the agent continues
 //! without it), each decision reported to the turn and recorded. `allow_always` is never
-//! chosen. Stop sends `session/cancel` once per turn and records it. Each turn ends with the
-//! activity record of the one-shot calls (first thought and answer, last update kind), where
+//! chosen. Each adapter names the tool its own way: Claude Code as `mcp__<name>__<tool>` on
+//! every frame; codex-acp announces an MCP call with the server and tool Codex routed it to,
+//! then asks about it by the call's id alone, so a turn keeps what each open call was
+//! announced as. Stop sends `session/cancel` once per turn and records it. Each turn ends with
+//! the activity record of the one-shot calls (first thought and answer, last update kind), where
 //! tool frames are expected activity; while a tool call is open, the turn's silence allowance
 //! waits for it (the tool's time is Nika's own, bounded by the Session and its Stop).
 
@@ -442,19 +445,29 @@ pub(crate) fn codex_mount(
     }
 }
 
+/// The name a tool call gives its tool, in whatever form: Claude Code's
+/// `_meta.claudeCode.toolName`, else the call's own `name`.
+fn given_name(tool_call: &Value) -> Option<&Value> {
+    (tool_call.pointer("/_meta/claudeCode/toolName")).or_else(|| tool_call.get("name"))
+}
+
 /// The tool a tool call names, as the agent named it: Claude Code's `_meta.claudeCode.toolName`,
 /// else the call's own `name`, when it is a plain word.
 pub(crate) fn asked_tool(tool_call: &Value) -> Option<String> {
-    let named = (tool_call.pointer("/_meta/claudeCode/toolName"))
-        .or_else(|| tool_call.get("name"))
-        .and_then(Value::as_str)?;
+    let named = given_name(tool_call).and_then(Value::as_str)?;
     let plain = |c: char| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.');
     (!named.is_empty() && named.len() <= 128 && named.chars().all(plain)).then(|| named.to_owned())
 }
 
-/// The offered tool a tool call names on Nika's server (`mcp__<name>__<tool>`, the server
-/// Claude Code names beside it agreeing), or `None`: every other call is someone else's.
+/// The offered tool a tool call names on Nika's server, or `None`: every other call is someone
+/// else's. A call that gives a name is judged by it (`mcp__<name>__<tool>`, the server Claude
+/// Code names beside it agreeing); one that gives none, by the server and tool codex-acp names.
 pub(crate) fn nika_tool(tool_call: &Value, offer: &ToolOffer) -> Option<String> {
+    let offered = |tool: &str| offer.tools.iter().find(|served| *served == tool).cloned();
+    if given_name(tool_call).is_none() {
+        let (server, tool) = codex_server_tool(tool_call)?;
+        return offered(tool).filter(|_| server == offer.name);
+    }
     let server = tool_call.pointer("/_meta/claudeCode/mcpServer/name");
     if server.is_some_and(|server| server.as_str() != Some(offer.name.as_str())) {
         return None;
@@ -463,7 +476,46 @@ pub(crate) fn nika_tool(tool_call: &Value, offer: &ToolOffer) -> Option<String> 
     let tool = (asked.strip_prefix("mcp__"))
         .and_then(|rest| rest.strip_prefix(offer.name.as_str()))
         .and_then(|rest| rest.strip_prefix("__"))?;
-    offer.tools.iter().find(|served| *served == tool).cloned()
+    offered(tool)
+}
+
+/// The MCP server and tool a codex-acp 1.13.1 frame names, as Codex 0.156.1 routed the call:
+/// the call it announces (`_meta.is_mcp_tool_call`, `rawInput.server` and `rawInput.tool`), or
+/// its ask about one it could not tie to an announcement (titled `MCP tool call approval`: the
+/// server in `rawInput.serverName`, the tool in Codex's own question,
+/// `Allow the <server> MCP server to run tool "<tool>"?`).
+fn codex_server_tool(frame: &Value) -> Option<(&str, &str)> {
+    let input = frame.get("rawInput")?;
+    let text = |key: &str| input.get(key).and_then(Value::as_str);
+    if frame.pointer("/_meta/is_mcp_tool_call") == Some(&Value::Bool(true)) {
+        return Some((text("server")?, text("tool")?));
+    }
+    if frame.get("title").and_then(Value::as_str) != Some("MCP tool call approval") {
+        return None;
+    }
+    let server = text("serverName")?;
+    let tool = (text("description")?.strip_prefix("Allow the "))
+        .and_then(|rest| rest.strip_prefix(server))
+        .and_then(|rest| rest.strip_prefix(" MCP server to run tool \""))
+        .and_then(|rest| rest.strip_suffix("\"?"))?;
+    Some((server, tool))
+}
+
+/// Whether a tool call frame says which tool it is, in any form [`nika_tool`] reads; one that
+/// does not (a status, an ask by id) is the call its id names.
+pub(crate) fn names_tool(frame: &Value) -> bool {
+    given_name(frame).is_some() || codex_server_tool(frame).is_some()
+}
+
+/// The call a permission asks about by its id alone, as codex-acp 1.13.1 asks about the MCP
+/// call it announced (`{toolCallId, kind, status}`): an ask that says anything more is judged
+/// by what it says.
+pub(crate) fn referenced(tool_call: &Value) -> Option<&str> {
+    let call = tool_call.as_object()?;
+    let bare = (call.keys()).all(|key| matches!(key.as_str(), "toolCallId" | "kind" | "status"));
+    call.get("toolCallId")
+        .and_then(Value::as_str)
+        .filter(|_| bare)
 }
 
 /// The answer to a permission: `allow_once` when allowed, else `reject_once`, so the agent

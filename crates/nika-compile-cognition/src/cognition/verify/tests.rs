@@ -500,10 +500,7 @@ async fn a_clause_judged_missing_asks_which_task_fails_it() {
         assert_eq!(verdict.declined, Declined::Rejected, "{pointer}");
         assert!(!verdict.stopped, "{pointer}");
         let told = provider.told.lock().unwrap();
-        assert!(
-            told.iter()
-                .all(|text| text.contains(super::faithful::RESTRICTING))
-        );
+        assert!(told.iter().all(|text| text.contains(super::RESTRICTING)));
         assert!(told[1].contains("The clause below was judged missing."));
         assert!(!told[1].contains("omitted:"), "{}", told[1]);
     }
@@ -572,8 +569,8 @@ async fn a_later_statement_of_a_clause_asks_its_task_under_its_own_id() {
         .map(|judgment| (judgment.question.as_str(), judgment.span))
         .collect();
     assert_eq!(judged, [("verify-clause-0", (0, 14))]);
-    let plain = (provider.told.lock().unwrap().iter())
-        .all(|text| !text.contains(super::faithful::RESTRICTING));
+    let plain =
+        (provider.told.lock().unwrap().iter()).all(|text| !text.contains(super::RESTRICTING));
     assert!(plain);
     let (verdict, _) = clause_judged(intent, &open(false), &Approving::default()).await;
     let withheld = json!(["carried", "missing", "none"]);

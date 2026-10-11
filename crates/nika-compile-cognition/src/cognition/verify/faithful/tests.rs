@@ -285,6 +285,8 @@ type SeatReply = (&'static str, Result<&'static str, &'static str>);
 struct Seated {
     script: Mutex<VecDeque<SeatReply>>,
     asked: Mutex<Vec<ChoiceQuestion>>,
+    /// The probability it reports for its answer to each question named, the rest on NONE.
+    weighed: Vec<(&'static str, f64)>,
 }
 
 impl Seated {
@@ -292,7 +294,14 @@ impl Seated {
         Self {
             script: Mutex::new(script.into_iter().collect()),
             asked: Mutex::new(Vec::new()),
+            weighed: Vec::new(),
         }
+    }
+
+    /// The same seat weighing its answer to the question `id` at `p`, the rest on NONE.
+    fn weighing(mut self, id: &'static str, p: f64) -> Self {
+        self.weighed.push((id, p));
+        self
     }
 
     fn asked(&self) -> Vec<ChoiceQuestion> {
@@ -316,8 +325,16 @@ impl DecisionSeat for Seated {
             let (id, answer) = (self.script.lock().unwrap().pop_front())
                 .unwrap_or_else(|| panic!("an unscripted question: {}", question.id));
             assert_eq!(question.id, id);
+            let weighed = (self.weighed.iter()).find(|(named, _)| *named == id);
             answer
-                .map(|key| ChoiceAnswer::new(key, SEAT))
+                .map(|key| {
+                    let mut answer = ChoiceAnswer::new(key, SEAT);
+                    if let Some((_, p)) = weighed {
+                        let rest = ("none".to_owned(), 1.0 - p);
+                        answer.probabilities.extend([(key.to_owned(), *p), rest]);
+                    }
+                    answer
+                })
                 .map_err(|why| DecisionError(why.to_owned()))
         })
     }

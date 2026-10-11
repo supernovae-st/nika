@@ -77,6 +77,19 @@ impl Agent {
         assert_eq!(answer["id"], id, "{answer}");
         answer["result"]["outcome"].clone()
     }
+
+    /// Ask a permission as codex-acp 1.13.1 does, with `options` and the ask's own `_meta`, and
+    /// read the outcome.
+    async fn ask_codex(&mut self, id: u64, tool_call: Value, options: Value, meta: Value) -> Value {
+        let params = json!({"sessionId": "s-1", "toolCall": tool_call, "options": options,
+            "_meta": meta});
+        let asked = json!({"jsonrpc": "2.0", "id": id,
+            "method": "session/request_permission", "params": params});
+        self.send(&asked).await;
+        let answer = self.read().await.expect("the client answers");
+        assert_eq!(answer["id"], id, "{answer}");
+        answer["result"]["outcome"].clone()
+    }
 }
 
 fn pipe() -> (Agent, ReadHalf<DuplexStream>, WriteHalf<DuplexStream>) {
@@ -465,4 +478,274 @@ async fn an_open_tool_call_holds_the_silence_allowance() {
         matches!(later, Err(HarnessError::Session { .. })),
         "{later:?}"
     );
+}
+
+fn codex_offer() -> ToolOffer {
+    let tools = ["candidate_read", "candidate_write", "knowledge"].map(str::to_owned);
+    ToolOffer::new("nika", tools.to_vec()).with_http("http://127.0.0.1:4242/mcp", BEARER)
+}
+
+/// codex-acp 1.13.1's `mode` option (`AgentMode`); the profile applies `read-only`.
+fn codex_modes(current: &str) -> Value {
+    let modes = ["read-only", "agent", "agent-full-access"];
+    let options: Vec<Value> = (modes.iter())
+        .map(|mode| json!({"value": mode, "name": mode}))
+        .collect();
+    json!([{"id": "mode", "name": "Mode", "category": "mode", "type": "select",
+        "currentValue": current, "options": options}])
+}
+
+/// `initialize`, `session/new` (no server: Codex mounts Nika's from its configuration) and the
+/// `read-only` mode, answered as codex-acp 1.13.1 does.
+async fn codex_handshake(agent: &mut Agent) {
+    let hello = agent.expect("initialize").await;
+    let info = json!({"name": "@agentclientprotocol/codex-acp", "title": "Codex",
+        "version": "1.13.1"});
+    let init = json!({"protocolVersion": 1, "agentInfo": info,
+        "agentCapabilities": {"loadSession": true}});
+    agent.reply(&hello["id"], init).await;
+    let new = agent.expect("session/new").await;
+    assert_eq!(new["params"]["mcpServers"], json!([]), "{new}");
+    let configured = json!({"sessionId": "s-1", "configOptions": codex_modes("agent")});
+    agent.reply(&new["id"], configured).await;
+    let mode = agent.expect("session/set_config_option").await;
+    assert_eq!(mode["params"]["value"], "read-only", "{mode}");
+    let applied = json!({"configOptions": codex_modes("read-only")});
+    agent.reply(&mode["id"], applied).await;
+}
+
+/// codex-acp 1.13.1 announcing the MCP call Codex 0.156.1 routed (`createMcpToolCallUpdate`).
+fn codex_call(id: &str, tool: &str) -> Value {
+    json!({"sessionUpdate": "tool_call", "toolCallId": id, "kind": "execute",
+        "title": format!("mcp.nika.{tool}"), "status": "in_progress",
+        "rawInput": {"server": "nika", "tool": tool, "arguments": {"source": "workflow: draft"}},
+        "_meta": {"is_mcp_tool_call": true}})
+}
+
+/// codex-acp 1.13.1 updating a call: running once allowed, then completed or failed with its
+/// input and output (`completeItemEvent`, no `_meta`).
+fn codex_status(id: &str, tool: &str, status: &str) -> Value {
+    let mut update = json!({"sessionUpdate": "tool_call_update", "toolCallId": id,
+        "status": status});
+    if status != "in_progress" {
+        let arguments = json!({"source": "workflow: draft"});
+        update["rawInput"] = json!({"server": "nika", "tool": tool, "arguments": arguments});
+        update["rawOutput"] = json!({"result": {"content": []}, "error": null});
+    }
+    update
+}
+
+/// The options codex-acp 1.13.1 offers for Codex's approval of an MCP call, Codex asking with
+/// `persist: ["session", "always"]` (`buildMcpPermissionOptions`).
+fn codex_mcp_options() -> Value {
+    let option = |id: &str, name: &str, kind: &str, said: &str| {
+        json!({"optionId": id, "name": name, "kind": kind,
+            "_meta": {"permission": {"version": 1, "description": said}}})
+    };
+    json!([
+        option(
+            "allow_once",
+            "Allow",
+            "allow_once",
+            "Run the tool and continue."
+        ),
+        option(
+            "allow_session",
+            "Allow for this session",
+            "allow_always",
+            "Run the tool and remember this choice for this session."
+        ),
+        option(
+            "allow_always",
+            "Always allow",
+            "allow_always",
+            "Run the tool and remember this choice for future tool calls."
+        ),
+        option("cancel", "Cancel", "reject_once", "Cancel this tool call")
+    ])
+}
+
+/// The agent side of one codex-acp 1.13.1 turn, Codex 0.156.1 behind it: a read-only tool runs
+/// unasked; before any other MCP call codex-acp asks about the call it announced by its id
+/// alone, or in Codex's own words when two calls are open on the server; a command is asked as
+/// a command (`commandToolCall`).
+async fn codex_agent(mut agent: Agent) {
+    codex_handshake(&mut agent).await;
+    let turn = agent.expect("session/prompt").await;
+    let by_id = |id: &str| json!({"toolCallId": id, "kind": "execute", "status": "pending"});
+    let approval = || json!({"is_mcp_tool_approval": true});
+    let allow_once = json!({"outcome": "selected", "optionId": "allow_once"});
+    let cancel = json!({"outcome": "selected", "optionId": "cancel"});
+
+    agent
+        .update(codex_call("call_read", "candidate_read"))
+        .await;
+    let read = codex_status("call_read", "candidate_read", "completed");
+    agent.update(read).await;
+    let never_announced = by_id("call_unknown");
+    let asked = (agent.ask_codex(900, never_announced, codex_mcp_options(), approval())).await;
+    assert_eq!(asked, cancel, "an id never announced names nothing");
+
+    agent
+        .update(codex_call("call_write", "candidate_write"))
+        .await;
+    let asked = (agent.ask_codex(901, by_id("call_write"), codex_mcp_options(), approval())).await;
+    assert_eq!(
+        asked, allow_once,
+        "Nika's own candidate_write, asked by its id"
+    );
+    let running = codex_status("call_write", "candidate_write", "in_progress");
+    agent.update(running).await;
+    let written = codex_status("call_write", "candidate_write", "completed");
+    agent.update(written).await;
+    let asked = (agent.ask_codex(902, by_id("call_write"), codex_mcp_options(), approval())).await;
+    assert_eq!(asked, cancel, "a completed call is no longer open");
+
+    agent.update(codex_call("call_know", "knowledge")).await;
+    agent
+        .update(codex_call("call_write_2", "candidate_write"))
+        .await;
+    let question = "Allow the nika MCP server to run tool \"candidate_write\"?";
+    let said = json!([{"type": "content", "content": {"type": "text", "text": question}}]);
+    let standalone = json!({"toolCallId": "elicitation:s-1:nika:1", "kind": "execute",
+        "status": "pending", "title": "MCP tool call approval", "content": said,
+        "rawInput": {"serverName": "nika", "description": question,
+            "schema": {"type": "object", "properties": {}}}});
+    let asked = (agent.ask_codex(903, standalone, codex_mcp_options(), approval())).await;
+    assert_eq!(
+        asked, allow_once,
+        "Nika's own candidate_write, in Codex's words"
+    );
+    let finalized = json!({"sessionUpdate": "tool_call_update",
+        "toolCallId": "elicitation:s-1:nika:1", "status": "completed",
+        "title": "MCP tool call approval", "content": said, "rawOutput": {"action": "accept"}});
+    agent.update(finalized).await;
+    let written = codex_status("call_write_2", "candidate_write", "completed");
+    agent.update(written).await;
+    let known = codex_status("call_know", "knowledge", "completed");
+    agent.update(known).await;
+
+    agent.update(codex_call("call_trial", "trial")).await;
+    let asked = (agent.ask_codex(904, by_id("call_trial"), codex_mcp_options(), approval())).await;
+    assert_eq!(asked, cancel, "a tool Nika does not offer");
+    agent
+        .update(codex_status("call_trial", "trial", "failed"))
+        .await;
+
+    let command = json!({"toolCallId": "call_exec", "name": "exec_command", "kind": "execute",
+        "status": "pending", "title": "Run command",
+        "rawInput": {"command": "rm -rf build", "cwd": "/scratch/conversation"}});
+    let decisions = json!([
+        {"optionId": "allow_once", "name": "Yes, proceed", "kind": "allow_once"},
+        {"optionId": "decline", "name": "No, continue without running it", "kind": "reject_once"},
+        {"optionId": "cancel", "name": "No, and tell Codex what to do differently",
+            "kind": "reject_once"}
+    ]);
+    let run = json!({"permission": {"version": 1, "title": "Run command?"}});
+    let asked = agent.ask_codex(905, command, decisions, run).await;
+    assert_eq!(asked, json!({"outcome": "selected", "optionId": "decline"}));
+
+    agent
+        .update(text("agent_message_chunk", "The draft is saved."))
+        .await;
+    agent
+        .reply(&turn["id"], json!({"stopReason": "end_turn"}))
+        .await;
+    assert_eq!(agent.read().await, None, "the handle closed the pipe");
+}
+
+/// The tool frames and decisions of a turn, as the turn told them.
+type Told<'a> = (
+    Vec<(&'a str, &'a str, Option<&'a str>)>,
+    Vec<(Option<&'a str>, Option<&'a str>, bool)>,
+);
+
+fn told(beats: &[TurnEvent]) -> Told<'_> {
+    let (mut tools, mut decided) = (Vec::new(), Vec::new());
+    for beat in beats {
+        match beat {
+            TurnEvent::Tool {
+                tool_call_id,
+                status,
+                nika_tool,
+            } => tools.push((
+                tool_call_id.as_str(),
+                status.as_deref().unwrap_or_default(),
+                nika_tool.as_deref(),
+            )),
+            TurnEvent::Permission {
+                tool,
+                nika_tool,
+                allowed,
+            } => decided.push((tool.as_deref(), nika_tool.as_deref(), *allowed)),
+            _ => {}
+        }
+    }
+    (tools, decided)
+}
+
+/// codex-acp 1.13.1 never names the MCP call it asks about: it announces the call with the
+/// server and tool Codex routed it to, then asks by the call's id alone (or in Codex's words).
+/// Nika's own `candidate_write` is allowed once either way; an id never announced or no longer
+/// open, a tool Nika does not offer and a command are rejected; each decision is told to the
+/// turn and recorded.
+#[tokio::test]
+async fn codex_acp_asks_by_call_id_and_nikas_own_tool_is_allowed_once() {
+    let (agent, read, write) = pipe();
+    let script = tokio::spawn(codex_agent(agent));
+    let codex = Opening {
+        setup: ConversationSetup::new(),
+        offer: codex_offer(),
+        profile: Profile::Codex,
+        cwd: PathBuf::from("/scratch/conversation"),
+    };
+    let conversation = open(read, write, codex, ()).await.expect("opens");
+    assert_eq!(conversation.record()["adapter_version"], "1.13.1");
+    let turn = conversation.prompt("Write the invoice workflow.");
+    let seen = beats(turn.expect("a turn")).await;
+    let (tools, decided) = told(&seen);
+    let ours = Some("candidate_write");
+    assert_eq!(
+        decided,
+        [
+            (None, None, false),
+            (None, ours, true),
+            (None, None, false),
+            (None, ours, true),
+            (None, None, false),
+            (Some("exec_command"), None, false),
+        ]
+    );
+    assert_eq!(
+        tools,
+        [
+            ("call_read", "in_progress", Some("candidate_read")),
+            ("call_read", "completed", None),
+            ("call_write", "in_progress", ours),
+            ("call_write", "in_progress", None),
+            ("call_write", "completed", None),
+            ("call_know", "in_progress", Some("knowledge")),
+            ("call_write_2", "in_progress", ours),
+            ("elicitation:s-1:nika:1", "completed", None),
+            ("call_write_2", "completed", None),
+            ("call_know", "completed", None),
+            ("call_trial", "in_progress", None),
+            ("call_trial", "failed", None),
+        ]
+    );
+    assert_eq!(
+        seen.get(seen.len() - 2),
+        Some(&TurnEvent::Answer {
+            text: "The draft is saved.".to_owned()
+        })
+    );
+    let (end, record) = ended(seen.last());
+    assert_eq!(end, TurnEnd::EndTurn);
+    let denied = ["(unnamed)", "(unnamed)", "(unnamed)", "exec_command"];
+    assert_eq!(
+        record["permissions"],
+        json!({"allowed": 2, "denied": denied})
+    );
+    drop(conversation);
+    script.await.expect("the script ends");
 }

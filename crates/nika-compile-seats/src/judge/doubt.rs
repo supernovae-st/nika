@@ -16,9 +16,12 @@
 //! as a confident rejection (amended 2026-10-10, [`Doubt::decides`]): otherwise its parts decide,
 //! an answer they overrule is stated with the proposal ([`Doubt::stated`]) and never asked where
 //! it is. A location it weighs below [`Doubt::LOCATING_PROBABILITY`] names nothing
-//! ([`Doubt::locates`]). An answer reported with no distribution is taken at its word. The
-//! thresholds read the probability the seat reported for the option it chose, per question, and
-//! cite the labels that set them, so the next calibration can move them.
+//! ([`Doubt::locates`]). A part judged « missing » decides at the same confidence over its own
+//! question's options ([`Doubt::part_decides`], amended 2026-10-11): below it, or with no task
+//! failing it, the part is stated with the proposal, never a hold. An answer reported with no
+//! distribution is taken at its word. The thresholds read the probability the seat reported for
+//! the option it chose, per question, and cite the labels that set them, so the next calibration
+//! can move them.
 
 use serde_json::{Value, json};
 
@@ -124,6 +127,12 @@ impl Doubt {
     /// task, `unlocated`, NONE); another order needs a new calibration.
     pub const LOCATING_PROBABILITY: f64 = 0.5;
 
+    /// The confidence at or above which a part's weighed « missing » decides: the confidence 0.75
+    /// behind [`Self::HOLDING_PROBABILITY`], read over each part question's own options
+    /// (`carried` first). The same part of one candidate read 0.57 to 0.80, then 0.44, on
+    /// identical bytes (2026-10-10), all below it; identical calls jitter by about 0.11.
+    pub const PART_CONFIDENCE: f64 = 0.75;
+
     /// The probability the seat reported for its own latest answer to `question` among
     /// `records`: its distribution's mass on the option it chose. `None` when it weighed nothing
     /// (no distribution, or a mass for its choice alone).
@@ -144,6 +153,19 @@ impl Doubt {
         })
     }
 
+    /// Whether the latest « missing » to the part question `question` among `records`, offered
+    /// `options` options, decides: `None` when the seat weighed nothing (taken at its word), else
+    /// whether it reported at least (1 + c·(n − 1)) / n, c the [`Self::PART_CONFIDENCE`] and n
+    /// the options: 0.875 with two, 0.833 with three, 0.8125 with four. Below, the part is a
+    /// stated doubt that declines nothing; at or above, only a part a task fails sends the bytes
+    /// back, and an unlocated one is stated too.
+    #[must_use]
+    pub fn part_decides(records: &[Value], question: &str, options: usize) -> Option<bool> {
+        let n = f64::from(u32::try_from(options).unwrap_or(u32::MAX).max(1));
+        let threshold = (1.0 + Self::PART_CONFIDENCE * (n - 1.0)) / n;
+        Self::reported(records, question).map(|p| p >= threshold)
+    }
+
     /// Whether this question's latest answer among `records` locates: weighed at
     /// [`Self::LOCATING_PROBABILITY`] or more, or unweighed (taken at its word).
     #[must_use]
@@ -157,6 +179,19 @@ impl Doubt {
     /// missing again. `None` when there is nothing to state.
     #[must_use]
     pub fn stated(records: &[Value], restated: &[String]) -> Option<String> {
+        Self::stated_with(records, restated, &[])
+    }
+
+    /// [`Self::stated`], with each part the seat judged « missing » without deciding it (below
+    /// [`Self::part_decides`], or with no task failing it), as `(part, question)`: stated with
+    /// the probability reported for it, « in the trial run » when a question over the run named
+    /// it (amended 2026-10-11).
+    #[must_use]
+    pub fn stated_with(
+        records: &[Value],
+        restated: &[String],
+        doubted: &[(String, String)],
+    ) -> Option<String> {
         let mut said = Vec::new();
         let whole = latest(records, "verify-request").filter(|whole| whole["choice"] != "faithful");
         if let Some(whole) = whole {
@@ -172,7 +207,14 @@ impl Doubt {
         said.extend(restated.iter().map(|part| {
             format!("judged « {part} » missing again after a repair attempt, a part's answer that holds no proposal")
         }));
-        let rest = if restated.is_empty() {
+        said.extend(doubted.iter().map(|(part, question)| {
+            let reported = Self::reported(records, question)
+                .map(|p| format!(" (reported at {p:.2})"))
+                .unwrap_or_default();
+            let over = if question.starts_with("verify-observed") { " in the trial run" } else { "" };
+            format!("judged « {part} » missing{over}{reported} without locating a defect, a part's answer that holds no proposal")
+        }));
+        let rest = if restated.is_empty() && doubted.is_empty() {
             ": no part of the request, judged alone, is missing and no task does anything the request does not ask"
         } else {
             ""

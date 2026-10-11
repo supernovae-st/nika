@@ -555,9 +555,18 @@ extra carry the request (judgment and `settled_by` `verify-parts`); over a whole
 question over the run comes first. A part judged missing with its reason is a defect sent to the
 author for a repair; judged missing again on other bytes of the same request after that attempt
 (`repairs::met`, over this compile's attempts and the carried ones), it is stated, never held
-for the person. What the parts overrule is stated, never held and never a question to the person
+for the person. A part's weighed « missing » decides only at the confidence 0.75 read over its
+own question's options (`Doubt::part_decides`, amended 2026-10-11, after identical bytes moved
+one part's answer across the old cut): below it the part declines nothing, is never asked why
+and is stated; at or above it, a reason makes it a defect as above, and no task failing it
+states it instead of leaving it contested. A stated part is not asked again over a trial run:
+the question over the whole run decides, and carrying the request it states nothing. The same
+confidence gates the questions over a run, over each one's own options: a part the whole-run
+question names below it is stated « in the trial run », never asked why, and an open part shown
+missing there below it keeps its state. What the
+parts overrule is stated, never held and never a question to the person
 about the verifier: the attempt keeps `stated_doubt`, and an Applied `verify_doubt` finding says
-it in words for the proposal (`Doubt::stated`), the person's consent unchanged. A location the
+it in words for the proposal (`Doubt::stated_with`), the person's consent unchanged. A location the
 doubt question weighs below `Doubt::LOCATING_PROBABILITY` names nothing. An answer reported with
 no distribution (a provider judge's, or a mass for its choice alone) is taken at its word, as
 before; one read back from an earlier attempt keeps what its seat reported (`probabilities`,
@@ -1283,6 +1292,16 @@ the person's words, verbatim (`assets/resolutions_schema.json`; the kinds a host
 `nika_compile_fidelity::fidelity::resolution::admitted` admits each selection on those words,
 within its role's scope and use, and Law 2 counts an admitted literal as stated
 (`laws_resolved`). An unreadable or refused selection is a finding the next round repairs from.
+Amended 2026-10-10, the door teaches every scope the law admits (an output name the request
+leaves to the author, a file read under a folder the person typed, the exact host of an address
+they typed). Its findings go through `resolution::selection_remedies`, so an unwritten
+destination or an invented literal names the selection that answers it before any question. A
+file the request asks for without naming it is derived and stated, asked only when the
+person's words leave its name to them. The prelude reads the callable contracts that
+`nika_compile_seats::shelf::builtins_for` selects over the reader's plan. A build with the
+prompt trims (`unstable-prompt-trims` on `nika-compile-seats`, off by default, amended
+2026-10-10) narrows them to the plan's typed reach and shows the schema without its
+descriptions; a default build sends the whole prompt.
 The native record of an accepted document keeps the rows (`plan.resolutions`): provenance,
 never a human answer. The private-plan door (policy `off`) and the sketch door do not carry
 selections yet (their emission would need the core's assembler to bind them), a documented
@@ -1409,8 +1428,10 @@ candidate a Session conversation wrote: the strict parser, the pure Check, then 
 against everything the person stated in the request it answers, over the world the host observed
 for it (`observed`: without it no law that reads the project fires). The author's selections are
 admitted on the person's own words; the ones the host verified itself (an offer it showed, a
-value an accepted revision bound) have their scope and use judged only. It calls, reads and
-writes nothing. These are the laws only.
+value an accepted revision bound) have their scope and use judged only. Its findings name the
+selection that answers an unwritten destination or an invented literal, as the document door's
+do (`resolution::selection_remedies`, amended 2026-10-10). It calls, reads and writes nothing.
+These are the laws only.
 
 The conversation laws also judge each `infer:` task's reasoning budget (amended 2026-10-10):
 `nika-compile-fidelity`'s `budget::reasoning` law, fed each seat's facts as

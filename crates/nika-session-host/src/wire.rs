@@ -292,15 +292,28 @@ struct ToolWire {
     state: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     elapsed_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    at_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reply_bytes: Option<u64>,
 }
 
-/// A physical compiler call an activity reported; `model` is the requested one.
+/// A physical compiler call an activity reported; `model` is the requested one. When it left,
+/// how long it took and its tokens, only when its producer reported them.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 struct CallWire {
     ordinal: u32,
     role: String,
     model: String,
     state: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    at_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    elapsed_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    input_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output_tokens: Option<u64>,
 }
 
 impl ActivityWire {
@@ -324,6 +337,10 @@ impl ActivityWire {
                 CallState::Cancelled => "cancelled",
                 _ => "other",
             },
+            at_ms: call.at_ms,
+            elapsed_ms: call.elapsed_ms,
+            input_tokens: call.input_tokens,
+            output_tokens: call.output_tokens,
         });
         let tool = activity.tool.as_ref().map(|tool| ToolWire {
             call: tool.call.clone(),
@@ -335,6 +352,8 @@ impl ActivityWire {
                 _ => "other",
             },
             elapsed_ms: tool.elapsed_ms,
+            at_ms: tool.at_ms,
+            reply_bytes: tool.reply_bytes,
         });
         Self {
             phase,

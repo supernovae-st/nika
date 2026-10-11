@@ -689,8 +689,8 @@ fn a_line_steered_into_the_run_enters_after_the_calls_under_way() {
     let mut entered = queued("l1", "steer", STEER_B, "entered");
     entered["cite"] = json!("u2");
     assert_eq!(work(step)["queued"], json!([entered]));
-    // The first call ran; the call answered once the line arrived did not, and the author read
-    // the line, cited, right after that call's reply.
+    // Both calls ran: the one answered once the line arrived hands no turn over (I4c item 6),
+    // and the author read the line, cited, right after that call's reply.
     assert_eq!(journey.agent.len(), 3, "{:#?}", journey.agent);
     assert!(
         journey.agent[..2]
@@ -700,19 +700,18 @@ fn a_line_steered_into_the_run_enters_after_the_calls_under_way() {
     let next = &journey.agent[2];
     assert!(cites(next, STEER_B, "u2"), "{}", next.last());
     let messages = next.body["messages"].as_array().unwrap();
-    let skipped = &messages[messages.len() - 2];
-    assert_eq!(skipped["role"], "tool", "{messages:#?}");
-    assert_eq!(skipped["tool_call_id"], "call_2", "{messages:#?}");
-    let said = serde_json::to_string(&skipped["content"]).unwrap();
-    assert!(
-        said.contains("Not run: the person wrote meanwhile"),
-        "{said}"
-    );
+    let ran = &messages[messages.len() - 2];
+    assert_eq!(ran["role"], "tool", "{messages:#?}");
+    assert_eq!(ran["tool_call_id"], "call_2", "{messages:#?}");
+    let said = serde_json::to_string(&ran["content"]).unwrap();
+    assert!(said.contains("offers"), "{said}");
     let steps = json!([
         ["call_1", "models", "started", false],
-        ["call_1", "models", "finished", true]
+        ["call_1", "models", "finished", true],
+        ["call_2", "models", "started", false],
+        ["call_2", "models", "finished", true]
     ]);
-    assert_eq!(journey.report["tools"], steps, "the skipped call never ran");
+    assert_eq!(journey.report["tools"], steps, "both calls ran");
     let late = json!({"refused": "not_reading"});
     assert_eq!(journey.report["after_turn"], late);
 }
@@ -847,6 +846,20 @@ fn a_name_left_to_the_author_is_never_asked_again() {
     );
     let changed = format!("output `{DIGEST}` replaced by `{RENAMED}`");
     assert!(said(named).contains(&changed), "{}", said(named));
+}
+
+/// I4c item 1, the Pi study: one `candidate_edit` carries several edits, each read in the
+/// original candidate, and lands them as one revision.
+#[test]
+fn two_edits_in_one_call_make_one_revision() {
+    let journey = run("two_edits");
+    let proposed = journey.step(0);
+    assert_eq!(outcome_kind(proposed), "proposal", "{proposed:#}");
+    let shown = candidate(proposed);
+    assert!(shown.contains("nika: stories-of-the-day"), "the name edit");
+    assert!(shown.contains("startswith"), "the filter edit");
+    let edited = (journey.agent.iter()).any(|s| s.last().contains(r#""revision":2"#));
+    assert!(edited, "two edits, one revision");
 }
 
 /// The evaluator's tickets, biz24-07 and all-tags cells: an author's own filters, programs, globs

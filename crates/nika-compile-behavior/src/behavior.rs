@@ -441,6 +441,37 @@ impl ReadBack {
     }
 }
 
+/// What one task of a rehearsal received and returned, as the host's room counted it: a JSON
+/// array counts its items, any other value one, none counted when the room could not count.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct StepFlow {
+    /// The task's id.
+    pub task: String,
+    /// The items the task received.
+    pub received: Option<u64>,
+    /// The items the task returned.
+    pub returned: Option<u64>,
+}
+
+impl StepFlow {
+    /// What `task` received and returned.
+    #[must_use]
+    pub fn new(task: impl Into<String>, received: Option<u64>, returned: Option<u64>) -> Self {
+        Self {
+            task: task.into(),
+            received,
+            returned,
+        }
+    }
+
+    /// Whether the task returned nothing from a non-empty input: a fact, never a verdict.
+    #[must_use]
+    pub fn emptied(&self) -> bool {
+        self.received.is_some_and(|items| items > 0) && self.returned == Some(0)
+    }
+}
+
 /// One rehearsal of the round: the observed world or one fixture made from it. Each path
 /// appears once in `consumed` and once in `read_back`; two different observations of one path
 /// make the fixture invalid.
@@ -454,6 +485,8 @@ pub struct Run {
     pub read_back: Vec<ReadBack>,
     /// What this fixture spent of the budget.
     pub usage: Usage,
+    /// What each task received and returned, in the run's order, when the host counted it.
+    pub flow: Vec<StepFlow>,
 }
 
 impl Run {
@@ -466,7 +499,15 @@ impl Run {
             consumed: Vec::new(),
             read_back: Vec::new(),
             usage,
+            flow: Vec::new(),
         }
+    }
+
+    /// The same rehearsal, with what each task received and returned.
+    #[must_use]
+    pub fn with_flow(mut self, flow: Vec<StepFlow>) -> Self {
+        self.flow = flow;
+        self
     }
 
     /// The same rehearsal, with what it consumed from one source.
@@ -785,3 +826,6 @@ mod copy_tests;
 
 #[cfg(test)]
 mod composed_tests;
+
+#[cfg(test)]
+mod flow_tests;

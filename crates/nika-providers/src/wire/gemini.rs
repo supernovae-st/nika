@@ -31,6 +31,9 @@ use serde_json::{Value, json};
 use super::{EventMapper, SseEventStream, gen_ai_system, map_http_err, status_error, str_at};
 use crate::registry::ResolvedProvider;
 
+/// The `wire` of the reasoning state this wire keeps and sends back.
+const WIRE: &str = "gemini";
+
 /// Single-shot inference.
 pub(crate) async fn infer_routed<H>(
     rp: &ResolvedProvider<H>,
@@ -311,9 +314,15 @@ fn push_content(
     } else {
         "user"
     };
-    let mut parts = Vec::new();
+    let mut parts: Vec<Value> = Vec::new();
+    // A thought signature Gemini put on a part rides back on the same part, as received.
+    let mut signature = None;
     for block in &m.content {
+        let before = parts.len();
         match block {
+            ContentBlock::Reasoning { wire, state } if wire == WIRE => {
+                signature = state.get("thoughtSignature").cloned();
+            }
             ContentBlock::Text { text } => parts.push(json!({ "text": text })),
             ContentBlock::ToolUse { name, input, .. } => {
                 parts.push(json!({ "functionCall": { "name": name, "args": input } }));
@@ -351,6 +360,17 @@ fn push_content(
             }
             _ => {}
         }
+        if let Some(part) = parts.get_mut(before)
+            && let Some(signature) = signature.take()
+        {
+            part["thoughtSignature"] = signature;
+        }
+    }
+    // A signature after its turn's last part rides back after it, as received; never alone.
+    if let Some(signature) = signature
+        && !parts.is_empty()
+    {
+        parts.push(json!({ "text": "", "thoughtSignature": signature }));
     }
     if !parts.is_empty() {
         out.push(json!({ "role": role, "parts": parts }));
@@ -425,8 +445,14 @@ fn parse_response(
     Ok(resp)
 }
 
+/// The thought signature a part carries, as the reasoning state to send back on it.
+fn signed(part: &Value) -> Option<Value> {
+    (part.get("thoughtSignature")).map(|signature| json!({ "thoughtSignature": signature }))
+}
+
 /// One response part → kernel content block(s).
 fn collect_part(part: &Value, content: &mut Vec<ContentBlock>, call_n: &mut u32) {
+    content.extend(signed(part).map(|state| super::reasoning(WIRE, state)));
     if let Some(text) = part.pointer("/text").and_then(Value::as_str) {
         if part.pointer("/thought").and_then(Value::as_bool) == Some(true) {
             content.push(ContentBlock::Thinking {
@@ -567,6 +593,7 @@ impl EventMapper for GeminiMapper {
             .into_iter()
             .flatten()
         {
+            out.extend(signed(part).map(|state| Ok(super::reasoning_event(WIRE, state))));
             if let Some(text) = part.pointer("/text").and_then(Value::as_str) {
                 let is_thought = part.pointer("/thought").and_then(Value::as_bool) == Some(true);
                 if is_thought {
@@ -1044,6 +1071,114 @@ mod tests {
         // model's reasoning is billed under thoughtsTokenCount, so
         // output_tokens = candidates(2) + thoughts(5) — not the visible 2.
         assert_eq!(resp.usage.output_tokens, 7);
+    }
+
+    /// The order of an answer's block kinds.
+    fn kinds(content: &[ContentBlock]) -> Vec<&'static str> {
+        (content.iter())
+            .map(|block| match block {
+                ContentBlock::Reasoning { .. } => "state",
+                ContentBlock::Text { .. } => "text",
+                ContentBlock::ToolUse { .. } => "call",
+                _ => "other",
+            })
+            .collect()
+    }
+
+    #[test]
+    fn thought_signatures_are_kept_and_sent_back_on_their_own_parts() {
+        let fake = FakeHttp::with_json(200, "{}");
+        let rp = resolved_with(&fake, "gemini/flash-25", "g-key");
+        let body = br#"{"candidates":[{"content":{"parts":[
+            {"text":"je lis","thoughtSignature":"s1"},
+            {"functionCall":{"name":"read","args":{"p":1}},"thoughtSignature":"s2"},
+            {"functionCall":{"name":"read","args":{"p":2}}}]},
+            "finishReason":"STOP"}],
+            "usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":2}}"#;
+        let resp = parse_response(&rp, body).expect("parse");
+        // Each signature rides just before the block of the part that carried it.
+        assert_eq!(
+            kinds(&resp.content),
+            ["state", "text", "state", "call", "call"]
+        );
+        assert!(
+            matches!(&resp.content[0], ContentBlock::Reasoning { wire, state }
+            if wire == "gemini" && *state == json!({"thoughtSignature": "s1"}))
+        );
+
+        // The next request puts each signature back on its own part; the unsigned call stays bare.
+        let r = req(vec![
+            Message::text(Role::User, "lis"),
+            Message::new(Role::Assistant, resp.content),
+        ]);
+        let sent = request_body(&r, "gemini-2.5-flash").expect("body");
+        let parts = &sent["contents"][1]["parts"];
+        assert_eq!(parts.as_array().map(Vec::len), Some(3));
+        assert_eq!(
+            parts[0],
+            json!({"text": "je lis", "thoughtSignature": "s1"})
+        );
+        assert_eq!(parts[1]["thoughtSignature"], "s2");
+        assert_eq!(parts[1]["functionCall"]["args"], json!({"p": 1}));
+        assert!(parts[2].get("thoughtSignature").is_none());
+    }
+
+    #[test]
+    fn a_trailing_signature_rides_back_after_its_turn_and_never_alone() {
+        let fake = FakeHttp::with_json(200, "{}");
+        let rp = resolved_with(&fake, "gemini/flash-25", "g-key");
+        let body = br#"{"candidates":[{"content":{"parts":[
+            {"text":"fini"},{"text":"","thoughtSignature":"s9"}]},
+            "finishReason":"STOP"}],
+            "usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":2}}"#;
+        let resp = parse_response(&rp, body).expect("parse");
+        assert_eq!(kinds(&resp.content), ["text", "state"]);
+        let lone = vec![ContentBlock::Reasoning {
+            wire: "gemini".into(),
+            state: json!({"thoughtSignature": "s0"}),
+        }];
+        let foreign = vec![
+            ContentBlock::Reasoning {
+                wire: "anthropic".into(),
+                state: json!({"type": "redacted_thinking", "data": "x"}),
+            },
+            ContentBlock::Text { text: "t".into() },
+        ];
+        let r = req(vec![
+            Message::text(Role::User, "go"),
+            Message::new(Role::Assistant, resp.content),
+            Message::new(Role::Assistant, lone),
+            Message::new(Role::Assistant, foreign),
+        ]);
+        let sent = request_body(&r, "gemini-2.5-flash").expect("body");
+        let contents = &sent["contents"];
+        assert_eq!(
+            contents[1]["parts"],
+            json!([{"text": "fini"}, {"text": "", "thoughtSignature": "s9"}])
+        );
+        // A signature alone makes no turn; another wire's state never rides.
+        assert_eq!(contents.as_array().map(Vec::len), Some(3));
+        assert_eq!(contents[2]["parts"], json!([{"text": "t"}]));
+    }
+
+    #[test]
+    fn stream_keeps_each_signature_before_its_part() {
+        let mut m = GeminiMapper::default();
+        let out = m.map(
+            r#"{"candidates":[{"content":{"parts":[{"text":"je lis","thoughtSignature":"s1"},{"functionCall":{"name":"read","args":{}},"thoughtSignature":"s2"}]}}]}"#,
+        );
+        let kinds: Vec<&str> = (out.iter())
+            .map(|event| match event {
+                Ok(InferEvent::Reasoning { .. }) => "state",
+                Ok(InferEvent::Delta { .. }) => "text",
+                Ok(InferEvent::ToolUseStart { .. }) => "start",
+                Ok(InferEvent::ToolUseDelta { .. }) => "args",
+                _ => "other",
+            })
+            .collect();
+        assert_eq!(kinds, ["state", "text", "state", "start", "args"]);
+        assert!(matches!(&out[2], Ok(InferEvent::Reasoning { wire, state })
+            if wire == "gemini" && *state == json!({"thoughtSignature": "s2"})));
     }
 
     #[test]

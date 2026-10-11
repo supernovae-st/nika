@@ -181,7 +181,8 @@ model = "deepseek-flash"
 context_window_tokens = 1000000
 max_output_tokens = 384000
 
-# Legacy name: still served by the API, no longer priced upstream (2026-09).
+# Legacy name, discontinued upstream 2026-07-24 (DeepSeek API change log, 2026-04-24): kept for
+# recorded runs; its price row is deprecated, so it is never offered.
 [[providers.models]]
 id = "chat"
 model = "deepseek-chat"

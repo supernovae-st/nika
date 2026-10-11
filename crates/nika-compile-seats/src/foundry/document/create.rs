@@ -216,12 +216,13 @@ pub fn receipts(out: &CompileOutcome) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-/// The language's complete schema as the author reads it: the Spec's workflow schema, compact.
+/// The language's complete schema as the author reads it: the Spec's workflow schema, compact
+/// (without its descriptions in a build with the prompt trims, `unstable-prompt-trims`).
 #[must_use]
 pub fn language() -> String {
     let text = nika_pack::schema_json();
     serde_json::from_str::<Value>(text)
-        .map_or_else(|_| text.to_owned(), |schema| schema.to_string())
+        .map_or_else(|_| text.to_owned(), crate::shelf::trims::schema_text)
 }
 
 #[cfg(test)]

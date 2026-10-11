@@ -45,7 +45,7 @@ rejected).
 | `selector` | `html.rs` | `scraper` CSS select · matches concatenated | String (HTML) |
 | `metadata` | `metadata.rs` | `scraper` head walk | Object (title·description·og·twitter·canonical·lang) |
 | `links` | `metadata.rs` | `scraper` + `url` join vs `base_url` | Array of absolute URL strings |
-| `feed` | `feed.rs` | `feed-rs` 2.3 (MIT) | Object (title·description·link·updated·items[]) |
+| `feed` | `feed.rs` | `feed-rs` 2.3 (MIT) | Object (title·description·link·updated·items[]) · an item's `published`, and its `updated` when the source dates a revision of its own (Atom `<updated>`, JSON Feed `date_modified`; amended 2026-10-10): RFC 3339 with offset |
 | `sitemap` | `sitemap.rs` | `quick-xml` 0.40 (MIT) · urlset + sitemapindex | Array of `{loc, lastmod?}` |
 | `raw` | `lib.rs` | identity on the decoded body | String |
 | `jq` | — | **NOT here** — `nika-builtin` composes its `jaq` runner (ONE data language, ONE engine) → `ExtractError::Unsupported` if routed here | — |

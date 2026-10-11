@@ -851,3 +851,74 @@ async fn a_failed_call_over_the_run_stops_a_faithful_verdict() {
     assert_eq!(lists(&verdict), unknown);
     assert_eq!(judge.left(), 0);
 }
+
+/// A part the question over the run names weighed below its confidence decides nothing, however
+/// surely a task would locate it: no task is asked, nothing is declined, and beside a
+/// whole-request answer that decided nothing the part is stated with the proposal, the request
+/// carried by its parts (2026-10-11: on a revision, a part judged superseded at 0.87 over the
+/// bytes was named at 0.35 over the run, then located on a task at 0.92, and held).
+#[tokio::test]
+async fn a_part_named_in_the_run_below_its_confidence_is_stated_never_asked_why() {
+    let observation = observed(true, true);
+    let seat = Seated::new([
+        ("verify-request", Ok("unfaithful")),
+        ("verify-part-0", Ok("carried")),
+        ("verify-part-1", Ok("superseded")),
+        ("verify-part-2", Ok("carried")),
+        ("verify-observed", Ok("part-1")),
+    ])
+    .weighing("verify-request", 0.65)
+    .weighing("verify-part-1", 0.87)
+    .weighing("verify-observed", 0.35);
+    let request = CompileRequest::create(ORDERS);
+    let judge = Judge::<Scripted>::Seat(&seat);
+    let Judged { verdict, .. } =
+        judged(ORDERS, &request, CANDIDATE, &judge, Some(&observation)).await;
+    let asked = [
+        "verify-request",
+        "verify-part-0",
+        "verify-part-1",
+        "verify-part-2",
+        "verify-observed",
+    ];
+    assert_eq!(ids(&verdict), asked);
+    assert_eq!(verdict.settled_by, Some("verify-parts"));
+    assert!(verdict.defects.is_empty() && !verdict.rejected());
+    let said = verdict.stated.as_deref().unwrap_or_default();
+    let named = format!(
+        "judged « {} » missing in the trial run (reported at 0.35)",
+        ORDER_PARTS[1]
+    );
+    assert!(said.contains(&named), "{said}");
+    assert_eq!(seat.left(), 0);
+}
+
+/// An open part asked again over the run, judged « missing » there weighed below its confidence,
+/// decides nothing either: no task is asked over the run, nothing is declined, and the part stays
+/// open, the request held (2026-10-11).
+#[tokio::test]
+async fn an_open_part_shown_missing_below_its_confidence_stays_open() {
+    let observation = observed(true, true);
+    let seat = Seated::new([
+        ("verify-request", Ok("unfaithful")),
+        ("verify-part-0", Ok("none")),
+        ("verify-part-1", Ok("carried")),
+        ("verify-part-2", Ok("carried")),
+        ("verify-observed-part-0", Ok("missing")),
+    ])
+    .weighing("verify-request", 0.65)
+    .weighing("verify-observed-part-0", 0.5);
+    let request = CompileRequest::create(ORDERS);
+    let judge = Judge::<Scripted>::Seat(&seat);
+    let Judged { verdict, .. } =
+        judged(ORDERS, &request, CANDIDATE, &judge, Some(&observation)).await;
+    let asked = ids(&verdict);
+    assert!(
+        !asked.contains(&"verify-observed-part-0-point"),
+        "{asked:?}"
+    );
+    assert_eq!(verdict.unknown, [ORDER_PARTS[0]]);
+    assert_eq!(verdict.settled_by, None);
+    assert!(!verdict.rejected());
+    assert_eq!(seat.left(), 0);
+}

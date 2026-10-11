@@ -373,18 +373,21 @@ pub fn closed_choice(question: &ChoiceQuestion) -> (Vec<Message>, Value) {
     )
 }
 
-/// The sole final Text of a completed answer; separate Thinking is never answer material.
-/// All other block kinds and multiple Text blocks refuse the projection without changing the
-/// response, its observation or its usage. An empty Text still has to pass the caller's decoder.
+/// The sole final Text of a completed answer; separate Thinking, and the reasoning state a
+/// provider asks back, are never answer material. All other block kinds and multiple Text
+/// blocks refuse the projection without changing the response, its observation or its usage.
+/// An empty Text still has to pass the caller's decoder.
 #[must_use]
 pub fn answer_text(response: &nika_kernel::ai::provider::InferResponse) -> Option<&str> {
     if response.stop_reason != StopReason::EndTurn {
         return None;
     }
-    let mut blocks = response
-        .content
-        .iter()
-        .filter(|block| !matches!(block, ContentBlock::Thinking { .. }));
+    let mut blocks = response.content.iter().filter(|block| {
+        !matches!(
+            block,
+            ContentBlock::Thinking { .. } | ContentBlock::Reasoning { .. }
+        )
+    });
     match (blocks.next(), blocks.next()) {
         (Some(ContentBlock::Text { text }), None) => Some(text),
         _ => None,

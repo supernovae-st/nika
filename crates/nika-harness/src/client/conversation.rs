@@ -14,7 +14,7 @@
 //! that is no message or a turn that outlives its allowance ends the conversation: the turn in
 //! flight receives the error and every later prompt is refused.
 
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -123,8 +123,9 @@ struct Turn {
     /// The Stops received, and whether `session/cancel` went out.
     stops: u32,
     cancel_sent: bool,
-    /// The agent's tool calls begun and not yet completed or failed.
-    open: BTreeSet<String>,
+    /// The agent's tool calls begun and not yet completed or failed, each with the offered tool
+    /// its frames named, when they named one: what an ask about the call by its id alone is for.
+    open: BTreeMap<String, Option<String>>,
     allowed: u32,
     denied: Vec<String>,
 }
@@ -138,7 +139,7 @@ impl Turn {
             deadline: Deadline::start(idle),
             stops: 0,
             cancel_sent: false,
-            open: BTreeSet::new(),
+            open: BTreeMap::new(),
             allowed: 0,
             denied: Vec::new(),
         }
@@ -149,10 +150,12 @@ impl Turn {
         (self.open.is_empty() || self.cancel_sent).then(|| (self.deadline, self.progress.clone()))
     }
 
-    /// A tool call began, changed or ended, as the agent reported its status.
-    fn track(&mut self, update: &Value) {
+    /// A tool call began, changed or ended, as the agent reported its status; the offered tool
+    /// the frame names, if any, which an open call keeps while its frames name no other.
+    fn track(&mut self, update: &Value, offer: &ToolOffer) -> Option<String> {
+        let named = law::nika_tool(update, offer);
         let Some(id) = update.get("toolCallId").and_then(Value::as_str) else {
-            return;
+            return named;
         };
         let status = update.get("status").and_then(Value::as_str);
         let first = update.get("sessionUpdate").and_then(Value::as_str) == Some("tool_call");
@@ -162,14 +165,22 @@ impl Turn {
             Some("completed" | "failed") => {
                 self.open.remove(id);
             }
-            Some(_) => {
-                self.open.insert(id.to_owned());
-            }
+            Some(_) => self.keep(id, update, named.clone()),
             None => {
                 if first {
-                    self.open.insert(id.to_owned());
+                    self.keep(id, update, named.clone());
                 }
             }
+        }
+        named
+    }
+
+    /// Keep the call `id` open, as the offered tool `named` when `frame` says which tool it is;
+    /// a frame that does not keeps what the call was announced as.
+    fn keep(&mut self, id: &str, frame: &Value, named: Option<String>) {
+        let kept = self.open.entry(id.to_owned()).or_default();
+        if law::names_tool(frame) {
+            *kept = named;
         }
     }
 
@@ -404,14 +415,14 @@ where
             }
             (Some("agent_thought_chunk"), Some(text)) => Some(TurnEvent::Thought { text }),
             (Some("tool_call" | "tool_call_update"), _) => {
-                turn.track(&update);
+                let nika_tool = turn.track(&update, offer);
                 (update.get("toolCallId").and_then(Value::as_str)).map(|id| TurnEvent::Tool {
                     tool_call_id: id.to_owned(),
                     status: update
                         .get("status")
                         .and_then(Value::as_str)
                         .map(str::to_owned),
-                    nika_tool: law::nika_tool(&update, offer),
+                    nika_tool,
                 })
             }
             _ => None,
@@ -424,7 +435,8 @@ where
 
     /// Answer a permission by the conversation's law: one of Nika's offered tools is allowed
     /// once, anything else (another session's ask, an ask outside a turn) is rejected; both
-    /// are told to the turn and recorded.
+    /// are told to the turn and recorded. An ask by the call's id alone is for the open call
+    /// the agent announced under that id.
     async fn permission(
         &mut self,
         session: &str,
@@ -434,7 +446,9 @@ where
         params: Value,
     ) -> Result<(), HarnessError> {
         let ask: wire::PermissionRequestIn = parse_payload(params, "session/request_permission")?;
-        let nika_tool = law::nika_tool(&ask.tool_call, offer);
+        let announced = (turn.as_deref().zip(law::referenced(&ask.tool_call)))
+            .and_then(|(current, call)| current.open.get(call).cloned().flatten());
+        let nika_tool = law::nika_tool(&ask.tool_call, offer).or(announced);
         let allowed = nika_tool.is_some() && ask.session_id == session && turn.is_some();
         let result = law::answer(allowed, &ask.options);
         let line = wire::response_line(id, &result).map_err(session_err)?;
@@ -446,7 +460,9 @@ where
         let tool = law::asked_tool(&ask.tool_call);
         if allowed {
             turn.allowed = turn.allowed.saturating_add(1);
-            turn.open.extend(call.map(str::to_owned));
+            if let Some(call) = call {
+                turn.open.insert(call.to_owned(), nika_tool.clone());
+            }
         } else {
             turn.denied
                 .push(tool.clone().unwrap_or_else(|| "(unnamed)".to_owned()));

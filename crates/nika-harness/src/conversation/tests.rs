@@ -170,6 +170,84 @@ fn only_an_offered_tool_on_nikas_server_is_nikas() {
     );
 }
 
+/// codex-acp 1.13.1's announcement of an MCP call (`createMcpToolCallUpdate`): the server and
+/// tool Codex 0.156.1 routed it to.
+fn codex_call(server: &str, tool: &str) -> Value {
+    json!({"sessionUpdate": "tool_call", "toolCallId": "call_1", "kind": "execute",
+        "title": format!("mcp.{server}.{tool}"), "status": "in_progress",
+        "rawInput": {"server": server, "tool": tool, "arguments": {}},
+        "_meta": {"is_mcp_tool_call": true}})
+}
+
+/// codex-acp 1.13.1's ask about an MCP call it could not tie to its announcement
+/// (`buildMcpPermissionRequest`): the server and Codex's own question.
+fn codex_question(server: &str, question: &str) -> Value {
+    json!({"toolCallId": format!("elicitation:s-1:{server}:1"), "kind": "execute",
+        "status": "pending", "title": "MCP tool call approval",
+        "content": [{"type": "content", "content": {"type": "text", "text": question}}],
+        "rawInput": {"serverName": server, "description": question,
+            "schema": {"type": "object", "properties": {}}}})
+}
+
+/// codex-acp names an MCP call by the server and tool Codex routed it to, never by a name: the
+/// call is Nika's only when that server is Nika's and the tool one it offers. A call that gives
+/// a name is judged by the name alone.
+#[test]
+fn codex_acp_names_a_call_by_its_server_and_tool() {
+    let ours = |call: &Value| nika_tool(call, &offer());
+    assert_eq!(ours(&codex_call("nika", "check")).as_deref(), Some("check"));
+    let asked = codex_question("nika", "Allow the nika MCP server to run tool \"check\"?");
+    assert_eq!(ours(&asked).as_deref(), Some("check"));
+    let mut unmarked = codex_call("nika", "check");
+    unmarked["_meta"] = json!({});
+    let mut named = codex_call("nika", "check");
+    named["name"] = json!("Bash");
+    for foreign in [
+        codex_call("nika", "trial"),
+        codex_call("other", "check"),
+        codex_call("nikax", "check"),
+        unmarked,
+        named,
+        codex_question("other", "Allow the other MCP server to run tool \"check\"?"),
+        codex_question("nika", "Allow the other MCP server to run tool \"check\"?"),
+        codex_question(
+            "nika",
+            "Allow the nika MCP server to run tool \"check\" now?",
+        ),
+        json!({"title": "MCP tool call approval", "rawInput": {"serverName": "nika"}}),
+        json!({"toolCallId": "call_1", "kind": "execute", "status": "pending"}),
+    ] {
+        assert_eq!(ours(&foreign), None, "{foreign}");
+    }
+    assert!(names_tool(&codex_call("other", "check")) && names_tool(&json!({"name": "Bash"})));
+    let completed = json!({"toolCallId": "call_1", "status": "completed",
+        "rawInput": {"server": "nika", "tool": "check"}});
+    assert!(
+        !names_tool(&completed),
+        "a status names no tool: {completed}"
+    );
+}
+
+/// An ask refers to a call the agent announced only when it says nothing but the call's id, its
+/// kind and its status, as codex-acp asks about the MCP call it announced; anything more is
+/// judged by what it says.
+#[test]
+fn only_an_ask_by_id_alone_refers_to_an_announced_call() {
+    let bare = json!({"toolCallId": "call_1", "kind": "execute", "status": "pending"});
+    assert_eq!(referenced(&bare), Some("call_1"));
+    assert_eq!(referenced(&json!({"toolCallId": "call_1"})), Some("call_1"));
+    for said in [
+        json!({"toolCallId": "call_1", "kind": "execute", "status": "pending", "title": "Run"}),
+        json!({"toolCallId": "call_1", "_meta": {"claudeCode": {"toolName": "Bash"}}}),
+        json!({"toolCallId": "call_1", "rawInput": {}}),
+        json!({"kind": "execute", "status": "pending"}),
+        json!({"toolCallId": 7}),
+        json!("call_1"),
+    ] {
+        assert_eq!(referenced(&said), None, "{said}");
+    }
+}
+
 fn options(kinds: &[(&str, &str)]) -> Vec<PermissionOptionIn> {
     let listed: Vec<Value> = (kinds.iter())
         .map(|(id, kind)| json!({"optionId": id, "kind": kind, "name": id}))

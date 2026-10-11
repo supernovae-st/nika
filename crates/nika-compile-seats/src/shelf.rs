@@ -8,7 +8,10 @@
 //! these names at their historical paths.
 
 use nika_compile::{HitKind, surface::sha256};
+use nika_compile_reader::plan::Plan;
 use serde_json::{Value, json};
+
+pub(crate) mod trims;
 
 /// One reference the seat received, as it was sent.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -38,8 +41,30 @@ impl Reference {
     }
 }
 
+/// What a feed's dates are, which the stdlib pages show only by example: the engine normalizes
+/// every feed date to RFC 3339 with an explicit offset (`nika-extract`'s feed mode), whatever
+/// format the feed used. Stated here until the extract-modes page states it (amended 2026-10-10:
+/// an author filtered `published` as RSS text and kept nothing; an item dated only by its
+/// revision carries `updated`).
+const FEED_DATES: &str = "Feed dates (the feed's `updated`, each item's `published`, and an item's `updated` when the source dates a revision of its own) are RFC 3339 instants with an explicit offset (`2026-05-22T10:00:00+00:00`), whatever format the feed itself used (an RSS `pubDate`, Atom, JSON Feed). An Atom entry or a JSON Feed item may carry only `updated`, and an item without a date carries neither: read an item's date as `published // updated`. Compare them as instants: jq's `fromdateiso8601` reads them, and `nika:date` computes a bound (`op: now`, then `op: format` with `%Y-%m-%d`, or `op: subtract` with an ISO 8601 `duration`).";
+
+/// What a JSON API needs from `nika:fetch`, which its section states only as the default mode
+/// and a table row (amended 2026-10-11: an author fetched a JSON API with the default `markdown`
+/// and parsed no JSON).
+const JSON_API: &str = "A JSON API answers JSON: fetch it with `mode: jq` and a `jq:` expression (`.` for the whole response), which returns a JSON value, or with `mode: raw`, which returns the body text for `nika:jq` to read with `fromjson`. The default `markdown` returns a Markdown string for HTML pages, never a JSON value.";
+
+/// How `nika:date` shifts an instant, which its section does not state (amended 2026-10-11: a day
+/// added across a DST change measured 25 hours).
+const DATE_SPANS: &str = "`op: add` and `op: subtract` take `tz:` too (IANA, default UTC) and apply the ISO 8601 `duration` in that zone's calendar: `P1D` is the same local time on the next calendar day, 23 or 25 hours later across a DST change, while `PT24H` is exactly 24 hours.";
+
+/// The law every `nika:jq` program meets, which its section does not state (amended 2026-10-11: a
+/// program emitting a stream of values failed).
+const JQ_ONE_VALUE: &str = "A program must emit exactly one value: a stream (`.[] | select(…)`) fails `NIKA-BUILTIN-JQ-001`, so wrap it in `[ … ]`; one emitting nothing fails too, and `([ … ] + [null])[0]` gives its first value or null.";
+
 /// The stdlib sections of the callables a candidate may reach: the builtins named in the
-/// references plus the everyday set, each cut from the embedded page at its own heading.
+/// references plus the everyday set, each cut from the embedded page at its own heading;
+/// `nika:fetch` with what each mode returns (`fetch_outputs`), `nika:date` with how it shifts an
+/// instant and `nika:jq` with its one-value law.
 #[must_use]
 pub fn callables(names: &[String]) -> Vec<Reference> {
     let Some(page) = nika_pack::doc("stdlib/builtins-v0.1.md") else {
@@ -58,14 +83,39 @@ pub fn callables(names: &[String]) -> Vec<Reference> {
             .map_or(rest.len(), |at| at + heading.len());
         // The whole section: an argument table cut mid-way reads complete and is not.
         let section = rest[..end].trim();
-        out.push(Reference::new(format!("nika:{name}"), "callable", section));
+        let text = match name.as_str() {
+            "fetch" => fetch_outputs(section),
+            "date" => format!("{section}\n\n{DATE_SPANS}"),
+            "jq" => format!("{section}\n\n{JQ_ONE_VALUE}"),
+            _ => section.to_owned(),
+        };
+        out.push(Reference::new(format!("nika:{name}"), "callable", text));
     }
     out
 }
 
+/// The `nika:fetch` contract with what each `mode:` returns, which its section only points to:
+/// the extract-modes page's table, what a JSON API needs, its whole feed section, then the feed
+/// dates' format.
+fn fetch_outputs(section: &str) -> String {
+    let Some(page) = nika_pack::doc("stdlib/extract-modes-v0.1.md") else {
+        return format!("{section}\n\n{JSON_API}\n\n{FEED_DATES}");
+    };
+    let cut = |start: &str, end: &str| {
+        let at = page.find(start)?;
+        let stop = page[at..].find(end).map_or(page.len(), |len| at + len);
+        Some(page[at..stop].trim())
+    };
+    let table = cut("| Mode | Output type | Use case |", "\n\n").unwrap_or_default();
+    let feed = cut("### `feed`", "\n---").unwrap_or_default();
+    format!(
+        "{section}\n\n#### What each `mode:` returns\n\n{table}\n\n{JSON_API}\n\n{feed}\n\n{FEED_DATES}"
+    )
+}
+
 /// The everyday builtins every native call receives, before the ones the references name.
 pub const EVERYDAY: &[&str] = &[
-    "read", "write", "glob", "jq", "convert", "prompt", "fetch", "notify",
+    "read", "write", "glob", "jq", "convert", "prompt", "fetch", "notify", "date",
 ];
 
 /// The references recall returns for the request, expanded just in time: the lean source of
@@ -116,7 +166,24 @@ pub fn references(intent: &str, skeletons: usize) -> Vec<Reference> {
 /// deduplicated in that order.
 #[must_use]
 pub fn builtins_of(references: &[Reference]) -> Vec<String> {
-    let mut names: Vec<String> = EVERYDAY.iter().map(|s| (*s).to_owned()).collect();
+    named_after(EVERYDAY, references)
+}
+
+/// [`builtins_of`] for a request the reader read as `plan` (amended 2026-10-10): a build with
+/// the prompt trims (`unstable-prompt-trims`, off by default) narrows the everyday set to what
+/// the plan's typed operations and effects reach (`trims::reached`); any other build keeps it.
+#[must_use]
+pub fn builtins_for(references: &[Reference], plan: &Plan) -> Vec<String> {
+    if trims::ON {
+        named_after(&trims::reached(plan), references)
+    } else {
+        builtins_of(references)
+    }
+}
+
+/// `everyday`, then every builtin the references name that it lacks.
+fn named_after(everyday: &[&str], references: &[Reference]) -> Vec<String> {
+    let mut names: Vec<String> = everyday.iter().map(|s| (*s).to_owned()).collect();
     let sources = references
         .iter()
         .filter(|r| matches!(r.kind, "skeleton" | "block" | "example"));
@@ -230,5 +297,57 @@ impl crate::foundry::ComponentCatalog for Templates {
             id: id.to_owned(),
             text: nika_pack::lean(source).to_owned(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DATE_SPANS, EVERYDAY, JQ_ONE_VALUE, JSON_API, callables};
+
+    /// The `nika:fetch` contract carries what each mode returns and the feed dates' format: an
+    /// author reading it knows a feed item's `published` is an RFC 3339 instant, never the
+    /// feed's own text; `nika:date` is among the everyday contracts that compute a bound.
+    #[test]
+    fn the_fetch_contract_carries_each_mode_s_output_and_the_feed_dates() {
+        let cut = callables(&["fetch".to_owned(), "date".to_owned()]);
+        let fetch = &cut[0].text;
+        assert!(fetch.starts_with("### `nika:fetch`"), "{fetch}");
+        assert!(
+            fetch.contains("| `feed` | object (parsed feed) |"),
+            "{fetch}"
+        );
+        assert!(fetch.contains("\"published\": "), "{fetch}");
+        assert!(fetch.contains("`published // updated`"), "{fetch}");
+        assert!(
+            fetch.contains(
+                "RFC 3339 instants with an explicit offset (`2026-05-22T10:00:00+00:00`)"
+            ),
+            "{fetch}"
+        );
+        assert!(
+            cut[1].text.starts_with("### `nika:date`"),
+            "{}",
+            cut[1].text
+        );
+        assert!(EVERYDAY.contains(&"date"));
+    }
+
+    /// The `nika:date`, `nika:jq` and `nika:fetch` contracts carry what runs measured: a day
+    /// shifted in a zone's calendar, one value per program, and the mode a JSON API needs.
+    #[test]
+    fn the_date_jq_and_fetch_contracts_carry_what_runs_measured() {
+        let cut = callables(&["date".to_owned(), "jq".to_owned(), "fetch".to_owned()]);
+        let ids: Vec<&str> = cut.iter().map(|reference| reference.id.as_str()).collect();
+        assert_eq!(ids, ["nika:date", "nika:jq", "nika:fetch"]);
+        assert!(
+            cut[0].text.starts_with("### `nika:date`"),
+            "{}",
+            cut[0].text
+        );
+        assert!(cut[0].text.ends_with(DATE_SPANS), "{}", cut[0].text);
+        assert!(cut[1].text.ends_with(JQ_ONE_VALUE), "{}", cut[1].text);
+        let fetch = &cut[2].text;
+        let table = fetch.find("| `raw` |").zip(fetch.find(JSON_API));
+        assert!(table.is_some_and(|(row, note)| row < note), "{fetch}");
     }
 }

@@ -230,3 +230,15 @@ fn a_reply_cannot_forge_a_line_of_the_transcript() {
         "the person, the call and its one reply: {lines:?}"
     );
 }
+
+/// A block the estimate does not name weighs its serialized size, never nothing.
+#[test]
+fn a_block_the_estimate_does_not_name_still_weighs() {
+    let image = ContentBlock::Image {
+        source: "cas:0123456789abcdef".into(),
+        detail: None,
+    };
+    let wire = serde_json::to_string(&image).unwrap();
+    assert_eq!(block_len(&image), wire.len());
+    assert!(block_len(&image) > 0);
+}

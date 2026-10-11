@@ -15,7 +15,7 @@ pub(super) use nika_compile::surface::sha256;
 /// The references a seat reads and the Foundry fold, owned with the seats (ADR-146 descent).
 pub(super) use nika_compile_seats::foundry::{folded, qualified_with, reused, traced};
 pub(super) use nika_compile_seats::shelf::{
-    Reference, builtins_of, callables, references, rendered,
+    Reference, builtins_for, callables, references, rendered,
 };
 
 /// The identity every native call is stamped with: the engine, the embedded language pack,
@@ -35,12 +35,13 @@ use nika_compile::surface::spec_pin;
 /// The compiler-owned authoring card: local fidelity laws, language summary
 /// and emitted shapes. It is versioned with this engine, independently from
 /// the canonical Spec pack; every call records its actual digest.
-pub(super) fn card() -> &'static str {
+#[must_use]
+pub fn card() -> &'static str {
     include_str!("../../assets/native_authoring_card.md")
 }
 
 /// The engine's output conventions sent after its authoring card.
-pub(super) const CONVENTIONS: &str = include_str!("../../assets/native_output_conventions.md");
+pub const CONVENTIONS: &str = include_str!("../../assets/native_output_conventions.md");
 
 /// The catalog's output facts for the workflow model the human already answered, sent in the
 /// opening so the seat sizes a default `max_tokens` before it writes a candidate (the card
@@ -162,7 +163,7 @@ mod tests {
             skeletons[0].text
         );
         assert!(refs.iter().any(|r| r.kind == "family"));
-        let names = builtins_of(&refs);
+        let names = nika_compile_seats::shelf::builtins_of(&refs);
         assert!(names.iter().any(|n| n == "read") && names.iter().any(|n| n == "jq"));
         let row = refs[0].receipt();
         assert_eq!(row["sha256"].as_str().map(str::len), Some(64));

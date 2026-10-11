@@ -484,7 +484,7 @@ impl ProviderReasoner {
                 })
             })
             .transpose()?;
-        let http = provider_http_for(admission.is_some()).map_err(ReasonError::Provider)?;
+        let http = provider_http().map_err(ReasonError::Provider)?;
         let mut registry = nika_providers::ProviderRegistry::new(Arc::new(http), provider_config());
         if let Some(a) = admission {
             registry = registry.with_inference_admission(a.clone());
@@ -541,7 +541,16 @@ const PROVIDER_TRANSPORT_CEILING: std::time::Duration = std::time::Duration::fro
 ///
 /// The TLS backend would not initialize.
 pub(crate) fn provider_http() -> Result<ProviderHttp, String> {
-    provider_http_for(false)
+    let mut config = nika_http::HttpConfig::default();
+    config.ssrf = nika_http::SsrfMode::Disabled;
+    // One physical attempt per post: a provider call is never re-sent by the transport, not
+    // even on a protocol NACK (the money admission's contract).
+    config.retry_protocol_nacks = false;
+    config.timeout = PROVIDER_TRANSPORT_CEILING;
+    let http = nika_http::ReqwestHttp::with_config(config).map_err(|e| e.to_string())?;
+    #[cfg(any(test, feature = "test-support"))]
+    let http = test_transport::Client::new(http);
+    Ok(Wire::new(http, Arc::new(Envelope::uncapped(""))))
 }
 
 /// The providers configuration every reasoner and the provider authoring seat read: the
@@ -555,17 +564,6 @@ pub fn provider_config() -> nika_providers::ProvidersConfig {
         return config;
     }
     nika_runtime::compose::config_from_env()
-}
-
-pub(crate) fn provider_http_for(bounded: bool) -> Result<ProviderHttp, String> {
-    let mut config = nika_http::HttpConfig::default();
-    config.ssrf = nika_http::SsrfMode::Disabled;
-    config.retry_protocol_nacks = !bounded && !PreparationCosts::active();
-    config.timeout = PROVIDER_TRANSPORT_CEILING;
-    let http = nika_http::ReqwestHttp::with_config(config).map_err(|e| e.to_string())?;
-    #[cfg(any(test, feature = "test-support"))]
-    let http = test_transport::Client::new(http);
-    Ok(Wire::new(http, Arc::new(Envelope::uncapped(""))))
 }
 
 /// The text of an infer output — the text as is, a structured answer as JSON.

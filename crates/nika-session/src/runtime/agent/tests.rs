@@ -80,3 +80,54 @@ fn a_call_between_turns_reaches_no_capability() {
     assert!(toolbox.with(|c| c.questions().is_empty()));
     assert_eq!(toolbox.end(), Decided::default());
 }
+
+/// A priced route lends the conversation its tariff's context window; a route no tariff prices,
+/// or no route at all, lends none.
+#[test]
+fn a_priced_route_lends_the_conversation_its_context_window() {
+    let window = super::route_window("deepseek/deepseek-v4-pro").expect("a priced route");
+    let tariff = nika_catalog::admission::InferenceTariff::new(
+        "deepseek",
+        "deepseek-v4-pro",
+        "https://api.deepseek.com/v1/chat/completions",
+    );
+    let tokens = tariff.map(|tariff| tariff.context_tokens);
+    assert_eq!(Some(window.tokens), tokens);
+    assert!(window.reserve > 0 && window.reserve < window.tokens);
+    assert!(super::route_window("ollama/llama3.2").is_none());
+    assert!(super::route_window("no-route").is_none());
+}
+
+/// The words of `resolutions` go out once per call, in `candidate_write`'s schema;
+/// `candidate_edit` and `compose` carry its structure alone.
+#[test]
+fn the_resolution_words_are_sent_once() {
+    let defs = tools::definitions();
+    let sent: String = defs.iter().map(|t| t.input_schema.to_string()).collect();
+    let kinds = sent
+        .matches("named: a public source the person named")
+        .count();
+    assert_eq!(kinds, 1, "the words once");
+    let edit = defs.iter().find(|t| t.name == "candidate_edit");
+    let rows = edit.map(|t| t.input_schema["properties"]["resolutions"].clone());
+    let required = rows.map(|rows| rows["items"]["required"].clone());
+    assert_eq!(required, Some(json!(["value", "kind", "role", "message"])));
+}
+
+/// The author reads the language and an index up front, never the compiler's role or answer.
+#[test]
+fn the_instructions_carry_the_language_and_an_index() {
+    let told = instructions("deepseek/deepseek-flash");
+    assert!(told.contains("# The language in one page"), "the language");
+    assert!(told.contains("# Output conventions"), "its conventions");
+    assert!(
+        !told.contains("# Your answer"),
+        "never the compiler's answer"
+    );
+    let keys = told
+        .lines()
+        .find_map(|line| line.strip_prefix("- schema keys: "));
+    let envelope = "const, inputs, model, nika, outputs, permits, run, secrets, tasks";
+    assert_eq!(keys, Some(envelope), "the schema keys");
+    assert!(index().len() < 3_000, "the index stays short");
+}

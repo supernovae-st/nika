@@ -11,6 +11,7 @@
 //! repeats the previous one exactly, reply included, is said so to the model, never stopped.
 //! Every entry reaches the Session's file before the tree takes it.
 
+use std::collections::VecDeque;
 use std::io;
 
 use nika_kernel::CancelCtx;
@@ -20,6 +21,7 @@ use nika_session_change::tools::{SessionTools, ToolCall, ToolReply};
 use serde_json::Value;
 
 use crate::compact::{self, Window};
+use crate::context_edit::Stubs;
 use crate::event::{AgentEvent, End};
 use crate::steer::{QueueMode, Queued, Steering};
 use crate::tree::{EntryId, EntryKind, Tree, TreeError, calls};
@@ -33,6 +35,22 @@ const REPEATED: &str = "\n\n(Nika: this call and its reply repeat the previous c
 
 /// Why a call after a steering line is not run.
 const STEERED: &str = "Not run: the person wrote meanwhile; read their message first.";
+
+/// The one tool whose consecutive calls run side by side: it reads a public page, nothing else.
+const OBSERVE: &str = "observe";
+
+/// Whether a call hands the turn to the person or replaces their request: a steering line the
+/// author has not read holds it back, while candidate and read-only calls still run.
+fn hands_over(name: &str) -> bool {
+    matches!(name, "ask" | "propose" | "new_request")
+}
+
+/// What each call of a message cut at the output limit reads: none of them runs.
+const CUT: &str = "Not run: your message was cut at the output limit; re-issue the call with \
+complete arguments.";
+
+/// What the person reads under an answer cut at the output limit.
+const CUT_ANSWER: &str = "\n… (this answer was cut at the output limit)";
 
 /// One request: the instructions, the conversation and the tools the model may call.
 #[derive(Clone, Debug)]
@@ -426,6 +444,8 @@ impl<'a> Agent<'a> {
     }
 
     fn turns(&mut self, model: &mut dyn Model, events: &mut dyn FnMut(AgentEvent)) -> Outcome {
+        // What this run reads of earlier work as stubs, fixed now: never edited mid-run.
+        let stubs = Stubs::of(&self.tree.context().messages);
         let mut turn: u32 = 0;
         let mut last: Option<(String, Value, String)> = None;
         let mut asked_again = false;
@@ -440,7 +460,7 @@ impl<'a> Agent<'a> {
             }
             turn = turn.saturating_add(1);
             events(AgentEvent::TurnStart { turn });
-            let reply = match model.complete(&self.request(), events) {
+            let reply = match model.complete(&self.request(&stubs), events) {
                 Ok(reply) => reply,
                 Err(ModelError::Stopped) => return self.stop(StopReach::RequestDropped),
                 Err(ModelError::Failed(why)) => {
@@ -449,6 +469,8 @@ impl<'a> Agent<'a> {
                     };
                 }
             };
+            // A message cut at the output limit runs none of its calls; its answer says so.
+            let cut = matches!(reply.stop, StopReason::MaxTokens);
             let (text, calls) = match self.record_reply(reply, events) {
                 Ok(recorded) => recorded,
                 Err(error) => return Outcome::Failed { error },
@@ -474,11 +496,15 @@ impl<'a> Agent<'a> {
                         }
                         continue;
                     }
+                    Ok(false) if cut => {
+                        let text = format!("{text}{CUT_ANSWER}");
+                        return Outcome::Answered { text };
+                    }
                     Ok(false) => return Outcome::Answered { text },
                     Err(error) => return Outcome::Failed { error },
                 }
             }
-            match self.run_calls(&calls, &mut last, events) {
+            match self.run_calls(&calls, cut, &mut last, events) {
                 Ok(Some((call, name))) => {
                     let queued = pairs(&self.steering.drain());
                     return Outcome::Parked { call, name, queued };
@@ -511,8 +537,9 @@ impl<'a> Agent<'a> {
     }
 
     /// The request the model reads now: the branch's context and the Session's tools.
-    fn request(&self) -> Request {
-        let context = self.tree.context();
+    fn request(&self, stubs: &Stubs) -> Request {
+        let mut context = self.tree.context();
+        stubs.apply(&mut context.messages);
         let tools = (self.tools.tools().into_iter())
             .map(|tool| ToolDef::new(tool.name, tool.description, tool.input_schema))
             .collect();
@@ -554,11 +581,13 @@ impl<'a> Agent<'a> {
     fn run_calls(
         &mut self,
         made: &[Call],
+        cut: bool,
         last: &mut Option<(String, Value, String)>,
         events: &mut dyn FnMut(AgentEvent),
     ) -> Result<Option<(String, String)>, AgentError> {
         let mut parked: Option<(String, String)> = None;
-        for (call, name, input) in made {
+        let mut ahead: VecDeque<ToolReply> = VecDeque::new();
+        for (k, (call, name, input)) in made.iter().enumerate() {
             if parked.is_none() && self.cancel.is_cancelled() {
                 break;
             }
@@ -567,7 +596,10 @@ impl<'a> Agent<'a> {
                     "Not run: the turn ended on `{by}`, which waits for the person's answer; \
                      call it again afterwards if it is still needed."
                 )),
-                None if self.steering.pending(QueueMode::Steer) => Some(STEERED.to_owned()),
+                None if cut => Some(CUT.to_owned()),
+                None if self.steering.pending(QueueMode::Steer) && hands_over(name) => {
+                    Some(STEERED.to_owned())
+                }
                 None => None,
             };
             if let Some(reason) = skip {
@@ -585,8 +617,19 @@ impl<'a> Agent<'a> {
                 call: call.clone(),
                 name: name.clone(),
             });
-            let asked = ToolCall::new(name.clone(), input.clone()).with_meta(call.clone());
-            let mut reply = self.tools.call(asked);
+            let mut reply = match ahead.pop_front() {
+                Some(reply) => reply,
+                None if name == OBSERVE => {
+                    let run = made.get(k..).unwrap_or_default();
+                    let len = run.iter().take_while(|(_, n, _)| n == OBSERVE).count();
+                    ahead = self.observe_all(run.get(..len).unwrap_or_default());
+                    (ahead.pop_front()).unwrap_or_else(|| ToolReply::error("nothing observed"))
+                }
+                None => {
+                    let asked = ToolCall::new(name.clone(), input.clone()).with_meta(call.clone());
+                    self.tools.call(asked)
+                }
+            };
             events(AgentEvent::ToolEnd {
                 call: call.clone(),
                 name: name.clone(),
@@ -607,6 +650,29 @@ impl<'a> Agent<'a> {
             }
         }
         Ok(parked)
+    }
+
+    /// Consecutive observations of one message, side by side: each reads one public page and no
+    /// conversation state. Their replies come back in the message's order.
+    fn observe_all(&self, run: &[Call]) -> VecDeque<ToolReply> {
+        let tools = self.tools;
+        std::thread::scope(|scope| {
+            let handles: Vec<_> = (run.iter())
+                .map(|(call, name, input)| {
+                    let asked = ToolCall::new(name.clone(), input.clone()).with_meta(call.clone());
+                    std::thread::Builder::new()
+                        .name("nika-observe".to_owned())
+                        .spawn_scoped(scope, move || tools.call(asked))
+                })
+                .collect();
+            (handles.into_iter())
+                .map(|handle| match handle {
+                    Ok(running) => (running.join())
+                        .unwrap_or_else(|_| ToolReply::error("the observation stopped")),
+                    Err(why) => ToolReply::error(format!("the observation did not start: {why}")),
+                })
+                .collect()
+        })
     }
 
     /// Record the queued lines of `mode` as the person's lines; returns whether any entered.

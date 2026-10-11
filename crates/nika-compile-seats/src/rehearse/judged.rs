@@ -42,7 +42,7 @@ pub fn judged_run(
     let usage = usage_of(report);
     match end_of(report, inputs, targets, declared) {
         Ok(Ended::Observed(end)) => {
-            let run = Run::new(fixture, end, usage);
+            let run = Run::new(fixture, end, usage).with_flow(report.flow.clone());
             evidence(run, &report.observation, inputs, targets)
         }
         Ok(Ended::Bare(end)) => Run::new(fixture, end, usage),

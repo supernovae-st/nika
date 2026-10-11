@@ -47,6 +47,7 @@ use instructions::INSTRUCTIONS;
 mod backstops;
 mod forensic;
 pub(super) mod knowledge;
+pub use knowledge::{CONVENTIONS as OUTPUT_CONVENTIONS, card as authoring_card};
 mod native;
 pub use native::judge_document;
 mod proposal;

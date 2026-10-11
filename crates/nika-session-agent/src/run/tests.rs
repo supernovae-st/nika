@@ -3,6 +3,8 @@
 
 use std::collections::VecDeque;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
 use nika_kernel::provider::Role;
 use nika_session_change::tools::ToolDef as SessionToolDef;
@@ -63,6 +65,9 @@ impl Model for Script {
 struct Tools {
     calls: Mutex<Vec<ToolCall>>,
     hook: Box<dyn Fn(&ToolCall) + Send + Sync>,
+    /// The observations running now, and the most that ran at once.
+    observing: AtomicUsize,
+    most: AtomicUsize,
 }
 
 impl Tools {
@@ -74,6 +79,8 @@ impl Tools {
         Self {
             calls: Mutex::new(Vec::new()),
             hook: Box::new(hook),
+            observing: AtomicUsize::new(0),
+            most: AtomicUsize::new(0),
         }
     }
 
@@ -100,6 +107,13 @@ impl SessionTools for Tools {
         match call.name.as_str() {
             "read" => ToolReply::ok(format!("contents of {}", call.arguments["path"])),
             "ask" => ToolReply::ends_turn("asked q1"),
+            "observe" => {
+                let now = self.observing.fetch_add(1, Ordering::SeqCst) + 1;
+                self.most.fetch_max(now, Ordering::SeqCst);
+                std::thread::sleep(Duration::from_millis(80));
+                self.observing.fetch_sub(1, Ordering::SeqCst);
+                ToolReply::ok(format!("page of {}", call.arguments["url"]))
+            }
             other => ToolReply::error(format!("no tool `{other}`")),
         }
     }
@@ -122,6 +136,18 @@ fn calls_to(made: &[(&str, &str, &str)]) -> Result<Reply, ModelError> {
         })
         .collect();
     Ok(Reply::new(blocks, StopReason::ToolUse).with_usage(TokenUsage::new(10, 5)))
+}
+
+/// A message cut at the output limit while it wrote `name`'s arguments: the provider passes
+/// them on as the text they were.
+#[allow(clippy::unnecessary_wraps)]
+fn cut_call(id: &str, name: &str) -> Result<Reply, ModelError> {
+    let half = ContentBlock::ToolUse {
+        id: id.into(),
+        name: name.into(),
+        input: Value::String(r#"{"path": "a.ni"#.into()),
+    };
+    Ok(Reply::new(vec![half], StopReason::MaxTokens))
 }
 
 /// A message that only reasoned: no word and no call.
@@ -235,6 +261,121 @@ fn a_run_goes_on_until_the_model_answers_without_a_call() {
 
 /// No step, turn or call quota ends a run: only the model's answer does.
 #[test]
+fn a_message_cut_at_the_output_limit_runs_none_of_its_calls() {
+    let (mut tree, mut lines) = fresh();
+    let tools = Tools::new();
+    let cut_words = Reply::new(
+        vec![ContentBlock::Text {
+            text: "Le résumé est".into(),
+        }],
+        StopReason::MaxTokens,
+    );
+    let mut model = Script::new(vec![
+        cut_call("c1", "read"),
+        calls_to(&[("c2", "read", "a.nika")]),
+        Ok(cut_words),
+    ]);
+    let outcome =
+        Agent::new(&mut tree, &mut lines, &tools, &now).prompt("read it", &mut model, &mut |_| {});
+    // The cut call never ran; the author read why, and its complete call ran.
+    assert_eq!(tools.called(), [("read".into(), Some("c2".to_owned()))]);
+    let refused = last_results(&model.seen[1]);
+    assert_eq!(refused, [("c1".into(), CUT.into(), true)]);
+    let marked = format!("Le résumé est{CUT_ANSWER}");
+    assert!(matches!(&outcome, Outcome::Answered { text } if *text == marked));
+}
+
+/// Two candidate writes in one run, then a new person line: what the second run reads.
+fn writes_then_a_line(first: Vec<ContentBlock>) -> (Vec<serde_json::Value>, String) {
+    let (mut tree, mut lines) = fresh();
+    let tools = Tools::new();
+    let write = |id: &str, source: &str| ContentBlock::ToolUse {
+        id: id.into(),
+        name: "candidate_write".into(),
+        input: json!({"source": source}),
+    };
+    let mut second = first;
+    second.push(write("c2", "nika: second"));
+    let mut model = Script::new(vec![
+        Ok(Reply::new(
+            vec![write("c1", "nika: first")],
+            StopReason::ToolUse,
+        )),
+        Ok(Reply::new(second, StopReason::ToolUse)),
+        says("Written."),
+        says("Still here."),
+    ]);
+    let run = |tree: &mut Tree, lines: &mut Vec<String>, line: &str, model: &mut Script| {
+        Agent::new(tree, lines, &tools, &now).prompt(line, model, &mut |_| {})
+    };
+    assert!(matches!(
+        run(&mut tree, &mut lines, "write it", &mut model),
+        Outcome::Answered { .. }
+    ));
+    assert!(matches!(
+        run(&mut tree, &mut lines, "and now?", &mut model),
+        Outcome::Answered { .. }
+    ));
+    let read = model.seen.last().unwrap();
+    let inputs = (read.messages.iter())
+        .flat_map(|m| &m.content)
+        .filter_map(|block| match block {
+            ContentBlock::ToolUse { input, .. } => Some(input.clone()),
+            _ => None,
+        })
+        .collect();
+    (inputs, serde_json::to_string(tree.entries()).unwrap())
+}
+
+#[test]
+fn a_new_run_reads_a_superseded_candidate_as_a_stub_and_the_record_keeps_it() {
+    let (inputs, kept) = writes_then_a_line(Vec::new());
+    let stub = json!({"stub": crate::context_edit::SUPERSEDED});
+    assert_eq!(inputs, [stub, json!({"source": "nika: second"})]);
+    assert!(kept.contains("nika: first"), "the record keeps it whole");
+}
+
+#[test]
+fn nothing_before_a_replayed_thinking_block_is_stubbed() {
+    let thought = ContentBlock::Thinking {
+        text: "the second source".into(),
+    };
+    let (inputs, _) = writes_then_a_line(vec![thought]);
+    let whole = [
+        json!({"source": "nika: first"}),
+        json!({"source": "nika: second"}),
+    ];
+    assert_eq!(inputs, whole);
+}
+
+#[test]
+fn the_observations_of_one_message_run_side_by_side_in_its_order() {
+    let (mut tree, mut lines) = fresh();
+    let tools = Tools::new();
+    let observe = |id: &str, url: &str| ContentBlock::ToolUse {
+        id: id.into(),
+        name: "observe".into(),
+        input: json!({"url": url}),
+    };
+    let blocks = vec![
+        observe("c1", "https://a.example"),
+        observe("c2", "https://b.example"),
+        observe("c3", "https://c.example"),
+    ];
+    let mut model = Script::new(vec![
+        Ok(Reply::new(blocks, StopReason::ToolUse)),
+        says("Read."),
+    ]);
+    let outcome =
+        Agent::new(&mut tree, &mut lines, &tools, &now).prompt("observe", &mut model, &mut |_| {});
+    assert!(matches!(outcome, Outcome::Answered { .. }));
+    assert!(tools.most.load(Ordering::SeqCst) >= 2, "side by side");
+    let results = last_results(&model.seen[1]);
+    let order: Vec<&str> = results.iter().map(|(id, ..)| id.as_str()).collect();
+    assert_eq!(order, ["c1", "c2", "c3"]);
+}
+
+#[test]
 fn no_quota_ends_a_long_run() {
     let (mut tree, mut lines) = fresh();
     let tools = Tools::new();
@@ -313,7 +454,7 @@ fn a_steering_line_enters_after_the_current_call_and_the_rest_wait() {
         }
     });
     let mut model = Script::new(vec![
-        calls_to(&[("c1", "read", "a.nika"), ("c2", "read", "b.nika")]),
+        calls_to(&[("c1", "read", "a.nika"), ("c2", "ask", "b.nika")]),
         says("Adding Le Monde."),
     ]);
     let mut events = Vec::new();
@@ -351,6 +492,30 @@ fn a_steering_line_enters_after_the_current_call_and_the_rest_wait() {
         !steering.reading(),
         "the run closed its queue when it ended"
     );
+}
+
+#[test]
+fn a_steering_line_holds_back_only_the_calls_that_hand_the_turn_over() {
+    let (mut tree, mut lines) = fresh();
+    let steering = Steering::new();
+    let person = steering.clone();
+    let tools = Tools::with_hook(move |call| {
+        if call.meta.as_deref() == Some("c1") {
+            person
+                .steer("use Le Monde too")
+                .expect("the run reads its queue");
+        }
+    });
+    let mut model = Script::new(vec![
+        calls_to(&[("c1", "read", "a.nika"), ("c2", "read", "b.nika")]),
+        says("Adding Le Monde."),
+    ]);
+    let outcome = Agent::new(&mut tree, &mut lines, &tools, &now)
+        .with_steering(&steering)
+        .prompt("read both", &mut model, &mut |_| {});
+    assert!(matches!(outcome, Outcome::Answered { .. }));
+    // A read still runs; the person's line enters once the message's calls ran.
+    assert_eq!(tools.called().len(), 2);
 }
 
 #[test]

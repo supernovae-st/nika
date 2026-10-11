@@ -84,6 +84,14 @@ fn a_value_no_selection_covers_is_an_invented_literal() {
             .any(|r| r.starts_with("INVENTED LITERAL") && r.contains("news.ycombinator.com")),
         "{refusals:?}"
     );
+    // Each names the selection that answers it before any question (red before 2026-10-10).
+    assert!(
+        refusals
+            .iter()
+            .filter(|r| r.starts_with("INVENTED LITERAL"))
+            .all(|r| r.contains("state it in `resolutions` with those words")),
+        "{refusals:?}"
+    );
 }
 
 #[test]
@@ -200,4 +208,24 @@ fn a_reasoning_model_s_cap_too_small_for_its_answer_is_refused() {
             && !refusals[0].contains("thinking"),
         "{refusals:?}"
     );
+}
+
+/// A defect that stands across two revisions keeps its key; another subject is another key
+/// (the stuck-turn signal compares these, `fidelity::keys`, 2026-10-10).
+#[test]
+fn a_defect_that_stands_across_revisions_keeps_its_key() {
+    use nika_compile_fidelity::fidelity::keys;
+    let identities = |document: &str| -> Vec<String> {
+        (judge_document(DELEGATING, document, (&[], &[]), None).iter())
+            .map(|refusal| keys::finding("conversation", refusal))
+            .collect()
+    };
+    let first = identities(&digest(HACKER_NEWS, DIGEST));
+    assert!(
+        first.contains(&"conversation:invented-literal:./news/digest.md".to_owned()),
+        "{first:?}"
+    );
+    let renamed = digest(HACKER_NEWS, DIGEST).replace("summarize", "condense");
+    assert_eq!(identities(&renamed), first);
+    assert_ne!(identities(&digest(HACKER_NEWS, "./news/other.md")), first);
 }

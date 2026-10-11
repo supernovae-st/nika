@@ -26,6 +26,8 @@ use super::{
 use crate::registry::ResolvedProvider;
 
 const ANTHROPIC_VERSION: &str = "2023-06-01";
+/// The `wire` of the reasoning state this wire keeps and sends back.
+const WIRE: &str = "anthropic";
 const DEFAULT_MAX_TOKENS: u32 = 4096;
 
 /// Single-shot inference.
@@ -180,7 +182,9 @@ fn request_body(
                 content.push(v);
             }
         }
-        if !content.is_empty() {
+        // Thinking goes back only beside the rest of its turn, never alone.
+        let thinking = |v: &Value| v["type"].as_str().is_some_and(|t| t.ends_with("thinking"));
+        if !content.iter().all(thinking) {
             messages.push(json!({ "role": role, "content": content }));
         }
     }
@@ -394,8 +398,8 @@ fn push_tools(obj: &mut serde_json::Map<String, Value>, req: &InferRequest, name
     obj.insert("tool_choice".to_owned(), choice);
 }
 
-/// Kernel content block → Messages API block. `Ok(None)` = skipped
-/// (thinking blocks are model-internal; they are not resent). A re-sent
+/// Kernel content block → Messages API block. `Ok(None)` = skipped (thinking
+/// text goes back only as the signed block the API returned). A re-sent
 /// `ToolUse` (the assistant's prior call, stored with its canonical id) is
 /// re-sanitized so its `name` matches the registered tool.
 fn content_block(
@@ -434,8 +438,18 @@ fn content_block(
             "type": "tool_result", "tool_use_id": tool_use_id,
             "content": content, "is_error": is_error,
         })),
+        // A signed or redacted thinking block goes back exactly as it came, in place.
+        ContentBlock::Reasoning { wire, state } if wire == WIRE => Some(state.clone()),
         ContentBlock::Thinking { .. } | _ => None,
     })
+}
+
+/// A thinking block the API signed, or a redacted one: the reasoning state to send back.
+fn kept_state(block: &Value) -> Option<Value> {
+    let signed =
+        (block.pointer("/signature").and_then(Value::as_str)).is_some_and(|s| !s.is_empty());
+    let redacted = block.pointer("/type").and_then(Value::as_str) == Some("redacted_thinking");
+    (signed || redacted).then(|| block.clone())
 }
 
 /// Parse a 2xx Messages API response.
@@ -474,6 +488,10 @@ fn parse_response(
                         text: text.to_owned(),
                     });
                 }
+                content.extend(kept_state(block).map(|state| super::reasoning(WIRE, state)));
+            }
+            Some("redacted_thinking") => {
+                content.extend(kept_state(block).map(|state| super::reasoning(WIRE, state)));
             }
             _ => {}
         }
@@ -549,6 +567,8 @@ struct AnthropicMapper {
     stop_reason: Option<String>,
     /// `content_block` index → tool id (for `input_json_delta` routing).
     tools: BTreeMap<u64, String>,
+    /// The thinking block in progress (its text and signature): blocks arrive in sequence.
+    thinking: Option<(String, String)>,
     /// sanitized↔canonical tool-name map (restores the canonical id the
     /// model echoes back in its sanitized form · NIKA-463).
     names: ToolNameMap,
@@ -562,6 +582,34 @@ impl AnthropicMapper {
         Self {
             names,
             ..Self::default()
+        }
+    }
+
+    /// The event of one `content_block_delta`; a thinking block keeps its text and signature
+    /// until its `content_block_stop`.
+    fn delta(&mut self, v: &Value) -> Option<InferEvent> {
+        match v.pointer("/delta/type").and_then(Value::as_str) {
+            Some("text_delta") => Some(InferEvent::Delta {
+                text: str_at(v, "/delta/text"),
+            }),
+            Some("input_json_delta") => Some(InferEvent::ToolUseDelta {
+                id: (self.tools.get(&u64_at(v, "/index")).cloned()).unwrap_or_default(),
+                partial_json: str_at(v, "/delta/partial_json"),
+            }),
+            Some("thinking_delta") => {
+                let text = str_at(v, "/delta/thinking");
+                if let Some(block) = &mut self.thinking {
+                    block.0.push_str(&text);
+                }
+                Some(InferEvent::Thinking { text })
+            }
+            Some("signature_delta") => {
+                if let Some(block) = &mut self.thinking {
+                    block.1.push_str(&str_at(v, "/delta/signature"));
+                }
+                None
+            }
+            _ => None,
         }
     }
 
@@ -601,6 +649,14 @@ impl EventMapper for AnthropicMapper {
                     .saturating_add(self.cache_creation_tokens.unwrap_or(0));
             }
             Some("content_block_start") => {
+                match v.pointer("/content_block/type").and_then(Value::as_str) {
+                    Some("thinking") => self.thinking = Some((String::new(), String::new())),
+                    Some("redacted_thinking") => out.extend(
+                        (v.pointer("/content_block").and_then(kept_state))
+                            .map(|state| Ok(super::reasoning_event(WIRE, state))),
+                    ),
+                    _ => {}
+                }
                 if v.pointer("/content_block/type").and_then(Value::as_str) == Some("tool_use") {
                     let id = str_at(&v, "/content_block/id");
                     let index = u64_at(&v, "/index");
@@ -611,22 +667,16 @@ impl EventMapper for AnthropicMapper {
                     }));
                 }
             }
-            Some("content_block_delta") => match v.pointer("/delta/type").and_then(Value::as_str) {
-                Some("text_delta") => out.push(Ok(InferEvent::Delta {
-                    text: str_at(&v, "/delta/text"),
-                })),
-                Some("input_json_delta") => {
-                    let index = u64_at(&v, "/index");
-                    out.push(Ok(InferEvent::ToolUseDelta {
-                        id: self.tools.get(&index).cloned().unwrap_or_default(),
-                        partial_json: str_at(&v, "/delta/partial_json"),
-                    }));
+            Some("content_block_delta") => out.extend(self.delta(&v).map(Ok)),
+            Some("content_block_stop") => {
+                if let Some((text, signature)) = self.thinking.take()
+                    && !signature.is_empty()
+                {
+                    let state =
+                        json!({"type": "thinking", "thinking": text, "signature": signature});
+                    out.push(Ok(super::reasoning_event(WIRE, state)));
                 }
-                Some("thinking_delta") => out.push(Ok(InferEvent::Thinking {
-                    text: str_at(&v, "/delta/thinking"),
-                })),
-                _ => {}
-            },
+            }
             Some("message_delta") => {
                 if let Some(s) = v.pointer("/delta/stop_reason").and_then(Value::as_str) {
                     self.stop_reason = Some(s.to_owned());
@@ -1143,6 +1193,122 @@ mod tests {
             }
             assert!(m.finish().is_empty(), "no Done after wire error");
         }
+    }
+
+    #[test]
+    fn signed_and_redacted_thinking_are_kept_and_sent_back_in_place() {
+        let fake = FakeHttp::with_json(200, "{}");
+        let rp = resolved_with(&fake, "anthropic", "sk-ant-t");
+        let body = br#"{"id":"m1","model":"claude-x","stop_reason":"tool_use",
+            "content":[{"type":"thinking","thinking":"hmm","signature":"sig"},
+                       {"type":"redacted_thinking","data":"opaque"},
+                       {"type":"tool_use","id":"tu1","name":"add","input":{"a":1}}],
+            "usage":{"input_tokens":1,"output_tokens":2}}"#;
+        let resp = parse_response(&rp, body, &ToolNameMap::default()).expect("parse");
+        let signed = json!({"type": "thinking", "thinking": "hmm", "signature": "sig"});
+        let redacted = json!({"type": "redacted_thinking", "data": "opaque"});
+        // The thinking text stays readable; both blocks also ride, whole, as kept state.
+        assert_eq!(resp.content.len(), 4);
+        assert!(matches!(&resp.content[0], ContentBlock::Thinking { text } if text == "hmm"));
+        assert!(matches!(&resp.content[1],
+            ContentBlock::Reasoning { wire, state } if wire == "anthropic" && *state == signed));
+        assert!(matches!(&resp.content[2],
+            ContentBlock::Reasoning { wire, state } if wire == "anthropic" && *state == redacted));
+        assert!(matches!(&resp.content[3], ContentBlock::ToolUse { id, .. } if id == "tu1"));
+
+        // The next request returns the turn as received: both blocks, in place, before the call.
+        let result = ContentBlock::ToolResult {
+            tool_use_id: "tu1".into(),
+            content: "2".into(),
+            is_error: false,
+        };
+        let r = req(vec![
+            Message::text(Role::User, "calcule"),
+            Message::new(Role::Assistant, resp.content),
+            Message::new(Role::User, vec![result]),
+        ]);
+        let sent = body_of("m", &r, false).expect("body");
+        let turn = &sent["messages"][1]["content"];
+        assert_eq!(turn.as_array().map(Vec::len), Some(3));
+        assert_eq!(turn[0], signed);
+        assert_eq!(turn[1], redacted);
+        assert_eq!(turn[2]["type"], "tool_use");
+    }
+
+    #[test]
+    fn unsigned_foreign_or_lone_thinking_is_never_sent_back() {
+        let signed = json!({"type": "thinking", "thinking": "hmm", "signature": "sig"});
+        let lone = vec![
+            ContentBlock::Thinking { text: "hmm".into() },
+            ContentBlock::Reasoning {
+                wire: "anthropic".into(),
+                state: signed,
+            },
+        ];
+        let foreign = vec![
+            ContentBlock::Reasoning {
+                wire: "gemini".into(),
+                state: json!({"thoughtSignature": "s"}),
+            },
+            ContentBlock::Thinking { text: "x".into() },
+            ContentBlock::Text { text: "t".into() },
+        ];
+        let r = req(vec![
+            Message::text(Role::User, "go"),
+            Message::new(Role::Assistant, lone),
+            Message::new(Role::Assistant, foreign),
+        ]);
+        let sent = body_of("m", &r, false).expect("body");
+        // A thinking block never makes a turn alone; Gemini's state and bare text never ride.
+        assert_eq!(sent["messages"].as_array().map(Vec::len), Some(2));
+        assert_eq!(
+            sent["messages"][1]["content"],
+            json!([{"type": "text", "text": "t"}])
+        );
+    }
+
+    #[test]
+    fn stream_keeps_signed_and_redacted_thinking_in_arrival_order() {
+        let mut m = AnthropicMapper::new(ToolNameMap::default());
+        let mut events = Vec::new();
+        for payload in [
+            r#"{"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}"#,
+            r#"{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"hm"}}"#,
+            r#"{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"m"}}"#,
+            r#"{"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"sig"}}"#,
+            r#"{"type":"content_block_stop","index":0}"#,
+            r#"{"type":"content_block_start","index":1,"content_block":{"type":"redacted_thinking","data":"opaque"}}"#,
+            r#"{"type":"content_block_stop","index":1}"#,
+            r#"{"type":"content_block_start","index":2,"content_block":{"type":"thinking"}}"#,
+            r#"{"type":"content_block_delta","index":2,"delta":{"type":"thinking_delta","thinking":"x"}}"#,
+            r#"{"type":"content_block_stop","index":2}"#,
+        ] {
+            events.extend(m.map(payload));
+        }
+        let kept: Vec<Value> = (events.iter())
+            .filter_map(|event| match event {
+                Ok(InferEvent::Reasoning { wire, state }) if wire == "anthropic" => {
+                    Some(state.clone())
+                }
+                _ => None,
+            })
+            .collect();
+        // The unsigned third block streams its text but has nothing to send back.
+        assert_eq!(
+            kept,
+            [
+                json!({"type": "thinking", "thinking": "hmm", "signature": "sig"}),
+                json!({"type": "redacted_thinking", "data": "opaque"}),
+            ]
+        );
+        let thoughts = (events.iter())
+            .filter(|event| matches!(event, Ok(InferEvent::Thinking { .. })))
+            .count();
+        assert_eq!(thoughts, 3);
+        assert!(
+            matches!(events[2], Ok(InferEvent::Reasoning { .. })),
+            "{events:?}"
+        );
     }
 
     #[test]

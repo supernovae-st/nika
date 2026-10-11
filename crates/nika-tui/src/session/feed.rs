@@ -47,7 +47,7 @@ pub enum Observed {
     Frame(RunFrame),
     /// One typed activity the Session reported while the turn works: the
     /// shell's activity card and busy row read it; no run leg does.
-    Activity(Activity),
+    Activity(Box<Activity>),
 }
 
 /// What could not reach the shell during one turn, counted beside the queue.
@@ -150,7 +150,7 @@ impl Feed {
     /// one, typed; otherwise its line to the busy row, as before.
     pub(crate) fn activity(&self, activity: &Activity) {
         match &self.seen {
-            Some(seen) => seen.tell(Observed::Activity(activity.clone())),
+            Some(seen) => seen.tell(Observed::Activity(Box::new(activity.clone()))),
             None => {
                 let _ = self.busy.send(activity.line());
             }

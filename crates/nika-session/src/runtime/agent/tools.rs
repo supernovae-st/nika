@@ -17,7 +17,7 @@ use nika_session_change::tools::{SessionTools, ToolCall, ToolDef, ToolReply};
 use nika_session_change::work::ModelFacts;
 use serde_json::{Value, json};
 
-use nika_session_agent::conversation::{Acts, Citations, Conversation};
+use nika_session_agent::conversation::{Acts, Citations, Conversation, edited};
 
 /// The tools' definitions: names, descriptions and argument schemas (`$defs` inlined).
 const DEFINITIONS: &str = include_str!("../../../assets/author_tools.json");
@@ -43,8 +43,6 @@ pub(crate) trait Desk: Send {
     fn models(&mut self, role: &str, ask: &Value) -> Result<String, String>;
     /// The pinned knowledge release: a search or a skill.
     fn knowledge(&mut self, query: Option<&str>, skill: Option<&str>) -> Result<String, String>;
-    /// One public GET, observed.
-    fn observe(&mut self, url: &str) -> Result<String, String>;
     /// Document operations applied to `source`: the new source.
     fn compose(&mut self, source: &str, operations: &[Value]) -> Result<String, String>;
     /// The candidate judged whole against what the person `stated`, with its selections
@@ -196,6 +194,15 @@ impl SessionTools for Toolbox {
     }
 
     fn call(&self, call: ToolCall) -> ToolReply {
+        // An observation reads one public page and no conversation state: it runs outside the
+        // lock, so the observations of one message run side by side.
+        if call.name == "observe" {
+            if self.state().turn.is_none() {
+                return ToolReply::error(NO_TURN);
+            }
+            let url = call.arguments["url"].as_str().unwrap_or_default();
+            return reply(nika_session_intelligence::observe::observe(url).map(|s| s.to_string()));
+        }
         let mut state = self.state();
         let State {
             conversation,
@@ -238,7 +245,6 @@ impl SessionTools for Toolbox {
                 let (query, skill) = (text("query"), text("skill"));
                 reply(parts.desk.knowledge(query.as_deref(), skill.as_deref()))
             }
-            "observe" => reply(parts.desk.observe(&text("url").unwrap_or_default())),
             "compose" => parts.compose(args),
             // The trial runs within the verification: `trial` asks for both.
             "verify" | "trial" => parts.verify(),
@@ -311,15 +317,21 @@ impl Parts<'_> {
         let Some(candidate) = self.conversation.candidate() else {
             return ToolReply::error("no candidate to edit: write one with candidate_write");
         };
-        let old = args["old"].as_str().unwrap_or_default();
-        let new = args["new"].as_str().unwrap_or_default();
-        let found = candidate.source.matches(old).count();
-        if old.is_empty() || found != 1 {
-            return ToolReply::error(format!(
-                "`old` must occur exactly once in the candidate; it occurs {found} times"
-            ));
-        }
-        let source = candidate.source.replacen(old, new, 1);
+        // One passage (`old`, `new`) or several (`edits`), applied as one revision.
+        let text = |edit: &Value, key: &str| edit[key].as_str().unwrap_or_default().to_owned();
+        let pairs: Vec<(String, String)> = match args["edits"].as_array() {
+            Some(_) if !args["old"].is_null() => {
+                return ToolReply::error("give `old` and `new`, or `edits`, not both");
+            }
+            Some(edits) => (edits.iter())
+                .map(|e| (text(e, "old"), text(e, "new")))
+                .collect(),
+            None => vec![(text(args, "old"), text(args, "new"))],
+        };
+        let source = match edited(&candidate.source, &pairs) {
+            Ok(source) => source,
+            Err(why) => return ToolReply::error(why),
+        };
         let mut args = args.clone();
         if args["resolutions"].is_null() {
             let rows: Vec<Value> = candidate.rows.iter().map(Resolution::to_json).collect();

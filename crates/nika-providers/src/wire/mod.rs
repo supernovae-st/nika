@@ -227,6 +227,24 @@ fn google_retry_delay(value: &serde_json::Value) -> Option<String> {
         })
 }
 
+/// Reasoning state kept for the wire that produced it, as an answer block and as a stream event.
+pub(crate) fn reasoning(
+    wire: &str,
+    state: serde_json::Value,
+) -> nika_kernel::ai::provider::ContentBlock {
+    nika_kernel::ai::provider::ContentBlock::Reasoning {
+        wire: wire.to_owned(),
+        state,
+    }
+}
+
+pub(crate) fn reasoning_event(wire: &str, state: serde_json::Value) -> InferEvent {
+    InferEvent::Reasoning {
+        wire: wire.to_owned(),
+        state,
+    }
+}
+
 /// `gen_ai.system` attribution per canonical provider id.
 pub(crate) fn gen_ai_system(provider_id: &str) -> GenAiSystem {
     match provider_id {

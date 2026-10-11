@@ -20,7 +20,7 @@ use super::{
 pub const EXPORT: &str = include_str!("../PROFILE-R2.json");
 
 /// The sha256 of [`EXPORT`]: the profile export this door implements.
-pub const EXPORT_SHA256: &str = "7e1948e84a108824bcb34ff0fc8e8079d6b0f212e5ab6e2b985d79529132fbb1";
+pub const EXPORT_SHA256: &str = "f976bd7bed9ec3c8924c55022b9ab2f4f2c18cac2117da5e596519375e06bd47";
 
 /// The grammars the door implements, as the export states them: the id name, a facet name, a
 /// body slug, a knowledge version and a policy id.
