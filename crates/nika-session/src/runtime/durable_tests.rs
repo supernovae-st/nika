@@ -784,6 +784,8 @@ fn closing_expires_a_pending_gate_without_preparing_a_resume() {
         task: "approval".to_owned(),
         message: "Continue?".to_owned(),
         mode: "confirm".to_owned(),
+        values: None,
+        withheld: None,
     });
     let id = session.waiting_gate().expect("fixture gate");
     assert!(matches!(session.turn("/exit"), TurnOutcome::Quit));
@@ -1259,7 +1261,10 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
         panic!("a clean check requests the run");
     };
     assert_eq!(run.workflow, PathBuf::from(LANDED));
-    let TurnOutcome::GateAsk { id: gate, question } = first.observe_run(4, Some(&trace)) else {
+    let TurnOutcome::GateAsk {
+        id: gate, question, ..
+    } = first.observe_run(4, Some(&trace))
+    else {
         panic!("a pause with a gate asks");
     };
     assert!(

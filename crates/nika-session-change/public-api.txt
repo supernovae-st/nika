@@ -247,6 +247,8 @@ pub nika_session_change::change::PendingGate::message: alloc::string::String
 pub nika_session_change::change::PendingGate::mode: alloc::string::String
 pub nika_session_change::change::PendingGate::task: alloc::string::String
 pub nika_session_change::change::PendingGate::trace: std::path::PathBuf
+pub nika_session_change::change::PendingGate::values: core::option::Option<serde_json::value::Value>
+pub nika_session_change::change::PendingGate::withheld: core::option::Option<serde_json::value::Value>
 pub nika_session_change::change::PendingGate::workflow: std::path::PathBuf
 impl nika_session_change::change::PendingGate
 pub fn nika_session_change::change::PendingGate::answer_arg(&self, line: &str) -> alloc::string::String

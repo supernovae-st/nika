@@ -44,9 +44,54 @@ impl<T> dyn_clone::DynClone for nika_dataflow::expr::Scope<'a> where T: core::cl
 pub fn nika_dataflow::expr::Scope<'a>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_dataflow::expr::Scope<'a> where T: 'static
 pub fn nika_dataflow::expr::Scope<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_dataflow::expr::Shown
+pub nika_dataflow::expr::Shown::values: serde_json::map::Map<alloc::string::String, serde_json::value::Value>
+pub nika_dataflow::expr::Shown::withheld: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+impl core::clone::Clone for nika_dataflow::expr::Shown
+pub fn nika_dataflow::expr::Shown::clone(&self) -> nika_dataflow::expr::Shown
+impl core::cmp::Eq for nika_dataflow::expr::Shown
+impl core::cmp::PartialEq for nika_dataflow::expr::Shown
+pub fn nika_dataflow::expr::Shown::eq(&self, other: &nika_dataflow::expr::Shown) -> bool
+impl core::default::Default for nika_dataflow::expr::Shown
+pub fn nika_dataflow::expr::Shown::default() -> nika_dataflow::expr::Shown
+impl core::fmt::Debug for nika_dataflow::expr::Shown
+pub fn nika_dataflow::expr::Shown::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dataflow::expr::Shown
+impl<D> owo_colors::OwoColorize for nika_dataflow::expr::Shown
+impl<Q, K> equivalent::Equivalent<K> for nika_dataflow::expr::Shown where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dataflow::expr::Shown::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dataflow::expr::Shown where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dataflow::expr::Shown::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dataflow::expr::Shown where U: core::convert::From<T>
+pub fn nika_dataflow::expr::Shown::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dataflow::expr::Shown where U: core::convert::Into<T>
+pub type nika_dataflow::expr::Shown::Error = core::convert::Infallible
+pub fn nika_dataflow::expr::Shown::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dataflow::expr::Shown where U: core::convert::TryFrom<T>
+pub type nika_dataflow::expr::Shown::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dataflow::expr::Shown::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dataflow::expr::Shown where T: core::clone::Clone
+pub type nika_dataflow::expr::Shown::Owned = T
+pub fn nika_dataflow::expr::Shown::clone_into(&self, target: &mut T)
+pub fn nika_dataflow::expr::Shown::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dataflow::expr::Shown where T: 'static + ?core::marker::Sized
+pub fn nika_dataflow::expr::Shown::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dataflow::expr::Shown where T: ?core::marker::Sized
+pub fn nika_dataflow::expr::Shown::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dataflow::expr::Shown where T: ?core::marker::Sized
+pub fn nika_dataflow::expr::Shown::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dataflow::expr::Shown where T: core::clone::Clone
+pub unsafe fn nika_dataflow::expr::Shown::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dataflow::expr::Shown
+pub fn nika_dataflow::expr::Shown::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dataflow::expr::Shown where T: core::clone::Clone
+pub fn nika_dataflow::expr::Shown::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dataflow::expr::Shown where T: 'static
+pub fn nika_dataflow::expr::Shown::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_dataflow::expr::eval_when(expr: &str, scope: &nika_dataflow::expr::Scope<'_>) -> core::result::Result<bool, nika_dataflow::DataflowError>
 pub fn nika_dataflow::expr::render(text: &str, scope: &nika_dataflow::expr::Scope<'_>) -> core::result::Result<alloc::string::String, nika_dataflow::DataflowError>
 pub fn nika_dataflow::expr::render_json(value: &serde_json::value::Value, scope: &nika_dataflow::expr::Scope<'_>) -> core::result::Result<serde_json::value::Value, nika_dataflow::DataflowError>
+pub fn nika_dataflow::expr::shown(text: &str, scope: &nika_dataflow::expr::Scope<'_>, bounds: (usize, usize), secret: &dyn core::ops::function::Fn(&str) -> bool) -> nika_dataflow::expr::Shown
 pub mod nika_dataflow::jq
 pub fn nika_dataflow::jq::eval_binding(name: &str, program: &str, input: &serde_json::value::Value, clock: nika_cap::expr::JqClock) -> core::result::Result<serde_json::value::Value, nika_dataflow::DataflowError>
 pub mod nika_dataflow::record

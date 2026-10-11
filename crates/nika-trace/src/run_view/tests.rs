@@ -392,6 +392,29 @@ fn the_gate_is_the_first_pause_while_the_views_keep_the_last() {
     );
 }
 
+/// ADR-148 point 12 · the first pause's gate shows its values structured and names the keys it
+/// withheld, each read as the JSON object its frame carries; a frame without them, or with text
+/// that is not one object, shows none.
+#[test]
+fn the_gate_shows_its_values_and_names_what_it_withheld() {
+    let shown = serde_json::json!({"sno": 7, "amount": 1250.5});
+    let withheld = serde_json::json!({"credential": "secret"});
+    let field = |key: &str, text: &str| serde_json::json!({"key": key, "value": text}).to_string();
+    let rows = [
+        field("task", "approve"),
+        field("values", &shown.to_string()),
+        field("withheld", &withheld.to_string()),
+    ];
+    let first = paused(&rows.join(","));
+    let (_root, path) = journal("gate-shown", &[first.as_str()]);
+    let facts = RunFacts::read(&path).expect("frames");
+    assert_eq!(facts.pause_shown(), (Some(&shown), Some(&withheld)));
+    let older = paused(r#"{"key":"task","value":"approve"},{"key":"values","value":"[1,2]"}"#);
+    let (_older, path) = journal("gate-unshown", &[older.as_str()]);
+    let facts = RunFacts::read(&path).expect("frames");
+    assert_eq!(facts.pause_shown(), (None, None));
+}
+
 /// C9 · a first pause gives its defaults; one naming no task (absent, not text, empty) asks no
 /// gate, and a later pause never stands in for it; a journal that never paused asks none.
 #[test]

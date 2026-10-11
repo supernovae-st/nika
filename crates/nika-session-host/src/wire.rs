@@ -432,6 +432,10 @@ pub(crate) enum Outcome {
         trace: String,
         task: String,
         text: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        values: Option<serde_json::Value>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        withheld: Option<serde_json::Value>,
     },
     RunRequested {
         text: String,
@@ -535,10 +539,17 @@ pub(crate) fn project(outcome: TurnOutcome, wire: &mut Vec<Outcome>, effects: &m
             key,
             text: question,
         },
-        TurnOutcome::GateAsk { id, question } => Outcome::Gate {
+        TurnOutcome::GateAsk {
+            id,
+            question,
+            values,
+            withheld,
+        } => Outcome::Gate {
             trace: text(&id.trace),
             task: id.task,
             text: question,
+            values: values.map(|values| *values),
+            withheld: withheld.map(|withheld| *withheld),
         },
         TurnOutcome::RunRequested { report, run } => {
             let projected = Outcome::RunRequested {

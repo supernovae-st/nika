@@ -147,6 +147,11 @@ pub enum TurnOutcome {
         id: GateId,
         /// The observation and the question.
         question: String,
+        /// The values its message shows, by key ([`PendingGate::values`]); boxed, as few gates
+        /// carry any, so every `Result<_, TurnOutcome>` stays small.
+        values: Option<Box<serde_json::Value>>,
+        /// The keys whose value the pause withheld, each with why.
+        withheld: Option<Box<serde_json::Value>>,
     },
     /// The human answered the gate: the door resumes the SAME run
     /// (`--resume <trace> --answer <task>=<value>`) and reports again.

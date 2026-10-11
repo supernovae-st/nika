@@ -972,9 +972,16 @@ fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
             report: report + &line,
             run,
         },
-        TurnOutcome::GateAsk { id, question } => TurnOutcome::GateAsk {
+        TurnOutcome::GateAsk {
+            id,
+            question,
+            values,
+            withheld,
+        } => TurnOutcome::GateAsk {
             id,
             question: question + &line,
+            values,
+            withheld,
         },
         TurnOutcome::Resumed { notice, outcome } => TurnOutcome::Resumed {
             notice,

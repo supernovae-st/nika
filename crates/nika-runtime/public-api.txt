@@ -1152,6 +1152,7 @@ pub nika_runtime::WorkflowPause::approval: core::option::Option<nika_runtime::ap
 pub nika_runtime::WorkflowPause::choices: alloc::vec::Vec<alloc::string::String>
 pub nika_runtime::WorkflowPause::message: core::option::Option<alloc::string::String>
 pub nika_runtime::WorkflowPause::mode: alloc::string::String
+pub nika_runtime::WorkflowPause::shown: nika_dataflow::expr::Shown
 pub nika_runtime::WorkflowPause::task: alloc::string::String
 impl nika_runtime::WorkflowPause
 pub fn nika_runtime::WorkflowPause::new(task: alloc::string::String, mode: alloc::string::String, message: core::option::Option<alloc::string::String>, choices: alloc::vec::Vec<alloc::string::String>) -> Self

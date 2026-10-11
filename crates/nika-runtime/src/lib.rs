@@ -1334,6 +1334,7 @@ where
                     inputs,
                     consts,
                     resume_ctx.markers(),
+                    &|text: &str| resume_ctx.leaks_secret(text),
                     &self.approvals,
                 )
                 .or_else(|| pause::harness_gate_block(&finish, wf))
@@ -1363,8 +1364,10 @@ where
 
 /// Emit the `workflow_paused` terminal frame (ADR-099 rider) — the
 /// prompt payload rides as fields (`task` · `mode` · `message` ·
-/// `choices` as compact JSON text), secret-masked by construction (the
-/// payload renders over the marker scope, never resolved values). The
+/// `choices`, `values` and `withheld` as compact JSON text),
+/// secret-masked by construction (the payload renders over the marker
+/// scope, never resolved values; a shown value derived from a secret is
+/// only named in `withheld`). The
 /// F-P4 approval ticket rides additively (`approval_*` · NEP-0013): the
 /// pause serializes the capability the resumed run validates the
 /// `--answer` against — shown-hash · digest · nonce · mint · TTL.
@@ -1394,6 +1397,16 @@ fn emit_paused(
         .then(|| serde_json::to_string(&pause.choices).unwrap_or_else(|_| "[]".to_owned()));
     if let Some(text) = choices_text.as_deref() {
         fields.push(("choices", s(text)));
+    }
+    let shown = &pause.shown;
+    let values =
+        (!shown.values.is_empty()).then(|| Value::Object(shown.values.clone()).to_string());
+    let withheld = (!shown.withheld.is_empty())
+        .then(|| serde_json::to_string(&shown.withheld).unwrap_or_default());
+    for (key, text) in [("values", &values), ("withheld", &withheld)] {
+        if let Some(text) = text.as_deref() {
+            fields.push((key, s(text)));
+        }
     }
     if let Some(ticket) = pause.approval.as_ref() {
         fields.push(("approval_shown_hash", s(&ticket.content_hash)));

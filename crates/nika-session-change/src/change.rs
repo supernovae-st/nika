@@ -298,21 +298,30 @@ pub struct PendingGate {
     pub message: String,
     /// The prompt's mode (`confirm` · `text` · `choice` …).
     pub mode: String,
+    /// The values its message shows, by key, as the pause wrote them (a JSON object · ADR-148
+    /// point 12); `None` when it wrote none.
+    pub values: Option<serde_json::Value>,
+    /// The keys whose value the pause withheld, each with why (a value derived from a secret).
+    pub withheld: Option<serde_json::Value>,
 }
 
 impl PendingGate {
     /// The gate a paused trace carries, when it carries one: its first pause, as the trace's own
-    /// reader records it ([`nika_trace::run_view::RunFacts::pause_gate`]).
+    /// reader records it ([`nika_trace::run_view::RunFacts::pause_gate`] and the values it shows,
+    /// [`nika_trace::run_view::RunFacts::pause_shown`]).
     #[must_use]
     pub fn from_trace(workflow: &Path, trace: &Path) -> Option<Self> {
         let facts = nika_trace::run_view::RunFacts::read(trace)?;
         let (task, message, mode) = facts.pause_gate()?;
+        let (values, withheld) = facts.pause_shown();
         Some(Self {
             workflow: workflow.to_path_buf(),
             trace: trace.to_path_buf(),
             task: task.to_owned(),
             message: message.to_owned(),
             mode: mode.to_owned(),
+            values: values.cloned(),
+            withheld: withheld.cloned(),
         })
     }
 
@@ -1224,11 +1233,33 @@ mod tests {
         );
         assert_eq!(gate.answer_arg("yes"), "gate=true");
         assert_eq!(gate.answer_arg("No"), "gate=false");
+        assert_eq!(
+            (gate.values, gate.withheld),
+            (None, None),
+            "an older pause shows none"
+        );
         std::fs::write(&trace, "{\"kind\":\"workflow_completed\",\"fields\":[]}\n").expect("trace");
         assert!(
             PendingGate::from_trace(Path::new("gated.nika"), &trace).is_none(),
             "no pause, no gate"
         );
+    }
+
+    /// A pause that wrote the values its message shows hands them to the gate as it wrote them
+    /// (ADR-148 point 12), the keys it withheld named.
+    #[test]
+    fn a_paused_trace_hands_its_gate_the_values_it_shows() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let trace = dir.path().join("paused.ndjson");
+        let values = serde_json::json!({"sno": 7, "amount": 1250.5});
+        let withheld = serde_json::json!({"credential": "secret"});
+        let frame = serde_json::json!({"kind": "workflow_paused", "fields": [
+            {"key": "task", "value": "approve"}, {"key": "mode", "value": "confirm"},
+            {"key": "values", "value": values.to_string()},
+            {"key": "withheld", "value": withheld.to_string()}]});
+        std::fs::write(&trace, format!("{frame}\n")).expect("trace");
+        let gate = PendingGate::from_trace(Path::new("gated.nika"), &trace).expect("a gate");
+        assert_eq!((gate.values, gate.withheld), (Some(values), Some(withheld)));
     }
 
     /// Restore a mode even if the test panics, so the tempdir can drop.

@@ -489,6 +489,76 @@ pub fn render_json(value: &Value, scope: &Scope<'_>) -> Result<Value, DataflowEr
     })
 }
 
+/// What a template shows, structured ([`shown`]): each value an island renders, by key, and the
+/// keys whose value was withheld, each with why (`secret`, `size`, `unresolved`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Shown {
+    /// The typed values shown, by key.
+    pub values: serde_json::Map<String, Value>,
+    /// The keys withheld, each with why.
+    pub withheld: BTreeMap<String, String>,
+}
+
+/// The values `text` renders over `scope`, one per `${{ … }}` island, each resolved to its typed
+/// value as [`render_json`] binds a lone island. Its key is the last name its reference reads
+/// (`with.request.amount` → `amount`), else the reference's own text: when the reference is no
+/// plain path, or that name is another reference's. A value whose text `secret` recognizes is
+/// withheld as `secret`; one past `bounds.0` bytes of compact JSON, or past `bounds.1` with the
+/// values already kept, as `size`; an island that does not resolve as `unresolved`. A template
+/// that does not scan shows nothing.
+#[must_use]
+pub fn shown(
+    text: &str,
+    scope: &Scope<'_>,
+    bounds: (usize, usize),
+    secret: &dyn Fn(&str) -> bool,
+) -> Shown {
+    let (max_each, max_all) = bounds;
+    let mut shown = Shown::default();
+    let (mut taken, mut kept) = (BTreeMap::<String, String>::new(), 0);
+    for island in scan_islands(text).unwrap_or_default() {
+        let reference = island.body.trim();
+        let ident = |s: &str| {
+            s.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+                && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        };
+        let last = reference.rsplit('.').next().unwrap_or(reference);
+        let name = if reference.split('.').all(ident) {
+            last
+        } else {
+            reference
+        };
+        let key = match taken.get(name) {
+            Some(other) if other != reference => reference.to_owned(),
+            _ => name.to_owned(),
+        };
+        taken
+            .entry(key.clone())
+            .or_insert_with(|| reference.to_owned());
+        if shown.values.contains_key(&key) || shown.withheld.contains_key(&key) {
+            continue;
+        }
+        let why = match scope.resolve_expr(reference) {
+            Err(_) => "unresolved",
+            Ok(value) => {
+                let json = value.to_string();
+                if secret(json.as_str()) || value.as_str().is_some_and(secret) {
+                    "secret"
+                } else if json.len() > max_each || kept + json.len() > max_all {
+                    "size"
+                } else {
+                    kept += json.len();
+                    shown.values.insert(key, value);
+                    continue;
+                }
+            }
+        };
+        shown.withheld.insert(key, why.to_owned());
+    }
+    shown
+}
+
 /// Evaluate a `when:` expression body to a boolean (spec 03 · the full
 /// `cel-subset/0.1` gate).
 ///
@@ -557,6 +627,88 @@ mod tests {
             ("urls".to_owned(), serde_json::json!(["a", "b"])),
         ]);
         (records, vars)
+    }
+
+    /// A payment release's gate message, its values bound under `with:`.
+    fn release_scope_values() -> BTreeMap<String, Value> {
+        let request = serde_json::json!({"sno": 7, "item": "Laptop batch",
+            "description": "Q4 refresh", "requested_by": "ana", "amount": 1250.5});
+        BTreeMap::from([
+            ("request".to_owned(), request),
+            ("to".to_owned(), Value::from("finance@example.test")),
+            ("credential".to_owned(), Value::from("[secret:token]")),
+        ])
+    }
+
+    const RELEASE: &str = "Release #${{ with.request.sno }} to ${{ with.to }}\n  \
+        item: ${{ with.request.item }}\n  description: ${{ with.request.description }}\n  \
+        requested_by: ${{ with.request.requested_by }}\n  amount: ${{ with.request.amount }}";
+
+    /// Each island's typed value, by the last name its reference reads, equal to what the
+    /// message renders; a value the secret rule recognizes and an island that does not resolve
+    /// are withheld and named.
+    #[test]
+    fn a_template_shows_each_value_it_renders_and_names_what_it_withholds() {
+        let (records, inputs, with_ns) = (BTreeMap::new(), BTreeMap::new(), release_scope_values());
+        let scope =
+            Scope::workflow(&records, &inputs).with_task_context(Some(&with_ns), None, None, None);
+        let message =
+            format!("{RELEASE}\n  via ${{{{ with.credential }}}} ${{{{ with.missing }}}}");
+        let secret = |text: &str| text.contains("[secret:");
+        let shown = shown(&message, &scope, (1024, 4096), &secret);
+        let expected = serde_json::json!({"sno": 7, "to": "finance@example.test",
+            "item": "Laptop batch", "description": "Q4 refresh", "requested_by": "ana",
+            "amount": 1250.5});
+        assert_eq!(Value::Object(shown.values.clone()), expected);
+        let rendered = render(RELEASE, &scope).expect("renders");
+        for value in shown.values.values() {
+            assert!(
+                rendered.contains(&render_value(value)),
+                "{value} is shown as rendered"
+            );
+        }
+        let withheld = BTreeMap::from([
+            ("credential".to_owned(), "secret".to_owned()),
+            ("missing".to_owned(), "unresolved".to_owned()),
+        ]);
+        assert_eq!(shown.withheld, withheld);
+    }
+
+    /// A value past the bound is withheld as `size`; two references ending in one name keep
+    /// apart, the later one by its own text; a template that does not scan shows nothing.
+    #[test]
+    fn a_shown_value_keeps_its_bound_and_its_own_key() {
+        let (records, inputs, with_ns) = (BTreeMap::new(), BTreeMap::new(), release_scope_values());
+        let scope =
+            Scope::workflow(&records, &inputs).with_task_context(Some(&with_ns), None, None, None);
+        let bounded = shown(RELEASE, &scope, (8, 4096), &|_| false);
+        let mut kept: Vec<_> = bounded.values.keys().cloned().collect();
+        kept.sort();
+        assert_eq!(kept, ["amount", "requested_by", "sno"]);
+        let cut: Vec<_> = (bounded.withheld.iter())
+            .map(|(k, why)| format!("{k}:{why}"))
+            .collect();
+        assert_eq!(cut, ["description:size", "item:size", "to:size"]);
+        let all = shown(RELEASE, &scope, (1024, 2), &|_| false);
+        assert_eq!(all.values.keys().collect::<Vec<_>>(), ["sno"]);
+        let ids = BTreeMap::from([
+            ("a".to_owned(), serde_json::json!({"id": 1})),
+            ("b".to_owned(), serde_json::json!({"id": 2})),
+        ]);
+        let both =
+            Scope::workflow(&records, &inputs).with_task_context(Some(&ids), None, None, None);
+        let twice = shown(
+            "${{ with.a.id }} ${{ with.b.id }}",
+            &both,
+            (64, 64),
+            &|_| false,
+        );
+        let expected = serde_json::json!({"id": 1, "with.b.id": 2});
+        assert_eq!(Value::Object(twice.values), expected);
+        assert_eq!(
+            shown("${{ with.to", &scope, (64, 64), &|_| false),
+            Shown::default()
+        );
     }
 
     #[test]
