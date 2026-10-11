@@ -381,11 +381,11 @@ impl<T> tracing::instrument::Instrument for nika_session_agent::conversation::Co
 impl<T> tracing::instrument::WithSubscriber for nika_session_agent::conversation::Conversation
 impl<T> typenum::type_operators::Same for nika_session_agent::conversation::Conversation
 pub type nika_session_agent::conversation::Conversation::Output = T
-pub const nika_session_agent::conversation::NOT_A_CONSENT: &str
-pub const nika_session_agent::conversation::NOT_READ_AS_CONSENT: &str
 impl<T> zvariant::optional::NoneValue for nika_session_agent::conversation::Conversation where T: core::default::Default
 pub type nika_session_agent::conversation::Conversation::NoneType = T
 pub fn nika_session_agent::conversation::Conversation::null_value() -> T
+pub const nika_session_agent::conversation::NOT_A_CONSENT: &str
+pub const nika_session_agent::conversation::NOT_READ_AS_CONSENT: &str
 pub fn nika_session_agent::conversation::edited(source: &str, pairs: &[(alloc::string::String, alloc::string::String)]) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub type nika_session_agent::conversation::Facts<'a> = &'a mut dyn core::ops::function::FnMut(&str) -> core::option::Option<nika_session_change::work::conversation::ModelFacts>
 pub type nika_session_agent::conversation::Mint<'a> = &'a mut dyn core::ops::function::FnMut(&str) -> nika_session_change::outcome::QuestionId
