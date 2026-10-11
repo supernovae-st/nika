@@ -1541,6 +1541,7 @@ pub fn nika_kernel_ai::provider::UsageCompleteness::as_any(&self) -> &(dyn core:
 #[non_exhaustive] pub struct nika_kernel_ai::provider::InferRequest
 pub nika_kernel_ai::provider::InferRequest::baggage: core::option::Option<nika_types::baggage::Baggage>
 pub nika_kernel_ai::provider::InferRequest::budget: core::option::Option<nika_types::budget::BudgetDirective>
+pub nika_kernel_ai::provider::InferRequest::cache_key: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::provider::InferRequest::cancel: core::option::Option<nika_types::cancel::CancelCtx>
 pub nika_kernel_ai::provider::InferRequest::extra: nika_kernel_ai::provider::ProviderExtras
 pub nika_kernel_ai::provider::InferRequest::gen_ai: nika_kernel_ai::genai::GenAiAttrs

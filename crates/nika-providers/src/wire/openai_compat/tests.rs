@@ -1003,3 +1003,27 @@ fn deepseek_catalog_reasoning_facts_match_this_wire() {
         assert!(body.get("thinking").is_none(), "{model}: {body}");
     }
 }
+
+/// A request's cache key reaches `OpenAI` as `prompt_cache_key`, and no other compatible
+/// provider; without a key, or when the caller's extras name their own, nothing of ours is sent.
+#[test]
+fn the_cache_key_reaches_openai_alone() {
+    let mut keyed = req(vec![Message::text(Role::User, "hi")]);
+    keyed.cache_key = Some("conversation-digest".to_owned());
+    let openai = body_of("gpt-5.6", &keyed, false, true, "openai").expect("body");
+    assert_eq!(openai["prompt_cache_key"], "conversation-digest");
+    for provider in ["deepseek", "openrouter", "mistral", "groq"] {
+        let body = body_of("m", &keyed, false, true, provider).expect("body");
+        assert!(body.get("prompt_cache_key").is_none(), "{provider}: {body}");
+    }
+    let unkeyed = req(vec![Message::text(Role::User, "hi")]);
+    let body = body_of("gpt-5.6", &unkeyed, false, true, "openai").expect("body");
+    assert!(body.get("prompt_cache_key").is_none(), "{body}");
+    let mut own = keyed.clone();
+    own.extra.params.insert(
+        "prompt_cache_key".to_owned(),
+        serde_json::json!("the caller's"),
+    );
+    let body = body_of("gpt-5.6", &own, false, true, "openai").expect("body");
+    assert_eq!(body["prompt_cache_key"], "the caller's");
+}

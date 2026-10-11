@@ -279,6 +279,11 @@ pub struct InferRequest {
     /// minutes for one completion). `None` → the adapter's per-provider
     /// default governs (the caller declared no budget).
     pub timeout: Option<std::time::Duration>,
+    /// A stable key naming the conversation this request continues — a hash of the caller's
+    /// conversation id, never the id itself — so a wire that routes or accounts its prompt cache
+    /// by key keeps one conversation's calls together (`OpenAI`'s `prompt_cache_key`). Wires
+    /// without such a key ignore it; `None` sends nothing.
+    pub cache_key: Option<String>,
     /// `OTel` `GenAI` semconv bridge (Q13). Populated by the provider impl;
     /// default is `GenAiSystem::Unknown` + `GenAiOperation::Chat`.
     pub gen_ai: crate::genai::GenAiAttrs,
@@ -307,6 +312,7 @@ impl InferRequest {
             tenant: None,
             replay_seed: None,
             timeout: None,
+            cache_key: None,
             gen_ai: crate::genai::GenAiAttrs::new(),
         }
     }
