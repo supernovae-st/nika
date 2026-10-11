@@ -45,6 +45,7 @@
 )]
 
 pub mod compact;
+mod context_edit;
 pub mod conversation;
 pub mod event;
 pub mod observe;

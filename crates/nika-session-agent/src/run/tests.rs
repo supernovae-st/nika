@@ -271,6 +271,69 @@ fn a_message_cut_at_the_output_limit_runs_none_of_its_calls() {
     assert!(matches!(&outcome, Outcome::Answered { text } if *text == marked));
 }
 
+/// Two candidate writes in one run, then a new person line: what the second run reads.
+fn writes_then_a_line(first: Vec<ContentBlock>) -> (Vec<serde_json::Value>, String) {
+    let (mut tree, mut lines) = fresh();
+    let tools = Tools::new();
+    let write = |id: &str, source: &str| ContentBlock::ToolUse {
+        id: id.into(),
+        name: "candidate_write".into(),
+        input: json!({"source": source}),
+    };
+    let mut second = first;
+    second.push(write("c2", "nika: second"));
+    let mut model = Script::new(vec![
+        Ok(Reply::new(
+            vec![write("c1", "nika: first")],
+            StopReason::ToolUse,
+        )),
+        Ok(Reply::new(second, StopReason::ToolUse)),
+        says("Written."),
+        says("Still here."),
+    ]);
+    let run = |tree: &mut Tree, lines: &mut Vec<String>, line: &str, model: &mut Script| {
+        Agent::new(tree, lines, &tools, &now).prompt(line, model, &mut |_| {})
+    };
+    assert!(matches!(
+        run(&mut tree, &mut lines, "write it", &mut model),
+        Outcome::Answered { .. }
+    ));
+    assert!(matches!(
+        run(&mut tree, &mut lines, "and now?", &mut model),
+        Outcome::Answered { .. }
+    ));
+    let read = model.seen.last().unwrap();
+    let inputs = (read.messages.iter())
+        .flat_map(|m| &m.content)
+        .filter_map(|block| match block {
+            ContentBlock::ToolUse { input, .. } => Some(input.clone()),
+            _ => None,
+        })
+        .collect();
+    (inputs, serde_json::to_string(tree.entries()).unwrap())
+}
+
+#[test]
+fn a_new_run_reads_a_superseded_candidate_as_a_stub_and_the_record_keeps_it() {
+    let (inputs, kept) = writes_then_a_line(Vec::new());
+    let stub = json!({"stub": crate::context_edit::SUPERSEDED});
+    assert_eq!(inputs, [stub, json!({"source": "nika: second"})]);
+    assert!(kept.contains("nika: first"), "the record keeps it whole");
+}
+
+#[test]
+fn nothing_before_a_replayed_thinking_block_is_stubbed() {
+    let thought = ContentBlock::Thinking {
+        text: "the second source".into(),
+    };
+    let (inputs, _) = writes_then_a_line(vec![thought]);
+    let whole = [
+        json!({"source": "nika: first"}),
+        json!({"source": "nika: second"}),
+    ];
+    assert_eq!(inputs, whole);
+}
+
 #[test]
 fn no_quota_ends_a_long_run() {
     let (mut tree, mut lines) = fresh();

@@ -20,6 +20,7 @@ use nika_session_change::tools::{SessionTools, ToolCall, ToolReply};
 use serde_json::Value;
 
 use crate::compact::{self, Window};
+use crate::context_edit::Stubs;
 use crate::event::{AgentEvent, End};
 use crate::steer::{QueueMode, Queued, Steering};
 use crate::tree::{EntryId, EntryKind, Tree, TreeError, calls};
@@ -433,6 +434,8 @@ impl<'a> Agent<'a> {
     }
 
     fn turns(&mut self, model: &mut dyn Model, events: &mut dyn FnMut(AgentEvent)) -> Outcome {
+        // What this run reads of earlier work as stubs, fixed now: never edited mid-run.
+        let stubs = Stubs::of(&self.tree.context().messages);
         let mut turn: u32 = 0;
         let mut last: Option<(String, Value, String)> = None;
         let mut asked_again = false;
@@ -447,7 +450,7 @@ impl<'a> Agent<'a> {
             }
             turn = turn.saturating_add(1);
             events(AgentEvent::TurnStart { turn });
-            let reply = match model.complete(&self.request(), events) {
+            let reply = match model.complete(&self.request(&stubs), events) {
                 Ok(reply) => reply,
                 Err(ModelError::Stopped) => return self.stop(StopReach::RequestDropped),
                 Err(ModelError::Failed(why)) => {
@@ -524,8 +527,9 @@ impl<'a> Agent<'a> {
     }
 
     /// The request the model reads now: the branch's context and the Session's tools.
-    fn request(&self) -> Request {
-        let context = self.tree.context();
+    fn request(&self, stubs: &Stubs) -> Request {
+        let mut context = self.tree.context();
+        stubs.apply(&mut context.messages);
         let tools = (self.tools.tools().into_iter())
             .map(|tool| ToolDef::new(tool.name, tool.description, tool.input_schema))
             .collect();
