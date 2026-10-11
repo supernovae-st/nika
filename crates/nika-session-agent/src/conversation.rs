@@ -784,6 +784,15 @@ impl Conversation {
         &self.changed
     }
 
+    /// The verdict of the proposal the person was shown, while the candidate is still the
+    /// revision it showed: their words consenting to it are no reason to judge its bytes again.
+    #[must_use]
+    pub fn shown_verdict(&self) -> Option<&str> {
+        let shown = self.shown.as_ref()?;
+        let current = self.candidate.as_ref().map(|c| c.number);
+        (current == Some(shown.number)).then_some(shown.scope.as_str())
+    }
+
     /// The values bound now against the ones the last proposal the person saw bound.
     fn changes_since_seen(&self) -> Vec<String> {
         let seen = |value: &str| (self.seen.iter()).any(|kept| same_literal(&kept.value, value));

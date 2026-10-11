@@ -41,9 +41,9 @@ use std::time::{Duration, Instant};
 use peer::{Kind, Peer, Seen};
 use scenarios::{
     ACCEPT, ALGOLIA, ALREADY, DEFLECT, DELEGATION, DIGEST, EMPTY, FOLLOWED, HACKER_NEWS, LE_MONDE,
-    LE_MONDE_WORDS, OUTPUT_WORDS, RENAMED, REPAIRING, REQUEST, STEER_B, STEERED, STILL_HERE,
-    STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C, THEN_STOP, TRIED_ON, UNRESOLVED, WHY, YC_BLOG,
-    scenario,
+    LE_MONDE_WORDS, OUTPUT_WORDS, RENAMED, REPAIRING, REQUEST, SAVE_AND_RUN, STEER_B, STEERED,
+    STILL_HERE, STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C, THEN_STOP, TRIED_ON, UNRESOLVED, WHY,
+    YC_BLOG, scenario,
 };
 use serde_json::{Value, json};
 
@@ -640,6 +640,12 @@ fn save_and_run_said_in_words_cover_the_candidate_they_designate() {
         files.iter().any(|f| f.as_str() == Some(saved)),
         "{saved} landed: {files:?}"
     );
+    // The words consent to the proposal they saw: its unchanged bytes are not judged again.
+    let consent = (journey.seen.iter())
+        .position(|seen| seen.kind == Kind::Agent && seen.text().contains(SAVE_AND_RUN))
+        .expect("the consent reached the author");
+    let judged = (journey.seen[consent..].iter()).filter(|seen| seen.kind == Kind::Judge);
+    assert_eq!(judged.count(), 0, "no second verdict for the bytes shown");
 }
 
 #[test]

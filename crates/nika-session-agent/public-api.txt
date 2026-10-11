@@ -336,6 +336,7 @@ pub fn nika_session_agent::conversation::Conversation::questions(&self) -> &[nik
 pub fn nika_session_agent::conversation::Conversation::replace(&mut self, citations: &nika_session_agent::conversation::Citations, args: &serde_json::value::Value) -> nika_session_change::tools::ToolReply
 pub fn nika_session_agent::conversation::Conversation::restored(value: &serde_json::value::Value) -> core::option::Option<Self>
 pub fn nika_session_agent::conversation::Conversation::selections(&self) -> (alloc::vec::Vec<nika_compile_fidelity::fidelity::resolution::Resolution>, alloc::vec::Vec<nika_compile_fidelity::fidelity::resolution::Resolution>)
+pub fn nika_session_agent::conversation::Conversation::shown_verdict(&self) -> core::option::Option<&str>
 pub fn nika_session_agent::conversation::Conversation::since(&self) -> u64
 pub fn nika_session_agent::conversation::Conversation::write(&mut self, citations: &nika_session_agent::conversation::Citations, (source, summary): (alloc::string::String, alloc::string::String), (rows, removed): (&[serde_json::value::Value], &[serde_json::value::Value]), check: &mut dyn core::ops::function::FnMut(&str) -> core::result::Result<(), alloc::string::String>) -> nika_session_change::tools::ToolReply
 impl nika_session_agent::conversation::Conversation

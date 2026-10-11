@@ -406,9 +406,18 @@ impl Parts<'_> {
             Ok(open) => open,
             Err(refused) => return ToolReply::error(refused),
         };
-        let scope = match self.judged(&open) {
-            Ok(scope) => scope,
-            Err(findings) => return ToolReply::error(findings),
+        // Words consenting to the proposal the person saw are no reason to judge its unchanged
+        // bytes again: the verdict belongs to what they were shown.
+        let consents = args["acts"].as_array().is_some_and(|acts| !acts.is_empty());
+        let verdict = (self.conversation.shown_verdict())
+            .filter(|_| consents && open.is_empty())
+            .map(str::to_owned);
+        let scope = match verdict {
+            Some(scope) => scope,
+            None => match self.judged(&open) {
+                Ok(scope) => scope,
+                Err(findings) => return ToolReply::error(findings),
+            },
         };
         let revision = self.conversation.candidate().map(|c| c.number);
         let shown: Vec<Value> = (open.iter())
