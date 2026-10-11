@@ -10,7 +10,7 @@
 | Function cap | ≤100 lines |
 | License | `AGPL-3.0-or-later` · Edition 2024 · `publish = false` |
 | Extraction source | `crates/nika-runtime/src/{expr.rs,jq.rs,record.rs}` + the four evaluation variants of `RuntimeError` |
-| NIKA codes | **none allocated** — `DataflowError` keeps the engine-internal `NIKA_1702`/`NIKA_1703` it always carried (the range names the CLASS, not the crate) and speaks the spec-plane `NIKA-VAR-001` · `-002` · `-004` · `-005` · `-006` on the wire |
+| NIKA codes | `NIKA_1712` (`ValueBound`: a value over a rehearsal room's bound, engine-internal and the same on the wire, never a Spec code) — `DataflowError` keeps the engine-internal `NIKA_1702`/`NIKA_1703` it always carried (the range names the CLASS, not the crate) and speaks the spec-plane `NIKA-VAR-001` · `-002` · `-004` · `-005` · `-006` on the wire |
 
 ---
 
@@ -82,12 +82,13 @@ the current numbers are derived from the self-tested counter over this tree.
 ## 4. Public surface
 
 ```rust
-pub enum DataflowError { UnresolvedTemplate · WhenUnsupported · CelEval · OutputBinding }
+pub enum DataflowError { UnresolvedTemplate · WhenUnsupported · CelEval · OutputBinding · ValueBound }
 impl DataflowError { spec_code() · wire_message() · from_cel() }
-impl NikaErrorCode for DataflowError    // NIKA_1702 · NIKA_1703
+impl NikaErrorCode for DataflowError    // NIKA_1702 · NIKA_1703 · NIKA_1712
 
 #[non_exhaustive] pub struct Scope<'a> { /* private authority + context fields */ }
-impl Scope<'_> { workflow_with_value_authorities() · with_task_context() · authority/context accessors · resolve_expr() }
+impl Scope<'_> { workflow_with_value_authorities() · with_task_context() · with_value_bound() · authority/context accessors · value_bound() · resolve_expr() }
+#[non_exhaustive] pub struct ValueBound    // new(limit) · limit() · crossed()
 pub fn expr::{render, render_json, eval_when}
 pub fn jq::eval_binding
 
@@ -106,6 +107,12 @@ TEST constructors behind the `testing` feature. In production the struct is
 authority-bearing value. A downstream crate therefore cannot forge or mutate
 an empty-authority scope with a literal. The public compile-fail example and
 API snapshot pin that FCI-002 boundary.
+
+A rehearsal room hands its run a `ValueBound`: every string `render` builds
+and every value `render_json` builds (a CEL list included) is counted where
+it is built, and one over the bound is refused (`DataflowError::ValueBound`,
+NIKA-1712), its size kept as the bound's first crossing for the room to
+report. A scope without a bound builds as before.
 
 ## 5. The seam did not move
 

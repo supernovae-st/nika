@@ -93,6 +93,18 @@ pub enum DataflowError {
         /// The binding-relative message (which `<name>` · the jq cause).
         message: String,
     },
+
+    /// A value a run built crossed the bound its scope carries, a rehearsal room's
+    /// ([`crate::ValueBound`]). The bound is the room's, never the language's: no spec-plane
+    /// class, the engine-internal [`codes::NIKA_1712`] is its wire code as well.
+    #[error("NIKA-1712 · a value the run built is {bytes} bytes, over the room's bound of {limit}")]
+    #[diagnostic(code(nika::runtime::value_bound))]
+    ValueBound {
+        /// The bytes the value held when it crossed the bound.
+        bytes: u64,
+        /// The bound.
+        limit: u64,
+    },
 }
 
 /// The actionable suffix for an unresolved `inputs.*` reference — the CLI
@@ -124,6 +136,7 @@ impl DataflowError {
             // An out-of-subset expression reaching the runtime is NIKA-VAR-005
             // (validation_error · the checker is the primary site).
             Self::WhenUnsupported { .. } => "NIKA-VAR-005".to_owned(),
+            Self::ValueBound { .. } => "NIKA-1712".to_owned(),
         }
     }
 
@@ -186,6 +199,7 @@ impl NikaErrorCode for DataflowError {
             Self::WhenUnsupported { .. } | Self::CelEval { .. } | Self::OutputBinding { .. } => {
                 codes::NIKA_1703
             }
+            Self::ValueBound { .. } => codes::NIKA_1712,
         }
     }
 

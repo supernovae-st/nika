@@ -916,6 +916,18 @@ pub const NIKA_1711: NikaCode = NikaCode {
     slug: "runtime-sandbox-policy-invalid",
 };
 
+/// NIKA-1712: A value a rehearsal run built crossed its room's bound (`nika_dataflow::ValueBound`):
+/// a rehearsal vouches for nothing a run builds past what its room holds. The task that builds it
+/// fails where it is built and the room reports a data bound; a run outside a room carries no
+/// bound. Engine wire form: the bound is the room's, never the language's, so no spec-plane row
+/// exists for it.
+pub const NIKA_1712: NikaCode = NikaCode {
+    num: 1712,
+    category: Category::Runtime,
+    severity: Severity::Error,
+    slug: "runtime-value-bound",
+};
+
 /// NIKA-1800: No access path survives admission for the requested
 /// model (D-2026-08-04-N1) — every enumerated candidate was rejected,
 /// each with its witness (dimension + layer + teaching line · A-8).
@@ -1023,6 +1035,6 @@ pub const ALL: &[NikaCode] = &[
     NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406, NIKA_1501, NIKA_1502, NIKA_1503, NIKA_1504,
     NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603, NIKA_1604, NIKA_1605, NIKA_1700, NIKA_1701,
     NIKA_1702, NIKA_1703, NIKA_1704, NIKA_1705, NIKA_1706, NIKA_1707, NIKA_1708, NIKA_1709,
-    NIKA_1710, NIKA_1711, NIKA_1800, NIKA_1801, NIKA_1802, NIKA_1803, NIKA_1804, NIKA_1805,
-    NIKA_1806, NIKA_1807,
+    NIKA_1710, NIKA_1711, NIKA_1712, NIKA_1800, NIKA_1801, NIKA_1802, NIKA_1803, NIKA_1804,
+    NIKA_1805, NIKA_1806, NIKA_1807,
 ];

@@ -39,12 +39,14 @@
 //! (`NIKA-VAR-001` · `-002` · `-004` · `-005` · `-006`) a consumer sees is
 //! byte-identical to before the descent.
 
+mod bound;
 mod errors;
 
 pub mod expr;
 pub mod jq;
 pub mod record;
 
+pub use bound::ValueBound;
 pub use errors::DataflowError;
 pub use expr::Scope;
 pub use record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};

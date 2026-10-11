@@ -43,6 +43,7 @@ use nika_cel::{Resolver, compute, compute_bool, parse};
 use nika_tmpl::{scan_islands, single_island};
 use serde_json::Value;
 
+use crate::ValueBound;
 use crate::errors::DataflowError;
 use crate::record::{TaskRecord, render_value};
 
@@ -112,6 +113,9 @@ pub struct Scope<'a> {
     /// boundary). `None` = nothing bound: a `group.X` read is unresolved
     /// (NIKA-1702 · loud), never a silent empty array.
     groups: Option<&'a BTreeMap<String, Vec<String>>>,
+    /// The bound a rehearsal room puts on every value this scope's evaluations build;
+    /// `None` outside a room.
+    bound: Option<&'a ValueBound>,
 }
 
 impl<'a> Scope<'a> {
@@ -159,6 +163,7 @@ impl<'a> Scope<'a> {
             index: None,
             permits: None,
             groups: None,
+            bound: None,
         }
     }
 
@@ -179,6 +184,14 @@ impl<'a> Scope<'a> {
         self.item = item;
         self.index = index;
         self.permits = permits;
+        self
+    }
+
+    /// Count every value this scope's evaluations build against `bound`, a rehearsal room's: a
+    /// value over it is refused ([`DataflowError::ValueBound`]); `None` builds as before.
+    #[must_use]
+    pub fn with_value_bound(mut self, bound: Option<&'a ValueBound>) -> Self {
+        self.bound = bound;
         self
     }
 
@@ -242,6 +255,12 @@ impl<'a> Scope<'a> {
     #[must_use]
     pub const fn permits(&self) -> Option<&'a Permits> {
         self.permits
+    }
+
+    /// The bound a rehearsal room put on the values this scope builds, if any.
+    #[must_use]
+    pub const fn value_bound(&self) -> Option<&'a ValueBound> {
+        self.bound
     }
 
     /// Evaluate one `${{ … }}` body (an island reference OR a richer
@@ -448,9 +467,11 @@ pub fn render(text: &str, scope: &Scope<'_>) -> Result<String, DataflowError> {
     for isl in islands {
         push_unescaped(&mut out, &text[cursor..isl.start]);
         out.push_str(&render_value(&scope.resolve_expr(isl.body.trim())?));
+        crate::bound::fits(scope.bound, out.len())?;
         cursor = isl.end;
     }
     push_unescaped(&mut out, &text[cursor..]);
+    crate::bound::fits(scope.bound, out.len())?;
     Ok(out)
 }
 
@@ -469,6 +490,15 @@ pub fn render(text: &str, scope: &Scope<'_>) -> Result<String, DataflowError> {
 /// [`DataflowError::CelEval`] (`NIKA-VAR-006`). Leaves are walked in
 /// document order, so the error names the FIRST offending reference.
 pub fn render_json(value: &Value, scope: &Scope<'_>) -> Result<Value, DataflowError> {
+    let built = build_json(value, scope)?;
+    if scope.bound.is_some() {
+        crate::bound::fits(scope.bound, crate::bound::json_size(&built))?;
+    }
+    Ok(built)
+}
+
+/// [`render_json`]'s walk: each leaf rendered, the containers rebuilt around them.
+fn build_json(value: &Value, scope: &Scope<'_>) -> Result<Value, DataflowError> {
     Ok(match value {
         Value::String(text) => match single_island(text) {
             Some(reference) => scope.resolve_expr(reference)?,
@@ -477,12 +507,12 @@ pub fn render_json(value: &Value, scope: &Scope<'_>) -> Result<Value, DataflowEr
         Value::Array(items) => Value::Array(
             items
                 .iter()
-                .map(|v| render_json(v, scope))
+                .map(|v| build_json(v, scope))
                 .collect::<Result<_, _>>()?,
         ),
         Value::Object(map) => Value::Object(
             map.iter()
-                .map(|(k, v)| Ok((k.clone(), render_json(v, scope)?)))
+                .map(|(k, v)| Ok((k.clone(), build_json(v, scope)?)))
                 .collect::<Result<_, _>>()?,
         ),
         other => other.clone(),
