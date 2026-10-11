@@ -19,7 +19,7 @@ use nika_providers::probe::{LocalLiveness, local_run_gate};
 use nika_session_agent::{AgentEvent, Model, ModelError, Reply, Request};
 use nika_types::cost::UnpricedReason;
 
-use super::{ReasonError, allowance_ceiling, block_on, provider_config, provider_http_for};
+use super::{ReasonError, allowance_ceiling, block_on, provider_config, provider_http};
 
 /// One conversation's model: a `provider/name` route of the provider registry.
 #[derive(Debug, Clone)]
@@ -99,7 +99,7 @@ impl Model for AgentModel {
         request: &Request,
         _events: &mut dyn FnMut(AgentEvent),
     ) -> Result<Reply, ModelError> {
-        let http = provider_http_for(self.admission.is_some()).map_err(ModelError::Failed)?;
+        let http = provider_http().map_err(ModelError::Failed)?;
         let mut registry = nika_providers::ProviderRegistry::new(Arc::new(http), provider_config());
         if let Some(admission) = &self.admission {
             registry = registry.with_inference_admission(admission.clone());

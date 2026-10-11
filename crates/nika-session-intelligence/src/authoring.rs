@@ -906,8 +906,7 @@ fn seated(
     let consulted = selected.map(|setup| setup.consult(decision::admit(admission)));
     // The provider plane's client (SSRF off · the transport ceiling), as
     // the conversation's reasoner and the engine's run path use.
-    let http =
-        crate::reasoner::provider_http_for(admission.is_some()).map_err(AuthoringError::Seat)?;
+    let http = crate::reasoner::provider_http().map_err(AuthoringError::Seat)?;
     let mut registry =
         nika_providers::ProviderRegistry::new(Arc::new(http), crate::reasoner::provider_config());
     if let Some(a) = admission {
