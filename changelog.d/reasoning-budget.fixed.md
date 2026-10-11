@@ -4,6 +4,7 @@
   cap on reasoning: the run ended with no answer, or with one cut short.
   A cap the person did not type that cannot cover the reasoning plus the
   answer, or no cap at all, is now refused before the workflow is
-  proposed, with the repairs that reach the model's route: raise
-  `max_tokens`, or set `run.reasoning.effort: low` where the model
-  documents that level.
+  proposed, with the repairs that reach the model's route: set
+  `run.reasoning.effort: low` first where the model documents that
+  level, then raise `max_tokens` (at its default effort the model spends
+  most of a larger cap reasoning).

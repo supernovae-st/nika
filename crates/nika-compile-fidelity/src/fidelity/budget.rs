@@ -8,8 +8,8 @@
 //! rewrites a stated one; a conversation's author states its own, so each one is judged here,
 //! before any proposal. The facts are a typed input, what a route says of its model: whether it
 //! reasons by default, the room its reasoning and answer need, whether `run.reasoning.effort:
-//! low` reaches it. Only a remedy that reaches the route is named: raising the cap always, the
-//! low effort where the model documents it; never turning thinking off, which no route fact
+//! low` reaches it. Only a remedy that reaches the route is named: the low effort first where
+//! the model documents it, then raising the cap; never turning thinking off, which no route fact
 //! reaches yet (a `thinking:` block the route does not map changes nothing, so it settles no
 //! task). A cap the person typed stays theirs. An `agent:` task states `max_tokens_total`,
 //! cumulative across its requests: no single request's cap is stated there, so none is judged.
@@ -104,6 +104,9 @@ impl ReasoningFacts {
     }
 }
 
+/// The remedy named first where the model documents it.
+const LOW_EFFORT: &str = "Set `run.reasoning.effort: low`, a level this model documents (at its default effort it spends most of a larger cap reasoning)";
+
 /// Each `infer:` task whose cap cannot cover its model's reasoning plus the answer: refused,
 /// the remedies that reach its route stated, unless the run lowers the effort where that
 /// reaches it, or the person typed the cap. A templated cap or seat is judged at run time.
@@ -132,10 +135,14 @@ pub fn reasoning(
         let Some(room) = facts.room else {
             continue;
         };
-        let low = if facts.low_effort {
-            ", or set `run.reasoning.effort: low` (a level this model documents)"
-        } else {
-            ""
+        // The documented low effort first: at its default effort a model spends most of a larger
+        // cap reasoning (measured 2026-10-11), so a larger cap is the remedy of last resort.
+        let remedy = |raise: String| {
+            if facts.low_effort {
+                format!("{LOW_EFFORT}, or {raise}.")
+            } else {
+                format!("{}{}.", raise[..1].to_uppercase(), &raise[1..])
+            }
         };
         let cap = &infer["max_tokens"];
         let message = match cap.as_u64() {
@@ -143,10 +150,12 @@ pub fn reasoning(
                 continue;
             }
             Some(cap) => format!(
-                "REASONING BUDGET: task `{id}` asks `{seat}`, a model that reasons before it answers, for at most {cap} output tokens: its reasoning can spend them all and leave no answer (NIKA-INFER-004), or cut the answer short. Raise `max_tokens` to {room}{low}."
+                "REASONING BUDGET: task `{id}` asks `{seat}`, a model that reasons before it answers, for at most {cap} output tokens: its reasoning can spend them all and leave no answer (NIKA-INFER-004), or cut the answer short. {}",
+                remedy(format!("raise `max_tokens` to {room}"))
             ),
             None if cap.is_null() => format!(
-                "REASONING BUDGET: task `{id}` asks `{seat}`, a model that reasons before it answers, with no output cap: the run's default may leave no room for the answer after the reasoning (NIKA-INFER-004). State `max_tokens: {room}`{low}."
+                "REASONING BUDGET: task `{id}` asks `{seat}`, a model that reasons before it answers, with no output cap: the run's default may leave no room for the answer after the reasoning (NIKA-INFER-004). {}",
+                remedy(format!("state `max_tokens: {room}`"))
             ),
             None => continue,
         };
@@ -193,14 +202,15 @@ mod tests {
                 && said[0].starts_with("REASONING BUDGET: task `summarize` asks `acme/thinker`")
                 && said[0].contains("at most 4096 output tokens")
                 && said[0]
-                    .contains("Raise `max_tokens` to 16384, or set `run.reasoning.effort: low`")
+                    .contains("Set `run.reasoning.effort: low`, a level this model documents")
+                && said[0].contains("or raise `max_tokens` to 16384.")
                 && !said[0].contains("thinking"),
             "{said:?}"
         );
         let open = summary(&json!({"prompt": "Summarize"}));
         let said = refused(ASKED, &open);
         assert!(
-            said.len() == 1 && said[0].contains("State `max_tokens: 16384`"),
+            said.len() == 1 && said[0].contains("or state `max_tokens: 16384`."),
             "{said:?}"
         );
         let effort = |level: &str| {
