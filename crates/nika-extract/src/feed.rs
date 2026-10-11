@@ -61,88 +61,88 @@ pub fn feed_from_bytes(body: &[u8]) -> Result<serde_json::Value, ExtractError> {
         out.insert("updated".to_owned(), updated.to_rfc3339().into());
     }
 
-    let items: Vec<serde_json::Value> = parsed
-        .entries
-        .into_iter()
-        .map(|entry| {
-            let mut item = serde_json::Map::new();
-            // feed-rs guarantees an id (Atom requires one; for RSS it
-            // falls back to guid/link/title-hash) — always present.
-            item.insert("id".to_owned(), entry.id.into());
-            if let Some(title) = entry.title {
-                item.insert("title".to_owned(), title.content.into());
-            }
-            // First link only: feed-rs orders rel=alternate first, and
-            // multi-<link> channels/entries are vanishingly rare in the
-            // wild — the spec shape wants ONE link per item.
-            if let Some(link) = entry.links.first() {
-                item.insert("link".to_owned(), link.href.clone().into());
-            }
-            // First author's name (singular · matching `metadata` mode's
-            // `author` and the first-link precedent above). Multi-author
-            // entries exist but the normalized shape carries one; an
-            // empty name is omitted (JSON absence over a blank string).
-            if let Some(name) = entry
-                .authors
-                .into_iter()
-                .map(|p| p.name)
-                .find(|n| !n.trim().is_empty())
-            {
-                item.insert("author".to_owned(), name.into());
-            }
-            if let Some(summary) = entry.summary {
-                item.insert("summary".to_owned(), summary.content.into());
-            }
-            // The FULL item body — RSS `<content:encoded>` · Atom
-            // `<content>` · JSON Feed `content_html`/`content_text`. This
-            // is the high-value field for content pipelines (the whole
-            // post, not just the summary blurb); surfaced raw (the
-            // caller runs it through `markdown`/`text` if they want it
-            // cleaned · same raw-passthrough discipline as `summary`).
-            // Bounded by the response body cap like everything else.
-            if let Some(body) = entry.content.and_then(|c| c.body) {
-                item.insert("content".to_owned(), body.into());
-            }
-            if let Some(published) = entry.published {
-                item.insert("published".to_owned(), published.to_rfc3339().into());
-            }
-            // The source's own revision date (Atom `<updated>`, JSON Feed
-            // `date_modified`): an item may carry only that, so a date
-            // filter reads `published // updated`. feed-rs copies an RSS
-            // `pubDate` into `updated`; a date equal to `published` dates
-            // nothing new and stays out.
-            if let Some(updated) = entry.updated.filter(|at| entry.published != Some(*at)) {
-                item.insert("updated".to_owned(), updated.to_rfc3339().into());
-            }
-            if !entry.categories.is_empty() {
-                let cats: Vec<serde_json::Value> = entry
-                    .categories
-                    .into_iter()
-                    .map(|c| c.term.into())
-                    .collect();
-                item.insert("categories".to_owned(), serde_json::Value::Array(cats));
-            }
-            // Attached media — RSS `<enclosure>` (the podcast standard) AND
-            // MediaRSS `<media:content>`, both mapped by feed-rs into
-            // `entry.media`. THE field for podcast/video feed consumers
-            // (the audio/video URL). `[{url, type?, size?, duration_secs?}]`
-            // · only entries carrying a url · capped (a real item has 1-3).
-            let media: Vec<serde_json::Value> = entry
-                .media
-                .into_iter()
-                .flat_map(|m| m.content)
-                .filter_map(media_object)
-                .take(MAX_MEDIA_PER_ITEM)
-                .collect();
-            if !media.is_empty() {
-                item.insert("media".to_owned(), serde_json::Value::Array(media));
-            }
-            serde_json::Value::Object(item)
-        })
-        .collect();
+    let items: Vec<serde_json::Value> = parsed.entries.into_iter().map(feed_item).collect();
     out.insert("items".to_owned(), serde_json::Value::Array(items));
 
     Ok(serde_json::Value::Object(out))
+}
+
+/// One `feed-rs` entry → the spec's item object: `id` always, every other
+/// field only when the source carries it.
+fn feed_item(entry: feed_rs::model::Entry) -> serde_json::Value {
+    let mut item = serde_json::Map::new();
+    // feed-rs guarantees an id (Atom requires one; for RSS it
+    // falls back to guid/link/title-hash) — always present.
+    item.insert("id".to_owned(), entry.id.into());
+    if let Some(title) = entry.title {
+        item.insert("title".to_owned(), title.content.into());
+    }
+    // First link only: feed-rs orders rel=alternate first, and
+    // multi-<link> channels/entries are vanishingly rare in the
+    // wild — the spec shape wants ONE link per item.
+    if let Some(link) = entry.links.first() {
+        item.insert("link".to_owned(), link.href.clone().into());
+    }
+    // First author's name (singular · matching `metadata` mode's
+    // `author` and the first-link precedent above). Multi-author
+    // entries exist but the normalized shape carries one; an
+    // empty name is omitted (JSON absence over a blank string).
+    if let Some(name) = entry
+        .authors
+        .into_iter()
+        .map(|p| p.name)
+        .find(|n| !n.trim().is_empty())
+    {
+        item.insert("author".to_owned(), name.into());
+    }
+    if let Some(summary) = entry.summary {
+        item.insert("summary".to_owned(), summary.content.into());
+    }
+    // The FULL item body — RSS `<content:encoded>` · Atom
+    // `<content>` · JSON Feed `content_html`/`content_text`. This
+    // is the high-value field for content pipelines (the whole
+    // post, not just the summary blurb); surfaced raw (the
+    // caller runs it through `markdown`/`text` if they want it
+    // cleaned · same raw-passthrough discipline as `summary`).
+    // Bounded by the response body cap like everything else.
+    if let Some(body) = entry.content.and_then(|c| c.body) {
+        item.insert("content".to_owned(), body.into());
+    }
+    if let Some(published) = entry.published {
+        item.insert("published".to_owned(), published.to_rfc3339().into());
+    }
+    // The source's own revision date (Atom `<updated>`, JSON Feed
+    // `date_modified`): an item may carry only that, so a date
+    // filter reads `published // updated`. feed-rs copies an RSS
+    // `pubDate` into `updated`; a date equal to `published` dates
+    // nothing new and stays out.
+    if let Some(updated) = entry.updated.filter(|at| entry.published != Some(*at)) {
+        item.insert("updated".to_owned(), updated.to_rfc3339().into());
+    }
+    if !entry.categories.is_empty() {
+        let cats: Vec<serde_json::Value> = entry
+            .categories
+            .into_iter()
+            .map(|c| c.term.into())
+            .collect();
+        item.insert("categories".to_owned(), serde_json::Value::Array(cats));
+    }
+    // Attached media — RSS `<enclosure>` (the podcast standard) AND
+    // MediaRSS `<media:content>`, both mapped by feed-rs into
+    // `entry.media`. THE field for podcast/video feed consumers
+    // (the audio/video URL). `[{url, type?, size?, duration_secs?}]`
+    // · only entries carrying a url · capped (a real item has 1-3).
+    let media: Vec<serde_json::Value> = entry
+        .media
+        .into_iter()
+        .flat_map(|m| m.content)
+        .filter_map(media_object)
+        .take(MAX_MEDIA_PER_ITEM)
+        .collect();
+    if !media.is_empty() {
+        item.insert("media".to_owned(), serde_json::Value::Array(media));
+    }
+    serde_json::Value::Object(item)
 }
 
 /// The `&str` path (`extract()` API uniformity) — delegates to the
