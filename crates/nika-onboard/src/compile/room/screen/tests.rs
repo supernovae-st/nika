@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The screen around the argument law (`nika_compile_cognition::rehearse::arguments`, whose own
-//! cases live with it): its earlier refusals come first, a value the law refuses is a data
-//! bound in the words of its field, and the compiler's copies pass. Pure: candidate source
+//! The screen: its refusals come in their order, a value its template amplifies passes (the
+//! room bounds it where it is built), and the compiler's copies pass. Pure: candidate source
 //! screened in memory; no room, runtime, file or provider is reached.
 
 use nika_compile_cognition::rehearse::Refusal;
@@ -73,13 +72,16 @@ fn the_text_and_bytes_copies_pass() {
     assert!(screened(&copy(&[])).is_ok());
 }
 
+/// A value its template wraps or repeats is no refusal of the screen: the room bounds the value
+/// where the run builds it.
 #[test]
-fn a_value_the_law_refuses_is_a_data_bound_in_the_words_of_its_field() {
+fn an_amplified_value_passes_the_screen() {
     let wrapped = r#"{ copy: "${{ with.chunk }}" }"#;
-    let refused = screened(&copy(&[("@CONTENT@", wrapped)])).expect_err("a wrapped value");
-    assert_eq!(refused.refusal, Refusal::DataBounds, "{}", refused.reason);
-    let field = "task write_it args.content builds an array or an object of values";
-    assert!(refused.reason.starts_with(field), "{}", refused.reason);
+    let twice = r#""${{ with.chunk }}${{ with.chunk }}""#;
+    for content in [wrapped, twice] {
+        let outcome = screened(&copy(&[("@CONTENT@", content)]));
+        assert!(outcome.is_ok(), "{outcome:?}");
+    }
 }
 
 #[test]

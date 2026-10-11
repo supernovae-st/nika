@@ -623,6 +623,7 @@ async fn replayed(
             Arc::clone(&tally),
             None,
             Some(captures),
+            None,
         )
         .await;
     evidence(&json!({

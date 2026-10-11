@@ -423,6 +423,18 @@ pub(crate) fn copy_file(world: &World, from: &str, to: &str) -> String {
     )
 }
 
+/// A copy of `data/big.txt` whose write builds its content from five copies of what it read:
+/// one value five times the input's size, built where the write renders it.
+pub(crate) fn amplified(world: &World) -> String {
+    let five = "${{ with.content }}".repeat(5);
+    copy_file(world, "data/big.txt", "out/big.txt")
+        .replace("nika: copy\n", "nika: amplified\n")
+        .replace(
+            "content: \"${{ with.content }}\"",
+            &format!("content: \"{five}\""),
+        )
+}
+
 /// A copy of `from` to `to` as given, granted `read_grant` and `write_grant`.
 pub(crate) fn copy_granted(from: &str, to: &str, read_grant: &str, write_grant: &str) -> String {
     format!(
@@ -671,6 +683,7 @@ fn copy_fixtures(world: &World) -> Vec<Fixture> {
             Screened,
         ),
         fixture("absolute literal", copy_raw(&sales, &escape), Screened),
+        fixture("amplified copy", amplified(world), Runs),
     ]
 }
 

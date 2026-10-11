@@ -32,7 +32,7 @@ use nika_runtime::child::{ChildCall, ChildOutcome, ChildRunRefusal, ChildRunner}
 use nika_runtime::compose::fs_boundary_of_permits;
 use nika_runtime::{
     RunOutcome, RunSeams, Runtime, RuntimeConfig, RuntimeError, SecretResolveError, TaskStatus,
-    WorkflowSecretResolver,
+    ValueBound, WorkflowSecretResolver,
 };
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawTask};
 use nika_schema::types::SecretRef;
@@ -183,7 +183,7 @@ impl ServiceExecutionDriver {
     where
         F: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn + Send + Sync + 'static,
     {
-        self.rehearse_over_replaying(fs, plan, tally, jq, None)
+        self.rehearse_over_replaying(fs, plan, tally, jq, None, None)
             .await
     }
 
@@ -193,7 +193,8 @@ impl ServiceExecutionDriver {
     /// socket opened and no name resolved. Under [`Self::replay_plan`] a model step fails where
     /// it stands: the registry has no transport and no key, the agent's seat refuses every turn.
     /// The outcome is the trial's view of the run ([`replay::settle_into`]), screened as
-    /// [`replay::screen`] names it.
+    /// [`replay::screen`] names it. `values` is the room's bound on every value the run builds
+    /// ([`Runtime::with_value_bound`]): one over it fails its task, and the bound keeps it.
     ///
     /// # Errors
     /// As [`Self::rehearse_over`].
@@ -204,6 +205,7 @@ impl ServiceExecutionDriver {
         tally: Arc<DeniedTally>,
         jq: Option<Arc<IsolatedJq>>,
         captures: Option<Arc<Captures>>,
+        values: Option<Arc<ValueBound>>,
     ) -> Result<RunOutcome, RuntimeError>
     where
         F: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn + Send + Sync + 'static,
@@ -249,6 +251,10 @@ impl ServiceExecutionDriver {
         .with_secret_resolver(Arc::new(DeniedSecrets(Arc::clone(&tally))))
         .with_child_runner(Arc::new(DeniedChild(tally)))
         .with_access_plan(plan);
+        let runtime = match values {
+            Some(values) => runtime.with_value_bound(values),
+            None => runtime,
+        };
         let (mut stamper, mut sink) = (seams.stamper(), SilentSink);
         let mut outcome = runtime
             .run(&self.workflow, &self.report, stamper.as_mut(), &mut sink)

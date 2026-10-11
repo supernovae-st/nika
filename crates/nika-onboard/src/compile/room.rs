@@ -10,8 +10,9 @@
 //! into the room) and runs through the existing runtime on a filesystem rooted at the room, with
 //! no provider, network, process, gate, secret or nested run. At the time bound the run is
 //! stopped where it stands; every operation it started is joined before the outputs are read
-//! back, and the room is deleted and verified gone. A candidate the room cannot run safely is
-//! not run, and the report says why.
+//! back, and the room is deleted and verified gone. A value the run builds over what the room
+//! holds fails its task where it is built, and the report is that bound's. A candidate the room
+//! cannot run safely is not run, and the report says why.
 
 mod record;
 mod screen;
@@ -28,6 +29,7 @@ use nika_compile_cognition::rehearse::{
 };
 use nika_execution::{ExecutionService, ExecutionSnapshot, SnapshotLimits};
 use nika_fs::{EffectLedger, OwnedDir, RoomLimits, RootedFs};
+use nika_runtime::{RunOutcome, RuntimeError, ValueBound};
 use nika_service_execution::{
     DeniedTally, ExecutionAccessPlan, IsolatedJq, ServiceExecutionDriver, replay::Captures,
 };
@@ -38,6 +40,29 @@ pub use nika_service_execution::JqHelper;
 use record::{Ran, Record};
 use screen::{Refused, Screened};
 use world::Scratch;
+
+/// The code a value over the room's bound fails its task with (`DataflowError::ValueBound`).
+const VALUE_BOUND: &str = "NIKA-1712";
+
+/// A run a bound stopped is no failure of the program: not run, stopped where it stood, a data
+/// bound in `reason`'s words.
+fn stopped(report: &mut RehearsalReport, reason: String, elapsed_ms: u64) {
+    report.outcome = Rehearsal::NotRun { reason };
+    report.attempt = Attempt::Stopped { elapsed_ms };
+    report.observation.failure = None;
+    report.observation.refusal = Some(Refusal::DataBounds);
+}
+
+/// The task whose record names the room's value bound, once the run settled.
+fn crossing_task(settled: Option<&Result<RunOutcome, RuntimeError>>) -> Option<String> {
+    let outcome = settled?.as_ref().ok()?;
+    let failed = |record: &nika_runtime::TaskRecord| {
+        (record.error.as_ref()).is_some_and(|error| error.code == VALUE_BOUND)
+    };
+    (outcome.records.iter())
+        .find(|(_, record)| failed(record))
+        .map(|(task, _)| task.clone())
+}
 
 /// A rehearsal host over one project: its observed inputs, copied into a scratch room.
 #[derive(Clone, Debug)]
@@ -361,14 +386,20 @@ impl Job {
         // deadline is drained and reaped while the run still stands, never dropped by its bound.
         let jq_deadline = started + self.bound.saturating_sub(self.bound / 5);
         let jq = (self.jq.clone()).map(|helper| Arc::new(IsolatedJq::new(helper, jq_deadline)));
+        // The room holds no value larger than its own capacity.
+        let values = Arc::new(ValueBound::new(world::ROOM_BYTES));
         let run = ready.driver.rehearse_over_replaying(
             Arc::clone(&room),
             ready.plan,
             Arc::clone(&tally),
             jq.clone(),
             self.captures.clone(),
+            Some(Arc::clone(&values)),
         );
         let settled = tokio::time::timeout(self.bound, run).await.ok();
+        let crossed = values
+            .crossed()
+            .map(|bytes| (bytes, crossing_task(settled.as_ref())));
         drained &= world::next_phase(&ledger).await.is_ok();
         // A jq helper the collection could not reap leaves the drain unverified.
         let bound = jq.as_ref().and_then(|jq| jq.bound());
@@ -386,12 +417,17 @@ impl Job {
         let mut report = record.ran(&ran, screened);
         // A bounded evaluation is no failure of the program: the run was stopped by a bound.
         if let Some(bound) = bound {
-            report.outcome = Rehearsal::NotRun {
-                reason: format!("a jq step was stopped by its bound: {}", bound.reason),
-            };
-            report.attempt = Attempt::Stopped { elapsed_ms };
-            report.observation.failure = None;
-            report.observation.refusal = Some(Refusal::DataBounds);
+            let reason = format!("a jq step was stopped by its bound: {}", bound.reason);
+            stopped(&mut report, reason, elapsed_ms);
+        }
+        // Nor is a value over the room's bound: its task failed where the value was built.
+        if let Some((bytes, task)) = crossed {
+            let at = task.map_or_else(|| "a task".to_owned(), |task| format!("task {task}"));
+            let limit = values.limit();
+            let reason = format!(
+                "{at} built a value of {bytes} bytes, over the room's bound of {limit} bytes"
+            );
+            stopped(&mut report, reason, elapsed_ms);
         }
         report
     }

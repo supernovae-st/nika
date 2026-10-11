@@ -803,9 +803,11 @@ default, as preparation context, and asks over it only when the run proves whole
 copy door (`copy::qualify`) judges by exact bytes, and no verifier reads its runs. The room's
 isolation, receipts and bounds (`COPY_BOUND`, `PREVIEW_BOUND`) are unchanged and are not
 session-wide creation quotas; a trial run grants no live `.nika` Run authority. Before any room,
-the room's screen refuses what a rehearsal cannot bound or confine; its last pass is the
-argument law of `nika-compile-seats` (`rehearse::arguments`, held here until this crate's size
-cap), and each value that law refuses is a data bound in the words of its field.
+the room's screen refuses what a rehearsal cannot bound or confine. The values a run builds are
+bounded where they are built, never guessed from their templates: the room hands its run
+`ValueBound::new(ROOM_BYTES)` (its own capacity, 4 MiB), a value over it fails its task
+(NIKA-1712), and the report is that bound's, as a jq step's is: not run (« task <id> built a
+value of <bytes> bytes, over the room's bound of <limit> bytes »), stopped, a data bound.
 
 Before each rehearsal, `Scoped` observes the request's sources and destinations in the original
 project (`WorldBefore::capture`); a path outside the project, a symlink or an unreadable file

@@ -18,9 +18,9 @@ mod room_support;
 use nika_onboard::compile::rehearse::{Attempt, Refusal, Rehearsal, RehearsalReport};
 use room_support::{
     AGENT, HIGHEST_FIRST, INFER, MCP, NOTIFY, OUTSIDE_THE_JQ_SUBSET, SALES, SECRET, TEMPLATED_TOOL,
-    UNKNOWN_TOOL, World, completed, exec_touching, fetch, generate, nested_parent, not_run_because,
-    prompt_gate, ranking, refused_before_any_room, rehearsed, sales_input, slow, templated_jq,
-    with_branch,
+    UNKNOWN_TOOL, World, amplified, completed, exec_touching, fetch, generate, nested_parent,
+    not_run_because, prompt_gate, ranking, refused_before_any_room, rehearsed, sales_input, slow,
+    templated_jq, with_branch,
 };
 use std::io::ErrorKind;
 use std::net::TcpListener;
@@ -418,4 +418,45 @@ async fn a_used_wrong_seat_model_is_screened_before_room_admission() {
         assert!(room_support::bound_to(&report, &source));
         assert_eq!(world.files(), before);
     }
+}
+
+/// A value the run builds over what the room holds fails its task where it is built, and the
+/// rehearsal reports that bound: five copies of a 900 KiB input make 4,608,000 bytes, over the
+/// room's 4 MiB.
+#[tokio::test]
+async fn a_value_over_the_rooms_bound_stops_the_rehearsal_as_a_data_bound() {
+    const TEST: &str = concat!(
+        module_path!(),
+        "::a_value_over_the_rooms_bound_stops_the_rehearsal_as_a_data_bound"
+    );
+    let big = "a".repeat(900 * 1024);
+    let world = World::new(&[("data/big.txt", big.as_str())]);
+    let inputs = [world.path("data/big.txt")];
+    let report = rehearsed(
+        TEST,
+        "only",
+        &world.room(),
+        &amplified(&world),
+        &inputs,
+        &[],
+    )
+    .await;
+    assert!(
+        not_run_because(&report, "task write_it built a value of 4608000 bytes"),
+        "{report:?}"
+    );
+    assert!(
+        not_run_because(&report, "over the room's bound of 4194304 bytes"),
+        "{report:?}"
+    );
+    assert!(
+        matches!(report.attempt, Attempt::Stopped { .. }),
+        "{report:?}"
+    );
+    assert_eq!(report.observation.refusal, Some(Refusal::DataBounds));
+    assert!(
+        report.observation.failure.is_none(),
+        "no failure of the program"
+    );
+    assert!(report.room.prepared && report.room.cleaned, "{report:?}");
 }

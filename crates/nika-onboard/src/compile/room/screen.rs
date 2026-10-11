@@ -8,9 +8,8 @@
 //! own, and a `secrets:` block are refused, each in its own words. Every
 //! path a literal or a constant names must stay in the room, and a read must name an observed
 //! input or one of the candidate's own outputs. A path known only at run time passes: the room
-//! itself confines it. Last, the amplifying value forms the argument law describes
-//! ([`arguments`](nika_compile_cognition::rehearse::arguments)) are refused before evaluation,
-//! independently of the room's write budget, each a data bound in the words of its field.
+//! itself confines it. The values a run builds are bounded where they are built, in the room
+//! (a value over what the room holds fails its task), never guessed from their templates here.
 
 use nika_compile_cognition::rehearse::Refusal;
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawTask, RawWorkflow};
@@ -122,8 +121,6 @@ pub(super) fn screen_with(
             ));
         }
     }
-    nika_compile_cognition::rehearse::arguments::evaluated(&workflow)
-        .map_err(|reason| Refused::new(Refusal::DataBounds, reason))?;
     Ok(screened)
 }
 
