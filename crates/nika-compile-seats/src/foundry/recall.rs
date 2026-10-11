@@ -7,8 +7,9 @@
 //! seat reads it. Pure over the admitted rows.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::OnceLock;
 
-use nika_compile_reader::text::STOPWORDS;
+use nika_compile_reader::text::{RETRIEVAL_STOPWORDS, STOPWORDS};
 use serde_json::Value;
 
 /// Take ranked sources in turn — the first of each, then the second of each… — keeping each id
@@ -110,13 +111,24 @@ pub fn tokens(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// The words relevance is read from: a text's [`tokens`] without the compiler's shared
-/// [`STOPWORDS`] (function words and the envelope's own keywords). Every row and every request
-/// share those, so they separate nothing: a row that shares only « the » or « with » with a
-/// request is never recalled.
+/// The words relevance is read past: the compiler's shared [`STOPWORDS`] (function words and the
+/// envelope's own keywords) and its retrieval lexicon ([`RETRIEVAL_STOPWORDS`]: French function
+/// words, English request scaffolding), as the compile's own retrieval reads them.
+fn stopwords() -> &'static BTreeSet<&'static str> {
+    static WORDS: OnceLock<BTreeSet<&'static str>> = OnceLock::new();
+    WORDS.get_or_init(|| {
+        (STOPWORDS.iter().copied())
+            .chain(RETRIEVAL_STOPWORDS.split_whitespace())
+            .collect()
+    })
+}
+
+/// The words relevance is read from: a text's [`tokens`] without the [`stopwords`]. Every row
+/// and every request share those, in English or in French, so they separate nothing: a row that
+/// shares only « the », « with » or « les » with a request is never recalled.
 fn informative(text: &str) -> Vec<String> {
     let mut words = tokens(text);
-    words.retain(|word| !STOPWORDS.contains(&word.as_str()));
+    words.retain(|word| !stopwords().contains(word.as_str()));
     words
 }
 

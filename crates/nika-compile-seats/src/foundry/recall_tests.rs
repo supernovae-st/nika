@@ -37,6 +37,23 @@ fn a_request_of_stopwords_alone_recalls_nothing() {
     );
 }
 
+/// The evaluator's French news request, against rows in both languages (the release holds French
+/// rows too): a French article or preposition (« les », « dans ») recalls nothing, while the
+/// request's content words still reach the French row and the English one.
+#[test]
+fn a_french_request_recalls_by_its_content_words_never_by_its_articles() {
+    let rows = vec![
+        json!({"id": "pages", "t": "Parcourir toutes les pages par identité stable"}),
+        json!({"id": "markdown", "t": "fetch a source and convert it to markdown"}),
+        json!({"id": "digest", "t": "Résumer les actualités du jour dans un dossier"}),
+    ];
+    let seed = "Récupère les dernières actualités tech de Y Combinator et TechCrunch, fais-moi un résumé et sauvegarde-le en Markdown dans un dossier.";
+    let ranked: Vec<String> = (rank(seed, &rows, |r| text_of(r, &["t"])).into_iter())
+        .map(|(id, _)| id)
+        .collect();
+    assert_eq!(ranked, ["digest", "markdown"]);
+}
+
 /// The rare words a request shares with a row still rank it first, before a row sharing one
 /// informative word.
 #[test]
