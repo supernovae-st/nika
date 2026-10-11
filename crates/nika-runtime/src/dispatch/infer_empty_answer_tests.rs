@@ -201,3 +201,36 @@ async fn a_real_answer_still_settles_green() {
     assert!(rec.error.is_none(), "no failure rides a real answer");
     assert_eq!(http.calls(), 1);
 }
+
+/// NIKA-INFER-005 on the run record: an answer the provider cut at the output cap fails the
+/// task typed, never green; the record's details carry the cut text and the provider's stop
+/// reason, and the code is one the embedded canon declares.
+#[tokio::test]
+async fn a_cut_answer_settles_failed_with_its_details() {
+    let http = ScriptedHttp::serving(&[
+        r#"{"model":"llama3.2","message":{"role":"assistant","content":"The three stories are: first, the"},"done":true,"done_reason":"length","prompt_eval_count":7,"eval_count":512}"#,
+    ]);
+    let outcome = run_workflow(
+        "nika: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    infer: { prompt: \"brief me\", max_tokens: 512 }\n",
+        Arc::clone(&http),
+    )
+    .await;
+    assert!(!outcome.ok, "a cut answer is not a green run");
+    let rec = &outcome.records["ask"];
+    assert_eq!(rec.status, TaskStatus::Failure);
+    let err = rec.error.as_ref().expect("the failure carries its record");
+    assert_eq!(err.code, "NIKA-INFER-005");
+    assert!(err.message.contains("max_tokens 512"), "{}", err.message);
+    let details = err.details.as_ref().expect("the cut rides the details");
+    assert_eq!(
+        details["partial_output"],
+        "The three stories are: first, the"
+    );
+    assert_eq!(details["stop_reason"], "length");
+    let canon = nika_pack::error_codes();
+    assert!(
+        canon.iter().any(|row| row.code == "NIKA-INFER-005"),
+        "the canon declares it"
+    );
+    assert_eq!(http.calls(), 1, "never re-asked under the same cap");
+}

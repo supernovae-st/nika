@@ -260,9 +260,11 @@ impl Dispatched {
                 err.spec_code(),
                 err.to_string(),
                 err.is_transient(),
-                // A tool's typed failure facts (`nika:fetch` · Status as data).
+                // A verb's typed failure facts (`nika:fetch` · Status as data · a cut answer).
                 nika_verb_invoke::VerbInvokeError::details_of(err)
-                    .map(nika_kernel::tool_executor::ToolErrorDetails::to_value),
+                    .map(nika_kernel::tool_executor::ToolErrorDetails::to_value)
+                    .or_else(|| nika_verb_infer::VerbInferError::details_of(err))
+                    .or_else(|| nika_verb_agent::VerbAgentError::details_of(err)),
             ))),
         }
     }
