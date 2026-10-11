@@ -10,19 +10,19 @@ use nika_compile_seats::foundry::release::r2;
 
 use super::*;
 
-const R2_SNAPSHOT: &str = "e0abc241bc7dc764f38dc78b2a49d003788a31d58c08c6ffafc3c1fcb8deaad0";
+const R2_SNAPSHOT: &str = "8d52df01a5105fc4661851218e89ca172c5799bf3016aedbce1574ecac096075";
 const R2_POLICY: &str = "policy-r2";
 const R2_POLICY_SHA256: &str = "fb070b7ac25066c86c3fe41d4253d25741565b8c494908658661b868d1ae5764";
 /// The payload as qualified: its files, their bytes, its rows by kind and its relations.
 const R2_FILES: usize = 153;
-const R2_BYTES: usize = 1_294_963;
+const R2_BYTES: usize = 1_297_216;
 const R2_ROWS: [(&str, usize); 15] = [
     ("blocks", 41),
     ("callables", 29),
     ("capability_interfaces", 32),
     ("constructs", 30),
     ("counterexamples", 44),
-    ("diagnostics", 106),
+    ("diagnostics", 108),
     ("examples", 33),
     ("families", 16),
     ("intent_facets", 14),
@@ -31,7 +31,7 @@ const R2_ROWS: [(&str, usize); 15] = [
     ("repair_principles", 0),
     ("skeletons", 23),
     ("skills", 15),
-    ("source_artifacts", 10),
+    ("source_artifacts", 9),
 ];
 const R2_RELATIONS: usize = 2108;
 

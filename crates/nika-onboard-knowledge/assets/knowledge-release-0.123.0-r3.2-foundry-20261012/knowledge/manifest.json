@@ -1,6 +1,6 @@
 {
  "downgrades": {
-  "CHECK_UNPROVEN": 195
+  "CHECK_UNPROVEN": 196
  },
  "exclusions": {
   "kinds": [],
@@ -8,14 +8,14 @@
    "BODY_NOT_TEXT": 1,
    "SOURCE_EXCLUDED": 3,
    "SOURCE_EXCLUDED_CASCADE": 480,
-   "SOURCE_UNCITED": 1,
+   "SOURCE_UNCITED": 4,
    "STATUS_EXCLUDED": 1
   }
  },
  "files": {
   "LICENSES/AGPL-3.0-or-later.txt": "92ac0dc98d118e8b63b43d0de9de2273158260e7f49a42ad1f8e3d475979840c",
   "LICENSES/Apache-2.0.txt": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
-  "NOTICE.md": "577c2aef25e25b910cb357494ec0a0f39483cdef41383e0d617f500b8eaf692b",
+  "NOTICE.md": "ed324e90b726a871c084a0b6e438f02b6babfb2a54b587e91fbb0b48f2e7be3a",
   "blocks/after-failure-branch.nika": "b5bee636141ea31e77a1132e674cb4bd0d3890ae7a5d1cf8dfd32df074357a85",
   "blocks/after-terminal-report.nika": "a49dc2314ddfbd3ad71d2203b32452b3d7880dcecf754ed9ebb0d6f60f337e2e",
   "blocks/agent-compose-self-check.nika": "3093b6b87e00297806f2b0b9b482edeab5e5c7bed136c9ce6b8670b616ea42ae",
@@ -107,20 +107,20 @@
   "examples/boundary-ties-arrival-order.nika": "6c72c7f4df8b6ee13df106ed8e3947fbe37a9e27ba4cdd754dc35b442b1df382",
   "examples/boundary-window-half-open.nika": "bbcade00addde4753c026a3fa55df996f11f8b8c8528df9eb562acc5f7b97e87",
   "examples/boundary-zone-day-bounds.nika": "316a1a0343ed8285b3cdd63f711e024838607ba901afdb0298aec9493d1fa07c",
-  "examples/pack-01-hello.nika": "2a89860fd15fc9724d12564b6a64ad6ba0ce337c21a1a41954574d01644e8b2e",
-  "examples/pack-02-parallel-fanout.nika": "4869d0543186cc0b21d7aa6ee8f7806011d5577a863647164d09b58bca01f65b",
+  "examples/pack-01-hello.nika": "7acc7e57d5c8e07a1b2e8b64207b96bd7e868db8a92b1f31e683b29b66ae6fa8",
+  "examples/pack-02-parallel-fanout.nika": "b89b8bbbc40a2efcfad6385ed18571b80856c3378fda40123d45d2fd565131ab",
   "examples/pack-03-exec-pipeline.nika": "fe1ee7728256a9c40e31da2f6f46af375afd9cf0b5f9afc84509afb972098e06",
-  "examples/pack-04-schema-retry.nika": "20acddaf5959b207d5a9405432fbb7efd4917349bf5e24b7a7d8459142f33203",
-  "examples/pack-05-fetch-chain.nika": "c45baa3b52bc182d0e64b2e83be0210743bd57bd3c1bc999e8c4ddf71080c373",
+  "examples/pack-04-schema-retry.nika": "3ad06bb56880d0de50ab71c6b4d0275cb48f60eac3552bbce897d956d3d54c89",
+  "examples/pack-05-fetch-chain.nika": "bf76832b2da2f1fa911beb73d4f9a062c4c0da50ce58eb4aa50c80ee8fedb5d5",
   "examples/pack-06-code-review.nika": "12fb85b75fa1544f4d689e868b7586825d47c2a21a40547737908cc383c8bb11",
-  "examples/pack-07-for-each-locales.nika": "a2133caf694bdc206565603840bb7674ab957986b52230a633d7e35db1f2e31d",
+  "examples/pack-07-for-each-locales.nika": "63ca5cb695ce7b301e69db7c58a538db78fda3908219177f5ce0b9ad7c6ef593",
   "examples/pack-08-config-values.nika": "032128e6e8b31f03d0edb19905aaae7e5abfc7090730ddb6aae649a2727321cc",
-  "examples/pack-09-returns-typed-door.nika": "b0fbd01d6377dadc6bdc7b63d3bcaec922c8f32ecd75761d3c3e9b97574ce519",
-  "examples/pack-10-compose-child.nika": "9a30adda1e515195f1a6ba5a6e6204e7edb2416d452a161f4ccd7ffdb45ab466",
+  "examples/pack-09-returns-typed-door.nika": "578033db08c9b3008f0efcf1c4d20db67aa1dffd435d735a43041aba8f98a652",
+  "examples/pack-10-compose-child.nika": "8868a5d3c354ba6603247edc628ca6bb5de44cd76be1206c9fc0b7f9c685ff1b",
   "examples/pack-10-compose-pipeline.nika": "697f2dc80c321eb7c90329f6be6ce76acbcad47d69bcba5da7b6108d131ccca7",
   "examples/pack-11-lift-the-door.nika": "3fae0c973a8bf84abce8746f8cc140bc012c4f8d48df8b932da6395c6eaa6430",
   "examples/pack-12-failure-routing.nika": "27ca41d5522cea4feda2ef728b50caf05f3c9f3cd9ab9c5db7685ca9bf861783",
-  "examples/pack-13-extract-then-law.nika": "ca2d4af232788616b62338b43ec79ded72db0bfb2628da338583f6e135fdb43b",
+  "examples/pack-13-extract-then-law.nika": "ccf8bd0602cb5843d1c88a5fd70d4564683c35f06f31d555a4ad219d4fce3ab5",
   "examples/pack-14-decide-publish.nika": "19853dafb17ebee1841f23658cfa3448423713255083ab61f7a7611d5185f59e",
   "examples/pack-15-compose-self-check.nika": "e0ffb364460f839a08efb108af0898a2e8fe13083e69da88727e5009fd08ab93",
   "examples/pack-16-inspect-self.nika": "d2b418242eb4bd302380ff8707d156c671993668b276975bc8b1b3b1b7582e1b",
@@ -134,22 +134,22 @@
   "examples/pack-24-recover-optional-file.nika": "0cf9cb7dfe868402472b9b54321cb914844fcd7a055adade5c450fbd32d2ce29",
   "examples/pack-25-aggregate-by-key.nika": "ba8a7e9d17f91b815e69c9544f7530615e1b1ba7295408ecd60c27ac29191d22",
   "examples/probe-fetch-modes-source.nika": "2735dd9fb3b6c9eb82873b7f5e5eb04ffe8f59a780d07043b9a03a4782d843ca",
-  "knowledge/blocks.jsonl": "4b44ea4aba6d3711844fcde8e04e17d799e8e1ee111a46161e29f48659bace38",
-  "knowledge/callables.jsonl": "4976f015c93698756ae2c73a9046dfea304c786c933e7d71d5699e2891e74759",
-  "knowledge/capability_interfaces.jsonl": "7a24566857a10f4c2cdafdb4baecae3ba9475281562882e28a108386ab9a41fd",
-  "knowledge/constructs.jsonl": "9b32889863ec48fc266cb189a8871870a8e68556d0af87f07fbd7968d303fede",
-  "knowledge/counterexamples.jsonl": "0f6e344743b6cbe76c2f65e1e2349eee120f04af26686b4bdb20753e90dd771a",
-  "knowledge/diagnostics.jsonl": "5158a49b3be0d54ffd2d25f7ccfa52b77c05cedc08b60387ece65db3ab563075",
-  "knowledge/examples.jsonl": "fc3bf0aaac159d7214fcdf0874027367cd7cbb5defb91e5d1935f1201566f107",
-  "knowledge/families.jsonl": "20b0e519f4811bebfdfb948fbedab2543247341705075358b7e1b4a40e3b79c3",
-  "knowledge/intent_facets.jsonl": "82207806a586318ebd6222de3aad0503014d0d6539533558e8e2dc8de504a635",
-  "knowledge/pattern_packs.jsonl": "92ebfcb82e396e69d309c1686807e4c5e22b1aca9665bf676e77ff750ff1f4fb",
-  "knowledge/patterns.jsonl": "824eb98be3a68d88488dccc3a3b50460152df2cf318d20af0c81d9773046b334",
-  "knowledge/relations.jsonl": "c59090cf9b126a421b49123d5aaaff675194bdcd3448f91e2b3c94ec65f2364b",
+  "knowledge/blocks.jsonl": "a1be4d406e648ba3a30818a831df0593a5be26c83ce299727ac09bf4ecd39f0d",
+  "knowledge/callables.jsonl": "dfdb5889409b9c44b86f22585e48838841995c15263b7d8fc96b72dafc0bda8c",
+  "knowledge/capability_interfaces.jsonl": "8228e5614b8931cd21d20ea62e06eb42ef4a45a2b89ad61b8658eb2428a199ab",
+  "knowledge/constructs.jsonl": "e7265ad608f4e4c5a9c0d93dd7925eb49b5c877c8f99630275bf2e1f36d445f3",
+  "knowledge/counterexamples.jsonl": "8462efa1779d4e5c572425f8d9e6b52734af68f194a3a505e538b38eff2c3898",
+  "knowledge/diagnostics.jsonl": "f72f917c4a818b6f34b7a44a9fa90846e3fc83931d623d18b2e354e7493ffc68",
+  "knowledge/examples.jsonl": "fd28a63d1f804d1d14b71144bdaadf74961eccab620aa63e3bd43ff374211f8a",
+  "knowledge/families.jsonl": "9bab079c1ed009e42a066c72899adf272f45f449dfa22aea04bc78744ceac3a4",
+  "knowledge/intent_facets.jsonl": "255bbafa4c8eeccbbee11f9b1b92fa79c7f20ecc64878d3cddc4a5f0bbed39c3",
+  "knowledge/pattern_packs.jsonl": "1ad936342a427357b0dee4ffdfe6c35a0232d25e08a0ea408027df34dea18569",
+  "knowledge/patterns.jsonl": "b5e9ee81362ef43909da931b20d821558d9769756144fddfe75167d8cc2133e2",
+  "knowledge/relations.jsonl": "435e98de8cb540e285d81bf33140ab01219985cc61c06fbaf6bd7f33e46bc640",
   "knowledge/repair_principles.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "knowledge/skeletons.jsonl": "ed90ddeef099788e504728f00d82e2fd7e3f473417ae0630557148189eb5bad6",
+  "knowledge/skeletons.jsonl": "acf73668b04a9189b958d4d2b15a7cf55b6cecce6e17ec5f185dbc70e650dedb",
   "knowledge/skills.jsonl": "0551d5fd8ff301f1fda016e1fca62abb8e447e485284f6dc291956e95fcb5372",
-  "knowledge/source_artifacts.jsonl": "c6bc1c20aece89c799abb7f81062bd0c79c13e8ba77f59ccddc29013687bef7d",
+  "knowledge/source_artifacts.jsonl": "31fb5e4f642c0352f064e57cf56e2b85bde1eedb862ee035dfc136102562677a",
   "skills/agentic-delegation.md": "35261d978dbe9b24a56ac7028af8caee8e29df6d5fe9ef03c96b426e1925b875",
   "skills/api-sync-with-idempotency.md": "2e51081ecf0c3d1cabc8349f5abdfd82498f41c92c342d5eb84d1c3ed3ce571f",
   "skills/batch-process-and-report.md": "3b3fbdb9ded4906ce321bc92bc1b9deef68ea95788c29ff86ef42c73b084e8c2",
@@ -167,8 +167,8 @@
   "skills/validate-and-quarantine.md": "a013e3e0364490b94e533a904c349e42c101807904a1a938b868f7596ec19e28"
  },
  "format": "nika-knowledge-release/3",
- "input_digest": "7d4e9ada43b9fe69418026f4277c6066f32b62f26d936746e81b47db3bce5e1b",
- "knowledge_version": "knowledge-0.123.0-r3.1-foundry-20261011",
+ "input_digest": "53227c7a4756351ee18238140487723654b4c782f7eacf005ccc9840459af7d5",
+ "knowledge_version": "knowledge-0.123.0-r3.2-foundry-20261012",
  "policy": {
   "id": "policy-r2",
   "sha256": "fb070b7ac25066c86c3fe41d4253d25741565b8c494908658661b868d1ae5764"
@@ -200,7 +200,7 @@
    "file": "knowledge/counterexamples.jsonl"
   },
   "diagnostic": {
-   "count": 106,
+   "count": 108,
    "file": "knowledge/diagnostics.jsonl"
   },
   "example": {
@@ -236,14 +236,14 @@
    "file": "knowledge/skills.jsonl"
   },
   "source_artifact": {
-   "count": 10,
+   "count": 9,
    "file": "knowledge/source_artifacts.jsonl"
   }
  },
  "target": {
-  "binary": "nika 0.123.0-preview.1 (501e2fd29)",
-  "spec_sha": "a88d3c6e400d9f79fcbbbc4604a03ab22e2d46f0",
-  "verifier_sha256": "56de91d464f41ccc02f115aee3107a2dd5fd14cd3643dba46a64bdfd14ed0680"
+  "binary": "nika 0.123.0-preview.1 (90d2472cd)",
+  "spec_sha": "34ad76c5376ab6b1fb02e3e4c455ff23f1c1312c",
+  "verifier_sha256": "33beb7ab3efda75ecf5cada95ee97b7ff74269abbf6d8c387831f6bca8f207e6"
  },
  "tool": {
   "id": "nika_bench.foundry.release_r2",

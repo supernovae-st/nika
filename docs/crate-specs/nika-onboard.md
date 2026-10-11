@@ -104,7 +104,7 @@ family's by their light French stem (« importées » meets « importer »): a r
 that shares only a stopword with the request (« the », « with ») is not
 recalled, and every row it does reach is still presented whole, with no count or
 byte quota. The build embeds the current release, the r3 Foundry
-release (`knowledge-0.123.0-r3.1-foundry-20261011`, profile r2, `policy-r2`,
+release (`knowledge-0.123.0-r3.2-foundry-20261012`, profile r2, `policy-r2`,
 embedded whole from its directory and admitted against its issued snapshot), and
 retains the r2 release it replaced (`1be7d610…`, whole), a8 and R3 for earlier pins
 (`knowledge::bundled`); a pin naming a release this build does not embed meets

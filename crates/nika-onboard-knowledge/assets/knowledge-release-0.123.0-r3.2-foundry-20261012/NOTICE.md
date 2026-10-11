@@ -1,4 +1,4 @@
-# Notices · Nika knowledge release knowledge-0.123.0-r3.1-foundry-20261011
+# Notices · Nika knowledge release knowledge-0.123.0-r3.2-foundry-20261012
 
 Release policy `policy-r2`, profile `nika-knowledge-release-profile/r2`.
 
@@ -18,7 +18,7 @@ the licence texts are in LICENSES/.
 - Nika Foundry ontology: the project's own vocabularies · 1 source row(s) · ownership project · licence AGPL-3.0-or-later (LICENSES/AGPL-3.0-or-later.txt)
   - attribution: Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
   - modification: Projected by the Nika project from its ontology module.
-- Nika language pack: specification examples and templates of the pinned candidate · 2 source row(s) · ownership project · licence Apache-2.0 (LICENSES/Apache-2.0.txt)
+- Nika language pack: specification examples and templates of the pinned candidate · 1 source row(s) · ownership project · licence Apache-2.0 (LICENSES/Apache-2.0.txt)
   - attribution: 2026 SuperNovae Studio <nika@supernovae.studio>
   - modification: Projected by the Nika project: structural analysis rows of the pack, and its foundation examples verbatim as example bodies with their own header as intent.
 - Nika construct probes: project programs checked on a pinned candidate · 1 source row(s) · ownership project · licence AGPL-3.0-or-later (LICENSES/AGPL-3.0-or-later.txt)

@@ -11,10 +11,10 @@ use std::collections::BTreeMap;
 use include_dir::{Dir, DirEntry, include_dir};
 
 static PAYLOAD: Dir<'static> =
-    include_dir!("$CARGO_MANIFEST_DIR/assets/knowledge-release-0.123.0-r3.1-foundry-20261011");
+    include_dir!("$CARGO_MANIFEST_DIR/assets/knowledge-release-0.123.0-r3.2-foundry-20261012");
 
 pub(super) const SNAPSHOT_SHA256: &str =
-    "e0abc241bc7dc764f38dc78b2a49d003788a31d58c08c6ffafc3c1fcb8deaad0";
+    "8d52df01a5105fc4661851218e89ca172c5799bf3016aedbce1574ecac096075";
 pub(super) const POLICY_ID: &str = "policy-r2";
 pub(super) const POLICY_SHA256: &str =
     "fb070b7ac25066c86c3fe41d4253d25741565b8c494908658661b868d1ae5764";

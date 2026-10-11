@@ -75,6 +75,7 @@ tasks:
         Summarize this article in 3 bullets.
         Title · ${{ with.title }}
         Body · ${{ with.body }}
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 512
 
 # `title` is here so a reader can see WHICH path ran: offline it reads
