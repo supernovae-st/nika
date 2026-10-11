@@ -31,75 +31,26 @@ fn judged(seat: &str) -> Option<(&str, &str)> {
         .filter(|(provider, _)| *provider != "mock")
 }
 
-/// The output limit the catalog records for a seat, with where it is recorded: a capability
-/// rule's, else the provider row's for that exact model id. `None` when the catalog records
-/// none; a route's own limit (an endpoint-bound tariff) is only known at run time.
-fn known_limit(provider: &str, name: &str) -> Option<(u32, String)> {
-    let rule = nika_catalog::model_capabilities(provider, name).max_output_tokens;
-    if let Some(limit) = rule.filter(|limit| *limit > 0) {
-        return Some((limit, format!("capability rule {provider}/{name}")));
-    }
-    let row = nika_catalog::find_provider(provider)?;
-    let model = row
-        .models
-        .iter()
-        .find(|m| m.id == name || m.model == name)?;
-    (model.max_output_tokens > 0).then(|| {
-        (
-            model.max_output_tokens,
-            format!("provider row {}/{}", row.id, model.id),
-        )
+/// A cap the compiler generates, sized for the doc's seat from its catalog records alone
+/// ([`nika_catalog::generated_cap`]): the reasoning floor first, never above the recorded output
+/// limit. Any other seat keeps the base.
+pub(crate) fn sized(seat: Option<&str>, base: u32) -> u32 {
+    seat.and_then(judged).map_or(base, |(provider, name)| {
+        nika_catalog::generated_cap(provider, name, base, REASONING_MAX_TOKENS)
     })
 }
 
-/// The sizing law for a cap the compiler generates: the reasoning floor first, then the known
-/// output limit.
-fn bounded(reasoning: bool, limit: Option<u32>, base: u32) -> u32 {
-    let wanted = if reasoning {
-        base.max(REASONING_MAX_TOKENS)
-    } else {
-        base
-    };
-    limit.map_or(wanted, |limit| wanted.min(limit))
-}
-
-/// A cap the assembler generates, sized for the doc's seat from its catalog records alone:
-/// raised when a rule records the model as reasoning, never above the recorded output limit.
-/// Any other seat keeps the base.
-pub(crate) fn sized(seat: Option<&str>, base: u32) -> u32 {
-    let Some((provider, name)) = seat.and_then(judged) else {
-        return base;
-    };
-    let reasoning = nika_catalog::model_capabilities(provider, name).reasoning;
-    let limit = known_limit(provider, name).map(|(limit, _)| limit);
-    bounded(reasoning, limit, base)
-}
-
-/// The catalog's output facts for the workflow's model, given to the authoring seat before it
-/// writes a candidate. `reasoning_capability` is `recorded` only when a catalog rule records
-/// it; the catalog default is no evidence, so every other model is `unrecorded`, never
-/// non-reasoning. Whether thinking counts inside the cap belongs to the route the run
-/// resolves, so it stays `unknown` here. `reasoning_efforts` lists the `run.reasoning.effort`
-/// levels the exact model documents. `None` only for `mock` and templated seats.
+/// The catalog's output facts for the workflow's model ([`nika_catalog::output_caps`]), given to
+/// the authoring seat before it writes a candidate, with the reasoning room this compiler
+/// generates. `None` only for `mock` and templated seats.
 #[must_use]
 pub fn output_caps(model: &str) -> Option<Value> {
     let (provider, name) = judged(model)?;
-    let caps = nika_catalog::model_capabilities(provider, name);
-    let reasoning = caps.reasoning;
-    let limit = known_limit(provider, name);
-    let bound = limit.as_ref().map(|(limit, _)| *limit);
-    let evidence = if reasoning { "recorded" } else { "unrecorded" };
-    let suggested = reasoning.then_some(bounded(true, bound, REASONING_MAX_TOKENS));
-    Some(json!({
-        "model": model,
-        "reasoning_capability": evidence,
-        "reasoning_efforts": caps.reasoning_efforts.iter().map(|l| l.word()).collect::<Vec<_>>(),
-        "thinking_counted_in_cap": "unknown",
-        "route": "resolved at run time",
-        "suggested_default_max_tokens": suggested,
-        "max_output_tokens": bound,
-        "max_output_tokens_source": limit.map(|(_, source)| source),
-    }))
+    Some(nika_catalog::output_caps(
+        provider,
+        name,
+        REASONING_MAX_TOKENS,
+    ))
 }
 
 /// The model-neutral cap the compiler generates for a language task that states none: room for
@@ -169,20 +120,8 @@ mod tests {
         let reasoning = nika_catalog::model_capabilities(provider, name).reasoning;
         (
             reasoning,
-            known_limit(provider, name).map(|(limit, _)| limit),
+            nika_catalog::model_output_limit(provider, name).map(|(limit, _)| limit),
         )
-    }
-
-    #[test]
-    fn the_law_lifts_a_generated_reasoning_cap_and_never_passes_a_known_limit() {
-        // A generated extraction (800), draft (1200) and validation (400) cap.
-        for base in [400, 800, 1200] {
-            assert_eq!(bounded(true, None, base), REASONING_MAX_TOKENS);
-            assert_eq!(bounded(false, None, base), base);
-        }
-        assert_eq!(bounded(true, None, 24_000), 24_000, "a larger cap stays");
-        assert_eq!(bounded(true, Some(2048), 800), 2048, "the known limit wins");
-        assert_eq!(bounded(false, Some(512), 800), 512);
     }
 
     #[test]
@@ -211,11 +150,9 @@ mod tests {
         ] {
             assert_eq!(sized(seat, 800), 800, "{seat:?}");
         }
-        let (reasoning, limit) = row("deepseek", "deepseek-chat");
-        assert_eq!(
-            sized(Some("deepseek/deepseek-chat"), 800),
-            bounded(reasoning, limit, 800)
-        );
+        let chat =
+            nika_catalog::generated_cap("deepseek", "deepseek-chat", 800, REASONING_MAX_TOKENS);
+        assert_eq!(sized(Some("deepseek/deepseek-chat"), 800), chat);
     }
 
     #[test]
@@ -263,10 +200,5 @@ mod tests {
             json!("Say hi in three lines")
         );
         assert_eq!(fill_defaults(&filled), None, "nothing is missing any more");
-        assert_eq!(
-            bounded(false, Some(2048), NEUTRAL_MAX_TOKENS),
-            2048,
-            "a recorded limit"
-        );
     }
 }
