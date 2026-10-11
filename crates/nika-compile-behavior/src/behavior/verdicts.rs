@@ -479,6 +479,9 @@ fn classify(contract: &Contract, run: &Run, failure: &Failure, readings: &[Readi
         Cause::TimeBound => {
             return Class::NotRun(format!("{head}: the host's time bound stopped it"));
         }
+        Cause::DataBound { reason } => {
+            return Class::NotRun(format!("the room's data bound stopped the run: {reason}"));
+        }
         // An open that finds no file is a fact of the run, not of the fixture: a whole recorded
         // copy shows the run lost the source; no record proves no initial absence (only the
         // host's own invalid-harness end does), so it settles nothing.

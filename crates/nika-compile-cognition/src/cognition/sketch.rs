@@ -1007,9 +1007,10 @@ pub(super) async fn examine<P: ProviderInferDyn>(
 }
 
 /// The restatement a refused trial asks for (A2): the judge rejected the whole request without
-/// locating a part, only a run of these exact bytes could decide it, and the room refused to run
-/// them before any attempt for a construct the workflow chose (a data bound, a tool outside the
-/// rehearsal's surface), never an effect, a path or a world the request itself names.
+/// locating a part, only a run of these exact bytes could decide it, and the room refused them
+/// for a construct the workflow chose (a data bound, before any attempt or where it stopped the
+/// run; a tool outside the rehearsal's surface), never an effect, a path or a world the request
+/// itself names.
 fn restated(verdict: &Verdict, refused: Option<&Refused>) -> Option<Diagnostic> {
     let avoidable = |r: &&Refused| matches!(r.refusal, Refusal::DataBounds | Refusal::Surface);
     let refused = refused.filter(avoidable)?;
@@ -1020,7 +1021,7 @@ fn restated(verdict: &Verdict, refused: Option<&Refused>) -> Option<Diagnostic> 
 }
 
 /// What a restatement the room's refusal asks for tells the author, before the room's words.
-const RESTATE: &str = "The verifier rejected the whole request without locating a part of it; only a run of these exact bytes can decide it, and the rehearsal room refused to run them before any attempt. Restate an equivalent workflow the room runs: keep every requested operation, path, threshold, order, output and permit, and change only the construct the room refused:";
+const RESTATE: &str = "The verifier rejected the whole request without locating a part of it; only a run of these exact bytes can decide it, and the rehearsal room refused to run them, or stopped their run at its data bound. Restate an equivalent workflow the room runs: keep every requested operation, path, threshold, order, output and permit, and change only the construct the room refused:";
 
 /// How many whole-request verdicts this compile recorded, the last one included.
 pub(super) fn judged_attempts(out: &CompileOutcome) -> usize {

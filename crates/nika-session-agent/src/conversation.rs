@@ -26,12 +26,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 mod answer;
+mod choices;
 mod edit;
 mod pick;
 
 use self::answer::Answered;
 pub use self::edit::edited;
-pub use self::pick::Pick;
+pub use self::pick::{NOT_A_CONSENT, NOT_READ_AS_CONSENT, Pick};
 
 /// How a question gets its identity from its context.
 pub type Mint<'a> = &'a mut dyn FnMut(&str) -> QuestionId;
@@ -141,6 +142,11 @@ pub struct Conversation {
     changed: Vec<String>,
     /// The values the last proposal the person saw bound, as it bound them.
     seen: Vec<Binding>,
+    /// The choices the last proposal shows with their defaults ([`Conversation::open`]).
+    open: Vec<AskedQuestion>,
+    /// Why the proposal shown cannot be saved as it is: an option of its choices the person
+    /// picked instead of the default it carries, until the author proposes again.
+    picked_other: Vec<String>,
 }
 
 /// What a Session keeps of a conversation across a reopen: the evidence, never an authority
@@ -550,17 +556,37 @@ impl Conversation {
     fn removal(&self, citations: &Citations, row: &Value) -> Result<String, String> {
         let text = |field: &str| row[field].as_str().unwrap_or_default();
         let (value, message, excerpt) = (text("value"), text("message"), text("excerpt"));
+        let replaced_by = row["replaced_by"].as_str();
         match citations.get(message) {
             Some(line) if in_line(line, excerpt, None) && self.names(excerpt, value) => {
                 Ok(value.to_owned())
             }
+            // Words that give it its replacement, typed in the same line, remove it too.
+            Some(line)
+                if in_line(line, excerpt, None)
+                    && replaced_by.is_some_and(|new| typed(&line.text, new)) =>
+            {
+                Ok(value.to_owned())
+            }
+            // So does the line that left its choice to Nika: it is replaced within that choice.
+            Some(line) if in_line(line, excerpt, None) && self.left_with(message, value) => {
+                Ok(value.to_owned())
+            }
             Some(line) if in_line(line, excerpt, None) => Err(format!(
-                "« {excerpt} » does not name `{value}`: a value the person saw bound is removed only by words that name it (its address, its host's name or the name it was offered under); ask them whether they meant to drop it"
+                "« {excerpt} » does not name `{value}`: a value the person saw bound is removed only by words that name it (its address, its host's name or the name it was offered under), by words that give its replacement (`replaced_by`, typed in that line) or by a choice of it they left to you; ask them whether they meant to drop it"
             )),
             _ => Err(format!(
                 "`{value}` is stated as removed by « {excerpt} », which is not in the person's line {message}"
             )),
         }
+    }
+
+    /// Whether the person's line `message` left the choice of `value`'s role to Nika.
+    fn left_with(&self, message: &str, value: &str) -> bool {
+        let role = (self.accepted.iter()).find(|kept| same_literal(&kept.value, value));
+        role.is_some_and(|kept| {
+            (self.delegations.iter()).any(|d| d.message == message && d.scope == kept.role)
+        })
     }
 
     /// Whether the person's words `excerpt` name `value`: the value as written, its host's own
@@ -703,10 +729,12 @@ impl Conversation {
         (authored, host)
     }
 
-    /// `propose`: the candidate is shown to the person. With acts, the person's own line
+    /// `propose`: the candidate is shown to the person, with the choices `open` shows beside it
+    /// with their defaults ([`Conversation::open_choices`]). With acts, the person's own line
     /// authorizes them only when it was written after this exact revision's proposal was shown
-    /// and the candidate may do nothing more than that revision could (`scope`). Returns the
-    /// acts to perform, or why none is authorized (the proposal then waits for consent).
+    /// and the candidate may do nothing more than that revision could (`scope`); a proposal that
+    /// shows choices waits for the person's consent to them, their next line. Returns the acts to
+    /// perform, or why none is authorized (the proposal then waits for consent).
     ///
     /// # Errors
     ///
@@ -715,7 +743,7 @@ impl Conversation {
         &mut self,
         citations: &Citations,
         args: &Value,
-        scope: String,
+        (scope, open): (String, Vec<AskedQuestion>),
     ) -> Result<Option<Acts>, String> {
         let number = (self.candidate.as_ref())
             .map(|c| c.number)
@@ -728,7 +756,10 @@ impl Conversation {
             run: acts.contains(&"run"),
         };
         self.changed = self.changes_since_seen();
-        let authorized = if wanted.save {
+        let authorized = if wanted.save && !open.is_empty() {
+            // Choices shown with their defaults are the person's to see: no earlier line consents.
+            Err("this proposal shows choices with their defaults the person has not seen: it waits for their consent".to_owned())
+        } else if wanted.save {
             let said = &args["authorized_by"];
             let message = said["message"].as_str().unwrap_or_default();
             let excerpt = said["excerpt"].as_str().unwrap_or_default();
@@ -754,6 +785,8 @@ impl Conversation {
         };
         self.accepted.clone_from(&self.bindings);
         self.seen.clone_from(&self.bindings);
+        self.open = open;
+        self.picked_other.clear();
         // What the person is shown now: a line authorizes acts only when written after it, so
         // one line authorizes one proposal, never a later revision (a repair after a run).
         self.shown = Some(Shown {
@@ -769,6 +802,15 @@ impl Conversation {
     #[must_use]
     pub fn changed(&self) -> &[String] {
         &self.changed
+    }
+
+    /// The verdict of the proposal the person was shown, while the candidate is still the
+    /// revision it showed: their words consenting to it are no reason to judge its bytes again.
+    #[must_use]
+    pub fn shown_verdict(&self) -> Option<&str> {
+        let shown = self.shown.as_ref()?;
+        let current = self.candidate.as_ref().map(|c| c.number);
+        (current == Some(shown.number)).then_some(shown.scope.as_str())
     }
 
     /// The values bound now against the ones the last proposal the person saw bound.

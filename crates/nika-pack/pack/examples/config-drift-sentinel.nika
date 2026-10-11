@@ -206,6 +206,7 @@ tasks:
     on_error:
       recover: "(explanation unavailable · the model call failed · the raw patch is attached)"
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 3000                  # think block + three bullets · a ceiling, not a hope
       prompt: |
         This RFC 6902 patch is UNSANCTIONED config drift in production ·

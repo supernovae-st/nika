@@ -480,6 +480,9 @@ credential custody (Serve says `HOST_SERVER_MEMORY`).
 
 ## Route identity (owner primitives E30, trace projection E32)
 
+The module lives in the size-cap member `nika-providers-access` since 2026-10-10; its path
+`nika_providers::route_identity` is a re-export (see the member note at the end).
+
 `route_identity` is the one owner projection of a provider endpoint under the
 E29 route-identity law: a durable record or a network document names a route
 `{provider, model, origin}`, and the exact endpoint (path, query, userinfo,
@@ -866,3 +869,41 @@ It does not cancel Run, guarantee a provider refund, or manufacture subscription
 
 Account-status and interrupted-dispatch prose remain pure projections in admission::summary.
 Their inputs are observations and host facts; none of these renderers grants or restores credit.
+
+## Size-cap member `nika-providers-access` (2026-10-10 · D-2026-07-09-N1 · ADR-122 member note)
+
+The crate reached 14,991 of its 15,000 production lines with the readiness of keyed cloud routes
+still to land. The facts a probe states, the access plan judged over them and the route identity
+a call carries form one cluster of pure values and judgments, so they moved with git history to
+the member `nika-providers-access` (L1.5, lateral `nika-providers → nika-providers-access`,
+never back):
+
+- `probe`'s data half: `PingState`, `ExecutionLocus`, `ProviderReadiness`, `ProviderProbe`,
+  `KeyAuth`, `classify_key_value`, `classify_http_status` and `ModelListing`. Probing stays here:
+  key presence, local pings and liveness, `local_run_gate`, `harness_access_probe` and the
+  model-list GET with its parser (`listing_of`, `model_ids`).
+- `resolve_access` and `route_identity`, whole; `profile::canonical_provider`.
+
+Every path stays: `probe` re-exports the moved items, `resolve_access` and `route_identity` are
+module re-exports, and `profile` re-exports `canonical_provider`. `tests/access_reexport.rs`
+proves they name the member's very items. `InferenceReceipt::durable_observation` stays here
+with its type (`admission`) and calls the member's `project_observation`. The route-identity
+suites stay here too, beside the admission account and the retry route they build their
+observations with; the probe-to-candidates bridge test stays beside the registry it reads.
+`judge`, `pin_matches`, `named_infer_grade_ready` and `checkpoint_text_safe` became the member's
+documented public seams, which `model_choice`, `plan` and `admission::checkpoint` call.
+
+## Census readiness of keyed cloud routes (2026-10-10)
+
+`ProviderRegistry::cloud_listing_target(provider)` names where a keyed OpenAI-compatible route
+lists its models and with which key: the route's own effective chat endpoint (a gateway override
+included) with `/chat/completions` replaced by `/models`, and the key injected for its canonical
+id. Any other wire family, a keyless route or a route without a key has no target.
+`probe::probe_cloud_listing` sends that one request: a bodyless GET with the key in one
+`authorization` header, no redirect, its own deadline, never re-sent. Its answer is the key's rung
+(`KeyAuth::Ok` on a 200, `Unauthorized` on a 401, `Forbidden` on a 403, `None` when no HTTP answer
+could be judged) and the listing; a refusal's listing states the provider's words as every
+provider error is reduced, with the key withheld. The Session's census takes it once per keyed
+route (the census take, all routes at once); `ProviderReadiness::key_auth` keeps the rung and
+`key_refused()` reads it. `ModelInventory::from_probes` never offers a key-refused route, and a
+listed route's own listing governs its offers, as for a local route.

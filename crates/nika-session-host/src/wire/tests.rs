@@ -325,3 +325,59 @@ fn a_call_and_a_tool_name_their_time_and_size_only_when_known() {
         .collect();
     assert_eq!(keys, ["model", "ordinal", "role", "state"]);
 }
+
+/// A gate shows the values its message renders and names the keys it withheld (ADR-148 point
+/// 12), as the pause wrote them; a gate whose pause wrote none carries neither member.
+#[test]
+fn a_gate_outcome_carries_the_values_it_shows_and_names_the_withheld() {
+    let trace = std::path::Path::new(".nika/traces/t.ndjson");
+    let id = nika_session::outcome::GateId::new(trace, "approve");
+    let values = serde_json::json!({"sno": 7, "to": "finance@example.test", "amount": 1250.5});
+    let withheld = serde_json::json!({"credential": "secret"});
+    let gate = |values, withheld| TurnOutcome::GateAsk {
+        id: id.clone(),
+        question: "Release #7 to finance@example.test?".to_owned(),
+        values,
+        withheld,
+    };
+    let (mut wire, mut effects) = (Vec::new(), Vec::new());
+    project(
+        gate(
+            Some(Box::new(values.clone())),
+            Some(Box::new(withheld.clone())),
+        ),
+        &mut wire,
+        &mut effects,
+    );
+    project(gate(None, None), &mut wire, &mut effects);
+    let shown = serde_json::to_value(&wire).expect("outcomes");
+    assert_eq!(
+        (shown[0]["kind"].as_str(), shown[0]["task"].as_str()),
+        (Some("gate"), Some("approve"))
+    );
+    assert_eq!(
+        (&shown[0]["values"], &shown[0]["withheld"]),
+        (&values, &withheld)
+    );
+    assert!(shown[1].get("values").is_none() && shown[1].get("withheld").is_none());
+}
+
+/// A failed tool step names why on the wire (`reply`, the excerpt its run reported); a step
+/// that did not fail carries none, as both doors write the same frame.
+#[test]
+fn a_failed_tool_step_names_why_on_the_wire() {
+    let failed =
+        nika_session::activity::tool_activity("toolu_c", "compose", ToolState::Failed, Some(9));
+    let why = Some("no block serves `feeds`: the key [redacted] expired".to_owned());
+    let mut told = failed.clone();
+    told.tool = (told.tool).map(|mark| mark.with_reply(why));
+    let expected = serde_json::json!({
+        "phase": "authoring", "note": "compose failed · 9 ms", "done": true,
+        "tool": {"call": "toolu_c", "name": "compose", "state": "failed", "elapsed_ms": 9,
+            "reply": "no block serves `feeds`: the key [redacted] expired"}
+    });
+    let shown = serde_json::to_value(ActivityWire::of(&told)).expect("activity");
+    assert_eq!(shown, expected);
+    let silent = serde_json::to_value(ActivityWire::of(&failed)).expect("activity");
+    assert!(silent["tool"].get("reply").is_none());
+}

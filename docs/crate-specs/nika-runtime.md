@@ -424,8 +424,9 @@ projection does not promote a failed run or change its ledger.
 | NIKA-1703 | expression outside the v0 subset (when/render forms) |
 | NIKA-1707 | report's boundary lanes ≠ workflow bytes (run-start re-derivation of the pure permits-fit + trifecta subset · the fail-closed backstop for library embedders — a clean report over different bytes is not clean) |
 | NIKA-1708 | a `required: true` input reached `run` with neither `default:` nor `--var` (the admission preflight · issue #603 — refuses BEFORE the prologue, zero events zero spend; the CLI gauntlet speaks the same constructor) |
+| NIKA-1712 | a value the run builds crossed the bound a rehearsal room put on it (`Runtime::with_value_bound` · dataflow's `ValueBound`): the room's bound, never the language's |
 
-NIKA-1700/1701/1707/1708 abort the RUN. NIKA-1702/1703 inside a task pipeline
+NIKA-1700/1701/1707/1708 abort the RUN. NIKA-1702/1703/1712 inside a task pipeline
 fail THE TASK (cascade · the detail carries the code) — a
 **system** surface (a corrupt schedule · a report that does not match
 the bytes) or a LAUNCH refusal (the unsatisfied `required: true` input)

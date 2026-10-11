@@ -341,6 +341,14 @@ fn a_code_or_a_cause_alone_never_passes() {
         (failed(Cause::Unclassified), Outcome::Incomplete),
         (worded, Outcome::Incomplete),
         (failed(Cause::TimeBound), Outcome::NotRun),
+        // The room's data bound stopped it where a built value crossed it: a construct of the
+        // document, never run, never a fault of the fixture.
+        (
+            failed(Cause::data_bound(
+                "task compute args.input builds a value over the room's bound of 4096 bytes",
+            )),
+            Outcome::NotRun,
+        ),
         // An established cause decides even where a stated rule predicts a stop.
         (failed(Cause::Engine), Outcome::Failed),
         // The host copied the source whole: the run lost it.

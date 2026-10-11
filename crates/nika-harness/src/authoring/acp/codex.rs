@@ -19,6 +19,13 @@
 //!   only writable root, there is no network, and every approval request reaches the client,
 //!   which the completion profile always denies.
 //!
+//! An MCP tool approval reaches the client only through Codex's MCP elicitation route
+//! ([`APPROVAL_FEATURE`]). With that feature off, Codex asks through `request_user_input`
+//! instead, which codex-acp answers itself with no answer (Nika advertises no form
+//! elicitation), and Codex reads that as the user cancelling the call. A conversation keeps the
+//! route on, read back like every other feature, so Nika answers each ask; the completion
+//! profile, which mounts no MCP server, keeps it off with the rest.
+//!
 //! `apply_patch` cannot be unregistered on this pair (the model catalogue registers it
 //! whenever the turn has an environment); under `read-only` it can write only inside the
 //! scratch, and any tool beat refuses the whole answer.
@@ -38,6 +45,10 @@ pub(crate) const MODE: &str = "read-only";
 /// (`bearer_token_env_var`): the bearer rides the adapter's environment only, never the
 /// configuration, a command line or a read-back.
 pub(crate) const BEARER_ENV: &str = "NIKA_MCP_BEARER";
+/// The Codex feature that routes an MCP tool approval to the client as an MCP elicitation,
+/// which codex-acp turns into `session/request_permission` (codex 0.156.1
+/// `request_mcp_tool_user_approval`). It adds no tool: a conversation keeps it on.
+pub(crate) const APPROVAL_FEATURE: &str = "tool_call_mcp_elicitation";
 
 /// The configuration the adapter starts with, once `servers` (the MCP servers the user
 /// configuration defines) are known: every tool-bearing surface off.
@@ -65,7 +76,7 @@ pub(crate) fn config(servers: &[String]) -> Value {
 }
 
 /// [`config`] for a conversation: Nika's tool server `server` mounted as `name`, the one MCP
-/// server the profile enables.
+/// server the profile enables, and Codex's approval route to Nika ([`APPROVAL_FEATURE`]) on.
 ///
 /// # Errors
 /// The configuration already defines a server of that name: mounting Nika's under it would
@@ -84,6 +95,9 @@ pub(crate) fn conversation_config(
     let mut config = config(servers);
     if let Some(mcp) = config.get_mut("mcp_servers").and_then(Value::as_object_mut) {
         mcp.insert(name.to_owned(), server);
+    }
+    if let Some(features) = config.get_mut("features").and_then(Value::as_object_mut) {
+        features.insert(APPROVAL_FEATURE.to_owned(), Value::Bool(true));
     }
     Ok(config)
 }

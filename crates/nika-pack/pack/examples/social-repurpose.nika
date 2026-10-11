@@ -46,6 +46,7 @@ tasks:
     with:
       post: ${{ tasks.post.output }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 700
       prompt: "Turn this post into a 6-tweet thread · keep the voice · ${{ with.post }}"
 
@@ -53,6 +54,7 @@ tasks:
     with:
       post: ${{ tasks.post.output }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 500
       prompt: "Rewrite this post for LinkedIn · hook first · ${{ with.post }}"
 
@@ -60,6 +62,7 @@ tasks:
     with:
       post: ${{ tasks.post.output }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 200
       prompt: "Write a 3-sentence newsletter blurb for this post · ${{ with.post }}"
 

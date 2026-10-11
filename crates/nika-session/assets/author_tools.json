@@ -1,5 +1,5 @@
 {
- "contract": "nika/author-tools@0",
+ "contract": "nika/author-tools@1",
  "status": "served by the Session (2d); names and order fixed by nika_session_change::tools::NAMES",
  "notes": [
   "Every tool runs in Rust against the Session; none writes a project file, runs a workflow, sends anything or grants authority.",
@@ -330,102 +330,7 @@
       "type": "array",
       "minItems": 1,
       "items": {
-       "type": "object",
-       "properties": {
-        "key": {
-         "type": "string",
-         "pattern": "^[a-z][a-z0-9_]*$"
-        },
-        "question": {
-         "type": "string"
-        },
-        "why": {
-         "type": "string"
-        },
-        "role": {
-         "$ref": "#/$defs/role"
-        },
-        "options": {
-         "type": "array",
-         "items": {
-          "type": "object",
-          "properties": {
-           "key": {
-            "type": "string"
-           },
-           "label": {
-            "type": "string"
-           },
-           "recommended": {
-            "type": "boolean"
-           },
-           "values": {
-            "type": "array",
-            "items": {
-             "type": "object",
-             "properties": {
-              "role": {
-               "$ref": "#/$defs/role"
-              },
-              "value": {
-               "type": "string"
-              },
-              "name": {
-               "type": "string"
-              }
-             },
-             "required": [
-              "role",
-              "value"
-             ],
-             "additionalProperties": false
-            }
-           }
-          },
-          "required": [
-           "key",
-           "label"
-          ],
-          "additionalProperties": false
-         }
-        },
-        "free_text": {
-         "type": "boolean"
-        },
-        "multi_select": {
-         "type": "boolean"
-        },
-        "after": {
-         "type": "array",
-         "items": {
-          "type": "string"
-         }
-        },
-        "reopens": {
-         "type": "object",
-         "description": "The person's own words, in a line written after they settled this value, that ask to change it: only then is a settled value asked again.",
-         "properties": {
-          "message": {
-           "type": "string",
-           "pattern": "^u[0-9]+$"
-          },
-          "excerpt": {
-           "type": "string",
-           "minLength": 1
-          }
-         },
-         "required": [
-          "message",
-          "excerpt"
-         ],
-         "additionalProperties": false
-        }
-       },
-       "required": [
-        "key",
-        "question"
-       ],
-       "additionalProperties": false
+       "$ref": "#/$defs/question"
       }
      },
      "answered": {
@@ -469,7 +374,7 @@
   {
    "name": "propose",
    "read_only": false,
-   "description": "Present the current candidate to the person: Nika verifies it first (check, fidelity with the selections' provenance, kept values, its trial) and refuses it with findings. Shown, it ends your turn: write what you tell the person in the same message, before the call; their reply comes as their next line. To save, or save and run, on the person's explicit words, name the acts and cite their line written after this exact candidate was shown: Nika checks that the words still cover its effects, or the proposal waits for their consent.",
+   "description": "Present the current candidate to the person: Nika verifies it first (check, fidelity with the selections' provenance, kept values, its trial) and refuses it with findings. Shown, it ends your turn: write what you tell the person in the same message, before the call; their reply comes as their next line. To save, or save and run, on the person's explicit words, name the acts and cite their line written after this exact candidate was shown: Nika checks that the words still cover its effects, or the proposal waits for their consent. With open, the proposal also shows choices with their defaults, already in the candidate.",
    "input_schema": {
     "type": "object",
     "properties": {
@@ -486,6 +391,14 @@
      },
      "authorized_by": {
       "$ref": "#/$defs/citation"
+     },
+     "open": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Choices the proposal shows with their defaults, each in ask's question shape with exactly one recommended option whose values the candidate already carries: the person's yes keeps every default, naming another option changes it. A choice you cannot recommend is asked first, with ask.",
+      "items": {
+       "$ref": "#/$defs/question"
+      }
      }
     },
     "additionalProperties": false
@@ -599,6 +512,11 @@
       "type": "string",
       "minLength": 1,
       "description": "The person's own words in that line, verbatim."
+     },
+     "replaced_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The value their words give in its place, as they typed it in that line."
      }
     },
     "required": [
@@ -672,6 +590,10 @@
      "excerpt": {
       "type": "string",
       "minLength": 1
+     },
+     "replaced_by": {
+      "type": "string",
+      "minLength": 1
      }
     },
     "required": [
@@ -681,6 +603,104 @@
     ],
     "additionalProperties": false
    }
+  },
+  "question": {
+   "type": "object",
+   "properties": {
+    "key": {
+     "type": "string",
+     "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "question": {
+     "type": "string"
+    },
+    "why": {
+     "type": "string"
+    },
+    "role": {
+     "$ref": "#/$defs/role"
+    },
+    "options": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "key": {
+        "type": "string"
+       },
+       "label": {
+        "type": "string"
+       },
+       "recommended": {
+        "type": "boolean"
+       },
+       "values": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "role": {
+           "$ref": "#/$defs/role"
+          },
+          "value": {
+           "type": "string"
+          },
+          "name": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "role",
+          "value"
+         ],
+         "additionalProperties": false
+        }
+       }
+      },
+      "required": [
+       "key",
+       "label"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "free_text": {
+     "type": "boolean"
+    },
+    "multi_select": {
+     "type": "boolean"
+    },
+    "after": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "reopens": {
+     "type": "object",
+     "description": "The person's own words, in a line written after they settled this value, that ask to change it: only then is a settled value asked again.",
+     "properties": {
+      "message": {
+       "type": "string",
+       "pattern": "^u[0-9]+$"
+      },
+      "excerpt": {
+       "type": "string",
+       "minLength": 1
+      }
+     },
+     "required": [
+      "message",
+      "excerpt"
+     ],
+     "additionalProperties": false
+    }
+   },
+   "required": [
+    "key",
+    "question"
+   ],
+   "additionalProperties": false
   }
  }
 }

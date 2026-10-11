@@ -21,7 +21,9 @@ mod render;
 mod sidecar;
 pub use crate::serve_args::NativeAuthoringArgs;
 
-pub mod typesafe;
+/// The `TypeSafe` System One decision seat, in its size-cap member (ADR-110 amendment): every
+/// `compile::typesafe` path stays.
+pub use nika_cli_host_typesafe as typesafe;
 
 use crate::output::{VerbOutput, exit};
 use nika_onboard::compile::{

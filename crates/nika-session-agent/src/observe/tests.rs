@@ -5,7 +5,7 @@ use serde_json::json;
 
 use super::*;
 
-/// Tools that answer `read` and fail anything else.
+/// Tools that answer `read`, fail `compose` naming a key, and fail anything else.
 struct Tools;
 
 impl SessionTools for Tools {
@@ -21,6 +21,7 @@ impl SessionTools for Tools {
     fn call(&self, call: ToolCall) -> ToolReply {
         match call.name.as_str() {
             "read" => ToolReply::ok("the file's secret contents"),
+            "compose" => ToolReply::error("compose refused:\nkey sk-live-ABCDEFGH12345678 expired"),
             other => ToolReply::error(format!("no tool `{other}`")),
         }
     }
@@ -81,6 +82,33 @@ fn a_failed_reply_is_a_failed_step_and_an_unnamed_call_gets_a_name() {
             ("step-1", StepState::Failed)
         ]
     );
+}
+
+/// A failed call's step says why, as a host may show it: its reply's excerpt, the secret shapes
+/// redacted, on one line. A started or a finished step carries none.
+#[test]
+fn a_failed_step_carries_its_reply_excerpt_never_a_secret_shape() {
+    let (observed, steps) = watched();
+    observed.call(ToolCall::new("compose", json!({"block": "feeds"})).with_meta("toolu_c"));
+    observed.call(ToolCall::new("read", json!({})).with_meta("toolu_r"));
+    let steps = steps.lock().unwrap().clone();
+    let said: Vec<_> = (steps.iter())
+        .map(|s| (s.call.as_str(), s.state, s.reply.as_deref()))
+        .collect();
+    assert!(
+        said == [
+            ("toolu_c", StepState::Started, None),
+            (
+                "toolu_c",
+                StepState::Failed,
+                Some("compose refused: key [redacted] expired")
+            ),
+            ("toolu_r", StepState::Started, None),
+            ("toolu_r", StepState::Finished, None),
+        ],
+        "each step as observed, the failed one's reply redacted"
+    );
+    assert!(!format!("{steps:?}").contains("ABCDEFGH12345678"));
 }
 
 #[test]

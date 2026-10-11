@@ -147,6 +147,11 @@ pub enum TurnOutcome {
         id: GateId,
         /// The observation and the question.
         question: String,
+        /// The values its message shows, by key ([`PendingGate::values`]); boxed, as few gates
+        /// carry any, so every `Result<_, TurnOutcome>` stays small.
+        values: Option<Box<serde_json::Value>>,
+        /// The keys whose value the pause withheld, each with why.
+        withheld: Option<Box<serde_json::Value>>,
     },
     /// The human answered the gate: the door resumes the SAME run
     /// (`--resume <trace> --answer <task>=<value>`) and reports again.
@@ -1131,6 +1136,10 @@ impl SessionRuntime {
             line => line.and_then(Result::ok),
         };
         set.run = set.run.filter(|_| and_run);
+        // The choices its card shows are bound to their defaults by this very line (`agent.rs`).
+        if let Err(why) = self.agent_consents(&set, answer) {
+            return self.hold_pending(set, id, &why);
+        }
         // The sources the proposal was built on are judged again before anything lands (F4).
         let basis = match self.basis_at_yes(&set, &id) {
             Ok(note) => note,

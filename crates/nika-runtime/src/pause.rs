@@ -55,6 +55,9 @@ pub struct WorkflowPause {
     pub message: Option<String>,
     /// The `choice` mode's options (empty for the other modes).
     pub choices: Vec<String>,
+    /// The values the prompt's message shows, structured: one derived from a secret is withheld
+    /// and named, never carried (empty off the prompt rider).
+    pub shown: crate::expr::Shown,
     /// The F-P4 approval ticket minted BEFORE the ask (NEP-0013) — the
     /// pause serializes the capability the resumed run validates the
     /// `--answer` against (nonce · TTL · shown hash). `None` only where
@@ -72,6 +75,7 @@ impl WorkflowPause {
             mode,
             message,
             choices,
+            shown: crate::expr::Shown::default(),
             approval: None,
         }
     }
@@ -90,7 +94,8 @@ impl WorkflowPause {
 /// `on_error:` policy (an explicit route/filter wins — the
 /// author's routing is never hijacked). The F-P4 ticket the gate minted
 /// for the step rides the payload (NEP-0013 · the resumed run validates
-/// the `--answer` against it).
+/// the `--answer` against it). `leaks` is the run's secret rule
+/// (`ResumeContext::leaks_secret`), which the shown values answer to.
 #[allow(clippy::too_many_arguments)] // the pause scope + the approval book
 pub(crate) fn prompt_block(
     finish: &Finish,
@@ -99,6 +104,7 @@ pub(crate) fn prompt_block(
     inputs: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
     markers: &BTreeMap<String, Value>,
+    leaks: &dyn Fn(&str) -> bool,
     approvals: &crate::approval::ApprovalBook,
 ) -> Option<WorkflowPause> {
     let (task, _) = unrouted_failure(finish, wf, PROMPT_BLOCKED_CODE)?;
@@ -111,7 +117,18 @@ pub(crate) fn prompt_block(
     // Secret values NEVER reach the journal payload — markers only.
     // (`env:` is non-sensitive by construction — real values render.)
     let scope = Scope::workflow_with_value_authorities(records, inputs, consts, markers);
-    let mut pause = payload_of(task, invoke.args.as_ref().map(|a| &a.value), &scope);
+    let args = invoke.args.as_ref().map(|a| &a.value);
+    let mut pause = payload_of(task, args, &scope);
+    // The shown values ride structured; one derived from a secret (its marker, or a resolved
+    // value an upstream output carries · ADR-099 §1) is withheld and named.
+    let secret = |text: &str| {
+        leaks(text)
+            || markers
+                .values()
+                .filter_map(Value::as_str)
+                .any(|m| text.contains(m))
+    };
+    pause.shown = crate::approval::prompt_shown(task, args, &scope, &secret);
     // F-P4 — the ticket minted at the gate rides the pause: the resumed
     // run validates the `--answer` against THIS shown hash · nonce · TTL.
     if let Some(ticket) = approvals.ticket_for(&finish.id) {
@@ -318,6 +335,7 @@ mod tests {
             &vars,
             &BTreeMap::new(),
             &markers,
+            &|_: &str| false,
             &crate::approval::ApprovalBook::new(),
         )
         .expect("the blocking branch pauses");
@@ -365,6 +383,7 @@ tasks:
             &BTreeMap::new(),
             &BTreeMap::new(),
             ctx.markers(),
+            &|_: &str| false,
             &crate::approval::ApprovalBook::new(),
         )
         .expect("blocked prompt");
@@ -383,6 +402,86 @@ tasks:
         assert!(!pause.message.as_ref().unwrap().contains("${{"));
     }
 
+    /// A payment release's gate (ADR-148 point 12): each value its message renders rides
+    /// structured, equal to the rendered words; a value derived from a secret is withheld and
+    /// named — its marker, and a resolved secret an upstream output carries — and neither the
+    /// marker nor the secret is ever carried.
+    #[test]
+    fn a_release_gate_shows_its_values_and_withholds_what_a_secret_derives() {
+        let wf = parse(
+            r#"nika: payment-release
+const: { recipient: finance@example.test }
+secrets:
+  token: {source: env, key: DEV_TOKEN}
+tasks:
+  select:
+    invoke: { tool: "nika:jq", args: { input: 1, expression: "." } }
+  approve:
+    with: { request: "${{ tasks.select.output }}", to: "${{ const.recipient }}", credential: "${{ secrets.token }}" }
+    invoke:
+      tool: nika:prompt
+      args:
+        message: "Release #${{ with.request.sno }} to ${{ with.to }}\n  item: ${{ with.request.item }}\n  description: ${{ with.request.description }}\n  requested_by: ${{ with.request.requested_by }}\n  amount: ${{ with.request.amount }}\n  signed: ${{ with.request.signature }} via ${{ with.credential }}"
+"#,
+        );
+        let secret = "synthetic-secret-1234";
+        let resolved = BTreeMap::from([("token".to_owned(), serde_json::json!(secret))]);
+        let ctx = crate::resume::ResumeContext::of(
+            &wf,
+            &resolved,
+            None,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            None,
+            &BTreeMap::new(),
+        );
+        let mut select = TaskRecord::unran(
+            crate::record::TaskStatus::Success,
+            crate::record::TerminalCause::Normal,
+        );
+        select.output = serde_json::json!({"sno": 7, "item": "Laptop batch",
+            "description": "Q4 refresh", "requested_by": "ana", "amount": 1250.5,
+            "signature": format!("sig-{secret}")});
+        let records = BTreeMap::from([("select".to_owned(), select)]);
+        let consts = BTreeMap::from([(
+            "recipient".to_owned(),
+            serde_json::json!("finance@example.test"),
+        )]);
+        let pause = prompt_block(
+            &failed_finish("approve", PROMPT_BLOCKED_CODE),
+            &wf,
+            &records,
+            &BTreeMap::new(),
+            &consts,
+            ctx.markers(),
+            &|text: &str| ctx.leaks_secret(text),
+            &crate::approval::ApprovalBook::new(),
+        )
+        .expect("blocked prompt");
+        let expected = serde_json::json!({"sno": 7, "to": "finance@example.test",
+            "item": "Laptop batch", "description": "Q4 refresh", "requested_by": "ana",
+            "amount": 1250.5});
+        assert_eq!(Value::Object(pause.shown.values.clone()), expected);
+        let message = pause.message.clone().expect("the message rendered");
+        for value in pause.shown.values.values() {
+            let words = value
+                .as_str()
+                .map_or_else(|| value.to_string(), str::to_owned);
+            assert!(
+                message.contains(&words),
+                "{words} is what the message shows"
+            );
+        }
+        let withheld = BTreeMap::from([
+            ("credential".to_owned(), "secret".to_owned()),
+            ("signature".to_owned(), "secret".to_owned()),
+        ]);
+        assert_eq!(pause.shown.withheld, withheld);
+        let marker = ctx.markers()["token"].as_str().unwrap();
+        let carried = format!("{:?}", pause.shown);
+        assert!(!carried.contains(marker) && !carried.contains(secret));
+    }
+
     #[test]
     fn other_codes_and_other_tools_never_pause() {
         let wf = parse(PROMPT_WF);
@@ -396,6 +495,7 @@ tasks:
                 &vars,
                 &BTreeMap::new(),
                 &markers,
+                &|_: &str| false,
                 &crate::approval::ApprovalBook::new(),
             )
             .is_none()
@@ -410,6 +510,7 @@ tasks:
                 &vars,
                 &BTreeMap::new(),
                 &markers,
+                &|_: &str| false,
                 &crate::approval::ApprovalBook::new(),
             )
             .is_none()
@@ -432,6 +533,7 @@ tasks:
                 &vars,
                 &BTreeMap::new(),
                 &markers,
+                &|_: &str| false,
                 &crate::approval::ApprovalBook::new(),
             )
             .is_none()
@@ -524,6 +626,38 @@ tasks:
         .await;
         assert!(repaused.paused.is_some(), "a paused trace re-pauses");
         assert_eq!(repaused.cache_hits, vec!["prep".to_owned()]);
+    }
+
+    /// The journal's pause frame carries the values its message shows as compact JSON
+    /// (`values`, ADR-148 point 12), and no `withheld` when nothing was withheld.
+    #[tokio::test]
+    async fn the_pause_frame_journals_the_values_its_message_shows() {
+        use nika_event::EventKind;
+        use nika_kernel::tool_executor::{ToolErrorMeta, ToolResult};
+
+        const SHOWN: &str = "nika: shown\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  prep:\n    exec: { command: [\"echo\", \"ready\"] }\n  ask:\n    after: { prep: success }\n    with: { prepared: \"${{ tasks.prep.output }}\" }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"proceed with ${{ with.prepared }}?\" }\n";
+        let mut blocked = ToolResult::error("tc1", "non-interactive and no `default:`");
+        let code = Some(PROMPT_BLOCKED_CODE.to_owned());
+        blocked.error_meta = Some(ToolErrorMeta::new(code, false));
+        let seams = harness::Seams {
+            shell: vec!["ready\n"],
+            tool: vec![blocked],
+            pause: true,
+            plan: None,
+            answers: BTreeMap::new(),
+        };
+        let (outcome, sink) = harness::run_gated(SHOWN, seams).await;
+        assert!(outcome.paused.is_some(), "the run paused");
+        let events = sink.events();
+        let paused = (events.iter())
+            .find(|e| e.kind == EventKind::WorkflowPaused)
+            .expect("a pause frame");
+        let values = harness::str_field(paused, "values").expect("the values ride the frame");
+        let values: Value = serde_json::from_str(values).expect("compact JSON");
+        let prepared = values["prepared"].as_str().expect("the prepared value");
+        let message = harness::str_field(paused, "message").expect("the message");
+        assert_eq!(message, format!("proceed with {prepared}?"));
+        assert!(harness::str_field(paused, "withheld").is_none());
     }
 
     /// Mock-seam harness for the pause tests (the builtin dispatcher is
@@ -657,6 +791,7 @@ tasks:
             &vars,
             &BTreeMap::new(),
             &markers,
+            &|_: &str| false,
             &crate::approval::ApprovalBook::new(),
         )
         .expect("pauses with the raw fallback");

@@ -71,6 +71,10 @@ pub nika_session_agent::conversation::Pick::Nothing
 pub nika_session_agent::conversation::Pick::Offer(alloc::string::String)
 pub nika_session_agent::conversation::Pick::Unread
 impl nika_session_agent::conversation::Pick
+pub fn nika_session_agent::conversation::Pick::consent_question(id: nika_session_change::outcome::QuestionId) -> nika_session_change::work::conversation::AskedQuestion
+pub fn nika_session_agent::conversation::Pick::consented(line: &str, run: bool, id: nika_session_change::outcome::QuestionId, read: impl core::ops::function::FnOnce(&str) -> core::option::Option<alloc::string::String>) -> bool
+pub fn nika_session_agent::conversation::Pick::consents(&self, run: bool) -> bool
+impl nika_session_agent::conversation::Pick
 pub fn nika_session_agent::conversation::Pick::of_line(question: &nika_session_change::work::conversation::AskedQuestion, line: &str) -> core::option::Option<Self>
 pub fn nika_session_agent::conversation::Pick::prompt(question: &nika_session_change::work::conversation::AskedQuestion, line: &str) -> alloc::string::String
 pub fn nika_session_agent::conversation::Pick::read(reply: &str, question: &nika_session_change::work::conversation::AskedQuestion) -> Self
@@ -331,13 +335,22 @@ pub fn nika_session_agent::conversation::Conversation::changed(&self) -> &[alloc
 pub fn nika_session_agent::conversation::Conversation::delegations(&self) -> &[nika_session_change::work::conversation::Delegation]
 pub fn nika_session_agent::conversation::Conversation::dropped(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_session_agent::conversation::Conversation::kept(&self) -> serde_json::value::Value
-pub fn nika_session_agent::conversation::Conversation::propose(&mut self, citations: &nika_session_agent::conversation::Citations, args: &serde_json::value::Value, scope: alloc::string::String) -> core::result::Result<core::option::Option<nika_session_agent::conversation::Acts>, alloc::string::String>
+pub fn nika_session_agent::conversation::Conversation::propose(&mut self, citations: &nika_session_agent::conversation::Citations, args: &serde_json::value::Value, (scope, open): (alloc::string::String, alloc::vec::Vec<nika_session_change::work::conversation::AskedQuestion>)) -> core::result::Result<core::option::Option<nika_session_agent::conversation::Acts>, alloc::string::String>
 pub fn nika_session_agent::conversation::Conversation::questions(&self) -> &[nika_session_change::work::conversation::AskedQuestion]
 pub fn nika_session_agent::conversation::Conversation::replace(&mut self, citations: &nika_session_agent::conversation::Citations, args: &serde_json::value::Value) -> nika_session_change::tools::ToolReply
 pub fn nika_session_agent::conversation::Conversation::restored(value: &serde_json::value::Value) -> core::option::Option<Self>
 pub fn nika_session_agent::conversation::Conversation::selections(&self) -> (alloc::vec::Vec<nika_compile_fidelity::fidelity::resolution::Resolution>, alloc::vec::Vec<nika_compile_fidelity::fidelity::resolution::Resolution>)
+pub fn nika_session_agent::conversation::Conversation::shown_verdict(&self) -> core::option::Option<&str>
 pub fn nika_session_agent::conversation::Conversation::since(&self) -> u64
 pub fn nika_session_agent::conversation::Conversation::write(&mut self, citations: &nika_session_agent::conversation::Citations, (source, summary): (alloc::string::String, alloc::string::String), (rows, removed): (&[serde_json::value::Value], &[serde_json::value::Value]), check: &mut dyn core::ops::function::FnMut(&str) -> core::result::Result<(), alloc::string::String>) -> nika_session_change::tools::ToolReply
+impl nika_session_agent::conversation::Conversation
+pub fn nika_session_agent::conversation::Conversation::card(&self, summary: &str, doubt: core::option::Option<&str>) -> alloc::string::String
+pub fn nika_session_agent::conversation::Conversation::close_choices(&mut self)
+pub fn nika_session_agent::conversation::Conversation::consented(&mut self, cite: &str) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_session_agent::conversation::Conversation::defaults(open: &[nika_session_change::work::conversation::AskedQuestion]) -> alloc::vec::Vec<nika_compile_fidelity::fidelity::resolution::Resolution>
+pub fn nika_session_agent::conversation::Conversation::open(&self) -> &[nika_session_change::work::conversation::AskedQuestion]
+pub fn nika_session_agent::conversation::Conversation::open_choices(&self, citations: &nika_session_agent::conversation::Citations, args: &serde_json::value::Value, call: core::option::Option<&str>, (mint, facts): (nika_session_agent::conversation::Mint<'_>, nika_session_agent::conversation::Facts<'_>)) -> core::result::Result<alloc::vec::Vec<nika_session_change::work::conversation::AskedQuestion>, alloc::string::String>
+pub fn nika_session_agent::conversation::Conversation::unsaved(&self, shown: &[alloc::string::String]) -> core::option::Option<alloc::string::String>
 impl core::default::Default for nika_session_agent::conversation::Conversation
 pub fn nika_session_agent::conversation::Conversation::default() -> nika_session_agent::conversation::Conversation
 impl core::fmt::Debug for nika_session_agent::conversation::Conversation
@@ -371,6 +384,8 @@ pub type nika_session_agent::conversation::Conversation::Output = T
 impl<T> zvariant::optional::NoneValue for nika_session_agent::conversation::Conversation where T: core::default::Default
 pub type nika_session_agent::conversation::Conversation::NoneType = T
 pub fn nika_session_agent::conversation::Conversation::null_value() -> T
+pub const nika_session_agent::conversation::NOT_A_CONSENT: &str
+pub const nika_session_agent::conversation::NOT_READ_AS_CONSENT: &str
 pub fn nika_session_agent::conversation::edited(source: &str, pairs: &[(alloc::string::String, alloc::string::String)]) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub type nika_session_agent::conversation::Facts<'a> = &'a mut dyn core::ops::function::FnMut(&str) -> core::option::Option<nika_session_change::work::conversation::ModelFacts>
 pub type nika_session_agent::conversation::Mint<'a> = &'a mut dyn core::ops::function::FnMut(&str) -> nika_session_change::outcome::QuestionId
@@ -614,6 +629,7 @@ pub nika_session_agent::observe::ToolStep::at_ms: u64
 pub nika_session_agent::observe::ToolStep::call: alloc::string::String
 pub nika_session_agent::observe::ToolStep::elapsed_ms: core::option::Option<u64>
 pub nika_session_agent::observe::ToolStep::name: alloc::string::String
+pub nika_session_agent::observe::ToolStep::reply: core::option::Option<alloc::string::String>
 pub nika_session_agent::observe::ToolStep::reply_bytes: core::option::Option<u64>
 pub nika_session_agent::observe::ToolStep::state: nika_session_agent::observe::StepState
 impl core::clone::Clone for nika_session_agent::observe::ToolStep
@@ -2766,6 +2782,7 @@ pub nika_session_agent::ToolStep::at_ms: u64
 pub nika_session_agent::ToolStep::call: alloc::string::String
 pub nika_session_agent::ToolStep::elapsed_ms: core::option::Option<u64>
 pub nika_session_agent::ToolStep::name: alloc::string::String
+pub nika_session_agent::ToolStep::reply: core::option::Option<alloc::string::String>
 pub nika_session_agent::ToolStep::reply_bytes: core::option::Option<u64>
 pub nika_session_agent::ToolStep::state: nika_session_agent::observe::StepState
 impl core::clone::Clone for nika_session_agent::observe::ToolStep

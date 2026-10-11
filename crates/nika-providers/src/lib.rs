@@ -51,11 +51,17 @@ pub mod plan;
 pub mod probe;
 pub mod profile;
 pub mod registry;
-pub mod resolve_access;
+// The access plan and the route identity live in the size-cap member (D-2026-07-09-N1, the
+// ADR-122 member note); their paths stay here.
+pub use nika_providers_access::resolve_access;
 pub mod retry;
 #[cfg(test)]
 mod retry_tests;
-pub mod route_identity;
+pub use nika_providers_access::route_identity;
+#[cfg(test)]
+mod route_identity_observation_tests;
+#[cfg(test)]
+mod route_identity_tests;
 pub mod spend;
 mod sse;
 pub mod stamp;

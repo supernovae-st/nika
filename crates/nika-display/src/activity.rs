@@ -100,7 +100,8 @@ pub enum ToolState {
 }
 
 /// One tool the conversation's intelligence called, as the Session's run observed it: the
-/// call's identity, the tool, where it is and the time it took — never its arguments or reply.
+/// call's identity, the tool, where it is and the time it took — never its arguments, and of its
+/// reply only why it failed, as its producer showed it (bounded, the secret shapes redacted).
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ToolMark {
@@ -116,6 +117,8 @@ pub struct ToolMark {
     pub at_ms: Option<u64>,
     /// The size of its reply in bytes, once it answered (never the reply).
     pub reply_bytes: Option<u64>,
+    /// Why it failed: its reply's excerpt as the run reported it; `None` unless it failed.
+    pub reply: Option<String>,
 }
 
 impl ToolMark {
@@ -129,6 +132,7 @@ impl ToolMark {
             elapsed_ms,
             at_ms: None,
             reply_bytes: None,
+            reply: None,
         }
     }
 
@@ -137,6 +141,13 @@ impl ToolMark {
     pub fn timed(mut self, at_ms: u64, reply_bytes: Option<u64>) -> Self {
         self.at_ms = Some(at_ms);
         self.reply_bytes = reply_bytes;
+        self
+    }
+
+    /// Why a failed call failed, as the run reported its reply's excerpt.
+    #[must_use]
+    pub fn with_reply(mut self, reply: Option<String>) -> Self {
+        self.reply = reply;
         self
     }
 }
@@ -388,6 +399,23 @@ mod tests {
         let tool =
             ToolMark::new("toolu_1", "verify", ToolState::Finished, Some(42)).timed(900, Some(312));
         assert_eq!((tool.at_ms, tool.reply_bytes), (Some(900), Some(312)));
+    }
+
+    /// A failed step's mark keeps why it failed, as the run reported it; its line stays the same
+    /// words, and a mark built of the run's facts alone carries no reply.
+    #[test]
+    fn a_failed_tool_mark_keeps_why_it_failed() {
+        let mut failed = tool_activity("toolu_2", "compose", ToolState::Failed, Some(9));
+        let line = failed.line();
+        let why = Some("no block named `feeds`".to_owned());
+        failed.tool = failed.tool.map(|mark| mark.with_reply(why.clone()));
+        assert_eq!(
+            failed.tool.as_ref().and_then(|mark| mark.reply.clone()),
+            why
+        );
+        assert_eq!(failed.line(), line);
+        let mark = ToolMark::new("toolu_3", "read", ToolState::Finished, Some(1));
+        assert_eq!(mark.reply, None);
     }
 
     #[test]

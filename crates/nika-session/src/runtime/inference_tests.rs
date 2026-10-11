@@ -369,6 +369,8 @@ fn both_confirm_gate_doors_hold_paid_accounts_without_resume_or_calls() {
             task: "approve".into(),
             mode: "confirm".into(),
             message: "Proceed?".into(),
+            values: None,
+            withheld: None,
         });
         let gate = s.waiting_gate().unwrap();
         for line in [

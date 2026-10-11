@@ -75,6 +75,7 @@ tasks:
 
   plan:
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 400              # planning is short · cap it and the cost report is a ceiling
       prompt: "Break '${{ inputs.topic }}' into 4 sharp research queries · no overlap."
       schema:
@@ -128,6 +129,7 @@ tasks:
       findings: ${{ tasks.investigate.output.findings }}
       sources: ${{ tasks.investigate.output.sources }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 2000
       prompt: |
         Findings · ${{ with.findings }}

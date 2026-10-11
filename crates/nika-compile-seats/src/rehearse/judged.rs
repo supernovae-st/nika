@@ -21,7 +21,7 @@ use nika_compile_fidelity::behavior::{
 };
 
 use super::observed::{
-    CopyReceipt, Digest, FinalReceipt, FinalState, Held, Observation, RecordedCause, Spent,
+    CopyReceipt, Digest, FinalReceipt, FinalState, Held, Observation, RecordedCause, Refusal, Spent,
 };
 use super::{Attempt, EffectCounts, Rehearsal, RehearsalReport};
 
@@ -367,6 +367,16 @@ fn ended(report: &RehearsalReport) -> Result<RunEnd, String> {
                 task.clone(),
                 code.clone(),
                 cause,
+            )))
+        }
+        // The room stopped it where a built value crossed its data bound (2026-10-11).
+        (Attempt::Stopped { .. }, Rehearsal::NotRun { reason }, None)
+            if matches!(report.observation.refusal, Some(Refusal::DataBounds)) =>
+        {
+            Ok(RunEnd::Failed(Failure::new(
+                "",
+                "",
+                Cause::data_bound(reason.clone()),
             )))
         }
         (Attempt::Stopped { .. }, Rehearsal::NotRun { .. }, None) => {

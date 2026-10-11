@@ -55,6 +55,7 @@ tasks:
     with:
       contract: ${{ tasks.contract.output }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 4000   # think block + the clause JSON
       prompt: |
         Extract every risk-bearing clause from this contract ·
@@ -107,6 +108,7 @@ tasks:
     after:
       gate: success              # state, no data · the assert passed or the memo is cancelled
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 3000   # think block + the one-page memo
       prompt: |
         Write a one-page risk memo from these clauses ·

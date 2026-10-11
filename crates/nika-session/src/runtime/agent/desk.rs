@@ -49,6 +49,29 @@ pub(crate) struct SessionDesk {
     pub(crate) verifier: Verifier,
     /// The pinned release, admitted once for the turn when a tool first reads it.
     pub(crate) admitted: Option<Snapshot>,
+    /// Where the bytes each verification judged are kept (the history directory); none without
+    /// history.
+    pub(crate) judged: Option<OwnedDir>,
+}
+
+/// The most of one judged candidate the Session keeps.
+const JUDGED_BYTES: usize = 256 * 1024;
+
+/// Keep the bytes a verification judged, redacted and bounded, as `verified/<sha256>.nika` under
+/// `dir`: the name is the digest the verify record carries, so a hold can be checked against its
+/// exact bytes once the candidate is rewritten. Kept once; best effort, as no verdict waits on it.
+pub(super) fn keep_judged(dir: &OwnedDir, source: &str) {
+    let name = format!("{}.nika", nika_compile::surface::sha256(source));
+    let (text, _) = nika_cli_host::context_redaction::redact(source);
+    let mut end = text.len().min(JUDGED_BYTES);
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    if let Ok(kept) = dir.create_below(&["verified"])
+        && !kept.exists(&name).unwrap_or(true)
+    {
+        let _ = kept.write_once(&name, text.get(..end).unwrap_or_default());
+    }
 }
 
 /// The judge a conversation's document faces: the seat and decision model a compile round of
@@ -70,7 +93,10 @@ pub(crate) struct Verifier {
 #[derive(Default)]
 pub(crate) struct Verified {
     verdicts: Vec<Value>,
-    ready: Option<(String, String)>,
+    /// The key of the last ready verdict, its scope and the doubt it stated.
+    ready: Option<(String, String, Option<String>)>,
+    /// The doubt the verifier stated over the last ready document, for its proposal to state.
+    doubt: Option<String>,
     /// The project files the author read through the desk, by the path a workflow names, each
     /// with the witness of the bytes it read: what its proposal's basis keeps.
     read: BTreeMap<String, Witness>,
@@ -87,6 +113,12 @@ impl Verified {
     /// The files the author read, each with the witness of the bytes it read.
     pub(crate) fn read(&self) -> &BTreeMap<String, Witness> {
         &self.read
+    }
+
+    /// The doubt the verifier stated over the last ready document: its proposal states it, so
+    /// the person reads it before consenting.
+    pub(crate) fn doubt(&self) -> Option<&str> {
+        self.doubt.as_deref()
     }
 
     /// The trial of the last ready document and its words, taken once by the proposal of it.
@@ -108,6 +140,19 @@ impl Verified {
 
 /// What the author repairs from when a document is not ready: each finding of the verification
 /// (the laws' refusals, the verifier's defects, doubts and held words) and each open question.
+/// The doubt a ready verdict states with its proposal (`verify_doubt`), when it states one.
+pub(super) fn stated_doubt(out: &CompileOutcome) -> Option<String> {
+    (out.diagnostics.iter())
+        .find(|d| d.target == "verify_doubt")
+        .map(|d| d.message.clone())
+}
+
+/// What the catalog documents of `model`'s output: the reasoning efforts it takes and its
+/// output limit, which the `models` tool shows beside each offer.
+pub(super) fn model_caps(model: &str) -> Option<Value> {
+    nika_compile::surface::output_caps(model)
+}
+
 fn findings(out: &CompileOutcome) -> String {
     let mut lines: Vec<String> = (out.diagnostics.iter())
         .map(|d| format!("{}: {}", d.target, d.message))
@@ -284,9 +329,14 @@ impl Desk for SessionDesk {
             other => return Err(format!("no model role `{other}`: run, author or decision")),
         };
         let offer = |o: &ModelOffer| {
-            json!({"model": o.model, "via": o.route.access, "class": o.route.class.as_str(),
-                "configured": o.route.configured, "fix": o.route.fix_var,
-                "output_usd_per_million": o.output_usd_per_million})
+            let mut offered = json!({"model": o.model, "via": o.route.access,
+                "class": o.route.class.as_str(), "configured": o.route.configured,
+                "fix": o.route.fix_var, "output_usd_per_million": o.output_usd_per_million});
+            if let Some(caps) = model_caps(&o.model) {
+                offered["reasoning_efforts"] = caps["reasoning_efforts"].clone();
+                offered["max_output_tokens"] = caps["max_output_tokens"].clone();
+            }
+            offered
         };
         let offers = |list: &[ModelOffer]| list.iter().map(offer).collect::<Vec<Value>>();
         let inventory = ModelInventory::from_probes(&self.probes);
@@ -365,11 +415,12 @@ impl Desk for SessionDesk {
             .to_hex()
             .to_string();
         let declined = {
-            let kept = kept(&self.verifier)?;
-            if let Some((done, scope)) = &kept.ready
-                && *done == key
+            let mut kept = kept(&self.verifier)?;
+            if let Some((done, scope, doubt)) = kept.ready.clone()
+                && done == key
             {
-                return Ok(scope.clone());
+                kept.doubt = doubt;
+                return Ok(scope);
             }
             kept.verdicts.clone()
         };
@@ -395,6 +446,9 @@ impl Desk for SessionDesk {
             Some(&scoped),
         )
         .map_err(|e| e.to_string())?;
+        if let Some(dir) = &self.judged {
+            keep_judged(dir, source);
+        }
         let (_, tried) = scoped.finish().into_parts();
         kept(verifier)?.keep(&out);
         if out.status != CompileStatus::Ready {
@@ -411,7 +465,10 @@ impl Desk for SessionDesk {
         let scope = blake3::hash(reach.to_string().as_bytes())
             .to_hex()
             .to_string();
-        kept(&self.verifier)?.ready = Some((key, scope.clone()));
+        let doubt = stated_doubt(&out);
+        let mut kept = kept(&self.verifier)?;
+        kept.ready = Some((key, scope.clone(), doubt.clone()));
+        kept.doubt = doubt;
         Ok(scope)
     }
 

@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#
+# nika-cli-host-typesafe · L4 · the TypeSafe System One decision seat: its one transport, the
+# Session's journaling seat and the batch exchange. Size-cap member of the nika-cli unit
+# (D-2026-07-09-N1 · ADR-110 amendment): nika-cli-host → nika-cli-host-typesafe, never back.
+[package]
+name        = "nika-cli-host-typesafe"
+description = "L4 member of the nika-cli unit — the TypeSafe System One decision seat (one unary POST per question or batch request, the Session's journaling seat, the batch exchange); nika-cli-host re-exports it as compile::typesafe (D-2026-07-09-N1 · ADR-110)"
+
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal member of the nika-cli unit.
+
+[lints]
+workspace = true
+
+[dependencies]
+nika-display   = { path = "../nika-display", version = "0.123.0-preview.1" }   # model_scope::decision_status (the session seat's /status words)
+nika-http      = { path = "../nika-http", version = "0.123.0-preview.1" }      # ReqwestHttp — the seat's single-attempt client
+nika-kernel    = { path = "../nika-kernel", version = "0.123.0-preview.1" }    # the HttpPostDyn seam · Secret
+nika-onboard   = { path = "../nika-onboard", version = "0.123.0-preview.1" }   # compile::decide (the seat contract, system_one's wire form)
+nika-providers = { path = "../nika-providers", version = "0.123.0-preview.1" } # authoring::preparation::PreparationCosts
+bytes          = { workspace = true } # the request body rides the kernel HttpRequest shape
+serde_json     = { workspace = true }
+url            = { workspace = true } # the endpoint law (https, or http on loopback)
+
+[dev-dependencies]
+jiff  = { workspace = true } # the ignored live suites stamp their diagnosis records
+sha2  = { workspace = true } # a test digests the bytes a request carried
+tokio = { workspace = true } # tests park a current-thread executor around the loopback seat

@@ -29,7 +29,7 @@ nika-builtin = { path = "../nika-builtin", version = "0.123.0-preview.1" }
 # never depends on this one.
 nika-cli-host = { path = "../nika-cli-host", version = "0.123.0-preview.1", default-features = false }
 nika-migrate = { path = "../nika-migrate", version = "0.123.0-preview.1" }  # `repair::word_sites` — the ONE whole-token scan (the `nika_examples` builtin route)
-# The session's tool contract (`tools::SessionTools` · `nika/author-tools@0`) the
+# The session's tool contract (`tools::SessionTools` · `nika/author-tools@1`) the
 # conversation tool server relays (lateral L4→L4 · nika-session-change never
 # depends back).
 nika-session-change = { path = "../nika-session-change", version = "0.123.0-preview.1" }

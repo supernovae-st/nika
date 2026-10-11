@@ -13,6 +13,13 @@
 //! rehearsal copies are data, never scanned. This closes these forms; it bounds neither memory
 //! as a whole nor the size of one value read whole. Every refusal it states is a
 //! [`Refusal::DataBounds`](super::Refusal::DataBounds).
+//!
+//! The law is for a room that builds those values with no bound of its own. A room that bounds
+//! each evaluated value where it is built (a rendered-byte bound on templates, on JSON values
+//! holding templates and on CEL lists, checked at construction) runs these forms: a value over
+//! the bound stops the run there, an attempt reported as a data bound
+//! ([`Attempt::Stopped`](super::Attempt::Stopped)). The onboard room does so and no longer
+//! applies this law before a rehearsal (amended 2026-10-11).
 
 use nika_schema::expression::{Expr, expr_refs, scan_templates};
 use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};

@@ -105,6 +105,13 @@ the requirement is a currency budget; already admitted calls can overshoot.
 Keep a typed `schema:` for the result and verify promised artifacts or facts
 independently of schema conformance.
 
+**A reasoning model's room.** A model that reasons before it answers draws
+its reasoning from the task's `max_tokens`. A small cap, such as an
+example's 512, can leave no visible answer (`NIKA-INFER-004`): give such a
+seat 16,384, or a low `run.reasoning.effort` its route documents. Every
+template and example states that room above a cap of 4,096 or less; the
+cap itself stays sized for the file's own offline seat.
+
 **Extract facts, then the law.** A model may produce closed, cited
 semantic *facts*. Scoring, routing, publish/abstain is `nika:jq` or
 `nika:decide` — never a second `infer:` to "pick the level". Numeric

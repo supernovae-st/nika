@@ -479,12 +479,14 @@ spends that reasoning inside the call's output cap, so a cap with no room for th
 the run with no answer (NIKA-INFER-004) or with one cut short. On a seat whose facts say it
 reasons by default, a cap below the facts' room, or no cap at all, is one `reasoning_budget`
 diagnostic (`REASONING BUDGET`) naming the task, the seat, the cap and only the remedies that
-reach the route: raise or state `max_tokens` (the room), and set `run.reasoning.effort: low`
-where the facts say that level reaches it. Turning thinking off is never named: no route fact
-reaches it yet, and a `thinking:` block a route does not map changes nothing, so it settles no
-task. Not judged: a task whose run lowers the effort to `low` where that reaches it, a templated
-cap or seat, a cap the person typed (`resolution::typed`), and an `agent:` task (its
-`max_tokens_total` is cumulative across requests and bounds none).
+reach the route: `run.reasoning.effort: low` first where the facts say that level reaches it,
+then raise or state `max_tokens` (the room). Amended 2026-10-11: measured on DeepSeek Flash at
+its default effort, the reasoning spends about four fifths of whatever cap it gets, so a larger
+cap buys longer thinking more than room for the answer. Turning thinking off is never named:
+no route fact reaches it yet, and a `thinking:` block a route does not map changes nothing, so
+it settles no task. Not judged: a task whose run lowers the effort to `low` where that reaches
+it, a templated cap or seat, a cap the person typed (`resolution::typed`), and an `agent:` task
+(its `max_tokens_total` is cumulative across requests and bounds none).
 
 The facts are a typed input, `budget::ReasoningFacts` (`#[non_exhaustive]`, `new(reasons, room)`,
 `with_low_effort(reaches)`): whether the route reasons by default, the cap that leaves room for
@@ -493,3 +495,11 @@ them from the catalog's facts as `nika_compile::surface::output_caps` reports th
 records reasoning and documents effort levels reasons by default (a row recording reasoning
 alone records a capability, which a Claude row uses only when asked), and `low` among its levels
 reaches it. The law reads, calls and writes nothing else.
+
+The documented low effort a door declares (2026-10-11) is stated here too, pure:
+`drafts_only(plan)` says whether every model step of a reader's plan is a typed Draft (write,
+summarize, translate), beside reads, retrievals and computations; `declared_low_effort(source)`
+writes `run.reasoning.effort: low` into a source's own text, atop its `run:` block at that
+block's indentation or as a block before `tasks:` (text only: `nika-compile` keeps it when the
+parser reads exactly that addition); `LOW_EFFORT_DECLARED` is what the proposal says of it.
+Whether the request is read whole, and the seat's facts, are `nika-compile`'s.

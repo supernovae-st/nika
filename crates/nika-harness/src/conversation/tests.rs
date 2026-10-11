@@ -248,6 +248,30 @@ fn only_an_ask_by_id_alone_refers_to_an_announced_call() {
     }
 }
 
+/// The two frames codex-acp 1.13.1 sent for `candidate_write` in a live conversation
+/// (2026-10-11), the arguments redacted to their keys: Codex's call
+/// id form, the title, the mark and the routing the law reads. The announcement names Nika's
+/// tool; the failed update that followed six milliseconds later, without any ask, names none.
+#[test]
+fn the_frames_recorded_live_are_the_shapes_the_law_reads() {
+    let offer = ToolOffer::new("nika", vec!["candidate_write".to_owned()]);
+    let id = "exec-acac19d7-9ed7-406c-9e1a-b19fa61e6935";
+    let arguments = json!({"resolutions": [], "source": "", "summary": ""});
+    let announced = json!({"sessionUpdate": "tool_call", "toolCallId": id, "kind": "execute",
+        "title": "mcp.nika.candidate_write", "status": "in_progress",
+        "rawInput": {"server": "nika", "tool": "candidate_write", "arguments": arguments},
+        "_meta": {"is_mcp_tool_call": true}});
+    assert_eq!(
+        nika_tool(&announced, &offer).as_deref(),
+        Some("candidate_write")
+    );
+    let failed = json!({"sessionUpdate": "tool_call_update", "toolCallId": id, "status": "failed",
+        "rawInput": {"server": "nika", "tool": "candidate_write", "arguments": arguments},
+        "rawOutput": {"error": {"message": "user cancelled MCP tool call"}, "result": null}});
+    assert!(!names_tool(&failed), "{failed}");
+    assert_eq!(nika_tool(&failed, &offer), None);
+}
+
 fn options(kinds: &[(&str, &str)]) -> Vec<PermissionOptionIn> {
     let listed: Vec<Value> = (kinds.iter())
         .map(|(id, kind)| json!({"optionId": id, "kind": kind, "name": id}))

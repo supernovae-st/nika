@@ -325,6 +325,11 @@ pub struct Work {
     /// The lines the person sent while the last run was under way, and what became of each.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub queued: Vec<Queued>,
+    /// The choices the proposal waiting shows with their defaults, in `ask`'s question shape:
+    /// the person's consent keeps each default, naming another option changes it
+    /// ([`Work::with_open_choices`]); absent from the wire otherwise.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub open_choices: Vec<AskedQuestion>,
 }
 
 /// The request as the session keeps it: decisions, not chat.
@@ -1346,6 +1351,7 @@ impl Work {
             delegations: Vec::new(),
             questions: Vec::new(),
             queued: Vec::new(),
+            open_choices: Vec::new(),
         }
     }
 
@@ -1368,6 +1374,13 @@ impl Work {
     #[must_use]
     pub fn with_queued(mut self, queued: Vec<Queued>) -> Self {
         self.queued = queued;
+        self
+    }
+
+    /// The same snapshot with the choices the proposal waiting shows with their defaults.
+    #[must_use]
+    pub fn with_open_choices(mut self, open_choices: Vec<AskedQuestion>) -> Self {
+        self.open_choices = open_choices;
         self
     }
 

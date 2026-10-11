@@ -40,16 +40,19 @@ tasks:
   angle:
     infer:
       prompt: "Give the strategic angle on · ${{ const.topic }}"
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 512
 
   cost:
     infer:
       prompt: "Give the cost angle on · ${{ const.topic }}"
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 512
 
   risk:
     infer:
       prompt: "Give the risk angle on · ${{ const.topic }}"
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 512
 
   # The merge. `with:` does two jobs at once: it aliases the upstream outputs
@@ -66,6 +69,7 @@ tasks:
         Strategy · ${{ with.a }}
         Cost · ${{ with.c }}
         Risk · ${{ with.r }}
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 1024
 
 # The return value · read it with `--output json` (see 01).

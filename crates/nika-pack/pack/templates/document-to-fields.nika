@@ -55,6 +55,7 @@ tasks:
     after:
       document_nonempty: success
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 600                # SLOT: extraction spend ceiling
       prompt: |
         Extract only facts explicitly present in this document. For every

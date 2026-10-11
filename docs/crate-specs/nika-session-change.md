@@ -118,7 +118,7 @@ Two typed readings joined these modules on 2026-10-08, so every host reads the s
   `RunEnd` is the one reading of the run door's exit codes. It grants nothing: consents,
   answers and runs still go through the session's own doors.
 - **`tools`** — the tools a session serves to the intelligence that leads its conversation
-  (`CONTRACT` = `nika/author-tools@0`), typed once for Nika's own agent loop and for an ACP
+  (`CONTRACT` = `nika/author-tools@1`), typed once for Nika's own agent loop and for an ACP
   agent's loop reaching them over MCP (`nika-mcp`'s conversation tool server). `NAMES` fixes
   the 17 tool names, each a lowercase word an MCP client mounts unchanged (`mcp__nika__<name>`).
   `SessionTools` is the one trait: `tools()` lists the `ToolDef`s (name, description, argument

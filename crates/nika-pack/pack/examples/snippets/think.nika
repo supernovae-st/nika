@@ -20,6 +20,7 @@ tasks:
   summarize:
     infer:
       prompt: "Three risks in this release, ranked"
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 2048   # the house seat deliberates before the list — the cap covers think + answer
 
 outputs:

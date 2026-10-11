@@ -688,15 +688,19 @@ judge outvotes it there; a verdict that declined nothing may be asked again.
   with its rejection inside it (as above), the verdict's findings and the Applied `verify_held`
   finding; the route says `verify: not ready, candidate held`. When no trial of these bytes ran
   because the rehearsal room refused them before any attempt (`Rehearsals::refused`: a
-  source-only `NotRun` with the host's `Refusal` class), the attempt records it
+  source-only `NotRun` with the host's `Refusal` class), or stopped their run where a value it
+  built crossed the room's data bound (a `Stopped` attempt, `NotRun`, refusal `DataBounds`: the
+  seats read it as `Cause::DataBound`, which proceeds as that refusal does, never as the time
+  bound's `rehearsal_time_bound` repair; amended 2026-10-11), the attempt records it
   (`"unobserved": {"refusal", "reason"}`, the room's words) and the `verify_held` finding names
   it; the `unsettled` reason stays `no trial run of these exact bytes exists in this compile`.
   A doubt only a run could decide (every `unsettled` reason the lack of a whole run), rejected
-  with no defect located, on bytes the room refused for a construct the workflow chose (a data
-  bound or a tool outside the rehearsal's surface) reopens the author once instead (A2): the
-  `rehearsal_refused` finding carries the room's words and asks for an equivalent workflow the
-  room runs, keeping every requested operation, path, threshold, order, output and permit, with
-  the verdict (route `verify: trial refused, restated`); the restated bytes are rehearsed and
+  with no defect located, on bytes the room refused or stopped for a construct the workflow
+  chose (a data bound or a tool outside the rehearsal's surface) reopens the author once
+  instead: the `rehearsal_refused` finding carries the room's words and asks for an equivalent
+  workflow the room runs, keeping every requested operation, path, threshold, order, output and
+  permit, with the verdict (route `verify: trial refused, restated`); the restated bytes are
+  rehearsed and
   judged as any candidate. The reopening follows the door's progress rule: the same refusal
   again (or no round left) reopens nothing and the candidate is held as above. A refusal for an
   effect, a path, the world or the host is no construct the workflow chose: held. When the verdict located no defect and declined nothing

@@ -570,4 +570,15 @@ impl InferenceReceipt {
         }
         observation
     }
+
+    /// This receipt's observation in its durable form
+    /// ([`project_observation`](crate::route_identity::project_observation)): what a journal
+    /// row, a trace or a saved session may keep, while [`Self::observation`] stays the exact
+    /// `@1` in memory. Null when the account wrote something outside the closed schema, a drift
+    /// its producer tests fail on and a record every reader refuses as unreadable.
+    #[must_use]
+    pub fn durable_observation(&self) -> serde_json::Value {
+        crate::route_identity::project_observation(&self.observation())
+            .unwrap_or(serde_json::Value::Null)
+    }
 }

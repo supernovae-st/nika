@@ -107,6 +107,8 @@ fn every_host_text_names_the_trace_as_the_project_holds_it() {
         task: "approve".to_owned(),
         message: "Ship it?".to_owned(),
         mode: "confirm".to_owned(),
+        values: None,
+        withheld: None,
     };
     let aside = aside::explain_gate(&gate(absolute.clone()), root.path());
     assert!(

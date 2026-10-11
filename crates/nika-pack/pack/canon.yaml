@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: b441e805c5f7e4e3ef738947db2f47d87db741c389abe32450b7543761d9229d
+# body-sha256: 4bcf39b29573dd0195a3f9e9725f3ec7c43c54f88a4daae35e10f30a2eeaba82
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
@@ -65,7 +65,7 @@ counts:
   templates: 22
   error_namespaces: 24
   error_categories: 12
-  error_codes: 105
+  error_codes: 107
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -313,7 +313,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 105
+  count: 107
   scope: spec-normative floor only · per-builtin and per-provider codes resolve through nika explain and are not enumerated here
   reference: spec/05-errors.md
   items:
@@ -386,6 +386,7 @@ error_codes:
     - { code: NIKA-INFER-002, category: validation_error, transient: "false", failure: "structured output failed schema validation (after any engine-internal retries)" }
     - { code: NIKA-INFER-003, category: validation_error, transient: "false", failure: "the provider reported no token usage for a priced model — the ledger cannot bill the call honestly (fail-closed · R3-F1)" }
     - { code: NIKA-INFER-004, category: validation_error, transient: "false", failure: "the provider spent tokens yet the visible answer is empty — a thinking model ate the budget on its reasoning trace (fail-closed · #651 · raise max_tokens or use a no-think variant)" }
+    - { code: NIKA-INFER-005, category: budget_error, transient: "false", failure: "the provider stopped at the output cap (max_tokens) — the visible answer is cut; it rides error.details.partial_output with the provider's stop reason, is never the task output and is never validated against schema:" }
     - { code: NIKA-EXEC-001, category: process_error, transient: "false", failure: "non-zero exit code (default capture modes)" }
     - { code: NIKA-EXEC-002, category: process_error, transient: "false", failure: "spawn failure (command not found · permission)" }
     - { code: NIKA-INVOKE-001, category: validation_error, transient: "false", failure: "unknown tool (unresolvable nika:/mcp: id)" }
@@ -395,6 +396,7 @@ error_codes:
     - { code: NIKA-AGENT-003, category: validation_error, transient: "false", failure: "a skills: path does not resolve (file missing/unreadable at compose time)" }
     - { code: NIKA-AGENT-004, category: validation_error, transient: "false", failure: "a skills: file is not a valid Agent Skill (frontmatter shape · missing/empty name/description)" }
     - { code: NIKA-AGENT-005, category: budget_error, transient: "false", failure: "the provider reported no token usage for a priced model — every budget and ledger reads the turn as free, so the loop fails closed (R3-F1 · the usage-absence gate)" }
+    - { code: NIKA-AGENT-006, category: budget_error, transient: "false", failure: "the agent's final message (no tool calls) stopped at the output cap (max_tokens) — the cut message rides error.details.partial_output, never the task output" }
     - { code: NIKA-MCP-001, category: tool_error, transient: "engine-assessed", failure: "MCP server not configured / not reachable at call time" }
     - { code: NIKA-MCP-002, category: tool_error, transient: "engine-assessed", failure: "MCP tool call failed (transport · tool-side error)" }
     - { code: NIKA-DECIDE-001, category: validation_error, transient: "false", failure: "the decision bundle is malformed or violates its own laws (float weight · undeclared evidence key in rules · identity key feeding a technical dimension · missing contradictory fixture · monotonicity violated by the bundle's own fixtures) (spec 11)" }

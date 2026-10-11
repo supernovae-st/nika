@@ -117,6 +117,19 @@ The owners that would naturally host this adapter stand at the 15,000 prod-LOC w
     its own line from another's, which a native client has nothing else to go by for (a door
     without an op refuses that op this way). A line naming none, or an invalid one, is refused
     naming none.
+11. **A failed tool step says why** (amended 2026-10-11). The activity of a tool step that
+    failed carries the tool's reply as a host may show it (`tool.reply`): the obvious secret
+    shapes redacted first (the context broker's own filter), on one line, at most 512 bytes. A
+    step that started or finished carries none, and no step carries a call's arguments: a host,
+    the TUI or an evaluator reads why a call failed without the conversation's state.
+12. **A gate shows its values** (amended 2026-10-11). A run paused at a `nika:prompt` gate
+    journals, beside its message, the values that message renders as one object (`values`:
+    each `${{ … }}` island's typed value, keyed by the last name its reference reads, else by the
+    reference itself), bounded (1 KiB a value, 4 KiB in all), and the keys it withheld with why
+    (`withheld`: `secret` for a value derived from a secret by the run's own rule, its marker or
+    a resolved value an upstream output carries; `size`; `unresolved`). The gate outcome carries
+    both as the pause wrote them; its text stays. A host or a consent review binds the exact
+    values shown, and a value derived from a secret is only ever named.
 
 ## Consequences
 

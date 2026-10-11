@@ -17,6 +17,7 @@ use nika_schema::raw::{RawAction, RawTask, RawWorkflow};
 use nika_schema::types::AfterPredicate;
 
 use crate::Runtime;
+use crate::bags::ValueBags;
 use crate::expr::Scope;
 use crate::ledger::RunLedger;
 use crate::record::{TaskRecord, TaskStatus};
@@ -184,15 +185,11 @@ where
         // settle spine has not stamped.
         preview.integrity = integrity.clone();
         records.insert(task.id.value.clone(), preview);
-        let cleanup_scope = Scope::workflow_with_value_authorities(
-            &records,
-            scope.inputs(),
-            scope.consts(),
-            scope.secrets(), // a cleanup may reference secrets.X too
-        )
-        // Locals are out of scope after fan-out; `on_finally` exec retains the
-        // workflow capability boundary.
-        .with_task_context(None, None, None, scope.permits());
+        // A cleanup may reference secrets.X too. Locals are out of scope after fan-out;
+        // `on_finally` exec retains the workflow capability boundary.
+        let bags = ValueBags::of(scope);
+        let cleanup_scope =
+            (bags.scope(&records)).with_task_context(None, None, None, scope.permits());
         let mut receipts = Vec::new();
         for (index, cleanup) in cleanups {
             let mut entries = self
@@ -224,14 +221,8 @@ where
         // Cleanup is an ordinary task: materialize its own bindings before
         // the gate, using the parent's fresh record and the run authorities.
         // A boundary failure is journaled and never reaches the verb.
-        let with_ns = match render_boundary_with(
-            cleanup,
-            &wf.tasks,
-            scope.records(),
-            scope.inputs(),
-            scope.consts(),
-            scope.secrets(),
-        ) {
+        let bags = ValueBags::of(scope);
+        let with_ns = match render_boundary_with(cleanup, &wf.tasks, scope.records(), bags) {
             Ok(ns) => ns,
             Err(err) => {
                 Self::journal_cleanup_failure(witness, index, &runtime_error_record(&err));

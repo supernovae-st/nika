@@ -41,9 +41,9 @@ use std::time::{Duration, Instant};
 use peer::{Kind, Peer, Seen};
 use scenarios::{
     ACCEPT, ALGOLIA, ALREADY, DEFLECT, DELEGATION, DIGEST, EMPTY, FOLLOWED, HACKER_NEWS, LE_MONDE,
-    LE_MONDE_WORDS, OUTPUT_WORDS, RENAMED, REPAIRING, REQUEST, STEER_B, STEERED, STILL_HERE,
-    STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C, THEN_STOP, TRIED_ON, UNRESOLVED, WHY, YC_BLOG,
-    scenario,
+    LE_MONDE_WORDS, OUTPUT_WORDS, RENAMED, REPAIRING, REQUEST, SAVE_AND_RUN, STEER_B, STEERED,
+    STILL_HERE, STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C, THEN_STOP, TRIED_ON, UNRESOLVED, WHY,
+    YC_BLOG, scenario,
 };
 use serde_json::{Value, json};
 
@@ -102,6 +102,8 @@ fn run(name: &str) -> Journey {
         .env("HOME", &home)
         .env("NIKA_KEYCHAIN", "off")
         .env("NO_COLOR", "1")
+        // The person's machine is at UTC+4: the author is told its zone.
+        .env("TZ", "Asia/Dubai")
         .env("NIKA_VLLM_BASE_URL", peer.base())
         .env("OPEN_UX_CHILD", name)
         .env("OPEN_UX_ROOT", &root)
@@ -640,6 +642,34 @@ fn save_and_run_said_in_words_cover_the_candidate_they_designate() {
         files.iter().any(|f| f.as_str() == Some(saved)),
         "{saved} landed: {files:?}"
     );
+    // The words consent to the proposal they saw: its unchanged bytes are not judged again.
+    let consent = (journey.seen.iter())
+        .position(|seen| seen.kind == Kind::Agent && seen.text().contains(SAVE_AND_RUN))
+        .expect("the consent reached the author");
+    let judged = (journey.seen[consent..].iter()).filter(|seen| seen.kind == Kind::Judge);
+    assert_eq!(judged.count(), 0, "no second verdict for the bytes shown");
+}
+
+/// A real line written after the proposal is not consent because it is cited as one: the person
+/// asked for an explanation, so an author claiming it authorizes saving and running gets no act,
+/// and the proposal waits for the person's consent.
+#[test]
+fn a_request_for_an_explanation_cited_as_consent_authorizes_nothing() {
+    let journey = run("explanation_cited_as_consent");
+    let said = journey.step(2);
+    assert_ne!(outcome_kind(said), "run_requested", "{said:#}");
+    assert!(work(said)["saved"].is_null(), "nothing saved: {said:#}");
+    assert!(work(said)["requested"].is_null(), "nothing run: {said:#}");
+    let files = journey.report["files"].as_array().unwrap();
+    assert!(
+        files.iter().all(|f| !is_workflow(f.as_str().unwrap())),
+        "{files:?}"
+    );
+    assert_eq!(
+        waiting(said),
+        "consent",
+        "the proposal waits for the person's consent"
+    );
 }
 
 #[test]
@@ -1129,4 +1159,53 @@ fn a_thought_only_answer_never_ends_a_turn_in_silence() {
     assert_eq!(journey.agent.len(), 2, "{:#?}", journey.agent);
     let asked = journey.agent[1].last();
     assert!(asked.contains("no words and no call"), "{asked}");
+}
+
+/// On a French news request, the first turn ends with a proposal that shows its
+/// open choices with their defaults, and no question; the person's « oui » keeps every default,
+/// bound as the option picked with that line, and saves the workflow.
+#[test]
+fn a_news_request_is_proposed_at_once_and_a_yes_keeps_the_defaults_shown() {
+    let journey = run("open_defaults");
+    let (proposed, saved) = (journey.step(0), journey.step(1));
+    assert_eq!(outcome_kind(proposed), "proposal", "{proposed:#}");
+    assert!(open_questions(proposed).is_empty(), "nothing asked first");
+    let card = proposed["outcome"]["text"].as_str().unwrap_or_default();
+    assert!(card.contains("open choices"), "{card}");
+    assert!(card.contains("`hn` Hacker News (default): https://news.ycombinator.com"));
+    assert!(card.contains("`notes` notes/: ./notes/digest.md"), "{card}");
+    let shown = work(proposed)["open_choices"]
+        .as_array()
+        .map_or(0, Vec::len);
+    assert_eq!(shown, 3, "the machine door shows them");
+    assert!(work(saved)["saved"]["workflow"].is_string(), "{saved:#}");
+    for value in [HACKER_NEWS, DIGEST] {
+        assert_eq!(provenance(saved, value), ("offered".into(), "u2".into()));
+    }
+    assert_eq!(journey.agent.len(), 2, "the consent reached no author");
+}
+
+/// A pick of another option binds it and the proposal shown waits for the author's
+/// revision: the « oui » that follows is held, and nothing is saved.
+#[test]
+fn a_pick_of_another_option_holds_the_proposal_until_a_revision() {
+    let journey = run("open_pick_other");
+    let (picked, held) = (journey.step(1), journey.step(2));
+    assert_eq!(provenance(picked, YC_BLOG), ("offered".into(), "u2".into()));
+    assert_eq!(outcome_kind(held), "held", "{held:#}");
+    let why = held["outcome"]["text"].as_str().unwrap_or_default();
+    assert!(why.contains("picked `blog`"), "{why}");
+    assert!(work(held)["saved"].is_null(), "nothing saved");
+}
+
+/// « Today » is the person's day: the author is told the machine's IANA zone (here UTC+4) in
+/// the instructions a conversation starts with.
+#[test]
+fn the_author_is_told_the_persons_time_zone() {
+    let journey = run("own_filter");
+    let told = journey.agent[0].text();
+    assert!(
+        told.contains("The person's time zone is `Asia/Dubai`"),
+        "the zone is named"
+    );
 }

@@ -38,7 +38,7 @@
 //! denied unless the registry opts in, environment scrubbed, and never a
 //! silent unconfined fallback.
 //!
-//! [`conversation`] serves a session's own tools (`nika/author-tools@0`) to the
+//! [`conversation`] serves a session's own tools (`nika/author-tools@1`) to the
 //! ACP agent that leads its conversation: one loopback server per
 //! conversation, its bearer minted for it alone, relaying each call to the
 //! session and never interpreting one.

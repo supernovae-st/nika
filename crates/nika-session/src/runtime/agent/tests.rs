@@ -131,3 +131,65 @@ fn the_instructions_carry_the_language_and_an_index() {
     assert_eq!(keys, Some(envelope), "the schema keys");
     assert!(index().len() < 3_000, "the index stays short");
 }
+
+/// The author never needs to ask the person how a workflow writes a file: its instructions show
+/// the language's own write, with its arguments.
+#[test]
+fn the_instructions_show_how_a_workflow_writes_a_file() {
+    let told = instructions("deepseek/deepseek-flash");
+    assert!(
+        told.contains("tool: \"nika:write\", args: { path:"),
+        "the write"
+    );
+    assert!(
+        told.contains("how to write something in a workflow"),
+        "never asked"
+    );
+}
+
+/// The doubt a ready verdict states, read from its outcome for the proposal to state.
+#[test]
+fn a_ready_verdict_keeps_its_stated_doubt() {
+    let mut out = nika_compile::initial();
+    let said = "The verifier doubted that this workflow carries the request as a whole";
+    let applied = nika_compile::DiagnosticKind::Applied;
+    nika_compile::finding(&mut out, applied, "verify_doubt", said);
+    assert_eq!(desk::stated_doubt(&out).as_deref(), Some(said));
+    assert_eq!(desk::stated_doubt(&nika_compile::initial()), None);
+}
+
+/// The bytes a verification judged are kept once, redacted, by the digest its record carries.
+#[test]
+fn the_bytes_a_verification_judged_are_kept_by_their_digest() {
+    let home = tempfile::tempdir().expect("a home");
+    let dir = nika_fs::OwnedDir::create(home.path(), &["h"]).expect("the history");
+    let source = "nika: news\n# key sk-live-ABCDEFGH12345678\n";
+    desk::keep_judged(&dir, source);
+    desk::keep_judged(&dir, source);
+    let name = format!("{}.nika", nika_compile::surface::sha256(source));
+    let verified = dir.open_below(&["verified"]).expect("kept under verified/");
+    let kept = verified.read(&name).expect("kept by its digest");
+    assert!(kept.starts_with("nika: news\n"), "the judged bytes");
+    assert!(!kept.contains("ABCDEFGH12345678"), "redacted");
+    assert_eq!(verified.names().expect("listed").len(), 1, "kept once");
+}
+
+/// The author is told to declare a documented `low` effort for writing tasks, and the `models`
+/// tool's offers carry the efforts the catalog documents for each model.
+#[test]
+fn the_author_sees_the_efforts_a_run_model_documents() {
+    let told = instructions("deepseek/deepseek-flash");
+    assert!(
+        told.contains("declare `run: { reasoning: { effort: low } }`"),
+        "the rule"
+    );
+    let caps = desk::model_caps("deepseek/deepseek-v4-flash").expect("a catalogued model");
+    assert!(
+        caps["reasoning_efforts"].is_array(),
+        "its efforts, as the catalog lists them"
+    );
+    assert!(
+        desk::model_caps("mock/mock-default").is_none(),
+        "a mock documents none"
+    );
+}

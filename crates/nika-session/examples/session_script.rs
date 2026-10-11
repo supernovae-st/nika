@@ -239,7 +239,7 @@ impl Host {
                 "trace": trace.display().to_string(),
                 "answer": answer
             }),
-            TurnOutcome::GateAsk { id, question } => {
+            TurnOutcome::GateAsk { id, question, .. } => {
                 let key = remember_gate(&mut self.gates, id);
                 json!({
                     "v": 1,

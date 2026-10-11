@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! A doubt only a trial run decides, when the room refused the bytes before any attempt (A2),
+//! A doubt only a trial run decides, when the room's data bound stopped the run of the bytes,
 //! through the document door and the public rehearsed entry. The author's first document builds
-//! its jq input as an object holding a value the run builds, which the room's argument law
-//! (`rehearse::arguments`, applied here as the room applies it) refuses as a data bound; the
-//! judge, a decision seat, rejects the whole request and locates no part. The room's refusal is
-//! a construct the document chose, so the door asks the author once for an equivalent document
-//! the room runs, with the room's words and every obligation kept; the restated bytes run, and
-//! the judge decides over that run. The same refusal again reopens nothing, a refusal the
+//! its jq input as an object holding a value the run builds, which the room stops where it is
+//! built, over its bound (an attempt stopped there, as the onboard room reports it since
+//! 2026-10-11); the judge, a decision seat, rejects the whole request and locates no part. The
+//! room's stop is a construct the document chose, so the door asks the author once for an
+//! equivalent document the room runs, with the room's words and every obligation kept; the
+//! restated bytes run, and the judge decides over that run. The same refusal again reopens
+//! nothing, a refusal the
 //! request's own effect causes reopens nothing, and the held candidate keeps its record with the
 //! rejection inside it: a round that replays it asks that judge nothing, another judge decides
 //! it with no authoring call. A scripted verdict proves the door's exits, never a model's.
-use super::observed::{JUDGE, Judging, Kept, ran};
+use super::observed::{JUDGE, Judging, Kept, bounded, ran};
 use super::*;
 use nika_compile_cognition::decide::{ChoiceFuture, ChoiceQuestion, DecisionSeat};
 use nika_compile_cognition::rehearse::{
@@ -56,15 +57,22 @@ tasks:
     invoke: { tool: "nika:write", args: { path: "./out/open.json", content: "${{ with.open }}" } }
 "#;
 
-/// The words the room's argument law gives `candidate`, when it refuses it.
+/// The double's own data bound, in bytes: the room's is the host's constant.
+const BOUND: u64 = 64;
+
+/// The room's words where its data bound stops `candidate`: the construct the argument law names
+/// (`rehearse::arguments`), built over [`BOUND`].
 fn room_words(candidate: &str) -> Option<String> {
     let workflow = nika_schema::parse(candidate, FileId::new(0), ParseMode::Strict).unwrap();
-    arguments::evaluated(&workflow).err()
+    arguments::evaluated(&workflow).err().map(|_| {
+        format!("task keep_open args.input builds a value over the room's bound of {BOUND} bytes")
+    })
 }
 
-/// A host whose room refuses, before any attempt, every candidate the argument law refuses (a
-/// data bound in the law's words), or every candidate as `effect` when set; any other candidate
-/// it runs to completion over the tickets (each text kept whole).
+/// A host whose room stops at its data bound every candidate that builds a value over it (an
+/// attempt stopped there, in the bound's words), or refuses every candidate as `effect` before
+/// any attempt when set; any other candidate it runs to completion over the tickets (each text
+/// kept whole).
 struct Room {
     effect: Option<&'static str>,
     shown: Mutex<Vec<String>>,
@@ -105,7 +113,7 @@ impl Rehearse for Room {
             self.shown.lock().unwrap().push(candidate.to_owned());
             match (self.effect, room_words(candidate)) {
                 (Some(effect), _) => refused(candidate, Refusal::Effect, effect.to_owned()),
-                (None, Some(words)) => refused(candidate, Refusal::DataBounds, words),
+                (None, Some(words)) => bounded(candidate, &words),
                 (None, None) => ran(candidate, Kept::Whole),
             }
         })
@@ -207,12 +215,12 @@ fn assert_record_carries_its_rejection(out: &CompileOutcome, candidate: &str) {
 
 #[tokio::test]
 async fn a_refused_trial_reopens_the_author_and_the_restated_document_runs_and_is_judged() {
-    let words = room_words(WRAPPED).expect("the room's law refuses the wrapped input");
+    let words = room_words(WRAPPED).expect("the room's bound stops the wrapped input");
     assert!(words.starts_with("task keep_open args.input"), "{words}");
     assert_eq!(
         room_words(PLAIN),
         None,
-        "the restated document passes the law"
+        "the restated document builds nothing over the bound"
     );
     let room = Room::new(None);
     let mut script = doubted();

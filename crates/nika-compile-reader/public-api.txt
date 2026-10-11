@@ -1674,6 +1674,7 @@ pub fn nika_compile_reader::structure::restricts(text: &str) -> bool
 pub fn nika_compile_reader::structure::selection_demand(text: &str) -> bool
 pub mod nika_compile_reader::text
 pub const nika_compile_reader::text::NUMBER_TEXT: &str
+pub const nika_compile_reader::text::RETRIEVAL_STOPWORDS: &str
 pub const nika_compile_reader::text::STOPWORDS: &[&str]
 pub fn nika_compile_reader::text::banner_lines(body: &str) -> alloc::vec::Vec<&str>
 pub fn nika_compile_reader::text::banner_sentence(body: &str) -> core::option::Option<alloc::string::String>

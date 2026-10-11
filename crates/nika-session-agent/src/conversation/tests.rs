@@ -112,7 +112,7 @@ fn proposed(asker: &Arc<Incarnation>) -> (Conversation, Citations) {
     assert!(!reply.is_error, "{reply:?}");
     assert!(conversation.dropped().is_empty());
     assert_eq!(
-        conversation.propose(&lines, &json!({}), "S1".into()),
+        conversation.propose(&lines, &json!({}), ("S1".into(), Vec::new())),
         Ok(None)
     );
     (conversation, lines)
@@ -342,7 +342,7 @@ fn words_cover_only_the_revision_whose_proposal_they_answered() {
     // Another scope: nothing authorized, the new proposal waits.
     let (mut conversation, mut lines) = proposed(&asker);
     lines.record(20, u3());
-    let refused = conversation.propose(&lines, &said, "S2".into());
+    let refused = conversation.propose(&lines, &said, ("S2".into(), Vec::new()));
     assert!(refused.is_err(), "{refused:?}");
     assert_eq!(
         conversation.shown.as_ref().map(|s| s.scope.as_str()),
@@ -351,7 +351,7 @@ fn words_cover_only_the_revision_whose_proposal_they_answered() {
     // The same scope the words answered: save and run.
     let (mut conversation, mut lines) = proposed(&asker);
     lines.record(20, u3());
-    let acts = conversation.propose(&lines, &said, "S1".into());
+    let acts = conversation.propose(&lines, &said, ("S1".into(), Vec::new()));
     assert_eq!(
         acts,
         Ok(Some(Acts {
@@ -360,14 +360,18 @@ fn words_cover_only_the_revision_whose_proposal_they_answered() {
         }))
     );
     // Those words ran that revision: a repair proposed on them, whatever it changed, is not theirs.
-    let again = conversation.propose(&lines, &said, "S2".into());
+    let again = conversation.propose(&lines, &said, ("S2".into(), Vec::new()));
     let stale = again.is_err_and(|why| why.contains("`u3` does not authorize it"));
     assert!(stale, "stale words authorize nothing");
     // Words written before the proposal was shown authorize nothing.
     let (mut conversation, lines) = proposed(&asker);
     let early =
         json!({"acts": ["save"], "authorized_by": {"message": "u1", "excerpt": "un digest"}});
-    assert!(conversation.propose(&lines, &early, "S1".into()).is_err());
+    assert!(
+        conversation
+            .propose(&lines, &early, ("S1".into(), Vec::new()))
+            .is_err()
+    );
 }
 
 #[test]
@@ -665,4 +669,66 @@ fn a_removal_names_the_value_and_a_kept_value_is_in_the_document() {
         reply.is_error && reply.text.contains("no longer carries"),
         "{reply:?}"
     );
+}
+
+/// Words that give a value its replacement remove it without naming it: the replacing value,
+/// typed in the line, stands for the removal (the tickets revision: 48 hours raised to 72).
+#[test]
+fn words_that_give_a_replacement_remove_the_value_they_replace() {
+    let asker = Arc::new(Incarnation);
+    let (mut conversation, mut lines) = proposed(&asker);
+    let le_monde = "https://www.lemonde.fr/international/";
+    let said = format!("prends plutot {le_monde} a la place");
+    lines.record(20, Some(("u3".into(), said.clone())));
+    let typed = json!({"value": le_monde, "kind": "answered", "role": "read_source",
+        "message": "u3", "excerpt": le_monde});
+    let rows = json!([
+        retained(HN, "read_source"),
+        retained(DIGEST, "output_path"),
+        typed
+    ]);
+    let source = format!("{HN} {le_monde} {DIGEST}");
+    let unnamed = json!([{"value": TC, "message": "u3", "excerpt": said}]);
+    let reply = write_removing(&mut conversation, &lines, &source, (rows.clone(), unnamed));
+    assert!(
+        reply.is_error && reply.text.contains("does not name"),
+        "{reply:?}"
+    );
+    let replaced = json!([{"value": TC, "message": "u3", "excerpt": said,
+        "replaced_by": le_monde}]);
+    let reply = write_removing(&mut conversation, &lines, &source, (rows, replaced));
+    assert!(!reply.is_error, "{reply:?}");
+    assert!(
+        conversation.dropped().is_empty(),
+        "{:?}",
+        conversation.dropped()
+    );
+}
+
+/// A value whose choice the person left to Nika is replaced within that choice: the line that
+/// delegated it stands for removing the value it replaces (the news rename).
+#[test]
+fn a_value_whose_choice_was_left_to_nika_is_replaced_within_it() {
+    let asker = Arc::new(Incarnation);
+    let (mut conversation, mut lines) = proposed(&asker);
+    let mut mint = |context: &str| QuestionId::new(context.to_owned(), &asker);
+    let which = json!({"questions": [{"key": "sources", "role": "read_source",
+        "question": "Quelles sources ?"}]});
+    let waiting = conversation.ask(&lines, &which, Some("c9"), (&mut mint, &mut |_: &str| None));
+    assert!(waiting.ends_turn, "{waiting:?}");
+    lines.record(20, Some(("u3".into(), "Oui, fais au mieux.".into())));
+    let read = BTreeMap::from([("sources".to_owned(), Pick::Delegated)]);
+    conversation.answered_by("u3", "Oui, fais au mieux.", &read);
+    let le_monde = "https://www.lemonde.fr/international/";
+    let chosen = json!({"value": le_monde, "kind": "delegated", "role": "read_source",
+        "message": "u3", "excerpt": "fais au mieux"});
+    let rows = json!([
+        retained(HN, "read_source"),
+        retained(DIGEST, "output_path"),
+        chosen
+    ]);
+    let removed = json!([{"value": TC, "message": "u3", "excerpt": "fais au mieux"}]);
+    let source = format!("{HN} {le_monde} {DIGEST}");
+    let reply = write_removing(&mut conversation, &lines, &source, (rows, removed));
+    assert!(!reply.is_error, "{reply:?}");
 }

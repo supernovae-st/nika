@@ -6,7 +6,7 @@ date: "2026-07-31"
 phase: "pre-1.0 · trust-experience arc"
 deciders: ["@ThibautMelen"]
 tags: ["architecture", "crates", "split", "size-cap", "host-integration"]
-affects_crates: ["nika-cli", "nika-cli-host"]
+affects_crates: ["nika-cli", "nika-cli-host", "nika-cli-host-typesafe"]
 affects_layers: ["L4"]
 supersedes: []
 superseded_by: []
@@ -90,3 +90,14 @@ untouched.
 Reverse `git mv` + drop the member from workspace `members` and
 `nika-cli` deps; the re-export shim keeps the surface stable in both
 directions.
+
+## Amendment · member note, 2026-10-11 (D-2026-07-09-N1)
+
+`nika-cli-host` reached 14,995 of its 15,000 production lines with the decision seat's next
+changes still to land. The `TypeSafe` System One decision seat (`compile/typesafe/`: its one
+transport, the Session's journaling seat and the batch exchange) moved with git history to
+`nika-cli-host-typesafe`, a size-cap member of the same unit (L4, lateral
+`nika-cli-host → nika-cli-host-typesafe`, never back). `nika-cli-host` re-exports it whole as
+`compile::typesafe`, so every path stays. Its key accessor, crate-private before, became a public
+seam returning `&Secret` (redacted from `Debug`, zeroized on drop): the host's private capture
+policy exposes it only to withhold the key from captured Text.

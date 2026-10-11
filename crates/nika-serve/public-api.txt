@@ -1794,7 +1794,7 @@ pub const fn nika_serve::NativeAuthoring::with_call_timeout(self, timeout: core:
 pub const fn nika_serve::NativeAuthoring::with_deadline(self, deadline: core::time::Duration) -> Self
 pub fn nika_serve::NativeAuthoring::with_decision_model(self, model: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_serve::NativeAuthoring::with_knowledge(self, dir: impl core::convert::Into<std::path::PathBuf>, exclude_corpus: core::option::Option<alloc::string::String>) -> Self
-pub fn nika_serve::NativeAuthoring::with_knowledge_release(self, dir: impl core::convert::Into<std::path::PathBuf>, identity: nika_onboard::knowledge::admission::TrustedIdentity) -> Self
+pub fn nika_serve::NativeAuthoring::with_knowledge_release(self, dir: impl core::convert::Into<std::path::PathBuf>, identity: nika_onboard_knowledge::admission::TrustedIdentity) -> Self
 pub const fn nika_serve::NativeAuthoring::with_max_calls(self, max_calls: u32) -> Self
 pub const fn nika_serve::NativeAuthoring::with_max_tokens(self, tokens: u32) -> Self
 pub fn nika_serve::NativeAuthoring::with_reasoning(self, word: impl core::convert::Into<alloc::string::String>) -> Self
@@ -3827,7 +3827,7 @@ pub const fn nika_serve::NativeAuthoring::with_call_timeout(self, timeout: core:
 pub const fn nika_serve::NativeAuthoring::with_deadline(self, deadline: core::time::Duration) -> Self
 pub fn nika_serve::NativeAuthoring::with_decision_model(self, model: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_serve::NativeAuthoring::with_knowledge(self, dir: impl core::convert::Into<std::path::PathBuf>, exclude_corpus: core::option::Option<alloc::string::String>) -> Self
-pub fn nika_serve::NativeAuthoring::with_knowledge_release(self, dir: impl core::convert::Into<std::path::PathBuf>, identity: nika_onboard::knowledge::admission::TrustedIdentity) -> Self
+pub fn nika_serve::NativeAuthoring::with_knowledge_release(self, dir: impl core::convert::Into<std::path::PathBuf>, identity: nika_onboard_knowledge::admission::TrustedIdentity) -> Self
 pub const fn nika_serve::NativeAuthoring::with_max_calls(self, max_calls: u32) -> Self
 pub const fn nika_serve::NativeAuthoring::with_max_tokens(self, tokens: u32) -> Self
 pub fn nika_serve::NativeAuthoring::with_reasoning(self, word: impl core::convert::Into<alloc::string::String>) -> Self

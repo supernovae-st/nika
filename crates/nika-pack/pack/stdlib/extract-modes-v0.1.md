@@ -209,7 +209,7 @@ invoke:
     mode: feed
 ```
 
-**Behavior** · parses RSS · Atom · or JSON Feed. Returns normalized structure. Each item carries the short `summary` blurb AND, when present, the full `content` body (RSS `<content:encoded>` · Atom `<content>` · JSON Feed `content_html`): `content` is the field for full-text pipelines. Items also carry `media` (attached audio/video, RSS `<enclosure>` + MediaRSS `<media:content>`, for podcast/video feeds). Fields absent from the source are omitted (absence over null · stable shape).
+**Behavior** · parses RSS · Atom · or JSON Feed. Returns normalized structure. Each item carries the short `summary` blurb AND, when present, the full `content` body (RSS `<content:encoded>` · Atom `<content>` · JSON Feed `content_html`): `content` is the field for full-text pipelines. Items also carry `media` (attached audio/video, RSS `<enclosure>` + MediaRSS `<media:content>`, for podcast/video feeds). Fields absent from the source are omitted (absence over null · stable shape). Dates (the feed's `updated`, each item's `published`, and an item's `updated` when the source dates a revision of its own: Atom `<updated>`, JSON Feed `date_modified`) are RFC 3339 instants with an explicit offset, normalized from whatever the feed used (an RSS `pubDate`, Atom, JSON Feed): compare them as instants (`fromdateiso8601`, `nika:date`), never as the feed's own text. An item may carry only `updated`: read its date as `published // updated`.
 
 **Implementation** · reference engine uses `feed-rs`.
 
@@ -219,7 +219,7 @@ invoke:
   "title": "Feed title",
   "description": "...",
   "link": "https://example.com",
-  "updated": "2026-05-22T10:00:00Z",
+  "updated": "2026-05-22T10:00:00+00:00",
   "items": [
     {
       "id": "...",
@@ -228,7 +228,8 @@ invoke:
       "author": "...",
       "summary": "...",
       "content": "...",
-      "published": "...",
+      "published": "2026-05-21T08:30:00+00:00",
+      "updated": "2026-05-22T09:00:00+00:00",
       "categories": ["..."],
       "media": [{ "url": "...", "type": "audio/mpeg", "size": 12345, "duration_secs": 1800 }]
     }

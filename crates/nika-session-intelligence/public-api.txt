@@ -28,7 +28,7 @@ pub nika_session_intelligence::authoring::AuthoringContextError::Config(nika_onb
 pub nika_session_intelligence::authoring::AuthoringContextError::Decision
 pub nika_session_intelligence::authoring::AuthoringContextError::Decision::seat: alloc::string::String
 pub nika_session_intelligence::authoring::AuthoringContextError::Decision::why: alloc::string::String
-pub nika_session_intelligence::authoring::AuthoringContextError::Knowledge(nika_onboard::knowledge::KnowledgeError)
+pub nika_session_intelligence::authoring::AuthoringContextError::Knowledge(nika_onboard_knowledge::KnowledgeError)
 pub nika_session_intelligence::authoring::AuthoringContextError::PackForOneRequest
 pub nika_session_intelligence::authoring::AuthoringContextError::PackForOneRequest::file: std::path::PathBuf
 pub nika_session_intelligence::authoring::AuthoringContextError::UnsupportedSource
@@ -39,8 +39,8 @@ impl core::cmp::PartialEq for nika_session_intelligence::authoring::AuthoringCon
 pub fn nika_session_intelligence::authoring::AuthoringContextError::eq(&self, other: &nika_session_intelligence::authoring::AuthoringContextError) -> bool
 impl core::convert::From<nika_onboard::compile_config::ConfigError> for nika_session_intelligence::authoring::AuthoringContextError
 pub fn nika_session_intelligence::authoring::AuthoringContextError::from(source: nika_onboard::compile_config::ConfigError) -> Self
-impl core::convert::From<nika_onboard::knowledge::KnowledgeError> for nika_session_intelligence::authoring::AuthoringContextError
-pub fn nika_session_intelligence::authoring::AuthoringContextError::from(source: nika_onboard::knowledge::KnowledgeError) -> Self
+impl core::convert::From<nika_onboard_knowledge::KnowledgeError> for nika_session_intelligence::authoring::AuthoringContextError
+pub fn nika_session_intelligence::authoring::AuthoringContextError::from(source: nika_onboard_knowledge::KnowledgeError) -> Self
 impl core::convert::From<nika_session_intelligence::authoring::AuthoringContextError> for nika_session_intelligence::authoring::AuthoringError
 pub fn nika_session_intelligence::authoring::AuthoringError::from(source: nika_session_intelligence::authoring::AuthoringContextError) -> Self
 impl core::error::Error for nika_session_intelligence::authoring::AuthoringContextError
@@ -202,7 +202,7 @@ pub type nika_session_intelligence::authoring::AuthoringSeat::Output = T
 #[non_exhaustive] pub struct nika_session_intelligence::authoring::AuthoringContext
 impl nika_session_intelligence::authoring::AuthoringContext
 pub fn nika_session_intelligence::authoring::AuthoringContext::compose(&self, intent: &str) -> core::result::Result<core::option::Option<nika_compile::types::AuthoringKnowledge>, nika_session_intelligence::authoring::AuthoringContextError>
-pub fn nika_session_intelligence::authoring::AuthoringContext::decision(&self) -> core::option::Option<&nika_cli_host::compile::typesafe::session::DecisionSetup>
+pub fn nika_session_intelligence::authoring::AuthoringContext::decision(&self) -> core::option::Option<&nika_cli_host_typesafe::session::DecisionSetup>
 pub fn nika_session_intelligence::authoring::AuthoringContext::from_env() -> Self
 pub fn nika_session_intelligence::authoring::AuthoringContext::from_settings(explicit: &nika_onboard::compile_config::AuthoringSettings, env: &nika_onboard::compile_config::AuthoringSettings) -> Self
 pub fn nika_session_intelligence::authoring::AuthoringContext::knowledge(&self) -> core::option::Option<&nika_onboard::knowledge::pin::KnowledgePin>
@@ -216,7 +216,7 @@ pub fn nika_session_intelligence::authoring::AuthoringContext::recovery(&self) -
 pub fn nika_session_intelligence::authoring::AuthoringContext::refusal(&self) -> core::option::Option<&nika_session_intelligence::authoring::AuthoringContextError>
 pub fn nika_session_intelligence::authoring::AuthoringContext::source(&self) -> &'static str
 pub fn nika_session_intelligence::authoring::AuthoringContext::strategy(&self) -> nika_compile::types::NativeMode
-pub fn nika_session_intelligence::authoring::AuthoringContext::with_decision(self, decision: core::option::Option<nika_cli_host::compile::typesafe::session::DecisionSetup>) -> Self
+pub fn nika_session_intelligence::authoring::AuthoringContext::with_decision(self, decision: core::option::Option<nika_cli_host_typesafe::session::DecisionSetup>) -> Self
 pub fn nika_session_intelligence::authoring::AuthoringContext::with_embedded_knowledge(&self) -> Self
 pub fn nika_session_intelligence::authoring::AuthoringContext::with_project_root(self, root: impl core::convert::Into<std::path::PathBuf>) -> Self
 impl core::clone::Clone for nika_session_intelligence::authoring::AuthoringContext
@@ -413,7 +413,7 @@ pub type nika_session_intelligence::intelligence::IntelligenceKind::Output = T
 #[non_exhaustive] pub struct nika_session_intelligence::intelligence::IntelligenceCensus
 pub nika_session_intelligence::intelligence::IntelligenceCensus::api_keys: alloc::vec::Vec<alloc::string::String>
 pub nika_session_intelligence::intelligence::IntelligenceCensus::locals: alloc::vec::Vec<alloc::string::String>
-pub nika_session_intelligence::intelligence::IntelligenceCensus::provider_context: alloc::vec::Vec<nika_providers::probe::ProviderProbe>
+pub nika_session_intelligence::intelligence::IntelligenceCensus::provider_context: alloc::vec::Vec<nika_providers_access::probe::ProviderProbe>
 pub nika_session_intelligence::intelligence::IntelligenceCensus::seats: alloc::vec::Vec<nika_session_intelligence::intelligence::SeatSeen>
 impl nika_session_intelligence::intelligence::IntelligenceCensus
 pub fn nika_session_intelligence::intelligence::IntelligenceCensus::choose(&self, answer: &str) -> core::result::Result<nika_session_intelligence::intelligence::UserIntelligencePreference, alloc::string::String>
@@ -694,7 +694,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_session_intelligence::reaso
 impl<T> typenum::type_operators::Same for nika_session_intelligence::reasoner::agent_model::AgentModel
 pub type nika_session_intelligence::reasoner::agent_model::AgentModel::Output = T
 pub fn nika_session_intelligence::reasoner::agent_model::model_calls(hook: nika_display::activity::ActivityHook, model: &str) -> impl core::ops::function::FnMut(&nika_session_agent::event::AgentEvent) + use<>
-pub fn nika_session_intelligence::reasoner::agent_model::model_facts(probes: &[nika_providers::probe::ProviderProbe], model: &str) -> core::option::Option<nika_session_change::work::conversation::ModelFacts>
+pub fn nika_session_intelligence::reasoner::agent_model::model_facts(probes: &[nika_providers_access::probe::ProviderProbe], model: &str) -> core::option::Option<nika_session_change::work::conversation::ModelFacts>
 pub fn nika_session_intelligence::reasoner::agent_model::tool_steps(hook: nika_display::activity::ActivityHook) -> nika_session_agent::observe::StepSink
 pub mod nika_session_intelligence::reasoner::agent_seat
 pub struct nika_session_intelligence::reasoner::agent_seat::SeatConversation

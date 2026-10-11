@@ -174,7 +174,7 @@ extend-exclude = [
   # The embedded r2 knowledge release: issued bytes admitted against their snapshot digest,
   # its patterns authored in French. They cannot be edited for a spell-check, and an English
   # dictionary judging French prose is noise, not a gate.
-  "crates/nika-onboard/assets/knowledge-release-r2/",
+  "crates/nika-onboard-knowledge/assets/knowledge-release-r2/",
   # The Compile core reads six languages by design: its cue tables, its closed rule
   # grammar and its intent fixtures are French, Spanish, Portuguese, German and
   # Italian literals (114 hits on the member split of 2026-09-21, none English).

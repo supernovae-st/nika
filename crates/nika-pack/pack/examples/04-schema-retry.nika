@@ -46,6 +46,7 @@ tasks:
   extract:
     infer:
       prompt: "Extract named entities from · ${{ inputs.text }}"
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 1024
       schema:
         type: object
@@ -81,6 +82,7 @@ tasks:
       entities: ${{ tasks.extract.output.entities }}
     infer:
       prompt: "Write one sentence summarizing these entities · ${{ with.entities }}"
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 512
 
 # The long form · a typed return contract. `value:` carries the binding, and

@@ -131,6 +131,10 @@ impl ModelInventory {
         for provider in crate::profile::CANONICAL_IDS {
             for route in candidates_for(probes, provider) {
                 let probe = probes.iter().find(|p| p.id == route.access);
+                if probe.is_some_and(|p| p.readiness.key_refused()) {
+                    // The provider refused this route's key when it was listed: never offered.
+                    continue;
+                }
                 for name in route_models(probe, provider) {
                     let price = nika_catalog::find_pricing_scoped(provider, &name)
                         .filter(|_| route.billing.is_usd_metered())

@@ -241,3 +241,45 @@ fn a_model_call_reaches_the_host_with_its_time_and_tokens() {
     );
     assert_eq!(marks[3].input_tokens, None);
 }
+
+/// A failed tool step reaches the host saying why: its reply's excerpt, on one line, the secret
+/// shapes redacted. The step that started says nothing of a reply.
+#[test]
+fn a_failed_tool_step_reaches_the_host_with_why_it_failed() {
+    use std::sync::Mutex;
+
+    use nika_onboard::activity::{Activity, ToolState};
+    use nika_session_agent::Observed;
+    use nika_session_change::tools::{SessionTools, ToolCall, ToolDef, ToolReply};
+
+    struct Compose;
+    impl SessionTools for Compose {
+        fn tools(&self) -> Vec<ToolDef> {
+            Vec::new()
+        }
+        fn call(&self, _: ToolCall) -> ToolReply {
+            ToolReply::error("no block serves `feeds`:\nthe key sk-live-ABCDEFGH12345678 expired")
+        }
+    }
+    let seen = Arc::new(Mutex::new(Vec::<Activity>::new()));
+    let kept = Arc::clone(&seen);
+    let observed = Observed::new(Arc::new(Compose));
+    observed.watch(Some(tool_steps(Arc::new(move |activity: &Activity| {
+        kept.lock().expect("the sink's lock").push(activity.clone());
+    }))));
+    let args = serde_json::json!({"block": "feeds"});
+    observed.call(ToolCall::new("compose", args).with_meta("toolu_c"));
+    let seen = seen.lock().expect("the sink's lock").clone();
+    let said: Vec<_> = (seen.iter())
+        .map(|a| {
+            let mark = a.tool.clone().expect("a tool step");
+            (mark.state, mark.reply)
+        })
+        .collect();
+    let why = "no block serves `feeds`: the key [redacted] expired".to_owned();
+    assert_eq!(
+        said,
+        [(ToolState::Started, None), (ToolState::Failed, Some(why))]
+    );
+    assert!(seen.iter().all(|a| !a.note.contains("ABCDEFGH12345678")));
+}

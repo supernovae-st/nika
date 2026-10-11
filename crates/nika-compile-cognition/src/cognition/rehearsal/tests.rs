@@ -29,6 +29,8 @@ const INTENT: &str = "Write the text hello to ./out/result.txt.";
 const TARGET: &str = "./out/result.txt";
 /// The input a request that reads names, copied into the room by the copying modes.
 const SOURCE: &str = "./in/source.txt";
+/// The room's words where it stopped a run at its data bound.
+const DATA_BOUND: &str = "task save args.content builds a value over the room's bound of 64 bytes";
 
 fn source(directories: bool) -> String {
     format!(
@@ -117,6 +119,8 @@ enum Mode {
     DirtyRoom,
     Engine,
     StopAtBound,
+    /// The room stops the run where a value it built crosses its data bound ([`DATA_BOUND`]).
+    StopAtDataBound,
     /// The run reads [`SOURCE`] and writes its text to [`TARGET`], both held whole.
     Copied,
     /// The same run, both texts held only as a prefix cut at the preview bound.
@@ -181,10 +185,15 @@ fn report(candidate: &str, mode: Mode) -> RehearsalReport {
     observed.ledger = LedgerFacts::clean(Vec::new());
     observed.finals = vec![FinalReceipt::new(TARGET, FinalState::Absent)];
     let failed = candidate.contains("create_dirs: false") || matches!(mode, Mode::Engine);
-    let stopped = matches!(mode, Mode::StopAtBound);
+    let stopped = matches!(mode, Mode::StopAtBound | Mode::StopAtDataBound);
     let outcome = if matches!(mode, Mode::Missing) {
         Rehearsal::Missing {
             outputs: vec![TARGET.into()],
+        }
+    } else if matches!(mode, Mode::StopAtDataBound) {
+        observed.refusal = Some(Refusal::DataBounds);
+        Rehearsal::NotRun {
+            reason: DATA_BOUND.into(),
         }
     } else if stopped {
         Rehearsal::NotRun {
@@ -637,6 +646,30 @@ async fn a_stopped_rehearsal_with_no_repair_budget_is_not_ready_and_counts_its_a
     assert_eq!(
         out.provenance.decision.as_ref().unwrap()["rehearsal"]["usage"]["attempts"],
         1
+    );
+}
+
+/// A run the room stopped where a value it built crossed its data bound is no time bound: the
+/// report records the stopped attempt and the room's words, and the candidate proceeds as after
+/// a refusal before an attempt, its restatement left to the verifier, never sent back for a time
+/// bound (2026-10-11).
+#[tokio::test]
+async fn a_run_stopped_at_the_data_bound_proceeds_as_a_refusal() {
+    let author = sketched();
+    let out = compiled(
+        &sketch_request(0),
+        &author,
+        &Host::new(Mode::StopAtDataBound),
+    )
+    .await;
+    assert_eq!(reports(&out).len(), 1, "{out:#?}");
+    assert_eq!(reports(&out)[0]["attempt"], "stopped");
+    assert_eq!(reports(&out)[0]["decision"]["kind"], "proceed");
+    let said = format!("{out:?}");
+    assert!(!said.contains("rehearsal_time_bound"), "{out:#?}");
+    assert!(
+        said.contains(DATA_BOUND),
+        "the room's words are kept: {out:#?}"
     );
 }
 

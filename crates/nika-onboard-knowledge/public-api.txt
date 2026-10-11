@@ -1,0 +1,302 @@
+pub mod nika_onboard_knowledge
+pub use nika_onboard_knowledge::ComponentCatalog
+pub mod nika_onboard_knowledge::bundled
+pub fn nika_onboard_knowledge::bundled::admit(identity: core::option::Option<&nika_onboard_knowledge::TrustedIdentity>) -> core::result::Result<nika_onboard_knowledge::Snapshot, nika_onboard_knowledge::KnowledgeError>
+pub fn nika_onboard_knowledge::bundled::identity() -> core::result::Result<nika_onboard_knowledge::TrustedIdentity, nika_onboard_knowledge::KnowledgeError>
+#[non_exhaustive] pub enum nika_onboard_knowledge::KnowledgeError
+pub nika_onboard_knowledge::KnowledgeError::NotAPack
+pub nika_onboard_knowledge::KnowledgeError::NotAPack::file: std::path::PathBuf
+pub nika_onboard_knowledge::KnowledgeError::NotAPack::why: alloc::string::String
+pub nika_onboard_knowledge::KnowledgeError::PackNotAdmitted
+pub nika_onboard_knowledge::KnowledgeError::PackNotAdmitted::file: std::path::PathBuf
+pub nika_onboard_knowledge::KnowledgeError::Unavailable
+pub nika_onboard_knowledge::KnowledgeError::Unavailable::code: nika_onboard_knowledge::RefusalCode
+pub nika_onboard_knowledge::KnowledgeError::Unavailable::detail: alloc::string::String
+pub nika_onboard_knowledge::KnowledgeError::Unavailable::root: std::path::PathBuf
+pub nika_onboard_knowledge::KnowledgeError::UnsupportedSource
+impl core::clone::Clone for nika_onboard_knowledge::KnowledgeError
+pub fn nika_onboard_knowledge::KnowledgeError::clone(&self) -> nika_onboard_knowledge::KnowledgeError
+impl core::cmp::Eq for nika_onboard_knowledge::KnowledgeError
+impl core::cmp::PartialEq for nika_onboard_knowledge::KnowledgeError
+pub fn nika_onboard_knowledge::KnowledgeError::eq(&self, other: &nika_onboard_knowledge::KnowledgeError) -> bool
+impl core::error::Error for nika_onboard_knowledge::KnowledgeError
+impl core::fmt::Debug for nika_onboard_knowledge::KnowledgeError
+pub fn nika_onboard_knowledge::KnowledgeError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_onboard_knowledge::KnowledgeError
+pub fn nika_onboard_knowledge::KnowledgeError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard_knowledge::KnowledgeError
+impl<D> owo_colors::OwoColorize for nika_onboard_knowledge::KnowledgeError
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard_knowledge::KnowledgeError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard_knowledge::KnowledgeError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard_knowledge::KnowledgeError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard_knowledge::KnowledgeError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard_knowledge::KnowledgeError where U: core::convert::From<T>
+pub fn nika_onboard_knowledge::KnowledgeError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard_knowledge::KnowledgeError where U: core::convert::Into<T>
+pub type nika_onboard_knowledge::KnowledgeError::Error = core::convert::Infallible
+pub fn nika_onboard_knowledge::KnowledgeError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard_knowledge::KnowledgeError where U: core::convert::TryFrom<T>
+pub type nika_onboard_knowledge::KnowledgeError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard_knowledge::KnowledgeError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard_knowledge::KnowledgeError where T: core::clone::Clone
+pub type nika_onboard_knowledge::KnowledgeError::Owned = T
+pub fn nika_onboard_knowledge::KnowledgeError::clone_into(&self, target: &mut T)
+pub fn nika_onboard_knowledge::KnowledgeError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_onboard_knowledge::KnowledgeError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_onboard_knowledge::KnowledgeError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_onboard_knowledge::KnowledgeError where T: 'static + ?core::marker::Sized
+pub fn nika_onboard_knowledge::KnowledgeError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard_knowledge::KnowledgeError where T: ?core::marker::Sized
+pub fn nika_onboard_knowledge::KnowledgeError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard_knowledge::KnowledgeError where T: ?core::marker::Sized
+pub fn nika_onboard_knowledge::KnowledgeError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard_knowledge::KnowledgeError where T: core::clone::Clone
+pub unsafe fn nika_onboard_knowledge::KnowledgeError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard_knowledge::KnowledgeError
+pub fn nika_onboard_knowledge::KnowledgeError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard_knowledge::KnowledgeError where T: core::clone::Clone
+pub fn nika_onboard_knowledge::KnowledgeError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard_knowledge::KnowledgeError where T: 'static
+pub fn nika_onboard_knowledge::KnowledgeError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_onboard_knowledge::KnowledgeError
+pub type nika_onboard_knowledge::KnowledgeError::Output = T
+#[non_exhaustive] pub enum nika_onboard_knowledge::RefusalCode
+pub nika_onboard_knowledge::RefusalCode::CountMismatch
+pub nika_onboard_knowledge::RefusalCode::DuplicateId
+pub nika_onboard_knowledge::RefusalCode::DuplicateKey
+pub nika_onboard_knowledge::RefusalCode::Evidence
+pub nika_onboard_knowledge::RefusalCode::ExtraFile
+pub nika_onboard_knowledge::RefusalCode::FieldType
+pub nika_onboard_knowledge::RefusalCode::IdentityMismatch
+pub nika_onboard_knowledge::RefusalCode::Io
+pub nika_onboard_knowledge::RefusalCode::KindCoverage
+pub nika_onboard_knowledge::RefusalCode::Licence
+pub nika_onboard_knowledge::RefusalCode::Lineage
+pub nika_onboard_knowledge::RefusalCode::ManifestMissing
+pub nika_onboard_knowledge::RefusalCode::ManifestNotStrict
+pub nika_onboard_knowledge::RefusalCode::ManifestShape
+pub nika_onboard_knowledge::RefusalCode::MissingField
+pub nika_onboard_knowledge::RefusalCode::MissingFile
+pub nika_onboard_knowledge::RefusalCode::NotRegular
+pub nika_onboard_knowledge::RefusalCode::NoticeInvalid
+pub nika_onboard_knowledge::RefusalCode::PathNotAbsolute
+pub nika_onboard_knowledge::RefusalCode::PinMismatch
+pub nika_onboard_knowledge::RefusalCode::PolicyMismatch
+pub nika_onboard_knowledge::RefusalCode::ProfileMismatch
+pub nika_onboard_knowledge::RefusalCode::Relation
+pub nika_onboard_knowledge::RefusalCode::RootInvalid
+pub nika_onboard_knowledge::RefusalCode::RowDigest
+pub nika_onboard_knowledge::RefusalCode::RowFile
+pub nika_onboard_knowledge::RefusalCode::RowKind
+pub nika_onboard_knowledge::RefusalCode::RowMalformed
+pub nika_onboard_knowledge::RefusalCode::RowOrder
+pub nika_onboard_knowledge::RefusalCode::Split
+pub nika_onboard_knowledge::RefusalCode::Symlink
+pub nika_onboard_knowledge::RefusalCode::TargetPin
+pub nika_onboard_knowledge::RefusalCode::TooLarge
+pub nika_onboard_knowledge::RefusalCode::UnexpectedFile
+pub nika_onboard_knowledge::RefusalCode::UnknownField
+pub nika_onboard_knowledge::RefusalCode::UnsafePath
+pub nika_onboard_knowledge::RefusalCode::UnsupportedFormat
+pub nika_onboard_knowledge::RefusalCode::Untrusted
+pub nika_onboard_knowledge::RefusalCode::Vocabulary
+impl nika_onboard_knowledge::RefusalCode
+pub const nika_onboard_knowledge::RefusalCode::ALL: [Self; 38]
+pub const nika_onboard_knowledge::RefusalCode::ALL_R2: [Self; 38]
+pub const fn nika_onboard_knowledge::RefusalCode::as_str(self) -> &'static str
+pub fn nika_onboard_knowledge::RefusalCode::of_word(word: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_onboard_knowledge::RefusalCode
+pub fn nika_onboard_knowledge::RefusalCode::clone(&self) -> nika_onboard_knowledge::RefusalCode
+impl core::cmp::Eq for nika_onboard_knowledge::RefusalCode
+impl core::cmp::Ord for nika_onboard_knowledge::RefusalCode
+pub fn nika_onboard_knowledge::RefusalCode::cmp(&self, other: &nika_onboard_knowledge::RefusalCode) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_onboard_knowledge::RefusalCode
+pub fn nika_onboard_knowledge::RefusalCode::eq(&self, other: &nika_onboard_knowledge::RefusalCode) -> bool
+impl core::cmp::PartialOrd for nika_onboard_knowledge::RefusalCode
+pub fn nika_onboard_knowledge::RefusalCode::partial_cmp(&self, other: &nika_onboard_knowledge::RefusalCode) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_onboard_knowledge::RefusalCode
+pub fn nika_onboard_knowledge::RefusalCode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_onboard_knowledge::RefusalCode
+pub fn nika_onboard_knowledge::RefusalCode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_onboard_knowledge::RefusalCode
+pub fn nika_onboard_knowledge::RefusalCode::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_onboard_knowledge::RefusalCode
+impl core::marker::StructuralPartialEq for nika_onboard_knowledge::RefusalCode
+impl<D> owo_colors::OwoColorize for nika_onboard_knowledge::RefusalCode
+impl<Q, K> equivalent::Comparable<K> for nika_onboard_knowledge::RefusalCode where Q: core::cmp::Ord + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard_knowledge::RefusalCode::compare(&self, key: &K) -> core::cmp::Ordering
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard_knowledge::RefusalCode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard_knowledge::RefusalCode::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard_knowledge::RefusalCode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard_knowledge::RefusalCode::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard_knowledge::RefusalCode where U: core::convert::From<T>
+pub fn nika_onboard_knowledge::RefusalCode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard_knowledge::RefusalCode where U: core::convert::Into<T>
+pub type nika_onboard_knowledge::RefusalCode::Error = core::convert::Infallible
+pub fn nika_onboard_knowledge::RefusalCode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard_knowledge::RefusalCode where U: core::convert::TryFrom<T>
+pub type nika_onboard_knowledge::RefusalCode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard_knowledge::RefusalCode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard_knowledge::RefusalCode where T: core::clone::Clone
+pub type nika_onboard_knowledge::RefusalCode::Owned = T
+pub fn nika_onboard_knowledge::RefusalCode::clone_into(&self, target: &mut T)
+pub fn nika_onboard_knowledge::RefusalCode::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_onboard_knowledge::RefusalCode where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_onboard_knowledge::RefusalCode::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_onboard_knowledge::RefusalCode where T: 'static + ?core::marker::Sized
+pub fn nika_onboard_knowledge::RefusalCode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard_knowledge::RefusalCode where T: ?core::marker::Sized
+pub fn nika_onboard_knowledge::RefusalCode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard_knowledge::RefusalCode where T: ?core::marker::Sized
+pub fn nika_onboard_knowledge::RefusalCode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard_knowledge::RefusalCode where T: core::clone::Clone
+pub unsafe fn nika_onboard_knowledge::RefusalCode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard_knowledge::RefusalCode
+pub fn nika_onboard_knowledge::RefusalCode::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard_knowledge::RefusalCode where T: core::clone::Clone
+pub fn nika_onboard_knowledge::RefusalCode::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard_knowledge::RefusalCode where T: 'static
+pub fn nika_onboard_knowledge::RefusalCode::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_onboard_knowledge::RefusalCode where T: core::marker::Copy
+pub fn nika_onboard_knowledge::RefusalCode::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_onboard_knowledge::RefusalCode
+pub type nika_onboard_knowledge::RefusalCode::Output = T
+pub struct nika_onboard_knowledge::Catalogue<'a>
+impl nika_compile_seats::foundry::component::ComponentCatalog for nika_onboard_knowledge::Catalogue<'_>
+pub fn nika_onboard_knowledge::Catalogue<'_>::entries(&self) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_onboard_knowledge::Catalogue<'_>::reference(&self, id: &str) -> core::option::Option<nika_compile::types::KnowledgeReference>
+pub fn nika_onboard_knowledge::Catalogue<'_>::release(&self) -> nika_compile_seats::foundry::component::Release
+pub fn nika_onboard_knowledge::Catalogue<'_>::resolve(&self, reference: &nika_compile_seats::foundry::component::ComponentRef) -> core::result::Result<nika_compile_seats::foundry::component::Component, nika_compile_seats::foundry::component::Unresolved>
+impl<'a> core::clone::Clone for nika_onboard_knowledge::Catalogue<'a>
+pub fn nika_onboard_knowledge::Catalogue<'a>::clone(&self) -> nika_onboard_knowledge::Catalogue<'a>
+impl<'a> core::fmt::Debug for nika_onboard_knowledge::Catalogue<'a>
+pub fn nika_onboard_knowledge::Catalogue<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Copy for nika_onboard_knowledge::Catalogue<'a>
+impl<D> owo_colors::OwoColorize for nika_onboard_knowledge::Catalogue<'a>
+impl<T, U> core::convert::Into<U> for nika_onboard_knowledge::Catalogue<'a> where U: core::convert::From<T>
+pub fn nika_onboard_knowledge::Catalogue<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard_knowledge::Catalogue<'a> where U: core::convert::Into<T>
+pub type nika_onboard_knowledge::Catalogue<'a>::Error = core::convert::Infallible
+pub fn nika_onboard_knowledge::Catalogue<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard_knowledge::Catalogue<'a> where U: core::convert::TryFrom<T>
+pub type nika_onboard_knowledge::Catalogue<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard_knowledge::Catalogue<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard_knowledge::Catalogue<'a> where T: core::clone::Clone
+pub type nika_onboard_knowledge::Catalogue<'a>::Owned = T
+pub fn nika_onboard_knowledge::Catalogue<'a>::clone_into(&self, target: &mut T)
+pub fn nika_onboard_knowledge::Catalogue<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard_knowledge::Catalogue<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_onboard_knowledge::Catalogue<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard_knowledge::Catalogue<'a> where T: ?core::marker::Sized
+pub fn nika_onboard_knowledge::Catalogue<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard_knowledge::Catalogue<'a> where T: ?core::marker::Sized
+pub fn nika_onboard_knowledge::Catalogue<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard_knowledge::Catalogue<'a> where T: core::clone::Clone
+pub unsafe fn nika_onboard_knowledge::Catalogue<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard_knowledge::Catalogue<'a>
+pub fn nika_onboard_knowledge::Catalogue<'a>::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard_knowledge::Catalogue<'a> where T: core::clone::Clone
+pub fn nika_onboard_knowledge::Catalogue<'a>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard_knowledge::Catalogue<'a> where T: 'static
+pub fn nika_onboard_knowledge::Catalogue<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_onboard_knowledge::Catalogue<'a> where T: core::marker::Copy
+pub fn nika_onboard_knowledge::Catalogue<'a>::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_onboard_knowledge::Catalogue<'a>
+pub type nika_onboard_knowledge::Catalogue<'a>::Output = T
+pub struct nika_onboard_knowledge::Snapshot
+impl nika_onboard_knowledge::Snapshot
+pub const fn nika_onboard_knowledge::Snapshot::catalogue<'a>(&'a self, exclude_corpus: core::option::Option<&'a str>) -> nika_onboard_knowledge::Catalogue<'a>
+impl nika_onboard_knowledge::Snapshot
+pub fn nika_onboard_knowledge::Snapshot::digest(&self) -> core::option::Option<&str>
+pub fn nika_onboard_knowledge::Snapshot::from_files(label: &str, files: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<u8>>, identity: core::option::Option<&nika_onboard_knowledge::TrustedIdentity>) -> core::result::Result<Self, nika_onboard_knowledge::KnowledgeError>
+pub fn nika_onboard_knowledge::Snapshot::identity(&self) -> serde_json::value::Value
+pub fn nika_onboard_knowledge::Snapshot::manifest_sha256(&self) -> &str
+pub fn nika_onboard_knowledge::Snapshot::open(dir: &std::path::Path, identity: core::option::Option<&nika_onboard_knowledge::TrustedIdentity>) -> core::result::Result<Self, nika_onboard_knowledge::KnowledgeError>
+pub fn nika_onboard_knowledge::Snapshot::pack(&self, intent: &str, exclude_corpus: core::option::Option<&str>) -> core::result::Result<nika_compile::types::AuthoringKnowledge, nika_onboard_knowledge::KnowledgeError>
+pub const fn nika_onboard_knowledge::Snapshot::profile(&self) -> &'static str
+pub fn nika_onboard_knowledge::Snapshot::rows_sha256(&self) -> alloc::string::String
+pub fn nika_onboard_knowledge::Snapshot::version(&self) -> core::option::Option<&str>
+impl core::fmt::Debug for nika_onboard_knowledge::Snapshot
+pub fn nika_onboard_knowledge::Snapshot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_compile_seats::foundry::component::ComponentCatalog for nika_onboard_knowledge::Snapshot
+pub fn nika_onboard_knowledge::Snapshot::entries(&self) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_onboard_knowledge::Snapshot::reference(&self, id: &str) -> core::option::Option<nika_compile::types::KnowledgeReference>
+pub fn nika_onboard_knowledge::Snapshot::release(&self) -> nika_compile_seats::foundry::component::Release
+pub fn nika_onboard_knowledge::Snapshot::resolve(&self, reference: &nika_compile_seats::foundry::component::ComponentRef) -> core::result::Result<nika_compile_seats::foundry::component::Component, nika_compile_seats::foundry::component::Unresolved>
+impl<D> owo_colors::OwoColorize for nika_onboard_knowledge::Snapshot
+impl<T, U> core::convert::Into<U> for nika_onboard_knowledge::Snapshot where U: core::convert::From<T>
+pub fn nika_onboard_knowledge::Snapshot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard_knowledge::Snapshot where U: core::convert::Into<T>
+pub type nika_onboard_knowledge::Snapshot::Error = core::convert::Infallible
+pub fn nika_onboard_knowledge::Snapshot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard_knowledge::Snapshot where U: core::convert::TryFrom<T>
+pub type nika_onboard_knowledge::Snapshot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard_knowledge::Snapshot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_onboard_knowledge::Snapshot where T: 'static + ?core::marker::Sized
+pub fn nika_onboard_knowledge::Snapshot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard_knowledge::Snapshot where T: ?core::marker::Sized
+pub fn nika_onboard_knowledge::Snapshot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard_knowledge::Snapshot where T: ?core::marker::Sized
+pub fn nika_onboard_knowledge::Snapshot::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_onboard_knowledge::Snapshot
+pub fn nika_onboard_knowledge::Snapshot::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_onboard_knowledge::Snapshot where T: 'static
+pub fn nika_onboard_knowledge::Snapshot::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_onboard_knowledge::Snapshot
+pub type nika_onboard_knowledge::Snapshot::Output = T
+pub struct nika_onboard_knowledge::TrustedIdentity
+impl nika_onboard_knowledge::TrustedIdentity
+pub fn nika_onboard_knowledge::TrustedIdentity::from_json(value: &serde_json::value::Value) -> core::option::Option<Self>
+pub fn nika_onboard_knowledge::TrustedIdentity::new(snapshot_sha256: &str, policy_id: &str, policy_sha256: &str) -> core::option::Option<Self>
+pub fn nika_onboard_knowledge::TrustedIdentity::policy_id(&self) -> &str
+pub fn nika_onboard_knowledge::TrustedIdentity::policy_sha256(&self) -> &str
+pub const fn nika_onboard_knowledge::TrustedIdentity::profile(&self) -> &'static str
+pub fn nika_onboard_knowledge::TrustedIdentity::r2(snapshot_sha256: &str, policy_id: &str, policy_sha256: &str) -> core::option::Option<Self>
+pub fn nika_onboard_knowledge::TrustedIdentity::snapshot_sha256(&self) -> &str
+impl core::clone::Clone for nika_onboard_knowledge::TrustedIdentity
+pub fn nika_onboard_knowledge::TrustedIdentity::clone(&self) -> nika_onboard_knowledge::TrustedIdentity
+impl core::cmp::Eq for nika_onboard_knowledge::TrustedIdentity
+impl core::cmp::PartialEq for nika_onboard_knowledge::TrustedIdentity
+pub fn nika_onboard_knowledge::TrustedIdentity::eq(&self, other: &nika_onboard_knowledge::TrustedIdentity) -> bool
+impl core::fmt::Debug for nika_onboard_knowledge::TrustedIdentity
+pub fn nika_onboard_knowledge::TrustedIdentity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard_knowledge::TrustedIdentity
+impl<D> owo_colors::OwoColorize for nika_onboard_knowledge::TrustedIdentity
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard_knowledge::TrustedIdentity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard_knowledge::TrustedIdentity::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard_knowledge::TrustedIdentity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard_knowledge::TrustedIdentity::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard_knowledge::TrustedIdentity where U: core::convert::From<T>
+pub fn nika_onboard_knowledge::TrustedIdentity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard_knowledge::TrustedIdentity where U: core::convert::Into<T>
+pub type nika_onboard_knowledge::TrustedIdentity::Error = core::convert::Infallible
+pub fn nika_onboard_knowledge::TrustedIdentity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard_knowledge::TrustedIdentity where U: core::convert::TryFrom<T>
+pub type nika_onboard_knowledge::TrustedIdentity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard_knowledge::TrustedIdentity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard_knowledge::TrustedIdentity where T: core::clone::Clone
+pub type nika_onboard_knowledge::TrustedIdentity::Owned = T
+pub fn nika_onboard_knowledge::TrustedIdentity::clone_into(&self, target: &mut T)
+pub fn nika_onboard_knowledge::TrustedIdentity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard_knowledge::TrustedIdentity where T: 'static + ?core::marker::Sized
+pub fn nika_onboard_knowledge::TrustedIdentity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard_knowledge::TrustedIdentity where T: ?core::marker::Sized
+pub fn nika_onboard_knowledge::TrustedIdentity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard_knowledge::TrustedIdentity where T: ?core::marker::Sized
+pub fn nika_onboard_knowledge::TrustedIdentity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard_knowledge::TrustedIdentity where T: core::clone::Clone
+pub unsafe fn nika_onboard_knowledge::TrustedIdentity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard_knowledge::TrustedIdentity
+pub fn nika_onboard_knowledge::TrustedIdentity::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard_knowledge::TrustedIdentity where T: core::clone::Clone
+pub fn nika_onboard_knowledge::TrustedIdentity::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard_knowledge::TrustedIdentity where T: 'static
+pub fn nika_onboard_knowledge::TrustedIdentity::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_onboard_knowledge::TrustedIdentity
+pub type nika_onboard_knowledge::TrustedIdentity::Output = T
+pub const nika_onboard_knowledge::ADMISSION_PROFILE: &str
+pub const nika_onboard_knowledge::PACK_BUILDER: &str
+pub const nika_onboard_knowledge::RELEASE_FORMAT: &str
+pub fn nika_onboard_knowledge::pack_from_file(path: &std::path::Path) -> core::result::Result<core::option::Option<nika_compile::types::AuthoringKnowledge>, nika_onboard_knowledge::KnowledgeError>
+pub fn nika_onboard_knowledge::pack_sha256(pack: &nika_compile::types::AuthoringKnowledge) -> alloc::string::String
+pub fn nika_onboard_knowledge::redact_host_paths(identity: &mut serde_json::value::Value)

@@ -16,6 +16,7 @@ pub use nika_runtime::TaskErrorRecord
 pub use nika_runtime::TaskRecord
 pub use nika_runtime::TaskStatus
 pub use nika_runtime::TerminalCause
+pub use nika_runtime::ValueBound
 pub use nika_runtime::VecSink
 pub use nika_runtime::WorkflowSecretResolver
 pub use nika_runtime::effective_workflow
@@ -997,12 +998,12 @@ impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C> where S: nika_ker
 pub async fn nika_runtime::Runtime<S, T, H, P, D, C>::run(&self, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, stamper: &mut dyn nika_event::stamp::Stamper, sink: &mut dyn nika_event::stamp::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime_laws::errors::RuntimeError>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::access_plan(&self) -> core::option::Option<&nika_providers::plan::ExecutionAccessPlan>
-pub fn nika_runtime::Runtime<S, T, H, P, D, C>::access_probes(&self) -> &[nika_providers::probe::ProviderProbe]
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::access_probes(&self) -> &[nika_providers_access::probe::ProviderProbe]
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::new(shell: nika_verb_exec::ExecVerb<S>, invoke: alloc::sync::Arc<nika_verb_invoke::InvokeVerb<T>>, infer: nika_verb_infer::InferVerb<H>, agent: nika_verb_agent::AgentVerb<P, T, D>, clock: C, config: nika_runtime::config::RuntimeConfig) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::resumed_from(&self) -> core::option::Option<&str>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_access_pin(self, pin: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_access_plan(self, plan: nika_providers::plan::ExecutionAccessPlan) -> Self
-pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_access_probes(self, probes: alloc::vec::Vec<nika_providers::probe::ProviderProbe>) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_access_probes(self, probes: alloc::vec::Vec<nika_providers_access::probe::ProviderProbe>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_boot_access_fields(self, fields: alloc::vec::Vec<(&'static str, nika_types::resource::Value)>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_cancel(self, cancel: nika_types::cancel::CancelCtx) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_child_closures(self, closures: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
@@ -1023,6 +1024,7 @@ pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_secret_resolver(self, resol
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_skills(self, skills: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_source_sha256(self, hex: alloc::string::String) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_source_sha256_lf(self, hex: alloc::string::String) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_value_bound(self, bound: alloc::sync::Arc<nika_dataflow::bound::ValueBound>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_var_overrides(self, overrides: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_child_runner(self, runner: alloc::sync::Arc<dyn nika_runtime::child::ChildRunner>) -> Self
@@ -1152,6 +1154,7 @@ pub nika_runtime::WorkflowPause::approval: core::option::Option<nika_runtime::ap
 pub nika_runtime::WorkflowPause::choices: alloc::vec::Vec<alloc::string::String>
 pub nika_runtime::WorkflowPause::message: core::option::Option<alloc::string::String>
 pub nika_runtime::WorkflowPause::mode: alloc::string::String
+pub nika_runtime::WorkflowPause::shown: nika_dataflow::expr::Shown
 pub nika_runtime::WorkflowPause::task: alloc::string::String
 impl nika_runtime::WorkflowPause
 pub fn nika_runtime::WorkflowPause::new(task: alloc::string::String, mode: alloc::string::String, message: core::option::Option<alloc::string::String>, choices: alloc::vec::Vec<alloc::string::String>) -> Self
@@ -1194,10 +1197,10 @@ impl<T> tracing::instrument::Instrument for nika_runtime::WorkflowPause
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::WorkflowPause
 impl<T> typenum::type_operators::Same for nika_runtime::WorkflowPause
 pub type nika_runtime::WorkflowPause::Output = T
-pub fn nika_runtime::access_pin_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, probes: &[nika_providers::probe::ProviderProbe], access_pin: core::option::Option<&str>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
+pub fn nika_runtime::access_pin_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, probes: &[nika_providers_access::probe::ProviderProbe], access_pin: core::option::Option<&str>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::budget_floor_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::budget_floor_refusal_bound(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, seated_on_harness: bool) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
-pub fn nika_runtime::budget_floor_refusal_bound_over(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, seated_on_harness: bool, probes: &[nika_providers::probe::ProviderProbe]) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
+pub fn nika_runtime::budget_floor_refusal_bound_over(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, seated_on_harness: bool, probes: &[nika_providers_access::probe::ProviderProbe]) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::budget_floor_refusal_seated(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>, seated_on_harness: bool) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_runtime::compose::RuntimeCapabilities
 pub fn nika_runtime::first_modelless_task(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<&str>

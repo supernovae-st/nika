@@ -167,6 +167,7 @@ tasks:
       runbook: ${{ tasks.runbook.output }}
     when: ${{ with.runbook != null && size(with.runbook) > 0 }}   # « no » at the gate (null) or an empty answer · nothing to reconstruct
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 1500
       prompt: |
         Deploys in the window ·
@@ -239,6 +240,7 @@ tasks:
     after:
       confirmed: success             # state, no data · recovery proven or no draft
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 2000
       prompt: |
         Timeline · ${{ with.events }}

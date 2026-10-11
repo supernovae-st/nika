@@ -14,9 +14,11 @@
 //! - one it judges unrelated stays out, its answer kept in the record. That is a judgment, never
 //!   a proven incompatibility: binding and Check prove incompatibilities.
 //!
-//! Without a seat the descriptors are shown as they are. The coverage account says how many
-//! admitted entries were asked, and how. Only a catalogue that lists the release's entries makes
-//! the pass complete; without one the record says that only the recalled pack was asked.
+//! The reach opens for a seat only: a descriptor is a question, and without a seat nobody asks
+//! it, so the qualification widens nothing and the author reads the recalled pack. The coverage
+//! account says how many admitted entries were asked, and how. Only a catalogue that lists the
+//! release's entries makes the pass complete; without one, or without a seat, the record says
+//! that only the recalled pack was asked.
 
 use std::collections::{BTreeMap, BTreeSet};
 

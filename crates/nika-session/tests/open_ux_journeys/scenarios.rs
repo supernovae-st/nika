@@ -14,6 +14,11 @@ use serde_json::{Value, json};
 use super::peer::{Script, Step, call, call_saying, hold, say, think};
 
 /// The Session's reading of the sentence that accepts the plan: its recommended option.
+/// The Session's reading of each cited consent the journey's author claims: save and run.
+fn consented(reads: usize) -> Vec<String> {
+    vec!["save_and_run".to_owned(); reads]
+}
+
 fn accepted_pick() -> Vec<String> {
     vec!["recommended".to_owned()]
 }
@@ -62,6 +67,8 @@ pub(crate) const REPLACE: &str = "non laisse tomber tout ca, je veux plutot comp
 pub(crate) const SAVE_AND_RUN: &str = "parfait, enregistre-le puis lance-le";
 /// The words of `SAVE_AND_RUN` that ask for both acts.
 pub(crate) const SAVE_AND_RUN_WORDS: &str = "enregistre-le puis lance-le";
+/// A genuine line after the proposal that asks for an explanation and consents to nothing.
+pub(crate) const EXPLAIN: &str = "explique-moi comment il choisit les articles";
 /// A request the author starts on.
 pub(crate) const START_A: &str = "resume moi les news tech de hacker news";
 /// A line steered into the run under way.
@@ -305,6 +312,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "complete_replacement" => complete_replacement(),
         "save_and_run_in_words" => save_and_run_in_words(),
         "save_and_run_scope_changed" => save_and_run_scope_changed(),
+        "explanation_cited_as_consent" => explanation_cited_as_consent(),
         "steer_mid_run" => steer_mid_run(),
         "follow_up_after_run" => follow_up_after_run(),
         "stop_mid_request" => stop_mid_request(),
@@ -325,6 +333,8 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "a_read_file_changes" => reads_sales(true),
         "write_carries_its_findings" => write_carries_its_findings(),
         "thought_only" => thought_only(),
+        "open_defaults" => open_defaults(),
+        "open_pick_other" => open_pick_other(),
         other => panic!("unknown scenario {other}"),
     }
 }
@@ -681,7 +691,35 @@ fn save_and_run_in_words() -> Scenario {
         script: Script {
             agent,
             replies: Vec::new(),
-            picks: accepted_pick(),
+            picks: [accepted_pick(), consented(1)].concat(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// The person asks how the workflow picks its articles; the author cites that real, later line as
+/// if it consented to saving and running the proposal.
+fn explanation_cited_as_consent() -> Scenario {
+    let mut agent = accepted_steps();
+    agent.extend([call_saying(
+        "Je l'enregistre et je le lance.",
+        "propose",
+        json!({"acts": ["save", "run"],
+                "authorized_by": {"message": "u3", "excerpt": "explique-moi comment"}}),
+    )]);
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![
+            Act::Turn(REQUEST),
+            Act::Submit(ACCEPT),
+            Act::Submit(EXPLAIN),
+        ],
+        script: Script {
+            agent,
+            replies: Vec::new(),
+            picks: [accepted_pick(), vec!["NONE".to_owned()]].concat(),
             verdicts: Vec::new(),
         },
     }
@@ -1086,7 +1124,7 @@ fn failed_run_repaired() -> Scenario {
         script: Script {
             agent,
             replies: Vec::new(),
-            picks: accepted_pick(),
+            picks: [accepted_pick(), consented(2)].concat(),
             verdicts: Vec::new(),
         },
     }
@@ -1119,7 +1157,7 @@ fn complaint_after_success() -> Scenario {
         script: Script {
             agent,
             replies: Vec::new(),
-            picks: accepted_pick(),
+            picks: [accepted_pick(), consented(2)].concat(),
             verdicts: Vec::new(),
         },
     }
@@ -1320,6 +1358,85 @@ fn write_carries_its_findings() -> Scenario {
             ],
             replies: Vec::new(),
             picks: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// A French news request: two sites named, a Markdown summary in a folder left open.
+pub(crate) const NEWS_REQUEST: &str = "Récupère les dernières actualités tech de Y Combinator et TechCrunch, fais-moi un résumé et sauvegarde-le en Markdown dans un dossier.";
+/// What the author says with its first proposal.
+pub(crate) const SHOWN_WITH_DEFAULTS: &str = "Voici le workflow : Hacker News pour Y Combinator, TechCrunch, le résumé dans ./news/digest.md. Dis oui, ou choisis une autre option.";
+/// The other folder the author offers.
+pub(crate) const NOTES_DIGEST: &str = "./notes/digest.md";
+/// What the author says when the person picked the YC blog, without revising.
+pub(crate) const BLOG_NOTED: &str = "D'accord, le blog de Y Combinator.";
+
+/// The request's candidate and the choices its proposal shows with their defaults: the Y Combinator
+/// site, the folder, the run model.
+fn news_proposed() -> Vec<Step> {
+    let write = json!({
+        "source": digest(&[("hacker_news", HACKER_NEWS), ("techcrunch", TECHCRUNCH)], DIGEST),
+        "resolutions": [resolution(TECHCRUNCH, "named", "read_source", "u1", "TechCrunch")],
+        "summary": "Hacker News et TechCrunch, résumé dans ./news/digest.md",
+    });
+    let open = json!({"open": [
+        {"key": "yc", "question": "Quel site de Y Combinator ?", "role": "read_source",
+         "options": [
+            {"key": "hn", "label": "Hacker News", "recommended": true,
+             "values": [{"role": "read_source", "value": HACKER_NEWS, "name": "Hacker News"}]},
+            {"key": "blog", "label": "Le blog YC",
+             "values": [{"role": "read_source", "value": YC_BLOG}]}]},
+        {"key": "folder", "question": "Dans quel dossier ?", "role": "output_path",
+         "options": [
+            {"key": "news", "label": "news/", "recommended": true,
+             "values": [{"role": "output_path", "value": DIGEST}]},
+            {"key": "notes", "label": "notes/",
+             "values": [{"role": "output_path", "value": NOTES_DIGEST}]}]},
+        {"key": "model", "question": "Quel modèle pour le résumé ?", "role": "run_model",
+         "options": [
+            {"key": "seat", "label": "Le modèle de cette Session", "recommended": true,
+             "values": [{"role": "run_model", "value": SEAT}]}]}]});
+    vec![
+        call("candidate_write", write),
+        call_saying(SHOWN_WITH_DEFAULTS, "propose", open),
+    ]
+}
+
+/// The news request proposed at once with its open choices; « oui » keeps the defaults.
+fn open_defaults() -> Scenario {
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(NEWS_REQUEST), Act::Submit("oui")],
+        script: Script {
+            agent: news_proposed(),
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// The YC blog picked at the proposal; the author does not revise, so « oui » waits.
+fn open_pick_other() -> Scenario {
+    let mut agent = news_proposed();
+    agent.push(say(BLOG_NOTED));
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![
+            Act::Turn(NEWS_REQUEST),
+            Act::Submit("blog"),
+            Act::Submit("oui"),
+        ],
+        script: Script {
+            agent,
+            replies: Vec::new(),
+            // The Session reads the line against the folder and the model: it picks neither.
+            picks: vec!["NONE".to_owned(), "NONE".to_owned()],
             verdicts: Vec::new(),
         },
     }

@@ -560,6 +560,8 @@ pub nika_session::runtime::TurnOutcome::Facts(alloc::string::String)
 pub nika_session::runtime::TurnOutcome::GateAsk
 pub nika_session::runtime::TurnOutcome::GateAsk::id: nika_session_change::outcome::GateId
 pub nika_session::runtime::TurnOutcome::GateAsk::question: alloc::string::String
+pub nika_session::runtime::TurnOutcome::GateAsk::values: core::option::Option<alloc::boxed::Box<serde_json::value::Value>>
+pub nika_session::runtime::TurnOutcome::GateAsk::withheld: core::option::Option<alloc::boxed::Box<serde_json::value::Value>>
 pub nika_session::runtime::TurnOutcome::Held
 pub nika_session::runtime::TurnOutcome::Held::id: nika_session_change::outcome::ProposalId
 pub nika_session::runtime::TurnOutcome::Held::preview: alloc::string::String
@@ -1151,6 +1153,8 @@ pub nika_session::TurnOutcome::Facts(alloc::string::String)
 pub nika_session::TurnOutcome::GateAsk
 pub nika_session::TurnOutcome::GateAsk::id: nika_session_change::outcome::GateId
 pub nika_session::TurnOutcome::GateAsk::question: alloc::string::String
+pub nika_session::TurnOutcome::GateAsk::values: core::option::Option<alloc::boxed::Box<serde_json::value::Value>>
+pub nika_session::TurnOutcome::GateAsk::withheld: core::option::Option<alloc::boxed::Box<serde_json::value::Value>>
 pub nika_session::TurnOutcome::Held
 pub nika_session::TurnOutcome::Held::id: nika_session_change::outcome::ProposalId
 pub nika_session::TurnOutcome::Held::preview: alloc::string::String

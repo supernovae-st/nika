@@ -105,6 +105,7 @@ tasks:
       backoff_ms: 1000
     infer:
       prompt: "One weekly radar on ${{ inputs.topic }}, five bullets: ${{ with.news }} ${{ with.log }} ${{ with.notes }} If the git log says history is unavailable, say so and invent no commit facts."
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 3000   # the house seat THINKS first — think block + five bullets both count
 
   save:

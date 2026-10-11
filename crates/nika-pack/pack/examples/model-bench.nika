@@ -67,18 +67,21 @@ tasks:
     infer:
       model: ollama/qwen2.5:14b # the quality bar · the seat to beat
       prompt: "${{ const.question }}"
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 600
 
   ask_challenger:
     infer:
       model: ollama/llama3.2:3b # another family · same size class
       prompt: "${{ const.question }}"
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 600
 
   ask_tiny:
     infer:
       model: ollama/qwen2.5:0.5b # the "is small enough?" probe
       prompt: "${{ const.question }}"
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 600
 
   tabulate:

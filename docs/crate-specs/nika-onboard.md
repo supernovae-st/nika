@@ -92,11 +92,17 @@ shows its actual allowance apart from an estimate: request-dependent or
 unrepresentable totals remain unknown. A legacy Session unknown-cost review names
 only the explicit recovery reservation added to its existing allowance.
 
-`knowledge` owns the strict admission of a Foundry knowledge release
+`knowledge` is the size-cap member `nika-onboard-knowledge` since 2026-10-11, re-exported
+item by item (see its crate spec and the ADR-137 amendment); `knowledge::pin` stays
+here. `knowledge` owns the strict admission of a Foundry knowledge release
 (`nika-knowledge-release/2`, profile `nika-knowledge-release-profile/r1`: the
 shared contract for producer and consumer, with common pinned vectors under
-`tests/knowledge-r1`) and the bounded BM25/graph composition shared by CLI,
-Session and Serve. The build embeds the current release, the r2 run contract
+`nika-onboard-knowledge/tests/knowledge-r1`) and the bounded BM25/graph composition
+shared by CLI,
+Session and Serve. Its text recall reads informative words (builder v7): a row
+that shares only a stopword with the request (« the », « with ») is not
+recalled, and every row it does reach is still presented whole, with no count or
+byte quota. The build embeds the current release, the r2 run contract
 (profile r2, `policy-r2`, embedded whole from its directory and admitted against
 its issued snapshot), and retains the a8 and R3 releases for earlier pins
 (`knowledge::bundled`); a pin naming a release this build does not embed meets
@@ -797,9 +803,11 @@ default, as preparation context, and asks over it only when the run proves whole
 copy door (`copy::qualify`) judges by exact bytes, and no verifier reads its runs. The room's
 isolation, receipts and bounds (`COPY_BOUND`, `PREVIEW_BOUND`) are unchanged and are not
 session-wide creation quotas; a trial run grants no live `.nika` Run authority. Before any room,
-the room's screen refuses what a rehearsal cannot bound or confine; its last pass is the
-argument law of `nika-compile-seats` (`rehearse::arguments`, held here until this crate's size
-cap), and each value that law refuses is a data bound in the words of its field.
+the room's screen refuses what a rehearsal cannot bound or confine. The values a run builds are
+bounded where they are built, never guessed from their templates: the room hands its run
+`ValueBound::new(ROOM_BYTES)` (its own capacity, 4 MiB), a value over it fails its task
+(NIKA-1712), and the report is that bound's, as a jq step's is: not run (« task <id> built a
+value of <bytes> bytes, over the room's bound of <limit> bytes »), stopped, a data bound.
 
 Before each rehearsal, `Scoped` observes the request's sources and destinations in the original
 project (`WorldBefore::capture`); a path outside the project, a symlink or an unreadable file

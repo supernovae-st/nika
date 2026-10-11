@@ -192,8 +192,9 @@ impl SessionRuntime {
         // The person's own words authorized the acts for the proposal this turn made: the
         // consent door performs them, by its identity, as for a consent typed at it.
         match self.agent_authorized() {
-            Some((proposal, word)) => self.consent_to(&proposal, word),
-            None => outcome,
+            Ok(Some((proposal, word))) => self.consent_to(&proposal, word),
+            Ok(None) => outcome,
+            Err(why) => with_note(outcome, why),
         }
     }
 
@@ -972,9 +973,16 @@ fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
             report: report + &line,
             run,
         },
-        TurnOutcome::GateAsk { id, question } => TurnOutcome::GateAsk {
+        TurnOutcome::GateAsk {
+            id,
+            question,
+            values,
+            withheld,
+        } => TurnOutcome::GateAsk {
             id,
             question: question + &line,
+            values,
+            withheld,
         },
         TurnOutcome::Resumed { notice, outcome } => TurnOutcome::Resumed {
             notice,

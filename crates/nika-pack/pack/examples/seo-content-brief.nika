@@ -102,6 +102,7 @@ tasks:
       map_top: ${{ tasks.map.top }}
       top_page: ${{ tasks.top_page.output }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 3000                 # think block + the brief JSON
       prompt: |
         Topic to rank for · ${{ inputs.topic }}

@@ -11,7 +11,11 @@
 
 use serde_json::{Value, json};
 
-use crate::{CompileOutcome, DiagnosticKind};
+use crate::plan::Plan;
+use crate::{CompileOutcome, DiagnosticKind, HotPolicy};
+/// What a declared low effort tells the person, under the proposal.
+pub(crate) use nika_compile_fidelity::fidelity::budget::LOW_EFFORT_DECLARED as LOW_EFFORT;
+use nika_compile_fidelity::fidelity::budget::{self, ReasoningFacts};
 
 /// The generated cap on a seat the catalog records as reasoning: room for a thinking trace
 /// before the visible answer. 1200 was measured too small (openai/gpt-5-mini · `NIKA-INFER-002
@@ -31,75 +35,60 @@ fn judged(seat: &str) -> Option<(&str, &str)> {
         .filter(|(provider, _)| *provider != "mock")
 }
 
-/// The output limit the catalog records for a seat, with where it is recorded: a capability
-/// rule's, else the provider row's for that exact model id. `None` when the catalog records
-/// none; a route's own limit (an endpoint-bound tariff) is only known at run time.
-fn known_limit(provider: &str, name: &str) -> Option<(u32, String)> {
-    let rule = nika_catalog::model_capabilities(provider, name).max_output_tokens;
-    if let Some(limit) = rule.filter(|limit| *limit > 0) {
-        return Some((limit, format!("capability rule {provider}/{name}")));
-    }
-    let row = nika_catalog::find_provider(provider)?;
-    let model = row
-        .models
-        .iter()
-        .find(|m| m.id == name || m.model == name)?;
-    (model.max_output_tokens > 0).then(|| {
-        (
-            model.max_output_tokens,
-            format!("provider row {}/{}", row.id, model.id),
-        )
+/// A cap the compiler generates, sized for the doc's seat from its catalog records alone
+/// ([`nika_catalog::generated_cap`]): the reasoning floor first, never above the recorded output
+/// limit. Any other seat keeps the base.
+pub(crate) fn sized(seat: Option<&str>, base: u32) -> u32 {
+    seat.and_then(judged).map_or(base, |(provider, name)| {
+        nika_catalog::generated_cap(provider, name, base, REASONING_MAX_TOKENS)
     })
 }
 
-/// The sizing law for a cap the compiler generates: the reasoning floor first, then the known
-/// output limit.
-fn bounded(reasoning: bool, limit: Option<u32>, base: u32) -> u32 {
-    let wanted = if reasoning {
-        base.max(REASONING_MAX_TOKENS)
-    } else {
-        base
-    };
-    limit.map_or(wanted, |limit| wanted.min(limit))
-}
-
-/// A cap the assembler generates, sized for the doc's seat from its catalog records alone:
-/// raised when a rule records the model as reasoning, never above the recorded output limit.
-/// Any other seat keeps the base.
-pub(crate) fn sized(seat: Option<&str>, base: u32) -> u32 {
-    let Some((provider, name)) = seat.and_then(judged) else {
-        return base;
-    };
-    let reasoning = nika_catalog::model_capabilities(provider, name).reasoning;
-    let limit = known_limit(provider, name).map(|(limit, _)| limit);
-    bounded(reasoning, limit, base)
-}
-
-/// The catalog's output facts for the workflow's model, given to the authoring seat before it
-/// writes a candidate. `reasoning_capability` is `recorded` only when a catalog rule records
-/// it; the catalog default is no evidence, so every other model is `unrecorded`, never
-/// non-reasoning. Whether thinking counts inside the cap belongs to the route the run
-/// resolves, so it stays `unknown` here. `reasoning_efforts` lists the `run.reasoning.effort`
-/// levels the exact model documents. `None` only for `mock` and templated seats.
+/// The catalog's output facts for the workflow's model ([`nika_catalog::output_caps`]), given to
+/// the authoring seat before it writes a candidate, with the reasoning room this compiler
+/// generates. `None` only for `mock` and templated seats.
 #[must_use]
 pub fn output_caps(model: &str) -> Option<Value> {
     let (provider, name) = judged(model)?;
-    let caps = nika_catalog::model_capabilities(provider, name);
-    let reasoning = caps.reasoning;
-    let limit = known_limit(provider, name);
-    let bound = limit.as_ref().map(|(limit, _)| *limit);
-    let evidence = if reasoning { "recorded" } else { "unrecorded" };
-    let suggested = reasoning.then_some(bounded(true, bound, REASONING_MAX_TOKENS));
-    Some(json!({
-        "model": model,
-        "reasoning_capability": evidence,
-        "reasoning_efforts": caps.reasoning_efforts.iter().map(|l| l.word()).collect::<Vec<_>>(),
-        "thinking_counted_in_cap": "unknown",
-        "route": "resolved at run time",
-        "suggested_default_max_tokens": suggested,
-        "max_output_tokens": bound,
-        "max_output_tokens_source": limit.map(|(_, source)| source),
-    }))
+    Some(nika_catalog::output_caps(
+        provider,
+        name,
+        REASONING_MAX_TOKENS,
+    ))
+}
+
+/// Whether a workflow on `seat` gets the documented low effort (2026-10-11): a request the
+/// reader admits whole under the strict contract (an effort said in a clause of its own is left
+/// unread) with no constraint beside its work, whose plan's model steps are typed drafts
+/// ([`budget::drafts_only`]), on a seat whose exact row lists `low`.
+pub(crate) fn lowered(seat: Option<&str>, intent: &str, plan: &Plan) -> bool {
+    let intent = &crate::lexicon::fold_apostrophes(intent);
+    let reading = crate::lexicon::read(intent);
+    let whole = crate::doors::admit_hot(intent, &reading, HotPolicy::Strict).is_ok();
+    let facts = seat
+        .and_then(output_caps)
+        .map(|caps| ReasoningFacts::of_caps(&caps));
+    whole
+        && reading.plan.constraints.is_empty()
+        && budget::drafts_only(plan)
+        && facts.is_some_and(|f| f.reasons_by_default && f.low_effort)
+}
+
+/// [`lowered`] on a native candidate for a creation's words `intent`, declared in its own text
+/// ([`budget::declared_low_effort`]) unless it declares `run.reasoning` (the person's or the
+/// author's) or `run.access` (a route the level may not reach); kept only when the parser reads
+/// exactly that addition.
+pub(crate) fn low_effort(source: &str, intent: &str) -> Option<String> {
+    let before = crate::edit::literal_projection(source)?;
+    let plan = crate::lexicon::read(intent).plan;
+    let chosen = !before["run"]["reasoning"].is_null() || !before["run"]["access"].is_null();
+    if chosen || !lowered(before["model"].as_str(), intent, &plan) {
+        return None;
+    }
+    let mut after = before.clone();
+    after["run"]["reasoning"] = json!({"effort": "low"});
+    let edited = budget::declared_low_effort(source)?;
+    (crate::edit::literal_projection(&edited)? == after).then_some(edited)
 }
 
 /// The model-neutral cap the compiler generates for a language task that states none: room for
@@ -169,20 +158,8 @@ mod tests {
         let reasoning = nika_catalog::model_capabilities(provider, name).reasoning;
         (
             reasoning,
-            known_limit(provider, name).map(|(limit, _)| limit),
+            nika_catalog::model_output_limit(provider, name).map(|(limit, _)| limit),
         )
-    }
-
-    #[test]
-    fn the_law_lifts_a_generated_reasoning_cap_and_never_passes_a_known_limit() {
-        // A generated extraction (800), draft (1200) and validation (400) cap.
-        for base in [400, 800, 1200] {
-            assert_eq!(bounded(true, None, base), REASONING_MAX_TOKENS);
-            assert_eq!(bounded(false, None, base), base);
-        }
-        assert_eq!(bounded(true, None, 24_000), 24_000, "a larger cap stays");
-        assert_eq!(bounded(true, Some(2048), 800), 2048, "the known limit wins");
-        assert_eq!(bounded(false, Some(512), 800), 512);
     }
 
     #[test]
@@ -211,11 +188,9 @@ mod tests {
         ] {
             assert_eq!(sized(seat, 800), 800, "{seat:?}");
         }
-        let (reasoning, limit) = row("deepseek", "deepseek-chat");
-        assert_eq!(
-            sized(Some("deepseek/deepseek-chat"), 800),
-            bounded(reasoning, limit, 800)
-        );
+        let chat =
+            nika_catalog::generated_cap("deepseek", "deepseek-chat", 800, REASONING_MAX_TOKENS);
+        assert_eq!(sized(Some("deepseek/deepseek-chat"), 800), chat);
     }
 
     #[test]
@@ -263,10 +238,71 @@ mod tests {
             json!("Say hi in three lines")
         );
         assert_eq!(fill_defaults(&filled), None, "nothing is missing any more");
-        assert_eq!(
-            bounded(false, Some(2048), NEUTRAL_MAX_TOKENS),
-            2048,
-            "a recorded limit"
-        );
+    }
+
+    /// Drafts the reader admits whole, on a seat documenting `low`, get it declared in the
+    /// candidate's own text, atop a `run:` block it has. A declared effort or route, a constraint
+    /// beside the work, a stated effort the reader cannot read, other work, or a seat that
+    /// documents no `low` declares nothing.
+    #[test]
+    fn the_documented_low_effort_is_declared_only_for_drafts_read_whole() {
+        let whole = "Résume ./notes/brief.md en 3 puces dans ./out/resume.md";
+        let source = "nika: digest\nmodel: deepseek/deepseek-flash\ntasks:\n  draft:\n    infer:\n      prompt: \"Summarize\"\n      max_tokens: 16384\n";
+        let block = |run: &str| source.replacen("\ntasks:", &format!("\nrun:\n{run}tasks:"), 1);
+        let low = "  reasoning:\n    effort: low\n";
+        assert_eq!(low_effort(source, whole), Some(block(low)));
+        let pro = source.replacen("deepseek-flash", "deepseek-v4-pro", 1);
+        let declared = low_effort(&pro, whole).expect("the pro row documents low too");
+        assert!(declared.contains(low), "{declared}");
+        let clock = "  clock: virtual\n";
+        let atop = low_effort(&block(clock), whole);
+        assert_eq!(atop, Some(block(&format!("{low}{clock}"))));
+        let high = block("  reasoning:\n    effort: high\n");
+        assert_eq!(low_effort(&high, whole), None, "a declared effort stays");
+        let routed = block("  access:\n    via: openrouter\n");
+        assert_eq!(low_effort(&routed, whole), None, "a chosen route stays");
+        // Typographic apostrophes folded, as the HOT door folds them.
+        let curly = "Résume l’article de ./notes/brief.md en 3 puces dans ./out/resume.md";
+        assert_eq!(low_effort(source, curly), Some(block(low)));
+        for intent in [
+            "Résume ./notes/brief.md en 3 puces dans ./out/resume.md. Keep the tone formal.",
+            "Read ./notes/brief.md, summarize it in three bullets, and write the summary to ./out/summary.md. Think hard.",
+            "Read ./data/invoice.txt, extract the supplier, the date and the amount, and write them to ./out/invoice.json",
+            "Résume notes.md en trois lignes dans digest.md.",
+        ] {
+            assert_eq!(low_effort(source, intent), None, "{intent}");
+        }
+        for seat in ["deepseek-reasoner", "deepseek-chat"] {
+            let seated = source.replacen("deepseek-flash", seat, 1);
+            assert_eq!(low_effort(&seated, whole), None, "{seat}");
+        }
+        for seat in ["mock/echo", "acme/unheard-of-model", "${{ inputs.seat }}"] {
+            let seated = source.replacen("deepseek/deepseek-flash", seat, 1);
+            assert_eq!(low_effort(&seated, whole), None, "{seat}");
+        }
+    }
+
+    /// The declaration's two properties, judged apart: the document means the source plus
+    /// `run.reasoning.effort: low` and nothing else (AST equivalence), and every byte of the source
+    /// outside the inserted lines stands as written (source preservation), with or without a
+    /// `run:` block, a comment and a flow mapping in it.
+    #[test]
+    fn the_declaration_is_the_only_change_in_meaning_and_in_bytes() {
+        let whole = "Résume ./notes/brief.md en 3 puces dans ./out/resume.md";
+        let bare = "nika: digest\n# the author's own note\nmodel: deepseek/deepseek-flash\ntasks:\n  draft:\n    infer: { prompt: 'Summarize', max_tokens: 16384 }\n";
+        let clocked = bare.replacen("\ntasks:", "\nrun:\n  clock: virtual\ntasks:", 1);
+        let low = "  reasoning:\n    effort: low\n";
+        for (source, inserted) in [
+            (bare.to_owned(), format!("run:\n{low}")),
+            (clocked, low.to_owned()),
+        ] {
+            let edited = low_effort(&source, whole).expect("drafts read whole on a low seat");
+            let mut meant = crate::edit::literal_projection(&source).expect("a document");
+            meant["run"]["reasoning"] = json!({"effort": "low"});
+            let read = crate::edit::literal_projection(&edited);
+            assert_eq!(read, Some(meant), "AST: only the declaration");
+            let kept = edited.replacen(&inserted, "", 1);
+            assert_eq!(kept, source, "source: every other byte");
+        }
     }
 }

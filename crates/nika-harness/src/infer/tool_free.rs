@@ -116,22 +116,33 @@ pub(super) fn admit_version(seen: (u32, u32)) -> Result<(), InferGradeError> {
 /// Judge `codex <profile> features list`: every disabled feature must be
 /// listed with the effective state `false`.
 pub(crate) fn judge_features(listing: &str) -> Result<(), InferGradeError> {
-    let mut still_on = Vec::new();
+    judge_features_keeping(listing, &[])
+}
+
+/// [`judge_features`] for a profile that keeps the listed features `kept`
+/// on: each of them must read `true`, every other disabled feature `false`.
+pub(crate) fn judge_features_keeping(listing: &str, kept: &[&str]) -> Result<(), InferGradeError> {
+    let mut wrong = Vec::new();
     for feature in DISABLED_FEATURES {
         let state = listing.lines().find_map(|line| {
             let mut words = line.split_whitespace();
             (words.next() == Some(*feature)).then(|| words.last().unwrap_or_default())
         });
-        if state != Some("false") {
-            still_on.push(format!("{feature}={}", state.unwrap_or("absent")));
+        let wanted = if kept.contains(feature) {
+            "true"
+        } else {
+            "false"
+        };
+        if state != Some(wanted) {
+            wrong.push(format!("{feature}={}", state.unwrap_or("absent")));
         }
     }
-    if still_on.is_empty() {
+    if wrong.is_empty() {
         return Ok(());
     }
     Err(refused(format!(
         "codex pre-execution empty-tools profile not effective: {}; no prompt is sent; no provider fallback",
-        still_on.join(", ")
+        wrong.join(", ")
     )))
 }
 
@@ -195,5 +206,39 @@ mod tests {
         let witness = judge_features(&missing).unwrap_err().to_string();
         assert!(witness.contains("code_mode_host=absent"), "{witness}");
         assert!(judge_features("Error: Unknown feature flag: x").is_err());
+    }
+
+    /// A profile that keeps a feature on proves it: the kept feature must read `true` and
+    /// every other one `false`; a profile that keeps none still refuses it on.
+    #[test]
+    fn a_kept_feature_must_read_true_and_only_it() {
+        let listing = |on: &[&str]| -> String {
+            DISABLED_FEATURES
+                .iter()
+                .map(|f| format!("{f}    stable    {}", on.contains(f)))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        let route = "tool_call_mcp_elicitation";
+        assert!(judge_features_keeping(&listing(&[route]), &[route]).is_ok());
+        let witness = judge_features_keeping(&listing(&[]), &[route])
+            .unwrap_err()
+            .to_string();
+        assert!(
+            witness.contains("tool_call_mcp_elicitation=false"),
+            "{witness}"
+        );
+        let witness = judge_features_keeping(&listing(&[route, "shell_tool"]), &[route])
+            .unwrap_err()
+            .to_string();
+        assert!(
+            witness.contains("shell_tool=true") && !witness.contains(route),
+            "{witness}"
+        );
+        let witness = judge_features(&listing(&[route])).unwrap_err().to_string();
+        assert!(
+            witness.contains("tool_call_mcp_elicitation=true"),
+            "{witness}"
+        );
     }
 }

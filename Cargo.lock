@@ -4670,6 +4670,7 @@ dependencies = [
  "nika-builtin",
  "nika-catalog",
  "nika-check",
+ "nika-cli-host-typesafe",
  "nika-dap",
  "nika-display",
  "nika-error",
@@ -4700,6 +4701,23 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml_edit",
+ "url",
+]
+
+[[package]]
+name = "nika-cli-host-typesafe"
+version = "0.123.0-preview.1"
+dependencies = [
+ "bytes",
+ "jiff",
+ "nika-display",
+ "nika-http",
+ "nika-kernel",
+ "nika-onboard",
+ "nika-providers",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
  "url",
 ]
 
@@ -5271,7 +5289,6 @@ dependencies = [
 name = "nika-onboard"
 version = "0.123.0-preview.1"
 dependencies = [
- "include_dir",
  "nika-bm25",
  "nika-builtin",
  "nika-catalog",
@@ -5287,6 +5304,7 @@ dependencies = [
  "nika-execution",
  "nika-fs",
  "nika-kernel",
+ "nika-onboard-knowledge",
  "nika-pack",
  "nika-providers",
  "nika-runtime",
@@ -5295,6 +5313,19 @@ dependencies = [
  "nika-source",
  "nika-types",
  "nika-vocab",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "nika-onboard-knowledge"
+version = "0.123.0-preview.1"
+dependencies = [
+ "include_dir",
+ "nika-compile",
+ "nika-compile-seats",
+ "nika-event",
  "rustix 1.1.4",
  "serde_json",
  "tempfile",
@@ -5345,12 +5376,26 @@ dependencies = [
  "nika-clock",
  "nika-harness",
  "nika-kernel",
+ "nika-providers-access",
  "nika-types",
  "proptest",
  "serde",
  "serde_json",
  "sha2 0.10.9",
  "tokio",
+ "url",
+]
+
+[[package]]
+name = "nika-providers-access"
+version = "0.123.0-preview.1"
+dependencies = [
+ "nika-catalog",
+ "nika-harness",
+ "nika-types",
+ "proptest",
+ "serde",
+ "serde_json",
  "url",
 ]
 
@@ -5574,6 +5619,7 @@ name = "nika-session"
 version = "0.123.0-preview.1"
 dependencies = [
  "blake3",
+ "jiff",
  "nika-builtin",
  "nika-cadence",
  "nika-catalog",

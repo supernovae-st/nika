@@ -55,6 +55,7 @@ tasks:
       # it emits the first brace, and a ceiling that cuts it off mid-thought
       # fails NIKA-INFER-002 ("no JSON value found · the reply was cut off at
       # the token limit"). Measured — 400 starves qwen3.5:4b on this prompt.
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 2000
       schema:
         type: object

@@ -284,7 +284,7 @@ pub(crate) struct ActivityWire {
 }
 
 /// One tool the conversation's intelligence called, as its run observed it: never its
-/// arguments or reply.
+/// arguments, and of its reply only why it failed (bounded, the secret shapes redacted).
 #[derive(Clone, Debug, PartialEq, Serialize)]
 struct ToolWire {
     call: String,
@@ -296,6 +296,8 @@ struct ToolWire {
     at_ms: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     reply_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reply: Option<String>,
 }
 
 /// A physical compiler call an activity reported; `model` is the requested one. When it left,
@@ -354,6 +356,7 @@ impl ActivityWire {
             elapsed_ms: tool.elapsed_ms,
             at_ms: tool.at_ms,
             reply_bytes: tool.reply_bytes,
+            reply: tool.reply.clone(),
         });
         Self {
             phase,
@@ -429,6 +432,10 @@ pub(crate) enum Outcome {
         trace: String,
         task: String,
         text: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        values: Option<serde_json::Value>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        withheld: Option<serde_json::Value>,
     },
     RunRequested {
         text: String,
@@ -532,10 +539,17 @@ pub(crate) fn project(outcome: TurnOutcome, wire: &mut Vec<Outcome>, effects: &m
             key,
             text: question,
         },
-        TurnOutcome::GateAsk { id, question } => Outcome::Gate {
+        TurnOutcome::GateAsk {
+            id,
+            question,
+            values,
+            withheld,
+        } => Outcome::Gate {
             trace: text(&id.trace),
             task: id.task,
             text: question,
+            values: values.map(|values| *values),
+            withheld: withheld.map(|withheld| *withheld),
         },
         TurnOutcome::RunRequested { report, run } => {
             let projected = Outcome::RunRequested {

@@ -180,6 +180,7 @@ tasks:
       cutoff: ${{ tasks.cutoff_day.output }}
     when: ${{ size(with.readable) > 0 }}   # a quiet week costs nothing
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 1500                     # one page · a ceiling, not a hope
       prompt: |
         These are the pages a competitor published or changed since

@@ -204,7 +204,8 @@ fn a_reasoning_model_s_cap_too_small_for_its_answer_is_refused() {
             .starts_with("REASONING BUDGET: task `summarize` asks `deepseek/deepseek-flash`")
             && refusals[0].contains("at most 4096 output tokens")
             && refusals[0]
-                .contains("Raise `max_tokens` to 16384, or set `run.reasoning.effort: low`")
+                .contains("Set `run.reasoning.effort: low`, a level this model documents")
+            && refusals[0].contains("or raise `max_tokens` to 16384.")
             && !refusals[0].contains("thinking"),
         "{refusals:?}"
     );

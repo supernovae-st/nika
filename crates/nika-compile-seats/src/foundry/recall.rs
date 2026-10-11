@@ -2,12 +2,14 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The knowledge door's retrieval helpers, below the door that composes a pack from an admitted
-//! release (`nika_onboard::knowledge`): BM25 over a release's rows, the relevance interleave of
-//! ranked sources, a row's text fields and a block row's metadata as a seat reads it. Pure over
-//! the admitted rows; moved here unchanged at the onboarding member's crate wall.
+//! release (`nika_onboard::knowledge`): BM25 over a release's rows by their informative words, the
+//! relevance interleave of ranked sources, a row's text fields and a block row's metadata as a
+//! seat reads it. Pure over the admitted rows.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::OnceLock;
 
+use nika_compile_reader::text::{RETRIEVAL_STOPWORDS, STOPWORDS};
 use serde_json::Value;
 
 /// Take ranked sources in turn — the first of each, then the second of each… — keeping each id
@@ -109,6 +111,27 @@ pub fn tokens(text: &str) -> Vec<String> {
         .collect()
 }
 
+/// The words relevance is read past: the compiler's shared [`STOPWORDS`] (function words and the
+/// envelope's own keywords) and its retrieval lexicon ([`RETRIEVAL_STOPWORDS`]: French function
+/// words, English request scaffolding), as the compile's own retrieval reads them.
+fn stopwords() -> &'static BTreeSet<&'static str> {
+    static WORDS: OnceLock<BTreeSet<&'static str>> = OnceLock::new();
+    WORDS.get_or_init(|| {
+        (STOPWORDS.iter().copied())
+            .chain(RETRIEVAL_STOPWORDS.split_whitespace())
+            .collect()
+    })
+}
+
+/// The words relevance is read from: a text's [`tokens`] without the [`stopwords`]. Every row
+/// and every request share those, in English or in French, so they separate nothing: a row that
+/// shares only « the », « with » or « les » with a request is never recalled.
+fn informative(text: &str) -> Vec<String> {
+    let mut words = tokens(text);
+    words.retain(|word| !stopwords().contains(word.as_str()));
+    words
+}
+
 /// The text of a row's `fields`, joined by a blank: a text as written, any other value as JSON.
 #[must_use]
 pub fn text_of(row: &Value, fields: &[&str]) -> String {
@@ -123,7 +146,8 @@ pub fn text_of(row: &Value, fields: &[&str]) -> String {
         .join(" ")
 }
 
-/// BM25 over the rows' text for one query: every id with a positive score, best first.
+/// BM25 over the rows' informative words for one query (their [`tokens`] without the shared
+/// stopwords): every id that shares an informative word with it, best first.
 // The counts are rows and words of a snapshot (hundreds, thousands): far below the 2^53
 // where a usize stops converting exactly.
 #[allow(clippy::cast_precision_loss)]
@@ -136,7 +160,7 @@ pub fn rank<'a>(
         .into_iter()
         .filter_map(|r| {
             let id = r.get("id")?.as_str()?.to_owned();
-            Some((id, tokens(&text(r))))
+            Some((id, informative(&text(r))))
         })
         .collect();
     if docs.is_empty() {
@@ -150,7 +174,7 @@ pub fn rank<'a>(
             *df.entry(term.as_str()).or_insert(0.0) += 1.0;
         }
     }
-    let query: Vec<String> = tokens(query);
+    let query: Vec<String> = informative(query);
     let (k1, b) = (1.5_f64, 0.75_f64);
     let mut scored: Vec<(String, f64)> = docs
         .iter()

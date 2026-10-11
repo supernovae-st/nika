@@ -633,6 +633,13 @@ fn apply_native(
     if let Some(filled) = crate::seat_cap::fill_defaults(&source) {
         source = filled;
     }
+    if let super::Input::Create(intent) = &request.input
+        && let Some(lowered) = crate::seat_cap::low_effort(&source, intent)
+    {
+        source = lowered;
+        let said = crate::seat_cap::LOW_EFFORT.to_owned();
+        crate::finding(out, DiagnosticKind::Applied, "run.reasoning.effort", said);
+    }
     crate::seat_cap::admit(&source, out);
     super::finish(source, out);
     paths

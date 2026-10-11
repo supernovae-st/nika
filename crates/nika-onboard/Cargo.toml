@@ -12,6 +12,7 @@ repository  = "https://github.com/supernovae-st/nika"
 nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.123.0-preview.1" } # the copy door's contract, the judge and its budget (the same tier, no cycle)
 nika-event = { path = "../nika-event", version = "0.123.0-preview.1" } # shared knowledge byte identities
 nika-compile = { path = "../nika-compile", version = "0.123.0-preview.1" }
+nika-onboard-knowledge = { path = "../nika-onboard-knowledge", version = "0.123.0-preview.1" } # the knowledge door (size-cap member · ADR-137 amendment), re-exported at knowledge::
 nika-compile-cognition = { path = "../nika-compile-cognition", version = "0.123.0-preview.1" } # the seats' doors (ADR-140) · re-exported under `compile` beside the core
 nika-compile-seats = { path = "../nika-compile-seats", version = "0.123.0-preview.1" } # remote — the observation and trial-input laws a remote door admits by
 nika-types = { path = "../nika-types", version = "0.123.0-preview.1" } # HarnessRuntime — a harness never seats a remote door's decision model
@@ -24,7 +25,6 @@ nika-bm25    = { path = "../nika-bm25", version = "0.123.0-preview.1" }    # int
 nika-display = { path = "../nika-display", version = "0.123.0-preview.1" } # theme + chrome (rail · panel · banner)
 nika-catalog = { path = "../nika-catalog", version = "0.123.0-preview.1", features = ["providers"] } # the model menu (local first)
 serde_json   = { workspace = true }                              # the canvas stamp (parse + re-emit settings.json)
-include_dir  = { workspace = true }                              # the current knowledge release, embedded whole from its directory
 
 nika-schema = { path = "../nika-schema", version = "0.123.0-preview.1" }  # the same strict parser for in-memory compiler candidates
 nika-source = { path = "../nika-source", version = "0.123.0-preview.1" }  # lexical program-source naming (#1684)
@@ -39,16 +39,15 @@ nika-service-execution = { path = "../nika-service-execution", version = "0.123.
 tokio                  = { workspace = true }
 tempfile               = { workspace = true } # the scratch project a remote door's trial room is built from (`remote_door::trial`)
 
-[target.'cfg(unix)'.dependencies]
-rustix = { workspace = true, features = ["fs"] } # the knowledge door's collection on held directory descriptors (openat · fstatat · no follow, no unsafe)
-
 [features]
 # The synthetic knowledge release the strict door admits, for other doors' tests; never default.
-test-support = []
+test-support = ["nika-onboard-knowledge/test-support"]
 
 [dev-dependencies]
 # The reader plan used by the copy witnesses.
 nika-compile-reader   = { path = "../nika-compile-reader", version = "0.123.0-preview.1" }
+# The knowledge door's synthetic release, for this crate's own tests.
+nika-onboard-knowledge = { path = "../nika-onboard-knowledge", version = "0.123.0-preview.1", features = ["test-support"] }
 
 [package.metadata.lore]
 daemon        = "forgeron"

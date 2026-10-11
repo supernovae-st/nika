@@ -7,7 +7,7 @@
 use nika_types::access::{AccessClass, AccessProtocol};
 
 use super::{Delegation, ModelAsk, ModelChoice, ModelInventory, ModelOffer, ModelRole};
-use crate::probe::{ExecutionLocus, ModelListing, ProviderProbe, ProviderReadiness};
+use crate::probe::{ExecutionLocus, KeyAuth, ModelListing, ProviderProbe, ProviderReadiness};
 use crate::resolve_access::AccessCandidate;
 
 const API: Option<AccessProtocol> = Some(AccessProtocol::Api);
@@ -209,6 +209,17 @@ fn each_role_is_decided_from_its_own_offers_only() {
     assert_eq!(inventory.offers(ModelRole::Decision), [decision_seat()]);
 }
 
+/// A compatible listing that advertises `models`; the type is the size-cap member's, so it is
+/// built through its constructor, never a literal.
+fn compatible_listing(models: &[&str]) -> ModelListing {
+    let mut listing = ModelListing::new("listed");
+    listing.protocol_compatible = Some(true);
+    listing.http_status = Some(200);
+    listing.models = models.iter().map(|&model| model.to_owned()).collect();
+    listing.failure = None;
+    listing
+}
+
 fn probe(id: &str, access: AccessClass, locus: ExecutionLocus) -> ProviderProbe {
     let readiness = ProviderReadiness::new(true, true, None, None, true, locus, access);
     let var = format!("{}_API_KEY", id.to_ascii_uppercase());
@@ -224,12 +235,7 @@ fn probe(id: &str, access: AccessClass, locus: ExecutionLocus) -> ProviderProbe 
 fn the_machine_inventory_comes_from_probe_rows_and_the_catalogue() {
     let local = probe("ollama", AccessClass::Local, ExecutionLocus::Loopback);
     let mut listed = local.clone();
-    listed.readiness.model_listing = Some(ModelListing {
-        protocol_compatible: Some(true),
-        http_status: Some(200),
-        models: vec!["qwen3:8b".to_owned()],
-        failure: None,
-    });
+    listed.readiness.model_listing = Some(compatible_listing(&["qwen3:8b"]));
     let claude = probe("claude-code", AccessClass::Harness, ExecutionLocus::Unknown)
         .with_serves(vec!["anthropic".to_owned()]);
     let deepseek_key = probe("deepseek", AccessClass::Api, ExecutionLocus::Cloud);
@@ -308,12 +314,29 @@ fn retired_or_unlisted_models_are_not_offered() {
         );
     }
     let mut listed = deepseek;
-    listed.readiness.model_listing = Some(ModelListing {
-        protocol_compatible: Some(true),
-        http_status: Some(200),
-        models: vec!["deepseek-flash".to_owned()],
-        failure: None,
-    });
+    listed.readiness.model_listing = Some(compatible_listing(&["deepseek-flash"]));
     let governed = names(&ModelInventory::from_probes(&[listed]));
     assert_eq!(governed, ["deepseek/deepseek-flash"], "the listing governs");
+}
+
+/// A route whose key the provider refused when it was listed is never offered; the listing of a
+/// route that accepted its key still governs.
+#[test]
+fn a_route_whose_key_was_refused_offers_nothing() {
+    // The rehearsal backend's `mock` offers ride every inventory: judge the deepseek route only.
+    let names = |inventory: &ModelInventory| -> Vec<String> {
+        let offers = inventory.offers(ModelRole::Run).iter();
+        let on_route = offers.filter(|o| o.route.access == "deepseek");
+        on_route.map(|o| o.model.clone()).collect()
+    };
+    let mut refused = probe("deepseek", AccessClass::Api, ExecutionLocus::Cloud);
+    refused.readiness.key_auth = Some(KeyAuth::Unauthorized);
+    assert!(names(&ModelInventory::from_probes(&[refused])).is_empty());
+    let mut listed = probe("deepseek", AccessClass::Api, ExecutionLocus::Cloud);
+    listed.readiness.key_auth = Some(KeyAuth::Ok);
+    listed.readiness.model_listing = Some(compatible_listing(&["deepseek-flash"]));
+    assert_eq!(
+        names(&ModelInventory::from_probes(&[listed])),
+        ["deepseek/deepseek-flash"]
+    );
 }

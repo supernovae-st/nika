@@ -57,10 +57,14 @@ impl SessionRuntime {
                 |f| f.gate(&workflow, &gate.message, &gate.mode, &gated),
             );
             let id = GateId::new(&gate.trace, &gate.task);
+            let values = gate.values.clone().map(Box::new);
+            let withheld = gate.withheld.clone().map(Box::new);
             self.pending_gate = Some(gate);
             return TurnOutcome::GateAsk {
                 id,
                 question: format!("{line}\n{view}"),
+                values,
+                withheld,
             };
         }
         match (exit, facts, self.last_workflow.clone()) {

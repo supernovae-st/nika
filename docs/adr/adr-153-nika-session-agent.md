@@ -107,3 +107,35 @@ reads a tree back with `Tree::replay`.
 - `crates/nika-session-agent/` — the member, its unit and property tests.
 - `crates/nika-session-change/src/tools.rs` — the tool contract the loop calls.
 - `docs/crate-specs/nika-session-agent.md` — the spec and its gate evidence.
+
+## Amendment 2026-10-11 — a proposal carries its open choices
+
+Measured Sessions spent their time on question rounds before a first proposal: on a news
+request, two rounds took 384 s of 870 s; on a French news request, 9 of 15 Sessions stopped on a
+first-turn question and none reached a proposal. Most questions had a default the author could
+recommend: the run model, an output folder, a source.
+
+**Decision.** `propose` (`nika/author-tools@1`, additive) may carry `open`: choices in `ask`'s
+exact question shape, each with exactly one recommended option whose values the candidate
+already carries. The Session refuses back to the author a choice the person settled or left to
+it, a choice without exactly one recommended option, or a default the candidate does not carry
+(read as a kept value is: a leading `./` and a trailing `/` aside); the author asks it as before.
+While the choices are shown, the judge reads their defaults as the Session's own offered
+selections; they are bound only by the person.
+
+- The proposal's goal states each choice with its options and its default, so its preview and
+  the identity a consent answers cover them; the machine door shows them typed
+  (`Work::open_choices`).
+- The person's next line decides. A bare protocol consent (`yes`, `oui`, `save & run`) binds
+  every default still open as the option the person picked with that line (`offered`, cited to
+  it: no new provenance kind) and is recorded as their answer to the proposal. A line that picks
+  another option binds that pick, and the proposal shown is not saved until the author proposes
+  a revision (a new identity). Any other line binds nothing and leaves the choices open.
+- No consent saves a proposal while a question asked, or a choice open, is not one it shows;
+  a proposal that shows choices takes no act from words written before it.
+- A later proposal shows only its own choices: one it does not show again closes, and its
+  default is no longer stated for the judge.
+
+**Consequences.** The question turn before a first proposal disappears whenever every open
+choice has a recommendation; a choice without one is still asked first. Item 4's policy holds:
+a settled value is never shown again and a delegated one is never asked again.

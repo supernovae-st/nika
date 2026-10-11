@@ -113,18 +113,18 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `6ae4cc479` (`6ae4cc47965cc3f053b0e98d78f34d89528eb7ad`)             |
+| HEAD             | `fa19de0f1` (`fa19de0f16b3027e4644a6ecf9a82cd78e9f7565`)             |
 | workspace        | v0.123.0-preview.1                                  |
-| crates (workspace)| 87                                              |
-| crates (admitted)| 72                                             |
+| crates (workspace)| 90                                              |
+| crates (admitted)| 75                                             |
 | crates (WIP)     | 15 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve nika-session nika-session-change nika-session-agent nika-session-host nika-session-intelligence nika-tui nika-tui-view                                  |
 | L0               | 22                                              |
 | L0.5             | 6                                              |
 | L1               | 17                                              |
-| L1.5             | 4                                              |
+| L1.5             | 5                                              |
 | L2               | 5                                              |
 | L3               | 4                                              |
-| L4               | 29                                              |
+| L4               | 31                                              |
 | lib tests        | (skipped — pass --no-quick to compute)                              |
 | clippy           | (skipped)                              |
 

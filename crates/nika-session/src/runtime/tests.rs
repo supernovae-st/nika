@@ -934,7 +934,7 @@ fn a_paused_run_asks_the_human_and_the_answer_resumes_it() {
     std::fs::create_dir_all(&store).expect("store");
     let trace = store.join("paused.ndjson");
     std::fs::write(&trace, PAUSED).expect("trace");
-    let TurnOutcome::GateAsk { id, question } = s.observe_run(4, Some(&trace)) else {
+    let TurnOutcome::GateAsk { id, question, .. } = s.observe_run(4, Some(&trace)) else {
         panic!("the gate is asked");
     };
     assert_eq!(id, GateId::new(&trace, "approve"));

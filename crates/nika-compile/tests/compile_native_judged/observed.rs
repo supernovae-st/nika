@@ -143,6 +143,34 @@ pub(super) fn ran(candidate: &str, kept: Kept) -> RehearsalReport {
     .with_observation(observed)
 }
 
+/// The room's stop of `candidate` where a value it built crossed its data bound, in `words`: the
+/// run began on the copied tickets and wrote nothing.
+pub(super) fn bounded(candidate: &str, words: &str) -> RehearsalReport {
+    let input = Digest::of(TICKETS_IN.as_bytes());
+    let mut observed = Observation::refused(Refusal::DataBounds);
+    observed.bounds = Bounds::new(10_000, 1_048_576, 65_536);
+    let copy = CopyReceipt::new(
+        SOURCE,
+        input.clone(),
+        Some(input),
+        held(TICKETS_IN, Kept::Whole),
+    );
+    observed.copies = vec![copy];
+    observed.finals = vec![FinalReceipt::new(TARGET, FinalState::Absent)];
+    observed.ledger = LedgerFacts::clean(Vec::new());
+    // The bytes it copied in, as its receipt says; nothing was read back.
+    observed.spent = Spent::new(TICKETS_IN.len() as u64, 0);
+    let outcome = Rehearsal::NotRun {
+        reason: words.to_owned(),
+    };
+    let attempt = Attempt::Stopped { elapsed_ms: 2 };
+    let sha = nika_compile::surface::sha256(candidate);
+    RehearsalReport::new(outcome, attempt, EffectCounts::none(), sha)
+        .with_admitted_digest("synthetic-admission")
+        .with_room(RoomEvidence::new(true, true))
+        .with_observation(observed)
+}
+
 /// The room's coherent refusal of `candidate` before any attempt: no run, nothing observed.
 fn declined(candidate: &str) -> RehearsalReport {
     RehearsalReport::new(

@@ -27,6 +27,8 @@ fn pause(s: &mut SessionRuntime, root: &Path) -> GateId {
         task: "approve".into(),
         mode: "confirm".into(),
         message: "Proceed?".into(),
+        values: None,
+        withheld: None,
     });
     s.waiting_gate().expect("pending gate")
 }

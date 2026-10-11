@@ -9501,10 +9501,13 @@ pub fn nika_catalog::find_pricing_for(model: &str) -> core::option::Option<&'sta
 pub fn nika_catalog::find_pricing_scoped(provider: &str, model: &str) -> core::option::Option<&'static nika_catalog::model::ModelPricing>
 pub fn nika_catalog::find_provider(name: &str) -> core::option::Option<&'static nika_catalog::provider::Provider>
 pub fn nika_catalog::find_transform(name: &str) -> core::option::Option<&'static nika_catalog::transform::TransformDef>
+pub fn nika_catalog::generated_cap(provider: &str, name: &str, base: u32, room: u32) -> u32
 pub fn nika_catalog::is_known_builtin(name: &str) -> bool
 pub fn nika_catalog::is_known_mcp_server(name: &str) -> bool
 pub fn nika_catalog::is_known_transform(name: &str) -> bool
 pub fn nika_catalog::model_capabilities(provider: &str, model: &str) -> nika_catalog::model::ModelCapabilities
+pub fn nika_catalog::model_output_limit(provider: &str, name: &str) -> core::option::Option<(u32, alloc::string::String)>
+pub fn nika_catalog::output_caps(provider: &str, name: &str, room: u32) -> serde_json::value::Value
 pub fn nika_catalog::pasteable_for(bare: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_catalog::pricing_snapshot() -> &'static nika_catalog::model::PricingSnapshot
 pub fn nika_catalog::resolve_mcp_name(name: &str) -> core::option::Option<alloc::string::String>

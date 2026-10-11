@@ -490,6 +490,8 @@ fn a_waiting_gate_or_an_unconfirmed_exposure_saves_but_never_runs() {
         task: "approve".to_owned(),
         message: "Ship it?".to_owned(),
         mode: "confirm".to_owned(),
+        values: None,
+        withheld: None,
     });
     let TurnOutcome::Facts(report) = s.submit("save & run", &shown) else {
         panic!("a waiting gate stops the run, never the save");
@@ -520,6 +522,8 @@ fn a_paused_gate() -> crate::change::PendingGate {
         task: "approve".to_owned(),
         message: "Ship it?".to_owned(),
         mode: "confirm".to_owned(),
+        values: None,
+        withheld: None,
     }
 }
 

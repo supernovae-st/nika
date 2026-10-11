@@ -1008,6 +1008,7 @@ pub fn nika_trace::run_view::RunFacts::executions(&self) -> &[nika_types::id::Ex
 pub fn nika_trace::run_view::RunFacts::gate(&self, workflow: &std::path::Path, message: &str, mode: &str, gated: &[alloc::string::String]) -> alloc::string::String
 pub fn nika_trace::run_view::RunFacts::of(trace: &std::path::Path, raw: &str) -> core::option::Option<Self>
 pub fn nika_trace::run_view::RunFacts::pause_gate(&self) -> core::option::Option<(&str, &str, &str)>
+pub fn nika_trace::run_view::RunFacts::pause_shown(&self) -> (core::option::Option<&serde_json::value::Value>, core::option::Option<&serde_json::value::Value>)
 pub fn nika_trace::run_view::RunFacts::proof(&self, root: &std::path::Path) -> alloc::string::String
 pub fn nika_trace::run_view::RunFacts::read(trace: &std::path::Path) -> core::option::Option<Self>
 pub fn nika_trace::run_view::RunFacts::result(&self, root: &std::path::Path, workflow: &std::path::Path) -> alloc::string::String

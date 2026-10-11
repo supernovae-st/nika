@@ -349,11 +349,13 @@ pub nika_display::activity::ToolMark::at_ms: core::option::Option<u64>
 pub nika_display::activity::ToolMark::call: alloc::string::String
 pub nika_display::activity::ToolMark::elapsed_ms: core::option::Option<u64>
 pub nika_display::activity::ToolMark::name: alloc::string::String
+pub nika_display::activity::ToolMark::reply: core::option::Option<alloc::string::String>
 pub nika_display::activity::ToolMark::reply_bytes: core::option::Option<u64>
 pub nika_display::activity::ToolMark::state: nika_display::activity::ToolState
 impl nika_display::activity::ToolMark
 pub fn nika_display::activity::ToolMark::new(call: &str, name: &str, state: nika_display::activity::ToolState, elapsed_ms: core::option::Option<u64>) -> Self
 pub fn nika_display::activity::ToolMark::timed(self, at_ms: u64, reply_bytes: core::option::Option<u64>) -> Self
+pub fn nika_display::activity::ToolMark::with_reply(self, reply: core::option::Option<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_display::activity::ToolMark
 pub fn nika_display::activity::ToolMark::clone(&self) -> nika_display::activity::ToolMark
 impl core::cmp::Eq for nika_display::activity::ToolMark

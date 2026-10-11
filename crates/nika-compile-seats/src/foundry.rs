@@ -10,9 +10,10 @@
 //! answer; one it finds applicable is shown; NONE, a failed call or an answer outside the options
 //! leaves it unqualified and still shown, as an exploration hypothesis: never a defect, never a
 //! validated option. The record says what was found, shown, discarded and unqualified, by digest,
-//! with every answer. The lexical recall is a shortlist, never the eligibility gate: given the
-//! admitted release's catalogue, every entry the pack lacks is asked by its descriptor in the
-//! same batch, and the record's coverage says what was asked and how ([`reach`]).
+//! with every answer. For a seat the lexical recall is a shortlist, never the eligibility gate:
+//! given the admitted release's catalogue, every entry the pack lacks is asked by its descriptor
+//! in the same batch, and the record's coverage says what was asked and how ([`reach`]). Without
+//! a seat nobody asks a descriptor, so the author reads the recalled pack alone.
 //!
 //! Executable reuse is another fact, established by the candidate's own bytes: a checked block
 //! of an admitted release is resolved by id and release ([`component`]), bound at its holes by
@@ -255,6 +256,9 @@ pub fn trace(shown: &[KnowledgeReference], candidate: &str) -> Value {
 /// The selection key that says the embedded recall rides the pack, qualified with it.
 pub const FOLDED: &str = "embedded_recall";
 
+/// The coverage of a catalogue lent without a seat: nothing beyond the recalled pack was asked.
+const UNASKED: &str = "no decision seat was selected: the catalogue's other entries are neither asked nor shown, since nobody asks a descriptor; the recalled pack is shown unqualified";
+
 /// Whether the attached pack already carries the embedded recall ([`qualified`]).
 #[must_use]
 pub fn folded(request: &CompileRequest) -> bool {
@@ -274,9 +278,11 @@ pub async fn qualified(
     qualified_with(intent, request, seat, None).await
 }
 
-/// [`qualified`] over the whole admitted catalogue `catalog` lends ([`reach`]): every entry the
-/// pack does not hold is asked by its descriptor in the same batch, an applicable one joins the
-/// pack in full, and the record's `coverage` says what was asked and how.
+/// [`qualified`] over the whole admitted catalogue `catalog` lends ([`reach`]): with a seat, every
+/// entry the pack does not hold is asked by its descriptor in the same batch, an applicable one
+/// joins the pack in full, and the record's `coverage` says what was asked and how. Without a
+/// seat nobody asks a descriptor: nothing is widened, the author reads the recalled pack, and
+/// the coverage says why.
 pub async fn qualified_with(
     intent: &str,
     request: &CompileRequest,
@@ -294,10 +300,13 @@ pub async fn qualified_with(
         });
     folded.references = embedded.chain(pack.references.iter().cloned()).collect();
     folded.selection[FOLDED] = json!("folded into the pack and qualified with it");
-    // A lent catalogue opens the whole reach: the release's entries and the embedded templates.
+    // A lent catalogue opens the whole reach for a seat that asks it: the release's entries and
+    // the embedded templates, each by its descriptor. Without a seat nobody asks a descriptor, so
+    // nothing is widened and the author reads the recalled pack.
     let templates = crate::shelf::Templates;
-    let (widened, listed) = catalog.map_or((Vec::new(), 0), |c| reach::widen(&mut folded, c));
-    let (shelved, shelf_listed) = match catalog {
+    let asking = seat.and(catalog);
+    let (widened, listed) = asking.map_or((Vec::new(), 0), |c| reach::widen(&mut folded, c));
+    let (shelved, shelf_listed) = match asking {
         Some(_) => reach::widen(&mut folded, &templates),
         None => (Vec::new(), 0),
     };
@@ -331,12 +340,13 @@ pub async fn qualified_with(
         .cloned()
         .collect();
     reach::annotate(&folded, &mut record, &asked);
-    record["coverage"] = reach::coverage(catalog, listed, widened.len(), resolved);
-    if catalog.is_some() {
+    record["coverage"] = match (catalog, asking) {
+        (Some(_), None) => json!({"complete": false, "why": UNASKED}),
+        _ => reach::coverage(catalog, listed, widened.len(), resolved),
+    };
+    if asking.is_some() {
         record["coverage"]["recalled_asked_by_descriptor"] = json!(recalled.len());
         record["coverage"]["recalled_shown_in_full"] = json!(restored);
-    }
-    if catalog.is_some() {
         let account = reach::account(&templates, shelf_listed, shelved.len(), shelf_resolved);
         record["coverage"]["embedded_templates"] = account;
     }
@@ -369,6 +379,8 @@ pub fn reused(
 
 #[cfg(test)]
 mod reach_tests;
+#[cfg(test)]
+mod recall_tests;
 #[cfg(test)]
 mod reuse_tests;
 #[cfg(test)]

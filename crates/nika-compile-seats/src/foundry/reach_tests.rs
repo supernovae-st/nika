@@ -306,19 +306,29 @@ async fn without_a_catalogue_or_a_seat_the_record_says_what_was_never_asked() {
             .iter()
             .any(|r| r.id == "block:stale-filter-report")
     );
-    // A catalogue without a seat: every entry shown, the widened ones as descriptors.
+    // A catalogue without a seat: nobody asks a descriptor, so nothing beyond the recalled pack
+    // is widened or shown, and the record says why.
     let (shown, record) = qualified_with(INTENT, &request(), None, Some(&Release1))
         .await
         .unwrap();
     let pack = shown.authoring_knowledge.as_ref().unwrap();
-    let component = pack
-        .references
-        .iter()
-        .find(|r| r.id == "block:stale-filter-report")
-        .unwrap();
-    assert!(component.text.starts_with(DESCRIPTOR));
-    assert_eq!(record["coverage"]["complete"], true);
-    assert_eq!(record["coverage"]["resolved_in_full"], 0);
+    let ids: Vec<&str> = pack.references.iter().map(|r| r.id.as_str()).collect();
+    assert!(
+        pack.references
+            .iter()
+            .all(|r| !r.text.starts_with(DESCRIPTOR)),
+        "no descriptor without a seat: {ids:?}"
+    );
+    assert!(ids.contains(&"block:demandes-bilan"), "{ids:?}");
+    assert!(!ids.contains(&"block:stale-filter-report"), "{ids:?}");
+    assert_eq!(record["coverage"]["complete"], false);
+    assert!(
+        record["coverage"]["why"]
+            .as_str()
+            .unwrap()
+            .contains("no decision seat")
+    );
+    assert!(record["coverage"].get("embedded_templates").is_none());
     assert_eq!(record["by"], Value::Null);
 }
 

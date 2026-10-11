@@ -466,18 +466,18 @@ async fn observed(answers: Vec<Answer>) -> (CompileOutcome, Vec<Meta>, Canned) {
 // ── Product parity with the reference ───────────────────────────────────────────────────────
 
 /// Reviewed prompt identities for [`three_calls`] under the unchanged legacy framing.
-/// Captured after commits 1fbc82ec5 (what each fetch mode returns), bc932aca3 (the date, jq
-/// and JSON API laws) and 29b107114 (the card example without a copied output cap) changed
-/// the callable contracts and the card; before them, after commit 4470d33de sent each
-/// callable contract as its whole stdlib section (no longer cut at 2,000 characters), and
-/// before it, after commit 98c24b617462 added temporal-shape and jq date-time conventions to
-/// `native_output_conventions.md`. All are included in the System message retained by all
-/// three calls. The assertions below independently compare the observer with the legacy
-/// framing over each exact request before checking these values.
+/// Captured at nika-spec 34ad76c, whose vendored pack moves the fetch contract's feed section
+/// and the cap comments of the skeletons recall returns. Before it, after the prompt inputs
+/// changed since 5167aaf5d: the shelf's date, jq and JSON API laws, the fetch modes table, the
+/// card example without a copied cap, and the recall by informative words. Before those, after
+/// commit 4470d33de sent each callable contract as its whole stdlib section (no longer cut at
+/// 2,000 characters). All are in the System message retained by all three calls. The
+/// assertions below independently compare the observer with the legacy framing over each exact
+/// request before checking these values.
 const REVIEWED_PROMPTS: [&str; 3] = [
-    "b7f8794b698df441076f78ff15edd7ddbae5b25dbd6d55cff02732921355e96a",
-    "235ac3a95a0aee0b92a265b9693f8a40248c401a261f0645fc63d198bba4e6fb",
-    "610a4cd6f6d4831899db3a0e91e47c47a0981ad79bd00c4b824db63178486cbe",
+    "1b52aefc9c9e68d590ea29878d4574b509d5d0facc177ea513cdb76a463698db",
+    "46d378c3230a19d5893d57a6a0dc8ab9d4ce1702535645bb3cdafe0985038f44",
+    "5dde9cec4bfcc5d4cd2782ec38e7b14eb7e0a4175af7ba14422435081b1fed36",
 ];
 /// Legacy response identities, unchanged by the new prompt conventions.
 const PRE_CHANGE_FRAMED: [&str; 3] = [

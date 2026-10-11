@@ -632,7 +632,8 @@ const HELD_OUT: [&str; 2] = ["counterexample:total:R0:19c2e1a5", "example:total"
 /// The base payload of the shared r2 vectors written under `root`, and the identity it is
 /// admitted against.
 fn r2_base(root: &Path) -> TrustedIdentity {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/knowledge-r2/p01-base.json");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../nika-onboard-knowledge/tests/knowledge-r2/p01-base.json");
     let vector: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     let bytes = |entry: &serde_json::Value| {
         if let Some(text) = entry["text"].as_str() {

@@ -425,6 +425,9 @@ fn run_code_help(num: u16) -> &'static str {
         1711 => {
             "`NIKA_SANDBOX` held an unknown word — expected exactly `auto`, `require`, or `off`. A typo'd security knob refuses to start rather than loudly default (fail-closed)."
         }
+        1712 => {
+            "A value the rehearsal run built crossed its room's bound: a rehearsal vouches for nothing a run builds past what its room holds. The task that built it failed where it was built, and the room reports a data bound; the same workflow run outside a room has no such bound."
+        }
         _ => "Runtime error. Re-run `nika check`, then `nika explain` the exact code.",
     }
 }

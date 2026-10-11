@@ -15,6 +15,7 @@ nika-fs = { path = "../nika-fs", version = "0.123.0-preview.1" } # descriptor-ro
 nika-vocab = { path = "../nika-vocab", version = "0.123.0-preview.1" } # the existing project monetary-default discovery
 tokio = { workspace = true, features = ["process", "io-util"] } # bounded authoring and machine lane child I/O
 nika-onboard = { path = "../nika-onboard", version = "0.123.0-preview.1" } # typed Compile core; host adapter only materializes explicit Ready results
+nika-cli-host-typesafe = { path = "../nika-cli-host-typesafe", version = "0.123.0-preview.1" } # the TypeSafe System One decision seat (size-cap member · ADR-110 amendment)
 tempfile = { workspace = true } # atomic same-directory Compile publication and scratch tests
 nika-builtin   = { path = "../nika-builtin", version = "0.123.0-preview.1" }   # tool surfaces the welcome glance names
 nika-catalog   = { path = "../nika-catalog", version = "0.123.0-preview.1" }   # env_var ladder (probe key presence)

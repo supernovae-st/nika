@@ -10,7 +10,8 @@
 //! profile closes everything else before the first prompt: no built-in tools, no settings,
 //! plugins, skills or agents, nothing persisted, and exactly one MCP server, Nika's
 //! ([`ToolOffer`]). Claude Code mounts it from `session/new`; Codex from its own configuration,
-//! read back at spawn with every other server disabled.
+//! read back at spawn with every other server disabled and its approval route to Nika on (an
+//! MCP tool approval reaches Nika only through it: `codex::APPROVAL_FEATURE`).
 //!
 //! The transport follows the agent's capability and is recorded: HTTP when the agent
 //! advertises `mcpCapabilities.http` and Nika offers an HTTP endpoint, else Nika's stdio

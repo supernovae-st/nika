@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The tools a session serves to the intelligence that leads its conversation
-//! (`nika/author-tools@0`), typed once for every loop that calls them: Nika's own agent loop
+//! (`nika/author-tools@1`), typed once for every loop that calls them: Nika's own agent loop
 //! over a provider, and an ACP agent's loop reaching them over MCP. The session implements
 //! [`SessionTools`] against its own state; a loop or a transport lists the definitions, hands
 //! each call over and relays the reply. Neither interprets a tool, and no reply grants anything:
@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// The version a loop or a transport checks before relaying these tools.
-pub const CONTRACT: &str = "nika/author-tools@0";
+pub const CONTRACT: &str = "nika/author-tools@1";
 
 /// The tool names the contract fixes, in the order a session lists them.
 pub const NAMES: [&str; 17] = [
@@ -145,7 +145,31 @@ impl ToolReply {
             ends_turn,
         }
     }
+
+    /// The reply as a host may show it, to say why a call failed: the obvious secret shapes
+    /// redacted first (the context broker's own filter), on one line, at most
+    /// [`REPLY_EXCERPT_BYTES`] bytes, cut at a character boundary and marked `…`.
+    #[must_use]
+    pub fn excerpt(&self) -> String {
+        let (redacted, _kinds) = nika_cli_host::context_redaction::redact(&self.text);
+        let spaced: String = redacted
+            .chars()
+            .map(|c| if c.is_control() { ' ' } else { c })
+            .collect();
+        let line = spaced.split_whitespace().collect::<Vec<_>>().join(" ");
+        if line.len() <= REPLY_EXCERPT_BYTES {
+            return line;
+        }
+        let mut end = REPLY_EXCERPT_BYTES - '…'.len_utf8();
+        while !line.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}…", &line[..end])
+    }
 }
+
+/// The most bytes of a failed reply a host is shown ([`ToolReply::excerpt`]).
+pub const REPLY_EXCERPT_BYTES: usize = 512;
 
 /// The tools one session serves. A loop or a transport lists them and hands each call over,
 /// on its own thread: [`SessionTools::call`] may block for as long as the tool runs, and the
@@ -181,7 +205,7 @@ mod tests {
             assert!(!name.contains("__") && !name.ends_with('_'), "`{name}`");
         }
         assert_eq!(seen.len(), 17);
-        assert_eq!(CONTRACT, "nika/author-tools@0");
+        assert_eq!(CONTRACT, "nika/author-tools@1");
     }
 
     #[test]
@@ -195,6 +219,25 @@ mod tests {
             assert_eq!((reply.is_error, reply.ends_turn), (is_error, ends_turn));
         }
         assert_eq!(ToolReply::ends_turn("asked").text, "asked");
+    }
+
+    /// A failed reply reaches a host as an excerpt: its secret shapes redacted before anything
+    /// is cut, on one line, within the bound and at a character boundary.
+    #[test]
+    fn a_failed_reply_is_shown_redacted_on_one_line_within_its_bound() {
+        let text = "compose refused\nblock `feeds` needs key sk-live-ABCDEFGH12345678 here\n\
+                    token=hunter2 trailing";
+        let shown = ToolReply::error(text).excerpt();
+        assert!(
+            shown == "compose refused block `feeds` needs key [redacted] here token=[redacted]",
+            "the reply is shown redacted, on one line"
+        );
+        assert!(!shown.contains("ABCDEFGH12345678") && !shown.contains("hunter2"));
+        let long = ToolReply::error("é".repeat(400)).excerpt();
+        assert!(long.len() <= REPLY_EXCERPT_BYTES && long.ends_with('…'));
+        assert_eq!(long.trim_end_matches('…'), "é".repeat(254));
+        let short = ToolReply::error("no block\tnamed `feeds`\u{1b}[0m").excerpt();
+        assert_eq!(short, "no block named `feeds` [0m");
     }
 
     /// A session tree journals calls and replies: the wire names are the field names, and a

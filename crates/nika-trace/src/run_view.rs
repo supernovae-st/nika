@@ -100,11 +100,14 @@ pub(crate) struct Approval {
 }
 
 /// The pause a run left (`workflow_paused`).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Pause {
     pub(crate) task: String,
     pub(crate) message: String,
     pub(crate) mode: String,
+    /// The values its message shows (`values`) and the keys withheld with why (`withheld`),
+    /// each a JSON object; `None` on a frame that carries none.
+    pub(crate) shown: (Option<Value>, Option<Value>),
 }
 
 /// The seal's covered facts (`run_sealed`).
@@ -243,7 +246,8 @@ fn fields(frame: &Value) -> BTreeMap<String, Value> {
 }
 
 /// A pause frame's gate: the first value of each key (never a later duplicate), a task that is
-/// text and not empty, the pause's defaults for the message and the mode.
+/// text and not empty, the pause's defaults for the message and the mode, and the values its
+/// message shows with the keys withheld, each when the frame carries it as a JSON object.
 fn first_gate(frame: &Value) -> Option<Pause> {
     let field = |key: &str| -> Option<String> {
         let row = frame
@@ -253,10 +257,15 @@ fn first_gate(frame: &Value) -> Option<Pause> {
             .find(|r| r.get("key").and_then(Value::as_str) == Some(key))?;
         row.get("value")?.as_str().map(str::to_owned)
     };
+    let object = |key: &str| {
+        let parsed = field(key).and_then(|text| serde_json::from_str::<Value>(&text).ok());
+        parsed.filter(Value::is_object)
+    };
     Some(Pause {
         task: field("task").filter(|t| !t.is_empty())?,
         message: field("message").unwrap_or_else(|| "the run awaits your answer".to_owned()),
         mode: field("mode").unwrap_or_else(|| "text".to_owned()),
+        shown: (object("values"), object("withheld")),
     })
 }
 
@@ -368,6 +377,14 @@ impl RunFacts {
             .map(|g| (g.task.as_str(), g.message.as_str(), g.mode.as_str()))
     }
 
+    /// What that first pause's gate shows, structured: the values its message renders by key
+    /// (`values`) and the keys withheld with why (`withheld`, a value derived from a secret
+    /// among them), each a JSON object; `None` where the frame carries none (an older journal).
+    #[must_use]
+    pub fn pause_shown(&self) -> (Option<&Value>, Option<&Value>) {
+        (self.gate.as_ref()).map_or((None, None), |g| (g.shown.0.as_ref(), g.shown.1.as_ref()))
+    }
+
     fn task_mut(&mut self, id: &str) -> &mut TaskFact {
         if let Some(i) = self.tasks.iter().position(|t| t.id == id) {
             return &mut self.tasks[i];
@@ -410,6 +427,7 @@ impl RunFacts {
                     message: text(f, "message")
                         .unwrap_or_else(|| "the run awaits your answer".to_owned()),
                     mode: text(f, "mode").unwrap_or_else(|| "text".to_owned()),
+                    ..Pause::default()
                 });
             }
             "workflow_completed" | "workflow_failed" | "workflow_cancelled" => {

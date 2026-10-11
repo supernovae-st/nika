@@ -165,18 +165,19 @@
       "SessionTool": {
         "type": "object",
         "required": ["call", "name", "state"],
-        "description": "One tool the conversation's intelligence called, as its run observed it — never its arguments or reply: the call's identity, the tool, `started`, `finished` or `failed`, and the milliseconds it took once it answered.",
+        "description": "One tool the conversation's intelligence called, as its run observed it — never its arguments: the call's identity, the tool, `started`, `finished` or `failed`, the milliseconds it took once it answered, and once it failed why (`reply`).",
         "properties": {
           "call": {"type": "string"},
           "name": {"type": "string"},
           "state": {"enum": ["started", "finished", "failed"]},
-          "elapsed_ms": {"type": "integer", "minimum": 0}
+          "elapsed_ms": {"type": "integer", "minimum": 0},
+          "reply": {"type": "string", "maxLength": 512, "description": "failed only: the tool's reply as a host may show it, its obvious secret shapes redacted first (API keys, private key blocks, password, token and secret values), on one line, at most 512 bytes and cut marked …"}
         }
       },
       "SessionOutcome": {
         "type": "object",
         "required": ["kind"],
-        "description": "One TurnOutcome, projected mechanically: reply, facts, help, aside, ask, cancelled (with `withdrawn` outcomes when a Stop withdrew a late result), stopped (a turn of the conversation the selected intelligence leads, stopped by the person: `reach` `between_steps`, `request_dropped` (a request already sent may still be billed) or `agent_cancelled` (the agent was asked once, `session/cancel`), `unsent` queued lines, `candidate` the draft revision kept), quit, refusal (`class`), held and proposal (`proposal`), question (`key`), gate (`trace`, `task`), run_requested (`workflow`, `inputs` names only, `max_cost_usd`), resume_requested (`workflow`, `trace`, `answer`), run_review (`review`: the run waits at its fresh cost review), run_reviewed, run_not_started (nothing ran), run_unobserved (admitted, its end not observed: effects unknown), run_stopped (a Stop reached the run and it sealed its trace as cancelled), run_aborted (a Stop reached the run but it ended without sealing its trace: cut mid-flight, effects in flight unknown), resumed, other. A kind this list does not name is shown as unknown, never guessed.",
+        "description": "One TurnOutcome, projected mechanically: reply, facts, help, aside, ask, cancelled (with `withdrawn` outcomes when a Stop withdrew a late result), stopped (a turn of the conversation the selected intelligence leads, stopped by the person: `reach` `between_steps`, `request_dropped` (a request already sent may still be billed) or `agent_cancelled` (the agent was asked once, `session/cancel`), `unsent` queued lines, `candidate` the draft revision kept), quit, refusal (`class`), held and proposal (`proposal`), question (`key`), gate (`trace`, `task`; `values`: the values its message renders, by key, as one object; `withheld`: the keys whose value it withheld, each with why: `secret` (derived from a secret), `size` or `unresolved`), run_requested (`workflow`, `inputs` names only, `max_cost_usd`), resume_requested (`workflow`, `trace`, `answer`), run_review (`review`: the run waits at its fresh cost review), run_reviewed, run_not_started (nothing ran), run_unobserved (admitted, its end not observed: effects unknown), run_stopped (a Stop reached the run and it sealed its trace as cancelled), run_aborted (a Stop reached the run but it ended without sealing its trace: cut mid-flight, effects in flight unknown), resumed, other. A kind this list does not name is shown as unknown, never guessed.",
         "properties": {"kind": {"type": "string"}, "text": {"type": "string"}}
       },
       "SessionFrame": {

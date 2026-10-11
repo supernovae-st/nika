@@ -149,6 +149,11 @@ pub fn find_pricing(model: &str) -> Option<&'static ModelPricing>;              
 pub fn find_pricing_scoped(provider: &str, model: &str) -> Option<&'static ModelPricing>;
 pub fn estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> Option<CostEstimate>;
 
+// ── A model's output facts (providers + capabilities · 2026-10-11) ─────
+pub fn model_output_limit(provider: &str, name: &str) -> Option<(u32, String)>; // limit + source
+pub fn generated_cap(provider: &str, name: &str, base: u32, room: u32) -> u32;
+pub fn output_caps(provider: &str, name: &str, room: u32) -> serde_json::Value;  // + serde
+
 // ── Iteration ──────────────────────────────────────────────────────────
 pub fn all_providers()   -> &'static [Provider];    // 21
 pub fn all_mcp_servers() -> &'static [McpServer];   // 105
@@ -208,6 +213,7 @@ crates/nika-catalog/
     ├── lib.rs                    ← public re-exports, feature-gated
     ├── error.rs                  ← CatalogError impl NikaErrorCode
     ├── lookup.rs                 ← public find_* API
+    ├── output.rs                 ← a model's output facts (limit, generated cap, seat facts)
     ├── suggest.rs                ← Jaro-Winkler fuzzy match
     ├── validate.rs               ← cross-ref integrity (full-feature only)
     ├── data/
@@ -413,8 +419,28 @@ estimates, not authoritative invoices or a hard external charge guarantee.
 
 `ModelCapabilities.reasoning_efforts` lists the closed `ReasoningLevel` words
 qualified for a model. Its default is empty, not inherited support from a
-model name or generic reasoning flag. The exact `deepseek-v4-pro` rule lists
-`low`, `high`, and `max`; Flash, historical aliases and gateway routes do not
-inherit that qualification. The provider adapter separately checks the exact
+model name or generic reasoning flag. The exact `deepseek-v4-pro` and
+`deepseek-flash` rules each list `low`, `high`, and `max` (each observed on its
+own); historical aliases and gateway routes inherit neither qualification. The
+provider adapter separately checks the exact
 direct endpoint. Capability data alone proves neither account availability
 nor a successful inference call or the server's internal reasoning effort.
+
+## A model's output facts (added 2026-10-11)
+
+`output.rs` answers what a caller needs before it sizes or writes a cap, from the records alone
+(features `providers` and `capabilities`):
+
+- `model_output_limit(provider, name)` is the output limit the catalog records, with where it
+  is recorded: a capability rule's, else the provider row's for that exact model id. `None`
+  when it records none; a route's own limit (an endpoint-bound tariff) is a run fact.
+- `generated_cap(provider, name, base, room)` is the cap a caller generates: raised to `room`
+  when a rule records the model as reasoning, never above the recorded limit.
+- `output_caps(provider, name, room)` (feature `serde` too) is the JSON an authoring seat reads
+  before it writes. Reasoning is `recorded` only when a rule records it (the catalog default is
+  no evidence, so every other model is `unrecorded`). It lists the documented
+  `run.reasoning.effort` levels and suggests `room` within the recorded limit. Whether thinking
+  counts inside the cap stays `unknown`, and the route is resolved at run time.
+
+They descended from `nika-compile`'s seat sizing, which keeps the room it generates and reads
+them here; no record or rule changed.

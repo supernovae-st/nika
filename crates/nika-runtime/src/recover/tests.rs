@@ -339,9 +339,12 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
     );
     let scope = crate::recover::ResolveScope {
         wf: &wf,
-        inputs: &vars,
-        consts: &BTreeMap::new(),
-        secrets: &secrets,
+        bags: crate::bags::ValueBags {
+            inputs: &vars,
+            consts: &BTreeMap::new(),
+            secrets: &secrets,
+            bound: None,
+        },
         resume_ctx: &resume_ctx,
         jq_clock: nika_cap::JqClock::at(nika_types::timestamp::Timestamp::EPOCH),
         run_start: nika_kernel::tool_executor::ToolRunStart::new(0),

@@ -36,6 +36,7 @@ permits: {}
 tasks:
   draft:
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 300               # SLOT: the draft ceiling · sized for the SEAT (see CEILINGS)
       prompt: "Draft this deliverable: ${{ const.brief }}"
       schema:
@@ -49,7 +50,8 @@ tasks:
     with:
       candidate: ${{ tasks.draft.output.text }}
     infer:
-      max_tokens: 400               # SLOT: the critique ceiling · a reasoning seat's floor is 256 here (measured)
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
+      max_tokens: 400               # SLOT: the critique ceiling · check refuses a reasoning seat under 256 (measured)
       prompt: |
         Critique this candidate against the brief. Name one concrete repair.
         Brief: ${{ const.brief }}
@@ -67,6 +69,7 @@ tasks:
       candidate: ${{ tasks.draft.output.text }}
       repair: ${{ tasks.evaluate_1.output.repair }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 300               # SLOT: the revision ceiling · sized for the SEAT
       prompt: |
         Revise the candidate using the repair, without changing the brief.
@@ -83,6 +86,7 @@ tasks:
     with:
       candidate: ${{ tasks.optimize_1.output.text }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 400               # SLOT: idem · the same floor applies
       prompt: |
         Critique this revision against the same brief. Name one final repair.
@@ -101,6 +105,7 @@ tasks:
       candidate: ${{ tasks.optimize_1.output.text }}
       repair: ${{ tasks.evaluate_2.output.repair }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 300               # SLOT: the final revision ceiling · sized for the SEAT
       prompt: |
         Produce the final revision using the last repair.
@@ -117,6 +122,7 @@ tasks:
     with:
       candidate: ${{ tasks.optimize_2.output.text }}
     infer:
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 400               # SLOT: the score-only ceiling · the same floor applies
       prompt: |
         Score the final candidate against the brief. Evaluate the candidate

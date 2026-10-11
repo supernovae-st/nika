@@ -54,6 +54,7 @@ tasks:
       prompt: '${{ const.brief }}
 
         Item: ${{ item }}'
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 2048
       schema:
         type: object

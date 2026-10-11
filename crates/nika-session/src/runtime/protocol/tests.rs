@@ -568,6 +568,8 @@ fn a_command_shaped_line_never_answers_a_gate_or_an_input() {
             task: "approve".into(),
             mode: mode.into(),
             message: "Proceed?".into(),
+            values: None,
+            withheld: None,
         });
         for line in ["/bogus", "/show", "what happened?"] {
             let out = w.s.answer_gate(line);

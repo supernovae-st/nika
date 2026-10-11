@@ -153,6 +153,26 @@ impl<H> ProviderRegistry<H> {
         self
     }
 
+    /// Where the census-time listing of a keyed OpenAI-compatible route goes, and with which key:
+    /// the route's own effective chat endpoint (a gateway override included) with
+    /// `/chat/completions` replaced by `/models`, and the key the operator injected for its
+    /// canonical id. `None` for a keyless route, a route without a key, another wire family, or
+    /// an endpoint that does not end in `/chat/completions`. The [`Secret`] stays redacted in
+    /// `Debug`; the caller sends it to that endpoint only.
+    #[must_use]
+    pub fn cloud_listing_target(&self, provider: &str) -> Option<(String, Secret)> {
+        let id = crate::profile::canonical_provider(provider);
+        let profile = self.profiles.iter().find(|p| p.id == id)?;
+        if !profile.requires_key || !matches!(profile.wire, WireFormat::OpenAiCompat) {
+            return None;
+        }
+        let key = self.config.keys.get(profile.id)?.clone();
+        let root = self
+            .effective_base_url(profile.id)?
+            .strip_suffix("/chat/completions")?;
+        Some((format!("{root}/models"), key))
+    }
+
     /// The base URL a run against this provider would ACTUALLY hit —
     /// the operator's `with_base_url` override when present, else the
     /// profile seed. Diagnostic surfaces (doctor `--ping`) must probe
@@ -843,5 +863,37 @@ mod tests {
         drop(reg);
         let err = reg2.resolve("gemini/flash-25").unwrap_err();
         assert!(err.to_string().contains("needs an http effect"));
+    }
+
+    /// A keyed OpenAI-compatible route lists at its own base (a gateway override included) with
+    /// its own key; another wire family, a route without a key and a keyless route list nothing.
+    #[test]
+    fn a_keyed_openai_compatible_route_lists_at_its_own_base_with_its_own_key() {
+        let key = Secret::new("sk-test-listing-target-0000000000000000");
+        let config = ProvidersConfig::new()
+            .with_key("deepseek", key.clone())
+            .with_key("gemini", key.clone())
+            .with_key("openai", key.clone())
+            .with_base_url("openai", "https://gateway.invalid/v1/chat/completions");
+        let registry = ProviderRegistry::without_http(config);
+        let (endpoint, sent) = registry.cloud_listing_target("deepseek").expect("listed");
+        assert_eq!(endpoint, "https://api.deepseek.com/v1/models");
+        assert!(
+            sent.expose() == key.expose(),
+            "the listing carries the route's own key"
+        );
+        let gateway = registry
+            .cloud_listing_target("openai")
+            .map(|(endpoint, _)| endpoint);
+        assert_eq!(
+            gateway.as_deref(),
+            Some("https://gateway.invalid/v1/models")
+        );
+        assert!(
+            registry.cloud_listing_target("gemini").is_none(),
+            "another wire"
+        );
+        assert!(registry.cloud_listing_target("mistral").is_none(), "no key");
+        assert!(registry.cloud_listing_target("ollama").is_none(), "keyless");
     }
 }

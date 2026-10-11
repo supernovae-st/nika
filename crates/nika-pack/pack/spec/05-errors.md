@@ -204,6 +204,7 @@ these from this file alone.
 | `NIKA-INFER-003` | the provider reported no token usage for a priced model — the ledger cannot bill the call honestly (fail-closed · the usage-absence gate, R3-F1) | `validation_error` | false |
 | `NIKA-INFER-002` | structured output failed `schema:` validation (after any engine-internal retries) | `validation_error` | false |
 | `NIKA-INFER-004` | the provider spent tokens yet the visible answer is empty — a thinking model ate the budget on its reasoning trace (fail-closed · raise `max_tokens` or use a no-think variant) | `validation_error` | false |
+| `NIKA-INFER-005` | the provider stopped at the output cap (`max_tokens`) — the visible answer is cut: it is preserved at `error.details.partial_output` with the provider's stop reason at `error.details.stop_reason`, and is never the task output nor validated against `schema:` · raise `max_tokens` (the message says whether the task set it or a default applied), or recover the partial through `on_error:` | `budget_error` | false |
 | `NIKA-INFER-003` | the provider reported no token usage for a priced model — the ledger cannot bill the call honestly, so the call fails closed (the usage-absence gate · R3-F1) | `validation_error` | false |
 | `NIKA-EXEC-001` | non-zero exit code (default capture modes · see [02 §exec](./02-verbs.md#exec--shell-command)) | `process_error` | false |
 | `NIKA-EXEC-002` | spawn failure (command not found · permission) | `process_error` | false |
@@ -214,6 +215,7 @@ these from this file alone.
 | `NIKA-AGENT-003` | a `skills:` path does not resolve (file missing/unreadable at compose time · a `${{ }}` template or a glob, refused at parse) — judged only INSIDE the declared read boundary: an ungranted path is `NIKA-AUTH-006` / `NIKA-SEC-004` before the file is opened ([02 §Agent Skills](./02-verbs.md#agent-skills--skills)) | `validation_error` | false |
 | `NIKA-AGENT-004` | a `skills:` file is not a valid Agent Skill (no/unterminated/non-mapping frontmatter · missing/empty `name`/`description`) | `validation_error` | false |
 | `NIKA-AGENT-005` | the provider reported no token usage for a priced model — every budget and ledger reads the turn as free, so the loop fails closed (the usage-absence gate · R3-F1) | `budget_error` | false |
+| `NIKA-AGENT-006` | the agent's final message (no tool calls) stopped at the output cap (`max_tokens`) — the cut message is preserved at `error.details.partial_output`, never the task output (the rule of `NIKA-INFER-005`) | `budget_error` | false |
 | `NIKA-MCP-001` | MCP server not configured / not reachable at call time | `tool_error` | engine-assessed |
 | `NIKA-MCP-002` | MCP tool call failed (transport · tool-side error) | `tool_error` | engine-assessed |
 | `NIKA-SEC-001` | `exec:` blocklist hit | `security_error` | false |
@@ -331,7 +333,7 @@ The `category` field is a closed enum at v1 ·
 | `network_error` | Network failure (DNS · TCP · TLS · timeout) | true |
 | `tool_error` | Builtin or MCP tool returned an error | depends |
 | `process_error` | `exec:` subprocess failure (non-zero exit · spawn) | false |
-| `budget_error` | an `agent:` loop budget exhausted (`max_turns` · `max_tokens_total`) | false |
+| `budget_error` | a budget exhausted: an `agent:` loop budget (`max_turns` · `max_tokens_total`) or a call's output cap (`max_tokens`) | false |
 | `security_error` | SSRF · blocklist · capability denied | false |
 | `timeout_error` | Task or step exceeded its timeout | false |
 | `cancelled` | Workflow or task cancelled | false |

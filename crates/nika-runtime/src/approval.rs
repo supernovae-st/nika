@@ -862,25 +862,37 @@ fn gated_closures(wf: &RawWorkflow) -> BTreeMap<String, Vec<GatedAction>> {
 /// supply markers, never resolved secret values. Rendering failures retain
 /// the existing raw-argument fallback; this does not change dispatch errors.
 pub(crate) fn render_prompt_args(task: &RawTask, args: Option<&Value>, base: &Scope<'_>) -> Value {
-    let mut with_ns = BTreeMap::new();
-    let with_rendered =
-        task.with
-            .iter()
-            .all(|(key, value)| match expr::render_json(&value.value, base) {
-                Ok(v) => {
-                    with_ns.insert(key.value.clone(), v);
-                    true
-                }
-                Err(_) => false,
-            });
-    let scope = base.with_task_context(
-        if with_rendered { Some(&with_ns) } else { None },
-        None,
-        None,
-        None,
-    );
-    let raw = args.cloned().unwrap_or(Value::Null);
-    expr::render_json(&raw, &scope).unwrap_or(raw)
+    over_prompt_scope(task, base, |scope| {
+        let raw = args.cloned().unwrap_or(Value::Null);
+        expr::render_json(&raw, scope).unwrap_or(raw)
+    })
+}
+
+/// The values the prompt's `message` shows, structured, over the scope its args render on: a
+/// value `secret` recognizes is withheld and named, never carried (ADR-148 point 12).
+pub(crate) fn prompt_shown(
+    task: &RawTask,
+    args: Option<&Value>,
+    base: &Scope<'_>,
+    secret: &dyn Fn(&str) -> bool,
+) -> expr::Shown {
+    let message = args.and_then(|a| a.get("message")).and_then(Value::as_str);
+    over_prompt_scope(task, base, |scope| {
+        expr::shown(message.unwrap_or_default(), scope, SHOWN_BOUNDS, secret)
+    })
+}
+
+/// The bounds of the values a gate shows: each, then all, in bytes of compact JSON.
+const SHOWN_BOUNDS: (usize, usize) = (1024, 4096);
+
+/// A prompt's scope: `base` with the task's `with:` bindings rendered over it, or with none of
+/// them when one does not render (its args then render without them).
+fn over_prompt_scope<R>(task: &RawTask, base: &Scope<'_>, then: impl FnOnce(&Scope<'_>) -> R) -> R {
+    let with_ns = (task.with.iter())
+        .map(|(key, value)| Ok((key.value.clone(), expr::render_json(&value.value, base)?)))
+        .collect::<Result<BTreeMap<_, _>, nika_dataflow::DataflowError>>()
+        .ok();
+    then(&base.with_task_context(with_ns.as_ref(), None, None, None))
 }
 
 /// The prompt's shown fields in rendered `args:` — `mode` (default

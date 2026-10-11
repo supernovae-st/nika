@@ -275,6 +275,9 @@ fn attribute(req: &AccessRequirement, pin: Option<&str>, refusal: PinRefusal) ->
         PinRefusal::Unavailable { message } => PinRefusal::Unavailable {
             message: say(message),
         },
+        // The enum is the access member's and `#[non_exhaustive]`: a future class
+        // stays a refusal, in its own words, until it is attributed explicitly.
+        other => other,
     }
 }
 

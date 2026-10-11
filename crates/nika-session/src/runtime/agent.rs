@@ -29,7 +29,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use nika_fs::OwnedDir;
 use nika_providers::InferenceAdmission;
-use nika_session_agent::conversation::{Acts, Conversation, Pick};
+use nika_session_agent::conversation::{
+    Acts, Conversation, NOT_A_CONSENT, NOT_READ_AS_CONSENT, Pick,
+};
 use nika_session_agent::{
     Agent, AgentEvent, EntryKind, Observed, Outcome, QueueMode, QueuedState, Relay, Steering, Tree,
 };
@@ -64,7 +66,10 @@ pub(super) struct Driver {
     tree: Option<Tree>,
     store: TreeFile,
     damaged: Option<String>,
-    authorized: Option<(ProposalId, Acts)>,
+    authorized: Option<(ProposalId, Acts, String)>,
+    /// The card of the proposal the conversation showed last: the goal its preview states,
+    /// the choices it shows included, and the keys of those choices.
+    card: Option<(String, Vec<String>)>,
     steering: Steering,
     cancel: CancelCtx,
     leading: Option<led::Leading>,
@@ -108,6 +113,7 @@ impl Driver {
             store,
             damaged: None,
             authorized: None,
+            card: None,
             steering: Steering::new(),
             cancel: CancelCtx::new(),
             leading: None,
@@ -151,6 +157,14 @@ impl Driver {
                 .cloned()
                 .collect()
         })
+    }
+
+    /// The keys of the choices `set`'s card shows, when `set` is the proposal the conversation
+    /// showed last.
+    fn shown(&self, set: Option<&ProjectChangeSet>) -> Option<&[String]> {
+        let (goal, keys) = self.card.as_ref()?;
+        set.is_some_and(|set| set.goal == *goal)
+            .then_some(keys.as_slice())
     }
 
     /// The Stop of the turn about to start.
@@ -198,10 +212,18 @@ fn unix_ms() -> u64 {
 /// author's rules, then the language as reference and an index of what the lookups hold.
 fn instructions(chosen: &str) -> String {
     format!(
-        "{SYSTEM}\nThis Session: the person chose `{chosen}` to prepare with; offer the models of this machine through `models`.\n\n{REFERENCE}\n\n{}\n\n{}",
+        "{SYSTEM}\nThis Session: the person chose `{chosen}` to prepare with; offer the models of this machine through `models`.{}\n\n{REFERENCE}\n\n{}\n\n{}",
+        zone_line(),
         language_reference(),
         index()
     )
+}
+
+/// This machine's time zone, named to the author: a day the person means is a day there.
+fn zone_line() -> String {
+    (jiff::tz::TimeZone::system().iana_name())
+        .map(|zone| format!(" The person's time zone is `{zone}` (this machine's): a day they mean is a day there."))
+        .unwrap_or_default()
 }
 
 /// The compiler card's one-page language and canonical fragments, then its output conventions:
@@ -477,6 +499,7 @@ impl SessionRuntime {
             probes: probes.unwrap_or_default(),
             knowledge: self.authoring_context.knowledge().cloned(),
             admitted: None,
+            judged: (driver.store.dir()).and_then(|dir| dir.try_clone().ok()),
             verifier: Verifier {
                 seat: self.seat.clone(),
                 context: self.authoring_context.clone(),
@@ -488,6 +511,11 @@ impl SessionRuntime {
         let asker = self.questions.asker();
         let mint = move |context: &str| QuestionId::new(Witness::of(context.as_bytes()).0, &asker);
         driver.toolbox.begin(Box::new(desk), Box::new(mint));
+        // The choices a proposal shows close with it: a line typed after it answers none.
+        if driver.shown(self.pending.as_ref()).is_none() {
+            driver.card = None;
+            driver.toolbox.with(Conversation::close_choices);
+        }
         driver
             .observed
             .watch(self.progress.listener().map(tool_steps));
@@ -637,7 +665,7 @@ impl SessionRuntime {
                 } else {
                     said
                 };
-                match self.agent_propose(driver, &text, decided.acts) {
+                match self.agent_propose(driver, &text, decided.acts.zip(decided.cited)) {
                     TurnOutcome::Proposal { id, preview } => TurnOutcome::Proposal {
                         id,
                         preview: unsent(&queued)
@@ -664,7 +692,7 @@ impl SessionRuntime {
                 let current = driver.toolbox.with(|c| c.candidate().map(|c| c.number));
                 match decided.proposed {
                     Some(revision) if current == Some(revision) => {
-                        self.agent_propose(driver, &text, decided.acts)
+                        self.agent_propose(driver, &text, decided.acts.zip(decided.cited))
                     }
                     _ => TurnOutcome::Reply(text),
                 }
@@ -695,7 +723,7 @@ impl SessionRuntime {
         &mut self,
         driver: &mut Driver,
         said: &str,
-        acts: Option<Acts>,
+        acts: Option<(Acts, String)>,
     ) -> TurnOutcome {
         let Some(candidate) = driver.toolbox.with(|c| c.candidate().cloned()) else {
             return TurnOutcome::Reply(said.to_owned());
@@ -708,12 +736,16 @@ impl SessionRuntime {
             );
         };
         let at = path.display().to_string();
-        let set = match ProjectChangeSet::workflow_at(
-            &root,
-            &candidate.summary,
-            &at,
-            candidate.source.clone(),
-        ) {
+        // What the person reviews: the doubt the verifier stated and the choices the proposal
+        // shows are in its goal, so the preview and the identity the consent answers cover them.
+        let doubt = (driver.verified.lock())
+            .ok()
+            .and_then(|kept| kept.doubt().map(str::to_owned));
+        let (goal, keys) = driver.toolbox.with(|c| {
+            let keys: Vec<String> = c.open().iter().map(|q| q.key.clone()).collect();
+            (c.card(&candidate.summary, doubt.as_deref()), keys)
+        });
+        let set = match ProjectChangeSet::workflow_at(&root, &goal, &at, candidate.source.clone()) {
             Ok(set) => set,
             Err(error) => return TurnOutcome::Refusal(Refusal::from_change(&error)),
         };
@@ -731,7 +763,8 @@ impl SessionRuntime {
         let seen = (driver.verified.lock()).map(|kept| kept.read().clone());
         self.bind_read_basis(&id, &set, &seen.unwrap_or_default());
         self.pending = Some(set);
-        driver.authorized = acts.map(|acts| (id.clone(), acts));
+        driver.card = Some((goal, keys));
+        driver.authorized = acts.map(|(acts, cited)| (id.clone(), acts, cited));
         // A value the person saw bound and this revision changes is said in words.
         let changed = driver.toolbox.with(|c| c.changed().join(" · "));
         let said = if changed.is_empty() {
@@ -745,12 +778,71 @@ impl SessionRuntime {
         }
     }
 
+    /// The person's consent `line` to the proposal waiting (`set`), before anything lands: why it
+    /// cannot save it (a question asked, or a choice open, that its card does not show; an
+    /// option the person picked instead of a default it carries), else, while choices it shows
+    /// are open, the line recorded as their answer to the proposal, binding each default as the
+    /// option they picked with it.
+    pub(super) fn agent_consents(
+        &mut self,
+        set: &ProjectChangeSet,
+        line: &str,
+    ) -> Result<(), String> {
+        let Some(driver) = self.agent.as_mut() else {
+            return Ok(());
+        };
+        let shown = (driver.shown(Some(set)).map(<[String]>::to_vec)).unwrap_or_default();
+        if let Some(why) = driver.toolbox.with(|c| c.unsaved(&shown)) {
+            return Err(why);
+        }
+        let open: Vec<String> = driver
+            .toolbox
+            .with(|c| c.open().iter().map(|q| q.key.clone()).collect());
+        let Some(tree) = driver.tree.as_mut().filter(|_| !open.is_empty()) else {
+            return Ok(());
+        };
+        let parked = (tree.parked())
+            .filter(|(_, name)| *name == "propose")
+            .map(|(call, _)| call.to_owned());
+        let keys: Vec<String> = open.iter().map(|key| format!("`{key}`")).collect();
+        let note = format!(
+            "The person consented to the proposal with this line: Nika bound the default of each choice it showed ({}) as the option they picked.",
+            keys.join(", ")
+        );
+        let store = &mut driver.store;
+        let (_, cite) = (tree.append_user_read(line, (parked, None), Some(note), unix_ms(), |l| {
+            nika_session_agent::Store::append(&mut *store, l)
+        }))
+        .map_err(|error| error.to_string())?;
+        driver.toolbox.with(|c| c.consented(&cite));
+        Ok(())
+    }
+
     /// The consent the person's own words gave for the proposal this turn made, taken once:
-    /// the turn's door answers it through the consent door (`save & run`, or `yes` to save).
-    pub(super) fn agent_authorized(&mut self) -> Option<(ProposalId, &'static str)> {
-        let (id, acts) = self.agent.as_mut()?.authorized.take()?;
-        let word = if acts.run { "save & run" } else { "yes" };
-        (self.pending_proposal().as_ref() == Some(&id)).then_some((id, word))
+    /// the turn's door answers it through the consent door (`save & run`, or `yes` to save)
+    /// when the cited line consents ([`Pick::consented`], read by the Session's own reading).
+    ///
+    /// # Errors
+    ///
+    /// Why the claim authorizes nothing: the proposal then waits at the door.
+    pub(super) fn agent_authorized(
+        &mut self,
+    ) -> Result<Option<(ProposalId, &'static str)>, &'static str> {
+        let Some((id, acts, cited)) = self.agent.as_mut().and_then(|d| d.authorized.take()) else {
+            return Ok(None);
+        };
+        if self.pending_proposal().as_ref() != Some(&id) {
+            return Ok(None);
+        }
+        let asked = QuestionId::new(id.to_string(), &self.questions.asker());
+        let read = |prompt: &str| self.reason_with_money(prompt, true).ok().map(|r| r.text);
+        if Pick::consented(&cited, acts.run, asked, read) {
+            return Ok(Some((id, if acts.run { "save & run" } else { "yes" })));
+        }
+        if let Some(driver) = self.agent.as_mut() {
+            driver.run_note = Some(NOT_READ_AS_CONSENT.to_owned());
+        }
+        Err(NOT_A_CONSENT)
     }
 
     /// What the next line answers when the conversation's intelligence asked: one question, or
@@ -794,19 +886,23 @@ impl SessionRuntime {
 
     /// The work snapshot with what the conversation holds.
     pub(super) fn with_agent(&self, work: Work) -> Work {
-        match &self.agent {
-            Some(driver) => driver
-                .toolbox
-                .with(|conversation| {
-                    work.with_conversation(
-                        conversation.bindings().to_vec(),
-                        conversation.delegations().to_vec(),
-                        conversation.questions().to_vec(),
-                    )
-                })
-                .with_queued(driver.steering.records()),
-            None => work,
-        }
+        let Some(driver) = &self.agent else {
+            return work;
+        };
+        // The choices the proposal waiting shows, while it waits.
+        let shows = driver.shown(self.pending.as_ref()).is_some();
+        driver
+            .toolbox
+            .with(|conversation| {
+                let open = (conversation.open().iter()).filter(|_| shows).cloned();
+                work.with_conversation(
+                    conversation.bindings().to_vec(),
+                    conversation.delegations().to_vec(),
+                    conversation.questions().to_vec(),
+                )
+                .with_open_choices(open.collect())
+            })
+            .with_queued(driver.steering.records())
     }
 
     /// What a history keeps of the conversation, once one started: a Session the round driver

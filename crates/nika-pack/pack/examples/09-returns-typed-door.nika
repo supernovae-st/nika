@@ -39,6 +39,7 @@ tasks:
   extract:
     infer:
       prompt: "Extract named entities from · ${{ inputs.text }}"
+      # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 512
     # The type expression IS the contract: for `infer:` it lowers to the
     # same structured-output floor 04 built with `schema:` — the model's
