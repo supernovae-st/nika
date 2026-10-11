@@ -6,7 +6,7 @@ date: "2026-09-21"
 phase: "pre-1.0 · compiler war room"
 deciders: ["@ThibautMelen"]
 tags: ["architecture", "crates", "split", "size-cap", "compile"]
-affects_crates: ["nika-onboard", "nika-compile"]
+affects_crates: ["nika-onboard", "nika-compile", "nika-onboard-knowledge"]
 affects_layers: ["L4"]
 supersedes: []
 superseded_by: []
@@ -76,3 +76,16 @@ depends back on `nika-check`.
   took for the analyzer).
 - A later descent of `nika-compile` toward L1 (so the MCP oracle, Serve and the SDK depend
   on the compiler without the onboarding surface) is enabled, not decided.
+
+## Amendment · member note, 2026-10-11 (D-2026-07-09-N1)
+
+`nika-onboard` reached 14,999 of its 15,000 production lines with the r3 Foundry release still to
+embed. The knowledge door (`knowledge`: the strict admission of a release, the releases this
+build embeds, the catalogue and the authoring pack, with its release assets, build script and
+pinned vectors) moved with git history to `nika-onboard-knowledge`, a size-cap member of the same
+unit (L4, lateral `nika-onboard → nika-onboard-knowledge`, never back). `nika-onboard` re-exports
+it item by item at `knowledge::`, so every path stays, and keeps `knowledge::pin` beside the
+authoring configuration and the compile round it reads. The member imports the Compile types it
+reached through `crate::compile` from `nika-compile` and `nika-compile-seats`; no type of
+`compile_config` crosses. `bundled::{admit, identity}`, crate-visible before, became public in the
+member; `nika-onboard` re-exports the module crate-visible only.

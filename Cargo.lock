@@ -5289,7 +5289,6 @@ dependencies = [
 name = "nika-onboard"
 version = "0.123.0-preview.1"
 dependencies = [
- "include_dir",
  "nika-bm25",
  "nika-builtin",
  "nika-catalog",
@@ -5305,6 +5304,7 @@ dependencies = [
  "nika-execution",
  "nika-fs",
  "nika-kernel",
+ "nika-onboard-knowledge",
  "nika-pack",
  "nika-providers",
  "nika-runtime",
@@ -5313,6 +5313,19 @@ dependencies = [
  "nika-source",
  "nika-types",
  "nika-vocab",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "nika-onboard-knowledge"
+version = "0.123.0-preview.1"
+dependencies = [
+ "include_dir",
+ "nika-compile",
+ "nika-compile-seats",
+ "nika-event",
  "rustix 1.1.4",
  "serde_json",
  "tempfile",

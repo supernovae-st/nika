@@ -92,10 +92,13 @@ shows its actual allowance apart from an estimate: request-dependent or
 unrepresentable totals remain unknown. A legacy Session unknown-cost review names
 only the explicit recovery reservation added to its existing allowance.
 
-`knowledge` owns the strict admission of a Foundry knowledge release
+`knowledge` is the size-cap member `nika-onboard-knowledge` since 2026-10-11, re-exported
+item by item (see its crate spec and the ADR-137 amendment); `knowledge::pin` stays
+here. `knowledge` owns the strict admission of a Foundry knowledge release
 (`nika-knowledge-release/2`, profile `nika-knowledge-release-profile/r1`: the
 shared contract for producer and consumer, with common pinned vectors under
-`tests/knowledge-r1`) and the bounded BM25/graph composition shared by CLI,
+`nika-onboard-knowledge/tests/knowledge-r1`) and the bounded BM25/graph composition
+shared by CLI,
 Session and Serve. Its text recall reads informative words (builder v7): a row
 that shares only a stopword with the request (« the », « with ») is not
 recalled, and every row it does reach is still presented whole, with no count or

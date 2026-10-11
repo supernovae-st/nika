@@ -28,7 +28,7 @@ pub nika_session_intelligence::authoring::AuthoringContextError::Config(nika_onb
 pub nika_session_intelligence::authoring::AuthoringContextError::Decision
 pub nika_session_intelligence::authoring::AuthoringContextError::Decision::seat: alloc::string::String
 pub nika_session_intelligence::authoring::AuthoringContextError::Decision::why: alloc::string::String
-pub nika_session_intelligence::authoring::AuthoringContextError::Knowledge(nika_onboard::knowledge::KnowledgeError)
+pub nika_session_intelligence::authoring::AuthoringContextError::Knowledge(nika_onboard_knowledge::KnowledgeError)
 pub nika_session_intelligence::authoring::AuthoringContextError::PackForOneRequest
 pub nika_session_intelligence::authoring::AuthoringContextError::PackForOneRequest::file: std::path::PathBuf
 pub nika_session_intelligence::authoring::AuthoringContextError::UnsupportedSource
@@ -39,8 +39,8 @@ impl core::cmp::PartialEq for nika_session_intelligence::authoring::AuthoringCon
 pub fn nika_session_intelligence::authoring::AuthoringContextError::eq(&self, other: &nika_session_intelligence::authoring::AuthoringContextError) -> bool
 impl core::convert::From<nika_onboard::compile_config::ConfigError> for nika_session_intelligence::authoring::AuthoringContextError
 pub fn nika_session_intelligence::authoring::AuthoringContextError::from(source: nika_onboard::compile_config::ConfigError) -> Self
-impl core::convert::From<nika_onboard::knowledge::KnowledgeError> for nika_session_intelligence::authoring::AuthoringContextError
-pub fn nika_session_intelligence::authoring::AuthoringContextError::from(source: nika_onboard::knowledge::KnowledgeError) -> Self
+impl core::convert::From<nika_onboard_knowledge::KnowledgeError> for nika_session_intelligence::authoring::AuthoringContextError
+pub fn nika_session_intelligence::authoring::AuthoringContextError::from(source: nika_onboard_knowledge::KnowledgeError) -> Self
 impl core::convert::From<nika_session_intelligence::authoring::AuthoringContextError> for nika_session_intelligence::authoring::AuthoringError
 pub fn nika_session_intelligence::authoring::AuthoringError::from(source: nika_session_intelligence::authoring::AuthoringContextError) -> Self
 impl core::error::Error for nika_session_intelligence::authoring::AuthoringContextError

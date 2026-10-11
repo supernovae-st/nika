@@ -63,6 +63,7 @@ nika-migrate
 nika-models
 nika-ocr
 nika-onboard
+nika-onboard-knowledge
 nika-pack
 nika-pck-manifest
 nika-proof

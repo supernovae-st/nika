@@ -255,7 +255,7 @@ fn a_provider_failure_keeps_its_words_and_its_uncertain_scope() {
 #[test]
 fn the_turn_words_are_the_session_sources_own() {
     const SESSION: &str = include_str!("../../../nika-session/src/runtime/authoring.rs");
-    const BUNDLED: &str = include_str!("../../../nika-onboard/src/knowledge/bundled.rs");
+    const BUNDLED: &str = include_str!("../../../nika-onboard-knowledge/src/bundled.rs");
     assert!(
         SESSION.contains(&format!("\"{{error}}{NOT_SENT}\"")),
         "the Session's refused turn changed its words; the presenter must follow them"

@@ -17,7 +17,7 @@ pub(super) fn files() -> BTreeMap<String, Vec<u8>> {
         .map(|(path, bytes)| (path.to_owned(), bytes.to_vec()))
         .collect();
     let added = embedded_files!(
-        "../../../assets/knowledge-release-a8/";
+        "../../assets/knowledge-release-a8/";
         "NOTICE.md",
         "blocks/glob-read-many.nika",
         "blocks/lookup-enrich-by-key.nika",

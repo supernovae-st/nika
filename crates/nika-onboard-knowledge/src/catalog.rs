@@ -14,7 +14,7 @@ use nika_compile_seats::foundry::{Component, ComponentCatalog, ComponentRef, Rel
 use serde_json::Value;
 
 use super::{Composition, Snapshot};
-use crate::compile::KnowledgeReference;
+use nika_compile::KnowledgeReference;
 
 /// The row files a profile r1 catalogue enumerates: the kinds a pack presents from a release.
 const ENTRIES: [&str; 2] = ["blocks", "patterns"];

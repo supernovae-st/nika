@@ -7,7 +7,7 @@
 //! requests receive no references. Another identity or a moved byte is refused, typed.
 
 use super::*;
-use crate::knowledge::{ADMISSION_PROFILE, PACK_BUILDER};
+use crate::{ADMISSION_PROFILE, PACK_BUILDER};
 
 /// The release owner's issued identity, independent of the module's constants.
 const ISSUED_SNAPSHOT: &str = "b787fc53d6858db43d55958daaf02539fadcad4feeacc17b63c5aefcb92cc32b";

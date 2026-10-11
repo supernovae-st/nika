@@ -17,15 +17,15 @@ use serde_json::{Value, json};
 
 use nika_compile::surface::{initial, literal_projection, sha256};
 
-use crate::compile::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
-use crate::compile::{AuthoringKnowledge, CompileRequest};
-use crate::knowledge::{Snapshot, TrustedIdentity, bundled, fixture};
+use crate::{Snapshot, TrustedIdentity, bundled, fixture};
+use nika_compile::{AuthoringKnowledge, CompileRequest};
+use nika_compile_seats::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
 
 /// The admitted filter-then-report block of the current release.
 const BLOCK: &str = "block:validate-quarantine-total";
 /// Its admitted bytes, as the release ships them.
 const BYTES: &str =
-    include_str!("../../../assets/knowledge-release-r2/blocks/validate-quarantine-total.nika");
+    include_str!("../../assets/knowledge-release-r2/blocks/validate-quarantine-total.nika");
 
 fn current() -> Snapshot {
     bundled::admit(Some(&bundled::identity().unwrap())).unwrap()
@@ -286,7 +286,7 @@ async fn a_request_sharing_no_word_with_the_block_reaches_it_through_the_whole_c
 
 /// A synthetic filter-then-report block: the records older than a threshold, counted and
 /// written. A test fixture, never part of an issued release.
-const STALE: &str = include_str!("../../../tests/fixtures/foundry/stale-filter-report.nika");
+const STALE: &str = include_str!("../../tests/fixtures/foundry/stale-filter-report.nika");
 
 /// A synthetic release holding that block, admitted through the same strict door as an issued
 /// one; its check receipt is the fixture's synthetic receipt.
@@ -351,7 +351,7 @@ fn the_expansions_and_the_48_to_72_revision_are_the_pinned_candidates() {
     let snapshot = current();
     let component = snapshot.resolve(&ComponentRef::new(BLOCK)).unwrap();
     let quarantine = expand(PARENT, &instantiate(&component, &bindings()).unwrap()).unwrap();
-    let pinned = include_str!("../../../tests/fixtures/foundry/orders-quarantine.nika");
+    let pinned = include_str!("../../tests/fixtures/foundry/orders-quarantine.nika");
     assert_eq!(quarantine.candidate, pinned);
     assert_eq!(quarantine.receipt["candidate_sha256"], sha256(pinned));
     let stale = stale_release();
@@ -366,11 +366,11 @@ fn the_expansions_and_the_48_to_72_revision_are_the_pinned_candidates() {
     );
     let at48 = at48.unwrap();
     assert!(at48.ready, "{:#}", at48.receipt["check"]);
-    let pinned48 = include_str!("../../../tests/fixtures/foundry/stale-tickets-48.nika");
+    let pinned48 = include_str!("../../tests/fixtures/foundry/stale-tickets-48.nika");
     assert_eq!(at48.candidate, pinned48);
     let change = [Binding::new("const.max_age_hours", json!(72))];
     let (at72, receipt72) = revise(&at48.candidate, &at48.receipt, &component, &change).unwrap();
-    let pinned72 = include_str!("../../../tests/fixtures/foundry/stale-tickets-72.nika");
+    let pinned72 = include_str!("../../tests/fixtures/foundry/stale-tickets-72.nika");
     assert_eq!(at72, pinned72);
     assert_eq!(
         (

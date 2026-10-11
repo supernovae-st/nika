@@ -37,7 +37,7 @@ pub(crate) const POLICY_ID: &str = "policy-r";
 
 /// R3's exact files. The current release explicitly replaces changed bytes over this table.
 pub(crate) const FILES: [(&str, &[u8]); 14] = embedded_files!(
-    "../../assets/knowledge-release/";
+    "../assets/knowledge-release/";
     "LICENSES/AGPL-3.0-or-later.txt",
     "NOTICE.md",
     "blocks/run-deterministic.nika",
@@ -59,7 +59,7 @@ pub(crate) const FILES: [(&str, &[u8]); 14] = embedded_files!(
 /// # Errors
 /// [`KnowledgeError::Unavailable`] ([`RefusalCode::Untrusted`]) when the constants are not of an
 /// identity's shape: typed and said, never a panic.
-pub(crate) fn identity() -> Result<TrustedIdentity, KnowledgeError> {
+pub fn identity() -> Result<TrustedIdentity, KnowledgeError> {
     TrustedIdentity::r2(
         current::SNAPSHOT_SHA256,
         current::POLICY_ID,
@@ -79,7 +79,7 @@ pub(crate) fn identity() -> Result<TrustedIdentity, KnowledgeError> {
 ///
 /// # Errors
 /// The strict door's refusal ([`KnowledgeError::Unavailable`]), typed: never another source.
-pub(crate) fn admit(identity: Option<&TrustedIdentity>) -> Result<Snapshot, KnowledgeError> {
+pub fn admit(identity: Option<&TrustedIdentity>) -> Result<Snapshot, KnowledgeError> {
     let files = match identity.map(|id| (id.snapshot_sha256(), id.profile())) {
         Some((R3_SNAPSHOT_SHA256, _)) => FILES
             .into_iter()

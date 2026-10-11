@@ -15,9 +15,9 @@ use nika_compile_seats::foundry::release::canonical::jcs_json;
 use nika_compile_seats::foundry::{ComponentCatalog, ComponentRef, Unresolved, qualified_with};
 use serde_json::Value;
 
-use crate::compile::CompileRequest;
-use crate::compile::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
-use crate::knowledge::{Snapshot, TrustedIdentity};
+use crate::{Snapshot, TrustedIdentity};
+use nika_compile::CompileRequest;
+use nika_compile_seats::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
 
 /// The base payload of the shared r2 vectors, admitted against its identity.
 fn base() -> Snapshot {

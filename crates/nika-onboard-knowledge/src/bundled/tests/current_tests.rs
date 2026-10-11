@@ -3,14 +3,12 @@
 
 //! The current release, the r2 run contract, against its producer's record, written out here apart
 //! from the module's constants: the issued identity, the payload's exact inventory and kind counts,
-//! the same admission on disk and in memory, new pins naming it while a8 and R3 pins keep their
-//! own bytes, and a moved, added or foreign byte refused, typed.
+//! the same admission on disk and in memory, and a moved, added or foreign byte refused, typed.
+//! Its pins are tested beside the pin, in nika-onboard (`knowledge::pin`).
 
 use nika_compile_seats::foundry::release::r2;
 
-use super::a8_tests::{A8_SNAPSHOT, a8_identity, pin_of};
 use super::*;
-use crate::knowledge::pin::KnowledgePin;
 
 const R2_SNAPSHOT: &str = "1be7d6101dab9eff54f35be07463f4e320607c4a837d04ef90519abaadf48166";
 const R2_POLICY: &str = "policy-r2";
@@ -76,26 +74,11 @@ fn the_current_release_is_the_issued_r2_payload_with_its_exact_counts() {
 #[cfg(unix)]
 fn the_current_release_admits_identically_on_disk() {
     let root = tempfile::tempdir().unwrap();
-    crate::knowledge::fixture::write_files(root.path(), &current::files()).unwrap();
+    crate::fixture::write_files(root.path(), &current::files()).unwrap();
     let disk = Snapshot::open(root.path(), Some(&r2_identity())).unwrap();
     let memory = admit(Some(&r2_identity())).unwrap();
     assert_eq!(disk.manifest_sha256(), memory.manifest_sha256());
     assert_eq!(disk.rows_sha256(), memory.rows_sha256());
-}
-
-#[test]
-fn new_pins_name_r2_and_earlier_pins_keep_their_bytes() {
-    let fresh = KnowledgePin::embedded(None).unwrap();
-    assert_eq!(fresh.manifest_sha256, R2_SNAPSHOT);
-    let reopened = fresh.reopen().expect("a new pin reopens");
-    assert_eq!(fresh.moved(&reopened), None);
-    assert_eq!(reopened.rows("blocks").len(), 37);
-    let a8 = admit(Some(&a8_identity())).expect("a8 retained");
-    let earlier = pin_of(&a8, a8_identity()).reopen().expect("a8 pin");
-    assert_eq!(earlier.manifest_sha256(), A8_SNAPSHOT);
-    assert_eq!(earlier.rows("blocks").len(), 8);
-    let r3 = pin_of(&admit(Some(&issued())).unwrap(), issued()).reopen();
-    assert_eq!(r3.expect("R3 pin").manifest_sha256(), ISSUED_SNAPSHOT);
 }
 
 #[test]

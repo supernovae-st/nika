@@ -23,8 +23,8 @@ use nika_compile_seats::foundry::{
 use serde_json::{Value, json};
 
 use super::{Snapshot, TrustedIdentity};
-use crate::compile::CompileRequest;
-use crate::compile::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
+use nika_compile::CompileRequest;
+use nika_compile_seats::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
 
 /// The payload root and the release record named at build time.
 fn named() -> (&'static str, &'static str) {
