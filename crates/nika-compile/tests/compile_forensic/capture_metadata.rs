@@ -466,14 +466,12 @@ async fn observed(answers: Vec<Answer>) -> (CompileOutcome, Vec<Meta>, Canned) {
 // ── Product parity with the reference ───────────────────────────────────────────────────────
 
 /// Reviewed prompt identities for [`three_calls`] under the unchanged legacy framing.
-/// Captured after commits 1fbc82ec5 (what each fetch mode returns), bc932aca3 (the date, jq
-/// and JSON API laws) and 29b107114 (the card example without a copied output cap) changed
-/// the callable contracts and the card; before them, after commit 4470d33de sent each
-/// callable contract as its whole stdlib section (no longer cut at 2,000 characters), and
-/// before it, after commit 98c24b617462 added temporal-shape and jq date-time conventions to
-/// `native_output_conventions.md`. All are included in the System message retained by all
-/// three calls. The assertions below independently compare the observer with the legacy
-/// framing over each exact request before checking these values.
+/// Captured after the prompt inputs changed since 5167aaf5d: the shelf's date, jq and JSON API
+/// laws, the fetch modes table, the card example without a copied cap, and the recall by
+/// informative words. Before those, after commit 4470d33de sent each callable contract as its
+/// whole stdlib section (no longer cut at 2,000 characters). All are in the System message
+/// retained by all three calls. The assertions below independently compare the observer with
+/// the legacy framing over each exact request before checking these values.
 const REVIEWED_PROMPTS: [&str; 3] = [
     "b7f8794b698df441076f78ff15edd7ddbae5b25dbd6d55cff02732921355e96a",
     "235ac3a95a0aee0b92a265b9693f8a40248c401a261f0645fc63d198bba4e6fb",
