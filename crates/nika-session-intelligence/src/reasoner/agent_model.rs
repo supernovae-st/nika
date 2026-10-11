@@ -8,19 +8,28 @@
 //!
 //! [`ProviderReasoner`]: super::ProviderReasoner
 
+use std::fmt::Write as _;
 use std::sync::Arc;
+use std::time::Duration;
 
 use nika_kernel::provider::{
-    InferRequest, InferResponse, Message, ReasoningEffort, Role, StopReason,
+    InferRequest, InferResponse, Message, ProviderError, ReasoningEffort, Role, StopReason,
 };
 use nika_onboard::compile::AuthoringReasoning;
-use nika_providers::ResolvedProvider;
 use nika_providers::authoring::{policy::completion_bounds, preparation::PreparationCosts};
 use nika_providers::probe::{LocalLiveness, local_run_gate};
+use nika_providers::{ResolvedProvider, transient_rejection};
 use nika_session_agent::{AgentEvent, Model, ModelError, Reply, Request};
 use nika_types::cost::UnpricedReason;
 
 use super::{ProviderHttp, allowance_ceiling, provider_config, provider_http};
+
+/// How many times a call a provider rejected transiently is asked again.
+const ASKED_AGAIN: usize = 2;
+
+/// The longest delay the policy waits before asking again: a provider naming a longer one ends
+/// the call, said, for the person to decide.
+const LONGEST_WAIT: Duration = Duration::from_secs(30);
 
 /// One conversation's model: a `provider/name` route of the provider registry.
 #[derive(Debug, Clone)]
@@ -122,7 +131,7 @@ impl Model for AgentModel {
         let transport = self.transport()?;
         let wire_model = transport.provider.wire_model();
         let infer = (self.infer_request(wire_model, request)).map_err(ModelError::Failed)?;
-        let response = transport.asked(&infer)?;
+        let response = transport.asked(&infer, self.admission.as_ref())?;
         usable(&self.model, &response).map_err(ModelError::Failed)?;
         let reply = Reply::new(response.content, response.stop_reason).with_model(&self.model);
         Ok(if response.usage_reported {
@@ -165,14 +174,71 @@ impl AgentModel {
 }
 
 impl Transport {
-    /// The call, once, over the turn's transport; Stop ends it.
-    fn asked(&self, infer: &InferRequest) -> Result<InferResponse, ModelError> {
-        let call = PreparationCosts::while_active(self.provider.infer_reported(infer.clone()));
-        match self.runtime.block_on(call).ok_or(ModelError::Stopped)? {
-            Ok((response, _report)) => Ok(response),
-            Err((error, _report)) => Err(ModelError::Failed(error.to_string())),
+    /// The call, asked again by policy after a transient rejection (429 · 503 · 529): after
+    /// the delay the provider named, else 1 s then 2 s, `ASKED_AGAIN` times at most and never
+    /// past `LONGEST_WAIT`. Each ask is a new physical call the admission counts, never one
+    /// past an `account` that keeps the rejected call's charge as unknown; Stop ends a call or
+    /// a wait.
+    fn asked(
+        &self,
+        infer: &InferRequest,
+        account: Option<&nika_providers::InferenceAdmission>,
+    ) -> Result<InferResponse, ModelError> {
+        let mut waited: Vec<Duration> = Vec::new();
+        loop {
+            let call = PreparationCosts::while_active(self.provider.infer_reported(infer.clone()));
+            let error = match self.runtime.block_on(call).ok_or(ModelError::Stopped)? {
+                Ok((response, _report)) => return Ok(response),
+                Err((error, _report)) => error,
+            };
+            let Some(rejection) = transient_rejection(&error) else {
+                return Err(ModelError::Failed(failed(&error, &waited, None)));
+            };
+            let wait =
+                (rejection.retry_after).unwrap_or(Duration::from_secs(1_u64 << waited.len()));
+            // An account that keeps the rejected call's charge as unknown sends nothing more.
+            if account.is_some_and(|account| !admits(account)) {
+                let said = failed(&error, &waited, None);
+                return Err(ModelError::Failed(format!(
+                    "{said} · the money account keeps that call's charge as unknown, so Nika did not ask again"
+                )));
+            }
+            if waited.len() == ASKED_AGAIN || wait > LONGEST_WAIT {
+                return Err(ModelError::Failed(failed(&error, &waited, Some(wait))));
+            }
+            // The timer is made inside the runtime that drives it, never before.
+            let slept = async { PreparationCosts::while_active(tokio::time::sleep(wait)).await };
+            self.runtime.block_on(slept).ok_or(ModelError::Stopped)?;
+            waited.push(wait);
         }
     }
+}
+
+/// Whether `account` still admits a call: one it keeps as uncertain or closed sends nothing.
+fn admits(account: &nika_providers::InferenceAdmission) -> bool {
+    (account.snapshot()).is_ok_and(|receipt| receipt.state == nika_providers::AdmissionState::Open)
+}
+
+/// What the person reads of a call the policy gave up on: the provider's own error, the delay it
+/// asked that no turn waits, and the asks made again with the time they waited.
+fn failed(error: &ProviderError, waited: &[Duration], asked: Option<Duration>) -> String {
+    let mut said = error.to_string();
+    if let Some(wait) = asked.filter(|wait| *wait > LONGEST_WAIT) {
+        let secs = wait.as_secs();
+        let _ = write!(
+            said,
+            " · the provider asked to wait {secs} s: say it again later"
+        );
+    }
+    if !waited.is_empty() {
+        let total = waited.iter().sum::<Duration>().as_secs_f64();
+        let _ = write!(
+            said,
+            " · asked again {}× ({total:.1} s waited)",
+            waited.len()
+        );
+    }
+    said
 }
 
 /// What this machine's inventory says of `model` as a run's model: the route that serves it

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+use nika_error::cost::Cost;
+use nika_kernel::provider::ContentBlock;
+use nika_providers::InferenceAdmission;
 use nika_providers::model_choice::{ModelInventory, ModelRole};
 use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
 use nika_types::access::AccessClass;
@@ -132,4 +135,55 @@ fn the_calls_of_a_turn_share_one_transport() {
     let kept = model.transport.as_ref().expect("kept for the turn");
     assert!(Arc::ptr_eq(&first, kept));
     assert_eq!(peer.bodies().len(), 2);
+}
+
+/// A provider's own "busy" answer, as the wire reads a 429 or a 503.
+fn busy() -> serde_json::Value {
+    serde_json::json!({"error": {"message": "the route is busy", "type": "rate_limit_error"}})
+}
+
+/// A transient rejection is asked again after the policy's wait; each ask is a new physical
+/// call, and the answer then ends the call.
+#[test]
+fn a_busy_provider_is_asked_again_and_each_ask_is_counted() {
+    let peer = Peer::start(vec![(429, busy()), (200, response("Voici."))]);
+    let _http = test_transport::install(&peer.url);
+    let account = InferenceAdmission::new(Cost::new(20_000_000_000)).expect("an account");
+    let mut model = AgentModel::new("deepseek/deepseek-v4-pro").with_admission(account.clone());
+    let reply = model
+        .complete(&line(), &mut |_| {})
+        .expect("answered after one wait");
+    let said = (reply.content.iter()).find_map(|block| match block {
+        ContentBlock::Text { text } => Some(text.as_str()),
+        _ => None,
+    });
+    assert_eq!(said, Some("Voici."));
+    assert_eq!(peer.bodies().len(), 2);
+}
+
+/// Busy at every ask, the call ends after asking again twice, and says so.
+#[test]
+fn a_provider_busy_at_every_ask_fails_the_call_said() {
+    let peer = Peer::start(vec![(503, busy())]);
+    let _http = test_transport::install(&peer.url);
+    let mut model = AgentModel::new("deepseek/deepseek-v4-pro");
+    let error = (model.complete(&line(), &mut |_| {})).expect_err("a busy provider fails");
+    let said = matches!(&error, ModelError::Failed(why) if why.contains("asked again 2×"));
+    assert!(said, "{error:?}");
+    assert_eq!(peer.bodies().len(), 3);
+}
+
+/// A money account keeps a dispatched call the provider rejected as an unknown charge: the
+/// call is not asked again, and the person reads why.
+#[test]
+fn a_busy_provider_is_not_asked_again_past_its_money_account() {
+    let peer = Peer::start(vec![(429, busy()), (200, response("Voici."))]);
+    let _http = test_transport::install(&peer.url);
+    let account = InferenceAdmission::new(Cost::new(20_000_000_000)).expect("an account");
+    let mut model = AgentModel::new("deepseek/deepseek-v4-pro").with_admission(account.clone());
+    let error = (model.complete(&line(), &mut |_| {})).expect_err("not asked again");
+    let said = matches!(&error, ModelError::Failed(why) if why.contains("did not ask again"));
+    assert!(said, "{error:?}");
+    assert_eq!(peer.bodies().len(), 1);
+    assert_eq!(account.snapshot().expect("a receipt").attempts.len(), 1);
 }
