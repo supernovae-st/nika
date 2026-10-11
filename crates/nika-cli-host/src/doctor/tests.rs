@@ -1446,3 +1446,23 @@ fn serve_row_fails_when_the_token_is_a_symlink() {
 }
 
 mod render_parity;
+
+/// A 403 is its own rung: the provider refused this key for the route. The doctor says « key
+/// refused » with its fix, never a bare status, and never « configured ».
+#[test]
+fn a_forbidden_key_is_refused_with_its_fix() {
+    use nika_providers::KeyAuth;
+    let p = cloud("openai", "OPENAI_API_KEY", true);
+    let refused = provider_finding_auth(&p, KeyAuth::Forbidden);
+    assert_eq!(refused.level, Level::Warn);
+    assert!(
+        refused.detail.contains("403 · key refused"),
+        "{}",
+        refused.detail
+    );
+    assert!(!refused.detail.contains("configured"), "{}", refused.detail);
+    assert_eq!(
+        refused.fix.as_deref(),
+        Some("export OPENAI_API_KEY=…  # a key this route accepts")
+    );
+}
