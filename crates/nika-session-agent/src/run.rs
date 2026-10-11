@@ -39,6 +39,12 @@ const STEERED: &str = "Not run: the person wrote meanwhile; read their message f
 /// The one tool whose consecutive calls run side by side: it reads a public page, nothing else.
 const OBSERVE: &str = "observe";
 
+/// Whether a call hands the turn to the person or replaces their request: a steering line the
+/// author has not read holds it back, while candidate and read-only calls still run.
+fn hands_over(name: &str) -> bool {
+    matches!(name, "ask" | "propose" | "new_request")
+}
+
 /// What each call of a message cut at the output limit reads: none of them runs.
 const CUT: &str = "Not run: your message was cut at the output limit; re-issue the call with \
 complete arguments.";
@@ -591,7 +597,9 @@ impl<'a> Agent<'a> {
                      call it again afterwards if it is still needed."
                 )),
                 None if cut => Some(CUT.to_owned()),
-                None if self.steering.pending(QueueMode::Steer) => Some(STEERED.to_owned()),
+                None if self.steering.pending(QueueMode::Steer) && hands_over(name) => {
+                    Some(STEERED.to_owned())
+                }
                 None => None,
             };
             if let Some(reason) = skip {

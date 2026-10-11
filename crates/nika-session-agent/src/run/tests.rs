@@ -454,7 +454,7 @@ fn a_steering_line_enters_after_the_current_call_and_the_rest_wait() {
         }
     });
     let mut model = Script::new(vec![
-        calls_to(&[("c1", "read", "a.nika"), ("c2", "read", "b.nika")]),
+        calls_to(&[("c1", "read", "a.nika"), ("c2", "ask", "b.nika")]),
         says("Adding Le Monde."),
     ]);
     let mut events = Vec::new();
@@ -492,6 +492,30 @@ fn a_steering_line_enters_after_the_current_call_and_the_rest_wait() {
         !steering.reading(),
         "the run closed its queue when it ended"
     );
+}
+
+#[test]
+fn a_steering_line_holds_back_only_the_calls_that_hand_the_turn_over() {
+    let (mut tree, mut lines) = fresh();
+    let steering = Steering::new();
+    let person = steering.clone();
+    let tools = Tools::with_hook(move |call| {
+        if call.meta.as_deref() == Some("c1") {
+            person
+                .steer("use Le Monde too")
+                .expect("the run reads its queue");
+        }
+    });
+    let mut model = Script::new(vec![
+        calls_to(&[("c1", "read", "a.nika"), ("c2", "read", "b.nika")]),
+        says("Adding Le Monde."),
+    ]);
+    let outcome = Agent::new(&mut tree, &mut lines, &tools, &now)
+        .with_steering(&steering)
+        .prompt("read both", &mut model, &mut |_| {});
+    assert!(matches!(outcome, Outcome::Answered { .. }));
+    // A read still runs; the person's line enters once the message's calls ran.
+    assert_eq!(tools.called().len(), 2);
 }
 
 #[test]
