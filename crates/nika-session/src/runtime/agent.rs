@@ -725,11 +725,14 @@ impl SessionRuntime {
             );
         };
         let at = path.display().to_string();
-        // What the person reviews: the choices the proposal shows are in its goal, so the
-        // preview and the identity the consent answers cover them.
+        // What the person reviews: the doubt the verifier stated and the choices the proposal
+        // shows are in its goal, so the preview and the identity the consent answers cover them.
+        let doubt = (driver.verified.lock())
+            .ok()
+            .and_then(|kept| kept.doubt().map(str::to_owned));
         let (goal, keys) = driver.toolbox.with(|c| {
             let keys: Vec<String> = c.open().iter().map(|q| q.key.clone()).collect();
-            (c.card(&candidate.summary, None), keys)
+            (c.card(&candidate.summary, doubt.as_deref()), keys)
         });
         let set = match ProjectChangeSet::workflow_at(&root, &goal, &at, candidate.source.clone()) {
             Ok(set) => set,

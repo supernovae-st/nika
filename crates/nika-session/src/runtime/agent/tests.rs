@@ -146,3 +146,14 @@ fn the_instructions_show_how_a_workflow_writes_a_file() {
         "never asked"
     );
 }
+
+/// The doubt a ready verdict states, read from its outcome for the proposal to state.
+#[test]
+fn a_ready_verdict_keeps_its_stated_doubt() {
+    let mut out = nika_compile::initial();
+    let said = "The verifier doubted that this workflow carries the request as a whole";
+    let applied = nika_compile::DiagnosticKind::Applied;
+    nika_compile::finding(&mut out, applied, "verify_doubt", said);
+    assert_eq!(desk::stated_doubt(&out).as_deref(), Some(said));
+    assert_eq!(desk::stated_doubt(&nika_compile::initial()), None);
+}

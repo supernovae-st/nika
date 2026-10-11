@@ -70,7 +70,10 @@ pub(crate) struct Verifier {
 #[derive(Default)]
 pub(crate) struct Verified {
     verdicts: Vec<Value>,
-    ready: Option<(String, String)>,
+    /// The key of the last ready verdict, its scope and the doubt it stated.
+    ready: Option<(String, String, Option<String>)>,
+    /// The doubt the verifier stated over the last ready document, for its proposal to state.
+    doubt: Option<String>,
     /// The project files the author read through the desk, by the path a workflow names, each
     /// with the witness of the bytes it read: what its proposal's basis keeps.
     read: BTreeMap<String, Witness>,
@@ -87,6 +90,12 @@ impl Verified {
     /// The files the author read, each with the witness of the bytes it read.
     pub(crate) fn read(&self) -> &BTreeMap<String, Witness> {
         &self.read
+    }
+
+    /// The doubt the verifier stated over the last ready document: its proposal states it, so
+    /// the person reads it before consenting.
+    pub(crate) fn doubt(&self) -> Option<&str> {
+        self.doubt.as_deref()
     }
 
     /// The trial of the last ready document and its words, taken once by the proposal of it.
@@ -108,6 +117,13 @@ impl Verified {
 
 /// What the author repairs from when a document is not ready: each finding of the verification
 /// (the laws' refusals, the verifier's defects, doubts and held words) and each open question.
+/// The doubt a ready verdict states with its proposal (`verify_doubt`), when it states one.
+pub(super) fn stated_doubt(out: &CompileOutcome) -> Option<String> {
+    (out.diagnostics.iter())
+        .find(|d| d.target == "verify_doubt")
+        .map(|d| d.message.clone())
+}
+
 fn findings(out: &CompileOutcome) -> String {
     let mut lines: Vec<String> = (out.diagnostics.iter())
         .map(|d| format!("{}: {}", d.target, d.message))
@@ -365,11 +381,12 @@ impl Desk for SessionDesk {
             .to_hex()
             .to_string();
         let declined = {
-            let kept = kept(&self.verifier)?;
-            if let Some((done, scope)) = &kept.ready
-                && *done == key
+            let mut kept = kept(&self.verifier)?;
+            if let Some((done, scope, doubt)) = kept.ready.clone()
+                && done == key
             {
-                return Ok(scope.clone());
+                kept.doubt = doubt;
+                return Ok(scope);
             }
             kept.verdicts.clone()
         };
@@ -411,7 +428,10 @@ impl Desk for SessionDesk {
         let scope = blake3::hash(reach.to_string().as_bytes())
             .to_hex()
             .to_string();
-        kept(&self.verifier)?.ready = Some((key, scope.clone()));
+        let doubt = stated_doubt(&out);
+        let mut kept = kept(&self.verifier)?;
+        kept.ready = Some((key, scope.clone(), doubt.clone()));
+        kept.doubt = doubt;
         Ok(scope)
     }
 
