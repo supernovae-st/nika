@@ -46,7 +46,8 @@ use super::replay::{self, Capture, Captures};
 use crate::{ServiceExecutionDriver, SilentSink};
 
 /// The builtins a rehearsal runs: the room's file reads and writes, the run's clock, its logs
-/// and pure computation. A host screens a candidate against this surface before any room
+/// and pure computation (`nika:validate` checks data against the schema it is given and
+/// resolves no reference). A host screens a candidate against this surface before any room
 /// exists; at run time the gate refuses every other tool.
 pub const ADMITTED_TOOLS: &[&str] = &[
     "nika:read",
@@ -59,6 +60,7 @@ pub const ADMITTED_TOOLS: &[&str] = &[
     "nika:done",
     "nika:date",
     "nika:uuid",
+    "nika:validate",
 ];
 
 /// The sentence every denied capability of a rehearsal speaks.
