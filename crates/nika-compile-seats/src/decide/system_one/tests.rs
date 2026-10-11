@@ -8,7 +8,10 @@
 use serde_json::{Value, json};
 
 use super::super::{ChoiceBatch, ChoiceOption, ChoiceQuestion};
-use super::{Capacity, Declared, Partition, Refusal, read, refusal, request, sent_order};
+use super::{
+    Capacity, Declared, Order, Partition, Refusal, body, read, refusal, request, sent_order,
+    sent_order_in,
+};
 
 /// The refusal of a request past the context capacity, for many questions or one alone.
 const MAX_TOKENS: &str = r#"{"detail": {"error_type": "max_tokens_exceeded"}}"#;
@@ -654,4 +657,45 @@ fn the_planned_rate_never_counts_a_measured_body_short() {
     assert!(declared.fits(174_080, 0));
     assert!(!declared.fits(174_096, 0));
     assert_eq!(Declared::of("jev-test"), None);
+}
+
+/// `Alphabetical` writes today's bytes exactly; `Question` and `Reversed` write the criteria in
+/// the question's own order and its mirror; the bytes carry `sent_order_in`'s sequence, and
+/// every order is the same request.
+#[test]
+fn the_order_writes_the_criteria_and_alphabetical_keeps_todays_bytes() {
+    let options = vec![
+        ChoiceOption::new("zeta", "the last letter"),
+        ChoiceOption::new("alpha", "the first letter"),
+    ];
+    let question = ChoiceQuestion::new("order", "Pick one.", json!({"request": "r"}), options);
+    let today = serde_json::to_vec(&request("jev", &[&question])).unwrap_or_default();
+    assert_eq!(body("jev", &[&question], Order::Alphabetical), today);
+    assert_eq!(
+        sent_order_in(&question, Order::Question),
+        ["zeta", "alpha", "none"]
+    );
+    assert_eq!(
+        sent_order_in(&question, Order::Reversed),
+        ["none", "alpha", "zeta"]
+    );
+    for order in [Order::Alphabetical, Order::Question, Order::Reversed] {
+        let text = String::from_utf8(body("jev", &[&question], order)).unwrap_or_default();
+        assert_eq!(
+            text.len(),
+            today.len(),
+            "{order:?}: the length never depends on the order"
+        );
+        let at: Vec<usize> = (sent_order_in(&question, order).iter())
+            .filter_map(|key| text.find(&format!("\"{key}\":")))
+            .collect();
+        assert_eq!(at.len(), 3, "{order:?}: {text}");
+        assert!(at.windows(2).all(|w| w[0] < w[1]), "{order:?}: {text}");
+        let parsed: Value = serde_json::from_str(&text).unwrap_or_default();
+        assert_eq!(
+            parsed,
+            request("jev", &[&question]),
+            "{order:?}: the same request"
+        );
+    }
 }
