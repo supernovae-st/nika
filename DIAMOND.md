@@ -42,9 +42,9 @@ which produces hallucinated refactors. Over two weeks of real work,
 this yielded only 156 lines of genuine change.
 
 The Diamond solution: split the codebase into small crates, each
-**≤ 15,000 LOC**, each fitting entirely in the AI context window with
-its tests and kernel traits visible. Context headroom flips from ~25%
-to ~93%. Hallucinated refactors stop.
+**≤ 25,000 production LOC** (15,000 until ADR-154), each small enough to
+read with its tests and kernel traits in view. At the original 15,000-line
+size, context headroom flipped from ~25% to ~93%. Hallucinated refactors stop.
 
 The full argument is in
 [`docs/architecture/ai-velocity.md`](docs/architecture/ai-velocity.md).
@@ -108,8 +108,8 @@ L0   types · error · catalog · catalog-codegen · schema · event · pack ·
 `scripts/refresh-status.sh`.)
 
 Invariants enforced by CI:
-- Every crate ≤ 15,000 LOC.
-- Every file ≤ 1,500 LOC.
+- Every crate ≤ 25,000 production LOC (a warning above 15,000).
+- Every file ≤ 2,500 LOC (a warning above 1,500).
 - Every function ≤ 100 lines.
 - Zero `.unwrap()` / `.expect(` in `src/` (CI-enforced).
 - L0 has no async, no I/O, no heavy deps (tokio, reqwest, rayon rejected).
@@ -176,7 +176,7 @@ This is **not an extraction**. This is **craft**.
 
 Each crate is rewritten from scratch, guided by the legacy code on
 `brouillon` via `git show brouillon:path` but never copy-pasted. Every
-`.unwrap()` becomes `?` propagation. Every file >1,500 LOC gets
+`.unwrap()` becomes `?` propagation. Every file >2,500 LOC gets
 split into modules. Every function >100 lines gets decomposed. Every
 public API gets `#[non_exhaustive]`, a `new()` constructor, a spec,
 and tests before implementation.

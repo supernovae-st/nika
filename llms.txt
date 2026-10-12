@@ -29,7 +29,7 @@
 ## How to work in this repo
 
 - [CONTRIBUTING.md](CONTRIBUTING.md): How to contribute, the admission flow.
-- [.claude/rules/diamond-discipline.md](.claude/rules/diamond-discipline.md): The hard rules — read-only `brouillon`, 0 unwrap/expect in `src/`, ≤1500 LOC/file, `#[non_exhaustive]` error enums, every I/O behind a kernel trait.
+- [.claude/rules/diamond-discipline.md](.claude/rules/diamond-discipline.md): The hard rules — read-only `brouillon`, 0 unwrap/expect in `src/`, ≤2,500 LOC/file, `#[non_exhaustive]` error enums, every I/O behind a kernel trait.
 - [.claude/rules/commit-granularity.md](.claude/rules/commit-granularity.md): Atomic commits, the mandatory admission commit-body format, `Co-Authored-By: Nika 🦋` (never "Claude").
 - [docs/adr/adr-003-12-gate-admission.md](docs/adr/adr-003-12-gate-admission.md): The 12-gate crate admission protocol.
 - [docs/adr/adr-090-structural-doctrine-enforcement.md](docs/adr/adr-090-structural-doctrine-enforcement.md): The enforcement discipline — gates project a single source of truth.

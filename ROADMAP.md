@@ -78,7 +78,8 @@ could hold it in working memory. Refactors happened by pattern-match, and
 pattern-match hallucinated.
 
 Diamond is a rewrite under one constraint: **every crate fits in an AI context
-window**. 15k LOC cap per crate. 1,500 LOC cap per file. 100 lines cap per
+window**. 25k production-LOC cap per crate and 2,500 LOC per file since ADR-154
+(15k and 1,500 at the start). 100 lines cap per
 function. 50-90 crates instead of 31, because smaller, sharper crates compose
 better than fewer, bloated ones.
 
