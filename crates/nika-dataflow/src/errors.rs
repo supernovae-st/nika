@@ -97,7 +97,9 @@ pub enum DataflowError {
     /// A value a run built crossed the bound its scope carries, a rehearsal room's
     /// ([`crate::ValueBound`]). The bound is the room's, never the language's: no spec-plane
     /// class, the engine-internal [`codes::NIKA_1712`] is its wire code as well.
-    #[error("NIKA-1712 · a value the run built is {bytes} bytes, over the room's bound of {limit}")]
+    #[error(
+        "NIKA-1712 · a value the run built is {bytes} bytes, over the room's bound of {limit}: shrink the value this task builds, or run it outside a rehearsal room, where no bound applies"
+    )]
     #[diagnostic(code(nika::runtime::value_bound))]
     ValueBound {
         /// The bytes the value held when it crossed the bound.

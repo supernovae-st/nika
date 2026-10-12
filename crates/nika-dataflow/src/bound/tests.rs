@@ -48,3 +48,15 @@ fn a_value_built_over_the_bound_is_refused() {
     assert!(matches!(refused, Err(DataflowError::ValueBound { .. })));
     assert!(render_json(&held, &base).is_ok());
 }
+
+/// A value over the bound says how to clear it: shrink the value, or run outside the room.
+#[test]
+fn a_value_over_the_bound_says_how_to_clear_it() {
+    let refused = DataflowError::ValueBound {
+        bytes: 1_200,
+        limit: 1_000,
+    };
+    let said = refused.to_string();
+    assert!(said.contains("over the room's bound of 1000"), "{said}");
+    assert!(said.contains("shrink the value this task builds"), "{said}");
+}
