@@ -62,6 +62,7 @@ missed slot becomes (`manqué:`). Neither `plafond` nor `manqué` has a default.
   --dry` says what would fire) before activating it.
 
 Every cadence form, the suspension triple and the activation commands are in the
+[Projects and schedules](https://docs.nika.sh/guides/projects-and-schedules) guide and the
 [arm reference](https://docs.nika.sh/reference/arm).
 
 ## A checked project

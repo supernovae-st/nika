@@ -5,6 +5,12 @@ Versions move together across all manifests (the mirror gate pins it).
 
 ## Unreleased
 
+The schedule teaching links the « Projects and schedules » guide
+(https://docs.nika.sh/guides/projects-and-schedules) from the
+operating skill, the migration row, the language rule, the session
+map, the README and the check-on-edit message on a `nika.yaml`
+finding.
+
 The authoring skill takes the project as its unit of work. A new
 `references/project.md` covers the project file, supporting files, child
 workflows and their two path bases, and beats with their zone, ceiling

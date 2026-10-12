@@ -174,7 +174,8 @@ fsync durability or that a detached write has stopped.
   rehearse it with `nika serve --once --dry` before activating it. A
   suspension is the triple `actif: false`, `raison:` and
   `jusqu_au: YYYY-MM-DD`; deleting the line does not
-  disarm. Reference: https://docs.nika.sh/reference/arm
+  disarm. Guide: https://docs.nika.sh/guides/projects-and-schedules
+  (reference: https://docs.nika.sh/reference/arm)
 
 ## MCP servers and definition drift
 
