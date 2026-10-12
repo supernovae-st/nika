@@ -141,11 +141,34 @@ pub fn run_with(target: WireTarget, dir: &str, options: WireOptions) -> VerbOutp
         );
     }
 
+    wire_targets(&targets, dir, options.dry_run)
+}
+
+/// Wire `targets`, preflighted as one: every client is planned
+/// before the first write, and one the plan cannot wire as it is (a
+/// malformed config, a server table that is not an object) leaves every
+/// config untouched, exit ENV. A preview is that plan alone.
+fn wire_targets(targets: &[WireTarget], dir: &str, dry_run: bool) -> VerbOutput {
+    let plan = collect_plan(targets, dir);
+    let refused = plan
+        .iter()
+        .any(|action| matches!(action, WireAction::Skipped(_)));
+    if dry_run {
+        let text = render_plan(&plan);
+        return if refused {
+            VerbOutput::env(text)
+        } else {
+            VerbOutput::ok(text)
+        };
+    }
+    if refused {
+        return VerbOutput::env(render_refused(&plan));
+    }
+
     let mut actions = Vec::new();
     let mut failed = false;
-
     for one in targets {
-        match wire_one(one, dir, options.dry_run) {
+        match wire_one(*one, dir, false) {
             Ok(action) => actions.push(action),
             Err(message) => {
                 failed = true;
@@ -153,12 +176,7 @@ pub fn run_with(target: WireTarget, dir: &str, options: WireOptions) -> VerbOutp
             }
         }
     }
-
-    let text = if options.dry_run {
-        render_plan(&actions)
-    } else {
-        render(&actions)
-    };
+    let text = render(&actions);
     if failed {
         VerbOutput::env(text)
     } else {
@@ -488,9 +506,9 @@ fn lmstudio_mcp_path_from(home: &Path) -> PathBuf {
 fn patch_zed(path: &Path, dry_run: bool) -> Result<WireAction, String> {
     let existed = path.exists();
     let label_path = format!("zed: {}", path.display());
-    let mut root = if existed {
-        match read_json(path) {
-            Ok(value) => value,
+    let (mut root, original) = if existed {
+        match read_json_text(path) {
+            Ok((value, text)) => (value, Some(text)),
             Err(_) => {
                 return Ok(WireAction::Manual(format!(
                     "{label_path} is JSONC (comments) — add this to \
@@ -500,21 +518,13 @@ fn patch_zed(path: &Path, dry_run: bool) -> Result<WireAction, String> {
             }
         }
     } else {
-        Value::Object(Map::new())
+        (Value::Object(Map::new()), None)
     };
 
     let object = root
         .as_object_mut()
         .ok_or_else(|| format!("zed: {} is not a JSON object", path.display()))?;
-    let servers_value = object
-        .entry("context_servers".to_owned())
-        .or_insert_with(|| Value::Object(Map::new()));
-    if !servers_value.is_object() {
-        *servers_value = Value::Object(Map::new());
-    }
-    let servers = servers_value
-        .as_object_mut()
-        .ok_or_else(|| "zed: context_servers is not a JSON object".to_owned())?;
+    let servers = server_table(object, "context_servers", "zed", path)?;
 
     let existing = servers.get("nika").cloned();
     let desired = zed_server();
@@ -527,7 +537,7 @@ fn patch_zed(path: &Path, dry_run: bool) -> Result<WireAction, String> {
 
     servers.insert("nika".to_owned(), desired);
     if !dry_run {
-        write_json(path, &root)?;
+        write_json(path, &root, original.as_deref())?;
     }
 
     if migrated {
@@ -584,24 +594,12 @@ fn patch_config(
     dry_run: bool,
 ) -> Result<WireAction, String> {
     let existed = path.exists();
-    let mut root = if existed {
-        read_json(path)?
-    } else {
-        Value::Object(Map::new())
-    };
+    let (mut root, original) = read_existing(path, existed)?;
 
     let object = root
         .as_object_mut()
         .ok_or_else(|| format!("{label}: {} is not a JSON object", path.display()))?;
-    let servers_value = object
-        .entry(server_key.to_owned())
-        .or_insert_with(|| Value::Object(Map::new()));
-    if !servers_value.is_object() {
-        *servers_value = Value::Object(Map::new());
-    }
-    let servers = servers_value
-        .as_object_mut()
-        .ok_or_else(|| format!("{label}: {server_key} is not a JSON object"))?;
+    let servers = server_table(object, server_key, label, path)?;
 
     let existing = servers.get("nika").cloned();
     let desired = nika_server(include_type);
@@ -616,7 +614,7 @@ fn patch_config(
 
     servers.insert("nika".to_owned(), desired);
     if !dry_run {
-        write_json(path, &root)?;
+        write_json(path, &root, original.as_deref())?;
     }
 
     let label_path = format!("{label}: {}", path.display());
@@ -643,11 +641,17 @@ fn patch_toml_mcp(path: &Path, label: &str, dry_run: bool) -> Result<WireAction,
         .parse()
         .map_err(|e| format!("{}: malformed TOML: {e}", path.display()))?;
 
+    // A value that is not a table is the user's: refused, never replaced.
     let servers = doc
         .entry("mcp_servers")
         .or_insert(toml_edit::table())
         .as_table_mut()
-        .ok_or_else(|| format!("{label}: mcp_servers is not a TOML table"))?;
+        .ok_or_else(|| {
+            format!(
+                "{label}: `mcp_servers` in {} is not a TOML table; nika wire leaves it as it is",
+                path.display()
+            )
+        })?;
     servers.set_implicit(true);
 
     let existing = servers.get("nika");
@@ -669,7 +673,8 @@ fn patch_toml_mcp(path: &Path, label: &str, dry_run: bool) -> Result<WireAction,
     servers.insert("nika", toml_edit::Item::Table(entry));
 
     if !dry_run {
-        write_atomic(path, &doc.to_string())?;
+        let original = existed.then_some(body.as_str());
+        write_read_back(path, &doc.to_string(), original, write_atomic)?;
     }
 
     if migrated {
@@ -707,23 +712,11 @@ fn toml_entry_is_stale(item: &toml_edit::Item) -> bool {
 /// reusing the same read/merge/write mechanics (#330).
 fn patch_opencode(path: &Path, dry_run: bool) -> Result<WireAction, String> {
     let existed = path.exists();
-    let mut root = if existed {
-        read_json(path)?
-    } else {
-        Value::Object(Map::new())
-    };
+    let (mut root, original) = read_existing(path, existed)?;
     let object = root
         .as_object_mut()
         .ok_or_else(|| format!("opencode: {} is not a JSON object", path.display()))?;
-    let servers_value = object
-        .entry("mcp".to_owned())
-        .or_insert_with(|| Value::Object(Map::new()));
-    if !servers_value.is_object() {
-        *servers_value = Value::Object(Map::new());
-    }
-    let servers = servers_value
-        .as_object_mut()
-        .ok_or_else(|| "opencode: mcp is not a JSON object".to_owned())?;
+    let servers = server_table(object, "mcp", "opencode", path)?;
 
     let desired = serde_json::json!({
         "type": "local",
@@ -736,7 +729,7 @@ fn patch_opencode(path: &Path, dry_run: bool) -> Result<WireAction, String> {
     }
     servers.insert("nika".to_owned(), desired);
     if !dry_run {
-        write_json(path, &root)?;
+        write_json(path, &root, original.as_deref())?;
     }
     let label_path = format!("opencode: {}", path.display());
     if existed {
@@ -760,7 +753,7 @@ const HERMES_SNIPPET: &str =
 fn patch_hermes(path: &Path, dry_run: bool) -> Result<WireAction, String> {
     if !path.exists() {
         if !dry_run {
-            write_atomic(path, HERMES_SNIPPET)?;
+            write_read_back(path, HERMES_SNIPPET, None, write_atomic)?;
         }
         return Ok(WireAction::Created(format!("hermes: {}", path.display())));
     }
@@ -805,23 +798,11 @@ fn copilot_server() -> Value {
 
 fn patch_copilot(path: &Path, dry_run: bool) -> Result<WireAction, String> {
     let existed = path.exists();
-    let mut root = if existed {
-        read_json(path)?
-    } else {
-        Value::Object(Map::new())
-    };
+    let (mut root, original) = read_existing(path, existed)?;
     let object = root
         .as_object_mut()
         .ok_or_else(|| format!("copilot: {} is not a JSON object", path.display()))?;
-    let servers_value = object
-        .entry("mcpServers".to_owned())
-        .or_insert_with(|| Value::Object(Map::new()));
-    if !servers_value.is_object() {
-        *servers_value = Value::Object(Map::new());
-    }
-    let servers = servers_value
-        .as_object_mut()
-        .ok_or_else(|| "copilot: mcpServers is not a JSON object".to_owned())?;
+    let servers = server_table(object, "mcpServers", "copilot", path)?;
 
     let existing = servers.get("nika").cloned();
     let desired = copilot_server();
@@ -833,7 +814,7 @@ fn patch_copilot(path: &Path, dry_run: bool) -> Result<WireAction, String> {
     }
     servers.insert("nika".to_owned(), desired);
     if !dry_run {
-        write_json(path, &root)?;
+        write_json(path, &root, original.as_deref())?;
     }
     let label_path = format!("copilot: {}", path.display());
     if migrated {
@@ -850,9 +831,9 @@ fn patch_copilot(path: &Path, dry_run: bool) -> Result<WireAction, String> {
 /// snippet, byte-identical otherwise.
 fn patch_amp(path: &Path, dry_run: bool) -> Result<WireAction, String> {
     let existed = path.exists();
-    let mut root = if existed {
-        match read_json(path) {
-            Ok(value) => value,
+    let (mut root, original) = if existed {
+        match read_json_text(path) {
+            Ok((value, text)) => (value, Some(text)),
             Err(_) => {
                 return Ok(WireAction::Manual(format!(
                     "amp: {} is JSONC (comments) — add this under \
@@ -863,20 +844,12 @@ fn patch_amp(path: &Path, dry_run: bool) -> Result<WireAction, String> {
             }
         }
     } else {
-        Value::Object(Map::new())
+        (Value::Object(Map::new()), None)
     };
     let object = root
         .as_object_mut()
         .ok_or_else(|| format!("amp: {} is not a JSON object", path.display()))?;
-    let servers_value = object
-        .entry("amp.mcpServers".to_owned())
-        .or_insert_with(|| Value::Object(Map::new()));
-    if !servers_value.is_object() {
-        *servers_value = Value::Object(Map::new());
-    }
-    let servers = servers_value
-        .as_object_mut()
-        .ok_or_else(|| "amp: amp.mcpServers is not a JSON object".to_owned())?;
+    let servers = server_table(object, "amp.mcpServers", "amp", path)?;
 
     let existing = servers.get("nika").cloned();
     let desired = nika_server(false);
@@ -888,7 +861,7 @@ fn patch_amp(path: &Path, dry_run: bool) -> Result<WireAction, String> {
     }
     servers.insert("nika".to_owned(), desired);
     if !dry_run {
-        write_json(path, &root)?;
+        write_json(path, &root, original.as_deref())?;
     }
     let label_path = format!("amp: {}", path.display());
     if migrated {
@@ -918,9 +891,49 @@ fn nika_server(include_type: bool) -> Value {
     Value::Object(server)
 }
 
+#[cfg(test)]
 fn read_json(path: &Path) -> Result<Value, String> {
+    read_json_text(path).map(|(value, _)| value)
+}
+
+/// A JSON config and its exact text, kept to restore it when a write does
+/// not read back.
+fn read_json_text(path: &Path) -> Result<(Value, String), String> {
     let body = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    serde_json::from_str(&body).map_err(|e| format!("{}: malformed JSON: {e}", path.display()))
+    let value = serde_json::from_str(&body)
+        .map_err(|e| format!("{}: malformed JSON: {e}", path.display()))?;
+    Ok((value, body))
+}
+
+/// The config as it is (with its text) when it exists, else an empty object.
+fn read_existing(path: &Path, existed: bool) -> Result<(Value, Option<String>), String> {
+    if existed {
+        let (value, text) = read_json_text(path)?;
+        Ok((value, Some(text)))
+    } else {
+        Ok((Value::Object(Map::new()), None))
+    }
+}
+
+/// The server table under `key`, created when absent. A value that is not
+/// a JSON object is the user's, never ours to replace (an array of
+/// servers was once erased to `{}`): refused, and the file is left as it is.
+fn server_table<'a>(
+    object: &'a mut Map<String, Value>,
+    key: &str,
+    label: &str,
+    path: &Path,
+) -> Result<&'a mut Map<String, Value>, String> {
+    object
+        .entry(key.to_owned())
+        .or_insert_with(|| Value::Object(Map::new()))
+        .as_object_mut()
+        .ok_or_else(|| {
+            format!(
+                "{label}: `{key}` in {} is not a JSON object; nika wire leaves it as it is",
+                path.display()
+            )
+        })
 }
 
 /// The ONE write path for host configs (audit 2026-07-31): the body
@@ -963,10 +976,41 @@ fn write_atomic_via(tmp: &Path, path: &Path, body: &str) -> Result<(), String> {
     std::fs::rename(tmp, path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-fn write_json(path: &Path, value: &Value) -> Result<(), String> {
+fn write_json(path: &Path, value: &Value, original: Option<&str>) -> Result<(), String> {
     let body = serde_json::to_string_pretty(value)
         .map_err(|e| format!("{}: cannot encode JSON: {e}", path.display()))?;
-    write_atomic(path, &format!("{body}\n"))
+    write_read_back(path, &format!("{body}\n"), original, write_atomic)
+}
+
+/// Write `body` through `write`, then read the file back. When it
+/// does not hold exactly `body`, the config is put back as it was: its
+/// `original` text, or no file when there was none, and the write fails.
+fn write_read_back(
+    path: &Path,
+    body: &str,
+    original: Option<&str>,
+    write: fn(&Path, &str) -> Result<(), String>,
+) -> Result<(), String> {
+    write(path, body)?;
+    // seam-bypass-ok: the readback of the host config just written
+    if std::fs::read_to_string(path).is_ok_and(|read| read == body) {
+        return Ok(());
+    }
+    let restored = match original {
+        Some(text) => write_atomic(path, text),
+        // seam-bypass-ok: removing the file this write created
+        None => std::fs::remove_file(path).map_err(|e| format!("{}: {e}", path.display())),
+    };
+    Err(match restored {
+        Ok(()) => format!(
+            "{}: the file read back is not what nika wire wrote; it is restored as it was",
+            path.display()
+        ),
+        Err(why) => format!(
+            "{}: the file read back is not what nika wire wrote, and restoring it failed: {why}",
+            path.display()
+        ),
+    })
 }
 
 #[allow(clippy::disallowed_methods)]
@@ -1001,21 +1045,34 @@ fn render(actions: &[WireAction]) -> String {
 /// written — a preview that reads like a receipt would be a lie (H7).
 fn render_plan(actions: &[WireAction]) -> String {
     let mut lines = vec!["dry-run · plan only · nothing written".to_owned()];
-    for action in actions {
-        let line = match action {
-            WireAction::Created(path) => format!("+ would create {path}"),
-            WireAction::Updated(path) => format!("+ would update {path}"),
-            WireAction::Migrated(path) => {
-                format!("+ would migrate {path} (`mcp serve --stdio` → `mcp`)")
-            }
-            WireAction::Current(path) => format!("· current {path}"),
-            WireAction::Skipped(message) => format!("✖ skipped {message}"),
-            WireAction::Manual(message) => format!("✋ manual {message}"),
-        };
-        lines.push(line);
-    }
+    lines.extend(plan_lines(actions));
     lines.push("→ re-run without --dry-run to apply".to_owned());
     lines.join("\n")
+}
+
+/// A real run its preflight refused: the same plan, nothing
+/// written, and the way on.
+fn render_refused(actions: &[WireAction]) -> String {
+    let mut lines = vec!["nothing written · a client config cannot be wired as it is".to_owned()];
+    lines.extend(plan_lines(actions));
+    lines.push(
+        "→ fix the skipped config, or wire the others by name (`nika wire <client>`)".to_owned(),
+    );
+    lines.join("\n")
+}
+
+/// One line per planned outcome, phrased as intent.
+fn plan_lines(actions: &[WireAction]) -> impl Iterator<Item = String> + '_ {
+    actions.iter().map(|action| match action {
+        WireAction::Created(path) => format!("+ would create {path}"),
+        WireAction::Updated(path) => format!("+ would update {path}"),
+        WireAction::Migrated(path) => {
+            format!("+ would migrate {path} (`mcp serve --stdio` → `mcp`)")
+        }
+        WireAction::Current(path) => format!("· current {path}"),
+        WireAction::Skipped(message) => format!("✖ skipped {message}"),
+        WireAction::Manual(message) => format!("✋ manual {message}"),
+    })
 }
 
 #[cfg(test)]
