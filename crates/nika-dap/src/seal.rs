@@ -553,9 +553,12 @@ impl SealTeardown {
     /// (proves · the certificate · the `outcome` word the caller's door
     /// maps), the budgets ρ from the settlement's own spend (ADR-128 ·
     /// `spent_usd` only when metered), the caller's `sdk_receipt` binding,
-    /// and the signed-memory fold under `memory_root`. The effects ε and the
-    /// quarantine fold need the per-task records a service boundary redacts:
-    /// their keys stay OUT (absent is honest, never a fabricated zero).
+    /// and the signed-memory fold under `memory_root`. The effects ε need the
+    /// per-task records a service boundary redacts: their key stays OUT
+    /// (absent is honest, never a fabricated zero). The quarantine fold is
+    /// the host's to set from the driver's in-process run outcome
+    /// ([`crate::quarantine::attend_at`] under the display root); this
+    /// constructor leaves it out.
     #[must_use]
     pub fn served(
         workflow: &nika_schema::raw::RawWorkflow,

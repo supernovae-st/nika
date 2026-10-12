@@ -501,7 +501,7 @@ impl ServiceExecutionDriver {
             None => runtime.run(stamper.as_mut(), &mut sink).await,
         };
         Ok(ServiceExecutionResult::from_runtime(
-            &outcome,
+            outcome,
             sink.into_events(),
         ))
     }
@@ -1097,6 +1097,9 @@ pub struct ServiceExecutionResult {
     error_code: Option<String>,
     error_message: Option<String>,
     settlement: Option<RunSettlement>,
+    /// The runtime's own outcome, kept for the host's teardown (a failed
+    /// run's quarantine reads which writers settled); never projected.
+    run_outcome: Option<RunOutcome>,
 }
 
 impl std::fmt::Debug for ServiceExecutionResult {
@@ -1119,11 +1122,20 @@ impl ServiceExecutionResult {
             error_code: None,
             error_message: None,
             settlement: None,
+            run_outcome: None,
         }
     }
 
-    fn from_runtime(outcome: &Result<RunOutcome, RuntimeError>, events: Vec<ServiceEvent>) -> Self {
-        let (status, error) = match outcome {
+    /// The runtime's own outcome, for the host's teardown only: a failed
+    /// served run's quarantine reads which writer tasks settled. It is never
+    /// part of the redacted projection and never leaves the process.
+    #[must_use]
+    pub fn run_outcome(&self) -> Option<&RunOutcome> {
+        self.run_outcome.as_ref()
+    }
+
+    fn from_runtime(outcome: Result<RunOutcome, RuntimeError>, events: Vec<ServiceEvent>) -> Self {
+        let (status, error) = match &outcome {
             Err(error) => (
                 ServiceExecutionStatus::Refused,
                 Some((error.spec_code(), error.wire_message())),
@@ -1142,7 +1154,7 @@ impl ServiceExecutionResult {
             },
         };
         let mut result = Self::new(status, events);
-        if let Ok(outcome) = outcome {
+        if let Ok(outcome) = &outcome {
             result.outputs.clone_from(&outcome.outputs);
             // Preserve runtime facts and the local forensic outcome. Only
             // diagnostic text crosses the same public redaction boundary as
@@ -1157,6 +1169,7 @@ impl ServiceExecutionResult {
             result.error_code = Some(code);
             result.error_message = Some(redact_service_message(&message));
         }
+        result.run_outcome = outcome.ok();
         result
     }
 

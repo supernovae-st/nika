@@ -374,10 +374,20 @@ fn run_admitted_resident_job(
         .with_access_plan(plan)
         .with_mirror(mirror)
         .with_cancel_option(operator_cancel.clone());
-    let options = match &cost {
-        Some(cost) => options.with_runtime_config(cost.config.clone()),
-        None => options,
+    // The run's write-origins ledger, staged under the display root where a
+    // served run's writes land: a failed run moves only what it created.
+    let write_origins = Arc::new(nika_runtime::WriteOrigins::new(
+        Path::new(nika_dap::store::ORIGINALS_DIR).join(driver.execution_id().to_string()),
+    ));
+    let config = match &cost {
+        Some(cost) => cost.config.clone(),
+        None => {
+            let run = driver.workflow().run.as_ref().map(|run| &run.value);
+            nika_runtime::RuntimeConfig::new(None, nika_runtime::RunSeams::of(run).jitter_seed)
+        }
     };
+    let options =
+        options.with_runtime_config(config.with_write_origins(Arc::clone(&write_origins)));
     let result = rt.block_on(async {
         tokio::select! {
             result = driver.execute(options) => Some(result),
@@ -394,6 +404,7 @@ fn run_admitted_resident_job(
             let facts = SealFacts {
                 driver: &driver,
                 outcome: &outcome,
+                origins: &write_origins,
                 snapshot_digest: &snapshot_digest,
                 display_root: &display_root,
             };
@@ -418,6 +429,8 @@ fn run_admitted_resident_job(
         None => {
             // The resident stopped a run the runtime never settled (the cancel
             // grace · the execution ceiling · shutdown): its END, by DAP's law.
+            // Its staged originals are copies; nothing will read them back.
+            nika_dap::quarantine::discard_staging(&display_root.join(write_origins.staging()));
             let operator = operator_cancel
                 .as_ref()
                 .is_some_and(CancelCtx::is_cancelled);
@@ -454,6 +467,8 @@ fn map_outcome(outcome: &ServiceExecutionResult) -> ExecutionOutcome {
 struct SealFacts<'a> {
     driver: &'a ServiceExecutionDriver,
     outcome: &'a ServiceExecutionResult,
+    /// What the run's writers created or changed (the quarantine's law).
+    origins: &'a nika_runtime::WriteOrigins,
     snapshot_digest: &'a str,
     display_root: &'a Path,
 }
@@ -470,7 +485,7 @@ fn settle_journal(
 ) -> Result<Option<String>, crate::JournalEvidence> {
     let settled = journal_guard(journal).settle_sealed(|trace| {
         let workflow_hash = nika_dap::seal::workflow_hash(facts.driver.workflow());
-        let teardown = resident_teardown(facts);
+        let teardown = resident_teardown(facts, trace.path());
         seal.seal(trace, workflow_hash.as_deref(), Some(&teardown));
     });
     settled.map_err(|error| crate::JournalEvidence::from_error(&error))
@@ -480,8 +495,13 @@ fn settle_journal(
 /// ([`nika_dap::seal::SealTeardown::served`], the CLI's `attended_facts` as far
 /// as the service boundary carries them) from what this door holds at
 /// settlement: the outcome word it maps from the service status and the SDK
-/// receipt binding the local door signs too.
-fn resident_teardown(facts: &SealFacts<'_>) -> nika_dap::seal::SealTeardown {
+/// receipt binding the local door signs too. A failed run's quarantine runs
+/// here, under the display root its writes landed in, by the CLI's law: only
+/// the files the run created move, and the staged originals are released.
+fn resident_teardown(
+    facts: &SealFacts<'_>,
+    journal: Option<&Path>,
+) -> nika_dap::seal::SealTeardown {
     let outcome = match facts.outcome.status() {
         ServiceExecutionStatus::Succeeded => "completed",
         ServiceExecutionStatus::Paused => "paused",
@@ -492,14 +512,26 @@ fn resident_teardown(facts: &SealFacts<'_>) -> nika_dap::seal::SealTeardown {
         driver.execution_id(),
         facts.snapshot_digest,
     );
-    nika_dap::seal::SealTeardown::served(
+    let mut teardown = nika_dap::seal::SealTeardown::served(
         driver.workflow(),
         driver.report(),
         outcome,
         facts.outcome.settlement(),
         binding,
         facts.display_root,
-    )
+    );
+    teardown.quarantine = facts.outcome.run_outcome().and_then(|run| {
+        let origin_of = |path: &str| facts.origins.origin(path);
+        nika_dap::quarantine::attend_at(
+            facts.display_root,
+            driver.workflow(),
+            run,
+            journal,
+            &origin_of,
+        )
+    });
+    nika_dap::quarantine::discard_staging(&facts.display_root.join(facts.origins.staging()));
+    teardown
 }
 
 /// Why optional HTTP launch flags could not form one complete listener.
