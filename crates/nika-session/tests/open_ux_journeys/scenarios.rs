@@ -374,6 +374,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "open_defaults" => open_defaults(),
         "open_pick_other" => open_pick_other(),
         "default_not_asked" => default_not_asked(),
+        "answered_literal" => answered_literal(),
         other => panic!("unknown scenario {other}"),
     }
 }
@@ -1551,6 +1552,58 @@ fn trial_assert() -> Scenario {
             replies: Vec::new(),
             picks: Vec::new(),
             verdicts: Vec::new(),
+        },
+    }
+}
+
+/// A count over the lines that carry the person's customer code, a fact only they have.
+pub(crate) const CODE_REQUEST: &str = "compte les lignes de ./data/ventes.csv qui portent mon code client et ecris le total dans ./out/total.txt";
+/// The person's customer code, their answer.
+pub(crate) const CODE: &str = "C-1042";
+/// The sales, two lines with the person's code.
+const CODED_SALES: &str =
+    "date,client,montant\n2026-10-01,C-1042,12\n2026-10-02,C-7,30\n2026-10-03,C-1042,8\n";
+
+/// The person's customer code, asked: no default can stand for it.
+fn code_question() -> Value {
+    json!({"questions": [{"key": "client_code", "role": "value",
+        "question": "Quel est ton code client ?", "free_text": true}]})
+}
+
+/// The count of the lines that carry the answered code.
+fn coded_count() -> Value {
+    let filter = format!("map(select(contains(\\\"{CODE}\\\")))");
+    json!({"source": COUNT.replace("map(select(length > 0))", &filter), "resolutions": [],
+        "summary": "compte les lignes qui portent C-1042"})
+}
+
+/// The code asked, answered, bound by its question and written into the filter; the judge
+/// doubts the request unless it reads that answer.
+fn answered_literal() -> Scenario {
+    let bind = json!({"answered": [{"key": "client_code", "value": CODE, "message": "u2",
+        "excerpt": CODE}]});
+    Scenario {
+        files: vec![("data/ventes.csv", CODED_SALES)],
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(CODE_REQUEST), Act::Submit(CODE)],
+        script: Script {
+            agent: vec![
+                call("ask", code_question()),
+                call("ask", bind),
+                call("candidate_write", coded_count()),
+                call_saying(
+                    "Voici le workflow : il compte les lignes qui portent C-1042.",
+                    "propose",
+                    json!({}),
+                ),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: vec![
+                "unless-answered:client_code".to_owned(),
+                "unexercised".to_owned(),
+            ],
         },
     }
 }

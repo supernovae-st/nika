@@ -405,12 +405,13 @@ impl Desk for SessionDesk {
     fn verify(
         &mut self,
         source: &str,
-        stated: &str,
+        (stated, answers, original): (&str, &BTreeMap<String, String>, Option<&str>),
         selections: (&[Resolution], &[Resolution]),
     ) -> Result<String, String> {
-        // The same bytes against the same words and selections: the verdict stands.
+        // The same bytes against the same words, answers and selections: the verdict stands.
         let rows = |s: &[Resolution]| s.iter().map(Resolution::to_json).collect::<Vec<_>>();
-        let said = json!([source, stated, rows(selections.0), rows(selections.1)]);
+        let (authored, host) = (rows(selections.0), rows(selections.1));
+        let said = json!([source, stated, authored, host, answers, original]);
         let key = blake3::hash(said.to_string().as_bytes())
             .to_hex()
             .to_string();
@@ -439,7 +440,7 @@ impl Desk for SessionDesk {
         let out = crate::authoring::verify_in(
             &verifier.seat,
             &verifier.context,
-            stated,
+            (stated, answers, original),
             (source, selections),
             declined,
             verifier.account.as_ref(),

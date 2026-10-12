@@ -40,10 +40,10 @@ use std::time::{Duration, Instant};
 
 use peer::{Kind, Peer, Seen};
 use scenarios::{
-    ACCEPT, ALGOLIA, ALREADY, DEFLECT, DELEGATION, DIGEST, EMPTY, FOLLOWED, HACKER_NEWS, LE_MONDE,
-    LE_MONDE_WORDS, OUTPUT_WORDS, RENAMED, REPAIRING, REQUEST, SAVE_AND_RUN, STEER_B, STEERED,
-    STILL_HERE, STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C, THEN_STOP, TRIED_ON, UNRESOLVED, WHY,
-    YC_BLOG, scenario,
+    ACCEPT, ALGOLIA, ALREADY, CODE, CODE_REQUEST, DEFLECT, DELEGATION, DIGEST, EMPTY, FOLLOWED,
+    HACKER_NEWS, LE_MONDE, LE_MONDE_WORDS, OUTPUT_WORDS, RENAMED, REPAIRING, REQUEST, SAVE_AND_RUN,
+    STEER_B, STEERED, STILL_HERE, STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C, THEN_STOP, TRIED_ON,
+    UNRESOLVED, WHY, YC_BLOG, scenario,
 };
 use serde_json::{Value, json};
 
@@ -1283,5 +1283,38 @@ fn a_trial_catches_a_failed_assertion_before_any_proposal() {
     assert!(
         !failed.contains("shown to the person"),
         "nothing was proposed: {failed}"
+    );
+}
+
+/// The state the verifier's judge read: the user turn, `STATE:` before `OPTIONS:`.
+fn judge_state(seen: &Seen) -> Option<Value> {
+    let said = (seen.body["messages"].as_array().into_iter().flatten())
+        .filter(|message| message["role"] == "user")
+        .find_map(|message| message["content"].as_str()?.strip_prefix("STATE:\n"))?;
+    let (state, _) = said.split_once("\n\nOPTIONS:\n")?;
+    serde_json::from_str(state).ok()
+}
+
+/// The person's answer reaches the judge as theirs: a count over the customer code they typed is
+/// judged with that answer and their request as first stated, so the code is no invented literal
+/// and the candidate is proposed.
+#[test]
+fn an_answered_literal_is_judged_as_the_persons_answer() {
+    let journey = run("answered_literal");
+    let proposed = journey.step(1);
+    assert_eq!(outcome_kind(proposed), "proposal", "{proposed:#}");
+    let state = (journey.seen.iter())
+        .filter(|seen| seen.kind == Kind::Judge)
+        .find_map(judge_state)
+        .expect("the judge read a state");
+    let answer = state["answers"]["client_code"].as_str().unwrap_or_default();
+    assert_eq!(
+        answer.trim_matches('"'),
+        CODE,
+        "the answer as the person gave it"
+    );
+    assert_eq!(
+        state["original_request"], CODE_REQUEST,
+        "the request as first stated"
     );
 }

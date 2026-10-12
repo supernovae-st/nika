@@ -88,6 +88,17 @@ impl Citations {
         let texts: Vec<&str> = lines.iter().map(|line| line.text.as_str()).collect();
         texts.join("\n")
     }
+
+    /// The person's first line from the tree line `from` on, when later lines follow it: the
+    /// request as first stated, before the words that answer or correct it.
+    #[must_use]
+    pub fn first(&self, from: u64) -> Option<&str> {
+        let mut lines: Vec<&Cited> = self.lines.values().filter(|l| l.at >= from).collect();
+        lines.sort_by_key(|line| line.at);
+        (lines.first())
+            .filter(|_| lines.len() > 1)
+            .map(|line| line.text.as_str())
+    }
 }
 
 /// One revision of the candidate.
@@ -737,6 +748,26 @@ impl Conversation {
             })
             .collect();
         (authored, host)
+    }
+
+    /// The person's answers by question, as a compile round states them to its judges: each
+    /// question's bound values (typed, picked, left to Nika, or kept by a consent) as one JSON
+    /// literal, a string or an array of them. A default the person never accepted is none.
+    #[must_use]
+    pub fn answers(&self) -> BTreeMap<String, String> {
+        let mut by_key: BTreeMap<String, Vec<&str>> = BTreeMap::new();
+        for binding in &self.bindings {
+            if let Some(key) = &binding.key {
+                let values = by_key.entry(key.clone()).or_default();
+                values.push(binding.value.as_str());
+            }
+        }
+        (by_key.into_iter())
+            .map(|(key, values)| match values.as_slice() {
+                [one] => (key, json!(one).to_string()),
+                _ => (key, json!(values).to_string()),
+            })
+            .collect()
     }
 
     /// `propose`: the candidate is shown to the person, with the choices `open` shows beside it

@@ -226,6 +226,7 @@ impl<T> typenum::type_operators::Same for nika_session_agent::conversation::Cand
 pub type nika_session_agent::conversation::Candidate::Output = T
 pub struct nika_session_agent::conversation::Citations
 impl nika_session_agent::conversation::Citations
+pub fn nika_session_agent::conversation::Citations::first(&self, from: u64) -> core::option::Option<&str>
 pub fn nika_session_agent::conversation::Citations::get(&self, cite: &str) -> core::option::Option<&nika_session_agent::conversation::Cited>
 pub fn nika_session_agent::conversation::Citations::last(&self) -> u64
 pub fn nika_session_agent::conversation::Citations::record(&mut self, at: u64, person: core::option::Option<(alloc::string::String, alloc::string::String)>)
@@ -327,6 +328,7 @@ impl nika_session_agent::conversation::Conversation
 pub fn nika_session_agent::conversation::Conversation::answered_by(&mut self, cite: &str, line: &str, read: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_session_agent::conversation::Pick>) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_session_agent::conversation::Conversation::to_read(&self, line: &str) -> alloc::vec::Vec<nika_session_change::work::conversation::AskedQuestion>
 impl nika_session_agent::conversation::Conversation
+pub fn nika_session_agent::conversation::Conversation::answers(&self) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub fn nika_session_agent::conversation::Conversation::ask(&mut self, citations: &nika_session_agent::conversation::Citations, args: &serde_json::value::Value, call: core::option::Option<&str>, (mint, facts): (nika_session_agent::conversation::Mint<'_>, nika_session_agent::conversation::Facts<'_>)) -> nika_session_change::tools::ToolReply
 pub fn nika_session_agent::conversation::Conversation::asked_ids(&self) -> alloc::vec::Vec<nika_session_change::outcome::QuestionId>
 pub fn nika_session_agent::conversation::Conversation::bindings(&self) -> &[nika_session_change::work::conversation::Binding]
