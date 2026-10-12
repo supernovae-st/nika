@@ -5,7 +5,7 @@
 | Status | **WORKSPACE WIP · ADMISSION CANDIDATE** — the owned-byte carrier is callable and both CLI and ARM use it; the crate remains in the canonical `wip` set until the full admission ceremony closes. |
 | Layer | L3 — execution admission and orchestration boundary |
 | Design | Descriptor-rooted transitive capture into one immutable snapshot; parser, checker, skill resolver, and injected runner all consume that same owned world. |
-| LOC budget | ≤5,000 source lines; ≤15,000 hard crate cap. |
+| LOC budget | ≤5,000 source lines; ≤25,000 hard crate cap. |
 | File cap | ≤1,500 lines. |
 | Function cap | ≤100 lines. |
 | Crate version | tracks workspace |

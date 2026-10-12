@@ -7,7 +7,7 @@
 | Sub-tier | L1-effect — OS screen capture behind the L0.5 `ScreenCapture` trait. OS FFI is encapsulated by the `xcap` dependency, so the crate itself is `unsafe_code = forbid`-clean |
 | Design | Thin adapter over **xcap 0.9.5** (cross-platform screen capture · macOS CoreGraphics · Linux X11/Wayland portal · Windows DXGI). Sync `xcap` calls run inside `tokio::task::spawn_blocking` so the `!Send` `xcap::Monitor` stays worker-local and dropped futures surrender promptly (kernel CANCEL SAFETY contract) |
 | LOC budget | ≤1,200 src (actual ~943 · error 205 + guards 240 + capture 446 + lib 52) |
-| File cap | ≤1,500 LOC each (max `capture.rs` 446) |
+| File cap | ≤2,500 LOC each (max `capture.rs` 446) |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |

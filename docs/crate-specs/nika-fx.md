@@ -4,7 +4,7 @@
 |---|---|
 | Layer | **L1** (pure-algo · zero I/O · consumed by `nika-builtin` L1.5) |
 | Dependencies | **ZERO** runtime deps (the determinism + supply-chain contract) |
-| LOC budget | ≤15,000/crate · ≤1,500/file · ≤100/fn (Gate 4) — ~4.3k src today |
+| LOC budget | ≤25,000/crate · ≤2,500/file · ≤100/fn (Gate 4; ADR-154) — ~4.3k src today |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |

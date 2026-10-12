@@ -5,7 +5,7 @@
 | Status | **ADMISSION CANDIDATE** — extracted from the proven ARM custody code in `nika-cli`; named-beat tick policy lives in `nika-cadence`; behavior remains guarded by the `nika-arm` library suite plus the real CLI `arm_fire` and Serve tests. |
 | Layer | L4 — interface-shared custody library |
 | Design | Descriptor-rooted `.nika/arm/` state, verified replay/rotation, kernel leases, and the one injected firing transaction. Interfaces inject execution and waiting; they never reinterpret the ledger or discover a trace globally. |
-| LOC budget | ≤5,000 source lines for this custody unit; ≤15,000 hard crate cap. W04 measurement: 4,732 lines including inline tests. |
+| LOC budget | ≤5,000 source lines for this custody unit; ≤25,000 hard crate cap. W04 measurement: 4,732 lines including inline tests. |
 | File cap | ≤1,500 lines; W04 maximum 1,263 in `state/tests.rs`. |
 | Function cap | ≤100 lines. |
 | Crate version | tracks workspace |

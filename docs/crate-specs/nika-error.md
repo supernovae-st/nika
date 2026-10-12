@@ -6,7 +6,7 @@
 | Layer | L0 (PURE, zero I/O, zero async) |
 | Design | **Option C+** (trait-based error hierarchy) |
 | LOC budget | ≤800 src (target ~700, alarm at 800) |
-| File cap | ≤1,500 LOC each |
+| File cap | ≤2,500 LOC each |
 | Function cap | ≤100 lines each |
 | Source on `main` (reference) | `tools/nika-core/src/error.rs` (40 LOC), `tools/nika-core/src/error_codes.rs` (293 LOC) |
 | Crate version | tracks workspace (bumped to `0.90.0-alpha.1` at Phase 1 close) |

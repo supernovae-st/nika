@@ -5,8 +5,8 @@
 | Status | **ADMITTED 2026-07-10** — Gate 1 authored at the split (a descent, not a greenfield: every line arrived tested from `nika-cli`). |
 | Layer | L4 — interface crate (the run-comprehension surface · pure event→text) |
 | Design | The whole comprehension surface the operator reads: the event fold (`state` — `RunView` as a pure function of the stream), the terminal frames (`render` — the storyboard, the meter, the failure card), the colour/glyph seam (`theme`), the ONE formatting vocabulary (`format`), execution-flow reads (`flow`), bounded output summaries (`shape`), painted source spans (`snippet`), the glyph/hint vocabulary (`vocab`) and the deterministic demo streams (`demo` — prod-shared: the `nika demo` verb replays them). One truth in, text out; no I/O lives here. |
-| LOC budget | the 15k-prod workspace ratchet governs (≤1,500/file · ≤100/fn as everywhere) — admitted at ~2.6k prod src; the parent `nika-cli` drops from 14,999 (the wall that blocked two display fixes on 2026-07-10) to ~12.4k |
-| File cap | ≤1,500 LOC each (max at admission: `render.rs`) |
+| LOC budget | the 25k-prod workspace ratchet governs (≤2,500/file · ≤100/fn as everywhere; ADR-154) — admitted at ~2.6k prod src; the parent `nika-cli` drops from 14,999 (the wall that blocked two display fixes on 2026-07-10) to ~12.4k |
+| File cap | ≤2,500 LOC each (max at admission: `render.rs`) |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace (`0.99.0` at admission) |
 | License | `AGPL-3.0-or-later` |

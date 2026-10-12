@@ -6,7 +6,7 @@
 | Layer | L0.5 (TRAITS ONLY · zero I/O · zero impl) |
 | Design | Base sibling of the split kernel — `io/` + `infra/` + root primitives |
 | LOC budget | ≤6,000 src |
-| File cap | ≤1,500 LOC each |
+| File cap | ≤2,500 LOC each |
 | License | `AGPL-3.0-or-later` |
 
 ## 1. Purpose

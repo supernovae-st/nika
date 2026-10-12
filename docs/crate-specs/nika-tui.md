@@ -6,7 +6,7 @@
 | Layer | L4 — interfaces (the native terminal surface) |
 | Design | The session's Ratatui renderer (ADR-139) · ONE owner of the terminal (raw mode · bracketed paste · focus · probed keyboard protocol · alternate screen, enabled in a fixed order and restored in reverse from one place; the panic hook restores BEFORE the message) · WORKSPACE presentation first on interactive terminals (project, workflow inspection, conversation); explicit INLINE (`NIKA_TUI=inline`) keeps finished blocks in terminal scrollback · FOCUS presentation on demand (alternate screen, scrollable transcript, draft kept) · ONE event broker, paused around each cursor-position query · one composer (`ratatui-textarea` behind a wrapper: Enter sends, Alt+Enter (or Shift/Ctrl+Enter and Ctrl+J where the terminal reports them) inserts a line break, a paste is data, history at the edges of the buffer). It decides no product law: it paints and it listens. `nika-session` stays the truth and supplies what it shows as typed turn outcomes; ADR-139 assigns `nika-tui-core` to derive what a screen may claim, which is not wired yet (§1). |
 | LOC budget | ≤19,000 src prod for `crates/nika-tui` only (ADR-143, 9 October 2026 amendment); other members retain their own ceilings |
-| File cap | ≤1,500 LOC each |
+| File cap | ≤2,500 LOC each |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |

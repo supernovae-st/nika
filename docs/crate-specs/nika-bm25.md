@@ -7,7 +7,7 @@
 | Sub-tier | L1-deterministic — no ML deps · no async · pure-sync CPU-bound scoring (cooperation delegated to L2 `RecallPool` fan-out boundary per ADR-078 step 6) |
 | Design | **Pure BM25 (Okapi)** — Robertson 1994 canonical formula · k1 saturation · b length-norm · IDF smoothing |
 | LOC budget | ≤800 src (target ~600 · scoring kernel ~150 + index ~200 + query ~100 + impls ~150) |
-| File cap | ≤1,500 LOC each (none expected near cap) |
+| File cap | ≤2,500 LOC each (none expected near cap) |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |

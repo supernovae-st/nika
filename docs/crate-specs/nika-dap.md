@@ -5,8 +5,8 @@
 | Status | **ADMITTED 2026-07-09** — Gate 1 authored at the split (a descent, not a greenfield: every line arrived tested from `nika-cli`). |
 | Layer | L4 — interface crate (stdio protocol server + the forensic read seams) |
 | Design | The trace-forensics plane: the DAP replay debugger (`nika dap`) plus the seams every forensic reader shares — the tolerant NDJSON reader (`recover`), the tamper-evidence chain walk (`chain`), the forensic statistics (`stats` — the Prior honesty ladder + Hyndman-Fan-7 quantiles every learned-truth reader speaks · descended from nika-cli at the 15060-LOC wall, the same session as the crate itself), and since the W0 descent (§5) the forensic half of the trace family — the OTLP projection (`otel`), the reproduce comparison (`reproduce`), the store scan (`store`) and the retention policy (`retention`). One home so the sink that WRITES the chain and every walker that CHECKS it share one genesis tag and one hash primitive (the hash itself re-homed to `nika-event::source_id` 2026-07-22 — the run-composer descent needed it at L≤3). |
-| LOC budget | the 15k-prod workspace ratchet governs (≤1,500/file · ≤100/fn as everywhere) — admitted at ~1,450 src incl. in-file tests; the 2026-07-09 W0 trace descent (§5) added the four forensic trace modules (~1.1k prod) with headroom for live DAP sessions intact |
-| File cap | ≤1,500 LOC each (max at admission: `replay.rs` ~490) |
+| LOC budget | the 25k-prod workspace ratchet governs (≤2,500/file · ≤100/fn as everywhere; ADR-154) — admitted at ~1,450 src incl. in-file tests; the 2026-07-09 W0 trace descent (§5) added the four forensic trace modules (~1.1k prod) with headroom for live DAP sessions intact |
+| File cap | ≤2,500 LOC each (max at admission: `replay.rs` ~490) |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace (`0.98.0` at admission) |
 | License | `AGPL-3.0-or-later` |

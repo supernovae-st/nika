@@ -5,8 +5,8 @@
 | Status | **ADMITTED 2026-07-12** — Gate 1 authored at the split (a descent, not a greenfield: the resolver landed test-first inside `nika-cli`'s registry seam and descended under the size cap — issue #512; this spec joins one arc later, closing the vector the descent left open). |
 | Layer | L2 — domain service (registry refs → verified local artifacts) |
 | Design | ONE law, one crate: a `registry:` ref resolves to a digest-pinned, oracle-verified cache file or it refuses with a teaching error — never a half-trusted artifact. `is_registry_ref` owns the ref grammar; `RegistryClient<H>` is generic over the kernel HTTP seam (the whole network path mock-proven; the only production transport is `nika-http` — rustls · SSRF floor); `Resolved::describe` speaks the receipt the CLI prints. Verification is structural: sha256 + the spec oracle re-check ride INSIDE resolution (D-2026-07-06 · every registry entry CI-re-proven). |
-| LOC budget | the 15k-prod workspace ratchet governs (≤1,500/file · ≤100/fn as everywhere) — admitted under ~1k prod src; headroom deliberate (~950 LOC at the descent) |
-| File cap | ≤1,500 LOC each |
+| LOC budget | the 25k-prod workspace ratchet governs (≤2,500/file · ≤100/fn as everywhere; ADR-154) — admitted under ~1k prod src; headroom deliberate (~950 LOC at the descent) |
+| File cap | ≤2,500 LOC each |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace (`0.99.0` at admission) |
 | License | `AGPL-3.0-or-later` |

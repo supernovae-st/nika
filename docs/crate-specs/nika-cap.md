@@ -6,7 +6,7 @@
 | Layer | L0 — pure, zero I/O, zero async |
 | Design | A pure vocabulary + set-algebra crate: the declared capability boundary (`permits:`, spec `01-envelope.md` §permits) as data + the "fits" predicate over it. No AST types, no workflow coupling. |
 | LOC budget | ≤600 src (target ~480), ≤800 hard cap — sized against the closest L0 sibling, `nika-event` (~462 LOC), not against `nika-schema` (a monolith by different design constraints, see §2) |
-| File cap | ≤1,500 LOC each (max file here ~150 — well under) |
+| File cap | ≤2,500 LOC each (max file here ~150 — well under) |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace (`0.93.0` at admission) |
 | License | `AGPL-3.0-or-later` |
