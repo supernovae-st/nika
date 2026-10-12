@@ -86,6 +86,20 @@ impl WorkflowPause {
         self.approval = Some(ticket);
         self
     }
+
+    /// SKELETON (child-depth prompt pause). The same pause raised inside a child workflow,
+    /// named for the parent's resume surface: the task id is prefixed with the
+    /// child's path (`<child-path>:<task>`) so a pause at any depth is
+    /// addressable and `--resume --answer <child-path>:<task>=…` binds into the
+    /// child. Mode, message, choices, shown values and the approval ticket ride
+    /// unchanged. The runner (nika-service-execution) builds this from a child
+    /// run that returned `RunState::Paused`; the DAP resume side resolves the
+    /// prefixed id against the child workflow. Both are wired in the window.
+    #[must_use]
+    pub fn nested(child_path: &str, mut inner: Self) -> Self {
+        inner.task = format!("{child_path}:{}", inner.task);
+        inner
+    }
 }
 
 /// Does this finish pause the run? `Some(payload)` iff the task failed

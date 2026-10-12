@@ -128,6 +128,12 @@ where
         contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
         let cost_source = out.cost_usd.is_some().then(|| format!("workflow:{target}"));
+        // SKELETON (child-depth prompt pause), wired in the window: a child that paused on a
+        // `nika:prompt` gate (`out.paused`) re-raises as the dispatch's own
+        // pause, not a failure — e.g. a `Dispatched::child_pause(note, pause)`
+        // arm the parent run collects into `RunOutcome.paused`, so the run
+        // pauses at any depth and `--resume --answer <child-path>:<task>=…`
+        // binds into the child. `out.paused` is always `None` today.
         if out.ok {
             let value = Value::Object(out.outputs.into_iter().collect());
             // Law 2, run half — the child's outputs fit the parent's

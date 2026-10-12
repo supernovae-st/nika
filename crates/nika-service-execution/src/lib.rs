@@ -1288,6 +1288,13 @@ impl ChildRunner for ServiceExecutionDriver {
                 cost_usd: cost,
                 trace,
                 failure,
+                // SKELETON (child-depth prompt pause), wired in the window: arm the child
+                // runtime's prompt pause (inherit the parent's `with_prompt_pause`
+                // at `base_runtime`), and when `run` returns `RunState::Paused`,
+                // carry its `WorkflowPause` out here as
+                // `WorkflowPause::nested(child_path, pause)`. Always `None`
+                // today — a child prompt still fails NIKA-BUILTIN-PROMPT-001.
+                paused: None,
             })
         })
     }

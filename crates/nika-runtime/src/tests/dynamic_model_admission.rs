@@ -1157,6 +1157,7 @@ impl crate::child::ChildRunner for ChildOnWires {
                 cost_usd: outcome.total_cost_usd,
                 trace: None,
                 failure,
+                paused: None,
             })
         })
     }
@@ -1222,6 +1223,7 @@ impl crate::child::ChildRunner for FailingChildWithTrace {
                     ),
                 )),
                 failure: Some(("NIKA-EXEC-001".to_owned(), "child boom".to_owned())),
+                paused: None,
             })
         })
     }

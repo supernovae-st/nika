@@ -99,6 +99,7 @@ fn green_child(cost_usd: Option<f64>) -> Respond {
                 ),
             )),
             failure: None,
+            paused: None,
         })
     })
 }
@@ -378,6 +379,7 @@ async fn child_failure_surfaces_the_child_code() {
                 (Some("t-9".to_owned()), Some("headxyz".to_owned()), None),
             )),
             failure: Some(("NIKA-EXEC-002".to_owned(), "exit 3".to_owned())),
+            paused: None,
         })
     }));
     let rt =
