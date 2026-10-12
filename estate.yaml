@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 7495
+  classified_files: 7503
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 4317
+    authored: 4325
     authored-pin: 2
     generated: 271
     pinned-copy: 200
@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: 158d51f7bba3dc9eac92ccacac204b285b78eec1321b046b50226f131de60db5
+  sha256: 8f62e362a2facfb501429680183153548a16da9f200e0ef5996f9dcf6cf6fa12
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -89,7 +89,7 @@ files:
     - "docs/adr/adr-*.md YAML frontmatter"
 - path: "fuzz/Cargo.lock"
   class: generated
-  sha256: f3bdf39e69af6451e064472baf3817a7874001a8a1fcbde6b9d5bd46a8926c29
+  sha256: 3b8b352186615c0bc2a04e748ade84c6abe64372432b3c1245b4009933e79d92
   evidence: "cargo's resolver writes it for the fuzz workspace; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against fuzz/Cargo.toml)"
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 90
-  aggregate_sha256: feb2f0b3b946df3a182ebe7a1d70e0d96a7a618c47e11fb2dad54dd71821876b
+  aggregate_sha256: 2c2387dfc5418f1078264fc26400b02f52a9d7c68e8ebd7366b82ab4bfba5170
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,18 +151,18 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 2080
-  aggregate_sha256: 212651fcba5086358ae381fbc090538aaa40f80cebc11e1b5f969b59a89e6c7f
+  match_count: 2084
+  aggregate_sha256: 5226cc93d966a227dcae2b22a4860dd653b297ba9fa6ec758895b8398898c6e8
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 809
-  aggregate_sha256: 03461a2d6da579347da7a8e0ecfd136166387f8fd5639ffffdc7faabd93f7697
+  aggregate_sha256: fc88d9f0d003d7b30b9c3e6d96db176da810ecc7b389348c0ec02551e1e4ddf8
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
   match_count: 550
-  aggregate_sha256: 996c79e40e978807b006ba696e6ffee8d50489c541f84c319e2f2c07aa6311b5
+  aggregate_sha256: cf85cbfbd79bfc0447dbb6e2f46bf619133eb3c650ff17185cce34ede91c91f3
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "scripts/sync-pack.sh is the ONE vendoring lane; the divergent crate-local duplicate was retired"
 - glob: "fuzz/**"
@@ -241,8 +241,8 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 137
-  aggregate_sha256: a0496ac71aa6ca0ced519c446673ec6d75eeeeb4daa98437da14b425a98484ba
+  match_count: 141
+  aggregate_sha256: 80e207be60edd747144e147d97c326ad949bffc177a1429a35c3eb6b4b3fb67f
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"
