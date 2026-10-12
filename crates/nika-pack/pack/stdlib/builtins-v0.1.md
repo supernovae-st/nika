@@ -1,7 +1,7 @@
 # Stdlib v0.1 · Builtins
 
 > **<!-- canon:builtins -->29<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
-> Invoked via `invoke: tool: "nika:<name>"`. Plus the remaining media
+> Invoked via `invoke: { tool: "nika:<name>" }`. Plus the remaining media
 > builtins deferred to stdlib v0.x (opt-in feature flag).
 >
 > **Consolidation (« less but better »)** · was 42 → 26 (D-N6) →
@@ -81,7 +81,8 @@ Emit a custom machine event (consumed by subscribers · journal).
 
 ### `nika:assert`
 ```yaml
-invoke: { tool: "nika:assert", args: { condition: "${{ tasks.X.output.count > 0 }}", message: "Expected non-empty result" } }
+with: { result: "${{ tasks.X.output }}" }      # the binding is the edge · the args read the local name
+invoke: { tool: "nika:assert", args: { condition: "${{ with.result.count > 0 }}", message: "Expected non-empty result" } }
 ```
 Fail the task if `condition` (a **CEL `${{ }}` boolean**) is false · else no-op. The **fail-fast guard** (distinct from `when:` which is the **skip-guard**). `condition:` uses the canonical `${{ }}` CEL surface, never a legacy `$task` syntax.
 
@@ -93,8 +94,9 @@ Returns `true` on pass. Throws · `NIKA-BUILTIN-ASSERT-001` (assertion failed ·
 invoke: { tool: "nika:prompt", args: { message: "Approve deploy to production?" } }
 # input — collect a free-text value
 invoke: { tool: "nika:prompt", args: { mode: input, message: "Paste the OTP:", default: "" } }
-# choice — pick one of N
-invoke: { tool: "nika:prompt", args: { mode: choice, message: "Which title?", choices: ["${{ tasks.a.output }}", "${{ tasks.b.output }}"] } }
+# choice — pick one of N (the candidates arrive through with:)
+with: { a: "${{ tasks.a.output }}", b: "${{ tasks.b.output }}" }
+invoke: { tool: "nika:prompt", args: { mode: choice, message: "Which title?", choices: ["${{ with.a }}", "${{ with.b }}"] } }
 ```
 Interactive human-in-the-loop · blocks until answered. **`mode:` selects what
 is collected** (default `confirm`) ·
@@ -109,8 +111,16 @@ Non-interactive contract (normative · all modes) · when no human can answer
 (CI · daemon) the engine MUST use `default:` when present · and MUST fail
 `NIKA-BUILTIN-PROMPT-001` (`validation_error` · non-interactive without a
 `default:`) when absent: never hang forever · never silently pick an answer.
-A `choice` whose `default:` is not an element of `choices:` is a parse error
-(`NIKA-BUILTIN-PROMPT-002` · `validation_error`).
+`PROMPT-001` names only that unanswerable prompt, the one failure an engine
+may turn into a durable pause awaiting an answer. Every configuration error
+is a parse error (`NIKA-BUILTIN-PROMPT-002` · `validation_error`), judged
+before anyone is asked, attended or not, and never a pause, since no answer
+repairs it: a missing `message:`, an unknown `mode:`, an empty `choices:`, and
+a `default:` the mode cannot use — a `choice` default that is not an element
+of `choices:`, an `input` default that is not a string, a `confirm` default
+that is neither a boolean nor a word a person answers a confirm with (`yes` ·
+`y` · `no` · `n` · `true` · `false`, case-insensitive, read as that answer;
+YAML 1.2 reads an unquoted `yes` as a string).
 
 For a workflow that requires fresh human approval, omit `default:` from the
 confirmation prompt and gate the effect on its answer. `default: false` is an
@@ -122,7 +132,9 @@ changing the workflow's human gate; for example, the reference engine accepts
 
 ### `nika:done`
 ```yaml
-invoke: { tool: "nika:done", args: { result: { status: "complete" } } }
+agent:
+  prompt: "Fix the failing test, then finish"
+  tools: ["nika:read", "nika:done"]   # the model calls nika:done with { result: { status: "complete" } }
 ```
 Mark the current `agent:` loop complete and exit · the loop-completion sentinel (**valid only inside an `agent:` tool whitelist** · error elsewhere).
 
@@ -132,9 +144,9 @@ invoke:
   tool: "nika:wait"
   args:
     duration: "5s"                  # RELATIVE · Go-duration string ("500ms"/"30s"/"5m"/"1h30m")
-    # OR (mutually exclusive · exactly-one-of) ·
-    until: "2026-05-23T09:00:00Z"   # ABSOLUTE · ISO 8601 timestamp · MAY be CEL expression
-    timeout: "1h"                   # OPTIONAL · cap for absolute wait (until: only)
+    # OR, exactly one of the two (both is NIKA-BUILTIN-001) ·
+    # until: "2026-05-23T09:00:00Z" # ABSOLUTE · ISO 8601 timestamp · MAY be CEL expression
+    # timeout: "1h"                 # OPTIONAL · cap for absolute wait (until: only)
 ```
 Temporal pause · ONE builtin · 2 modes (relative `duration:` XOR absolute `until:` · exactly-one-of validated at parse time).
 
@@ -184,7 +196,9 @@ first N. `count:` MUST be a non-negative integer — a present non-integer
 replace-all default (that silent fall-through would over-edit the file · the
 intent-inversion footgun class). Throws ·
 `NIKA-BUILTIN-EDIT-001` (`find:` matched nothing: an edit that edits
-nothing is an authoring bug · `tool_error` · also a non-integer `count:`) ·
+nothing is an authoring bug · `tool_error` · also a non-integer `count:`,
+and an empty `find:`, refused before the file is read: it would match
+between every character and write the replacement between every byte) ·
 `-002` (IO failure).
 
 ### `nika:remove_file` · exact regular-file removal
@@ -298,16 +312,18 @@ refusal, not evidence that the pattern has no matches.
 
 ### `nika:jq` · the transform + extraction primitive
 ```yaml
-invoke: { tool: "nika:jq", args: { expression: ".items | map(.price) | add", input: "${{ tasks.X.output }}" } }
+with: { order: "${{ tasks.X.output }}" }
+invoke: { tool: "nika:jq", args: { expression: ".items | map(.price) | add", input: "${{ with.order }}" } }
 ```
 Run a jq expression. **The single data-transform-and-extraction language**: map · filter · select · group_by · reshape · string-interpolation `"\(.x)"` · `@base64`/`@base64d` encoders (the embedded jaq has NO `@csv`/`@tsv` — use `nika:convert to: csv`) · array `flatten` · `leaf_paths`/`getpath`/`setpath`. The same jq used in `extract:` bindings (see `04-variables.md`). **jq is also the law after an extract**: the model emits facts (`infer.schema:` as `type: integer` for numeric enums); this builtin (or `nika:decide`) names the level. Do not pay a second `infer:` to score. Teaching shape · `examples/13-extract-then-law.nika`. After `. as $c`, write `($c | map(...))` — a bare `map(` maps the current value (hint `jq-as-map`).
 
-**`input` is any JSON value**: a single ref (`input: "${{ tasks.X.output }}"`) OR a **constructed array for multi-input ops**. Recursive merge of two objects (this is exactly why `json_merge` is NOT a builtin · jaq's `*` does it) ·
+**`input` is any JSON value**: a single bound value (`input: "${{ with.order }}"`) OR a **constructed array for multi-input ops**. Recursive merge of two objects (this is exactly why `json_merge` is NOT a builtin · jaq's `*` does it) ·
 ```yaml
+with: { base: "${{ tasks.base.output }}", overlay: "${{ tasks.overlay.output }}" }
 invoke:
   tool: nika:jq
   args:
-    input: ["${{ tasks.base.output }}", "${{ tasks.overlay.output }}"]
+    input: ["${{ with.base }}", "${{ with.overlay }}"]
     expression: ".[0] * .[1]"      # recursive deep-merge · overlay wins
 ```
 Same shape combines / zips N inputs · build the array, index inside jq.
@@ -340,10 +356,11 @@ invoke: { tool: "nika:json_merge_patch", args: { target: { ... }, patch: { ... }
 
 ### `nika:convert` · universal multi-format conversion
 ```yaml
+with: { data: "${{ tasks.A.output }}" }
 invoke:
   tool: "nika:convert"
   args:
-    input: "${{ tasks.A.output }}"     # the data to convert · string for text formats · structured for json/yaml/toml
+    input: "${{ with.data }}"          # the data to convert · string for text formats · structured for json/yaml/toml
     from: csv                          # REQUIRED · enum · json | yaml | toml | csv
     to: json                           # REQUIRED · enum · json | yaml | toml | csv
     has_header: true                   # OPTIONAL · CSV only · default true
@@ -351,6 +368,8 @@ invoke:
     formula_guard: false               # OPTIONAL · CSV emit only · default false (see below)
 ```
 Universal format converter · 4 formats v0.1 (`json` · `yaml` · `toml` · `csv`) · 12 directions in scope (4×3 minus identity) · `from == to` is rejected (`NIKA-BUILTIN-CONVERT-001` · `validation_error` · an identity conversion is an authoring bug). Throws · `-002` (the input does not parse as `from:` · `tool_error`).
+
+**CSV cells (normative)** · reading CSV yields every cell as a **string** (`"10"`, never `10`): convert before arithmetic or ordering, e.g. `map(.amount | tonumber) | add` in `nika:jq`, since `add` over strings concatenates and `max_by` over strings orders text. The field separator is counted on the first line outside double quotes: a semicolon (a European spreadsheet export, whose decimals take the comma) or a tab that outnumbers the comma is the separator, otherwise the comma (RFC 4180). Emitting CSV writes a JSON `null` as an empty cell, as an absent key already is, never the text `null`.
 
 **`columns`** (CSV emit only) · an array of column names in the required order. JSON objects carry no key order: without `columns`, output keys are sorted alphabetically. Named columns come first (even for empty rows); any other keys follow sorted. To preserve a CSV header through filtering, pass its observed columns in their original order to the JSON→CSV conversion. Duplicate names retain their first position; a named column absent from every row is emitted with empty cells. A non-array or non-string member is a `NIKA-BUILTIN-CONVERT-001` error, never a silent fallback to the default order. `formula_guard` still applies to the emitted headers and cells.
 
@@ -370,11 +389,12 @@ Generate a UUID. (Generators are not jq · jq is pure transform.) Returns the ca
 
 ### `nika:decide`
 ```yaml
+with: { snapshot: "${{ tasks.collect.output }}" }
 invoke:
   tool: "nika:decide"
   args:
     bundle: "./decisions/pr-triage.bundle.json"   # path OR inline bundle object
-    evidence: "${{ tasks.collect.output }}"       # the EvidenceSnapshot { t, evidence: [...] }
+    evidence: "${{ with.snapshot }}"              # the EvidenceSnapshot { t, evidence: [...] }
 ```
 The deterministic decision kernel (spec [11-decision.md](../spec/11-decision.md)) · evaluates a portable **Decision Bundle** against an **EvidenceSnapshot** and returns the full Decision Receipt (outcome ∈ {recommend · defer · human_required · opted_out · overridden} · per-dimension term-by-term contributions · intervals · conflicts+witnesses · determination provenance). PURE compute — zero required effects (a `bundle:` path reads like any declared `fs.read`; an inline object needs no filesystem) · zero floats (fixed-point basis-points) · same inputs, same bytes, both evaluators (the stdlib-Python reference interpreter is the conformance oracle — byte-equal canonical JSON). **The LLM never decides**: `infer:` produces closed cited facts; this kernel applies the rubric. The lighter teaching shape (no bundle) is `nika:jq` after the extract — `examples/13-extract-then-law.nika`. Throws · `NIKA-DECIDE-001` (the bundle violates its own laws) · `NIKA-DECIDE-002` (the snapshot does not satisfy the evidence schema) · both `validation_error`, deterministic.
 
@@ -394,7 +414,8 @@ Timestamp arithmetic · op-discriminated single builtin · timezone-aware (IANA 
 > these examples do not announce implementation availability.
 
 ```yaml
-invoke: { tool: "nika:hash", args: { algo: blake3, content: "${{ tasks.X.output }}", encoding: hex } }
+with: { report: "${{ tasks.X.output }}" }
+invoke: { tool: "nika:hash", args: { algo: blake3, content: "${{ with.report }}", encoding: hex } }
 
 # Normative op forms · spec-ahead at the engine pin named above
 invoke: { tool: "nika:hash", args: { op: sign,   content: "${{ with.manifest }}", key: "${{ secrets.release_key }}" } }
@@ -460,10 +481,10 @@ invoke: { tool: "nika:fetch", args: { url: "https://example.com/article", mode: 
 |---|---|
 | `url` | required · may use `${{ ... }}` |
 | `method` | `GET` (default) · `POST` · `PUT` · `DELETE` · `PATCH` · `HEAD` |
-| `headers` · `body` | extra headers · body (objects auto-JSON) · auth rides `headers` (`x-api-key: "${{ secrets.KEY }}"` · masked) |
+| `headers` · `body` | extra headers · body (objects auto-JSON: a non-string `body` is sent as JSON with `content-type: application/json` unless `headers` names a content type · a string body is sent as written) · auth rides `headers` (`x-api-key: "${{ secrets.KEY }}"` · masked) |
 | `form` | `application/x-www-form-urlencoded` object of scalar fields (string · number · boolean — nesting refused · reshape with `nika:jq`) · body-bearing method required |
 | `multipart` | `multipart/form-data` parts array · `{name, value}` text XOR `{name, path, filename?, content_type?}` file · every `path` rides the `permits.fs` READ boundary (`NIKA-SEC-004` on escape) · ≤64 parts · ≤32 MiB total · body-bearing method required |
-| `mode` | extraction mode · see `extract-modes-v0.1.md` · default `markdown` |
+| `mode` | extraction mode · see `extract-modes-v0.1.md` · default `markdown` (a body served as text, such as CSV or JSON, comes back as served · [extract-modes §a body served as text](./extract-modes-v0.1.md#the-canonical-modes)) |
 | `jq` | a jq expression · only with `mode: jq` (structured JSON extraction · replaces the former JSONPath mode) |
 | `traverse` | bounded same-origin crawl · `{ max_pages: 1..=25 (required), respect_robots?: bool (default true) }` · GET only · excludes `mode`/`selector`/`jq`/`body`/`form`/`multipart`/`headers`/`response` |
 | `response` | optional closed object `{ accept: [200, 404] }` · `accept` is required: 1..=16 distinct integer final HTTP statuses in 200..=599 · no ranges, wildcards, strings, booleans or floats · excludes `traverse` |
@@ -591,9 +612,20 @@ response with an empty body remains an empty string under `mode: raw`.
 
 ### `nika:notify`
 ```yaml
-invoke: { tool: "nika:notify", args: { channel: webhook, target: "https://hooks.slack.com/...", message: "Done · ${{ tasks.X.status }}", severity: info, data: { run: "${{ tasks.X.output }}" } } }
+with: { status: "${{ tasks.X.status }}", run: "${{ tasks.X.output }}" }
+invoke: { tool: "nika:notify", args: { channel: webhook, target: "https://hooks.slack.com/...", message: "Done · ${{ with.status }}", severity: info, data: { run: "${{ with.run }}" } } }
 ```
 Send notifications · `channel:` enum (`webhook`/`slack`/`email`/`discord`/`sms` · one builtin not 5). The 1.0 engine MUST support `webhook` · others MAY be feature-gated. `data:` (OPTIONAL · any JSON value) carries structured context alongside the human `message`: the webhook payload is `{ message, severity, data? }` (the key is absent when not given · receivers branch on machine fields, never parse the message). Returns `null` on accepted delivery. Throws · `NIKA-BUILTIN-NOTIFY-001` (channel unconfigured · `validation_error`) · `-002` (delivery failed · `network_error` · transient engine-assessed).
+
+**Chat webhooks (normative · `webhook`)** · a chat service's incoming webhook reads its own text field and refuses the payload above (a Slack incoming webhook answers HTTP 400 `no_text`). The engine MUST shape the `webhook` body for the receivers it recognizes from `target:` and MUST keep `{ message, severity, data? }` for every other target:
+
+| `target:` | Body |
+|---|---|
+| a Slack incoming webhook (host `hooks.slack.com` or `hooks.slack-gov.com`, path `/services/…`) | `{ text, mrkdwn: false }` |
+| a Discord webhook (host `discord.com`, `discordapp.com` or their `canary.`/`ptb.` subdomains, path `/api/webhooks/{id}/{token}` or `/api/v{N}/webhooks/{id}/{token}`) | `{ content, allowed_mentions: { parse: [] } }` |
+| any other target, including a Slack Workflow Builder trigger (`/triggers/…`) and Discord's `/slack` or `/github` adapters | `{ message, severity, data? }` |
+
+The text a person reads is the `message`, prefixed `[<severity>] ` when `severity` is not `info`, then the `data:` context on its own line (a string as written, any other value as compact JSON). For Slack, `&` `<` `>` become `&amp;` `&lt;` `&gt;`. For Discord, every character that opens markdown, a masked link or a mention (`\` `*` `_` `~` `` ` `` `|` `[` `]` `<` `>`, and a line's opening `#` or `-`) is backslash-escaped outside a bare `http://`/`https://` URL, and `content` is bounded to 2,000 UTF-16 units, ending `…` when cut, without splitting an escape. A refused delivery (`-002`) names the receiver's answer as one bounded line, with control and invisible characters removed and every part of `target:` withheld (a webhook URL carries its credential in its path or query), and carries `details.status_code`.
 
 **Injection defense (normative)** · the `webhook` payload is JSON-encoded, so the `message` cannot break its transport (serde escaping neutralizes `"`/newlines). A channel that renders the `message` into a DIFFERENT medium MUST neutralize that medium's injection surface when implemented · **email** MUST reject/strip CR/LF in any header-bound field (`target:`/subject) against RFC 5322 header injection · **slack**/**discord** MUST treat the `message` as text, never a trusted mrkdwn/mention control string · **sms** MUST bound length to the carrier segment limit. The `webhook target:` rides the same SSRF boundary as `nika:fetch` (private-network / cloud-metadata rejected). Same discipline as the `nika:fetch` SSRF requirement · an output channel that reaches an interpreter neutralizes that interpreter's control surface.
 
@@ -627,7 +659,7 @@ Deliver the draft with this limited report; running it remains a separate,
 gated decision (« generation is not permission »).
 
 Loop-served like `nika:done`: **valid only inside an `agent:` tool whitelist**
-(a standalone `invoke: nika:compose` is rejected · `NIKA-BUILTIN-COMPOSE-001`).
+(a standalone `invoke: { tool: "nika:compose" }` is rejected · `NIKA-BUILTIN-COMPOSE-001`).
 The model never sees it unless it is whitelisted (default-deny).
 
 Args · `workflow_yaml` (string · required · the complete draft).

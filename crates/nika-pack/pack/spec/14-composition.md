@@ -152,12 +152,12 @@ Two histories closed when this chapter shipped, and
 builtin was abandoned, never shipped** · a builtin would have carried the
 child as a string argument — invisible to the type system, the effect
 boundary and the acyclicity check. The field IS the semantics, so the form
-is the tagged union above. The **sibling-run workaround** — `exec: nika run
-sub.yaml --output json` + `capture: stdout` — **remains valid** as the
+is the tagged union above. The **sibling-run workaround** — `exec: { command: ["nika", "run",
+"sub.nika", "--output", "json"], capture: stdout }` — **remains valid** as the
 process floor (floor 1 of the [08 three floors](./08-out-of-scope.md)) and
 as the one form for what a static call graph cannot express (an unbounded
 cursor chain). What the process boundary cannot carry — the typed contract,
-effect containment, the trace forest — is exactly what `invoke: workflow:`
+effect containment, the trace forest — is exactly what `invoke: { workflow: <path> }`
 adds: wherever the target is static, a linter recommends the native form.
 
 ## What v1 deliberately does not do

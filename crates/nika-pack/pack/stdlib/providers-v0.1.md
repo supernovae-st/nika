@@ -166,34 +166,33 @@ The task-level [`timeout:`](../spec/03-dag.md#timeout--optional--task-level-time
 declaring `timeout: "7m"` gives the provider round-trip those 7 minutes.
 A fixed internal HTTP default MUST NOT undercut the declared budget.
 
-When NO `timeout:` is declared, the default deadline is per provider
-**class** ·
+When NO `timeout:` is declared (reference-engine values · pinned by its
+wire tests) ·
 
-```
-LOCAL  (ollama · lmstudio · llamacpp · localai · vllm)               ≥ 300s
-CLOUD  (mistral · anthropic · openai · openrouter · huggingface ·      30s
-        nvidia · groq · deepseek · gemini · xai · moonshot)
-```
-
-A local model routinely needs minutes for ONE completion on consumer
-hardware — a 14B model cannot answer a real prompt in 30s, and a
-30s-everywhere default silently kills every serious local-first workflow
-(408 before the model finishes thinking). Local-first only works when the
-defaults respect local reality. The class is keyed on the **canonical
-provider id** (the table above) · a `base_url` override never flips it.
-
-Two honest bounds (reference-engine values · pinned by its wire tests) ·
-
-- **600s transport ceiling on a fully-silent connection** · a
-  non-streaming completion delivers ZERO bytes while the model computes,
-  so the transport cannot tell *thinking* from *dead*. A connection that
-  has delivered nothing is reaped at 600s: a `timeout:` longer than the
-  ceiling still bounds the task, but only a connection that starts
+- **A buffered call gets 600s, local or cloud alike.** A non-streaming
+  completion delivers ZERO bytes while the model computes, so the transport
+  cannot tell *thinking* from *dead*, and no shorter implicit deadline can
+  tell a slow legitimate call (a reasoning model, a long prompt, a 14B model
+  on consumer hardware) from a stalled one. A per-provider-class default did
+  exactly that harm: the former 30s cloud default cut legitimate summaries
+  at 30.0s, and the former 300s local one cut slow local models. 600s is the
+  transport's own bound on a connection that delivers nothing: a `timeout:`
+  longer than that still bounds the task, but only a connection that starts
   delivering can use it.
-- **Streaming carries only an EXPLICIT budget** · an SSE generation
+- **A streaming call carries only an EXPLICIT budget.** An SSE generation
   legitimately outlives any fixed total deadline. A declared `timeout:`
-  rides the streaming request; when none is declared, the idle-read guard
-  reaps a STALLED stream instead of capping a healthy one.
+  rides the streaming request; when none is declared there is no total
+  deadline, and the transport's idle-read guard reaps a STALLED stream
+  (600s without a byte) instead of capping a healthy one.
+
+**The terminal outcome** · a provider call that meets its deadline fails
+the task with the verb's provider error (`NIKA-INFER-001` on `infer:`),
+and the message names the deadline it met — the task's `timeout:` when it
+states one, else the 600s a buffered call is given — and the fix: set
+`timeout:` on the task, next to the verb. When the task's own `timeout:`
+clock runs out first, the task fails with `NIKA-TIMEOUT-001`
+([03-dag §timeout](../spec/03-dag.md#timeout--optional--task-level-timeout-go-duration-string)):
+catchable by `on_error:`, never retried.
 
 The task clock stays authoritative: `timeout:` bounds the **whole task**
 (retries + backoff included · [03-dag](../spec/03-dag.md#timeout--optional--task-level-timeout-go-duration-string)) ·
@@ -385,6 +384,7 @@ infer:
 ```yaml
 infer:
   model: anthropic/claude-sonnet-4-6
+  prompt: "Plan the migration"
   thinking:
     enabled: true
     budget_tokens: 4000

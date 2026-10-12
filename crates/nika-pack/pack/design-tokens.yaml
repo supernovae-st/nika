@@ -384,12 +384,14 @@ icons:
     station: "radio-tower"
     cost: "credit-card"
 
-# The provider PRESENTATION order (operator lock 2026-06-12): wherever a
+# The provider PRESENTATION order (operator lock 2026-06-12, amended
+# 2026-10-12 to the studio rule for technical catalogs): wherever a
 # surface lists or exemplifies the catalog (pickers · docs · quickstarts),
-# local & open-weight lead, then Mistral (EU · open-weight), then the
-# rest — cloud incumbents never the first suggestion. Functional code
-# (adapters · pinned e2e) is exempt: this binds the TEACHING surface.
-# A provider absent from this list ranks after it, alphabetically.
+# local & open-weight lead, then Mistral (EU · open-weight), Hugging Face,
+# OpenAI, xAI and Anthropic, then the rest alphabetically — cloud
+# incumbents never the first suggestion. Functional code (adapters ·
+# pinned e2e) is exempt: this binds the TEACHING surface. A provider
+# absent from this list ranks after it, alphabetically.
 presentation:
   providers_order:
     - ollama
@@ -398,15 +400,15 @@ presentation:
     - localai
     - vllm
     - mistral
-    - groq
-    - deepseek
-    - openrouter
     - huggingface
-    - nvidia
-    - anthropic
     - openai
-    - google
     - xai
+    - anthropic
+    - deepseek
+    - google
+    - groq
+    - nvidia
+    - openrouter
 
 # ── the semantic ROLES a key carries ─────────────────────────────────────────
 # A generic YAML highlighter colours by SYNTAX class (key · string · number)

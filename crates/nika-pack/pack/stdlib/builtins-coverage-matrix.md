@@ -17,7 +17,7 @@
 | files | `read` · `write` · `edit` · `remove_file` (one existing regular file · no recursion) · `glob` · `grep` | ✅ read · write · patch · exact-file removal · search · NOT every filesystem operation: no move/rename, directory removal, recursive or glob deletion, permission or link management (`exec:`/`mcp:` territory) |
 | databases | — | ✅ **deliberate** · `mcp:<server>/<tool>` (e.g. `mcp:postgres/query`) |
 | memory / recall | — | ✅ **deliberate** · `mcp:memory-server/*` today · `nika:connectome/*` reserved ([08 §Connectome](../spec/08-out-of-scope.md)) |
-| workflow composition | — | ✅ **deliberate** · never a builtin — the `invoke: workflow:` tagged union ([14-composition](../spec/14-composition.md) · the once-proposed `nika:run` is abandoned) |
+| workflow composition | — | ✅ **deliberate** · never a builtin — the `invoke: { workflow: <path> }` tagged union ([14-composition](../spec/14-composition.md) · the once-proposed `nika:run` is abandoned) |
 | time | `wait` (relative XOR absolute) · `date` | ✅ |
 | hash / crypto | `hash` | ✅ hashing · signing/encryption = deliberate absence (B2) |
 | notify / human | `notify` · `prompt` (blocking approval) | ✅ full |
@@ -34,7 +34,7 @@ posture** with an escape hatch (`exec:` · `mcp:`). No silent gaps.
 
 | Pair | The boundary |
 |---|---|
-| `fetch` vs « an HTTP client » | **`fetch` IS the API client.** It carries `method` (GET · POST · PUT · DELETE · PATCH · HEAD), `headers` (auth rides here, masked · `x-api-key: "${{ secrets.KEY }}"`), `body`, `form`, and `multipart` file upload under the `permits.fs` read boundary — plus the extract modes and the SSRF floor. **An API call belongs in `fetch`.** `mcp:` is for a tool a server already exposes; `exec: curl` is for the two things `fetch` deliberately does not do (below). |
+| `fetch` vs « an HTTP client » | **`fetch` IS the API client.** It carries `method` (GET · POST · PUT · DELETE · PATCH · HEAD), `headers` (auth rides here, masked · `x-api-key: "${{ secrets.KEY }}"`), `body`, `form`, and `multipart` file upload under the `permits.fs` read boundary — plus the extract modes and the SSRF floor. **An API call belongs in `fetch`.** `mcp:` is for a tool a server already exposes; `exec: { command: ["curl", …] }` is for the two things `fetch` deliberately does not do (below). |
 | `jq` vs `json_diff` / `json_merge_patch` | both *expressible* in jq · named for their RFC contracts (merge-patch = RFC 7396) · stable semantics worth a name. |
 | **the two things `fetch` does NOT do** | ① **no response-body-to-file** · every `mode:` returns text or JSON, so a binary response (an image, an archive) has nowhere to land. ② **no failure tolerance** · a non-2xx is a normative throw (`NIKA-BUILTIN-FETCH-001`), so a call that must survive a 404 cannot. **Both are measured, not hypothetical** — a corpus sweep found 18 `exec: curl` sites and *every one* is one of these two (12 saving a binary body, 5 tolerating failure, 1 an adversarial deny-probe). Until they are closed, those two shapes are the honest `exec: curl` territory — and nothing else is. |
 | `jq` vs `convert` | jq is JSON-in/JSON-out · `convert` crosses formats (yaml↔json↔toml…). |

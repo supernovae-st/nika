@@ -66,11 +66,11 @@ inputs:
 const:
   output_dir: "./output"                 # bare literal
 
-# Sensitive values · vault-backed · masked in logs · available as ${{ secrets.<name> }}
+# Sensitive values · a reference to a store · masked in logs · available as ${{ secrets.<name> }}
 secrets:
   api_key:
-    source: vault                        # never inline · a reference to a store
-    key: prod/anthropic/api-key
+    source: env                          # never inline · a reference to a store
+    key: ANTHROPIC_API_KEY
 
 # The declared capability boundary · the file IS the blast radius (optional · default-deny once present)
 permits:
@@ -145,7 +145,10 @@ KIND of file it is comes from `tasks:` — see
 
 **Anti-pattern** · do not write `nika: v1` · `nika: My_Workflow` ·
 `nika: "1.0"`. The value is a kebab-case id. A missing `nika:` is
-`NIKA-PARSE-002`; a value that is not kebab-case is `NIKA-PARSE-003`.
+`NIKA-PARSE-002`; a value that is not kebab-case is `NIKA-PARSE-003`. A
+retired version tag (`v1`, `v2`, …) is kebab-shaped and refused all the
+same (`NIKA-PARSE-003`), in a workflow as in `nika.yaml`: the name is a
+word, never a version.
 
 > **The version slot is gone, and that is LOSSLESS (2026-08-12).** This key
 > held the literal `v1` until the envelope nuke. Two normative sentences
@@ -258,7 +261,7 @@ tell apart are one authority. The cell `config:` occupied (nobody supplies it
 × treated as untrusted) was a constant the checker was being asked to treat as
 hostile. A credential still never lands here: an input's value appears in logs
 and traces — a value that must stay masked belongs to
-[`secrets:`](#secrets--optional--vault-backed--masked).
+[`secrets:`](#secrets--optional--a-reference-to-a-store--masked).
 
 **Supplying values at launch** · the caller provides inputs when starting
 the run; how is an engine CLI concern. The reference engine's surface ·
@@ -305,23 +308,20 @@ See [04-variables.md](./04-variables.md) for the full substitution grammar.
 > `secrets:` entry (classify-not-rename ·
 > no alias survives · LAW-SURFACE-0201/0202 · LAW-GRAMMAR-0201/0202).
 
-### `secrets` · *optional · vault-backed · masked*
+### `secrets` · *optional · a reference to a store · masked*
 
 ```yaml
 secrets:
-  api_key:
-    source: vault                 # vault | env | file · never an inline value
-    key: prod/anthropic/api-key
   github_token:
-    source: env                   # read from the OS env var below · still masked
+    source: env                   # env | file · read from the OS env var below · still masked
     key: GITHUB_TOKEN
   signing_pem:
     source: file                  # read file contents at resolve time · masked
     path: ~/.keys/signing.pem
 ```
 
-The shape is **discriminated by `source:`** (required) · `vault` and `env`
-require `key:` · `file` requires `path:` · an entry with neither (or an
+The shape is **discriminated by `source:`** (required) · `env` requires
+`key:` · `file` requires `path:` · an entry with neither (or an
 inline literal value) is rejected (`NIKA-PARSE` · `validation_error`).
 
 Sensitive values available via `${{ secrets.<name> }}`. A secret is always
@@ -462,7 +462,7 @@ stay a documented follow-up covered by the static guards above.
 ```yaml
 permits:                          # the workflow's entire blast radius, declared in-file
   fs:   { read: ["./data/**"], write: ["./out/**"] }   # path globs (gitignore-style)
-  net:  { http: ["api.example.com", "*.github.com"] }  # host allowlist — the SSRF boundary, in-file
+  net:  { http: ["api.example.com", "api.github.com"] }  # host allowlist · exact names (a `*.` entry is NIKA-AUTH-010)
   exec: false                     # may this workflow run shells? false | true | ["git", "cargo"] (program allowlist)
   tools: ["nika:read", "nika:write", "mcp:browser/*"]  # the builtin/MCP surface it may invoke
   env:  ["CI_COMMIT_SHA"]         # engine env names passed through to child processes · exact names · composed, never inherited
@@ -929,8 +929,8 @@ number, boolean, or date, **quote it**. When in doubt, quote.
 contains `:` `#` `[` `{` `,` or `>` so YAML does not misparse it ·
 
 ```yaml
-when: "${{ tasks.x.status == 'ok' && tasks.y.count > 3 }}"   # quoted · contains > and :
-prompt: ${{ inputs.topic }}                                  # bare ok · no special chars
+when: "${{ with.status == 'ok' && with.count > 3 }}"   # quoted · contains > · reads the task's own with: names
+prompt: ${{ inputs.topic }}                            # bare ok · no special chars
 ```
 
 A conformant engine parses YAML 1.2. Authoring tools (and the AI writing
@@ -1008,6 +1008,42 @@ compatibility matrix.
 
 ---
 
+## The project's missed slots · `manqué` (normative)
+
+A `nika.yaml` beat (`arm:`) states, with no default, what a slot the firer missed becomes when the
+firer comes back. The machine that fires the beat applies it; the project file only states it
+(08 §A5).
+
+| `manqué:` | What fires | What each run receives |
+|---|---|---|
+| `sauter` | nothing: every missed slot is skipped | none |
+| `rattraper` | the latest missed slot, once | that slot's instant, as `${{ run.scheduled_for }}` |
+| `{ rattraper: N }` | up to the N latest missed slots, one run each, oldest first | its own slot's instant, as `${{ run.scheduled_for }}` |
+| `rattraper-une-fois` | one run for the whole silence | the latest slot's instant as `${{ run.scheduled_for }}`, and the missed range as `${{ run.missed }}`: the first and the last missed slot and their count |
+
+`N` is a whole number from 1; anything else is refused when the project is checked. Before
+anything is armed, the activation shows the worst spend the law allows, « jusqu'à N × plafond »
+(one `plafond` for `rattraper` and for `rattraper-une-fois`).
+
+`rattraper` replays one slot as if it had fired on time. `rattraper-une-fois` runs once on behalf
+of the whole silence, and is told how long that silence was. A run fired on time is told its slot
+the same way, and a run started by hand its own start; the run's real start stays what the clock
+gives, so a date window computed from « now » shifts on a late run while one computed from
+`run.scheduled_for` does not ([04 §`run`](./04-variables.md)).
+
+```yaml
+arm:
+  - workflow: workflows/daily-report.nika
+    cadence: "TZ=Europe/Paris 0 9 * * 1-5"
+    plafond: 0.50
+    manqué: { rattraper: 3 }   # back after a week away: the 3 latest missed days run, oldest first
+
+  - workflow: workflows/outage-digest.nika
+    cadence: "TZ=Europe/Paris 0 8 * * *"
+    plafond: 0.80
+    manqué: rattraper-une-fois  # one digest that covers every missed day, told the range it covers
+```
+
 ## Examples
 
 ### Minimal
@@ -1035,7 +1071,12 @@ inputs:
     description: "Subject to research"
   output_path:
     type: string
-    default: "./brief.md"
+    default: "./briefs/brief.md"
+
+permits:                          # a caller's path stays inside fs.write (the taint law · 10 §NEP-0004)
+  tools: ["nika:write"]
+  fs:
+    write: ["./briefs/*.md"]
 
 tasks:
   research:
@@ -1059,7 +1100,7 @@ tasks:
 A v0.1-compliant engine MUST ·
 
 1. Reject any file missing `nika:` or carrying an empty `tasks:` with a clear error (`NIKA-PARSE-002`)
-2. Validate the `nika:` value as a kebab-case id `^[a-z][a-z0-9-]*$` · reject any other shape (`v1` · `My_Flow` · `1.0` …) with a clear error (`NIKA-PARSE-003`)
+2. Validate the `nika:` value as a kebab-case id `^[a-z][a-z0-9-]*$` that is not a retired version tag `^v[0-9]+$` · reject any other value (`v1` · `My_Flow` · `1.0` …) with a clear error (`NIKA-PARSE-003`)
 3. Read the document TYPE from `tasks:` — present means workflow, absent means project — never from the filename, for filename-free source (stdin · HTTP · pack blob). Live on-disk program entry requires a canonical `<name>.nika` path (this chapter §File naming). `nika.yaml` is project configuration only: a `tasks:` map at that pathname is refused, not coerced into a workflow. Retired `.nika.yaml` / `.nika.yml` paths MUST NOT be accepted as programs.
 4. Make workflow-level `model`, `inputs`, `const`, `secrets` available to all tasks as defaults
 5. Validate typed `inputs` (type + required) before execution · reject missing required inputs before the prologue (`NIKA-1708` · zero task events) · refuse every declared `default:` / typed `const:` value that does not conform to its declared `type:` (`NIKA-DEFAULT-001`)
