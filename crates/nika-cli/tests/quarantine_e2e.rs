@@ -317,12 +317,15 @@ fn stamp(journal: &Path) -> String {
         .into_owned()
 }
 
-/// A run that writes `report.md`, then fails until a `go` file exists.
+/// A run that writes `report.md`, then fails until a `go` file exists. The
+/// gate's file is declared: on Linux an exec sees only the paths its workflow
+/// declares (the bwrap jail binds nothing else), so an undeclared `go` would
+/// fail the gate whether the file exists or not.
 const GATE_WF: &str = r#"
 nika: quarantine-refused-restore
 permits:
   tools: ["nika:write"]
-  fs: { write: ["report.md"] }
+  fs: { read: ["go"], write: ["report.md"] }
   exec: ["test"]
 tasks:
   report:
@@ -696,13 +699,14 @@ tasks:
 }
 
 /// The run a crash interrupts: it edits the person's note, creates the
-/// report, then sleeps (the kill lands there) and fails unless `go` exists.
+/// report, then sleeps (the kill lands there) and fails unless `go` exists
+/// (declared, so the gate sees it in the Linux jail too: see `GATE_WF`).
 #[cfg(unix)]
 const CRASH_WF: &str = r#"
 nika: quarantine-crash
 permits:
   tools: ["nika:write", "nika:edit"]
-  fs: { write: ["note.txt", "report.md"], read: ["note.txt"] }
+  fs: { write: ["note.txt", "report.md"], read: ["note.txt", "go"] }
   exec: ["sleep", "test"]
 tasks:
   fix:
