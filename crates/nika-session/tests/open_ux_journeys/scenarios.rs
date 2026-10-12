@@ -893,30 +893,30 @@ fn stop_mid_request() -> Scenario {
 
 /// The person's plain refusal of the plan.
 pub(crate) const REFUSE: &str = "non";
-/// E1's request: one source named, one ambiguous, the output left to the author.
+/// A request with one source named, one ambiguous, and the output left to the author.
 pub(crate) const YC_REQUEST: &str = "recupere les news tech de Y Combinator et de TechCrunch, resume les et ecris le resultat en markdown dans un dossier du projet";
-/// E1 machine-1 turn 1: a deflection of the question on Y Combinator.
+/// A deflection of the question on Y Combinator.
 pub(crate) const DEFLECT: &str = "Je t'ai déjà donné les sources.";
 pub(crate) const YC_BLOG: &str = "https://www.ycombinator.com/blog/";
-/// E1 machine-2 turns 3 and 4: a rename, then the name left to the author.
+/// A rename, then the name left to the author.
 pub(crate) const RENAME: &str = "Oui, garde le même résultat, mais change le nom.";
 pub(crate) const BEST: &str = "Oui, fais au mieux.";
 pub(crate) const RENAMED: &str = "./news/actualites-tech.md";
-/// E1 TUI turn 5: « today », which names no source.
+/// « Today », which names no source.
 pub(crate) const TODAY: &str = "En fait je voulais les articles d'aujourd'hui.";
 /// A replacement in words that name what they replace.
 pub(crate) const SWAP: &str = "change hacker news pour algolia";
 pub(crate) const ALGOLIA: &str = "https://hn.algolia.com/api/v1/search_by_date?tags=story";
-/// E1 TUI turn 3: the folder, typed at a proposal.
+/// The folder, typed at a proposal.
 pub(crate) const FOLDER: &str = "Mets ça dans le dossier actualites.";
 pub(crate) const FOLDER_DIGEST: &str = "./actualites/digest.md";
-/// The engine's detail for E1 machine-2's failed summary.
+/// The engine's detail for a summary whose provider call timed out.
 pub(crate) const TIMED_OUT: &str = "NIKA-INFER-001 provider call failed during `infer`: provider API error (408): HTTP request timed out after 30000ms";
 /// The person's repair words, after a failed Run and after an empty one.
 pub(crate) const FIX_AND_RUN: &str = "corrige et relance";
 pub(crate) const EMPTY: &str = "Il n'y a rien dedans, corrige et relance.";
 
-/// The choice E1 was asked: which source « Y Combinator » means, shown by the proposal with
+/// The choice of which source « Y Combinator » means, shown by the proposal with
 /// Hacker News its default.
 fn yc_choice() -> Value {
     json!({"key": "yc_source", "role": "read_source",
@@ -929,7 +929,7 @@ fn yc_choice() -> Value {
         "free_text": true})
 }
 
-/// F2: the person refuses the plan; the author's claim that they accepted it is refused.
+/// The person refuses the plan; the author's claim that they accepted it is refused.
 /// A model that only reasons, twice: asked once more, then the turn says so.
 fn thought_only() -> Scenario {
     Scenario {
@@ -968,7 +968,7 @@ fn refused_offer() -> Scenario {
     }
 }
 
-/// Item 4(a), E1 machine-1: a deflection takes the recommended Hacker News, delegated.
+/// A deflection takes the recommended Hacker News, delegated.
 fn deflection_takes_the_recommendation() -> Scenario {
     let write = json!({
         "source": digest(&[("hacker_news", HACKER_NEWS), ("techcrunch", TECHCRUNCH)], DIGEST),
@@ -1006,7 +1006,7 @@ fn deflection_takes_the_recommendation() -> Scenario {
     }
 }
 
-/// Item 4(b), E1 machine-2: a name left to the author is chosen once and never asked again.
+/// A name left to the author is chosen once and never asked again.
 fn delegated_name() -> Scenario {
     let name = json!({"questions": [{"key": "new_name", "role": "output_path",
         "question": "Quel nouveau nom pour le fichier ?", "options": [],
@@ -1050,7 +1050,7 @@ fn delegated_name() -> Scenario {
     }
 }
 
-/// Item 4(e) and lane B's T3, E1 TUI: « today » names no source and removes none; a
+/// « Today » names no source and removes none; a
 /// replacement in words that name the source is said under the proposal.
 fn source_swap() -> Scenario {
     let swapped = |message: &str, excerpt: &str| {
@@ -1098,7 +1098,7 @@ fn source_swap() -> Scenario {
     }
 }
 
-/// Item 4(f), E1 TUI: the folder typed at a proposal is a revision, never money input.
+/// The folder typed at a proposal is a revision, never money input.
 fn folder_line() -> Scenario {
     let moved = json!({
         "source": digest(&[("hacker_news", HACKER_NEWS), ("techcrunch", TECHCRUNCH)], FOLDER_DIGEST),
@@ -1160,7 +1160,7 @@ fn run_on(said: &str, message: &str, excerpt: &str) -> Step {
     )
 }
 
-/// Item 5, E1 machine-2: a failed Run goes back to its author at once; the repaired revision
+/// A failed Run goes back to its author at once; the repaired revision
 /// never runs on the words that ran the failed one, and runs on the person's new words.
 fn failed_run_repaired() -> Scenario {
     let mut agent = accepted_steps();
@@ -1194,7 +1194,7 @@ fn failed_run_repaired() -> Scenario {
     }
 }
 
-/// Item 5, the evaluator's repair cell: a complaint about a successful Run reaches the author
+/// A complaint about a successful Run reaches the author
 /// with the run's facts, and the repair runs on those words.
 fn complaint_after_success() -> Scenario {
     let mut agent = accepted_steps();

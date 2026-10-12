@@ -13,7 +13,7 @@ use crate::peer::{Script, call, call_saying, say};
 pub(crate) const OBSERVED_AT: u64 = 1_791_619_200_000;
 /// The feed the trial journeys read.
 pub(crate) const STORIES: &str = "https://feed.example/stories";
-/// Its stories dated without an offset: the E1 shape `fromdateiso8601` refuses.
+/// Its stories dated without an offset, a shape `fromdateiso8601` refuses.
 pub(super) const NO_OFFSET: &str = r#"{"hits": [{"title": "A", "created_at": "2026-10-10T08:00:00"}, {"title": "B", "created_at": "2026-10-10T09:30:00"}]}"#;
 /// Its stories as an RSS feed, whose `feed` mode gives each item an RFC 3339 `published`.
 pub(super) const STORIES_RSS: &str = "<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><title>Stories</title><item><title>A</title><link>https://feed.example/a</link><pubDate>Sat, 10 Oct 2026 08:00:00 GMT</pubDate></item><item><title>B</title><link>https://feed.example/b</link><pubDate>Sat, 10 Oct 2026 09:30:00 GMT</pubDate></item></channel></rss>";
@@ -85,7 +85,7 @@ pub(super) fn tried(mode: &str, broken: &str, fixed: &str) -> Scenario {
     }
 }
 
-/// I4c item 1: the broken filter and the workflow's name changed by one `candidate_edit`.
+/// The broken filter and the workflow's name changed by one `candidate_edit`.
 pub(super) fn two_edits() -> Scenario {
     let edits = json!({"edits": [
         {"old": RFC_822_BROKEN, "new": RFC_822_FIXED},
