@@ -28,6 +28,8 @@
 
 #[path = "open_ux_journeys/child.rs"]
 mod child;
+#[path = "open_ux_journeys/fragments.rs"]
+mod fragments;
 #[path = "open_ux_journeys/peer.rs"]
 mod peer;
 #[path = "open_ux_journeys/scenarios.rs"]
