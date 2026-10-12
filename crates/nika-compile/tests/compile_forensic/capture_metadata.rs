@@ -466,7 +466,9 @@ async fn observed(answers: Vec<Answer>) -> (CompileOutcome, Vec<Meta>, Canned) {
 // ── Product parity with the reference ───────────────────────────────────────────────────────
 
 /// Reviewed prompt identities for [`three_calls`] under the unchanged legacy framing.
-/// Captured at nika-spec 34ad76c, whose vendored pack moves the fetch contract's feed section
+/// Captured after the card shows each builtin with its own arguments (`nika:notify` with
+/// channel, target and message) and a glob task as a flow map. Before it, at
+/// nika-spec 34ad76c, whose vendored pack moves the fetch contract's feed section
 /// and the cap comments of the skeletons recall returns. Before it, after the prompt inputs
 /// changed since 5167aaf5d: the shelf's date, jq and JSON API laws, the fetch modes table, the
 /// card example without a copied cap, and the recall by informative words. Before those, after
@@ -475,9 +477,9 @@ async fn observed(answers: Vec<Answer>) -> (CompileOutcome, Vec<Meta>, Canned) {
 /// assertions below independently compare the observer with the legacy framing over each exact
 /// request before checking these values.
 const REVIEWED_PROMPTS: [&str; 3] = [
-    "1b52aefc9c9e68d590ea29878d4574b509d5d0facc177ea513cdb76a463698db",
-    "46d378c3230a19d5893d57a6a0dc8ab9d4ce1702535645bb3cdafe0985038f44",
-    "5dde9cec4bfcc5d4cd2782ec38e7b14eb7e0a4175af7ba14422435081b1fed36",
+    "07d8540e210c28e467cc4fb560edaa325c56243df346ea448cbd90251b270190",
+    "20a5a9b7adc2ad09b050dd37d8c2e97d5ceb2da23360943e875bbe40022bb95e",
+    "012c640203fd025602ae7e6fed2dd3748a4086c7a7cd061f0eeaa6a513b31802",
 ];
 /// Legacy response identities, unchanged by the new prompt conventions.
 const PRE_CHANGE_FRAMED: [&str; 3] = [

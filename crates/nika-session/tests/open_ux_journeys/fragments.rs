@@ -75,6 +75,14 @@ fn instructions() -> &'static str {
     text.split_once("# Reference:").map_or(text, |(own, _)| own)
 }
 
+/// The part of the instructions from the heading `from` up to the heading `to`.
+fn section(from: &str, to: &str) -> &'static str {
+    let text = served().instructions.as_str();
+    let start = (text.find(from)).unwrap_or_else(|| panic!("the instructions hold `{from}`"));
+    let rest = &text[start..];
+    rest.find(to).map_or(rest, |end| &rest[..end])
+}
+
 /// A fragment the language refuses, and the oracle's reason.
 struct Refused {
     fragment: String,
@@ -549,6 +557,14 @@ fn signatures(line: &str) -> Vec<(String, Vec<String>)> {
 fn every_fragment_the_author_instructions_show_checks_clean() {
     assert_checks_clean("the author's instructions", instructions());
     assert_checks_clean("the author's tools", &served().tools);
+}
+
+/// The compile card lines the Session includes show only forms the language reads: each builtin
+/// with the arguments it declares, each fragment parsed and checked.
+#[test]
+fn every_fragment_the_card_lines_show_checks_clean() {
+    let card = section("# The language in one page", "# Output conventions");
+    assert_checks_clean("the card lines", card);
 }
 
 /// The check goes red on a copy of the instructions that shows one refused form, an `after:` list
