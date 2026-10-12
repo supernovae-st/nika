@@ -156,3 +156,23 @@ next prompt.
 **Consequences.** Already decided ordinary work is kept; an obsolete question, proposal or
 replacement is never shown. The witness is
 `a_steering_line_holds_back_only_the_calls_that_hand_the_turn_over` (nika-session-agent).
+
+## Amendment 2026-10-12 — a proposal carries the schedule the person asked for
+
+**Context.** The agent route could not carry a schedule: `propose` covered saving and running
+only and its proposals kept no trigger, so « activate » after an agent-led save answered that the
+workflow asked for no schedule, while the compile route records `requested_trigger`.
+
+**Decision.** `propose` (`nika/author-tools@1`, additive) may carry `schedule`: the citation of
+the person's line, their words that say when, verbatim, and the IANA zone those words follow. The
+Session refuses back to the author words the cited line does not hold, a zone neither in the
+person's words nor the default of a choice the proposal shows (`open` may offer the zone, a value
+the candidate never carries), and words that Compile's own trigger reading
+(`nika_compile::trigger_of`) cannot turn into cron fields valid in that zone: no hour or day is
+ever completed. The proposal's goal states the schedule in the compile route's Runs words, so the
+identity a consent answers covers it; the trigger rides beside the set, and once the workflow is
+saved « activate » declares it in `nika.yaml`. Saving declares nothing.
+
+**Consequences.** A recurring request reaches the same declaration on both routes, and the
+workflow's bytes stay free of any trigger. The witnesses are the schedule journeys of
+`tests/open_ux_journeys/schedule_journeys.rs` (nika-session).

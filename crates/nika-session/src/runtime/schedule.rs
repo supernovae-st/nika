@@ -157,6 +157,27 @@ impl Activation {
     }
 }
 
+/// The trigger the person's `words` state, read as the compiler reads a request's, in the
+/// `zone` a proposal shows: a schedule whose day and hour the words state, valid in that zone,
+/// never one Nika completes.
+pub(super) fn scheduled(words: &str, zone: &str) -> Result<TriggerRequirement, String> {
+    let read = nika_compile::trigger_of(words);
+    let Some(mut trigger) = read.filter(|t| t.kind == TriggerKind::Schedule && t.cron.is_some())
+    else {
+        return Err(format!(
+            "« {words} » is not a complete schedule: cite only the person's words that say when it runs (« chaque lundi à 9h », \"every Friday at 10\"); when they state no day or no hour, ask them, never assume one"
+        ));
+    };
+    let cadence = format!("TZ={zone} {}", trigger.cron.as_deref().unwrap_or_default());
+    if let Err(why) = nika_cadence::registry::Cadence::parse(&cadence) {
+        return Err(format!(
+            "`{cadence}` is refused by the schedule grammar: {why}"
+        ));
+    }
+    trigger.timezone = Some(zone.to_owned());
+    Ok(trigger)
+}
+
 impl SessionRuntime {
     /// « activate » — the schedule the last accepted workflow asked for
     /// becomes a declaration to review: the three values the sentence did

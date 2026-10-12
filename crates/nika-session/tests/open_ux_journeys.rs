@@ -34,6 +34,8 @@ mod fragments;
 mod peer;
 #[path = "open_ux_journeys/scenarios.rs"]
 mod scenarios;
+#[path = "open_ux_journeys/schedule_journeys.rs"]
+mod schedule_journeys;
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;

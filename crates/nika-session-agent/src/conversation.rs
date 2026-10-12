@@ -29,6 +29,7 @@ mod answer;
 mod choices;
 mod edit;
 mod pick;
+mod schedule;
 
 use self::answer::Answered;
 use self::choices::NotAsked;

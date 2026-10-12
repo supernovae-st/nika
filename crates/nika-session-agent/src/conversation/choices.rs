@@ -177,8 +177,9 @@ impl Conversation {
     }
 
     /// `propose`'s `open`, read before the proposal is judged: each choice in `ask`'s shape,
-    /// unsettled, shown once, with exactly one recommended offer whose values the candidate
-    /// already carries. `mint` gives each its identity, as it does a question's.
+    /// unsettled, shown once, with exactly one recommended offer whose values the candidate (or
+    /// the schedule beside it) already carries. `mint` gives each its identity, as it does a
+    /// question's.
     ///
     /// # Errors
     ///
@@ -191,13 +192,18 @@ impl Conversation {
         (mint, facts): (Mint<'_>, Facts<'_>),
     ) -> Result<Vec<AskedQuestion>, String> {
         let source = (self.candidate.as_ref()).map_or("", |c| c.source.as_str());
+        // A schedule's zone rides beside the candidate, never in it: a choice may offer it.
+        let carried = match args["schedule"]["timezone"].as_str() {
+            Some(zone) => format!("{source}\n{zone}"),
+            None => source.to_owned(),
+        };
         let mut shown: Vec<AskedQuestion> = Vec::new();
         let mut refused = Vec::new();
         let choices = args["open"].as_array().into_iter().flatten();
         for (ordinal, choice) in choices.enumerate() {
             let key = choice["key"].as_str().unwrap_or_default();
             match self.question(choice, citations, (call, ordinal), mint, facts) {
-                Ok(question) => match unshowable(&question, source, &shown) {
+                Ok(question) => match unshowable(&question, &carried, &shown) {
                     Some(why) => refused.push(format!("`{key}`: {why}")),
                     None => shown.push(question),
                 },
