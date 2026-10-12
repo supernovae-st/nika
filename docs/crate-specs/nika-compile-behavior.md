@@ -71,10 +71,13 @@ sentence now reads as this crate, which declares those two dependencies itself).
   two aggregates) are never reduced to one, the relation stays unverified. A stop never hides a
   wrong value or a forbidden write already observed. Outcomes are not ordered: each obligation and the report carry a `Tally`, and
   `Verdict` states its dominance (invalid harness, defective, not run, incomplete, certified);
-  `failed()` keeps the defects valid fixtures showed and `scorable()` says no fixture was
+  `failed()` keeps the defects valid fixtures showed, `failures()` states them as the one
+  located message a repair starts from (each obligation a fixture failed, its requested result
+  and what each failing fixture showed; added 2026-10-12), and `scorable()` says no fixture was
   invalid. The report keeps the requested result, the assumptions and the observed proof apart,
   with the round and turn budget (fixtures, attempts, bytes copied and read back, elapsed time)
-  the host reports. A join, rows per group with no named aggregate, outputs defined as
+  the host reports; `Budget::runs` is a round of one run within a byte and time bound in a turn
+  of N such rounds (added 2026-10-12). A join, rows per group with no named aggregate, outputs defined as
   arithmetic over aggregates, a seat-written program, the lines of a text source and several
   rules or writes the plan does not pair stay explicit unsupported obligations. No runtime
   record yields a `StopFact` yet, and none carries the provenance an attested stop needs: a stop

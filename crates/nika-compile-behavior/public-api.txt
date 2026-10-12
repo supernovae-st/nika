@@ -819,6 +819,7 @@ pub fn nika_compile_behavior::behavior::Budget::admission(&self) -> nika_compile
 pub fn nika_compile_behavior::behavior::Budget::charge(&mut self, spent: &nika_compile_behavior::behavior::Usage) -> nika_compile_behavior::behavior::Admission
 pub fn nika_compile_behavior::behavior::Budget::new(round: nika_compile_behavior::behavior::Limits, turn: nika_compile_behavior::behavior::Limits, turn_spent: nika_compile_behavior::behavior::Usage) -> Self
 pub fn nika_compile_behavior::behavior::Budget::round(&self) -> nika_compile_behavior::behavior::Usage
+pub fn nika_compile_behavior::behavior::Budget::runs(runs: u32, bytes: u64, elapsed_ms: u64, turn_spent: nika_compile_behavior::behavior::Usage) -> Self
 pub fn nika_compile_behavior::behavior::Budget::turn(&self) -> nika_compile_behavior::behavior::Usage
 impl core::clone::Clone for nika_compile_behavior::behavior::Budget
 pub fn nika_compile_behavior::behavior::Budget::clone(&self) -> nika_compile_behavior::behavior::Budget
@@ -1539,6 +1540,7 @@ pub nika_compile_behavior::behavior::Report::turn: nika_compile_behavior::behavi
 impl nika_compile_behavior::behavior::Report
 pub fn nika_compile_behavior::behavior::Report::certified(&self) -> bool
 pub fn nika_compile_behavior::behavior::Report::failed(&self) -> bool
+pub fn nika_compile_behavior::behavior::Report::failures(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_compile_behavior::behavior::Report::harness_invalid(&self) -> bool
 pub fn nika_compile_behavior::behavior::Report::new(judged: alloc::vec::Vec<nika_compile_behavior::behavior::Judged>, round: nika_compile_behavior::behavior::Usage, turn: nika_compile_behavior::behavior::Usage, admission: nika_compile_behavior::behavior::Admission) -> Self
 pub fn nika_compile_behavior::behavior::Report::scorable(&self) -> bool

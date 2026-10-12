@@ -789,6 +789,26 @@ impl Report {
         self.tally().failed > 0
     }
 
+    /// The round's defects as one located message, what a repair starts from: each obligation a
+    /// fixture failed, the result it requested and what each failing fixture showed, as
+    /// `{"kind":"behaviour_failed","obligations":[{"requested":…,"observed":[…]}]}`. `None`
+    /// when no fixture failed.
+    #[must_use]
+    pub fn failures(&self) -> Option<String> {
+        let failed: Vec<serde_json::Value> = (self.judged.iter())
+            .filter(|judged| judged.tally.failed > 0)
+            .map(|judged| {
+                let observed: Vec<&str> = (judged.findings.iter())
+                    .filter(|finding| finding.outcome == Outcome::Failed)
+                    .map(|finding| finding.observed.as_str())
+                    .collect();
+                serde_json::json!({"requested": judged.requested, "observed": observed})
+            })
+            .collect();
+        let message = serde_json::json!({"kind": "behaviour_failed", "obligations": failed});
+        (!failed.is_empty()).then(|| message.to_string())
+    }
+
     /// Whether some fixture or observation is invalid.
     #[must_use]
     pub fn harness_invalid(&self) -> bool {

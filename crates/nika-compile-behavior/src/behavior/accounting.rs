@@ -154,6 +154,17 @@ impl Budget {
         }
     }
 
+    /// A round of one run (one fixture, one attempt) within `bytes` and `elapsed_ms`, in a turn of
+    /// `runs` such rounds that already spent `turn_spent`: each turn limit is the round's times
+    /// `runs`, saturating.
+    #[must_use]
+    pub fn runs(runs: u32, bytes: u64, elapsed_ms: u64, turn_spent: Usage) -> Self {
+        let times = |limit: u64| limit.saturating_mul(u64::from(runs));
+        let round = Limits::new(1, 1, bytes, elapsed_ms);
+        let turn = Limits::new(runs, runs, times(bytes), times(elapsed_ms));
+        Self::new(round, turn, turn_spent)
+    }
+
     /// Whether another fixture may start: every total still under its round and turn limit.
     #[must_use]
     pub fn admission(&self) -> Admission {
