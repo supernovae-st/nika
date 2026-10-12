@@ -231,7 +231,7 @@ pub trait TurnClassifier: Send {
     /// The act of `raw` in `context`; UNKNOWN when it cannot tell.
     fn classify(&mut self, context: &TurnContext, raw: &str) -> TurnDecision;
 
-    /// Carry the explicit reasoning effort the session names (R4 B16) on every label sent from
+    /// Carry the explicit reasoning effort the session names on every label sent from
     /// now on, `None` for none. A classifier that cannot carry a named level refuses it (the
     /// default), and the session refuses the label before calling it: a label is never sent
     /// without the level. One that makes no model call, or whose backend has no reasoning effort
@@ -284,7 +284,7 @@ impl ReasonerClassifier {
         }
     }
 
-    /// Every label asks this explicit reasoning effort (R4 B16), on the same label call; a
+    /// Every label asks this explicit reasoning effort, on the same label call; a
     /// reasoner that cannot carry it refuses the label before any call.
     #[must_use]
     pub fn asking(mut self, effort: Option<nika_onboard::compile::AuthoringReasoning>) -> Self {
@@ -452,7 +452,7 @@ mod tests {
     use super::*;
 
     /// The label is read whole and must be the only one the reply names: a reply
-    /// naming two different labels is UNKNOWN (V9 P1 · a reasoning seat that
+    /// naming two different labels is UNKNOWN (a reasoning seat that
     /// leaks « not MODIFY, this is DISCUSS » once revised a proposal); an
     /// unknown reply is UNKNOWN.
     #[test]

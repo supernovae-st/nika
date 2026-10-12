@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The authoring round kept across a close (C7 · F-SESSION-1): evidence, never authority. The
+//! The authoring round kept across a close: evidence, never authority. The
 //! home History is its one durable copy (`Saved.round`, written and read by
 //! [`nika_onboard::compile::round`]; the project's structured record keeps none). A reopened
 //! session names it and asks nothing — no model, no workflow executed — and `/meaning`,
@@ -229,7 +229,7 @@ impl SessionRuntime {
             return refused(RefusalClass::NotAllowed, why);
         }
         // The money gate reads the request again: nothing admitted earlier rides along. A
-        // revision's words are its change, read as the live revision reads them (B15), never the
+        // revision's words are its change, read as the live revision reads them, never the
         // composed goal it was kept with: the original's words are another request's.
         let words = (record.edit.as_ref()).map_or(record.request.text.as_str(), |edit| {
             edit.change.text.as_str()
@@ -252,7 +252,7 @@ impl SessionRuntime {
         match compile_deterministic(&round.request()) {
             Ok(out) => {
                 self.restored_round = None;
-                // The goal stays as typed, as live: a restatement rebuilds the request (C11).
+                // The goal stays as typed, as live: a restatement rebuilds the request.
                 let goal = &mut self.intent.goal;
                 let typed = goal.get_or_insert_with(|| round.effective_intent()).clone();
                 let asked = record.request_as_typed(Some(&typed));
@@ -305,7 +305,7 @@ impl SessionRuntime {
 
 /// The round a kept record continues: its request, answers, plan and evidence, with the money
 /// this session's gate admitted now: a request's spans of its own bytes, or a revision's change
-/// under the live revision's law (B15), its own directives when the gate admitted money in it.
+/// under the live revision's law, its own directives when the gate admitted money in it.
 fn rebuilt(record: &RoundRecord, admitted: &[std::ops::Range<usize>]) -> AuthoringRound {
     let mut round = AuthoringRound::new(record.request.text.clone());
     round.answers = record.answer_map();

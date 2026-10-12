@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The source basis of a proposal, bound where a compile outcome is proposed and judged again at
-//! its yes (C9 · F4). The compiler records the source facts a candidate's program relies on
+//! its yes. The compiler records the source facts a candidate's program relies on
 //! ([`Basis::sources`]); a yes observes exactly those sources again through the host's one
 //! bounded observer and the compiler judges them for the request that compiled the bytes, kept
 //! with the observation its round read, never one made later ([`basis_for`]). A moved or

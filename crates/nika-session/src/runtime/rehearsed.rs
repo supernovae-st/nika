@@ -207,7 +207,7 @@ impl SessionRuntime {
         })
     }
 
-    /// A proposal lands where its child workflows were checked (R5): a candidate whose hold was
+    /// A proposal lands where its child workflows were checked: a candidate whose hold was
     /// lifted at another path than `set`'s is checked again at the proposed one, and a hold that
     /// does not lift there refuses the proposal; nothing is written.
     fn composed_at(&self, set: &ProjectChangeSet, out: &CompileOutcome) -> Result<(), TurnOutcome> {

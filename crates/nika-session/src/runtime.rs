@@ -287,7 +287,7 @@ pub struct SessionRuntime {
     pending: Option<ProjectChangeSet>,
     /// Identities already waiting before the live preparation; Stop never discards them.
     preparation_before: durable::PreparationBefore,
-    /// The source basis the compiler recorded for the pending proposal, judged at its yes (F4).
+    /// The source basis the compiler recorded for the pending proposal, judged at its yes.
     basis: Option<fresh::ProposalBasis>,
     /// A rehearsed copy's proofs, and what this turn's rehearsals spent (`rehearsed.rs`).
     rehearsals: rehearsed::Rehearsals,
@@ -366,8 +366,7 @@ pub struct SessionRuntime {
     /// Meaning view), kept while its question or proposal waits.
     last_outcome: Option<CompileOutcome>,
     /// The verdicts that rejected candidate bytes in this goal's compiles, handed to every later
-    /// compile of the goal: no judge is asked again on bytes it rejected for the same request
-    /// (R6).
+    /// compile of the goal: no judge is asked again on bytes it rejected for the same request.
     declined: declined::Declined,
     /// The schedule the pending proposal asked for (kept beside the
     /// program); becomes `last_trigger` when the human saves that program.
@@ -1140,7 +1139,7 @@ impl SessionRuntime {
         if let Err(why) = self.agent_consents(&set, answer) {
             return self.hold_pending(set, id, &why);
         }
-        // The sources the proposal was built on are judged again before anything lands (F4).
+        // The sources the proposal was built on are judged again before anything lands.
         let basis = match self.basis_at_yes(&set, &id) {
             Ok(note) => note,
             Err(withdrawn) => return withdrawn,

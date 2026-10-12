@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The session's own protocol lines, answered before any cost review, route or reading (V9
-//! P1 · BUG-U6, S02 and S05b of the 2026-09-27 black-box audit). A command-shaped line — `/`,
+//! The session's own protocol lines, answered before any cost review, route or reading.
+//! A command-shaped line — `/`,
 //! then a name, never a path — belongs to a closed namespace: a command the waiting state
 //! serves answers there; any other is refused here, with the known names it nearly spells, and
 //! is never read as work, an answer, a consent or a gate's answer. The read-only asks — the

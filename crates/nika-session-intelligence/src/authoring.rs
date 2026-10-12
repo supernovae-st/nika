@@ -40,7 +40,7 @@ use nika_onboard::compile::{
     AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome,
     CompileQuestion, CompileRequest, NativeMode, compile, revise_intent, round,
 };
-// The records a compile outcome carries live beside the snapshot door (C7 · D1).
+// The records a compile outcome carries live beside the snapshot door.
 use nika_onboard::compile::rehearse::Rehearse;
 use nika_onboard::knowledge::pin::{carried_record, composed_record, observed_in, stamp};
 use nika_providers::authoring::{configured_gateway_host, preparation::PreparationCosts};
@@ -54,11 +54,11 @@ pub(crate) mod decision;
 mod harness;
 pub use context::{AuthoringContext, AuthoringContextError};
 pub use decision::{DECISION_ENV, DECISION_SCHEMA, DecisionSetup};
-// What an outcome means and the literal a line is live beside the compile unit (C7).
+// What an outcome means and the literal a line is live beside the compile unit.
 use nika_onboard::compile::reading::{CLARIFICATION_KEY, clarified};
 pub use nika_onboard::compile::reading::{Reading, literal_for, reasons};
 pub use nika_onboard::knowledge::pin::KnowledgePin;
-// The static flagship table lives beside the seat facts it sits with (C11); the gateway fact it
+// The static flagship table lives beside the seat facts it sits with; the gateway fact it
 // takes is read here, through the engine's registry.
 pub use nika_onboard::compile::seat::{stronger_model, stronger_model_under};
 
@@ -282,7 +282,7 @@ pub struct AuthoringRound {
     /// The saved file a revision replaces and the witness of the base the round compiled: its
     /// proposal updates exactly those bytes there, never a fresh destination beside them.
     pub target: Option<(std::path::PathBuf, nika_session_change::change::Witness)>,
-    /// The monetary directives of `intent` the money gate admitted (R4 A6): every request of the
+    /// The monetary directives of `intent` the money gate admitted: every request of the
     /// round tells the compiler they are the Session's ceiling, never business clauses.
     pub money: Vec<std::ops::Range<usize>>,
 }
@@ -330,9 +330,9 @@ impl AuthoringRound {
     }
 
     /// Replace the plan this round replays with the record `held` kept, with its judge's
-    /// rejections (A3), when the next seat brings its own judge (`own_judge`, no separate decision
-    /// seat): that seat replays those bytes to its judge, never to the one that declined them
-    /// (R6), and authors nothing. A decision seat that declined them would decide nothing, and a
+    /// rejections, when the next seat brings its own judge (`own_judge`, no separate decision
+    /// seat): that seat replays those bytes to its judge, never to the one that declined them,
+    /// and authors nothing. A decision seat that declined them would decide nothing, and a
     /// held outcome that kept no record (a semantic one) has none: the round writes afresh.
     pub fn retain_held(&mut self, held: &CompileOutcome, own_judge: bool) {
         self.forget_plan();
@@ -423,7 +423,7 @@ impl AuthoringRound {
     /// revision's clause dispositions too), its reasons. A candidate its verifier
     /// answered and did not accept (`verify_held`) leaves nothing to replay: the
     /// compiler dropped its record, and the round drops the plan it replayed with
-    /// it, so no later compile sends those bytes to the same verifier again (R6).
+    /// it, so no later compile sends those bytes to the same verifier again.
     pub fn absorb(&mut self, out: &CompileOutcome) {
         // A base's record is input to a new revision, not that revision's settled plan.
         if self.base_record() && out.provenance.plan.is_some() {
@@ -433,7 +433,7 @@ impl AuthoringRound {
             self.forget_plan();
         }
         if let Some(plan) = round::reanchored(self.continuation.as_ref(), out) {
-            // The compiler re-anchored the plan to a changed source (R4 A6): the next answer
+            // The compiler re-anchored the plan to a changed source: the next answer
             // binds against the observation its question showed; no approval rides along.
             self.continuation = Some(plan);
         }
@@ -445,7 +445,7 @@ impl AuthoringRound {
             self.authoring_receipt = settled.receipt;
         }
         (self.questions, self.reasons) = round::open(out, self.edit.is_some());
-        // An answer the compiler asks for again (stale, refused) is no answer (R4 A6).
+        // An answer the compiler asks for again (stale, refused) is no answer.
         let asked = &self.questions;
         self.answers
             .retain(|key, _| !asked.iter().any(|q| &q.key == key));
@@ -495,7 +495,7 @@ impl AuthoringRound {
     }
 
     /// Answer the current question with the human's line, typed to the question's shape; the key it
-    /// answered. An explicit Create clarification makes its answer the request (C11): what the
+    /// answered. An explicit Create clarification makes its answer the request: what the
     /// earlier intent was answered and planned with is dropped, the chosen seat stays, and its
     /// lexical money spans stay only on identical bytes (the caller installs the spans admitted
     /// for new ones). A revision keeps its change.
@@ -699,8 +699,8 @@ pub(crate) enum Work<'a> {
 }
 
 /// A subscription seat's preflight. It holds no billed-provider admission, and a direct seat
-/// cannot carry an explicit effort: both are said before any byte, never silently dropped (R4
-/// B16). Over ACP the named effort travels with every authoring call: the session applies it
+/// cannot carry an explicit effort: both are said before any byte, never silently dropped. Over
+/// ACP the named effort travels with every authoring call: the session applies it
 /// through its advertised reasoning option and reads it back.
 fn harness_preflight(
     seat: &str,
@@ -741,7 +741,7 @@ fn under_session_policy(
     } else {
         request
     };
-    // Every authoring and repair call asks the named effort; the caps stay the policy's (R4 B16).
+    // Every authoring and repair call asks the named effort; the caps stay the policy's.
     request.with_authoring_policy(match context.reasoning() {
         Some(level) => policy.with_reasoning(level),
         None => policy,
@@ -773,7 +773,7 @@ fn attached(
     work: Work<'_>,
 ) -> Result<CompileOutcome, AuthoringError> {
     // The project as it is NOW, for the intent the compiler reads (a fresh request, its
-    // answers' round, a revision's request with its change), on every seat (R4 S1): the files
+    // answers' round, a revision's request with its change), on every seat: the files
     // it names, observed by the shared bounded observer under the root — never outside it.
     let contextual = match attach {
         Attach::Compose(intent) | Attach::Carried(_, intent) => intent,
@@ -1058,7 +1058,7 @@ mod tests {
     }
 
     // The reading and a line's literal descended with their tests to
-    // `nika_onboard::compile::reading` (C7); the session re-exports them.
+    // `nika_onboard::compile::reading`; the session re-exports them.
 
     #[test]
     fn an_answer_round_replays_the_same_plan_with_zero_calls() {
@@ -1085,7 +1085,7 @@ mod tests {
     }
 
     /// A candidate its verifier answered and did not accept (`verify_held`) leaves its round
-    /// nothing to replay (R6): the plan it replayed goes, with the knowledge and receipt of the
+    /// nothing to replay: the plan it replayed goes, with the knowledge and receipt of the
     /// call that authored it, and every answer stays. Without the finding the record stays, and a
     /// revision's base record, its input rather than the held candidate's, stays too.
     #[test]
@@ -1175,7 +1175,7 @@ mod tests {
         assert!(!is_greeting("hello.nika"), "a file is not a greeting");
     }
 
-    /// C10 · a replacement's proposal keeps its own round for the source basis: the replacing
+    /// A replacement's proposal keeps its own round for the source basis: the replacing
     /// words and the answer given after them, never an earlier request's answer or plan, with
     /// the observation its compile round was given; the law folds the replacement and holds it.
     #[test]
@@ -1209,7 +1209,7 @@ mod tests {
         assert_eq!(out.status, CompileStatus::Ready, "{out:?}");
         let out = observed_in(out, Some(&world));
         let kept = nika_onboard::compile::round::compiled(round.request(), &out).expect("rebuilt");
-        // C11: the replacement is the request itself, never an answer riding the old text.
+        // The replacement is the request itself, never an answer riding the old text.
         assert_eq!(
             kept.answers.keys().collect::<Vec<_>>(),
             ["const.rule_field_1"],
@@ -1261,7 +1261,7 @@ mod tests {
         assert_eq!(round.effective_intent(), "the whole request");
     }
 
-    // `reads_knowledge` descended with the records it serves (C7 · D1): its test lives in
+    // `reads_knowledge` descended with the records it serves: its test lives in
     // `nika_onboard::knowledge::pin`.
 
     #[test]
@@ -1276,10 +1276,10 @@ mod tests {
         assert!(matches!(Reading::of(out), Reading::NotWork(_)));
     }
 
-    /// C10 · a complete replacement request (`intent.clarification`) drops what the earlier
+    /// A complete replacement request (`intent.clarification`) drops what the earlier
     /// intent was answered and planned with: an old column answer cannot ride into the new
     /// request, while the chosen seat stays and an answer given after the replacement is kept.
-    /// C11: the replacement is the request's Create text, and the old lexical money spans do not
+    /// The replacement is the request's Create text, and the old lexical money spans do not
     /// ride its changed bytes (the account's ceiling is Session's, apart). An ordinary answer
     /// keeps the round, and a revision never replaces its change.
     #[test]

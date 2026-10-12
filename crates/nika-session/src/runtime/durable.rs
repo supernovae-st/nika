@@ -412,7 +412,7 @@ impl SessionRuntime {
         }) = state.pending
         {
             // The pause is offered only where the journals beside it show no continuation that
-            // settled it, runs it or cannot be judged (C7b §3.4).
+            // settled it, runs it or cannot be judged.
             match PendingGate::from_trace(&workflow, &trace)
                 .map(|gate| self.gate_standing(gate, false))
             {
@@ -478,7 +478,7 @@ impl SessionRuntime {
         expired
     }
 
-    /// Where the paused run of `gate` stands now, from the journals beside it (C7b §3.4): the
+    /// Where the paused run of `gate` stands now, from the journals beside it: the
     /// gate this session may offer — its own, or the one a continuation paused at again — or why
     /// it offers none. One read of one directory: never an authorization, never atomic, never
     /// exactly-once; the engine's approval still judges any answer. `observed` is a pause this
@@ -648,7 +648,7 @@ impl SessionRuntime {
     /// The record at a paid-dispatch boundary, written BEFORE any request can
     /// enter transport: this projection plus the in-flight line. The line lives
     /// only in the record, so reading it back means the writer left before the
-    /// settlement's own write (S98 F10: a record never reads « Open · 0 calls »
+    /// settlement's own write (a record never reads « Open · 0 calls »
     /// while a request may be in flight).
     pub(super) fn save_dispatch_boundary(&self) -> Result<(), String> {
         self.save_boundary(self.dispatch_marker())
