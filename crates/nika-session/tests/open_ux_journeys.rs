@@ -1265,3 +1265,23 @@ fn a_choice_with_a_default_is_proposed_not_asked() {
         "the author reads why it is not asked"
     );
 }
+
+/// A property the person states (newest first), checked by an unconditional `nika:assert` over a
+/// task's output whose message quotes their words, before the write: the trial stops at the
+/// assertion the candidate breaks and names its task before any proposal, and the repaired
+/// revision is proposed.
+#[test]
+fn a_trial_catches_a_failed_assertion_before_any_proposal() {
+    let journey = run("trial_assert");
+    let step = journey.step(0);
+    assert_eq!(step["outcome"]["kind"], "proposal", "{step}");
+    let failed = answered(&journey, 2);
+    assert!(
+        failed.contains("run_failure") && failed.contains("\"ordered\""),
+        "{failed}"
+    );
+    assert!(
+        !failed.contains("shown to the person"),
+        "nothing was proposed: {failed}"
+    );
+}

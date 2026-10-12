@@ -363,6 +363,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "doubted_candidate" => doubted_candidate(),
         "trial_offset" => tried("raw", OFFSET_BROKEN, OFFSET_FIXED),
         "trial_kept_nothing" => tried("feed", RFC_822_BROKEN, RFC_822_FIXED),
+        "trial_assert" => trial_assert(),
         "trial_names_what_it_skips" => trial_names_what_it_skips(),
         "own_filter" => own_filter(),
         "two_edits" => two_edits(),
@@ -1237,7 +1238,11 @@ pub(crate) const TRIED_ON: &str =
 pub(crate) fn feeds(name: &str) -> Vec<(&'static str, &'static str)> {
     match name {
         "trial_offset" => vec![(STORIES, NO_OFFSET)],
-        "trial_kept_nothing" | "trial_names_what_it_skips" | "own_filter" | "two_edits" => {
+        "trial_kept_nothing"
+        | "trial_names_what_it_skips"
+        | "own_filter"
+        | "two_edits"
+        | "trial_assert" => {
             vec![(STORIES, STORIES_RSS)]
         }
         _ => Vec::new(),
@@ -1503,6 +1508,45 @@ fn default_not_asked() -> Scenario {
                     "propose",
                     json!({"open": [plan_choice(&tech())]}),
                 ),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// The trial journeys' request, newest first.
+pub(crate) const NEWEST_REQUEST: &str = "recupere https://feed.example/stories et garde les stories du jour dans ./news/today.json, de la plus recente a la plus ancienne";
+/// The order the request states, as a boolean over the stories kept.
+const NEWEST_FIRST: &str = "map(.published) == (map(.published) | sort | reverse)";
+/// The filter that keeps the stories of the day, newest first.
+const NEWEST_FIXED: &str =
+    "[.items[] | select(.published | startswith(\"2026-10-10\"))] | sort_by(.published) | reverse";
+
+/// The stories the jq `filter` keeps, written once a `nika:assert` checked they are newest first.
+fn asserted(filter: &str) -> Value {
+    let source = format!(
+        "nika: newest-stories\npermits:\n  tools: [\"nika:fetch\", \"nika:jq\", \"nika:assert\", \"nika:write\"]\n  net:\n    http: [\"feed.example\"]\n  fs:\n    write: [\"./news/today.json\"]\ntasks:\n  stories:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"{STORIES}\", mode: feed }}\n  today:\n    with: {{ stories: \"${{{{ tasks.stories.output }}}}\" }}\n    invoke:\n      tool: \"nika:jq\"\n      args: {{ input: \"${{{{ with.stories }}}}\", expression: '{filter}' }}\n  newest_first:\n    with: {{ kept: \"${{{{ tasks.today.output }}}}\" }}\n    invoke:\n      tool: \"nika:jq\"\n      args: {{ input: \"${{{{ with.kept }}}}\", expression: '{NEWEST_FIRST}' }}\n  ordered:\n    with:\n      ok: ${{{{ tasks.newest_first.output }}}}\n    invoke:\n      tool: nika:assert\n      args:\n        condition: ${{{{ with.ok }}}}\n        message: the stories are not de la plus recente a la plus ancienne\n  keep:\n    after:\n      ordered: success\n    with: {{ kept: \"${{{{ tasks.today.output }}}}\" }}\n    invoke:\n      tool: \"nika:write\"\n      args: {{ path: \"./news/today.json\", content: \"${{{{ with.kept }}}}\" }}\n"
+    );
+    json!({"source": source, "resolutions": [],
+        "summary": "les stories du jour, de la plus récente à la plus ancienne"})
+}
+
+/// The newest-first stories: the trial stops at the assertion the filter breaks, then the
+/// repaired filter is proposed.
+fn trial_assert() -> Scenario {
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(NEWEST_REQUEST)],
+        script: Script {
+            agent: vec![
+                call("candidate_write", asserted(RFC_822_FIXED)),
+                call("propose", json!({})),
+                call("candidate_write", asserted(NEWEST_FIXED)),
+                call_saying(TRIED, "propose", json!({})),
             ],
             replies: Vec::new(),
             picks: Vec::new(),
