@@ -52,6 +52,9 @@ complete arguments.";
 /// What the person reads under an answer cut at the output limit.
 const CUT_ANSWER: &str = "\n… (this answer was cut at the output limit)";
 
+/// Why a turn fails when its provider interrupted the answer: nothing of it is kept or run.
+const INTERRUPTED: &str = "the provider interrupted the answer: nothing of it was kept or run";
+
 /// One request: the instructions, the conversation and the tools the model may call.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -419,6 +422,12 @@ impl<'a> Agent<'a> {
                 "the summary was cut at the output limit: nothing was folded".into(),
             ));
         }
+        // Nor does a summary its provider interrupted.
+        if matches!(reply.stop, StopReason::Interrupted) {
+            return Err(AgentError::Model(
+                "the summary was interrupted by its provider: nothing was folded".into(),
+            ));
+        }
         let at = (self.now)();
         let store = &mut *self.store;
         let entry =
@@ -480,6 +489,13 @@ impl<'a> Agent<'a> {
                     };
                 }
             };
+            // An answer its provider interrupted is no answer: nothing of it is kept or run, and
+            // the turn fails as the transient failure it is.
+            if matches!(reply.stop, StopReason::Interrupted) {
+                return Outcome::Failed {
+                    error: AgentError::Model(INTERRUPTED.to_owned()),
+                };
+            }
             // A message cut at the output limit runs none of its calls; its answer says so.
             let cut = matches!(reply.stop, StopReason::MaxTokens);
             let (text, calls) = match self.record_reply(reply, events) {
