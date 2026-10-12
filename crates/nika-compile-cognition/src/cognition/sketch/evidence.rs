@@ -12,7 +12,7 @@
 
 use std::collections::BTreeMap;
 
-use nika_compile_fidelity::behavior::{Outcome, Report, contract_of_request};
+use nika_compile_fidelity::behavior::{Report, contract_of_request};
 use serde_json::{Value, json};
 
 use super::super::rehearsal::{Rehearsals, Result as Rehearsed};
@@ -84,18 +84,7 @@ pub(super) async fn examined(
         return (Evidence::Unknown, noted("unknown", json!({"why": why})));
     };
     let behaviour = summary(&contract, &report);
-    let failed: Vec<Value> = (report.judged.iter())
-        .filter(|judged| judged.tally.failed > 0)
-        .map(|judged| {
-            let observed: Vec<&str> = (judged.findings.iter())
-                .filter(|finding| finding.outcome == Outcome::Failed)
-                .map(|finding| finding.observed.as_str())
-                .collect();
-            json!({"requested": judged.requested, "observed": observed})
-        })
-        .collect();
-    if !failed.is_empty() {
-        let message = json!({"kind": "behaviour_failed", "obligations": failed}).to_string();
+    if let Some(message) = report.failures() {
         let defect = Diagnostic {
             kind: "behaviour",
             message,
@@ -119,15 +108,13 @@ pub(super) async fn examined(
 
 /// The judgment's identity in the journal: the contract it read and how each obligation ended.
 fn summary(contract: &nika_compile_fidelity::behavior::Contract, report: &Report) -> Value {
-    let sum = |pick: fn(&nika_compile_fidelity::behavior::Tally) -> usize| -> usize {
-        report.judged.iter().map(|judged| pick(&judged.tally)).sum()
-    };
+    let tally = report.tally();
     json!({
         "contract_sha256": super::super::knowledge::sha256(&format!("{contract:?}")),
         "obligations": contract.obligations.len(),
-        "passed": sum(|t| t.passed),
-        "failed": sum(|t| t.failed),
-        "unknown": sum(|t| t.incomplete + t.not_run + t.invalid_harness),
+        "passed": tally.passed,
+        "failed": tally.failed,
+        "unknown": tally.incomplete + tally.not_run + tally.invalid_harness,
     })
 }
 

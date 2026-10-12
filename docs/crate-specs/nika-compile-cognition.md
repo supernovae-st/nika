@@ -580,7 +580,12 @@ when an admitted answer rejected the bytes, and unknown when the judge only abst
 contested request or part is never READY and never repaired from: its finding names the doubt,
 why nothing decided it and the next action. Only the sketch door and the answer rounds of a
 replayed record (`verify::replayed`, `verify::semantic`) pass an observation, and only under a
-host that offers a rehearsal room: the Session's seated rounds. An answer round runs its trial
+host that offers a rehearsal room: the Session's seated rounds. The final barrier also judges
+a creation's own contract (`contract_of_request`) on the run it accepted, with no new run and no
+call, at every door: a result the contract refuses withdraws the candidate with the obligations
+it fails (`Report::failures`), as the sketch and document doors already reopened from it; a
+revision's words state a change, so its candidates keep their judge-only path (added
+2026-10-12). An answer round runs its trial
 before its judge reads the bytes (`Rehearsals::trial`), only when those bytes are READY but for
 that judgment (a clean Check, no mandatory question, no finding but `semantic_verification`);
 the final barrier reuses that run. `nika compile` and Serve offer none, a candidate the room does
