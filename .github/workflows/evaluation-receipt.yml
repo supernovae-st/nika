@@ -29,16 +29,26 @@
 #    oversized PR cannot hide a sensitive path past the cap.
 #  - Fail closed: the ONLY success path is a provably non-sensitive PR; any
 #    error leaves no status and the required check keeps the PR unmergeable.
+#
+# BYPASS ALERT — the ruleset admits a merge without its required contexts only
+# through its pull-request bypass. Every use is made visible: when a PR merges
+# into the default branch while any context the branch rules require (plus
+# `evaluation-receipt` itself) was not success on its head, the `bypass-alert`
+# job opens an issue « ruleset bypass on PR #N » naming those contexts. It
+# reads statuses and check runs only, never checks out the PR, and holds
+# `issues: write` as its only write permission.
 name: evaluation-receipt
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, edited]
-permissions:
-  statuses: write
-  pull-requests: read
+    types: [opened, synchronize, reopened, edited, closed]
+permissions: {}
 jobs:
   receipt-gate:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+      pull-requests: read
     steps:
       - name: Decide whether a paired evaluation is required
         env:
@@ -97,3 +107,78 @@ jobs:
             post success 'no sensitive path — paired evaluation not required'
             echo "no sensitive path touched; receipt not required"
           fi
+  bypass-alert:
+    if: >-
+      github.event.action == 'closed' && github.event.pull_request.merged &&
+      github.event.pull_request.base.ref == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      checks: read
+      statuses: read
+    steps:
+      - name: Open an issue when a PR merged without its required contexts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          MERGED_BY: ${{ github.event.pull_request.merged_by.login }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # A read that fails is named in the issue instead of ending the job
+          # in silence: a detection control fails toward alerting.
+          unread=""
+          branch="$(jq -rn --arg branch "$BASE_REF" '$branch | @uri')"
+          # The contexts the branch rules require, plus this workflow's own
+          # receipt, so a rules read that lists none still guards it.
+          required="$(gh api --paginate "repos/${REPO}/rules/branches/${branch}" \
+            --jq '.[] | select(.type == "required_status_checks")
+              | .parameters.required_status_checks[].context')" ||
+            { required=""; unread="${unread}- the branch rules"$'\n'; }
+          required="$(printf '%s\nevaluation-receipt\n' "$required")"
+          # The head's latest commit statuses and check runs, one JSON line each.
+          statuses="$(gh api --paginate "repos/${REPO}/commits/${HEAD_SHA}/status" \
+            --jq '.statuses[] | [.context, .state] | @json')" ||
+            { statuses=""; unread="${unread}- the head's commit statuses"$'\n'; }
+          checks="$(gh api --paginate "repos/${REPO}/commits/${HEAD_SHA}/check-runs" \
+            --jq '.check_runs[] | [.name, .conclusion] | @json')" ||
+            { checks=""; unread="${unread}- the head's check runs"$'\n'; }
+          # A context passes only when the head shows it and every status and
+          # check run under its name passed (a success status; a success,
+          # neutral or skipped check run), so a failing source is never masked
+          # by a passing one of the same name. Every other context is named
+          # with what the head showed, or `missing`.
+          missing="$(jq -rn --arg required "$required" --arg statuses "$statuses" \
+            --arg checks "$checks" '
+            def entries: split("\n") | map(select(length > 0));
+            ($statuses | entries | map(fromjson)) as $status
+            | ($checks | entries | map(fromjson)) as $check
+            | $required | entries | unique | .[]
+            | . as $context
+            | [$status[] | select(.[0] == $context) | .[1]] as $states
+            | [$check[] | select(.[0] == $context) | (.[1] // "pending")] as $conclusions
+            | if ($states + $conclusions | length) > 0
+                and ($states | all(. == "success"))
+                and ($conclusions | all(. == "success" or . == "neutral" or . == "skipped"))
+              then empty
+              else ($states + $conclusions | unique | join(", ")) as $seen
+                | "\($context) (\(if $seen == "" then "missing" else $seen end))"
+              end')"
+          if [ -z "$missing" ] && [ -z "$unread" ]; then
+            echo "PR #${PR_NUMBER} merged with every required context passing"
+            exit 0
+          fi
+          printf 'merged without these required contexts:\n%s\n' "$missing"
+          listed="$(printf '%s\n' "$missing" | sed '/^$/d; s/^/- /')"
+          body="$(printf 'PR #%s merged into %s by @%s at head %s while these required contexts were not success:\n\n%s\n\nThe ruleset admits that only through its pull-request bypass; review the merged change.\n' \
+            "$PR_NUMBER" "$BASE_REF" "$MERGED_BY" "$HEAD_SHA" "$listed")"
+          title="ruleset bypass on PR #${PR_NUMBER}"
+          if [ -n "$unread" ]; then
+            printf 'unread:\n%s' "$unread"
+            title="ruleset bypass check incomplete on PR #${PR_NUMBER}"
+            body="$(printf '%s\n\nThese reads failed, so the list above may be incomplete:\n\n%s' \
+              "$body" "$unread")"
+          fi
+          gh issue create --repo "$REPO" --title "$title" --body "$body"
