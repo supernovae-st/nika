@@ -80,6 +80,11 @@ pub(crate) struct FailedDispatch {
     /// seat · its own witness · the next ready path · the flag that pins
     /// it) — `access_refused` on the terminal frame. Boxed: cold.
     pub access_refused: Option<Box<nika_types::access::AccessRefused>>,
+    /// The child-run summary when a failed `invoke: workflow:` call
+    /// produced one (spec 14 law 8 · `outcome: "failure"`). Rides the
+    /// terminal frame as the same typed `child` row a success carries.
+    /// `None` off a child call. Boxed: cold.
+    pub child: Option<Box<crate::child::ChildRunSummary>>,
 }
 
 impl FailedDispatch {
@@ -96,6 +101,7 @@ impl FailedDispatch {
             access: None,
             usage: None,
             access_refused: None,
+            child: None,
         }
     }
 

@@ -49,6 +49,10 @@ pub(crate) struct FailedOutcome {
     pub usage: Option<Box<crate::usage::UsageSplit>>,
     /// The typed refusal of a chosen seat that failed at the call.
     pub access_refused: Option<Box<nika_types::access::AccessRefused>>,
+    /// The child-run summary when the failed task was an `invoke: workflow:`
+    /// call (spec 14 law 8 · the same typed `child` row the success path
+    /// rides, `outcome: "failure"`). `None` off a child call.
+    pub child: Option<Box<crate::child::ChildRunSummary>>,
 }
 
 impl FailedOutcome {
@@ -66,7 +70,14 @@ impl FailedOutcome {
             access: None,
             usage: None,
             access_refused: None,
+            child: None,
         }
+    }
+
+    /// Attach the child-run summary a failed `invoke: workflow:` call carried.
+    pub(crate) fn with_child(mut self, child: Option<Box<crate::child::ChildRunSummary>>) -> Self {
+        self.child = child;
+        self
     }
 
     /// Attach the typed seat refusal the failed dispatch carried.

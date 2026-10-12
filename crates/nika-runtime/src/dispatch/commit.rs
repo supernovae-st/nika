@@ -177,6 +177,7 @@ impl super::Dispatched {
                 evidence: Some(CommitEvidence::Refused(Box::new(divergence))),
                 access: None,
                 usage: None,
+                child: None,
             }),
         }
     }

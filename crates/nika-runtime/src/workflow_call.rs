@@ -174,24 +174,15 @@ where
                 "child run failed without a failure surface".to_owned(),
             )
         });
-        let trace_note = out
-            .trace
-            .as_ref()
-            .map(|t| {
-                format!(
-                    " · child trace {} · chain head {}",
-                    t.trace_id.as_deref().unwrap_or("(none)"),
-                    t.chain_head.as_deref().unwrap_or("(none)")
-                )
-            })
-            .unwrap_or_default();
+        // The child's trace id and chain head ride the typed `child` row below
+        // (spec 14 law 8), so the message no longer repeats them as free text.
         Dispatched {
             note: note.to_owned(),
             result: Err(FailedDispatch {
                 access_refused: None,
                 record: TaskErrorRecord::new(
                     code,
-                    format!("child workflow `{target}` failed: {message}{trace_note}"),
+                    format!("child workflow `{target}` failed: {message}"),
                     false,
                 ),
                 retry_forbidden: false,
@@ -203,6 +194,9 @@ where
                 // The child's own frames carry its metered calls' splits.
                 usage: None,
                 access: None,
+                // spec 14 law 8 · the failed child rides the same typed row a
+                // success does (`outcome: "failure"`), not a text note.
+                child: out.trace.clone().map(Box::new),
             }),
         }
     }

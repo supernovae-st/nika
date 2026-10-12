@@ -39,6 +39,7 @@ fn fan_out(failed: bool) -> (task::RanTask, Vec<serde_json::Value>) {
             cost_unpriced: None,
             access: None,
             access_refused: None,
+            child: None,
         }
     } else {
         task::RunResult::Success {

@@ -435,6 +435,7 @@ pub(crate) fn settle_ran(
             cost_unpriced,
             access,
             access_refused,
+            child,
         } => settle_failed_terminal(
             id,
             &run.note,
@@ -446,6 +447,7 @@ pub(crate) fn settle_ran(
                 access.as_deref(),
                 access_refused.as_deref(),
             ),
+            child.as_deref(),
             attempts,
             (run.evidence.as_ref(), run.items.as_ref()),
             run.usage.as_deref(),
@@ -633,6 +635,7 @@ fn settle_failed_terminal(
         Option<&nika_types::access::AccessPlan>,
         Option<&nika_types::access::AccessRefused>,
     ),
+    child: Option<&child::ChildRunSummary>,
     attempts: u32,
     (evidence, items): (
         Option<&crate::dispatch::commit::CommitEvidence>,
@@ -666,6 +669,10 @@ fn settle_failed_terminal(
     emit_task::push_access_fields(&mut fields, None, spend.2, spend.1);
     // A chosen seat that failed at the call names what to pin instead.
     emit_task::push_access_refused_field(&mut fields, spend.3);
+    // spec 14 law 8 · a FAILED child call rides the same typed `child` row as
+    // a successful one (the text note is retired), so the forest reads a
+    // failed child as data, not prose.
+    emit_task::push_child_field(&mut fields, child);
     // F-P6 · a divergence refusal carries its finding HERE (never a warn);
     // a post-gate verb failure attests the fired ≡ judged digests.
     push_commit_fields(&mut fields, evidence);

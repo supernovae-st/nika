@@ -141,6 +141,9 @@ where
         let access_refused = failed.access_refused.clone();
         // the split of THIS attempt's burn, lifted with the rest.
         let usage = failed.usage.clone();
+        // spec 14 law 8 · a failed child call's typed row, lifted before the
+        // fold consumes the dispatch.
+        let child = failed.child.clone();
         let retry_forbidden = failed.retry_forbidden;
         // Debits PER ATTEMPT — a retry storm is never invisible.
         let error = failed.debit_and_fold(ledger, failed_cost, failed_unpriced);
@@ -155,7 +158,8 @@ where
                 FailedOutcome::new(error, *failed_cost, *failed_unpriced, evidence)
                     .with_access(access)
                     .with_access_refused(access_refused)
-                    .with_usage(usage),
+                    .with_usage(usage)
+                    .with_child(child),
             ));
         };
         Ok(delay)
