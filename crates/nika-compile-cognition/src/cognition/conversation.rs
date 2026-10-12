@@ -20,6 +20,7 @@ use crate::rehearse::Rehearse;
 use crate::types::Input;
 use crate::{CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, lexicon};
 pub use nika_compile_seats::judge::Removal;
+use nika_compile_seats::judge::Witness;
 use nika_kernel::ai::provider::ProviderInferDyn;
 use serde_json::{Value, json};
 
@@ -135,7 +136,8 @@ async fn judged<P: ProviderInferDyn>(
         return out;
     }
     nika_compile::surface::finish(candidate.to_owned(), &mut out);
-    if out.status != CompileStatus::Ready {
+    // A stated property no check of the bytes carries holds them before any judge or run.
+    if out.status != CompileStatus::Ready || Witness::of(&intent, candidate).hold(&mut out) {
         return out;
     }
     let provider = (reading.authoring.as_ref())

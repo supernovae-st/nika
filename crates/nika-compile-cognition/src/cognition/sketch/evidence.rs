@@ -10,9 +10,7 @@
 //! A harness the room cannot vouch for stops the candidate without an author repair. Nothing
 //! here sends a model request: the sketch door owns the budget and decides whether to repair.
 
-use std::collections::BTreeMap;
-
-use nika_compile_fidelity::behavior::{Report, contract_of_request};
+use nika_compile_fidelity::behavior::{Report, Verdict, contract_of_request};
 use serde_json::{Value, json};
 
 use super::super::rehearsal::{Rehearsals, Result as Rehearsed};
@@ -74,8 +72,7 @@ pub(super) async fn examined(
         Rehearsed::Stop(reason) => return (Evidence::Stop(reason), noted("stop", Value::Null)),
         Rehearsed::Proceed => {}
     }
-    let answers: &BTreeMap<String, String> = &request.answers;
-    let contract = contract_of_request(intent, answers);
+    let contract = contract_of_request(intent, &request.answers);
     let Some(report) = (!contract.obligations.is_empty())
         .then(|| rehearsals.judged(&contract, attempts))
         .flatten()
@@ -91,11 +88,7 @@ pub(super) async fn examined(
         };
         return (Evidence::Defect(defect), noted("defect", behaviour));
     }
-    let shown = (report.judged.iter()).all(|judged| {
-        let tally = &judged.tally;
-        tally.passed > 0
-            && tally.failed + tally.incomplete + tally.not_run + tally.invalid_harness == 0
-    });
+    let shown = (report.judged.iter()).all(|judged| judged.verdict() == Verdict::Certified);
     if shown {
         return (Evidence::Holds, noted("holds", behaviour));
     }

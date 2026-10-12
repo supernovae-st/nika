@@ -585,7 +585,12 @@ a creation's own contract (`contract_of_request`) on the run it accepted, with n
 call, at every door: a result the contract refuses withdraws the candidate with the obligations
 it fails (`Report::failures`), as the sketch and document doors already reopened from it; a
 revision's words state a change, so its candidates keep their judge-only path (added
-2026-10-12). An answer round runs its trial
+2026-10-12). At the conversation door, whose author the Session teaches the check forms, a
+document is never READY while a typed property its creation states lacks an executable check
+(`judge::Witness`, added 2026-10-12): it is held before its trial and judge, INCOMPLETE, with
+the property and its remedy named and no model called. The sketch and document doors and an
+answer round's record take the same law once their own author prompts teach those forms. An
+answer round runs its trial
 before its judge reads the bytes (`Rehearsals::trial`), only when those bytes are READY but for
 that judgment (a clean Check, no mandatory question, no finding but `semantic_verification`);
 the final barrier reuses that run. `nika compile` and Serve offer none, a candidate the room does

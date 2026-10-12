@@ -806,3 +806,74 @@ async fn a_carried_document_whose_trial_writes_a_wrong_total_is_never_ready() {
         assert_eq!(failed.len(), usize::from(!kept), "{output}: {out:#?}");
     }
 }
+
+const RANK_INTENT: &str =
+    "Read ./rows.json, keep the top 2 rows by points and write them to ./top.json";
+
+/// The ranked rows of [`RANK_INTENT`], written with no check of the order or of the size.
+const RANKED: &str = r#"nika: top
+permits:
+  tools: ["nika:read", "nika:jq", "nika:write"]
+  fs:
+    read: ["./rows.json"]
+    write: ["./top.json"]
+tasks:
+  load:
+    invoke: { tool: "nika:read", args: { path: "./rows.json" } }
+  rank:
+    with: { rows: "${{ tasks.load.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.rows }}", expression: "fromjson | sort_by(.points) | reverse | .[:2] | tojson" } }
+  save:
+    with: { top: "${{ tasks.rank.output }}" }
+    invoke: { tool: "nika:write", args: { path: "./top.json", content: "${{ with.top }}" } }
+"#;
+
+/// The same rows checked and asserted with the request's words before they are written.
+const CHECKED: &str = r#"  ranked:
+    with: { top: "${{ tasks.rank.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.top }}", expression: "fromjson | length <= 2" } }
+  admit:
+    with: { ok: "${{ tasks.ranked.output }}" }
+    invoke: { tool: "nika:assert", args: { condition: "${{ with.ok }}", message: "the rows are not « keep the top 2 rows by points »" } }
+"#;
+
+/// A conversation's document whose stated property no check carries is held before any judge or
+/// run, the property named and the bytes kept as the preview; with its check, it is judged as it
+/// was.
+#[tokio::test]
+async fn a_document_whose_stated_property_no_check_carries_is_held_before_any_judge() {
+    let checked = checked();
+    for (source, held) in [(RANKED, true), (checked.as_str(), false)] {
+        let judge = Judge::new("faithful", "unlocated");
+        let room = Room(Mutex::new(0));
+        let cognition = Cognition::<NoProvider> {
+            provider: None,
+            seat: Some(&judge as &dyn DecisionSeat),
+        };
+        let request = CompileRequest::create(RANK_INTENT);
+        let out = verify_document(&request, source, (&[], &[]), cognition, Some(&room))
+            .await
+            .unwrap();
+        let named = (findings(&out, "semantic_verification").iter())
+            .any(|said| said.contains("keep the top 2 rows by points"));
+        assert_eq!(named, held, "{out:#?}");
+        if held {
+            assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+            assert!(out.candidate.is_some(), "kept as the preview");
+            assert!(judge.ids().is_empty(), "no judge asked: {:?}", judge.ids());
+            assert_eq!(*room.0.lock().unwrap(), 0, "no run");
+        } else {
+            let asked = judge.ids();
+            assert_eq!(asked.first().map(String::as_str), Some("verify-request"));
+        }
+    }
+}
+
+/// [`RANKED`] with [`CHECKED`]: its permits name the assert it calls.
+fn checked() -> String {
+    let permits = RANKED.replace(
+        r#""nika:jq", "nika:write""#,
+        r#""nika:jq", "nika:assert", "nika:write""#,
+    );
+    format!("{permits}{CHECKED}")
+}
