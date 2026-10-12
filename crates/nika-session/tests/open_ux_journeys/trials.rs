@@ -312,3 +312,73 @@ pub(super) fn taught_assert() -> Scenario {
         },
     }
 }
+
+/// A request whose output keeps five items at most, checked before it is written.
+const CHECKED_REQUEST: &str = "garde au plus cinq éléments et écris-les dans ./out/top.json";
+
+/// Five items at most, checked, then written: the write waits on its check with `after:` given
+/// as a list, which the strict parser refuses.
+const LISTED: &str = r#"nika: listed-check
+permits:
+  tools: ["nika:jq", "nika:assert", "nika:write"]
+  fs:
+    write: ["./out/top.json"]
+tasks:
+  top:
+    invoke:
+      tool: "nika:jq"
+      args: { input: [5, 3, 2], expression: "." }
+  five_at_most:
+    with: { items: "${{ tasks.top.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args: { input: "${{ with.items }}", expression: "length <= 5" }
+  checked:
+    with: { ok: "${{ tasks.five_at_most.output }}" }
+    invoke:
+      tool: "nika:assert"
+      args: { condition: "${{ with.ok }}", message: "« au plus cinq »" }
+  save:
+    after: [checked]
+    with: { items: "${{ tasks.top.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "./out/top.json", content: "${{ with.items }}" }
+"#;
+
+/// A write refused for its `after:` list, an edit while no candidate stands, then the whole
+/// candidate written again with the map, and proposed.
+pub(super) fn edit_after_refused_write() -> Scenario {
+    let mapped = LISTED.replace("after: [checked]", "after: { checked: success }");
+    let summary = "cinq éléments au plus, vérifiés puis écrits";
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(CHECKED_REQUEST)],
+        script: Script {
+            agent: vec![
+                call(
+                    "candidate_write",
+                    json!({"source": LISTED, "resolutions": [], "summary": summary}),
+                ),
+                call(
+                    "candidate_edit",
+                    json!({"old": "after: [checked]", "new": "after: { checked: success }"}),
+                ),
+                call(
+                    "candidate_write",
+                    json!({"source": mapped, "resolutions": [], "summary": summary}),
+                ),
+                call_saying(
+                    "Voici le workflow : il vérifie puis écrit.",
+                    "propose",
+                    json!({}),
+                ),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}

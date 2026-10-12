@@ -338,6 +338,7 @@ pub fn nika_session_agent::conversation::Conversation::changed(&self) -> &[alloc
 pub fn nika_session_agent::conversation::Conversation::delegations(&self) -> &[nika_session_change::work::conversation::Delegation]
 pub fn nika_session_agent::conversation::Conversation::dropped(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_session_agent::conversation::Conversation::kept(&self) -> serde_json::value::Value
+pub fn nika_session_agent::conversation::Conversation::no_candidate(&self) -> alloc::string::String
 pub fn nika_session_agent::conversation::Conversation::propose(&mut self, citations: &nika_session_agent::conversation::Citations, args: &serde_json::value::Value, (scope, open): (alloc::string::String, alloc::vec::Vec<nika_session_change::work::conversation::AskedQuestion>)) -> core::result::Result<core::option::Option<nika_session_agent::conversation::Acts>, alloc::string::String>
 pub fn nika_session_agent::conversation::Conversation::questions(&self) -> &[nika_session_change::work::conversation::AskedQuestion]
 pub fn nika_session_agent::conversation::Conversation::replace(&mut self, citations: &nika_session_agent::conversation::Citations, args: &serde_json::value::Value) -> nika_session_change::tools::ToolReply

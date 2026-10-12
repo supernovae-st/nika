@@ -1429,3 +1429,16 @@ fn the_instructions_teach_the_language_forms() {
     let said = after["description"].as_str().unwrap_or_default();
     assert!(said.contains("question keys"), "{after:#}");
 }
+
+/// An edit after a refused write names that refusal and its reason and asks for the whole
+/// candidate again, since no candidate stands for the edit to change. Written again, the
+/// candidate is proposed.
+#[test]
+fn an_edit_after_a_refused_write_names_the_refusal() {
+    let journey = run("edit_after_refused_write");
+    let edited = journey.agent[2].last();
+    assert!(edited.contains("was refused"), "{edited}");
+    assert!(edited.contains("never a list"), "{edited}");
+    let step = journey.step(0);
+    assert_eq!(outcome_kind(step), "proposal", "{step:#}");
+}
