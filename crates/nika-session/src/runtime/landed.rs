@@ -71,7 +71,7 @@ impl SessionRuntime {
                     &path,
                     change.content(),
                     &id.to_string(),
-                    &|text| crate::broker::redact(text).0,
+                    &crate::broker::redact_for_record,
                 );
             }
             self.saved_reach = world_of(&first).map(|world| (first.clone(), world));

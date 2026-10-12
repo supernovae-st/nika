@@ -5,7 +5,10 @@
 //! These are evidence keyed by exact candidate bytes, never authorization. The compiler
 //! must reconstruct and judge each
 //! record again under the current request, observation and admission before it can revise it.
-//! Unknown envelopes stay unchanged. Records changed by redaction are withheld entirely.
+//! Unknown envelopes stay unchanged. A record the redactor changes is kept with each changed
+//! text withheld whole and its pointer listed, and is never replayed: it stays evidence of the
+//! program, never a continuation. A record with a text that would carry a credential into the
+//! next text is not kept: neither text alone shows it.
 
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -83,11 +86,29 @@ fn relative(path: &str) -> bool {
         })
 }
 
+/// The key a plan kept with withheld texts carries (`false`): no round replays it.
+const REPLAYABLE: &str = "replayable";
+
+/// The key that lists, as JSON pointers, the texts of a kept plan the redactor changed.
+const REDACTIONS: &str = "redactions";
+
+/// What a kept plan holds in place of each text the redactor changed. The whole text is
+/// withheld, never kept partly redacted: the lines after a value or a block the redactor
+/// opened can still hold the credential.
+const WITHHELD: &str = "[redacted]";
+
 /// The whole plan bound to `source`, or none when missing, redacted or damaged.
 /// A host must send this only to EDIT with those exact bytes; it grants no carried knowledge,
-/// account, consent or permission. A fresh compiler call revalidates the complete pair.
+/// account, consent or permission. A fresh compiler call revalidates the complete pair. A plan
+/// kept with redacted texts is evidence only and is never returned here, so no round replays
+/// bytes the redactor changed.
 #[must_use]
 pub fn plan(raw: Option<&Value>, place: Place<'_>, source: &str) -> Option<Value> {
+    stored(raw, place, source).filter(|plan| plan[REPLAYABLE].as_bool() != Some(false))
+}
+
+/// The plan stored for `place` and these exact bytes, replayable or not.
+fn stored(raw: Option<&Value>, place: Place<'_>, source: &str) -> Option<Value> {
     let key = place.value()?;
     let wanted = sha(source);
     entries(raw?)?.iter().rev().find_map(|row| {
@@ -102,8 +123,14 @@ pub fn plan(raw: Option<&Value>, place: Place<'_>, source: &str) -> Option<Value
 }
 
 /// Remember a compiler plan beside the exact bytes it emitted, before or after Save. The
-/// evidence is not evicted to meet a count or byte quota. A redacted plan is not stored; the
-/// earlier evidence remains. No record is a live proposal or a permission after reopening.
+/// evidence is not evicted to meet a count or byte quota. The redactor reads each text the plan
+/// holds, never its compact encoding: a plan it changes is kept with each of those texts
+/// withheld whole, listed and marked never to be replayed ([`plan`]), so a credential is never
+/// stored and the record of the program is kept without it. A plan with a text that would
+/// carry a credential into the next one (a value opened at its end, a block left open) is not
+/// stored: neither text alone shows it. `redact` returns a text unchanged when it finds no
+/// credential: any other change counts as a redaction. No record is a live proposal or a
+/// permission after reopening.
 pub fn remember(
     raw: &mut Option<Value>,
     place: Place<'_>,
@@ -121,10 +148,10 @@ pub fn remember(
     let Some(candidate_plan) = candidate_plan.filter(|p| binds(p, source)) else {
         return;
     };
-    let text = candidate_plan.to_string();
-    if redact(&text) != text {
+    let Some(candidate_plan) = redacted(candidate_plan, redact) else {
         return;
-    }
+    };
+    let text = candidate_plan.to_string();
     if raw.as_ref().is_some_and(|raw| entries(raw).is_none()) {
         return;
     }
@@ -157,7 +184,7 @@ pub fn saved(
     if redact(path) != path || raw.as_ref().is_none_or(|raw| entries(raw).is_none()) {
         return;
     }
-    let kept = plan(raw.as_ref(), Place::Proposal(proposal), source);
+    let kept = stored(raw.as_ref(), Place::Proposal(proposal), source);
     let mut next = raw.clone();
     if let Some(rows) = next.as_mut().and_then(|raw| raw["entries"].as_array_mut()) {
         // This Save supersedes that file's earlier meaning even when the new plan is withheld.
@@ -168,6 +195,120 @@ pub fn saved(
         next["last_saved"] = json!(path);
     }
     *raw = next;
+}
+
+/// `plan` with every text it holds (each string value and each object key) read by `redact`.
+/// Nothing changed: the plan as it is. Something changed: the plan with each changed text
+/// replaced whole by [`WITHHELD`], its pointer listed under `redactions` (built from those
+/// names, so the list holds no secret), and `replayable: false`. `None`, so nothing is stored,
+/// for a changed plan that is not an object (it cannot carry that mark) and for a plan holding
+/// a text that [`runs_on`]: read alone, neither that text nor the next one shows the credential
+/// they share, which the plan's single compact line showed.
+fn redacted(plan: &Value, redact: &dyn Fn(&str) -> String) -> Option<Value> {
+    if any_runs_on(plan, redact) {
+        return None;
+    }
+    let mut kept = plan.clone();
+    let mut changed = Vec::new();
+    redact_texts(&mut kept, &mut String::new(), redact, &mut changed);
+    if changed.is_empty() {
+        return Some(kept);
+    }
+    let object = kept.as_object_mut()?;
+    object.insert(REDACTIONS.to_owned(), json!(changed));
+    object.insert(REPLAYABLE.to_owned(), json!(false));
+    Some(kept)
+}
+
+/// Withhold in place every text under `value` that `redact` changes, pushing its pointer. A key
+/// it changes is renamed [`WITHHELD`] (`#2`, `#3` … when that name is taken).
+fn redact_texts(
+    value: &mut Value,
+    at: &mut String,
+    redact: &dyn Fn(&str) -> String,
+    changed: &mut Vec<String>,
+) {
+    match value {
+        Value::String(text) => {
+            if redact(text) != *text {
+                changed.push(at.clone());
+                WITHHELD.clone_into(text);
+            }
+        }
+        Value::Array(items) => {
+            for (index, item) in items.iter_mut().enumerate() {
+                let length = at.len();
+                at.push('/');
+                at.push_str(&index.to_string());
+                redact_texts(item, at, redact, changed);
+                at.truncate(length);
+            }
+        }
+        Value::Object(map) => {
+            for (key, mut item) in std::mem::take(map) {
+                let renamed = redact(&key) != key;
+                let named = if renamed { WITHHELD } else { key.as_str() };
+                let mut name = named.to_owned();
+                let mut copy = 1;
+                while map.contains_key(&name) {
+                    copy += 1;
+                    name = format!("{named}#{copy}");
+                }
+                let length = at.len();
+                at.push('/');
+                at.push_str(&name.replace('~', "~0").replace('/', "~1"));
+                if renamed {
+                    changed.push(at.clone());
+                }
+                redact_texts(&mut item, at, redact, changed);
+                at.truncate(length);
+                map.insert(name, item);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Whether a text of `value`, a string value or an object key, [`runs_on`].
+fn any_runs_on(value: &Value, redact: &dyn Fn(&str) -> String) -> bool {
+    match value {
+        Value::String(text) => runs_on(text, redact),
+        Value::Array(items) => items.iter().any(|item| any_runs_on(item, redact)),
+        Value::Object(map) => map
+            .iter()
+            .any(|(key, item)| runs_on(key, redact) || any_runs_on(item, redact)),
+        _ => false,
+    }
+}
+
+/// Whether `redact` would hide something written after `text` that `text` does not hold: the
+/// line after it (a private-key block left open), a letter right after it that does not just
+/// join a span of `text` already hidden (a value opened at its end and left empty, `token=`),
+/// or the lines of a YAML block value whose header ends `text` and which `redact` hides
+/// (`token: |`, `secret: >-`). A credential split that way between two texts of a plan is in
+/// neither alone.
+fn runs_on(text: &str, redact: &dyn Fn(&str) -> String) -> bool {
+    let alone = redact(text);
+    let same_line = redact(&format!("{text}x"));
+    let header = text.lines().next_back().filter(|last| opens_block(last));
+    !redact(&format!("{text}\nx")).ends_with("\nx")
+        || (same_line != alone && same_line.strip_suffix('x') != Some(alone.as_str()))
+        || header.is_some_and(|last| redact(last) != last)
+}
+
+/// Whether `line` ends with a YAML block scalar header (`key: |`, `key: >-`, `key: |2 # note`):
+/// the value is the lines that follow it, whatever text holds them.
+fn opens_block(line: &str) -> bool {
+    let Some((_, header)) = line.rsplit_once(": ") else {
+        return false;
+    };
+    let header = header
+        .split_once(" #")
+        .map_or(header, |(head, _)| head)
+        .trim();
+    let mut indicators = header.chars();
+    matches!(indicators.next(), Some('|' | '>'))
+        && indicators.all(|c| matches!(c, '-' | '+' | '1'..='9'))
 }
 
 /// The previous Save's conversational selection, read without executing or approving it.
@@ -349,6 +490,154 @@ mod tests {
             Some(small),
             "storing the large record leaves the earlier saved evidence intact"
         );
+    }
+
+    /// A plan the redactor changes is kept as evidence: the credential never stored, every
+    /// identity it holds kept whole, never returned to replay, and the Save that follows keeps it
+    /// for that file. A key the redactor changes is listed by its redacted name only.
+    #[test]
+    fn a_redacted_plan_is_kept_as_evidence_and_never_replayed() {
+        let source = "nika: pull\ntasks: {}\n";
+        let redact = |text: &str| text.replace("SECRET", "[redacted]");
+        let mut native = record(source, "Pull the feed");
+        native["source"] = json!("url: https://x.test/feed?token=SECRET");
+        native["document"] = json!({"components": [{"component": {"id": "block:filter"}}]});
+        let mut raw = None;
+        remember(
+            &mut raw,
+            Place::Proposal("p"),
+            source,
+            Some(&native),
+            &redact,
+        );
+        let kept = raw
+            .as_ref()
+            .map_or(Value::Null, |raw| raw["entries"][0]["plan"].clone());
+        assert_eq!(kept["source"], json!("[redacted]"), "withheld whole");
+        assert_eq!(kept["redactions"], json!(["/source"]));
+        assert_eq!(kept["replayable"], json!(false));
+        assert_eq!(
+            kept["document"], native["document"],
+            "identities are kept whole"
+        );
+        assert_eq!(
+            kept["final"], native["final"],
+            "the record still binds its bytes"
+        );
+        let text = raw.as_ref().map(Value::to_string).unwrap_or_default();
+        assert!(!text.contains("SECRET"), "{text}");
+        assert!(plan(raw.as_ref(), Place::Proposal("p"), source).is_none());
+        saved(&mut raw, "pull.nika", source, "p", &redact);
+        assert_eq!(last_saved(raw.as_ref()), Some("pull.nika"));
+        assert!(plan(raw.as_ref(), Place::Saved("pull.nika"), source).is_none());
+        assert_eq!(
+            stored(raw.as_ref(), Place::Saved("pull.nika"), source),
+            Some(kept),
+            "the Save keeps the record of the file"
+        );
+        let mut keyed = record(source, "Pull the feed");
+        keyed["answers"] = json!({"SECRET": "an answer", "plain": "kept"});
+        let mut raw = None;
+        remember(
+            &mut raw,
+            Place::Proposal("k"),
+            source,
+            Some(&keyed),
+            &redact,
+        );
+        let text = raw.as_ref().map(Value::to_string).unwrap_or_default();
+        assert!(!text.contains("SECRET"), "{text}");
+        assert!(text.contains("\"/answers/[redacted]\""), "{text}");
+        assert!(text.contains("\"plain\":\"kept\""), "{text}");
+    }
+
+    /// No text of a kept record holds the credential: not a value or a key of a nested object
+    /// or array, not a pointer it lists; each changed text is withheld whole. A plan that is not
+    /// an object is not stored.
+    #[test]
+    fn no_text_of_a_kept_record_holds_the_secret() {
+        let source = "nika: pull\ntasks: {}\n";
+        let redact = |text: &str| text.replace("SECRET", "[redacted]");
+        let mut nested = record(source, "Pull the SECRET feed");
+        nested["document"] = json!({"components": [{"component": {"id": "block:filter"},
+            "args": {"SECRET": ["SECRET", {"key SECRET": "SECRET"}], "list": [["a SECRET"], 7]}}]});
+        let mut raw = None;
+        remember(
+            &mut raw,
+            Place::Proposal("p"),
+            source,
+            Some(&nested),
+            &redact,
+        );
+        let text = raw.as_ref().map(Value::to_string).unwrap_or_default();
+        assert!(!text.contains("SECRET"), "{text}");
+        let kept = raw
+            .as_ref()
+            .map_or(Value::Null, |raw| raw["entries"][0]["plan"].clone());
+        assert_eq!(kept["replayable"], json!(false), "{text}");
+        assert_eq!(kept["basis"]["read"]["effective"], json!("[redacted]"));
+        let mut listed: Vec<String> =
+            serde_json::from_value(kept["redactions"].clone()).unwrap_or_default();
+        listed.sort();
+        listed.dedup();
+        let args = "/document/components/0/args";
+        assert_eq!(
+            listed,
+            [
+                "/basis/read/effective".to_owned(),
+                format!("{args}/[redacted]"),
+                format!("{args}/[redacted]/0"),
+                format!("{args}/[redacted]/1/[redacted]"),
+                format!("{args}/list/0/0"),
+            ],
+            "{text}"
+        );
+        for plan in [json!(["SECRET"]), json!("SECRET")] {
+            let mut raw = None;
+            remember(&mut raw, Place::Proposal("q"), source, Some(&plan), &redact);
+            assert_eq!(raw, None, "{plan}");
+        }
+    }
+
+    /// A credential that one text opens and the next one holds is in neither text alone, as it
+    /// was in the plan's single compact line: such a plan is not stored. A value hidden inside
+    /// its own text keeps the plan.
+    #[test]
+    fn a_credential_shared_by_two_texts_is_not_stored() {
+        let source = "nika: pull\ntasks: {}\n";
+        // Hides a `pin=` value to the end of its line and all that follows `BEGIN`, as the
+        // Session's redactor does with `token=` values and private-key blocks.
+        let redact = |text: &str| {
+            if let Some((head, _)) = text.split_once("BEGIN") {
+                return format!("{head}[block]");
+            }
+            text.split('\n')
+                .map(|line| match line.split_once("pin=") {
+                    Some((head, value)) if !value.is_empty() => format!("{head}pin=[hidden]"),
+                    _ => line.to_owned(),
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        for shared in [
+            json!(["pin=", "1234"]),
+            json!({"pin=": "1234"}),
+            json!(["BEGIN", "1234"]),
+        ] {
+            let mut plan = record(source, "Pull the feed");
+            plan["document"] = json!({ "observed": shared });
+            let mut raw = None;
+            remember(&mut raw, Place::Proposal("p"), source, Some(&plan), &redact);
+            assert_eq!(raw, None, "{shared}");
+        }
+        let mut plan = record(source, "Pull the feed");
+        plan["document"] = json!({"observed": ["pin=1234", "then"]});
+        let mut raw = None;
+        remember(&mut raw, Place::Proposal("p"), source, Some(&plan), &redact);
+        let kept = raw
+            .as_ref()
+            .map_or(Value::Null, |raw| raw["entries"][0]["plan"].clone());
+        assert_eq!(kept["document"]["observed"], json!(["[redacted]", "then"]));
     }
 
     #[test]
