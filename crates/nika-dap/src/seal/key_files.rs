@@ -116,16 +116,14 @@ fn resolved_slot(path: &Path) -> Option<PathBuf> {
 }
 
 /// Validity is not absence: corrupt, orphaned, unreadable, and symlink file
-/// entries still block non-forced initialization. Keychain unavailability
-/// retains the existing file-fallback policy; this is not a cross-store lock.
+/// entries still block non-forced initialization. A keychain item blocks it
+/// too, seen from its attributes alone (no item is opened to ask): see
+/// `keychain_may_be_occupied`. This is not a cross-store lock.
 pub(super) fn occupied(explicit: Option<&KeyFiles>) -> bool {
     if let Some(files) = explicit {
         return entry_present(&files.secret) || entry_present(&files.public);
     }
-    if [super::KEYRING_USER, super::KEYRING_USER_PUB]
-        .iter()
-        .any(|user| keyring_entry(user).is_some_and(|entry| entry.get_password().is_ok()))
-    {
+    if super::keychain_may_be_occupied() {
         return true;
     }
     super::fallback_key_path()

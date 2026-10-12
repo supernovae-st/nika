@@ -44,6 +44,12 @@ jiff           = { workspace = true }   # the sidecar's `anchored_at` RFC 3339 r
 uuid           = { workspace = true }   # the RFC 3161 nonce entropy
 nix            = { workspace = true, features = ["fs", "hostname"] }   # the writer's liveness lease (flock) + the host it records (ADR-129)
 
+[target.'cfg(target_os = "macos")'.dependencies]
+# Whether this binary's signature keeps a keychain grant: the running code checked
+# against an Apple anchor + Team ID requirement (`SecCode::for_self` · `check_validity`). The
+# version keyring's apple store already pins in the lockfile.
+security-framework = { version = "3.7", default-features = false }
+
 [dev-dependencies]
 tempfile = { workspace = true }   # replay fixtures on disk
 proptest = { workspace = true }   # stats totality (quantile_h7 over arbitrary finite samples)

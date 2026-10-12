@@ -273,6 +273,16 @@ fn key_lifecycle_preserves_existing_custody_and_retires_public_keys() {
     let trusted = run(home.path(), &["key", "trust"]);
     expect_code(&trusted, 0);
     assert!(text(&trusted).contains(replacement.trim()));
+    // With the keychain off the release's key is out of reach: align
+    // refuses and leaves the pair as it was.
+    expect_finding(
+        &run(home.path(), &["key", "align"]),
+        "nika key align: this process does not open the keychain",
+    );
+    assert_eq!(
+        std::fs::read_to_string(&public_path).expect("unaligned public key"),
+        replacement
+    );
 }
 
 #[test]

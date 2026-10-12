@@ -226,9 +226,8 @@ pub fn candidate_pubkeys() -> Vec<(String, String)> {
             push_unique_pubkey(&mut out, &text);
         }
     }
-    if let Some(entry) = crate::seal::keyring_entry(crate::seal::KEYRING_USER_PUB)
-        && let Ok(text) = entry.get_password()
-    {
+    // The public item alone, read once per process: never the secret one.
+    if let Some(text) = crate::seal::keychain_public_item() {
         push_unique_pubkey(&mut out, &text);
     }
     #[allow(clippy::disallowed_methods)]

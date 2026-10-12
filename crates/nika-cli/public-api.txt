@@ -647,6 +647,7 @@ pub mod nika_cli::verbs::inspect
 pub fn nika_cli::verbs::inspect::run(path: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::key
 pub enum nika_cli::verbs::key::KeyAction
+pub nika_cli::verbs::key::KeyAction::Align
 pub nika_cli::verbs::key::KeyAction::Init
 pub nika_cli::verbs::key::KeyAction::Init::force: bool
 pub nika_cli::verbs::key::KeyAction::Rotate
