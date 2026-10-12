@@ -180,15 +180,27 @@ where
                 "child run failed without a failure surface".to_owned(),
             )
         });
-        // The child's trace id and chain head ride the typed `child` row below
-        // (spec 14 law 8), so the message no longer repeats them as free text.
+        // The message keeps the child's trace id and chain head that a reader
+        // already follows; the typed `child` row below carries the same facts
+        // for tools (spec 14 law 8).
+        let trace_note = out
+            .trace
+            .as_ref()
+            .map(|t| {
+                format!(
+                    " · child trace {} · chain head {}",
+                    t.trace_id.as_deref().unwrap_or("(none)"),
+                    t.chain_head.as_deref().unwrap_or("(none)")
+                )
+            })
+            .unwrap_or_default();
         Dispatched {
             note: note.to_owned(),
             result: Err(FailedDispatch {
                 access_refused: None,
                 record: TaskErrorRecord::new(
                     code,
-                    format!("child workflow `{target}` failed: {message}"),
+                    format!("child workflow `{target}` failed: {message}{trace_note}"),
                     false,
                 ),
                 retry_forbidden: false,
