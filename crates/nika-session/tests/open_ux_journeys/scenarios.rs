@@ -351,6 +351,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "save_and_run_scope_changed" => save_and_run_scope_changed(),
         "explanation_cited_as_consent" => explanation_cited_as_consent(),
         "steer_mid_run" => steer_mid_run(),
+        "steer_before_proposal" => steer_before_proposal(),
         "follow_up_after_run" => follow_up_after_run(),
         "stop_mid_request" => stop_mid_request(),
         "refused_offer" => refused_offer(),
@@ -1604,6 +1605,40 @@ fn answered_literal() -> Scenario {
                 "unless-answered:client_code".to_owned(),
                 "unexercised".to_owned(),
             ],
+        },
+    }
+}
+
+/// A correction steered while the author prepares its proposal: its own filter, no path.
+pub(crate) const STEER_EMPTY: &str = "non, compte aussi les lignes vides";
+
+/// The count written, then, while the author's next request is held, the person steers its
+/// filter: the `propose` that answers is held back, and the author proposes the revision.
+fn steer_before_proposal() -> Scenario {
+    let count = json!({"source": COUNT, "resolutions": [],
+        "summary": "compte les lignes de ./data/ventes.csv"});
+    let moved = json!({"source": COUNT.replace("map(select(length > 0)) | ", ""),
+        "resolutions": [], "summary": "compte aussi les lignes vides"});
+    Scenario {
+        files: vec![("data/ventes.csv", SALES)],
+        history: false,
+        preparing: false,
+        acts: vec![Act::While(COUNT_REQUEST, HELD, During::Steer(STEER_EMPTY))],
+        script: Script {
+            agent: vec![
+                call("candidate_write", count),
+                hold(HELD),
+                call("propose", json!({})),
+                call("candidate_write", moved),
+                call_saying(
+                    "Voici le workflow : il compte aussi les lignes vides.",
+                    "propose",
+                    json!({}),
+                ),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: Vec::new(),
         },
     }
 }

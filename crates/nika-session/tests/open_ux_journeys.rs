@@ -1318,3 +1318,25 @@ fn an_answered_literal_is_judged_as_the_persons_answer() {
         "the request as first stated"
     );
 }
+
+/// A line steered while the author prepares its proposal holds that proposal back: the person is
+/// never shown the stale candidate, and the author proposes the revision the line asked for.
+#[test]
+fn a_line_steered_before_a_proposal_holds_it_back_and_the_revision_is_shown() {
+    let journey = run("steer_before_proposal");
+    let step = journey.step(0);
+    assert_eq!(outcome_kind(step), "proposal", "{step:#}");
+    let source = candidate(step);
+    assert!(
+        source.contains("./out/total.txt") && !source.contains("map(select(length > 0))"),
+        "{source}"
+    );
+    let tools = journey.report["tools"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let shown = (tools.iter())
+        .filter(|tool| tool[1] == "propose" && tool[2] == "finished")
+        .count();
+    assert_eq!(shown, 1, "the held-back proposal never ran: {tools:#?}");
+}
