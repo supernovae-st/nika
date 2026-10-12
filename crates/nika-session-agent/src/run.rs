@@ -460,10 +460,14 @@ impl<'a> Agent<'a> {
             if self.cancel.is_cancelled() {
                 return self.stop(StopReach::BetweenSteps);
             }
-            match self.fit(model, events) {
-                Ok(()) => {}
+            let compacted = match self.fit(model, events) {
+                Ok(compacted) => compacted,
                 Err(AgentError::Stopped) => return self.stop(StopReach::RequestDropped),
                 Err(error) => return Outcome::Failed { error },
+            };
+            // A line steered while the context was compacted enters the request it prepared, once.
+            if compacted && let Err(error) = self.dequeue(QueueMode::Steer, events) {
+                return Outcome::Failed { error };
             }
             turn = turn.saturating_add(1);
             events(AgentEvent::TurnStart { turn });
@@ -528,19 +532,21 @@ impl<'a> Agent<'a> {
         }
     }
 
-    /// Compact before a request that would leave the reply less than the window's reserve.
+    /// Compact before a request that would leave the reply less than the window's reserve;
+    /// returns whether it compacted.
     fn fit(
         &mut self,
         model: &mut dyn Model,
         events: &mut dyn FnMut(AgentEvent),
-    ) -> Result<(), AgentError> {
+    ) -> Result<bool, AgentError> {
         let Some(window) = self.window else {
-            return Ok(());
+            return Ok(false);
         };
         if !window.exceeded_by(compact::estimate(self.tree)) {
-            return Ok(());
+            return Ok(false);
         }
-        self.compact(None, model, events).map(|_| ())
+        self.compact(None, model, events)
+            .map(|folded| folded.is_some())
     }
 
     /// The request the model reads now: the branch's context and the Session's tools.

@@ -792,3 +792,44 @@ fn a_summary_cut_at_the_output_limit_folds_nothing() {
         "the line, its answer and the new line stay"
     );
 }
+
+/// A line steered while the summary is being made enters the next request, once: the context the
+/// model reads right after the compaction carries the correction, and nothing asks again.
+#[test]
+fn a_line_steered_during_compaction_enters_the_next_request_once() {
+    let (mut tree, mut lines) = fresh();
+    let steering = Steering::new();
+    let person = steering.clone();
+    let tools = Tools::new();
+    let mut model =
+        Script::new(vec![says("Done."), says("SUMMARY"), says("Next.")]).during(move |rank| {
+            if rank == 1 {
+                person
+                    .steer("use Le Monde too")
+                    .expect("the run reads its queue");
+            }
+        });
+    let second = {
+        let mut agent = Agent::new(&mut tree, &mut lines, &tools, &now)
+            .with_window(Window::new(1_000, 200, 100))
+            .with_steering(&steering);
+        let first = agent.prompt(&"a".repeat(3_200), &mut model, &mut |_| {});
+        assert!(matches!(first, Outcome::Answered { .. }));
+        agent.prompt("and now?", &mut model, &mut |_| {})
+    };
+    assert!(matches!(&second, Outcome::Answered { text } if text == "Next."));
+    assert_eq!(model.seen.len(), 3, "no request after the answer");
+    let steered = |request: &Request| {
+        (request.messages.iter())
+            .flat_map(|message| message.content.iter())
+            .filter(
+                |block| matches!(block, ContentBlock::Text { text } if text == "use Le Monde too"),
+            )
+            .count()
+    };
+    assert_eq!(
+        steered(&model.seen[2]),
+        1,
+        "the request after the summary carries it once"
+    );
+}
