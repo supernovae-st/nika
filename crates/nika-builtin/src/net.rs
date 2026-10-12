@@ -274,7 +274,8 @@ impl ExtractPlan {
     /// Decode per `mode` and run the extraction. `raw`/`jq` demand strict
     /// UTF-8 (raw is the spec's UTF-8 contract; jq input is JSON = UTF-8
     /// by RFC 8259); the HTML/feed/sitemap modes decode charset-aware
-    /// from `Content-Type` (the web is not all UTF-8).
+    /// from `Content-Type` (the web is not all UTF-8), and the page modes
+    /// return a body served as other text as it is.
     fn run(self, code: &'static str) -> BuiltinOutcome {
         match self.mode {
             ExtractMode::Raw => Ok(serde_json::Value::String(decode_utf8_strict(
@@ -306,6 +307,16 @@ impl ExtractPlan {
             // and mojibake non-ASCII (review lens 2 · P3-7).
             ExtractMode::Feed => nika_extract::feed_from_bytes(&self.body)
                 .map_err(|e| BuiltinFailure::new(code, e.to_string())),
+            // The page modes clean a page. A body served as other text (CSV,
+            // plain text, JSON, XML) has none: read as HTML it lost its line
+            // breaks and gained markdown escapes, and a CSV then parsed to no
+            // rows. It comes back as served.
+            ExtractMode::Markdown | ExtractMode::Article | ExtractMode::Text
+                if self.content_type.as_deref().is_some_and(served_as_text) =>
+            {
+                let text = decode_text(&self.body, self.content_type.as_deref());
+                Ok(serde_json::Value::String(text.into_owned()))
+            }
             other => {
                 let mut opts = ExtractOptions::new();
                 opts.base_url = Some(&self.base_url);
@@ -400,6 +411,53 @@ pub(crate) fn decode_charset<'a>(
         .or_else(|| meta_charset(body))
         .unwrap_or(encoding_rs::UTF_8);
     encoding.decode(body).0
+}
+
+/// A `Content-Type` serving text that is not a page: any `text/*` but
+/// HTML, and the structured `application/` types (JSON, XML, CSV, YAML,
+/// NDJSON, TOML and the `+json`/`+xml`/`+yaml` suffixes, never XHTML).
+fn served_as_text(content_type: &str) -> bool {
+    let essence = content_type
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    let Some((kind, subtype)) = essence.split_once('/') else {
+        return false;
+    };
+    match kind {
+        "text" => subtype != "html",
+        "application" => {
+            subtype != "xhtml+xml"
+                && (matches!(
+                    subtype,
+                    "json" | "xml" | "csv" | "ndjson" | "x-ndjson" | "yaml" | "x-yaml" | "toml"
+                ) || ["+json", "+xml", "+yaml"]
+                    .into_iter()
+                    .any(|suffix| subtype.ends_with(suffix)))
+        }
+        _ => false,
+    }
+}
+
+/// Decode a body the page modes return as served: the BOM or declared
+/// charset first (as [`decode_charset`]), else UTF-8 when the bytes are
+/// UTF-8, else windows-1252, the legacy default of spreadsheet exports
+/// (WHATWG's fallback for Latin-script locales).
+fn decode_text<'a>(body: &'a [u8], content_type: Option<&str>) -> std::borrow::Cow<'a, str> {
+    let declared = encoding_rs::Encoding::for_bom(body).is_some()
+        || content_type
+            .and_then(charset_label)
+            .and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes()))
+            .is_some();
+    if declared {
+        return decode_charset(body, content_type);
+    }
+    match std::str::from_utf8(body) {
+        Ok(text) => std::borrow::Cow::Borrowed(text),
+        Err(_) => encoding_rs::WINDOWS_1252.decode(body).0,
+    }
 }
 
 /// Number of leading bytes scanned for a `<meta>` charset declaration —

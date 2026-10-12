@@ -73,6 +73,73 @@ async fn fetch_default_mode_is_markdown_extraction() {
 }
 
 #[tokio::test]
+async fn fetch_page_modes_return_a_body_served_as_text_unchanged() {
+    // A CSV export read as HTML lost its line breaks and gained markdown
+    // escapes (`A\_1`), and `nika:convert` then found no rows.
+    let csv = "name,amount\nA_1,10\nB *2*,20\n";
+    for (content_type, mode) in [
+        ("text/csv; charset=utf-8", None),
+        ("text/plain", Some("text")),
+        ("application/json", Some("article")),
+        ("application/problem+json", Some("markdown")),
+        ("TEXT/MARKDOWN", None),
+    ] {
+        let http = MockHttp::new().enqueue_ok_with_headers(
+            200,
+            [("Content-Type", content_type)],
+            csv.as_bytes().to_vec(),
+        );
+        let mut call = serde_json::json!({ "url": "https://x.test/export" });
+        if let Some(mode) = mode {
+            call["mode"] = serde_json::Value::from(mode);
+        }
+        let out = fetch(&http, &args(call)).await.expect("ok");
+        assert_eq!(out.as_str(), Some(csv), "{content_type}");
+    }
+}
+
+#[tokio::test]
+async fn fetch_page_modes_still_clean_a_page_or_an_untyped_body() {
+    let html = "<h1>Title</h1><p>Hello <b>world</b></p>";
+    for content_type in [
+        Some("text/html; charset=utf-8"),
+        Some("application/xhtml+xml"),
+        None,
+    ] {
+        let headers: Vec<(&str, &str)> = content_type
+            .map(|value| ("Content-Type", value))
+            .into_iter()
+            .collect();
+        let http = MockHttp::new().enqueue_ok_with_headers(200, headers, html.as_bytes().to_vec());
+        let out = fetch(&http, &args(serde_json::json!({ "url": "https://x.test" })))
+            .await
+            .expect("ok");
+        let md = out.as_str().expect("string");
+        assert!(
+            md.contains("# Title") && md.contains("**world**"),
+            "{content_type:?}: {md}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn fetch_reads_an_undeclared_legacy_text_body_as_windows_1252() {
+    // A spreadsheet export in windows-1252 with no charset: 'é' = 0xE9.
+    let http = MockHttp::new().enqueue_ok_with_headers(
+        200,
+        [("Content-Type", "text/csv")],
+        b"caf\xe9;12\n".to_vec(),
+    );
+    let out = fetch(
+        &http,
+        &args(serde_json::json!({ "url": "https://x.test/e.csv" })),
+    )
+    .await
+    .expect("ok");
+    assert_eq!(out.as_str(), Some("café;12\n"));
+}
+
+#[tokio::test]
 async fn fetch_mode_jq_composes_the_one_jq_engine() {
     let json = br#"{"items":[{"name":"a"},{"name":"b"}]}"#.to_vec();
     let http = MockHttp::new().enqueue_ok(200, json);
