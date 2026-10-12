@@ -310,7 +310,7 @@ fn parse_arm_entry(node: &Node) -> Result<ArmEntry, ProjectError> {
             missing(
                 "cadence",
                 "REQUIRED — when it fires",
-                "cadence: \"dimanche 18h07\" — the expression law is the cadence arc's",
+                "cadence: \"TZ=Europe/Paris dimanche 18h07\" — the zone first; the expression law is the cadence arc's",
             )
         })?,
         ou,
@@ -385,7 +385,7 @@ fn cadence_text(value: &Node) -> Result<String, ProjectError> {
         return Err(ProjectError::at(
             ProjectErrorKind::BadValue,
             "`cadence:` empty — when does the beat fire?",
-            "cadence: \"dimanche 18h07\" — or the cron form with its TZ= prefix",
+            "cadence: \"TZ=Europe/Paris dimanche 18h07\" — or the cron form, \"TZ=Europe/Paris 0 9 * * 1\"",
             line_of(value.span()),
         ));
     }

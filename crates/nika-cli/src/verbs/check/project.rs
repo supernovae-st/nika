@@ -197,6 +197,24 @@ mod tests {
         assert!(out.text.contains("1 beat armed"), "{}", out.text);
     }
 
+    /// The shape reader teaches only cadences the arming door reads: every cadence its remedies
+    /// show for a missing or an empty `cadence:` parses under the cadence grammar.
+    #[test]
+    fn the_shape_readers_cadence_remedies_read_under_the_grammar() {
+        let missing = "nika: p\narm:\n  - workflow: a.nika\n    plafond: 0.5\n    manqué: sauter\n";
+        let empty = "nika: p\narm:\n  - workflow: a.nika\n    cadence: \"\"\n    plafond: 0.5\n    manqué: sauter\n";
+        for yaml in [missing, empty] {
+            let err = project::parse(yaml).expect_err("a beat without its cadence is refused");
+            let remedy = err.remedy();
+            let shown: Vec<&str> = remedy.split('"').skip(1).step_by(2).collect();
+            assert!(!shown.is_empty(), "the remedy shows a cadence: {remedy}");
+            for cadence in shown {
+                let read = nika_cadence::registry::Cadence::parse(cadence);
+                assert!(read.is_ok(), "{cadence} does not read: {read:?} · {remedy}");
+            }
+        }
+    }
+
     #[test]
     fn a_broken_project_refuses_in_its_own_vocabulary() {
         let out = judge("nika.yaml", "nika: my-project\nceling: 0.50\n", false);
