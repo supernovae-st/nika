@@ -833,3 +833,49 @@ fn a_line_steered_during_compaction_enters_the_next_request_once() {
         "the request after the summary carries it once"
     );
 }
+
+/// Stop while one message's observations run side by side: each one already started settles with
+/// its own reply, the message's later write never runs and reads as not run.
+#[test]
+fn stop_in_an_observation_batch_keeps_the_started_replies() {
+    let (mut tree, mut lines) = fresh();
+    let cancel = CancelCtx::new();
+    let stop = cancel.clone();
+    let tools = Tools::with_hook(move |_| stop.cancel());
+    let observe = |id: &str, url: &str| ContentBlock::ToolUse {
+        id: id.into(),
+        name: "observe".into(),
+        input: json!({"url": url}),
+    };
+    let write = ContentBlock::ToolUse {
+        id: "c4".into(),
+        name: "candidate_write".into(),
+        input: json!({"source": "nika: x\n"}),
+    };
+    let blocks = vec![
+        observe("c1", "https://a.example"),
+        observe("c2", "https://b.example"),
+        observe("c3", "https://c.example"),
+        write,
+    ];
+    let mut model = Script::new(vec![Ok(Reply::new(blocks, StopReason::ToolUse))]);
+    let mut run = Agent::new(&mut tree, &mut lines, &tools, &now).with_cancel(&cancel);
+    let outcome = run.prompt("observe", &mut model, &mut |_| {});
+    drop(run);
+    assert!(matches!(outcome, Outcome::Stopped { .. }));
+    let called: Vec<String> = (tools.called().into_iter()).map(|(name, _)| name).collect();
+    assert_eq!(
+        called,
+        ["observe", "observe", "observe"],
+        "the write never ran"
+    );
+    let context = tree.context();
+    let results = last_results(&Request::new(None, context.messages, Vec::new()));
+    let ids: Vec<&str> = results.iter().map(|(id, ..)| id.as_str()).collect();
+    assert_eq!(ids, ["c1", "c2", "c3", "c4"]);
+    assert!(
+        results[..3].iter().all(|(_, _, error)| !error),
+        "the started observations settled with their replies"
+    );
+    assert!(results[3].2, "the write reads as not run");
+}

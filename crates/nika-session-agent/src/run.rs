@@ -601,7 +601,9 @@ impl<'a> Agent<'a> {
         let mut parked: Option<(String, String)> = None;
         let mut ahead: VecDeque<ToolReply> = VecDeque::new();
         for (k, (call, name, input)) in made.iter().enumerate() {
-            if parked.is_none() && self.cancel.is_cancelled() {
+            // A Stop ends the message before its next call; the calls of a batch already run
+            // (`ahead`) keep their replies.
+            if parked.is_none() && ahead.is_empty() && self.cancel.is_cancelled() {
                 break;
             }
             let skip = match &parked {
