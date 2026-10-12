@@ -822,9 +822,14 @@ outputs:
         let f = scan_static(&wf);
         assert_eq!(f.len(), 1, "{f:?}");
         assert!(f[0].detail.contains("@version"), "{}", f[0].detail);
-        // …and the pinned form is clean.
+        // …and the pinned form is well formed: it asks for no version, and it is
+        // refused only until registry child execution ships (spec 14 §the form).
         let wf = parse(&parent_yaml("registry:acme/audit@1.2.0", "{}"));
-        assert!(scan_static(&wf).is_empty());
+        let f = scan_static(&wf);
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].code, "NIKA-COMP-001");
+        assert!(!f[0].detail.contains("@version"), "{}", f[0].detail);
+        assert!(f[0].detail.contains("registry lane"), "{}", f[0].detail);
     }
 
     #[test]
