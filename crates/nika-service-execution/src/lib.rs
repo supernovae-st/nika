@@ -1324,7 +1324,11 @@ fn child_run_parts(run: &Result<RunOutcome, RuntimeError>) -> ChildRunParts {
 fn effective_permits(child: Option<&Permits>, parent: Option<&Permits>) -> Permits {
     let zero = Permits::new();
     let parent = parent.unwrap_or(&zero);
-    child.map_or_else(|| parent.clone(), |child| child.intersect(parent))
+    // An absent child `permits:` block is the DECLARED zero, at run as at check
+    // (spec 01-envelope.md §permits · spec 14 law 4): it is never the parent's
+    // boundary. `permits: {}` and an absent block compute the same boundary, so
+    // the run-time boundary matches what the child's own check judged (F-O8).
+    child.map_or_else(Permits::new, |child| child.intersect(parent))
 }
 
 fn resolve_logical(parent: &str, target: &str) -> Result<String, String> {
