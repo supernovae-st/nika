@@ -1809,5 +1809,21 @@
       "requires": ["ADR-144"],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-154",
+      "title": "Size walls: 25,000 production lines per crate and 2,500 lines per file, warnings at 15,000 and 1,500",
+      "status": "accepted",
+      "date": "2026-10-12",
+      "filename": "adr-154-size-walls-25000-crate-2500-file.md",
+      "tags": ["architecture","sizing","crate-structure","size-cap","gates"],
+      "affects_crates": [],
+      "affects_layers": ["L0","L0.5","L1","L2","L3","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": [],
+      "requires": [],
+      "enables": []
+    }
   ]
 }

@@ -6,7 +6,7 @@
 | Layer | L0 (PURE, zero I/O, zero async) |
 | Design | **Hybrid lookup** — phf+unicase (case-insensitive) + sorted arrays (case-sensitive) + TOML-driven rule table (capabilities) |
 | LOC budget | ≤15,000 src (current: ~6,100) |
-| File cap | ≤1,500 LOC each (current max: `build.rs` 1,264) |
+| File cap | ≤2,500 LOC each (current max: `build.rs` 1,264) |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |

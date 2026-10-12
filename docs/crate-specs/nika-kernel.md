@@ -6,7 +6,7 @@
 | Layer | L0.5 (TRAITS ONLY, zero I/O, zero impl, minimal deps) |
 | Design | **ISP-layered** — ~20 atomic traits + ~6 super-traits + the Connectome/agent-v2 hooks |
 | LOC budget | ≤3,500 src (target ~3,000, alarm at 3,500) |
-| File cap | ≤1,500 LOC each |
+| File cap | ≤2,500 LOC each |
 | Function cap | ≤100 lines each |
 | Source on `main` (reference) | `tools/nika-kernel/src/` (15 files, ~2,741 LOC) |
 | Crate version | tracks workspace (bumped to `0.90.0-alpha.1` at Phase 1 close) |

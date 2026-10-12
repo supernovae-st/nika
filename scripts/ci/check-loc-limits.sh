@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Ratchet: every tracked .rs file must be <= MAX lines.
-# See CONSTELLATION_PLAN §11 rule 19.
+# See CONSTELLATION_PLAN §11 rule 19. ADR-154 raised MAX from 1,500 to 2,500.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,7 +8,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./_lib.sh
 . "$HERE/_lib.sh"
 
-MAX=1500
+MAX=2500
 violations=0
 
 while IFS= read -r f; do

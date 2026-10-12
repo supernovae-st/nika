@@ -5,8 +5,8 @@
 | Status | Phase 1 — Step 4 of `nika-core` split |
 | Layer | L0 (PURE, zero I/O, zero async) |
 | Design | **THE PARSER** (its blueprint shape) — AST + raw + error + keysets + parser in 1 crate. Amended 2026-07-21: the analyzer + `check` ladder descended to **`nika-check`** at the 15k wall (the nika-graph/nika-dap precedents — the D1 "split rejected" call was falsified by the crate-boundary direction: the judgment depends on the parser, never the reverse, so no circular dep materialized) |
-| LOC budget | ≤15,000 src (target ~13,000, alarm at 14,000, hard cap 15,000) |
-| File cap | ≤1,500 LOC each |
+| LOC budget | ≤15,000 src (target ~13,000, alarm at 14,000); the workspace hard cap is 25,000 (ADR-154) |
+| File cap | ≤2,500 LOC each |
 | Function cap | ≤100 lines each |
 | Source on `brouillon` (legacy reference · read via `git show brouillon:…`) | `tools/nika-core/src/ast/` (22,544 LOC), `tools/nika-core/src/schema/` (400 LOC), `tools/nika-core/src/source/` (724 LOC), `tools/nika-core/src/trust.rs` (560 LOC), `tools/nika-core/src/binding/mention.rs` (851 LOC), `tools/nika-core/src/binding/validate.rs` (355 LOC) |
 | Legacy total (reference only) | ~25,434 LOC (including ~8,000 LOC inline tests) — rewrite targets ~13,000 src + ~5,000 tests |

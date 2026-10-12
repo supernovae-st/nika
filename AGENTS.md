@@ -27,8 +27,9 @@ client adapters do not choose a model or override the user's mandate.
   Never check it out or copy legacy defects into the current implementation.
 - No `.unwrap()` or `.expect(` in production `src/`, and no
   `#[allow(dead_code)]`. Propagate errors with `?` and follow workspace lints.
-- Split files beyond 1,500 LOC; crates beyond 15,000 LOC are rejected, except
-  the scoped 19,000 LOC native renderer ceiling in ADR-143's 9 October amendment.
+- Split files beyond 2,500 LOC; crates beyond 25,000 production LOC are rejected,
+  with no exception (ADR-154). The hygiene dashboard warns above 1,500 LOC per
+  file and 15,000 per crate without blocking: plan a descent there.
   Public error enums are `#[non_exhaustive]`; every I/O sits behind a kernel
   trait. Dependency layers and response compatibility follow the architecture
   invariants, not an improvised alternative.

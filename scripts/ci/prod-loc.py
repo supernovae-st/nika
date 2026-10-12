@@ -3,7 +3,8 @@
 
 Reads paths on stdin, prints `<count>\t<path>` per line.
 
-This is the counter behind the 15k crate-size wall. It used to live inline in
+This is the counter behind the crate-size wall (25k since ADR-154; 15k when the
+bugs below were measured). It used to live inline in
 check-crate-size.sh and it was blind in two ways, both measured on the tree
 2026-08-25 while qualifying #1203:
 

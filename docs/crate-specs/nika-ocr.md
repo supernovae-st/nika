@@ -7,7 +7,7 @@
 | Sub-tier | L1-effect — OCR text extraction behind the L0.5 `OcrEngine` trait. Pure-Rust backend (`ocrs`) so the crate is `unsafe_code = forbid`-clean |
 | Design | Thin adapter over **ocrs 0.12.2** (pure-Rust ML OCR · `rten` runtime · MIT/Apache · zero C system dep). Sync `ocrs` inference runs inside `tokio::task::spawn_blocking` (kernel CANCEL SAFETY contract · same pattern as `nika-screen`/`xcap`). RGBA8 `Frame` → RGB `ImageSource` → `prepare_input` → `detect_words` → `recognize_text` → `Vec<TextRegion>` |
 | LOC budget | ≤1,200 src |
-| File cap | ≤1,500 LOC each · Function cap ≤100 lines |
+| File cap | ≤2,500 LOC each · Function cap ≤100 lines |
 | Crate version | tracks workspace · License `AGPL-3.0-or-later` · Edition 2024 · Publish `false` |
 | ADRs | ADR-003 (12-gate admission) · ADR-081 (7 L1 security guards forever · nika-ocr owns **none** mandatory · inherits the contract template from nika-screen M2.1) |
 | Error range | **NIKA-1100..1199** (per ADR-081 `nika_codes` matrix · **supersedes** the stale `io/ocr.rs` doc-comment "NIKA-1020..1039" which predates ADR-081 · reconciled here) |

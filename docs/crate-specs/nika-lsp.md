@@ -7,7 +7,7 @@
 | Sub-tier | L4-surface — the editor surface. Pure analysis modules (`analysis::*`) over the L0 `nika-schema` parse + check ladder, driven by a sync `lsp-server` JSON-RPC loop. Feeds the `nika-vscode` extension (and any LSP client) the day `nika --help` lists `lsp` (the extension auto-detects via `caps.lsp`). |
 | Design | ONE crate (collapse · per `nika-invariants.md` « nika-lsp-core → merged into nika-lsp » + the collapse-vs-publish default · reconciles D-2026-06-10-N6 steps 19.6/19.7 which carried the brouillon two-crate shape — the LSP has zero external crates.io value, so one crate with internal modules wins). Stack = `lsp-server` 0.7 (rust-analyzer's sync stdio loop · MIT) + `lsp-types` 0.97 (LSP 3.17 types · MIT) — NOT `tower-lsp`/tokio (the v0.1 scope is parse + position-map + full-reparse-on-change · no async needed · Rams « less but better » + minimal deps). Diagnostics reuse the SAME `nika_check` ladder that powers `nika check` (one source of truth · no second checker · descended from nika-schema 2026-07-21). |
 | LOC budget | ≤4,000 src (server loop + 8 analysis modules) |
-| File cap | ≤1,500 LOC each · Function cap ≤100 lines |
+| File cap | ≤2,500 LOC each · Function cap ≤100 lines |
 | Crate version | tracks workspace · License `AGPL-3.0-or-later` · Edition 2024 · Publish `false` |
 | ADRs | ADR-003 (12-gate admission) · ADR-092 (the check ladder the diagnostics surface) · D-2026-06-10-N6 (launch-surface-complete · LSP at announce) |
 | Error range | **none user-facing** — the LSP surfaces `nika-schema`'s existing `NIKA-*` codes verbatim (diagnostic `code` field). Its own transport/protocol failures are an internal `thiserror` enum (`LspError`), not a `NIKA-XXXX` range (transport errors never reach the workflow author). |

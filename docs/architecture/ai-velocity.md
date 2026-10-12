@@ -23,18 +23,19 @@ They could see one function at a time, not the system.
 Every crate MUST fit in an AI context window with room to think. This
 cashed out as:
 
-- **15,000 LOC max per crate** (hard cap, enforced by CI)
-- **1,500 LOC max per file** (hard cap, CI blocks)
+- **25,000 production LOC max per crate** (hard cap, enforced by CI; a warning
+  above 15,000 · ADR-154, which raised the launch-time 15,000)
+- **2,500 LOC max per file** (hard cap, CI blocks; a warning above 1,500)
 - **100 LOC max per function** (warning)
 
 The math:
 
-| Metric | Legacy worst case | Diamond cap |
-|---|---|---|
-| Largest crate | 138,724 LOC | 15,000 LOC |
-| Tokens (estimate) | ~750k | ~70k |
-| % of 1M context | 75% | **7%** |
-| Reasoning headroom | ~250k tokens | ~930k tokens |
+| Metric | Legacy worst case | Diamond cap at launch | Diamond cap (ADR-154) |
+|---|---|---|---|
+| Largest crate | 138,724 LOC | 15,000 LOC | 25,000 LOC |
+| Tokens (estimate) | ~750k | ~70k | ~117k |
+| % of 1M context | 75% | **7%** | ~12% |
+| Reasoning headroom | ~250k tokens | ~930k tokens | ~883k tokens |
 
 **10x more thinking space** on the same task. That's the number.
 

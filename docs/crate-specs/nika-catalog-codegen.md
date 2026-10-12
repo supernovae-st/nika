@@ -12,7 +12,7 @@ status: Admitted
 | Sub-tier | L0-tier-0 — leaf crate, zero `nika-*` dependencies. Consumed only by `nika-catalog`'s `build.rs`. |
 | Design | **Pure build-time transformation** — `TOML bytes → validated schema → Rust source String`. Extracted from `nika-catalog/build.rs` + `nika-catalog/build/{capabilities,pricing}.rs` per ADR-008 + Q5 (Foundation v0.81 lock). |
 | LOC budget | ≤3,500 src (target ~2,800, alarm at 3,200) |
-| File cap | ≤1,500 LOC each |
+| File cap | ≤2,500 LOC each |
 | Function cap | ≤100 lines each |
 | Source on `main` (ex `nika-diamond` · renamed) (reference) | `crates/nika-catalog/build.rs` (1,386 LOC) + `crates/nika-catalog/build/capabilities.rs` (978 LOC) + `crates/nika-catalog/build/pricing.rs` (200 LOC) = **2,564 LOC** to migrate |
 | Crate version | tracks workspace |

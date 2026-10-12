@@ -10,8 +10,8 @@
 # LOC »). LOC is derivable; there is no second source to drift against.
 #
 # Now: report the live total (sum of per-crate src from the projector,
-# the single LOC method) — GREEN/informational. The per-crate 15k cap is
-# vector 24, the per-file 1500 cap is vector 12; this vector is the
+# the single LOC method) — GREEN/informational. The per-crate 25k cap is
+# vector 24, the per-file 2500 cap is vector 12; this vector is the
 # at-a-glance workspace total, always honest because always derived.
 #
 # Exit codes: 0 GREEN (reported) · 2 RED (projector unavailable).

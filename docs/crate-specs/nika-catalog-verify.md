@@ -6,7 +6,7 @@
 | Layer | L4 — interface binary (user-facing CLI with network probes) |
 | Design | CLI tool: probes npm/pypi/oci registries + remote MCP endpoints, reports drift |
 | LOC budget | ≤1,500 src (actual ~600) |
-| File cap | ≤1,500 LOC each |
+| File cap | ≤2,500 LOC each |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |

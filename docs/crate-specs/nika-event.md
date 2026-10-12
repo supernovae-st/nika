@@ -6,7 +6,7 @@
 | Layer | L0 — pure · zero I/O · zero async · `Send + Sync` |
 | Design | Caller-supplied id + timestamp (L0 never reads a clock) · `#[non_exhaustive]` taxonomy · object-safe `Emitter` trait |
 | LOC budget | ≤800 src (actual ~462 · kind ~103 + event ~105 + emitter ~118 + error ~71 + lib ~65) |
-| File cap | ≤1,500 LOC each (max 118 · well under) |
+| File cap | ≤2,500 LOC each (max 118 · well under) |
 | Function cap | ≤100 lines each (all small) |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |

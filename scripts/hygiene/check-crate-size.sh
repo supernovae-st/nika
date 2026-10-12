@@ -1,33 +1,36 @@
 #!/usr/bin/env bash
-# Vector 24: per-crate LOC ratchet (≤ 15,000 LOC of tracked Rust + embedded jq).
+# Vector 24: per-crate LOC ratchet (≤ 25,000 LOC of tracked Rust + embedded jq).
 #
 # Two tiers, escalating consequence (the file-loc vector 12 pattern):
-#   12,000 LOC — YELLOW warning (the descent window, no block)
-#   15,000 LOC — RED hard fail (cannot push)
+#   15,000 LOC — YELLOW warning from this size (the descent window, never blocks)
+#   25,000 LOC — RED above this size (cannot push)
+# ADR-154 set these values: the former 15,000 wall became the warning, and one
+# 25,000 ceiling replaced it for every crate (scripts/ci/crate-size-policy.sh).
 #
 # Why a band: the red used to be discovered AT the push, mid-merge-train,
 # and the descent then got improvised by whichever session held the crate
 # (empirical: 7 reactive splits in 22 days on nika-cli, two of them the
 # same day by two parallel sessions — 2026-07-31). file-loc has warned
-# early since ADR-023 ([800,1500) yellow); this vector now speaks the same
-# three-tier language. 12k = 80% of the cap: at the growth velocity the
-# trust-experience arc showed (~5k prod LOC in one day), 3k of headroom
-# is one planning window — enough to draw the boundary calmly, with an
-# ADR, instead of at the gate.
+# early since ADR-023 (its yellow tier); this vector speaks the same
+# three-tier language. The warning sits at the former 15k wall: at the growth
+# velocity the trust-experience arc showed (~5k prod LOC in one day), the 10k
+# of headroom it leaves is two planning windows — enough to draw a boundary
+# calmly, with an ADR, instead of at the gate. (Under the 15k wall this band
+# was [12k, 15k), 3k wide.)
 #
 # Both tiers consume the ONE prod-LOC counter in
 # scripts/ci/check-crate-size.sh (CRATE_SIZE_MAX lowers only the ceiling —
 # never a second implementation of the measure, the drift class this
 # dashboard exists to kill). The wrapper translates to hygiene exit codes.
 #
-# This invariant is in nika-invariants.md ("Max LOC per crate: 15,000")
+# This invariant is in nika-invariants.md ("Max LOC per crate: 25,000")
 # but until now lived only in CI (`scripts/ci/`), not in the pre-push
 # hygiene dashboard. Wired as vector 24 per Audit-2 P0 (2026-04-16).
 #
 # Exit codes:
-#   0 — GREEN  (all crates < 12k LOC)
-#   1 — YELLOW (one or more crates in [12k, 15k) — descent window, informational)
-#   2 — RED    (at least one crate over budget — split required)
+#   0 — GREEN  (all crates < 15k LOC)
+#   1 — YELLOW (one or more crates in [15k, 25k] — descent window, informational)
+#   2 — RED    (at least one crate over the 25k ceiling — split required)
 
 set -uo pipefail
 
@@ -36,7 +39,8 @@ cd "$REPO_ROOT" || exit 2
 # shellcheck source=scripts/ci/crate-size-policy.sh
 . "$REPO_ROOT/scripts/ci/crate-size-policy.sh"
 
-WARN_AT=12000
+WARN_AT=15000
+CAP=$(crate_size_limit crates/any) || exit 2
 
 OUTPUT=$(bash scripts/ci/check-crate-size.sh 2>&1)
 STATUS=$?
@@ -46,7 +50,7 @@ if [ "$STATUS" -ne 0 ]; then
   echo "$OUTPUT" | head -10
   echo ""
   echo "Hint: review the over-budget crate's module boundaries per ADR-022 / ADR-024."
-  echo "The default ceiling is 15k; ADR-143 scopes the native TUI exception."
+  echo "The ceiling is ${CAP} production lines for every crate (ADR-154)."
   exit 2
 fi
 
@@ -58,8 +62,9 @@ if [ "$BAND_STATUS" -ne 0 ]; then
   # The dashboard (check-all.sh) shows ONE line per vector — the FIRST one.
   # A generic band header therefore printed 12001 and 14995 identically, and
   # the band's whole purpose is that the red is not discovered AT the push.
-  # Measured 2026-08-18 · nika-check sat at 14995/15000 (5 LOC of headroom)
-  # and read, on the dashboard, exactly like a crate with 3000 to spare.
+  # Measured 2026-08-18, under the former 15k wall · nika-check sat at
+  # 14995/15000 (5 LOC of headroom) and read, on the dashboard, exactly like a
+  # crate with 3000 to spare.
   # So the header carries the TIGHTEST crate and its remaining headroom.
   BAND_ROWS=$(echo "$BAND_OUTPUT" | grep '^FAIL' \
     | while read -r _ crate loc _; do
@@ -82,5 +87,5 @@ if [ "$BAND_STATUS" -ne 0 ]; then
   exit 1
 fi
 
-echo "OK: all admitted crates under ${WARN_AT} LOC (15,000 budget)"
+echo "OK: all admitted crates under ${WARN_AT} LOC (${CAP} budget)"
 exit 0

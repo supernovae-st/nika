@@ -5,8 +5,8 @@
 | Status | **ADMITTED 2026-08-14** — les 12 gates · Gate 1 (this document) authored 2026-08-12 · tranché D-2026-08-11-N6 (T28 d'abord · T27, le renderer ratatui, en est le premier consommateur natif) |
 | Layer | L4 — interfaces (libraries only) · le précédent WASM : `nika-check-wasm` (WIP · ADR-107) |
 | Design | La LOI de la session TUI en UN crate Rust — le modèle de session (Session · l'enum fermé Block), la couche de dérivation (vagues · idle · goulot · totaux), le seating du board de plan, les CLAIMS en assertions exécutables. Compilé natif (T27) ET en WASM (le studio web) · le DESSIN reste en SSOT YAML projetée (un essai de design ne demande jamais un `wasm-pack build`). |
-| LOC budget | ≤4,000 src prod · ≤15,000 hard cap |
-| File cap | ≤1,500 LOC each |
+| LOC budget | ≤4,000 src prod · ≤25,000 hard cap |
+| File cap | ≤2,500 LOC each |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |

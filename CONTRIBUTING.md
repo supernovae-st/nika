@@ -114,7 +114,7 @@ Full spec: [`.claude/rules/diamond-discipline.md`](.claude/rules/diamond-discipl
 
 Before modifying any crate, know these:
 
-- **L0** crates: zero I/O, zero async, ≤ 15,000 LOC.
+- **L0** crates: zero I/O, zero async, ≤ 25,000 production LOC (ADR-154).
 - **L0.5** crates: traits only (`nika-kernel`, `nika-kernel-mock`).
 - **L1** effect crates: one trait impl each (clock, fs, http, blob, process, ...).
 - **L2** domain crates: `verb-*`, service crates, memory stubs.
@@ -191,7 +191,8 @@ lanes keep flowing.
 - **No `.unwrap()` / `.expect(` in `src/`.** Use `?` propagation. Enforced by `workspace.lints.clippy.unwrap_used = "deny"`.
 - **No `#[allow(dead_code)]`.** Delete or make `pub(crate)`.
 - **`#[non_exhaustive]` on every public error enum + response struct.**
-- **Files ≤ 1,500 LOC, crates ≤ 15,000 LOC.** Enforced in CI.
+- **Files ≤ 2,500 LOC, crates ≤ 25,000 production LOC.** Enforced in CI; the hygiene
+  dashboard warns above 1,500 and 15,000 without blocking (ADR-154).
 - **One crate admission = one PR.** Never batch two admissions.
 
 ### PR review

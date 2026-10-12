@@ -5,7 +5,7 @@
 | Status | **WORKSPACE WIP**. Durable jobs, loopback HTTP, idempotent engine-token cancellation, resumable SSE with heartbeat/reconnect guidance, OpenAPI 3.1, SIGTERM drain, typed token-file refusal, failed-job NIKA codes, and 422 capture diagnosis. Artifacts/`POST /v1/run` stay absent; trace verification returns an honest typed refusal until a real remote journal authority exists. 12-gate crate admission still pending. |
 | Layer | L4 — remote execution interface projection |
 | Purpose | Persist request admission, lifecycle status, and resumable event cursors, and project the first authenticated HTTP routes over that state. |
-| LOC budget | ≤5,000 source lines for the state plane; ≤15,000 hard crate cap. |
+| LOC budget | ≤5,000 source lines for the state plane; ≤25,000 hard crate cap. |
 | File cap | ≤1,500 lines. |
 | Function cap | ≤100 lines. |
 | Crate version | tracks workspace |

@@ -7,7 +7,7 @@
 | Sub-tier | L0-tier-0 — leaf crate, zero `nika-*` dependencies (per ADR-024 L0 sub-tiers) |
 | Design | **Monolithic value-types crate** — all primitive domain values, IDs, hashes, budgets, traces, costs |
 | LOC budget | ≤5,000 src (currently 2,862 — comfortable headroom) |
-| File cap | ≤1,500 LOC each |
+| File cap | ≤2,500 LOC each |
 | Function cap | ≤100 lines each |
 | Source on `main` (reference) | `tools/nika-core/src/{id,trust,hash,...}.rs` (~3,500 LOC scattered) |
 | Crate version | tracks workspace |

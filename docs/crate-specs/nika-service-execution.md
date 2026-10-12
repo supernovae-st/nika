@@ -5,7 +5,7 @@
 | Status | **WORKSPACE WIP** — descended out of `nika-runtime` at the 15k prod-LOC wall; behaviour is unchanged and already exercised by CLI/ARM, but the crate stays in the canonical `wip` set until its own admission ceremony closes. |
 | Layer | L3 — execution driver over an already-admitted world |
 | Design | One driver, two surfaces. The same composition root, child resolution, closure hashing, and capability intersection serve the local CLI/ARM surface and the service surface; only the local stderr projection and the trace lane differ. |
-| LOC budget | ≤2,000 source lines; ≤15,000 hard crate cap. |
+| LOC budget | ≤2,000 source lines; ≤25,000 hard crate cap. |
 | File cap | ≤1,500 lines. |
 | Function cap | ≤100 lines. |
 | Crate version | tracks workspace |

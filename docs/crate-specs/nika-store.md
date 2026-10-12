@@ -7,7 +7,7 @@
 | Sub-tier | L1-deterministic — pure sign/verify + atomic file envelope · no async at the trait boundary |
 | Design | **F-P8 (SMSR arXiv:2606.12703 · TMA-NM 2606.24322 · MemLineage 2605.14421)** — every store write is SIGNED at write, the label INSIDE the signature; every recall VERIFIES per entry — unsigned · bad signature · rewritten label = REJECTED (never filtered) |
 | LOC budget | ≤1,270 src measured (entry ~220 · dir ~255 · sign ~360 · traits ~325 · errors ~60 · lib ~45) — re-allocated THREE times, honestly: the first sketch's ≤600 missed what the review swarm then priced (the filters and verdict classes the law requires: tenant fail-closed · level skip · name binding · version dispatch → ~820 estimated), the implementation priced what the estimate still missed (the fold's failure-honesty walk · the third-leg rejection substrate · and the rustdoc the named-not-silent posture writes in full — no fake-compression to fit a number), and audit wave B (2026-07-30) priced the hardening the first ship deferred: the O(1) set-digest fold (H13) · the walk's two named bounds (oversize + overflow) · the commit's read-before-rename with the named Conflict · 0600/0700 secret-bearing modes · the trait surface's applied filters (min_score · observed window · ts-ranked limit · the fail-closed reserved fields) → ~1,265 real |
-| File cap | ≤1,500 LOC each |
+| File cap | ≤2,500 LOC each |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |

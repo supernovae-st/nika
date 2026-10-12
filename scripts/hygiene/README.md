@@ -48,7 +48,7 @@ keep their number: renumbering is churn for no value.
 | 9 | `check-org-readme.sh` | Org profile README mentions every canonical public repo (whole-word, so a longer sibling's name cannot cover a missing one) · and the counts it quotes match `canon.yaml`. YELLOW when canon.yaml is unreachable — the parity is then unmeasured, and the verdict says so rather than asserting it. The count derives from the list in the script; it was written here as "6" while the script carried 13 |
 | 10 | `check-license.sh` | LICENSE file present + AGPL-3.0-or-later (renamed from `check-citation.sh` 2026-04-16; name was misleading — never checked CITATION.cff which doesn't exist) |
 | 11 | `check-unwraps.sh` | Zero `.unwrap()` / `.expect(` outside tests |
-| 12 | `check-file-loc.sh` | Three-tier file-LOC discipline (ADR-023): 800 YELLOW / 1500 RED / 3000 CRITICAL with `// LOC-EXEMPT: <reason>` marker (codegen, lookup-table, enum-mega) |
+| 12 | `check-file-loc.sh` | Three-tier file-LOC discipline (ADR-023, values of ADR-154): YELLOW above 1500 (never blocks) / RED above 2500 / CRITICAL above 5000 even with a `// LOC-EXEMPT: <reason>` marker (codegen, lookup-table, enum-mega) |
 | 13 | `check-claude-coauthor.sh` | No `Co-Authored-By: Claude` on diamond branch |
 | 14 | `check-private-leaks.sh` | No `/.claude/projects/…` in tracked code |
 | 15 | `check-cargo-audit.sh` | `cargo audit` shows no RustSec advisories |
@@ -60,7 +60,7 @@ keep their number: renumbering is churn for no value.
 | 21 | `check-layering.sh` | Diamond layer discipline — wrapper around `scripts/ci/check-layering.sh` (cross-layer upward deps) |
 | 22 | `check-no-async-in-l0.sh` | L0 crates with `async fn`, `.await`, tokio/futures/async-trait imports (Q1 lock 2026-04-16) |
 | 23 | `check-status-claims-sync.sh` | Whitelisted status docs (ROADMAP, CLAUDE) embed canonical `refresh-status.sh` block verbatim (structural fields) |
-| 24 | `check-crate-size.sh` | Per-crate LOC ratchet — every workspace member ≤ 15,000 LOC (Diamond invariant; was CI-only, now in hygiene dashboard) |
+| 24 | `check-crate-size.sh` | Per-crate LOC ratchet — every workspace member ≤ 25,000 production LOC (ADR-154; YELLOW above 15,000, never blocking, with the tightest crate's headroom; was CI-only, now in hygiene dashboard) |
 | 25 | `check-l0-dep-fanout.sh` | Each L0 crate ≤ 3 sibling `nika-*` deps (ADR-027 §"Hard rule"); per-crate exempt via `# L0-DEP-FANOUT-EXEMPT: <reason>` marker |
 | 30 | `check-cancel-safety.sh` | Every `async fn` in the **L0.5 layer** has a `// CANCEL SAFETY:` / `/// CANCEL SAFETY:` marker, in the preceding doc block **or on the declaring trait** (Batch I.b — kernel effect surface must document drop-safety per method). Scope DERIVES from `[workspace.metadata.diamond] layers.* = "L0.5"`; it read `crates/nika-kernel/src/**` until 2026-08-14, which the kernel split had emptied, so the vector guarded 0 of 94 async fn while reporting OK. `*-mock` crates are excluded and the exclusion is printed |
 | 31 | `check-owned-strings.sh` | nika-catalog public API uses `&'static str` (ADR-008 codegen pragma) or owned `String` — bans non-static `&str`/`&'a str` in `pub` fields and `pub fn` return types. Allow `&str` in parameters. Per-item exempt via `// OWNED-STRINGS-EXEMPT: <reason>` |

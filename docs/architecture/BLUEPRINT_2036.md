@@ -23,8 +23,8 @@ sources:
 > this doc is SUPERSEDED. ADR-037 (accepted 2026-04-17) had already revised
 > the count target 40-42 → **50-90 (cap 100 unchanged)**; the operator ruled
 > 2026-07-21 that **the count is not the invariant** — collapse-vs-publish
-> (§1.5), the layer contract (`crate-layer-registry.md`), and the 15k-LOC
-> wall are. The live count is projected (`scripts/crate-metrics.sh`), never
+> (§1.5), the layer contract (`crate-layer-registry.md`), and the crate-size
+> wall (25k LOC since ADR-154; 15k when this was ruled) are. The live count is projected (`scripts/crate-metrics.sh`), never
 > hand-typed. Prior prose preserved below as audit trail per
 > `cross-source-validation.md` §2.7.
 

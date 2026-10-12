@@ -20,8 +20,8 @@ a single-purpose ratchet. See `ci/` for the full list.
 
 | Script | Rule |
 |---|---|
-| `check-loc-limits.sh` | file ≤ 1,500 LOC |
-| `check-crate-size.sh` | crate ≤ 15,000 LOC |
+| `check-loc-limits.sh` | file ≤ 2,500 LOC (ADR-154) |
+| `check-crate-size.sh` | crate ≤ 25,000 production LOC, one ceiling for every crate (ADR-154) |
 | `check-fn-length.sh` | fn ≤ 100 lines |
 | `check-unwrap.sh` | 0 `.unwrap()` in src/ |
 | `check-expect.sh` | 0 `.expect(` in src/ |
@@ -66,7 +66,7 @@ Vectors:
 | 9 | org-profile-repos | `supernovae-st/.github/profile/README.md` mentions all canonical repos |
 | 10 | citation-version | CITATION.cff version matches workspace |
 | 11 | unwraps-in-src | Zero `.unwrap()`/`.expect(` outside tests |
-| 12 | file-loc-cap | No src/*.rs file > 1,500 LOC |
+| 12 | file-loc-cap | No src/*.rs file > 2,500 LOC (a warning above 1,500; a LOC-EXEMPT ceiling of 5,000) |
 | 13 | claude-coauthor-leak | No `Co-Authored-By: Claude` on diamond branch |
 | 14 | private-path-leak | No private monorepo path in tracked code · same patterns as the pre-commit hook (`scripts/lib/private-patterns.sh`) · frozen ADRs exempt |
 | 15 | cargo-audit-rustsec | RustSec advisories |

@@ -5,8 +5,8 @@
 | Status | **ADMITTED 2026-07-12** — Gate 1 authored at the split (a descent, not a greenfield: the unit landed test-first in `nika-cli` the same arc — issue #146 — and descended the day it was born). |
 | Layer | L4 — interface crate (the local-models unit: store · Hub acquisition · sidecar launch glue) |
 | Design | ONE law, one crate: the canonical models dir (`~/.nika/models/<owner>/<repo>/`). `store` owns the dir (by-id resolution for `serve --model` · `list` · `rm` · the `owner/repo[:QUANT]` grammar); `pull` acquires from the Hugging Face Hub over the injected kernel http seam (tree metadata FIRST — sizes before bytes · `Q4_K_M` default quant · ≥2 GiB confirm · `.part` + `Range:` resume · `HF_TOKEN` for gated repos · `tokenizer.json` rides along); `serve` is the candle sidecar boot glue (ADR-091/093 · feature-gated `local-infer`). The downloader and the resolver share the root by construction — the brouillon-era pull/load two-dir mismatch cannot re-happen. Outcomes are plain strings (`Ok` receipt · `Err` teaching refusal); the parent's thin adapters own the exit contract. |
-| LOC budget | the 15k-prod workspace ratchet governs (≤1,500/file · ≤100/fn as everywhere) — admitted at ~1.5k prod src; the parent `nika-cli` returns under the wall it crossed at 16,298 |
-| File cap | ≤1,500 LOC each (max at admission: `pull.rs`) |
+| LOC budget | the 25k-prod workspace ratchet governs (≤2,500/file · ≤100/fn as everywhere; ADR-154) — admitted at ~1.5k prod src; the parent `nika-cli` returns under the wall it crossed at 16,298 |
+| File cap | ≤2,500 LOC each (max at admission: `pull.rs`) |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace (`0.99.0` at admission) |
 | License | `AGPL-3.0-or-later` |
