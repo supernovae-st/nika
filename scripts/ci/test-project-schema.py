@@ -17,8 +17,11 @@ from jsonschema import Draft202012Validator
 ROOT = Path(__file__).resolve().parents[2]
 ACCEPTED = (
     "foo.nika", "support.v2.nika", "workflows/nightly.nika", "./foo.nika",
-    "../foo.nika", "nested/../foo.nika", "nested//foo.nika", ".hidden.nika",
+    "nested//foo.nika", ".hidden.nika",
 )
+# The schema records a workflow reference's shape. Containment (no `..` segment) is the arming
+# door's law: `nika check` applies it with the cadence grammar, as `nika arm` and `nika serve` do.
+CONTAINED = ("../foo.nika", "nested/../foo.nika")
 REFUSED = (
     "foo.nika.yaml", "foo.nika.yml", "foo.yaml", "foo.yml", "nika.yaml",
     "foo.NIKA", "foo.Nika", "foo.nika.evil", "foo.nika.minisig",
@@ -51,6 +54,17 @@ def assert_project_verdict(checked, name, accepted, path):
         assert findings[0]["code"] == "project.bad-value", evidence
         assert findings[0]["message"].startswith(f"`workflow: {name}`"), evidence
         assert "a `*.nika` path relative to the registry" in findings[0]["message"], evidence
+
+
+def assert_law_refusal(checked, path, code, beat):
+    """The arming door's law, refused by `nika check` with its code, on the beat it rides on."""
+    evidence = (code, checked.returncode, checked.stdout, checked.stderr)
+    assert checked.returncode == 2, evidence
+    verdict = json.loads(checked.stdout)
+    assert verdict["report_version"] == 1 and verdict["kind"] == "project", evidence
+    assert verdict["file"] == str(path) and verdict["clean"] is False, evidence
+    assert [finding["code"] for finding in verdict["findings"]] == [code], evidence
+    assert verdict["findings"][0]["message"].startswith(f"{beat} · "), evidence
 
 
 def check_verdict_judge():
@@ -91,7 +105,7 @@ def main():
     schema = json.loads(raw)
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
-    cases = [(name, True) for name in ACCEPTED] + [(name, False) for name in REFUSED]
+    cases = [(name, True) for name in ACCEPTED + CONTAINED] + [(name, False) for name in REFUSED]
     for name, accepted in cases:
         errors = list(validator.iter_errors(project(name)))
         assert (not errors) == accepted, (name, errors)
@@ -99,6 +113,9 @@ def main():
             assert len(errors) == 1 and errors[0].validator == "pattern", (name, errors)
             assert list(errors[0].absolute_path) == ["arm", 0, "workflow"]
     assert validator.is_valid({"nika": "schema-test", "traces": {"keep": "30d"}})
+    zoneless = project("workflows/nightly.nika")
+    zoneless["arm"][0]["cadence"] = "0 9 * * 1"
+    assert validator.is_valid(zoneless), "the schema records the cadence's shape only"
     for data in ("nika.yaml", "data.yaml", "data.yml"):
         document = project("workflows/nightly.nika")
         document["arm"][0]["inputs"] = {"source": data}
@@ -121,8 +138,15 @@ def main():
                 path = Path(room) / "nika.yaml"
                 path.write_text(yaml.safe_dump(project(name), allow_unicode=True))
                 checked = call("check", str(path), "--json")
-                assert_project_verdict(checked, name, accepted, path)
-            print(f"PASS real CLI emission and project parser: {len(cases)} workflow cases")
+                if name in CONTAINED:
+                    assert_law_refusal(checked, path, "cadence.workflow-path", name)
+                else:
+                    assert_project_verdict(checked, name, accepted, path)
+            path.write_text(yaml.safe_dump(zoneless, allow_unicode=True))
+            checked = call("check", str(path), "--json")
+            assert_law_refusal(checked, path, "cadence.tz-missing", "workflows/nightly.nika")
+            print(f"PASS real CLI emission and project parser: {len(cases)} workflow cases"
+                  " + the arming door's containment and zone laws")
             if args.out:
                 changed = subprocess.check_output(
                     ["git", "diff", "HEAD", "--name-only"], cwd=ROOT, text=True).strip()

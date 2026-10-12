@@ -95,7 +95,9 @@ pub mod repair_render { Repair · StopNotes · Refusal · render_refusals · ren
 The project verdict renderer accepts primitive fields from its caller. Its
 machine envelope uses JSON string escaping for paths, names and diagnostics,
 including control characters, while preserving the compact field order.
-It does not parse projects or choose the caller's exit code.
+It does not parse projects or choose the caller's exit code. Several
+refusals (the laws a project's beats break) render as one finding each, in
+the caller's order, each with its fix.
 
 `check_render::review` (C10) holds the rows a review shows of one `nika check` report,
 descended from `nika-session`'s change preview with their strings, order and limits

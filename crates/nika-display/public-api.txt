@@ -2586,7 +2586,9 @@ pub const fn nika_display::model_scope::subscription_status(continuous: bool) ->
 pub mod nika_display::project_render
 pub fn nika_display::project_render::governs(ceiling: core::option::Option<f64>, traces: bool, registry: bool, beats: usize) -> alloc::string::String
 pub fn nika_display::project_render::json(path: &str, clean: bool, name: core::option::Option<&str>, code: &str, message: &str) -> alloc::string::String
+pub fn nika_display::project_render::json_refusals(path: &str, rows: &[[&str; 2]]) -> alloc::string::String
 pub fn nika_display::project_render::refusal(path: &str, line: core::option::Option<usize>, slug: &str, detail: &str, remedy: &str) -> alloc::string::String
+pub fn nika_display::project_render::refusals(path: &str, rows: &[[&str; 3]]) -> alloc::string::String
 pub fn nika_display::project_render::verdict(path: &str, name: &str, governs: &str) -> alloc::string::String
 pub mod nika_display::render
 pub fn nika_display::render::frame(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, tick: usize) -> alloc::vec::Vec<alloc::string::String>
