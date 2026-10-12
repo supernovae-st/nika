@@ -577,7 +577,7 @@ fn composed_runtime(
     // The files a resume put back are this run's again (F-P14): its ledger
     // adopts them, so a failure of this run quarantines them once more.
     for path in &restored {
-        world.write_origins.adopt(path);
+        world.write_origins.adopt(path, put_back_file(path));
     }
     let inputs::ValidatedInputs {
         values: overrides,
@@ -1463,6 +1463,18 @@ fn trace_sink(
         TraceFileSink::new(nika_dap::store::TRACE_DIR)
     };
     sink.for_execution(execution, trace)
+}
+
+/// Which file a resume put back at `path` (resolved from the project root,
+/// the working directory), so that a failure of this run quarantines that
+/// very file again: the quarantine moves nothing it cannot identify.
+fn put_back_file(path: &str) -> Option<nika_runtime::CreatedFile> {
+    use std::os::unix::fs::MetadataExt as _;
+    let meta = std::fs::symlink_metadata(path)
+        .ok()
+        .filter(std::fs::Metadata::is_file)?;
+    let identity = nika_kernel::fs::FileIdentity::new(meta.dev(), meta.ino(), meta.nlink());
+    Some(nika_runtime::CreatedFile::new(identity, meta.len()))
 }
 
 #[cfg(test)]

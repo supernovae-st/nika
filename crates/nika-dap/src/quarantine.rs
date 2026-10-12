@@ -55,14 +55,24 @@
 //! failure is a STATED MISS (`{path, error, action: "left_in_place"}`)
 //! — never silent, never fatal to the teardown: the seal must still
 //! attest the end it can.
+//!
+//! Every file operation is held by descriptors (the `held` module): a recorded path
+//! is judged by name before any filesystem call (relative, normalized, no
+//! `..`), every directory below the project root is opened without following
+//! a symbolic link, the quarantine directory is created the same way inside
+//! the project's state directory, and a file moves only while it is the very
+//! file the run created (same device and inode, one name, same size). A
+//! restore links a file back at its path, which never replaces what a person
+//! put there since: that is a named conflict, and both files stay.
 
 use std::collections::BTreeSet;
+use std::fs::File;
 use std::path::{Path, PathBuf};
 
 use nika_event::settlement::RunState;
 use nika_event::{Event, EventKind};
 use nika_runtime::resume::ResumePlan;
-use nika_runtime::{RunOutcome, TaskStatus, TerminalCause, WriteOrigin};
+use nika_runtime::{CreatedFile, RunOutcome, TaskStatus, TerminalCause, WriteOrigin};
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawTask, RawWorkflow};
 use nika_schema::types::AfterPredicate;
 use nika_types::id::EventId;
@@ -70,6 +80,7 @@ use nika_types::resource::{KeyValue, Value as FieldValue};
 use nika_types::timestamp::Timestamp;
 
 mod crashed;
+mod held;
 
 pub use crashed::settle_crashed;
 
@@ -90,7 +101,8 @@ const WRITER_TOOLS: [&str; 2] = ["nika:write", "nika:edit"];
 /// journal's own naming shape — the debt exists either way; the move
 /// never waits on the receipt surface. `origin_of` answers what each
 /// path's first write found there (the host's write-origins ledger);
-/// only a [`WriteOrigin::Created`] path moves.
+/// only a [`WriteOrigin::Created`] path moves, and only while the very
+/// file the run created stands there.
 #[must_use]
 pub fn attend(
     wf: &RawWorkflow,
@@ -122,8 +134,7 @@ pub fn attend_at(
     if paths.is_empty() {
         return None; // no semi-written debt — nothing to attest
     }
-    let dir = PathBuf::from(crate::store::QUARANTINE_DIR).join(run_stamp(journal));
-    Some(quarantine(root, &paths, &dir, origin_of))
+    Some(quarantine(root, &paths, &run_stamp(journal), origin_of))
 }
 
 /// Whether `task` invokes one of the [`WRITER_TOOLS`] (a child-workflow
@@ -241,13 +252,100 @@ fn mint_stamp() -> String {
 /// else.
 pub const MANIFEST: &str = "manifest.json";
 
+/// The quarantine's descriptors, each opened on first need: the project
+/// root, then the run's quarantine directory and its `originals` directory,
+/// created without following a link inside the project's state directory.
+struct Place<'r> {
+    at: &'r Path,
+    /// `.nika/quarantine/<stamp>`, one plain component each.
+    parts: Vec<&'r str>,
+    root: Option<Result<held::Root, String>>,
+    quarantine: Option<Result<File, String>>,
+    originals: Option<Result<File, String>>,
+}
+
+impl<'r> Place<'r> {
+    fn new(at: &'r Path, stamp: &'r str) -> Self {
+        Self {
+            at,
+            parts: stamp_parts(stamp),
+            root: None,
+            quarantine: None,
+            originals: None,
+        }
+    }
+
+    /// The root and the run's quarantine directory.
+    fn quarantine(&mut self) -> Result<(&held::Root, &File), String> {
+        let at = self.at;
+        let root = self
+            .root
+            .get_or_insert_with(|| held::Root::open(at).map_err(|e| e.to_string()))
+            .as_ref()
+            .map_err(Clone::clone)?;
+        let parts = &self.parts;
+        let dir = self
+            .quarantine
+            .get_or_insert_with(|| open_below(root, parts, None))
+            .as_ref()
+            .map_err(Clone::clone)?;
+        Ok((root, dir))
+    }
+
+    /// The root and the run's `originals` directory.
+    fn originals(&mut self) -> Result<(&held::Root, &File), String> {
+        let at = self.at;
+        let root = self
+            .root
+            .get_or_insert_with(|| held::Root::open(at).map_err(|e| e.to_string()))
+            .as_ref()
+            .map_err(Clone::clone)?;
+        let parts = &self.parts;
+        let dir = self
+            .originals
+            .get_or_insert_with(|| open_below(root, parts, Some("originals")))
+            .as_ref()
+            .map_err(Clone::clone)?;
+        Ok((root, dir))
+    }
+
+    /// Whether the run's quarantine directory now exists.
+    fn opened(&self) -> bool {
+        matches!(self.quarantine, Some(Ok(_))) || matches!(self.originals, Some(Ok(_)))
+    }
+}
+
+/// `.nika/quarantine/<stamp>` as plain components; empty when the stamp is
+/// not one plain name (nothing is then created or moved).
+fn stamp_parts(stamp: &str) -> Vec<&str> {
+    match held::inside(stamp) {
+        Ok(one) if one.parents.is_empty() && one.name == stamp => crate::store::QUARANTINE_DIR
+            .split('/')
+            .chain(std::iter::once(stamp))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Create and open `parts` (then `leaf`) below the root without following
+/// a link.
+fn open_below(root: &held::Root, parts: &[&str], leaf: Option<&str>) -> Result<File, String> {
+    if parts.is_empty() {
+        return Err("the run stamp is not one plain name".to_owned());
+    }
+    let mut all = parts.to_vec();
+    all.extend(leaf);
+    root.dir(&all, true)
+        .map_err(|e| format!("the quarantine directory cannot be opened: {e}"))
+}
+
 /// The moves + the fold. Every enumeration entry is STATED. A file the
 /// run created moves and rides `{path, quarantined_to}`; a move that
-/// failed rides `{path, error, action: "left_in_place"}` — the debt is
-/// named, the teardown never aborts. A file that existed stays and rides
-/// `{path, action: "kept_in_place", original}` once its staged original
-/// moved under `<dir>/originals/` (`original_error` when it could not be
-/// kept); a path of unknown origin stays and rides
+/// failed or was refused rides `{path, error, action: "left_in_place"}` —
+/// the debt is named, the teardown never aborts. A file that existed stays
+/// and rides `{path, action: "kept_in_place", original}` once its staged
+/// original moved under `<dir>/originals/` (`original_error` when it could
+/// not be kept); a path of unknown origin stays and rides
 /// `{path, action: "kept_in_place", origin: "unknown"}`. The name inside a
 /// dir is the source's file name, collision-suffixed (`out.txt` → `out--2.txt`)
 /// when two paths share one name. The `kept` key and the manifest appear
@@ -256,20 +354,25 @@ pub const MANIFEST: &str = "manifest.json";
 fn quarantine(
     root: &Path,
     paths: &[String],
-    dir: &Path,
+    stamp: &str,
     origin_of: &dyn Fn(&str) -> Option<WriteOrigin>,
 ) -> serde_json::Value {
+    let dir = Path::new(crate::store::QUARANTINE_DIR).join(stamp);
+    let originals = dir.join("originals");
+    let mut place = Place::new(root, stamp);
     let mut outputs = Vec::new();
     let mut kept = Vec::new();
     let mut taken = BTreeSet::new();
     let mut taken_originals = BTreeSet::new();
-    let originals = dir.join("originals");
     for path in paths {
         match origin_of(path) {
-            Some(WriteOrigin::Created) => outputs.push(move_aside(root, path, dir, &mut taken)),
+            Some(WriteOrigin::Created { file }) => {
+                let moved = move_aside(&mut place, path, file.as_ref(), &mut taken);
+                outputs.push(output_entry(&dir, path, moved));
+            }
             Some(WriteOrigin::Existed { original }) => {
-                let place = (root, originals.as_path());
-                kept.push(keep_original(place, path, original, &mut taken_originals));
+                let moved = keep_original(&mut place, path, original, &mut taken_originals);
+                kept.push(kept_entry(&originals, path, moved));
             }
             _ => kept.push(serde_json::json!({
                 "path": path,
@@ -287,91 +390,99 @@ fn quarantine(
     {
         map.insert("kept".to_owned(), serde_json::Value::Array(kept));
     }
-    if root.join(dir).is_dir() {
-        record_manifest(root, dir, &mut fold);
+    if place.opened() {
+        record_manifest(&mut place, &dir, &mut fold);
     }
     fold
 }
 
-/// Move one file the run created under `dir`; the fold states the move
-/// or the miss.
-fn move_aside(
-    root: &Path,
-    path: &str,
-    dir: &Path,
-    taken: &mut BTreeSet<String>,
-) -> serde_json::Value {
-    let Some(name) = Path::new(path).file_name() else {
-        return serde_json::json!({
-            "path": path,
-            "error": "the path names no file",
-            "action": "left_in_place",
-        });
-    };
-    let target = dir.join(unique_name(&name.to_string_lossy(), taken));
-    let moved = std::fs::create_dir_all(root.join(dir))
-        .and_then(|()| std::fs::rename(root.join(path), root.join(&target)));
+/// The fold entry of one created file: where it moved, or why it stays.
+fn output_entry(dir: &Path, path: &str, moved: Result<String, String>) -> serde_json::Value {
     match moved {
-        Ok(()) => serde_json::json!({
+        Ok(target) => serde_json::json!({
             "path": path,
-            "quarantined_to": target.to_string_lossy(),
+            "quarantined_to": dir.join(target).to_string_lossy(),
         }),
-        Err(e) => serde_json::json!({
+        Err(error) => serde_json::json!({
             "path": path,
-            "error": e.to_string(),
+            "error": error,
             "action": "left_in_place",
         }),
     }
+}
+
+/// The fold entry of a person's file kept in place: where its original
+/// went, or why it was not kept.
+fn kept_entry(originals: &Path, path: &str, moved: Result<String, String>) -> serde_json::Value {
+    match moved {
+        Ok(target) => serde_json::json!({
+            "path": path,
+            "action": "kept_in_place",
+            "original": originals.join(target).to_string_lossy(),
+        }),
+        Err(reason) => serde_json::json!({
+            "path": path,
+            "action": "kept_in_place",
+            "original_error": reason,
+        }),
+    }
+}
+
+/// Move one file the run created into the quarantine directory: judged by
+/// name first, then moved only while it is the very file the run created.
+/// `Ok` names its quarantine name; `Err` says why it stays.
+fn move_aside(
+    place: &mut Place<'_>,
+    path: &str,
+    file: Option<&CreatedFile>,
+    taken: &mut BTreeSet<String>,
+) -> Result<String, String> {
+    let from = held::inside(path).map_err(str::to_owned)?;
+    let made = file.ok_or("nothing proves the file is the one the run created")?;
+    let target = unique_name(from.name, taken);
+    let (root, quarantine) = place.quarantine()?;
+    held::move_made(root, &from, made, quarantine, &target)?;
+    Ok(target)
 }
 
 /// A person's file stays where they keep it; its original, staged before
-/// the run first wrote it, moves under `originals` (both relative to
-/// `root`) so it can be restored.
+/// the run first wrote it under the project's originals directory, moves
+/// under `originals` so it can be restored. `Ok` names its new name.
 fn keep_original(
-    (root, originals): (&Path, &Path),
+    place: &mut Place<'_>,
     path: &str,
     original: Result<PathBuf, String>,
     taken: &mut BTreeSet<String>,
-) -> serde_json::Value {
-    let copy = match original {
-        Ok(copy) => copy,
-        Err(reason) => {
-            return serde_json::json!({
-                "path": path,
-                "action": "kept_in_place",
-                "original_error": reason,
-            });
-        }
-    };
+) -> Result<String, String> {
+    let copy = original?;
+    let copy = copy
+        .to_str()
+        .ok_or("the staged original's path is not UTF-8")?;
+    let staged = held::inside(copy).map_err(str::to_owned)?;
+    let staging: Vec<&str> = crate::store::ORIGINALS_DIR.split('/').collect();
+    if !staged.parents.starts_with(&staging) {
+        return Err("the staged original is outside the project's originals directory".to_owned());
+    }
     let name = Path::new(path)
         .file_name()
         .map_or_else(|| "file".to_owned(), |n| n.to_string_lossy().into_owned());
-    let target = originals.join(unique_name(&name, taken));
-    let moved = std::fs::create_dir_all(root.join(originals))
-        .and_then(|()| std::fs::rename(root.join(&copy), root.join(&target)));
-    match moved {
-        Ok(()) => serde_json::json!({
-            "path": path,
-            "action": "kept_in_place",
-            "original": target.to_string_lossy(),
-        }),
-        Err(e) => serde_json::json!({
-            "path": path,
-            "action": "kept_in_place",
-            "original_error": e.to_string(),
-        }),
-    }
+    let target = unique_name(&name, taken);
+    let (root, originals) = place.originals()?;
+    held::move_staged(root, &staged, originals, &target)?;
+    Ok(target)
 }
 
-/// Write the fold as `<dir>/manifest.json` and name it in the fold with
-/// the sha256 of its bytes (or state why it could not be written): the
-/// journal frame carries the digest, binding the manifest to the chain.
-fn record_manifest(root: &Path, dir: &Path, fold: &mut serde_json::Value) {
+/// Write the fold as `<dir>/manifest.json`, a new file in the run's
+/// quarantine directory, and name it in the fold with the sha256 of its
+/// bytes (or state why it could not be written): the journal frame carries
+/// the digest, binding the manifest to the chain.
+fn record_manifest(place: &mut Place<'_>, dir: &Path, fold: &mut serde_json::Value) {
     let manifest = dir.join(MANIFEST);
     let written = serde_json::to_vec_pretty(fold)
         .map_err(|e| e.to_string())
         .and_then(|bytes| {
-            std::fs::write(root.join(&manifest), &bytes)
+            let (_, quarantine) = place.quarantine()?;
+            held::write_new(quarantine, MANIFEST, &bytes)
                 .map(|()| crate::seal::sha256_hex(&bytes))
                 .map_err(|e| e.to_string())
         });
@@ -454,11 +565,17 @@ pub fn restore(prior_journal: &Path) -> Option<serde_json::Value> {
     restore_at(Path::new(""), prior_journal)
 }
 
-/// [`restore`] for the project at `root`.
+/// [`restore`] for the project at `root`. The manifest is read from the
+/// run's quarantine directory without following a link.
 fn restore_at(root: &Path, prior_journal: &Path) -> Option<serde_json::Value> {
-    let stamp_dir = Path::new(crate::store::QUARANTINE_DIR).join(run_stamp(Some(prior_journal)));
-    let dir = root.join(&stamp_dir);
-    let bytes = std::fs::read(dir.join(MANIFEST)).ok()?;
+    let stamp = run_stamp(Some(prior_journal));
+    let parts = stamp_parts(&stamp);
+    if parts.is_empty() {
+        return None;
+    }
+    let held_root = held::Root::open(root).ok()?;
+    let quarantine = held_root.dir(&parts, false).ok()?;
+    let bytes = held::read_bounded(&quarantine, MANIFEST).ok()??;
     let manifest: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
     let restored: Vec<serde_json::Value> = manifest
         .get("outputs")?
@@ -467,9 +584,10 @@ fn restore_at(root: &Path, prior_journal: &Path) -> Option<serde_json::Value> {
         .filter_map(|entry| {
             let path = entry.get("path")?.as_str()?;
             let moved = entry.get("quarantined_to")?.as_str()?;
-            put_back(root, path, Path::new(moved), &stamp_dir)
+            put_back(&held_root, &quarantine, &parts, path, moved)
         })
         .collect();
+    let stamp_dir = Path::new(crate::store::QUARANTINE_DIR).join(&stamp);
     (!restored.is_empty()).then(|| {
         serde_json::json!({
             "dir": stamp_dir.to_string_lossy(),
@@ -479,44 +597,38 @@ fn restore_at(root: &Path, prior_journal: &Path) -> Option<serde_json::Value> {
 }
 
 /// Return one moved file to its path, or state why it stays; `None` when
-/// it was already put back (a second resume of the same trace). Both are
-/// read relative to `root`: the moved file must sit inside the run's
-/// quarantine dir, and the path must name a place inside the project.
-fn put_back(root: &Path, path: &str, moved: &Path, stamp_dir: &Path) -> Option<serde_json::Value> {
-    let plain = |p: &Path| {
-        p.is_relative()
-            && p.components().all(|c| {
-                matches!(
-                    c,
-                    std::path::Component::Normal(_) | std::path::Component::CurDir
-                )
-            })
-    };
-    let target = root.join(path);
-    let contained = plain(moved) && moved.starts_with(stamp_dir) && plain(Path::new(path));
-    if contained && !root.join(moved).exists() {
-        return None;
-    }
-    let reason = if !contained {
-        Some("outside the quarantine dir or the project".to_owned())
-    } else if target.exists() || target.is_symlink() {
-        Some("something stands at the path".to_owned())
-    } else {
-        let parent = target.parent().filter(|p| !p.as_os_str().is_empty());
-        parent
-            .map_or(Ok(()), std::fs::create_dir_all)
-            .and_then(|()| std::fs::rename(root.join(moved), &target))
-            .err()
-            .map(|e| e.to_string())
-    };
-    Some(match reason {
-        None => serde_json::json!({ "path": path, "restored_from": moved.to_string_lossy() }),
-        Some(reason) => serde_json::json!({
+/// it was already put back (a second resume of the same trace). Both ends
+/// are judged by name first: the moved file must sit directly in the run's
+/// quarantine dir, and the path must name a place inside the project. A
+/// file standing at the path now is a named conflict: both stay.
+fn put_back(
+    root: &held::Root,
+    quarantine: &File,
+    stamp: &[&str],
+    path: &str,
+    moved: &str,
+) -> Option<serde_json::Value> {
+    let left = |reason: &str| {
+        Some(serde_json::json!({
             "path": path,
             "action": "left_quarantined",
             "reason": reason,
-        }),
-    })
+        }))
+    };
+    let (Ok(from), Ok(dest)) = (held::inside(moved), held::inside(path)) else {
+        return left("outside the quarantine dir or the project");
+    };
+    if from.parents != stamp {
+        return left("outside the quarantine dir or the project");
+    }
+    match held::put_back(root, quarantine, from.name, &dest) {
+        held::PutBack::Restored => {
+            Some(serde_json::json!({ "path": path, "restored_from": moved }))
+        }
+        held::PutBack::AlreadyBack => None,
+        held::PutBack::Conflict => left("conflict: a file stands at the path; both are kept"),
+        held::PutBack::Refused(reason) => left(&reason),
+    }
 }
 
 /// The paths a [`restore`] left in quarantine (`action: left_quarantined`).
@@ -594,6 +706,9 @@ fn unique_name(name: &str, taken: &mut BTreeSet<String>) -> String {
 }
 
 #[cfg(test)]
+mod hardening_tests;
+
+#[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used, clippy::unwrap_used)]
 
@@ -667,9 +782,23 @@ tasks:
         None
     }
 
-    /// A ledger that saw the run create every path.
-    fn all_created() -> impl Fn(&str) -> Option<WriteOrigin> {
-        |_: &str| Some(WriteOrigin::Created)
+    /// The stamp the tests' quarantine dirs carry.
+    const STAMP: &str = "2026-10-13T08-00-00Z-ab12";
+
+    /// What the ledger records for a file the run created at `root/path`,
+    /// read from the disk now: which file it is and its size.
+    fn made(root: &Path, path: &str) -> Option<WriteOrigin> {
+        use std::os::unix::fs::MetadataExt as _;
+        let meta = std::fs::symlink_metadata(root.join(path)).ok()?;
+        let identity = nika_kernel::fs::FileIdentity::new(meta.dev(), meta.ino(), meta.nlink());
+        Some(WriteOrigin::Created {
+            file: Some(CreatedFile::new(identity, meta.len())),
+        })
+    }
+
+    /// A ledger that saw the run create every path under `root`.
+    fn all_created(root: &Path) -> impl Fn(&str) -> Option<WriteOrigin> + '_ {
+        move |path: &str| made(root, path)
     }
 
     /// A writer admitted because something failed (or whatever happened)
@@ -713,30 +842,34 @@ tasks:
     #[test]
     fn an_existing_file_stays_and_its_original_is_kept_beside_the_quarantine() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let dir = tmp.path().join("q");
-        let notes = tmp.path().join("notes.md");
+        let root = tmp.path();
+        let dir = root.join(crate::store::QUARANTINE_DIR).join(STAMP);
+        let notes = root.join("notes.md");
         std::fs::write(&notes, "edited by the run").expect("write");
-        let staged = tmp.path().join("staging").join("1-notes.md");
-        std::fs::create_dir_all(staged.parent().expect("parent")).expect("mkdir");
-        std::fs::write(&staged, "my own notes").expect("stage");
-        let report = tmp.path().join("report.md");
+        let staged = Path::new(crate::store::ORIGINALS_DIR)
+            .join("run-1")
+            .join("1-notes.md");
+        std::fs::create_dir_all(root.join(staged.parent().expect("parent"))).expect("mkdir");
+        std::fs::write(root.join(&staged), "my own notes").expect("stage");
+        let report = root.join("report.md");
         std::fs::write(&report, "created by the run").expect("write");
-        let notes_path = notes.to_string_lossy().into_owned();
-        let report_path = report.to_string_lossy().into_owned();
+        let notes_path = "notes.md".to_owned();
+        let report_path = "report.md".to_owned();
+        let report_made = made(root, &report_path);
         let origin_of = |path: &str| {
             if path == notes_path {
                 Some(WriteOrigin::Existed {
                     original: Ok(staged.clone()),
                 })
             } else {
-                (path == report_path).then_some(WriteOrigin::Created)
+                (path == report_path).then(|| report_made.clone()).flatten()
             }
         };
 
         let fold = quarantine(
-            Path::new(""),
+            root,
             &[notes_path.clone(), report_path.clone()],
-            &dir,
+            STAMP,
             &origin_of,
         );
 
@@ -755,9 +888,10 @@ tasks:
             "my own notes"
         );
         assert_eq!(fold["kept"][0]["path"], serde_json::json!(notes_path));
+        let relative = Path::new(crate::store::QUARANTINE_DIR).join(STAMP);
         assert_eq!(
             fold["kept"][0]["original"],
-            serde_json::json!(original.to_string_lossy())
+            serde_json::json!(relative.join("originals/notes.md").to_string_lossy())
         );
         let manifest: serde_json::Value =
             serde_json::from_slice(&std::fs::read(dir.join(MANIFEST)).expect("manifest"))
@@ -768,7 +902,7 @@ tasks:
         );
         assert_eq!(
             fold["manifest"],
-            serde_json::json!(dir.join(MANIFEST).to_string_lossy())
+            serde_json::json!(relative.join(MANIFEST).to_string_lossy())
         );
     }
 
@@ -776,15 +910,15 @@ tasks:
     #[test]
     fn a_path_of_unknown_origin_stays_in_place() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let dir = tmp.path().join("q");
-        let file = tmp.path().join("unseen.txt");
+        let root = tmp.path();
+        let file = root.join("unseen.txt");
         std::fs::write(&file, "x").expect("write");
-        let path = file.to_string_lossy().into_owned();
+        let path = "unseen.txt".to_owned();
 
-        let fold = quarantine(Path::new(""), std::slice::from_ref(&path), &dir, &no_ledger);
+        let fold = quarantine(root, std::slice::from_ref(&path), STAMP, &no_ledger);
 
         assert!(file.exists(), "nothing moves without a known origin");
-        assert!(!dir.exists(), "no move, no dir, no manifest");
+        assert!(!root.join(".nika").exists(), "no move, no dir, no manifest");
         assert_eq!(
             fold["kept"][0],
             serde_json::json!({ "path": path, "action": "kept_in_place", "origin": "unknown" })
@@ -803,7 +937,12 @@ tasks:
         std::fs::write(root.join("out/report.md"), "half done").expect("write");
         let dir = Path::new(crate::store::QUARANTINE_DIR).join("2026-10-12T11-00-00Z-cd34");
 
-        let fold = quarantine(root, &["out/report.md".to_owned()], &dir, &all_created());
+        let fold = quarantine(
+            root,
+            &["out/report.md".to_owned()],
+            "2026-10-12T11-00-00Z-cd34",
+            &all_created(root),
+        );
 
         assert!(!root.join("out/report.md").exists(), "moved under the root");
         assert_eq!(
@@ -1016,7 +1155,12 @@ tasks:
         std::fs::write(root.join("made.txt"), "half done").expect("write");
         let dir = Path::new(crate::store::QUARANTINE_DIR).join("2026-10-12T12-00-00Z-ef56");
 
-        let fold = quarantine(root, &["made.txt".to_owned()], &dir, &all_created());
+        let fold = quarantine(
+            root,
+            &["made.txt".to_owned()],
+            "2026-10-12T12-00-00Z-ef56",
+            &all_created(root),
+        );
 
         let bytes = std::fs::read(root.join(&dir).join(MANIFEST)).expect("manifest");
         let expected = format!("{:x}", sha2::Sha256::digest(&bytes));
@@ -1151,7 +1295,8 @@ tasks:
             settled(TaskStatus::Success, serde_json::json!("one.txt")),
         )]);
         outcome.cache_hits.push("a".to_owned());
-        assert_eq!(written_paths(&wf, &outcome, &all_created()), ["one.txt"]);
+        let adopted = |_: &str| Some(WriteOrigin::Created { file: None });
+        assert_eq!(written_paths(&wf, &outcome, &adopted), ["one.txt"]);
     }
 
     /// H8 — a CACHE-HIT writer is not debt: a resumed run's hit
@@ -1231,18 +1376,17 @@ tasks:
     #[test]
     fn the_moves_land_under_the_stamp_dir_with_collision_suffixes() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let dir = tmp.path().join("q");
-        let first = tmp.path().join("out.txt");
-        let second = tmp.path().join("nested").join("out.txt");
+        let root = tmp.path();
+        let relative = Path::new(crate::store::QUARANTINE_DIR).join(STAMP);
+        let dir = root.join(&relative);
+        let first = root.join("out.txt");
+        let second = root.join("nested").join("out.txt");
         std::fs::create_dir_all(second.parent().expect("parent")).expect("mkdir");
         std::fs::write(&first, "first").expect("write");
         std::fs::write(&second, "second").expect("write");
 
-        let paths = vec![
-            first.to_string_lossy().into_owned(),
-            second.to_string_lossy().into_owned(),
-        ];
-        let fold = quarantine(Path::new(""), &paths, &dir, &all_created());
+        let paths = vec!["out.txt".to_owned(), "nested/out.txt".to_owned()];
+        let fold = quarantine(root, &paths, STAMP, &all_created(root));
 
         assert!(
             !first.exists() && !second.exists(),
@@ -1259,15 +1403,15 @@ tasks:
         assert_eq!(fold["outputs"][0]["path"], serde_json::json!(paths[0]));
         assert_eq!(
             fold["outputs"][0]["quarantined_to"],
-            serde_json::json!(dir.join("out.txt").to_string_lossy())
+            serde_json::json!(relative.join("out.txt").to_string_lossy())
         );
         assert_eq!(
             fold["outputs"][1]["quarantined_to"],
-            serde_json::json!(dir.join("out--2.txt").to_string_lossy())
+            serde_json::json!(relative.join("out--2.txt").to_string_lossy())
         );
         assert_eq!(
             fold["dir"],
-            serde_json::json!(dir.to_string_lossy()),
+            serde_json::json!(relative.to_string_lossy()),
             "the fold names its dir"
         );
     }
@@ -1278,16 +1422,25 @@ tasks:
     #[test]
     fn a_failed_move_is_a_stated_miss_never_fatal() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let dir = tmp.path().join("q");
-        let real = tmp.path().join("real.txt");
+        let root = tmp.path();
+        let relative = Path::new(crate::store::QUARANTINE_DIR).join(STAMP);
+        let dir = root.join(&relative);
+        let real = root.join("real.txt");
         std::fs::write(&real, "here").expect("write");
-        let ghost = tmp.path().join("ghost.txt");
+        // The run created `ghost.txt` too, which is gone by the teardown.
+        std::fs::write(root.join("ghost.txt"), "gone").expect("write");
+        let ghost_made = made(root, "ghost.txt");
+        std::fs::remove_file(root.join("ghost.txt")).expect("remove");
 
-        let paths = vec![
-            ghost.to_string_lossy().into_owned(),
-            real.to_string_lossy().into_owned(),
-        ];
-        let fold = quarantine(Path::new(""), &paths, &dir, &all_created());
+        let paths = vec!["ghost.txt".to_owned(), "real.txt".to_owned()];
+        let origin_of = |path: &str| {
+            if path == "ghost.txt" {
+                ghost_made.clone()
+            } else {
+                made(root, path)
+            }
+        };
+        let fold = quarantine(root, &paths, STAMP, &origin_of);
 
         assert_eq!(
             fold["outputs"][0]["action"],
@@ -1306,7 +1459,7 @@ tasks:
         );
         assert_eq!(
             fold["outputs"][1]["quarantined_to"],
-            serde_json::json!(dir.join("real.txt").to_string_lossy()),
+            serde_json::json!(relative.join("real.txt").to_string_lossy()),
             "the sibling still moved"
         );
         assert_eq!(

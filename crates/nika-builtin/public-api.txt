@@ -225,6 +225,7 @@ pub async fn nika_builtin::witness::scope_attempt_witness<F>(witness: alloc::syn
 pub mod nika_builtin::write_origins
 #[non_exhaustive] pub enum nika_builtin::write_origins::WriteOrigin
 pub nika_builtin::write_origins::WriteOrigin::Created
+pub nika_builtin::write_origins::WriteOrigin::Created::file: core::option::Option<nika_builtin::write_origins::CreatedFile>
 pub nika_builtin::write_origins::WriteOrigin::Existed
 pub nika_builtin::write_origins::WriteOrigin::Existed::original: core::result::Result<std::path::PathBuf, alloc::string::String>
 impl core::clone::Clone for nika_builtin::write_origins::WriteOrigin
@@ -266,9 +267,56 @@ impl<T> nika_error::traits::AsAny for nika_builtin::write_origins::WriteOrigin w
 pub fn nika_builtin::write_origins::WriteOrigin::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_builtin::write_origins::WriteOrigin
 pub type nika_builtin::write_origins::WriteOrigin::Output = T
+#[non_exhaustive] pub struct nika_builtin::write_origins::CreatedFile
+pub nika_builtin::write_origins::CreatedFile::identity: nika_kernel_core::io::fs::FileIdentity
+pub nika_builtin::write_origins::CreatedFile::len: u64
+impl nika_builtin::write_origins::CreatedFile
+pub const fn nika_builtin::write_origins::CreatedFile::new(identity: nika_kernel_core::io::fs::FileIdentity, len: u64) -> Self
+impl core::clone::Clone for nika_builtin::write_origins::CreatedFile
+pub fn nika_builtin::write_origins::CreatedFile::clone(&self) -> nika_builtin::write_origins::CreatedFile
+impl core::cmp::Eq for nika_builtin::write_origins::CreatedFile
+impl core::cmp::PartialEq for nika_builtin::write_origins::CreatedFile
+pub fn nika_builtin::write_origins::CreatedFile::eq(&self, other: &nika_builtin::write_origins::CreatedFile) -> bool
+impl core::fmt::Debug for nika_builtin::write_origins::CreatedFile
+pub fn nika_builtin::write_origins::CreatedFile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_builtin::write_origins::CreatedFile
+impl core::marker::StructuralPartialEq for nika_builtin::write_origins::CreatedFile
+impl<D> owo_colors::OwoColorize for nika_builtin::write_origins::CreatedFile
+impl<Q, K> equivalent::Equivalent<K> for nika_builtin::write_origins::CreatedFile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_builtin::write_origins::CreatedFile::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_builtin::write_origins::CreatedFile where U: core::convert::From<T>
+pub fn nika_builtin::write_origins::CreatedFile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::write_origins::CreatedFile where U: core::convert::Into<T>
+pub type nika_builtin::write_origins::CreatedFile::Error = core::convert::Infallible
+pub fn nika_builtin::write_origins::CreatedFile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::write_origins::CreatedFile where U: core::convert::TryFrom<T>
+pub type nika_builtin::write_origins::CreatedFile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::write_origins::CreatedFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_builtin::write_origins::CreatedFile where T: core::clone::Clone
+pub type nika_builtin::write_origins::CreatedFile::Owned = T
+pub fn nika_builtin::write_origins::CreatedFile::clone_into(&self, target: &mut T)
+pub fn nika_builtin::write_origins::CreatedFile::to_owned(&self) -> T
+impl<T> core::any::Any for nika_builtin::write_origins::CreatedFile where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::write_origins::CreatedFile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::write_origins::CreatedFile where T: ?core::marker::Sized
+pub fn nika_builtin::write_origins::CreatedFile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::write_origins::CreatedFile where T: ?core::marker::Sized
+pub fn nika_builtin::write_origins::CreatedFile::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_builtin::write_origins::CreatedFile where T: core::clone::Clone
+pub unsafe fn nika_builtin::write_origins::CreatedFile::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_builtin::write_origins::CreatedFile
+pub fn nika_builtin::write_origins::CreatedFile::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_builtin::write_origins::CreatedFile where T: core::clone::Clone
+pub fn nika_builtin::write_origins::CreatedFile::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_builtin::write_origins::CreatedFile where T: 'static
+pub fn nika_builtin::write_origins::CreatedFile::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_builtin::write_origins::CreatedFile where T: core::marker::Copy
+pub fn nika_builtin::write_origins::CreatedFile::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_builtin::write_origins::CreatedFile
+pub type nika_builtin::write_origins::CreatedFile::Output = T
 pub struct nika_builtin::write_origins::WriteOrigins
 impl nika_builtin::write_origins::WriteOrigins
-pub fn nika_builtin::write_origins::WriteOrigins::adopt(&self, path: &str)
+pub fn nika_builtin::write_origins::WriteOrigins::adopt(&self, path: &str, file: core::option::Option<nika_builtin::write_origins::CreatedFile>)
 pub fn nika_builtin::write_origins::WriteOrigins::new(staging: std::path::PathBuf) -> Self
 pub fn nika_builtin::write_origins::WriteOrigins::origin(&self, path: &str) -> core::option::Option<nika_builtin::write_origins::WriteOrigin>
 pub fn nika_builtin::write_origins::WriteOrigins::staging(&self) -> &std::path::Path
@@ -298,6 +346,7 @@ pub type nika_builtin::write_origins::WriteOrigins::Output = T
 pub const nika_builtin::write_origins::ORIGINAL_COPY_MAX: u64
 #[non_exhaustive] pub enum nika_builtin::WriteOrigin
 pub nika_builtin::WriteOrigin::Created
+pub nika_builtin::WriteOrigin::Created::file: core::option::Option<nika_builtin::write_origins::CreatedFile>
 pub nika_builtin::WriteOrigin::Existed
 pub nika_builtin::WriteOrigin::Existed::original: core::result::Result<std::path::PathBuf, alloc::string::String>
 impl core::clone::Clone for nika_builtin::write_origins::WriteOrigin
@@ -433,6 +482,53 @@ impl<T> nika_error::traits::AsAny for nika_builtin::BuiltinFailure where T: 'sta
 pub fn nika_builtin::BuiltinFailure::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_builtin::BuiltinFailure
 pub type nika_builtin::BuiltinFailure::Output = T
+#[non_exhaustive] pub struct nika_builtin::CreatedFile
+pub nika_builtin::CreatedFile::identity: nika_kernel_core::io::fs::FileIdentity
+pub nika_builtin::CreatedFile::len: u64
+impl nika_builtin::write_origins::CreatedFile
+pub const fn nika_builtin::write_origins::CreatedFile::new(identity: nika_kernel_core::io::fs::FileIdentity, len: u64) -> Self
+impl core::clone::Clone for nika_builtin::write_origins::CreatedFile
+pub fn nika_builtin::write_origins::CreatedFile::clone(&self) -> nika_builtin::write_origins::CreatedFile
+impl core::cmp::Eq for nika_builtin::write_origins::CreatedFile
+impl core::cmp::PartialEq for nika_builtin::write_origins::CreatedFile
+pub fn nika_builtin::write_origins::CreatedFile::eq(&self, other: &nika_builtin::write_origins::CreatedFile) -> bool
+impl core::fmt::Debug for nika_builtin::write_origins::CreatedFile
+pub fn nika_builtin::write_origins::CreatedFile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_builtin::write_origins::CreatedFile
+impl core::marker::StructuralPartialEq for nika_builtin::write_origins::CreatedFile
+impl<D> owo_colors::OwoColorize for nika_builtin::write_origins::CreatedFile
+impl<Q, K> equivalent::Equivalent<K> for nika_builtin::write_origins::CreatedFile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_builtin::write_origins::CreatedFile::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_builtin::write_origins::CreatedFile where U: core::convert::From<T>
+pub fn nika_builtin::write_origins::CreatedFile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::write_origins::CreatedFile where U: core::convert::Into<T>
+pub type nika_builtin::write_origins::CreatedFile::Error = core::convert::Infallible
+pub fn nika_builtin::write_origins::CreatedFile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::write_origins::CreatedFile where U: core::convert::TryFrom<T>
+pub type nika_builtin::write_origins::CreatedFile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::write_origins::CreatedFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_builtin::write_origins::CreatedFile where T: core::clone::Clone
+pub type nika_builtin::write_origins::CreatedFile::Owned = T
+pub fn nika_builtin::write_origins::CreatedFile::clone_into(&self, target: &mut T)
+pub fn nika_builtin::write_origins::CreatedFile::to_owned(&self) -> T
+impl<T> core::any::Any for nika_builtin::write_origins::CreatedFile where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::write_origins::CreatedFile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::write_origins::CreatedFile where T: ?core::marker::Sized
+pub fn nika_builtin::write_origins::CreatedFile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::write_origins::CreatedFile where T: ?core::marker::Sized
+pub fn nika_builtin::write_origins::CreatedFile::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_builtin::write_origins::CreatedFile where T: core::clone::Clone
+pub unsafe fn nika_builtin::write_origins::CreatedFile::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_builtin::write_origins::CreatedFile
+pub fn nika_builtin::write_origins::CreatedFile::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_builtin::write_origins::CreatedFile where T: core::clone::Clone
+pub fn nika_builtin::write_origins::CreatedFile::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_builtin::write_origins::CreatedFile where T: 'static
+pub fn nika_builtin::write_origins::CreatedFile::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_builtin::write_origins::CreatedFile where T: core::marker::Copy
+pub fn nika_builtin::write_origins::CreatedFile::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_builtin::write_origins::CreatedFile
+pub type nika_builtin::write_origins::CreatedFile::Output = T
 pub struct nika_builtin::FsBoundary
 impl nika_builtin::permits::FsBoundary
 pub fn nika_builtin::permits::FsBoundary::declared(read: alloc::vec::Vec<alloc::string::String>, write: alloc::vec::Vec<alloc::string::String>) -> Self
@@ -713,7 +809,7 @@ impl<T> typenum::type_operators::Same for nika_builtin::tts::TtsKeys
 pub type nika_builtin::tts::TtsKeys::Output = T
 pub struct nika_builtin::WriteOrigins
 impl nika_builtin::write_origins::WriteOrigins
-pub fn nika_builtin::write_origins::WriteOrigins::adopt(&self, path: &str)
+pub fn nika_builtin::write_origins::WriteOrigins::adopt(&self, path: &str, file: core::option::Option<nika_builtin::write_origins::CreatedFile>)
 pub fn nika_builtin::write_origins::WriteOrigins::new(staging: std::path::PathBuf) -> Self
 pub fn nika_builtin::write_origins::WriteOrigins::origin(&self, path: &str) -> core::option::Option<nika_builtin::write_origins::WriteOrigin>
 pub fn nika_builtin::write_origins::WriteOrigins::staging(&self) -> &std::path::Path

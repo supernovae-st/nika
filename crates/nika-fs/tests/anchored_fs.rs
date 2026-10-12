@@ -93,9 +93,14 @@ async fn relative_reads_resolve_at_the_root_not_the_process_directory() {
     );
     assert!(fs.exists(Path::new("notes/brief.md")).await);
     assert!(!fs.exists(Path::new("notes/absent.md")).await);
+    let meta = fs.metadata(Path::new("./notes/brief.md")).await.unwrap();
     assert_eq!(
-        fs.metadata(Path::new("./notes/brief.md")).await.unwrap(),
+        FileMetadata::new(meta.len, meta.is_file, meta.is_dir),
         FileMetadata::new(u64::try_from(BRIEF.len()).unwrap(), true, false)
+    );
+    assert!(
+        meta.identity.is_some(),
+        "the host backend says which file it is"
     );
     let physical = std::fs::canonicalize(dir.path()).unwrap();
     assert_eq!(fs.canonicalize(Path::new(".")).await.unwrap(), physical);

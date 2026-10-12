@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use nika_kernel::io::fs::{FsMetaDyn, FsReadDyn, FsWriteDyn};
+use nika_kernel::io::fs::{FileIdentity, FsMetaDyn, FsReadDyn, FsWriteDyn};
 
 /// The largest original copied aside, in bytes. Past it the original is
 /// not kept and the record says so: the copy holds the whole file in
@@ -35,12 +35,36 @@ use nika_kernel::io::fs::{FsMetaDyn, FsReadDyn, FsWriteDyn};
 /// read back for its digest either.
 pub const ORIGINAL_COPY_MAX: u64 = 64 * 1024 * 1024;
 
+/// The file a run's last write left at a path the run created: which file
+/// it is and its size. The quarantine moves the path only while this very
+/// file still stands there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct CreatedFile {
+    /// Which file it is (device, inode, names).
+    pub identity: FileIdentity,
+    /// Its size in bytes after the run's last write.
+    pub len: u64,
+}
+
+impl CreatedFile {
+    /// Construct (INV-019).
+    #[must_use]
+    pub const fn new(identity: FileIdentity, len: u64) -> Self {
+        Self { identity, len }
+    }
+}
+
 /// What a run's first write of a path found there.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum WriteOrigin {
     /// Nothing stood at the path: the run created this file.
-    Created,
+    Created {
+        /// The file the run's last write left there; `None` until a write
+        /// landed, or when the backend could not say which file it is.
+        file: Option<CreatedFile>,
+    },
     /// A file stood at the path before the run first wrote it.
     Existed {
         /// Where its original bytes were copied, or why they were not.
@@ -93,12 +117,14 @@ impl WriteOrigins {
     /// it: a resumed run put it back from its failed prior run's
     /// quarantine, so it is this run's to quarantine again if this run
     /// fails too. A path already seen keeps its first origin. No record is
-    /// staged for it: a crash of this run leaves it where it stands.
-    pub fn adopt(&self, path: &str) {
+    /// staged for it: a crash of this run leaves it where it stands. `file`
+    /// is the file the resume put back, which the quarantine checks before
+    /// it moves anything.
+    pub fn adopt(&self, path: &str, file: Option<CreatedFile>) {
         let number = self.next.fetch_add(1, Ordering::Relaxed);
         self.lock()
             .entry(path.to_owned())
-            .or_insert((WriteOrigin::Created, number));
+            .or_insert((WriteOrigin::Created { file }, number));
     }
 
     /// Record `path` before the run writes it. The first sighting decides:
@@ -117,7 +143,7 @@ impl WriteOrigins {
                 original: self.copy_original(fs, path, number).await,
             }
         } else {
-            WriteOrigin::Created
+            WriteOrigin::Created { file: None }
         };
         let first = {
             let mut seen = self.lock();
@@ -133,23 +159,32 @@ impl WriteOrigins {
         }
     }
 
-    /// After a write of `path` landed: a file the run created gains the
-    /// sha256 of the bytes now there in its record, so a later run can tell
-    /// this run's bytes from a person's edit. A person's own file is never
-    /// moved and needs none; a file past the copy bound is not read back,
-    /// and its record proves nothing (a later run then leaves it in place).
+    /// After a write of `path` landed: a file the run created is known by
+    /// which file it now is and its size (each write replaces it, so the
+    /// last one counts), and its record gains them with the sha256 of its
+    /// bytes, so a later run can tell this run's bytes from a person's edit.
+    /// A person's own file is never moved and needs none; a file past the
+    /// copy bound is not read back, and its record proves nothing (a later
+    /// run then leaves it in place).
     pub(crate) async fn wrote<F>(&self, fs: &F, path: &str)
     where
         F: FsReadDyn + FsWriteDyn + FsMetaDyn,
     {
         let sighting = self.lock().get(path).cloned();
-        let Some((WriteOrigin::Created, number)) = sighting else {
+        let Some((WriteOrigin::Created { .. }, number)) = sighting else {
             return;
         };
         let source = Path::new(path);
         let Ok(meta) = fs.metadata(source).await else {
             return;
         };
+        let file = meta
+            .identity
+            .filter(|_| meta.is_file)
+            .map(|identity| CreatedFile::new(identity, meta.len));
+        if let Some((WriteOrigin::Created { file: known }, _)) = self.lock().get_mut(path) {
+            *known = file;
+        }
         if !meta.is_file || meta.len > ORIGINAL_COPY_MAX {
             return;
         }
@@ -157,7 +192,8 @@ impl WriteOrigins {
             return;
         };
         let digest = crate::image::save::sha256_hex(&bytes);
-        self.write_record(fs, path, number, &WriteOrigin::Created, Some(&digest))
+        let origin = WriteOrigin::Created { file };
+        self.write_record(fs, path, number, &origin, Some(&digest))
             .await;
     }
 
@@ -205,8 +241,13 @@ impl WriteOrigins {
         let mut record = serde_json::Map::new();
         record.insert("path".to_owned(), path.into());
         match origin {
-            WriteOrigin::Created => {
+            WriteOrigin::Created { file } => {
                 record.insert("origin".to_owned(), "created".into());
+                if let Some(file) = file {
+                    record.insert("device".to_owned(), file.identity.device.into());
+                    record.insert("inode".to_owned(), file.identity.inode.into());
+                    record.insert("len".to_owned(), file.len.into());
+                }
             }
             WriteOrigin::Existed { original } => {
                 record.insert("origin".to_owned(), "existed".into());

@@ -142,7 +142,7 @@ pub use errors::RuntimeError;
 pub use identity::{
     EngineIdentity, MACHINE_PROTOCOL_VERSION, MACHINE_SNAPSHOT_FORMAT_VERSION, engine_identity,
 };
-pub use nika_builtin::{WriteOrigin, WriteOrigins};
+pub use nika_builtin::{CreatedFile, WriteOrigin, WriteOrigins};
 pub use nika_verb_invoke::McpPlane;
 pub use origins::{InputOrigin, input_origins};
 pub use pause::WorkflowPause;

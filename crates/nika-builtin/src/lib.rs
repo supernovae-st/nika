@@ -75,7 +75,7 @@ pub use image::ImageKeys;
 pub use live::LiveInspect;
 pub use permits::FsBoundary;
 pub use tts::TtsKeys;
-pub use write_origins::{WriteOrigin, WriteOrigins};
+pub use write_origins::{CreatedFile, WriteOrigin, WriteOrigins};
 
 /// The closed builtin namespace prefix.
 pub const NAMESPACE: &str = "nika:";

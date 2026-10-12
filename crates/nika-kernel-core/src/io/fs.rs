@@ -19,6 +19,32 @@ mod remove_default_tests;
 #[cfg(test)]
 mod pin_default_tests;
 
+/// Which file an entry is: its device and inode numbers, and how many
+/// names (hard links) it has. A run records it for a file it created, so
+/// that it never acts later on another file standing at the same path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct FileIdentity {
+    /// The device the file lives on.
+    pub device: u64,
+    /// Its inode number on that device.
+    pub inode: u64,
+    /// How many names it has.
+    pub links: u64,
+}
+
+impl FileIdentity {
+    /// Construct (INV-019).
+    #[must_use]
+    pub const fn new(device: u64, inode: u64, links: u64) -> Self {
+        Self {
+            device,
+            inode,
+            links,
+        }
+    }
+}
+
 /// Metadata about a filesystem entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -29,6 +55,8 @@ pub struct FileMetadata {
     pub is_file: bool,
     /// Whether the entry is a directory.
     pub is_dir: bool,
+    /// Which file the entry is, when the backend can say; `None` otherwise.
+    pub identity: Option<FileIdentity>,
 }
 
 impl FileMetadata {
@@ -39,7 +67,15 @@ impl FileMetadata {
             len,
             is_file,
             is_dir,
+            identity: None,
         }
+    }
+
+    /// Say which file the entry is.
+    #[must_use]
+    pub const fn with_identity(mut self, identity: FileIdentity) -> Self {
+        self.identity = Some(identity);
+        self
     }
 }
 

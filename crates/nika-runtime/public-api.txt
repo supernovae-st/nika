@@ -1,4 +1,5 @@
 pub mod nika_runtime
+pub use nika_runtime::CreatedFile
 pub use nika_runtime::DataflowError
 pub use nika_runtime::DeterministicStamper
 pub use nika_runtime::EngineIdentity

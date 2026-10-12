@@ -50,6 +50,21 @@ fn staging(root: &Path, files: &[(&str, &str)], records: &[serde_json::Value]) -
     dir
 }
 
+/// A crashed run's record of a file it created at `path`, as its ledger
+/// writes it: the digest of `text` and which file now stands there.
+fn created(root: &Path, path: &str, text: &str) -> serde_json::Value {
+    use std::os::unix::fs::MetadataExt as _;
+    let meta = std::fs::symlink_metadata(root.join(path)).expect("the created file");
+    serde_json::json!({
+        "path": path,
+        "origin": "created",
+        "sha256": sha(text),
+        "device": meta.dev(),
+        "inode": meta.ino(),
+        "len": meta.len(),
+    })
+}
+
 fn read(root: &Path, path: &str) -> String {
     std::fs::read_to_string(root.join(path)).expect(path)
 }
@@ -71,7 +86,7 @@ fn a_dead_runs_own_files_move_and_the_persons_stay() {
         &[("1-notes.md", "a draft note")],
         &[
             serde_json::json!({ "path": "notes.md", "origin": "existed", "original": "1-notes.md" }),
-            serde_json::json!({ "path": "report.md", "origin": "created", "sha256": sha("the report") }),
+            created(root, "report.md", "the report"),
         ],
     );
 
@@ -234,4 +249,48 @@ fn an_outside_path_stays_and_an_unrecorded_copy_keeps_the_staging() {
         serde_json::json!(format!(".nika/originals/exe-{UUID}"))
     );
     assert!(staged.join("7-orphan.md").exists(), "never deleted");
+}
+
+/// A crashed run's created file moves only while it is the very file the
+/// run's last write left: the same bytes in another file (renamed over it)
+/// stay, and a record that names no file (an older engine's) moves nothing.
+#[cfg(unix)]
+#[test]
+fn a_dead_runs_file_moves_only_while_it_is_the_same_file() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let root = tmp.path();
+    dead_journal(root);
+    std::fs::write(root.join("report.md"), "the report").expect("created");
+    std::fs::write(root.join("draft.md"), "the draft").expect("created");
+    let report = created(root, "report.md", "the report");
+    std::fs::write(root.join("copy.tmp"), "the report").expect("same bytes");
+    std::fs::rename(root.join("copy.tmp"), root.join("report.md")).expect("renamed over");
+    staging(
+        root,
+        &[],
+        &[
+            report,
+            serde_json::json!({ "path": "draft.md", "origin": "created", "sha256": sha("the draft") }),
+        ],
+    );
+
+    let folds = settle_crashed(root);
+
+    assert_eq!(
+        folds[0]["outputs"],
+        serde_json::json!([
+            {
+                "path": "report.md",
+                "error": "another file stands at the path",
+                "action": "left_in_place",
+            },
+            {
+                "path": "draft.md",
+                "error": "nothing proves the file is the one the run created",
+                "action": "left_in_place",
+            },
+        ])
+    );
+    assert_eq!(read(root, "report.md"), "the report");
+    assert_eq!(read(root, "draft.md"), "the draft");
 }

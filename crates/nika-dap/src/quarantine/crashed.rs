@@ -77,19 +77,27 @@ fn settle_one(root: &Path, name: &str) -> Option<serde_json::Value> {
             "reason": "its teardown had begun",
         }));
     }
-    let mut fold = settle_records(root, &staging, &dir);
+    let mut place = super::Place::new(root, &stamp);
+    let mut fold = settle_records(&mut place, root, &staging, &dir);
     if let Some(map) = fold.as_object_mut() {
-        map.insert("crashed".to_owned(), stamp.into());
+        map.insert("crashed".to_owned(), stamp.clone().into());
     }
-    if root.join(&dir).is_dir() {
-        super::record_manifest(root, &dir, &mut fold);
+    if place.opened() {
+        super::record_manifest(&mut place, &dir, &mut fold);
     }
     release_staging(root, &staging, &mut fold);
     Some(fold)
 }
 
-/// The moves of one crashed run, as a quarantine fold.
-fn settle_records(root: &Path, staging: &Path, dir: &Path) -> serde_json::Value {
+/// The moves of one crashed run, as a quarantine fold. A created file moves
+/// only while it is the very file the crashed run's last write left (its
+/// record names it), held as the live quarantine holds it.
+fn settle_records(
+    place: &mut super::Place<'_>,
+    root: &Path,
+    staging: &Path,
+    dir: &Path,
+) -> serde_json::Value {
     let originals = dir.join("originals");
     let mut outputs = Vec::new();
     let mut kept = Vec::new();
@@ -109,7 +117,11 @@ fn settle_records(root: &Path, staging: &Path, dir: &Path) -> serde_json::Value 
         }
         match record["origin"].as_str() {
             Some("created") => match unchanged(root, path, record["sha256"].as_str()) {
-                Ok(true) => outputs.push(super::move_aside(root, path, dir, &mut taken)),
+                Ok(true) => {
+                    let made = recorded_file(&record);
+                    let moved = super::move_aside(place, path, made.as_ref(), &mut taken);
+                    outputs.push(super::output_entry(dir, path, moved));
+                }
                 Ok(false) => {}
                 Err(reason) => kept.push(serde_json::json!({
                     "path": path,
@@ -126,13 +138,8 @@ fn settle_records(root: &Path, staging: &Path, dir: &Path) -> serde_json::Value 
                         .unwrap_or("no original was recorded")
                         .to_owned()),
                 };
-                let place = (root, originals.as_path());
-                kept.push(super::keep_original(
-                    place,
-                    path,
-                    original,
-                    &mut taken_originals,
-                ));
+                let moved = super::keep_original(place, path, original, &mut taken_originals);
+                kept.push(super::kept_entry(&originals, path, moved));
             }
             _ => {}
         }
@@ -196,6 +203,15 @@ fn unchanged(root: &Path, path: &str, digest: Option<&str>) -> Result<bool, Stri
     } else {
         Err("you changed it since".to_owned())
     }
+}
+
+/// Which file the crashed run's last write left at a created path, as its
+/// record names it (`device`, `inode`, `len`); `None` when the record names
+/// none (an older engine wrote it): then nothing moves.
+fn recorded_file(record: &serde_json::Value) -> Option<nika_runtime::CreatedFile> {
+    let number = |key: &str| record[key].as_u64();
+    let identity = nika_kernel::fs::FileIdentity::new(number("device")?, number("inode")?, 1);
+    Some(nika_runtime::CreatedFile::new(identity, number("len")?))
 }
 
 /// A relative path that stays inside the project (no root, no `..`).

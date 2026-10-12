@@ -47,7 +47,10 @@ async fn a_new_path_is_created_and_an_existing_file_keeps_its_original() {
     origins.note(&TokioFs, &notes).await;
     origins.note(&TokioFs, &report).await;
 
-    assert_eq!(origins.origin(&report), Some(WriteOrigin::Created));
+    assert_eq!(
+        origins.origin(&report),
+        Some(WriteOrigin::Created { file: None })
+    );
     let Some(WriteOrigin::Existed { original: Ok(copy) }) = origins.origin(&notes) else {
         panic!(
             "an existing file keeps its original: {:?}",
@@ -74,7 +77,10 @@ async fn the_first_sighting_decides() {
     std::fs::write(&draft, "written by the run").expect("write");
     origins.note(&TokioFs, &draft).await;
 
-    assert_eq!(origins.origin(&draft), Some(WriteOrigin::Created));
+    assert_eq!(
+        origins.origin(&draft),
+        Some(WriteOrigin::Created { file: None })
+    );
     assert_eq!(
         staged(&scratch),
         ["1.json"],
@@ -136,11 +142,14 @@ async fn an_adopted_path_counts_as_created_unless_already_seen() {
     std::fs::write(&notes, "my own notes").expect("seed");
     let origins = WriteOrigins::new(scratch.0.join("staging"));
 
-    origins.adopt("report.md");
+    origins.adopt("report.md", None);
     origins.note(&TokioFs, &notes).await;
-    origins.adopt(&notes);
+    origins.adopt(&notes, None);
 
-    assert_eq!(origins.origin("report.md"), Some(WriteOrigin::Created));
+    assert_eq!(
+        origins.origin("report.md"),
+        Some(WriteOrigin::Created { file: None })
+    );
     assert!(
         matches!(origins.origin(&notes), Some(WriteOrigin::Existed { .. })),
         "{:?}",
@@ -172,6 +181,22 @@ async fn a_created_files_record_carries_the_digest_of_its_last_write() {
         record(&scratch, 1)["sha256"],
         serde_json::json!(digest("first draft"))
     );
+    {
+        use std::os::unix::fs::MetadataExt as _;
+        let meta = std::fs::metadata(&report).expect("meta");
+        assert_eq!(record(&scratch, 1)["inode"], serde_json::json!(meta.ino()));
+        assert_eq!(record(&scratch, 1)["len"], serde_json::json!(11));
+        let Some(WriteOrigin::Created { file: Some(known) }) = origins.origin(&report) else {
+            panic!(
+                "the file the run created is known: {:?}",
+                origins.origin(&report)
+            );
+        };
+        assert_eq!(
+            (known.identity.device, known.identity.inode, known.len),
+            (meta.dev(), meta.ino(), 11)
+        );
+    }
     std::fs::write(&report, "the report").expect("write again");
     origins.wrote(&TokioFs, &report).await;
     assert_eq!(
