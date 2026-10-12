@@ -3352,7 +3352,12 @@ pub const nika_dap::quarantine::MANIFEST: &str
 pub fn nika_dap::quarantine::attend(wf: &nika_schema::raw::workflow::RawWorkflow, outcome: &nika_runtime::RunOutcome, journal: core::option::Option<&std::path::Path>, origin_of: &dyn core::ops::function::Fn(&str) -> core::option::Option<nika_builtin::write_origins::WriteOrigin>) -> core::option::Option<serde_json::value::Value>
 pub fn nika_dap::quarantine::attend_at(root: &std::path::Path, wf: &nika_schema::raw::workflow::RawWorkflow, outcome: &nika_runtime::RunOutcome, journal: core::option::Option<&std::path::Path>, origin_of: &dyn core::ops::function::Fn(&str) -> core::option::Option<nika_builtin::write_origins::WriteOrigin>) -> core::option::Option<serde_json::value::Value>
 pub fn nika_dap::quarantine::discard_staging(staging: &std::path::Path)
+pub fn nika_dap::quarantine::journal_recorded(trace: &mut nika_dap::journal::TraceFileSink, fold: core::option::Option<&serde_json::value::Value>)
+pub fn nika_dap::quarantine::left_quarantined(restored: &serde_json::value::Value) -> alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub fn nika_dap::quarantine::recorded_event(fold: &serde_json::value::Value) -> nika_event::event::Event
 pub fn nika_dap::quarantine::restore(prior_journal: &std::path::Path) -> core::option::Option<serde_json::value::Value>
+pub fn nika_dap::quarantine::settle_crashed(root: &std::path::Path) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_dap::quarantine::tasks_naming(plan: &nika_runtime::resume::ResumePlan, wf: &nika_schema::raw::workflow::RawWorkflow, paths: &alloc::collections::btree::set::BTreeSet<alloc::string::String>) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_dap::recover
 #[non_exhaustive] pub enum nika_dap::recover::RecoverError
 pub nika_dap::recover::RecoverError::BadFirstLine

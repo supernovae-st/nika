@@ -48,16 +48,33 @@ pub(super) struct ResumeSetup {
     /// they go back before this run starts (consumed by
     /// [`Self::bind_durable`]). `None` = a fresh run.
     pub restore_from: Option<std::path::PathBuf>,
+    /// The files that restore put back: the run's ledger adopts them, so a
+    /// failure of this run quarantines them again.
+    pub restored: Vec<String>,
 }
 
 impl ResumeSetup {
     /// Attach durable replay protection only after Run monetary admission,
-    /// then put back what the resumed run's teardown moved aside: this
-    /// run's cache hits name those files as written.
-    pub(super) fn bind_durable(mut self, output_json: bool) -> Result<Self, u8> {
+    /// then settle what a crashed run left in this project, then put back
+    /// what the resumed run's teardown moved aside: this run's cache hits
+    /// name those files as written. A task whose file stays in quarantine
+    /// is not completed: it runs again.
+    pub(super) fn bind_durable(mut self, wf: &RawWorkflow, output_json: bool) -> Result<Self, u8> {
         self.paused = durable_paused(self.paused, output_json)?;
+        // First, so a resume of the crashed journal itself puts its moved
+        // files back like a failed run's.
+        say_settled(&nika_dap::quarantine::settle_crashed(std::path::Path::new(
+            "",
+        )));
         if let Some(journal) = self.restore_from.take() {
-            say_restored(nika_dap::quarantine::restore(&journal).as_ref());
+            let restored = nika_dap::quarantine::restore(&journal);
+            say_restored(restored.as_ref());
+            if let Some(restored) = restored.as_ref() {
+                self.restored = restored_paths(restored);
+                if let Some(plan) = self.plan.as_mut() {
+                    rerun_unrestored(plan, wf, restored);
+                }
+            }
         }
         Ok(self)
     }
@@ -72,6 +89,7 @@ impl ResumeSetup {
             unverified: None,
             resumed_from: None,
             restore_from: None,
+            restored: Vec::new(),
         }
     }
 }
@@ -88,6 +106,81 @@ fn say_restored(restored: Option<&Value>) {
         match entry["reason"].as_str() {
             None => eprintln!("nika run: --resume: put back {path} from {dir}"),
             Some(reason) => eprintln!("nika run: --resume: {path} stays in {dir}: {reason}"),
+        }
+    }
+}
+
+/// The paths a restore put back in place.
+fn restored_paths(restored: &Value) -> Vec<String> {
+    restored["restored"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|entry| entry.get("restored_from").is_some())
+        .filter_map(|entry| entry["path"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// One stderr line per action taken on a crashed run's leftovers: a file
+/// it created moved to its quarantine, one kept in place and why, a
+/// person's file it changed with its original, a staging left as it is.
+fn say_settled(folds: &[Value]) {
+    for fold in folds {
+        let run = format!(
+            "a crashed run ({})",
+            fold["crashed"].as_str().unwrap_or("?")
+        );
+        if let Some(reason) = fold["reason"].as_str() {
+            let staging = fold["staging_left"].as_str().unwrap_or_default();
+            eprintln!("nika run: {run} left {staging} as it is: {reason}");
+            continue;
+        }
+        for entry in fold["outputs"].as_array().into_iter().flatten() {
+            let path = entry["path"].as_str().unwrap_or_default();
+            match entry["quarantined_to"].as_str() {
+                Some(to) => eprintln!("nika run: {run} left {path}: moved to {to}"),
+                None => eprintln!(
+                    "nika run: {run} left {path}: it stays in place, the move failed: {}",
+                    entry["error"].as_str().unwrap_or("unknown")
+                ),
+            }
+        }
+        for entry in fold["kept"].as_array().into_iter().flatten() {
+            say_kept(&run, entry);
+        }
+        if let Some(staging) = fold["staging_left"].as_str() {
+            eprintln!("nika run: {run} left copies in {staging}: they stay as they are");
+        }
+    }
+}
+
+/// The line for a file a crashed run's settlement left in place.
+fn say_kept(run: &str, entry: &Value) {
+    let path = entry["path"].as_str().unwrap_or_default();
+    if let Some(original) = entry["original"].as_str() {
+        eprintln!(
+            "nika run: {run} changed {path}: it stays in place; its original is at {original}"
+        );
+    } else if let Some(error) = entry["original_error"].as_str() {
+        eprintln!(
+            "nika run: {run} changed {path}: it stays in place; its original was not kept: {error}"
+        );
+    } else {
+        let reason = entry["reason"].as_str().unwrap_or("its bytes are unproven");
+        eprintln!("nika run: {run} left {path} in place: {reason}");
+    }
+}
+
+/// Drop from the plan every writer whose file stayed in quarantine, with
+/// every task after it (the `--from` walk): they read what it wrote, and a
+/// cache hit would call it written while its bytes sit in quarantine.
+fn rerun_unrestored(plan: &mut ResumePlan, wf: &RawWorkflow, restored: &Value) {
+    let stays = nika_dap::quarantine::left_quarantined(restored);
+    for task in nika_dap::quarantine::tasks_naming(plan, wf, &stays) {
+        if nika_dap::resume::apply_from(plan, wf, &task).is_ok() {
+            eprintln!(
+                "nika run: --resume: {task} runs again, with the tasks after it: its file did not come back"
+            );
         }
     }
 }
@@ -116,7 +209,7 @@ pub(super) fn resume_setup(
     output_json: bool,
 ) -> Result<ResumeSetup, u8> {
     validate_resume(resume, wf, source, model_override, access, output_json)?
-        .bind_durable(output_json)
+        .bind_durable(wf, output_json)
 }
 
 /// Read, validate and fold the resume without opening or pruning durable claims.
@@ -248,6 +341,7 @@ fn load_resume_plan(
         // #1462 · the continuation link: this leg names the trace it folded.
         resumed_from: nika_dap::resume::trace_run_id(&recovered.events),
         restore_from: Some(trace.to_path_buf()),
+        restored: Vec::new(),
     })
 }
 

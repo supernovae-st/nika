@@ -75,9 +75,116 @@ async fn the_first_sighting_decides() {
     origins.note(&TokioFs, &draft).await;
 
     assert_eq!(origins.origin(&draft), Some(WriteOrigin::Created));
+    assert_eq!(
+        staged(&scratch),
+        ["1.json"],
+        "no copy for a file the run created, only its one record"
+    );
+}
+
+/// The file names under the scratch's staging directory, sorted.
+fn staged(scratch: &Scratch) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(scratch.0.join("staging"))
+        .map(|dir| {
+            dir.filter_map(Result::ok)
+                .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    names.sort();
+    names
+}
+
+/// A staged record, parsed.
+fn record(scratch: &Scratch, number: usize) -> serde_json::Value {
+    let bytes = std::fs::read(scratch.0.join("staging").join(format!("{number}.json")))
+        .expect("the record");
+    serde_json::from_slice(&bytes).expect("a JSON record")
+}
+
+/// Each first sighting leaves its record before the run writes: the path,
+/// what stood there, and the copy that holds a person's original bytes. A
+/// run killed before its teardown leaves exactly this for a later run.
+#[tokio::test]
+async fn each_first_sighting_leaves_a_record_beside_its_copy() {
+    let scratch = Scratch::new();
+    let notes = scratch.path("notes.md");
+    std::fs::write(&notes, "my own notes").expect("seed");
+    let report = scratch.path("report.md");
+    let origins = WriteOrigins::new(scratch.0.join("staging"));
+
+    origins.note(&TokioFs, &notes).await;
+    origins.note(&TokioFs, &report).await;
+
+    assert_eq!(staged(&scratch), ["1-notes.md", "1.json", "2.json"]);
+    assert_eq!(
+        record(&scratch, 1),
+        serde_json::json!({ "path": notes, "origin": "existed", "original": "1-notes.md" })
+    );
+    assert_eq!(
+        record(&scratch, 2),
+        serde_json::json!({ "path": report, "origin": "created" })
+    );
+}
+
+/// A file a resume put back counts as created by the resumed run, unless
+/// the run already met the path: the first sighting still decides.
+#[tokio::test]
+async fn an_adopted_path_counts_as_created_unless_already_seen() {
+    let scratch = Scratch::new();
+    let notes = scratch.path("notes.md");
+    std::fs::write(&notes, "my own notes").expect("seed");
+    let origins = WriteOrigins::new(scratch.0.join("staging"));
+
+    origins.adopt("report.md");
+    origins.note(&TokioFs, &notes).await;
+    origins.adopt(&notes);
+
+    assert_eq!(origins.origin("report.md"), Some(WriteOrigin::Created));
     assert!(
-        !scratch.0.join("staging").exists(),
-        "nothing was copied for a file the run created"
+        matches!(origins.origin(&notes), Some(WriteOrigin::Existed { .. })),
+        "{:?}",
+        origins.origin(&notes)
+    );
+    assert_eq!(
+        staged(&scratch),
+        ["2-notes.md", "2.json"],
+        "an adoption stages nothing"
+    );
+}
+
+/// A created file's record gains the sha256 of the bytes its last write
+/// left; a person's file needs none (it is never moved).
+#[tokio::test]
+async fn a_created_files_record_carries_the_digest_of_its_last_write() {
+    use sha2::Digest as _;
+    let digest = |text: &str| crate::data::hex_encode(&sha2::Sha256::digest(text.as_bytes()));
+    let scratch = Scratch::new();
+    let notes = scratch.path("notes.md");
+    std::fs::write(&notes, "my own notes").expect("seed");
+    let report = scratch.path("report.md");
+    let origins = WriteOrigins::new(scratch.0.join("staging"));
+
+    origins.note(&TokioFs, &report).await;
+    std::fs::write(&report, "first draft").expect("write");
+    origins.wrote(&TokioFs, &report).await;
+    assert_eq!(
+        record(&scratch, 1)["sha256"],
+        serde_json::json!(digest("first draft"))
+    );
+    std::fs::write(&report, "the report").expect("write again");
+    origins.wrote(&TokioFs, &report).await;
+    assert_eq!(
+        record(&scratch, 1)["sha256"],
+        serde_json::json!(digest("the report"))
+    );
+
+    origins.note(&TokioFs, &notes).await;
+    std::fs::write(&notes, "edited by the run").expect("edit");
+    origins.wrote(&TokioFs, &notes).await;
+    assert!(
+        record(&scratch, 2).get("sha256").is_none(),
+        "a person's file has no digest"
     );
 }
 
@@ -122,5 +229,10 @@ async fn a_symlinked_name_is_never_followed_for_the_copy() {
         "{:?}",
         origins.origin(&link)
     );
-    assert!(!scratch.0.join("staging").exists(), "nothing was copied");
+    assert_eq!(
+        staged(&scratch),
+        ["1.json"],
+        "nothing was copied, only the record"
+    );
+    assert!(record(&scratch, 1).get("original").is_none());
 }

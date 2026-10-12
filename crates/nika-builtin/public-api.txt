@@ -268,6 +268,7 @@ impl<T> typenum::type_operators::Same for nika_builtin::write_origins::WriteOrig
 pub type nika_builtin::write_origins::WriteOrigin::Output = T
 pub struct nika_builtin::write_origins::WriteOrigins
 impl nika_builtin::write_origins::WriteOrigins
+pub fn nika_builtin::write_origins::WriteOrigins::adopt(&self, path: &str)
 pub fn nika_builtin::write_origins::WriteOrigins::new(staging: std::path::PathBuf) -> Self
 pub fn nika_builtin::write_origins::WriteOrigins::origin(&self, path: &str) -> core::option::Option<nika_builtin::write_origins::WriteOrigin>
 pub fn nika_builtin::write_origins::WriteOrigins::staging(&self) -> &std::path::Path
@@ -712,6 +713,7 @@ impl<T> typenum::type_operators::Same for nika_builtin::tts::TtsKeys
 pub type nika_builtin::tts::TtsKeys::Output = T
 pub struct nika_builtin::WriteOrigins
 impl nika_builtin::write_origins::WriteOrigins
+pub fn nika_builtin::write_origins::WriteOrigins::adopt(&self, path: &str)
 pub fn nika_builtin::write_origins::WriteOrigins::new(staging: std::path::PathBuf) -> Self
 pub fn nika_builtin::write_origins::WriteOrigins::origin(&self, path: &str) -> core::option::Option<nika_builtin::write_origins::WriteOrigin>
 pub fn nika_builtin::write_origins::WriteOrigins::staging(&self) -> &std::path::Path

@@ -770,7 +770,7 @@ fn base64_decode(s: &str) -> Option<Vec<u8>> {
 }
 
 /// sha256 → lowercase hex (the registry client's idiom, mirrored).
-fn sha256_hex(bytes: &[u8]) -> String {
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
     use sha2::Digest as _;
     hex_lower(&sha2::Sha256::digest(bytes))
 }

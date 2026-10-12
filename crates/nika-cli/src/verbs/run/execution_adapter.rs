@@ -394,7 +394,7 @@ fn run_admitted_context_over(
     {
         return RunVerdict::bare(code);
     }
-    let setup = match setup.bind_durable(machine) {
+    let setup = match setup.bind_durable(&wf, machine) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };

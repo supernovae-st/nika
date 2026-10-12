@@ -719,9 +719,12 @@ pub fn seal_journal_with_key(
     // F-P8 · the law's third leg: the named memory rejections land in the
     // journal BEFORE the seal mints, so the chain the seal signs covers
     // the evidence its `covers["memory"]` counts (the seal commits to
-    // every prior line — these included).
+    // every prior line — these included). A failed run's quarantine lands
+    // the same way, and before the key is read: an unsigned run's journal
+    // records it too.
     if let Some(teardown) = teardown {
         crate::memory::journal_rejected(trace, &teardown.memory_rejected);
+        crate::quarantine::journal_recorded(trace, teardown.quarantine.as_ref());
     }
     let mut sealed = false;
     if let Some(hash) = workflow_hash

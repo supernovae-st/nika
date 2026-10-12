@@ -533,7 +533,7 @@ fn derive(
 /// The trace file that recorded an `exe-<uuid>` invocation: a store name of
 /// that trace id whose first frame names the same execution. Diagnostic only
 /// (any failure is `None`): the refusal hands it to `nika trace show`.
-fn trace_of(nika: &OwnedDir, invocation: &str) -> Option<String> {
+pub(crate) fn trace_of(nika: &OwnedDir, invocation: &str) -> Option<String> {
     let id = uuid::Uuid::parse_str(invocation.strip_prefix("exe-")?).ok()?;
     let traces = nika.open_below(&["traces"]).ok()?;
     let mut names = traces.names().ok()?;

@@ -60,9 +60,18 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use nika_event::settlement::RunState;
+use nika_event::{Event, EventKind};
+use nika_runtime::resume::ResumePlan;
 use nika_runtime::{RunOutcome, TaskStatus, TerminalCause, WriteOrigin};
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawTask, RawWorkflow};
 use nika_schema::types::AfterPredicate;
+use nika_types::id::EventId;
+use nika_types::resource::{KeyValue, Value as FieldValue};
+use nika_types::timestamp::Timestamp;
+
+mod crashed;
+
+pub use crashed::settle_crashed;
 
 /// The write-capable builtins whose settled outputs ARE the
 /// semi-written debt (v1 scope) — the two that return the path they
@@ -109,12 +118,21 @@ pub fn attend_at(
     if outcome.settlement.state != RunState::Failed {
         return None;
     }
-    let paths = written_paths(wf, outcome);
+    let paths = written_paths(wf, outcome, origin_of);
     if paths.is_empty() {
         return None; // no semi-written debt — nothing to attest
     }
     let dir = PathBuf::from(crate::store::QUARANTINE_DIR).join(run_stamp(journal));
     Some(quarantine(root, &paths, &dir, origin_of))
+}
+
+/// Whether `task` invokes one of the [`WRITER_TOOLS`] (a child-workflow
+/// call writes no path of its own).
+fn is_writer(task: &RawTask) -> bool {
+    let RawAction::Invoke(invoke) = &task.action else {
+        return false;
+    };
+    matches!(&invoke.target, RawInvokeTarget::Tool(tool) if WRITER_TOOLS.contains(&tool.value.as_str()))
 }
 
 /// A writer admitted by an `after:` edge on `failure`, `terminal` or
@@ -142,20 +160,20 @@ fn on_the_failure_path(task: &RawTask) -> bool {
 /// author's `recover:` fallback (the failed verb wrote nothing; moving
 /// the author-named value would be an arbitrary file move past the
 /// permits boundary), and a cache-hit record rehydrates a PRIOR run's
-/// output (nothing written here — the prior teardown judged its debt).
-/// A writer on the failure path is spared too ([`on_the_failure_path`]).
-fn written_paths(wf: &RawWorkflow, outcome: &RunOutcome) -> Vec<String> {
+/// output (nothing written here — the prior teardown judged its debt),
+/// unless this run's ledger knows the path: a resume put it back from the
+/// prior run's quarantine, which makes it this run's debt again. A writer
+/// on the failure path is spared too ([`on_the_failure_path`]).
+fn written_paths(
+    wf: &RawWorkflow,
+    outcome: &RunOutcome,
+    origin_of: &dyn Fn(&str) -> Option<WriteOrigin>,
+) -> Vec<String> {
     let mut seen = BTreeSet::new();
     let mut paths = Vec::new();
     let cache_hits: BTreeSet<&str> = outcome.cache_hits.iter().map(String::as_str).collect();
     for task in &wf.tasks {
-        let RawAction::Invoke(invoke) = &task.value.action else {
-            continue;
-        };
-        let RawInvokeTarget::Tool(tool) = &invoke.target else {
-            continue; // a child-workflow call writes no path of its own
-        };
-        if !WRITER_TOOLS.contains(&tool.value.as_str()) || on_the_failure_path(&task.value) {
+        if !is_writer(&task.value) || on_the_failure_path(&task.value) {
             continue;
         }
         let id = task.value.id.value.as_str();
@@ -168,16 +186,17 @@ fn written_paths(wf: &RawWorkflow, outcome: &RunOutcome) -> Vec<String> {
         if record.cause == TerminalCause::Recovered {
             continue; // the recover arm's fallback — this run wrote no path
         }
-        if cache_hits.contains(id) {
-            continue; // a rehydrated prior output — not this run's debt
-        }
+        let hit = cache_hits.contains(id);
         let candidates: &[serde_json::Value] = match &record.output {
             single @ serde_json::Value::String(_) => std::slice::from_ref(single),
             serde_json::Value::Array(elements) => elements,
             _ => &[],
         };
         for candidate in candidates {
+            // A rehydrated prior output is not this run's debt, unless the
+            // resume put the file back (the ledger adopted it).
             if let serde_json::Value::String(path) = candidate
+                && (!hit || origin_of(path).is_some())
                 && seen.insert(path.clone())
             {
                 paths.push(path.clone());
@@ -344,19 +363,81 @@ fn keep_original(
     }
 }
 
-/// Write the fold as `<dir>/manifest.json` and name it in the fold (or
-/// state why it could not be written).
+/// Write the fold as `<dir>/manifest.json` and name it in the fold with
+/// the sha256 of its bytes (or state why it could not be written): the
+/// journal frame carries the digest, binding the manifest to the chain.
 fn record_manifest(root: &Path, dir: &Path, fold: &mut serde_json::Value) {
     let manifest = dir.join(MANIFEST);
     let written = serde_json::to_vec_pretty(fold)
         .map_err(|e| e.to_string())
-        .and_then(|bytes| std::fs::write(root.join(&manifest), bytes).map_err(|e| e.to_string()));
+        .and_then(|bytes| {
+            std::fs::write(root.join(&manifest), &bytes)
+                .map(|()| crate::seal::sha256_hex(&bytes))
+                .map_err(|e| e.to_string())
+        });
     if let Some(map) = fold.as_object_mut() {
-        let (key, value) = match written {
-            Ok(()) => ("manifest", serde_json::json!(manifest.to_string_lossy())),
-            Err(e) => ("manifest_error", serde_json::json!(e)),
-        };
-        map.insert(key.to_owned(), value);
+        match written {
+            Ok(digest) => {
+                map.insert(
+                    "manifest".to_owned(),
+                    serde_json::json!(manifest.to_string_lossy()),
+                );
+                map.insert("manifest_sha256".to_owned(), serde_json::json!(digest));
+            }
+            Err(e) => {
+                map.insert("manifest_error".to_owned(), serde_json::json!(e));
+            }
+        }
+    }
+}
+
+/// The journal frame of a quarantine fold (`quarantine_recorded`): the dir,
+/// the created files moved and the moves that failed, the files kept in
+/// place, and the manifest with the sha256 of its bytes, or why it was not
+/// written. The fold's paths stay in the manifest, which the digest binds.
+#[must_use]
+pub fn recorded_event(fold: &serde_json::Value) -> Event {
+    let as_int = |n: usize| FieldValue::Int(i64::try_from(n).unwrap_or(i64::MAX));
+    let outputs = fold["outputs"].as_array().map_or(&[][..], Vec::as_slice);
+    let moved = outputs
+        .iter()
+        .filter(|entry| entry.get("quarantined_to").is_some())
+        .count();
+    let kept = fold["kept"].as_array().map_or(0, Vec::len);
+    let dir = fold["dir"].as_str().unwrap_or_default();
+    let mut fields = vec![
+        KeyValue::new("dir", FieldValue::String(crate::escape_tty(dir))),
+        KeyValue::new("moved", as_int(moved)),
+        KeyValue::new("missed", as_int(outputs.len() - moved)),
+        KeyValue::new("kept", as_int(kept)),
+    ];
+    for key in ["manifest", "manifest_sha256", "manifest_error"] {
+        if let Some(text) = fold[key].as_str() {
+            fields.push(KeyValue::new(
+                key,
+                FieldValue::String(crate::escape_tty(text)),
+            ));
+        }
+    }
+    Event::new(
+        EventId::generate(),
+        Timestamp::from_unix_ms(crate::journal::now_millis()),
+        EventKind::QuarantineRecorded,
+    )
+    .with_fields(fields)
+}
+
+/// Journal the teardown's quarantine, if it attended any, BEFORE the seal
+/// mints (the F-P8 order [`crate::memory::journal_rejected`] keeps): an
+/// unsigned run's journal still says what its teardown did with the files,
+/// and a signed run's seal commits to the frame like every prior line.
+pub fn journal_recorded(
+    trace: &mut crate::journal::TraceFileSink,
+    fold: Option<&serde_json::Value>,
+) {
+    use nika_runtime::EventSink as _;
+    if let Some(fold) = fold {
+        trace.emit(recorded_event(fold));
     }
 }
 
@@ -436,6 +517,47 @@ fn put_back(root: &Path, path: &str, moved: &Path, stamp_dir: &Path) -> Option<s
             "reason": reason,
         }),
     })
+}
+
+/// The paths a [`restore`] left in quarantine (`action: left_quarantined`).
+#[must_use]
+pub fn left_quarantined(restored: &serde_json::Value) -> BTreeSet<String> {
+    restored["restored"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|entry| entry["action"] == "left_quarantined")
+        .filter_map(|entry| entry["path"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// The writer tasks of `plan` whose journaled output names one of `paths`
+/// (the path a single call wrote, or one element of a fan-out's array), in
+/// workflow order. A resumed run must not count such a task completed: the
+/// file it wrote did not come back from quarantine, so it runs again.
+#[must_use]
+pub fn tasks_naming(plan: &ResumePlan, wf: &RawWorkflow, paths: &BTreeSet<String>) -> Vec<String> {
+    wf.tasks
+        .iter()
+        .filter(|task| is_writer(&task.value))
+        .map(|task| task.value.id.value.as_str())
+        .filter(|id| {
+            plan.get(*id)
+                .is_some_and(|prior| names_any(&prior.output, paths))
+        })
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Whether a writer's output names one of `paths`.
+fn names_any(output: &serde_json::Value, paths: &BTreeSet<String>) -> bool {
+    match output {
+        serde_json::Value::String(path) => paths.contains(path),
+        serde_json::Value::Array(elements) => elements
+            .iter()
+            .any(|element| element.as_str().is_some_and(|path| paths.contains(path))),
+        _ => false,
+    }
 }
 
 /// Remove a settled run's staged originals: a failed run's were moved
@@ -582,7 +704,7 @@ tasks:
                 settled(TaskStatus::Success, serde_json::json!("log.txt")),
             ),
         ]);
-        assert_eq!(written_paths(&wf, &outcome), ["prep.txt"]);
+        assert_eq!(written_paths(&wf, &outcome, &no_ledger), ["prep.txt"]);
     }
 
     /// The person's own file stays where they keep it, edited; its
@@ -771,6 +893,172 @@ tasks:
         );
     }
 
+    /// The kinds and the parsed frames of a journal, in order.
+    fn frames(sink: &crate::journal::TraceFileSink) -> Vec<serde_json::Value> {
+        let raw = std::fs::read_to_string(sink.path().expect("opened")).expect("journal");
+        raw.lines()
+            .map(|line| serde_json::from_str(line).expect("one JSON frame"))
+            .collect()
+    }
+
+    /// A frame's field value by key (`null` when absent).
+    fn field(frame: &serde_json::Value, key: &str) -> serde_json::Value {
+        frame["fields"]
+            .as_array()
+            .and_then(|fields| fields.iter().find(|kv| kv["key"] == key))
+            .map_or(serde_json::Value::Null, |kv| kv["value"].clone())
+    }
+
+    /// Journal before seal: the teardown's quarantine lands as ONE
+    /// `quarantine_recorded` frame before the seal mints, inside the chain
+    /// it signs; and with no signing key the frame lands all the same, so an
+    /// unsigned run's journal says what its teardown did with the files.
+    #[test]
+    fn the_quarantine_is_journaled_before_the_seal_signed_or_not() {
+        use nika_runtime::EventSink as _;
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let digest = "ab".repeat(32);
+        let mut teardown = crate::seal::SealTeardown::new();
+        teardown.quarantine = Some(serde_json::json!({
+            "dir": ".nika/quarantine/2026-10-12T10-00-00Z-ab12",
+            "outputs": [
+                { "path": "report.md", "quarantined_to": ".nika/quarantine/2026-10-12T10-00-00Z-ab12/report.md" },
+                { "path": "gone.md", "error": "No such file or directory", "action": "left_in_place" },
+            ],
+            "kept": [
+                { "path": "notes.md", "action": "kept_in_place", "original": ".nika/quarantine/2026-10-12T10-00-00Z-ab12/originals/notes.md" },
+            ],
+            "manifest": ".nika/quarantine/2026-10-12T10-00-00Z-ab12/manifest.json",
+            "manifest_sha256": digest,
+        }));
+        let opened = |name: &str| {
+            let mut sink = crate::journal::TraceFileSink::new(tmp.path().join(name));
+            for (kind, ms) in [
+                (EventKind::WorkflowStarted, 1),
+                (EventKind::WorkflowFailed, 2),
+            ] {
+                sink.emit(Event::new(
+                    EventId::generate(),
+                    Timestamp::from_unix_ms(ms),
+                    kind,
+                ));
+            }
+            sink
+        };
+
+        let mut signed = opened("signed");
+        let key = minisign::KeyPair::generate_unencrypted_keypair().expect("test key");
+        let public = key.pk.to_box().expect("public box").to_string();
+        let secret = key.sk;
+        assert!(crate::journal::seal_journal_with_key(
+            &mut signed,
+            Some("cafe"),
+            Some(&teardown),
+            move || Some((secret, public)),
+        ));
+        let kinds: Vec<String> = frames(&signed)
+            .iter()
+            .map(|frame| frame["kind"].as_str().unwrap_or_default().to_owned())
+            .collect();
+        assert_eq!(
+            kinds,
+            [
+                "workflow_started",
+                "workflow_failed",
+                "quarantine_recorded",
+                "run_sealed"
+            ]
+        );
+
+        let mut unsigned = opened("unsigned");
+        assert!(!crate::journal::seal_journal_with_key(
+            &mut unsigned,
+            Some("cafe"),
+            Some(&teardown),
+            || None,
+        ));
+        let all = frames(&unsigned);
+        let last = all.last().expect("a last frame");
+        assert_eq!(
+            last["kind"], "quarantine_recorded",
+            "no key, still journaled"
+        );
+        assert_eq!(
+            field(last, "dir"),
+            ".nika/quarantine/2026-10-12T10-00-00Z-ab12"
+        );
+        assert_eq!(field(last, "moved"), 1);
+        assert_eq!(field(last, "missed"), 1);
+        assert_eq!(field(last, "kept"), 1);
+        assert_eq!(
+            field(last, "manifest"),
+            ".nika/quarantine/2026-10-12T10-00-00Z-ab12/manifest.json"
+        );
+        assert_eq!(field(last, "manifest_sha256"), serde_json::json!(digest));
+
+        let mut clean = opened("clean");
+        assert!(!crate::journal::seal_journal_with_key(
+            &mut clean,
+            Some("cafe"),
+            Some(&crate::seal::SealTeardown::new()),
+            || None,
+        ));
+        assert_eq!(frames(&clean).len(), 2, "no quarantine, no frame");
+    }
+
+    /// The manifest's digest is the sha256 of the bytes on disk, so the
+    /// journal frame that carries it binds the manifest to the chain.
+    #[test]
+    fn the_manifest_digest_is_the_sha256_of_its_bytes() {
+        use sha2::Digest as _;
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        std::fs::write(root.join("made.txt"), "half done").expect("write");
+        let dir = Path::new(crate::store::QUARANTINE_DIR).join("2026-10-12T12-00-00Z-ef56");
+
+        let fold = quarantine(root, &["made.txt".to_owned()], &dir, &all_created());
+
+        let bytes = std::fs::read(root.join(&dir).join(MANIFEST)).expect("manifest");
+        let expected = format!("{:x}", sha2::Sha256::digest(&bytes));
+        assert_eq!(fold["manifest_sha256"], serde_json::json!(expected));
+    }
+
+    /// A resumed run runs again exactly the writers whose file stayed in
+    /// quarantine: a single path, one element of a fan-out's array; never a
+    /// writer whose file came back, nor a reader whose output names the path.
+    #[test]
+    fn the_writers_whose_file_stayed_in_quarantine_run_again() {
+        let wf = parsed(WF);
+        let prior = |output: serde_json::Value| {
+            nika_runtime::resume::PriorSuccess::new("def".to_owned(), "input".to_owned(), output)
+        };
+        let mut plan = ResumePlan::new();
+        plan.insert("a".to_owned(), prior(serde_json::json!("one.txt")));
+        plan.insert("e".to_owned(), prior(serde_json::json!("two.txt")));
+        plan.insert("f".to_owned(), prior(serde_json::json!(["u.txt", "v.txt"])));
+        plan.insert("j".to_owned(), prior(serde_json::json!("one.txt")));
+        let restored = serde_json::json!({
+            "dir": ".nika/quarantine/2026-10-12T10-00-00Z-ab12",
+            "restored": [
+                { "path": "one.txt", "action": "left_quarantined", "reason": "something stands at the path" },
+                { "path": "two.txt", "restored_from": ".nika/quarantine/2026-10-12T10-00-00Z-ab12/two.txt" },
+                { "path": "v.txt", "action": "left_quarantined", "reason": "outside the quarantine dir or the project" },
+            ],
+        });
+
+        let stays = left_quarantined(&restored);
+
+        assert_eq!(
+            stays.iter().map(String::as_str).collect::<Vec<_>>(),
+            ["one.txt", "v.txt"]
+        );
+        assert_eq!(tasks_naming(&plan, &wf, &stays), ["a", "f"]);
+        assert!(
+            left_quarantined(&serde_json::json!({ "restored": [] })).is_empty(),
+            "everything came back: nothing runs again"
+        );
+    }
+
     /// The enumeration picks EXACTLY the success-settled writer/edit
     /// paths — string output AND the fan-out array — and skips the
     /// non-writer invoke, the exec task, and the failed writer.
@@ -800,7 +1088,7 @@ tasks:
             ("x", settled(TaskStatus::Failure, serde_json::Value::Null)),
             ("z", settled(TaskStatus::Failure, serde_json::Value::Null)),
         ]);
-        let paths = written_paths(&wf, &outcome);
+        let paths = written_paths(&wf, &outcome, &no_ledger);
         assert_eq!(
             paths,
             ["one.txt", "two.txt", "u.txt", "v.txt"],
@@ -822,7 +1110,7 @@ tasks:
             ("e", settled(TaskStatus::Cancelled, serde_json::Value::Null)),
             // `f` · `j` · `x` · `z` never settled — no record at all.
         ]);
-        assert_eq!(written_paths(&wf, &outcome), ["one.txt"]);
+        assert_eq!(written_paths(&wf, &outcome, &no_ledger), ["one.txt"]);
     }
 
     /// H7 — a RECOVERED writer is not debt: the task failed, its
@@ -843,13 +1131,27 @@ tasks:
         ));
         let outcome = outcome_with(&[("a", recovered)]);
         assert!(
-            written_paths(&wf, &outcome).is_empty(),
+            written_paths(&wf, &outcome, &no_ledger).is_empty(),
             "the recover arm's value is no path this run wrote"
         );
         assert!(
             attend(&wf, &outcome, None, &no_ledger).is_none(),
             "no debt, no quarantine fold"
         );
+    }
+
+    /// A cache hit whose file this resumed run put back from quarantine is
+    /// this run's debt again (its ledger adopted the path): if this run
+    /// fails too, the file moves back instead of passing for a whole one.
+    #[test]
+    fn a_cache_hit_the_resume_put_back_is_debt_again() {
+        let wf = parsed(WF);
+        let mut outcome = outcome_with(&[(
+            "a",
+            settled(TaskStatus::Success, serde_json::json!("one.txt")),
+        )]);
+        outcome.cache_hits.push("a".to_owned());
+        assert_eq!(written_paths(&wf, &outcome, &all_created()), ["one.txt"]);
     }
 
     /// H8 — a CACHE-HIT writer is not debt: a resumed run's hit
@@ -865,7 +1167,7 @@ tasks:
         )]);
         outcome.cache_hits.push("a".to_owned());
         assert!(
-            written_paths(&wf, &outcome).is_empty(),
+            written_paths(&wf, &outcome, &no_ledger).is_empty(),
             "the rehydrated output is the prior run's, not this run's debt"
         );
         assert!(

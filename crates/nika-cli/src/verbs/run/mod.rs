@@ -572,7 +572,13 @@ fn composed_runtime(
         unverified,
         resumed_from,
         restore_from: _,
+        restored,
     } = setup;
+    // The files a resume put back are this run's again (F-P14): its ledger
+    // adopts them, so a failure of this run quarantines them once more.
+    for path in &restored {
+        world.write_origins.adopt(path);
+    }
     let inputs::ValidatedInputs {
         values: overrides,
         origins,

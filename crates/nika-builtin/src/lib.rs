@@ -598,7 +598,11 @@ where
         self.enforce_fs_path(args, &[permits::FsAccess::Write])
             .await?;
         self.note_write_origin(args).await;
-        file::write(&self.judged(), args).await
+        let written = file::write(&self.judged(), args).await;
+        if written.is_ok() {
+            self.note_written(args).await;
+        }
+        written
     }
 
     /// Before a judged write, record what stood at its path (the ledger's
@@ -613,13 +617,28 @@ where
         }
     }
 
+    /// After a judged write landed, record the digest of a created file's
+    /// bytes, so a later run can tell them from a person's edit.
+    async fn note_written(&self, args: &Args) {
+        if let (Some(origins), Some(path)) = (
+            self.write_origins.as_deref(),
+            args.get("path").and_then(serde_json::Value::as_str),
+        ) {
+            origins.wrote(self.fs.as_ref(), path).await;
+        }
+    }
+
     /// `nika:edit` under the boundary: gated BOTH directions; the read
     /// phase rides the pin, the write phase the atomic lane.
     async fn guarded_edit(&self, args: &Args) -> BuiltinOutcome {
         self.enforce_fs_path(args, &[permits::FsAccess::Read, permits::FsAccess::Write])
             .await?;
         self.note_write_origin(args).await;
-        file::edit(&self.judged(), args).await
+        let edited = file::edit(&self.judged(), args).await;
+        if edited.is_ok() {
+            self.note_written(args).await;
+        }
+        edited
     }
 
     /// `nika:chart` under the boundary — gate the `out:` artifact (WRITE ·
