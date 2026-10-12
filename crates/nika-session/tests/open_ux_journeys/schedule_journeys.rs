@@ -40,6 +40,37 @@ fn saving_a_scheduled_proposal_declares_nothing() {
     assert!(!files.contains("nika.yaml"), "{files}");
 }
 
+/// « activate » after an agent-led save asks only what the declaration still needs (the zone was
+/// chosen with the proposal), then declares the beat in `nika.yaml`, which the readers `nika arm`
+/// and `nika serve` load it with accept: the project shape and the cadence grammar, its laws, and
+/// their agreement on the beat count.
+#[test]
+fn activating_after_an_agent_led_save_declares_a_beat_nika_arm_reads() {
+    let journey = run("schedule_activated");
+    let asked = journey.step(2);
+    let first = asked["outcome"]["key"].as_str();
+    assert_eq!(first, Some("project.missed"), "{asked:#}");
+    let declared = journey.step(5);
+    let said = declared["outcome"]["text"].as_str().unwrap_or_default();
+    assert!(
+        said.contains("Declared in `nika.yaml` · not active"),
+        "{said}"
+    );
+    let root = journey.dir.path().join("project");
+    let text = std::fs::read_to_string(root.join("nika.yaml")).unwrap_or_default();
+    let cadence = format!("cadence: \"TZ={ZONE} 0 9 * * 1\"");
+    assert!(text.contains(&cadence), "{text}");
+    assert!(text.contains("workflow: weekly-copy.nika"), "{text}");
+    let (_, project) = (nika_vocab::project::discover(&root).unwrap()).expect("a project file");
+    let registry = nika_cadence::parse_registry(&text).unwrap();
+    assert_eq!(nika_cadence::validate(&registry).count(), 0, "{text}");
+    assert_eq!(
+        (project.arm().len(), registry.beat_count()),
+        (1, 1),
+        "{text}"
+    );
+}
+
 /// A schedule in a zone the person would never see is refused: their words do not name it and
 /// no choice of the proposal offers it. Shown as a choice, the same schedule is proposed.
 #[test]

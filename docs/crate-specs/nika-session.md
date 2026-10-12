@@ -266,8 +266,11 @@ person's cited words, read by Compile's own trigger reading (`nika_compile::trig
 same exact cron fields, in the zone the proposal shows them. Its goal states the Runs lines, the
 save keeps the trigger as the last saved workflow's, and « activate » consumes it as above.
 
-The existing activation questions still require timezone, missed-run policy
-and positive per-occurrence ceiling. The zone answer is judged by `nika-cadence`
+The activation questions require the missed-run policy and a positive
+per-occurrence ceiling, and the timezone unless the person already chose it for
+this schedule (the default they consented to with the proposal, or a compile-time
+`trigger.timezone` answer): a chosen zone is named in the questions and shown in
+the declaration's exact bytes, never asked again. The zone answer is judged by `nika-cadence`
 itself when it is given (a name its bundled IANA base lacks, or `/Europe/Paris`,
 is refused at once and the question keeps waiting), never by a second shape
 rule. The full `TZ=...` expression is validated
