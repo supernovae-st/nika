@@ -529,6 +529,7 @@ fn settle_pending_backstop(
             pending.failed.access.as_deref(),
             pending.failed.access_refused.as_deref(),
         ),
+        pending.failed.child.as_deref(),
         attempts,
         (evidence, None),
         pending.failed.usage.as_deref(),
