@@ -466,20 +466,21 @@ async fn observed(answers: Vec<Answer>) -> (CompileOutcome, Vec<Meta>, Canned) {
 // ── Product parity with the reference ───────────────────────────────────────────────────────
 
 /// Reviewed prompt identities for [`three_calls`] under the unchanged legacy framing.
-/// Captured after the card shows each builtin with its own arguments (`nika:notify` with
-/// channel, target and message) and a glob task as a flow map. Before it, at
-/// nika-spec 34ad76c, whose vendored pack moves the fetch contract's feed section
-/// and the cap comments of the skeletons recall returns. Before it, after the prompt inputs
-/// changed since 5167aaf5d: the shelf's date, jq and JSON API laws, the fetch modes table, the
-/// card example without a copied cap, and the recall by informative words. Before those, after
-/// commit 4470d33de sent each callable contract as its whole stdlib section (no longer cut at
-/// 2,000 characters). All are in the System message retained by all three calls. The
-/// assertions below independently compare the observer with the legacy framing over each exact
-/// request before checking these values.
+/// Captured after the output conventions show a total written alone as a workflow writes it (the
+/// total's field as the write's content, never a plan's `alone: true`), and after the card shows
+/// each builtin with its own arguments (`nika:notify` with channel, target and message) and a glob
+/// task as a flow map. Before them, at nika-spec 34ad76c, whose vendored pack moves the fetch
+/// contract's feed section and the cap comments of the skeletons recall returns. Before it, after
+/// the prompt inputs changed since 5167aaf5d: the shelf's date, jq and JSON API laws, the fetch
+/// modes table, the card example without a copied cap, and the recall by informative words.
+/// Before those, after commit 4470d33de sent each callable contract as its whole stdlib section
+/// (no longer cut at 2,000 characters). All are in the System message retained by all three
+/// calls. The assertions below independently compare the observer with the legacy framing over
+/// each exact request before checking these values.
 const REVIEWED_PROMPTS: [&str; 3] = [
-    "07d8540e210c28e467cc4fb560edaa325c56243df346ea448cbd90251b270190",
-    "20a5a9b7adc2ad09b050dd37d8c2e97d5ceb2da23360943e875bbe40022bb95e",
-    "012c640203fd025602ae7e6fed2dd3748a4086c7a7cd061f0eeaa6a513b31802",
+    "cb672aa94be89ebc4e6a686ea8ffcbb7633e34347647d45a20966cb2218596ac",
+    "eb797ea88ccb2524c88b2f683eced16a7f1b9fcf2d4894bfb7358a7651a9acc1",
+    "0f617506eb5a27fb04ecd4bbe575ef20d2f94667fc5f78d6d5ad25e646c70ad7",
 ];
 /// Legacy response identities, unchanged by the new prompt conventions.
 const PRE_CHANGE_FRAMED: [&str; 3] = [

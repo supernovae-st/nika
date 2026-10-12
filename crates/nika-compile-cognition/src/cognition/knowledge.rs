@@ -198,6 +198,41 @@ mod tests {
         assert_eq!(identity()["conventions_sha256"], json!(sha256(CONVENTIONS)));
     }
 
+    /// The conventions show an argument only as a builtin their line names declares it, judged by
+    /// the Check core a candidate is judged with: an author copies the forms it reads, and a
+    /// plan's own statement (a value written alone) is no argument a workflow writes.
+    #[test]
+    fn the_output_conventions_show_only_arguments_their_builtins_declare() {
+        for line in CONVENTIONS.lines() {
+            let spans: Vec<&str> = line.split('`').skip(1).step_by(2).collect();
+            let tools: Vec<&str> = (spans.iter())
+                .filter_map(|span| span.strip_prefix("nika:")?.split_whitespace().next())
+                .collect();
+            for span in spans.iter().filter(|span| shows_an_argument(span)) {
+                let declared = tools.iter().any(|tool| {
+                    let call = format!("tool: \"nika:{tool}\"\n      args: {{ {span} }}");
+                    let source =
+                        format!("nika: shown\ntasks:\n  shown:\n    invoke:\n      {call}\n");
+                    crate::parse(&source).is_ok_and(|workflow| {
+                        (nika_check::check(&workflow).unknown_args.iter())
+                            .all(|row| row.invalid_value.is_some())
+                    })
+                });
+                assert!(declared, "{span} is no argument of {tools:?}: {line}");
+            }
+        }
+    }
+
+    /// Whether a code span shows one argument (`input: "${{ with.text }}"`): a lowercase name, a
+    /// colon and a value.
+    fn shows_an_argument(span: &str) -> bool {
+        span.split_once(": ").is_some_and(|(name, value)| {
+            name.starts_with(|c: char| c.is_ascii_lowercase())
+                && (name.chars()).all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+                && !value.trim().is_empty()
+        })
+    }
+
     #[test]
     fn the_opening_carries_the_answered_models_output_facts_or_null() {
         let answered = |model: &str| {
