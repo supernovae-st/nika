@@ -589,16 +589,7 @@ fn composed_runtime(
     // R-2 · the boot-manifest access stamps, PROJECTED from the frozen
     // plan (P3 B5 · One Door wave 1).
     let boot_access = crate::verbs::check::models_rung::boot_access_fields(plan);
-    // F-P3 · the run: declaration rides the SAME composition path (clock ·
-    // jitter seed — the stamper half is picked at the drive site). The driver
-    // already owns the exact workflow/report/skills admitted with its bytes.
-    // The leg's write-origins ledger rides the host config (the driver hands
-    // it through unchanged): the teardown tells a person's file from one
-    // the run created.
-    let seed = nika_runtime::RunSeams::of(wf.run.as_ref().map(|r| &r.value)).jitter_seed;
-    let config = cost_config
-        .unwrap_or_else(|| nika_runtime::RuntimeConfig::new(None, seed))
-        .with_write_origins(std::sync::Arc::clone(&world.write_origins));
+    let config = run_config(world, cost_config);
     match world.driver.compose_with_config(default_model, config) {
         Ok(rt) => {
             let rt = rt
@@ -656,6 +647,23 @@ fn composed_runtime(
             output_json,
         )),
     }
+}
+
+/// The run's runtime config. F-P3 · the `run:` declaration rides the SAME
+/// composition path (clock · jitter seed — the stamper half is picked at the
+/// drive site); the driver already owns the exact workflow/report/skills
+/// admitted with its bytes. The leg's write-origins ledger rides the host
+/// config (the driver hands it through unchanged): the teardown tells a
+/// person's file from one the run created. A cost review's config is kept.
+fn run_config(
+    world: &AdmittedWorld,
+    cost_config: Option<nika_runtime::RuntimeConfig>,
+) -> nika_runtime::RuntimeConfig {
+    let wf = world.driver.workflow();
+    let seed = nika_runtime::RunSeams::of(wf.run.as_ref().map(|r| &r.value)).jitter_seed;
+    cost_config
+        .unwrap_or_else(|| nika_runtime::RuntimeConfig::new(None, seed))
+        .with_write_origins(std::sync::Arc::clone(&world.write_origins))
 }
 
 /// Execute a CHECKED workflow with the MOCK provider and capture the typed
