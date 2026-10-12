@@ -2,7 +2,8 @@
 # shellcheck disable=SC1091  # _lib.sh sourced at runtime
 # Ratchet: every member crate must have <= MAX LOC of production Rust + jq.
 # Scope = src/ minus in-file #[cfg(test)] regions; tests/ + benches/ are
-# excluded entirely. Rationale: the 15k invariant is a prod-code
+# excluded entirely. Rationale: the crate wall (25k since ADR-154, 15k
+# before it) is a prod-code
 # maintainability budget (CONSTELLATION_PLAN §7 criterion 3) — the mutation
 # ratchet (>=90% killed) grows test mass by design, and a counter that
 # charged tests against the prod budget made the two gates fight (empirical:

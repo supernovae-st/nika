@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # COVERS: scripts/hygiene/check-crate-size.sh
 #
-# Mutation proof for vector 24's DESCENT WINDOW (the [12000, 15000) band).
+# Mutation proof for vector 24's DESCENT WINDOW: the warning above 15,000 that
+# never blocks, below the one 25,000 ceiling that does (ADR-154).
 #
 # The band exists so the red is not discovered AT the push, mid-merge-train.
 # But the hygiene dashboard (check-all.sh) renders ONE line per vector — the
@@ -9,11 +10,12 @@
 #
 #     YELLOW: crate(s) in [12000, 15000) LOC range (the descent window):
 #
-# which is the SAME sentence at 12001 LOC and at 14999 LOC. The band was
-# 3000 wide and reported as a single bit. Measured 2026-08-18 · nika-check
-# sat at 14995/15000 — five lines of headroom — and read exactly like a
-# crate with three thousand to spare. A warning that cannot say how close
-# the wall is has already failed at the one job the band was added for.
+# which is the SAME sentence at 12001 LOC and at 14999 LOC (the band and wall
+# of the time). The band was 3000 wide and reported as a single bit. Measured
+# 2026-08-18 · nika-check sat at 14995/15000 — five lines of headroom — and
+# read exactly like a crate with three thousand to spare. A warning that
+# cannot say how close the wall is has already failed at the one job the band
+# was added for. The band is now 10,000 wide, which makes this matter more.
 #
 # The header now names the TIGHTEST crate and its remaining headroom. These
 # cases pin that, and the first one is the case that matters: the tightest
@@ -37,8 +39,8 @@ fails=0
 cases=0
 
 # Builds a fake repo whose scripts/ci/check-crate-size.sh is a stub:
-#   · called plain          → replays $red_rows,  rc = $red_rc   (the 15000 probe)
-#   · called CRATE_SIZE_MAX → replays $band_rows, rc = $band_rc  (the 12000 probe)
+#   · called plain          → replays $red_rows,  rc = $red_rc   (the 25000 ceiling)
+#   · called CRATE_SIZE_MAX → replays $band_rows, rc = $band_rc  (the 15000 probe)
 # The stub emits the real counter's line shape: `FAIL  <dir>  <n> LOC (max <m>)`.
 scaffold() {
   local dir="$1" red_rows="$2" red_rc="$3" band_rows="$4" band_rc="$5"
@@ -105,13 +107,13 @@ expect_says() {
 
 # The counter emits in workspace order, NOT sorted by size: the tightest crate
 # (nika-check) is the LAST row here, and a comfortable one is first.
-UNSORTED='FAIL  crates/nika-builtin  13302 LOC (max 12000)
-FAIL  crates/nika-runtime  14929 LOC (max 12000)
-FAIL  crates/nika-check  14995 LOC (max 12000)
+UNSORTED='FAIL  crates/nika-builtin  18302 LOC (max 15000)
+FAIL  crates/nika-runtime  24929 LOC (max 15000)
+FAIL  crates/nika-check  24995 LOC (max 15000)
 '
-ONE='FAIL  crates/nika-solo  12500 LOC (max 12000)
+ONE='FAIL  crates/nika-solo  15500 LOC (max 15000)
 '
-OVER='FAIL  crates/nika-over  15400 LOC (max 15000)
+OVER='FAIL  crates/nika-over  25400 LOC (max 25000)
 '
 
 echo "vector 24 · descent-window mutation proof"
@@ -120,31 +122,36 @@ echo "vector 24 · descent-window mutation proof"
 expect_says 'crates/nika-check' 'header names the tightest crate' \
   '' 0 "$UNSORTED" 1
 
-# ...and it must say HOW CLOSE. 15000 - 14995 = 5. This is the number whose
+# ...and it must say HOW CLOSE. 25000 - 24995 = 5. This is the number whose
 # absence let a crate sit five lines from a blocking push, unseen.
 expect_says '5 LOC of headroom' 'header states the remaining headroom' \
   '' 0 "$UNSORTED" 1
 
 # Control · the comfortable crate must NOT be the one promoted to the header.
-expect_says '14995/15000' 'header carries the tightest figure, not a band label' \
+expect_says '24995/25000' 'header carries the tightest figure, not a band label' \
   '' 0 "$UNSORTED" 1
 
 # Control · a single crate in the band still names itself.
 expect_says 'crates/nika-solo' 'a lone crate in the band is named' \
   '' 0 "$ONE" 1
 
-TUI='FAIL  crates/nika-tui  17500 LOC (max 12000)
-FAIL  crates/nika-runtime  14995 LOC (max 12000)
+# ADR-154 absorbed the native TUI exception: nika-tui reads the one ceiling.
+TUI='FAIL  crates/nika-tui  22500 LOC (max 15000)
+FAIL  crates/nika-runtime  24995 LOC (max 15000)
 '
-expect_says 'crates/nika-runtime' 'tightness uses each reviewed crate limit' \
+expect_says 'crates/nika-runtime' 'tightness is measured against the one ceiling' \
   '' 0 "$TUI" 1
-expect_says '5 LOC of headroom' 'the native TUI exception does not hide another near-limit crate' \
+expect_says '5 LOC of headroom' 'the TUI does not hide another near-limit crate' \
   '' 0 "$TUI" 1
-expect_says '17500/19000' 'the native TUI ceiling is visible in the dashboard' \
-  '' 0 'FAIL  crates/nika-tui  17500 LOC (max 12000)' 1
+expect_says '22500/25000' 'the TUI reads the same 25,000 ceiling as every crate' \
+  '' 0 'FAIL  crates/nika-tui  22500 LOC (max 15000)' 1
+expect_says '9999 LOC of headroom' 'a crate just above the warning shows its full headroom' \
+  '' 0 'FAIL  crates/nika-warm  15001 LOC (max 15000)' 1
 
-# The verdict semantics are untouched by the message change.
+# The verdict semantics: the warning never blocks, the ceiling does.
 expect_rc 1 'band is YELLOW, never blocking' '' 0 "$UNSORTED" 1
+expect_rc 1 'a crate just above 15,000 is YELLOW, never blocking' \
+  '' 0 'FAIL  crates/nika-warm  15001 LOC (max 15000)' 1
 expect_rc 2 'over budget is RED' "$OVER" 1 '' 0
 expect_rc 0 'all crates under the warn line is GREEN' '' 0 '' 0
 
