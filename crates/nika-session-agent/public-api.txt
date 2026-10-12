@@ -346,6 +346,7 @@ pub fn nika_session_agent::conversation::Conversation::restored(value: &serde_js
 pub fn nika_session_agent::conversation::Conversation::selections(&self) -> (alloc::vec::Vec<nika_compile_fidelity::fidelity::resolution::Resolution>, alloc::vec::Vec<nika_compile_fidelity::fidelity::resolution::Resolution>)
 pub fn nika_session_agent::conversation::Conversation::shown_verdict(&self) -> core::option::Option<&str>
 pub fn nika_session_agent::conversation::Conversation::since(&self) -> u64
+pub fn nika_session_agent::conversation::Conversation::unproposed(&self) -> bool
 pub fn nika_session_agent::conversation::Conversation::write(&mut self, citations: &nika_session_agent::conversation::Citations, (source, summary): (alloc::string::String, alloc::string::String), (rows, removed): (&[serde_json::value::Value], &[serde_json::value::Value]), check: &mut dyn core::ops::function::FnMut(&str) -> core::result::Result<(), alloc::string::String>) -> nika_session_change::tools::ToolReply
 impl nika_session_agent::conversation::Conversation
 pub fn nika_session_agent::conversation::Conversation::card(&self, summary: &str, doubt: core::option::Option<&str>) -> alloc::string::String
@@ -938,6 +939,7 @@ pub fn nika_session_agent::run::Agent<'a>::prompt(&mut self, text: &str, model: 
 pub const fn nika_session_agent::run::Agent<'a>::stop_reach(&self) -> core::option::Option<nika_session_change::outcome::StopReach>
 pub fn nika_session_agent::run::Agent<'a>::with_cancel(self, cancel: &nika_types::cancel::CancelCtx) -> Self
 pub fn nika_session_agent::run::Agent<'a>::with_note(self, note: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_session_agent::run::Agent<'a>::with_pending(self, pending: &'a dyn core::ops::function::Fn() -> bool) -> Self
 pub fn nika_session_agent::run::Agent<'a>::with_reading(self, notes: &[alloc::string::String]) -> Self
 pub fn nika_session_agent::run::Agent<'a>::with_steering(self, steering: &nika_session_agent::steer::Steering) -> Self
 pub fn nika_session_agent::run::Agent<'a>::with_window(self, window: nika_session_agent::compact::Window) -> Self
@@ -2383,6 +2385,7 @@ pub fn nika_session_agent::run::Agent<'a>::prompt(&mut self, text: &str, model: 
 pub const fn nika_session_agent::run::Agent<'a>::stop_reach(&self) -> core::option::Option<nika_session_change::outcome::StopReach>
 pub fn nika_session_agent::run::Agent<'a>::with_cancel(self, cancel: &nika_types::cancel::CancelCtx) -> Self
 pub fn nika_session_agent::run::Agent<'a>::with_note(self, note: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_session_agent::run::Agent<'a>::with_pending(self, pending: &'a dyn core::ops::function::Fn() -> bool) -> Self
 pub fn nika_session_agent::run::Agent<'a>::with_reading(self, notes: &[alloc::string::String]) -> Self
 pub fn nika_session_agent::run::Agent<'a>::with_steering(self, steering: &nika_session_agent::steer::Steering) -> Self
 pub fn nika_session_agent::run::Agent<'a>::with_window(self, window: nika_session_agent::compact::Window) -> Self

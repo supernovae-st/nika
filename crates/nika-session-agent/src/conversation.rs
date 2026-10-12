@@ -322,6 +322,14 @@ impl Conversation {
         self.candidate.as_ref()
     }
 
+    /// Whether the candidate's revision waits unproposed: written, and not the one the last
+    /// proposal showed.
+    #[must_use]
+    pub fn unproposed(&self) -> bool {
+        (self.candidate.as_ref())
+            .is_some_and(|c| (self.shown.as_ref()).is_none_or(|s| s.number != c.number))
+    }
+
     /// What a call that needs the candidate answers when none stands (edit, check, inspect,
     /// verify, trial, propose): when the last `candidate_write` was refused, that refusal and the
     /// first line of its reason, and that the whole candidate is written again.

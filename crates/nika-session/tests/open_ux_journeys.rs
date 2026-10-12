@@ -1455,3 +1455,15 @@ fn reading_an_oversized_file_says_offset_and_limit_cannot_help() {
         "{refused}"
     );
 }
+
+/// A turn that would end in words over a candidate the author wrote and never proposed is asked
+/// once, in Nika's words, to end with a proposal, a question or a refusal: the author proposes it.
+#[test]
+fn words_over_an_unproposed_candidate_are_asked_once_to_end_the_turn() {
+    let journey = run("written_not_proposed");
+    let step = journey.step(0);
+    assert_eq!(outcome_kind(step), "proposal", "{step:#}");
+    assert_eq!(journey.agent.len(), 3, "asked once: {:#?}", journey.agent);
+    let asked = journey.agent[2].last();
+    assert!(asked.contains("not proposed"), "{asked}");
+}

@@ -364,6 +364,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "explanation_cited_as_consent" => explanation_cited_as_consent(),
         "steer_mid_run" => steer_mid_run(),
         "steer_before_proposal" => steer_before_proposal(),
+        "written_not_proposed" => written_not_proposed(),
         "oversized_read" => trials::oversized_read(),
         "edit_after_refused_write" => trials::edit_after_refused_write(),
         "taught_assert" => trials::taught_assert(),
@@ -1407,6 +1408,39 @@ fn change_then_run() -> Scenario {
             agent,
             replies: Vec::new(),
             picks: [accepted_pick(), vec![CHANGE_THEN_RUN_PICK.to_owned()]].concat(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// What the author says when it ends a turn over a candidate it wrote and did not propose.
+const UNPROPOSED_WORDS: &str = "J'ai écrit le workflow qui compte les lignes.";
+
+/// The count written, then the author's turn ends in words: Nika asks it once to end the turn
+/// with a proposal, a question or a refusal, and it proposes.
+fn written_not_proposed() -> Scenario {
+    let write = json!({"source": COUNT, "resolutions": [],
+        "summary": "compte les lignes de ./data/ventes.csv"});
+    Scenario {
+        files: vec![(
+            "data/ventes.csv",
+            "date,montant\n2026-10-01,12\n2026-10-02,30\n",
+        )],
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(COUNT_REQUEST)],
+        script: Script {
+            agent: vec![
+                call("candidate_write", write),
+                say(UNPROPOSED_WORDS),
+                call_saying(
+                    "Voici le workflow : il compte les lignes.",
+                    "propose",
+                    json!({}),
+                ),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
             verdicts: Vec::new(),
         },
     }

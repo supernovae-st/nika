@@ -248,6 +248,7 @@ pub struct Agent<'a> {
     stopped: Option<StopReach>,
     reading: Option<String>,
     note: Option<String>,
+    pending: Option<&'a dyn Fn() -> bool>,
 }
 
 impl<'a> Agent<'a> {
@@ -271,6 +272,7 @@ impl<'a> Agent<'a> {
             stopped: None,
             reading: None,
             note: None,
+            pending: None,
         }
     }
 
@@ -303,6 +305,14 @@ impl<'a> Agent<'a> {
     #[must_use]
     pub fn with_note(mut self, note: Option<String>) -> Self {
         self.note = note;
+        self
+    }
+
+    /// What says the candidate the author wrote waits unproposed: a turn that would end in words
+    /// while it does is asked once more to end with a proposal, a question or a refusal.
+    #[must_use]
+    pub fn with_pending(mut self, pending: &'a dyn Fn() -> bool) -> Self {
+        self.pending = Some(pending);
         self
     }
 
@@ -465,6 +475,7 @@ impl<'a> Agent<'a> {
         let mut turn: u32 = 0;
         let mut last: Option<(String, Value, String)> = None;
         let mut asked_again = false;
+        let (mut nudged, mut proposed) = (false, false);
         loop {
             if self.cancel.is_cancelled() {
                 return self.stop(StopReach::BetweenSteps);
@@ -502,6 +513,7 @@ impl<'a> Agent<'a> {
                 Ok(recorded) => recorded,
                 Err(error) => return Outcome::Failed { error },
             };
+            proposed = proposed || calls.iter().any(|(_, name, _)| name == "propose");
             if calls.is_empty() {
                 if self.cancel.is_cancelled() {
                     return self.stop(StopReach::BetweenSteps);
@@ -515,10 +527,7 @@ impl<'a> Agent<'a> {
                     // No word and no call (a model that only reasoned): asked once more.
                     Ok(false) if text.trim().is_empty() && !asked_again => {
                         asked_again = true;
-                        let note = EntryKind::Note {
-                            text: SILENT.to_owned(),
-                        };
-                        if let Err(error) = self.record(note) {
+                        if let Err(error) = self.note_to_author(SILENT) {
                             return Outcome::Failed { error };
                         }
                         continue;
@@ -526,6 +535,15 @@ impl<'a> Agent<'a> {
                     Ok(false) if cut => {
                         let text = format!("{text}{CUT_ANSWER}");
                         return Outcome::Answered { text };
+                    }
+                    // Words that would end a turn that never proposed the candidate it wrote:
+                    // asked once more to end it with a proposal, a question or a refusal.
+                    Ok(false) if self.asks_to_propose(nudged, proposed) => {
+                        nudged = true;
+                        if let Err(error) = self.note_to_author(UNPROPOSED) {
+                            return Outcome::Failed { error };
+                        }
+                        continue;
                     }
                     Ok(false) => return Outcome::Answered { text },
                     Err(error) => return Outcome::Failed { error },
@@ -546,6 +564,20 @@ impl<'a> Agent<'a> {
                 return Outcome::Failed { error };
             }
         }
+    }
+
+    /// Nika's own note to the author, read with its next request (never the person's words).
+    fn note_to_author(&mut self, text: &str) -> Result<(), AgentError> {
+        let note = EntryKind::Note {
+            text: text.to_owned(),
+        };
+        self.record(note).map(|_| ())
+    }
+
+    /// Whether words that would end this turn are asked once more to propose the candidate the
+    /// author wrote: never twice, never after a `propose`, only while one waits unproposed.
+    fn asks_to_propose(&self, nudged: bool, proposed: bool) -> bool {
+        !nudged && !proposed && self.pending.is_some_and(|pending| pending())
     }
 
     /// Compact before a request that would leave the reply less than the window's reserve;
@@ -804,6 +836,12 @@ fn ids(queued: &[Queued]) -> Vec<String> {
 /// nothing of it.
 const SILENT: &str = "Your last message had no words and no call, so the person saw nothing. \
                       Answer them, ask them, or call a tool.";
+
+/// What the author reads when its turn would end in words while the candidate it wrote waits
+/// unproposed: asked once to end it with a proposal, a question or a refusal.
+const UNPROPOSED: &str = "Your turn ended in words, but the candidate you wrote is not proposed, \
+                          so the person cannot accept it. End the turn with `propose`, ask with \
+                          `ask` what only they can say, or say why it cannot be done.";
 
 /// The answer text of a message: its text blocks, in order.
 fn answer_text(content: &[ContentBlock]) -> String {

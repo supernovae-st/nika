@@ -314,6 +314,7 @@ impl Agent<'_> {
         events: &mut dyn FnMut(AgentEvent),
     ) -> Outcome {
         let mut turn: u32 = 0;
+        let (mut nudged, mut proposed) = (false, false);
         loop {
             if self.cancel.is_cancelled() {
                 return self.stop(StopReach::BetweenSteps);
@@ -337,7 +338,9 @@ impl Agent<'_> {
                     steered || cancel.is_cancelled()
                 },
             );
-            let led = match self.settle_turn(relay.close(), led, &text, events) {
+            let served = relay.close();
+            proposed = proposed || served.iter().any(|(_, call, _)| call.name == "propose");
+            let led = match self.settle_turn(served, led, &text, events) {
                 Ok(Settled::Parked(call, name)) => {
                     let queued = pairs(&self.steering.drain());
                     return Outcome::Parked { call, name, queued };
@@ -366,6 +369,19 @@ impl Agent<'_> {
                 ))),
             };
             match next {
+                // Words that would end a turn that never proposed the candidate it wrote: the
+                // agent is asked once more, in Nika's words.
+                Ok(lines)
+                    if lines.is_empty()
+                        && led.end == LedEnd::Answered
+                        && self.asks_to_propose(nudged, proposed) =>
+                {
+                    nudged = true;
+                    if let Err(error) = self.note_to_author(super::UNPROPOSED) {
+                        return Outcome::Failed { error };
+                    }
+                    prompt = format!("Nika (not the person):\n{}", super::UNPROPOSED);
+                }
                 Ok(lines) if lines.is_empty() && led.end == LedEnd::Answered => {
                     return Outcome::Answered { text };
                 }
