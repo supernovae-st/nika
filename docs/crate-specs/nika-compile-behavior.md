@@ -80,13 +80,17 @@ sentence now reads as this crate, which declares those two dependencies itself).
   record yields a `StopFact` yet, and none carries the provenance an attested stop needs: a stop
   stays incomplete. `contract_of_request` (with `read_request`, `Provenance`, `Production`)
   proves more only for a sentence of a small closed language (`read SOURCE`, then `count the
-  rows where FIELD is VALUE` or `keep the rows where FIELD is VALUE`, then `write the count|it to
-  TARGET`, `write the count as LABEL to TARGET` or `write them to TARGET`, joined by `, `,
-  `, and ` or ` and `), matched over the caller's own bytes (only the reader reads its
+  rows where FIELD is VALUE`, `keep the rows where FIELD is VALUE`, `compute the AGG of the FIELD
+  column`, optionally `per GROUP` (AGG one of `total`, `sum`, `average`, `minimum`, `maximum`,
+  the total's name as the reader names it), `sort the rows by FIELD`, optionally `ascending` or
+  `descending`, or `keep the top N rows by FIELD`, then `write the count|it to TARGET`, `write the
+  count as LABEL to TARGET`, `write the AGG to TARGET` or `write them to TARGET`, joined by `, `,
+  `, and ` or ` and `; the totals, sorts and cuts added 2026-10-12, a sort's and a cut's ties
+  staying free), matched over the caller's own bytes (only the reader reads its
   apostrophe-folded copy), whose identities are kept byte for byte (one terminal period is
   punctuation, never part of TARGET), whose plan agrees with it byte for byte, that the strict HOT
-  door admits and that is the whole request: its write is `Required` and its count's name free
-  (no name slot) or the stated label. One more closed production, `copy SOURCE as is to TARGET`
+  door admits and that is the whole request: its write is `Required` and its count's or total's
+  name free (no name slot) or the stated label or AGG. One more closed production, `copy SOURCE as is to TARGET`
   over a plan of exactly one read of SOURCE and one automatic write of TARGET (two distinct files
   of a text suffix, no rule, no other binding), proves the write `Required` and its content
   `Requirement::CopyText`: exactly the text the run consumed from SOURCE, byte for byte. The

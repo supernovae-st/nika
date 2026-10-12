@@ -738,6 +738,7 @@ pub nika_compile_behavior::behavior::Written::Copy
 pub nika_compile_behavior::behavior::Written::Count
 pub nika_compile_behavior::behavior::Written::Labelled(alloc::string::String)
 pub nika_compile_behavior::behavior::Written::Rows
+pub nika_compile_behavior::behavior::Written::Total
 impl core::clone::Clone for nika_compile_behavior::behavior::Written
 pub fn nika_compile_behavior::behavior::Written::clone(&self) -> nika_compile_behavior::behavior::Written
 impl core::cmp::Eq for nika_compile_behavior::behavior::Written
