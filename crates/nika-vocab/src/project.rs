@@ -59,6 +59,17 @@ pub fn is_kebab_id(s: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
+/// `v` followed by one or more digits: the retired schema tag `nika:` held before it carried the
+/// file's name (spec `01-envelope.md` §Conformance rule 2). A whole-marker law (`vault` · `v2ray`
+/// · `v1-migration` are ordinary names), refused by BOTH readers: the project file, where
+/// `nika: v1` + `ceiling:` would read two ways, and the workflow envelope, where authors and models
+/// trained on old examples still write it and a silent workflow named `v1` would teach nothing.
+#[must_use]
+pub fn is_retired_version_tag(s: &str) -> bool {
+    s.strip_prefix('v')
+        .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit()))
+}
+
 /// The envelope line's own indentation, when the document opens on one.
 fn envelope_indent(yaml: &str) -> Option<&str> {
     for line in yaml.lines() {

@@ -17,7 +17,7 @@ use marked_yaml::{LoadError, LoaderOptions, Node, Span as YamlSpan, parse_yaml_w
 
 use super::{
     ArmEntry, ArmLocus, MissPolicy, Project, ProjectError, ProjectErrorKind, ProvenanceFloor,
-    RegistryPolicy, TOP_LEVEL_KEYS, TracesPolicy, is_kebab_id,
+    RegistryPolicy, TOP_LEVEL_KEYS, TracesPolicy, is_kebab_id, is_retired_version_tag,
 };
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -133,10 +133,7 @@ fn parse_name(value: &Node) -> Result<String, ProjectError> {
     // retired marker refuses here — a reserved word must refuse, never
     // glide. `vault` · `v2ray` · `v1-migration` are ordinary names: the
     // rule is the WHOLE marker, never a prefix.
-    if name
-        .strip_prefix('v')
-        .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit()))
-    {
+    if is_retired_version_tag(name) {
         return Err(ProjectError::at(
             ProjectErrorKind::Identity,
             format!("`nika: {name}` — that is the retired schema tag, not a project name"),

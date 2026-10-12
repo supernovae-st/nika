@@ -655,7 +655,7 @@ fn parse_nika_id(
     };
     let raw = scalar.as_str();
     let span = cx.span(scalar.span());
-    if !is_kebab_id(raw) {
+    if !is_kebab_id(raw) || nika_vocab::project::is_retired_version_tag(raw) {
         return Err(SchemaError::BadNikaId {
             id: raw.to_owned(),
             span,
@@ -803,6 +803,28 @@ model: anthropic/claude-sonnet-4-6
                 matches!(err, SchemaError::BadNikaId { .. }),
                 "{bad:?} → {err:?}"
             );
+        }
+    }
+
+    /// One name law for both documents (spec 01 rule 2): the retired schema tag is no workflow
+    /// name, and its refusal teaches the rename. Only the whole marker is refused.
+    #[test]
+    fn a_retired_schema_tag_is_no_workflow_name() {
+        for tag in ["v1", "v2", "v10"] {
+            let err = parse_strict(&format!("nika: {tag}\n")).expect_err("the retired tag");
+            assert!(
+                matches!(err, SchemaError::BadNikaId { .. }),
+                "{tag} → {err:?}"
+            );
+            let text = err.to_string();
+            assert!(
+                text.contains("retired schema tag") && text.contains("give the workflow a name"),
+                "{text}"
+            );
+        }
+        for name in ["vault", "v2ray", "v1-migration", "victor"] {
+            let wf = parse_strict(&format!("nika: {name}\n")).expect("an ordinary name");
+            assert_eq!(wf.workflow.expect("nika").value, name);
         }
     }
 

@@ -168,14 +168,15 @@ fn the_project_names_itself() {
     assert_eq!(p.name.as_deref(), Some("my-project"));
 }
 
-/// The retired schema tag refuses HERE, where a workflow lets it pass.
+/// The retired schema tag refuses here, as it does in the workflow envelope.
 ///
-/// The asymmetry is the point: a pre-nuke workflow carried `workflow:`
-/// beside its `nika: proj` and refuses on that key, so `v1` is free to be
-/// an ordinary workflow NAME. A pre-nuke project file had no companion
-/// key — `nika: proj` + `ceiling:` is well-formed under both readings —
-/// so only a refusal here keeps the same bytes from quietly changing
-/// meaning.
+/// Here it is the only guard: a pre-nuke project file had no companion
+/// key, so `nika: v1` + `ceiling:` is well-formed under both readings and
+/// only a refusal keeps the same bytes from quietly changing meaning. The
+/// workflow once let `v1` pass as an ordinary name (its pre-nuke form is
+/// refused on `workflow:`); since 2026-10-12 one name law holds for both
+/// documents, because authors and models trained on old examples still
+/// write `nika: v1` (`is_retired_version_tag`).
 #[test]
 fn the_retired_schema_tag_refuses_in_a_project_file() {
     for marker in ["v1", "v2", "v999"] {
