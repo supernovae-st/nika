@@ -638,6 +638,44 @@ fn convert_from_json_parses_json_text_input() {
 }
 
 #[test]
+fn convert_csv_reads_a_semicolon_or_tab_separated_export() {
+    // A French spreadsheet export: `;` between fields, `,` in decimals.
+    // Read with the comma it failed on the first decimal (or became one
+    // `nom;montant` column).
+    let rows = convert(&args(serde_json::json!({
+        "input": "nom;montant\n\"Dupont, Jean\";10,50\nMartin;3\n", "from": "csv", "to": "json"
+    })))
+    .expect("ok");
+    assert_eq!(
+        rows,
+        serde_json::json!([
+            {"nom": "Dupont, Jean", "montant": "10,50"},
+            {"nom": "Martin", "montant": "3"}
+        ])
+    );
+    let rows = convert(&args(serde_json::json!({
+        "input": "name\tamount\nA\t1\n", "from": "csv", "to": "json"
+    })))
+    .expect("ok");
+    assert_eq!(rows, serde_json::json!([{"name": "A", "amount": "1"}]));
+    // A comma file whose cells carry semicolons stays comma-separated.
+    let rows = convert(&args(serde_json::json!({
+        "input": "a,b\nx;y,z\n", "from": "csv", "to": "json"
+    })))
+    .expect("ok");
+    assert_eq!(rows, serde_json::json!([{"a": "x;y", "b": "z"}]));
+}
+
+#[test]
+fn convert_json_null_is_an_empty_csv_cell() {
+    let csv = convert(&args(serde_json::json!({
+        "input": [{"a": "A", "b": null, "c": true}], "from": "json", "to": "csv"
+    })))
+    .expect("ok");
+    assert_eq!(csv, serde_json::json!("a,b,c\nA,,true\n"));
+}
+
+#[test]
 fn convert_has_header_is_a_strict_bool_not_silently_coerced() {
     // F1 · the silent-data-corruption footgun: a non-bool `has_header`
     // must be a LOUD error, never silently read as the (true) default.
