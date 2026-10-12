@@ -251,6 +251,7 @@ pub nika_runtime::child::ChildOutcome::cost_usd: core::option::Option<f64>
 pub nika_runtime::child::ChildOutcome::failure: core::option::Option<(alloc::string::String, alloc::string::String)>
 pub nika_runtime::child::ChildOutcome::ok: bool
 pub nika_runtime::child::ChildOutcome::outputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub nika_runtime::child::ChildOutcome::paused: core::option::Option<nika_runtime::WorkflowPause>
 pub nika_runtime::child::ChildOutcome::trace: core::option::Option<nika_runtime::child::ChildRunSummary>
 impl core::clone::Clone for nika_runtime::child::ChildOutcome
 pub fn nika_runtime::child::ChildOutcome::clone(&self) -> nika_runtime::child::ChildOutcome
@@ -1163,6 +1164,7 @@ pub nika_runtime::WorkflowPause::mode: alloc::string::String
 pub nika_runtime::WorkflowPause::shown: nika_dataflow::expr::Shown
 pub nika_runtime::WorkflowPause::task: alloc::string::String
 impl nika_runtime::WorkflowPause
+pub fn nika_runtime::WorkflowPause::nested(child_path: &str, inner: Self) -> Self
 pub fn nika_runtime::WorkflowPause::new(task: alloc::string::String, mode: alloc::string::String, message: core::option::Option<alloc::string::String>, choices: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_runtime::WorkflowPause::with_approval(self, ticket: nika_runtime::approval::ApprovalTicket) -> Self
 impl core::clone::Clone for nika_runtime::WorkflowPause

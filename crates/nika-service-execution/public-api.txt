@@ -1623,6 +1623,7 @@ pub fn nika_service_execution::ServiceExecutionResult::events(&self) -> &[nika_s
 pub fn nika_service_execution::ServiceExecutionResult::into_parts(self) -> (nika_service_execution::ServiceExecutionStatus, alloc::vec::Vec<nika_service_execution::ServiceEvent>)
 pub fn nika_service_execution::ServiceExecutionResult::new(status: nika_service_execution::ServiceExecutionStatus, events: alloc::vec::Vec<nika_service_execution::ServiceEvent>) -> Self
 pub fn nika_service_execution::ServiceExecutionResult::outputs(&self) -> &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub fn nika_service_execution::ServiceExecutionResult::run_outcome(&self) -> core::option::Option<&nika_runtime::RunOutcome>
 pub fn nika_service_execution::ServiceExecutionResult::settlement(&self) -> core::option::Option<&nika_event::settlement::RunSettlement>
 pub const fn nika_service_execution::ServiceExecutionResult::status(&self) -> nika_service_execution::ServiceExecutionStatus
 impl core::fmt::Debug for nika_service_execution::ServiceExecutionResult
