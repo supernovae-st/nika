@@ -773,3 +773,91 @@ fn a_value_whose_choice_was_left_to_nika_is_replaced_within_it() {
     let reply = write_removing(&mut conversation, &lines, &source, (rows, removed));
     assert!(!reply.is_error, "{reply:?}");
 }
+
+/// A question that recommends an option has a default: the ask door refuses it with that reason,
+/// the proposal shows it in `open`, and a question no default can stand for is asked.
+#[test]
+fn a_question_with_a_default_is_refused_and_one_without_is_asked() {
+    let asker = Arc::new(Incarnation);
+    let mut conversation = Conversation::default();
+    let lines = citations(&[(
+        "u1",
+        "envoie chaque soir les rappels de l'agenda à mon associé",
+    )]);
+    let questions = json!({"questions": [
+        {"key": "field", "question": "Quel champ montrer pour chaque rendez-vous ?", "options": [
+            {"key": "title", "label": "Le titre", "recommended": true,
+             "values": [{"role": "value", "value": "title"}]},
+            {"key": "id", "label": "L'identifiant", "values": [{"role": "value", "value": "id"}]}]},
+        {"key": "partner", "question": "Quel est l'e-mail de ton associé ?", "free_text": true}]});
+    let mut mint = |context: &str| QuestionId::new(context.to_owned(), &asker);
+    let reply = conversation.ask(
+        &lines,
+        &questions,
+        Some("c1"),
+        (&mut mint, &mut |_: &str| None),
+    );
+    assert!(reply.ends_turn, "{reply:?}");
+    let keys: Vec<&str> = (conversation.questions().iter())
+        .map(|q| q.key.as_str())
+        .collect();
+    assert_eq!(keys, ["partner"]);
+    let text: Value = serde_json::from_str(&reply.text).expect("the reply is JSON");
+    let refused = text["refused"].as_array().cloned().unwrap_or_default();
+    assert_eq!(refused.len(), 1, "one question refused");
+    assert_eq!(
+        (refused[0]["key"].as_str(), refused[0]["reason"].as_str()),
+        (Some("field"), Some("default"))
+    );
+    let why = refused[0]["why"].as_str().unwrap_or_default();
+    assert!(
+        why.contains("propose with this choice in `open`"),
+        "the author reads where the choice goes"
+    );
+}
+
+/// An output in the project always has a name the author derives: a question for one is not
+/// asked, unless the person's later words ask to change it.
+#[test]
+fn an_output_name_is_not_asked_unless_the_persons_words_reopen_it() {
+    let asker = Arc::new(Incarnation);
+    let mut conversation = Conversation::default();
+    let mut lines = citations(&[("u1", "un digest des news tech dans un dossier du projet")]);
+    let name = |reopens: Option<Value>| {
+        let mut question = json!({"key": "output", "role": "output_path",
+            "question": "Quel nom pour le fichier ?", "free_text": true});
+        if let Some(reopens) = reopens {
+            question["reopens"] = reopens;
+        }
+        json!({"questions": [question]})
+    };
+    let mut mint = |context: &str| QuestionId::new(context.to_owned(), &asker);
+    let reply = conversation.ask(
+        &lines,
+        &name(None),
+        Some("c1"),
+        (&mut mint, &mut |_: &str| None),
+    );
+    assert!(
+        !reply.ends_turn && conversation.questions().is_empty(),
+        "{reply:?}"
+    );
+    let text: Value = serde_json::from_str(&reply.text).expect("the reply is JSON");
+    let refused = text["refused"].as_array().cloned().unwrap_or_default();
+    assert_eq!(refused.len(), 1, "one question refused");
+    assert_eq!(
+        (refused[0]["key"].as_str(), refused[0]["reason"].as_str()),
+        (Some("output"), Some("output"))
+    );
+    let why = refused[0]["why"].as_str().unwrap_or_default();
+    assert!(
+        why.contains("always has a name you can derive"),
+        "the author reads why it is not asked"
+    );
+    lines.record(4, Some(("u2".into(), "change le nom du fichier".into())));
+    let reopens = json!({"message": "u2", "excerpt": "change le nom"});
+    let args = name(Some(reopens));
+    let reply = conversation.ask(&lines, &args, Some("c2"), (&mut mint, &mut |_: &str| None));
+    assert!(reply.ends_turn, "{reply:?}");
+    assert_eq!(conversation.questions().len(), 1);
+}

@@ -652,3 +652,54 @@ fn a_seat_that_cannot_lead_refuses_and_nothing_is_sent() {
     let users = entries(&world.tree(), "user").len();
     assert_eq!(users, 0, "the line was not taken into the conversation");
 }
+
+/// A question an ACP agent could recommend is refused at the ask door with the same typed reason
+/// and words the API route returns, and the person sees the proposal with the choice open instead.
+#[test]
+fn an_acp_agents_question_with_a_default_is_refused_at_the_relay() {
+    let values = json!([
+        {"role": "read_source", "value": HACKER_NEWS, "name": "Hacker News"},
+        {"role": "read_source", "value": TECHCRUNCH, "name": "TechCrunch"},
+        {"role": "output_path", "value": DIGEST}
+    ]);
+    let plan = json!({"key": "plan", "question": "Je prends Hacker News et TechCrunch : ça te va ?",
+        "options": [{"key": "recommended", "label": "Oui", "recommended": true, "values": values},
+            {"key": "other", "label": "D'autres sources ou un autre fichier"}]});
+    let write = json!({"source": digest(), "resolutions": [],
+        "summary": "Hacker News et TechCrunch, résumé dans ./news/digest.md"});
+    let turns = json!([[
+        call("toolu_ask", "ask", &json!({"questions": [plan.clone()]})),
+        call("toolu_write", "candidate_write", &write),
+        call("toolu_propose", "propose", &json!({"open": [plan]})),
+        {"say": "Je propose Hacker News et TechCrunch, résumé dans ./news/digest.md."}
+    ]]);
+    let world = World::new(Some(&turns));
+    let report = world.run("default");
+    let step = &report["steps"][0];
+    assert_eq!(kind(step), "proposal", "{step:#}");
+    let questions = step["shown"]["work"]["questions"]
+        .as_array()
+        .map_or(0, Vec::len);
+    assert_eq!(questions, 0, "the person sees no question: {step:#}");
+    let replies = world.observed("replies");
+    let asked = (replies.iter())
+        .find(|r| r["call"] == "ask")
+        .expect("the ask was answered");
+    let text = asked["text"].as_str().unwrap_or_default();
+    let reply = (serde_json::Deserializer::from_str(text).into_iter::<Value>())
+        .next()
+        .and_then(Result::ok)
+        .unwrap_or_default();
+    // The same typed refusal the API route returns (`a_choice_with_a_default_is_proposed_not_asked`).
+    let refused = reply["refused"].as_array().cloned().unwrap_or_default();
+    assert_eq!(refused.len(), 1, "the ask's one question is refused");
+    assert_eq!(
+        (refused[0]["key"].as_str(), refused[0]["reason"].as_str()),
+        (Some("plan"), Some("output"))
+    );
+    let why = refused[0]["why"].as_str().unwrap_or_default();
+    assert!(
+        why.contains("always has a name you can derive"),
+        "the agent reads why it is not asked"
+    );
+}

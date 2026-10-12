@@ -31,6 +31,7 @@ mod edit;
 mod pick;
 
 use self::answer::Answered;
+use self::choices::NotAsked;
 pub use self::edit::edited;
 pub use self::pick::{NOT_A_CONSENT, NOT_READ_AS_CONSENT, Pick};
 
@@ -305,8 +306,10 @@ impl Conversation {
     }
 
     /// `ask`: bind the answers the author read in the person's line, refuse what the person
-    /// already settled (with its value, to the author), ask the rest together. `mint` gives a
-    /// question its identity from its context. The turn ends when something is asked.
+    /// already settled (with its value, to the author) and what a default can stand for (a
+    /// recommended option, an output in the project), each with its reason, and ask the rest
+    /// together. `mint` gives a question its identity from its context. The turn ends when
+    /// something is asked.
     pub fn ask(
         &mut self,
         citations: &Citations,
@@ -326,7 +329,11 @@ impl Conversation {
         let questions = args["questions"].as_array().into_iter().flatten();
         for (ordinal, question) in questions.enumerate() {
             match self.question(question, citations, (call, ordinal), mint, facts) {
-                Ok(question) => asked.push(question),
+                // A default can stand for it: the proposal shows it in `open` instead.
+                Ok(one) => match choices::defaulted(&one, &question["reopens"], citations) {
+                    Some(not) => refused.push(not.refusal(&one.key)),
+                    None => asked.push(one),
+                },
                 Err(settled) => refused.push(settled),
             }
         }
@@ -389,7 +396,8 @@ impl Conversation {
         if let Some(settled) = settled
             && !reopened(citations, settled, &question["reopens"])
         {
-            return Err(json!({"key": key, "why": "already settled by the person",
+            return Err(json!({"key": key, "reason": NotAsked::Settled.word(),
+                "why": "already settled by the person",
                 "settled": {"value": settled.value, "message": settled.provenance.message}}));
         }
         if let Some(message) = self.left_to_author(key) {
@@ -397,7 +405,9 @@ impl Conversation {
                 "the person left it to you: choose it, bind it as {} citing their words, and say what you chose",
                 chosen_as(role)
             );
-            return Err(json!({"key": key, "why": why, "delegated": {"message": message}}));
+            let reason = NotAsked::Delegated.word();
+            let delegated = json!({"message": message});
+            return Err(json!({"key": key, "reason": reason, "why": why, "delegated": delegated}));
         }
         let text = question["question"].as_str().unwrap_or_default();
         let context = format!(
@@ -438,7 +448,7 @@ impl Conversation {
             (self.bindings.iter()).any(|b| b.role == v.role && same_literal(&b.value, &v.value))
         };
         if offered.peek().is_some() && offered.all(bound) {
-            return Err(json!({"key": key,
+            return Err(json!({"key": key, "reason": NotAsked::Bound.word(),
                 "why": "every value it offers is already bound: nothing is left to ask"}));
         }
         let after = (question["after"].as_array().into_iter().flatten())

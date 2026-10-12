@@ -85,6 +85,10 @@ Session's tools act on the Session, and only the Session's doors save, run or re
 - An entry is in the tree only once its line is durable (`Tree::append` writes, then takes).
 - The loop has no quota: a long run ends on the model's answer (unit test with 120 calls).
 - No I/O in the crate: the Session's history owner implements `Store` and reads the file.
+- The ask door asks only what no default can stand for: `Conversation::ask` refuses a question
+  that recommends an option, or that names an output in the project unless its `reopens` cites
+  the person's later words, each refused question with its reason (`default`, `output`, beside
+  `settled`, `delegated` and `bound`); a choice with a default is shown by `propose` in `open`.
 
 ## 4. Gate evidence (admission with the unit)
 

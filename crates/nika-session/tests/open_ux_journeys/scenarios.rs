@@ -372,6 +372,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "thought_only" => thought_only(),
         "open_defaults" => open_defaults(),
         "open_pick_other" => open_pick_other(),
+        "default_not_asked" => default_not_asked(),
         other => panic!("unknown scenario {other}"),
     }
 }
@@ -1480,6 +1481,31 @@ fn open_pick_other() -> Scenario {
             replies: Vec::new(),
             // The Session reads the line against the folder and the model: it picks neither.
             picks: vec!["NONE".to_owned(), "NONE".to_owned()],
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// The author asks for the plan it can recommend: the ask door refuses it with its reason, and the
+/// author proposes the plan open at once instead.
+fn default_not_asked() -> Scenario {
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(REQUEST)],
+        script: Script {
+            agent: vec![
+                call("ask", json!({"questions": [plan_choice(&tech())]})),
+                call("candidate_write", defaults_digest()),
+                call_saying(
+                    "Je propose Hacker News et TechCrunch, résumé dans ./news/digest.md.",
+                    "propose",
+                    json!({"open": [plan_choice(&tech())]}),
+                ),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
             verdicts: Vec::new(),
         },
     }

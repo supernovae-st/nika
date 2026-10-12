@@ -1228,3 +1228,40 @@ fn the_author_is_told_the_persons_time_zone() {
         "the zone is named"
     );
 }
+
+/// The first JSON value of a tool's reply (a note may follow it).
+fn reply_json(text: &str) -> Value {
+    let mut values = serde_json::Deserializer::from_str(text).into_iter::<Value>();
+    values.next().and_then(Result::ok).unwrap_or_default()
+}
+
+/// A question the author can recommend is never put to the person: the ask door refuses it with
+/// its typed reason, and the person sees the proposal with the choice open and its default.
+#[test]
+fn a_choice_with_a_default_is_proposed_not_asked() {
+    let journey = run("default_not_asked");
+    let shown = journey.step(0);
+    assert_eq!(outcome_kind(shown), "proposal", "{shown:#}");
+    assert!(
+        open_questions(shown).is_empty(),
+        "the person sees no question"
+    );
+    let card = shown["outcome"]["text"].as_str().unwrap_or_default();
+    assert!(card.contains("open choices"), "{card}");
+    let open = recommended_values(shown);
+    for value in [HACKER_NEWS, TECHCRUNCH, DIGEST] {
+        assert!(open.iter().any(|v| v == value), "{value}: {open:?}");
+    }
+    let reply = reply_json(&answered(&journey, 1));
+    let refused = reply["refused"].as_array().cloned().unwrap_or_default();
+    assert_eq!(refused.len(), 1, "the ask's one question is refused");
+    assert_eq!(
+        (refused[0]["key"].as_str(), refused[0]["reason"].as_str()),
+        (Some("plan"), Some("output"))
+    );
+    let why = refused[0]["why"].as_str().unwrap_or_default();
+    assert!(
+        why.contains("always has a name you can derive"),
+        "the author reads why it is not asked"
+    );
+}
