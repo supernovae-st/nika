@@ -379,12 +379,11 @@ fn run_admitted_resident_job(
     let write_origins = Arc::new(nika_runtime::WriteOrigins::new(
         Path::new(nika_dap::store::ORIGINALS_DIR).join(driver.execution_id().to_string()),
     ));
-    let config = match &cost {
-        Some(cost) => cost.config.clone(),
-        None => {
-            let run = driver.workflow().run.as_ref().map(|run| &run.value);
-            nika_runtime::RuntimeConfig::new(None, nika_runtime::RunSeams::of(run).jitter_seed)
-        }
+    let config = if let Some(cost) = &cost {
+        cost.config.clone()
+    } else {
+        let run = driver.workflow().run.as_ref().map(|run| &run.value);
+        nika_runtime::RuntimeConfig::new(None, nika_runtime::RunSeams::of(run).jitter_seed)
     };
     let options =
         options.with_runtime_config(config.with_write_origins(Arc::clone(&write_origins)));
