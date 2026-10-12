@@ -73,6 +73,19 @@ After a lost response or cancellation, inspect the file and trace before retry:
 publication may already have completed. Atomic visibility does not promise
 fsync durability or that a detached write has stopped.
 
+## Stop and resume
+
+- Ctrl-C (or SIGTERM) stops a run cleanly: work already in flight
+  completes and is counted, tasks not yet started are cancelled, the
+  trace is sealed with `workflow_cancelled`, and the run exits 130. A
+  second Ctrl-C aborts mid-flight and leaves the trace incomplete.
+- `nika run <file> --resume <trace>` reuses every task the trace
+  completed (`cache hit (resume)`) and runs the rest. A task in flight
+  at the Stop completed: reconcile what it did before anything
+  downstream of it runs again.
+- A run paused on a human gate exits 4 and resumes the same way, with
+  the person's answer: `--resume <trace> --answer <task>=<value>`.
+
 ## Secrets (masked, declared, sunk)
 
 - Every credential rides `${{ secrets.X }}`, declared in the
@@ -144,15 +157,23 @@ fsync durability or that a detached write has stopped.
   record). One `arm:` entry names the workflow, the cadence with its
   zone inside (`TZ=Europe/Paris 30 7 * * 1-5`, an IANA zone name), the
   ceiling of one firing (`plafond:`) and what a missed slot becomes
-  (`manqué: sauter` or `rattraper-une-fois`; `rattraper` is reserved and
-  reads UNREADY); neither has a default. Per-beat `inputs:` give the
-  workflow's declared inputs their values. `nika check nika.yaml` judges
-  the keys; `nika arm --json` reads every cadence and reports READY,
-  UNREADY or DORMANT, writing nothing. Activation is the person's own
-  step, for a READY beat only (`--emit` prints a unit for an UNREADY one
-  too): `nika arm --emit launchd|systemd --write`, then loading the unit,
-  or a resident `nika serve`. A suspension is the triple `actif: false`,
-  `raison:` and `jusqu_au: YYYY-MM-DD`; deleting the line does not
+  (`manqué:`); neither has a default, so ask the person when the request
+  leaves one open. Write the `manqué` value the targeted binary fires:
+  0.122.0 and the 0.123 previews fire `sauter` and `rattraper-une-fois`,
+  read `rattraper` UNREADY and refuse the bounded `{ rattraper: N }`;
+  `nika arm --json` on that binary is the judge. Per-beat `inputs:` give
+  the workflow's declared inputs their values. `nika check nika.yaml`
+  judges the file; `nika arm --json` reads every beat and reports READY,
+  UNREADY with its `blockers`, or DORMANT, writing nothing. Saving,
+  running and activating are three separate consents; activation is the
+  person's own step, for a READY beat (`--emit` prints a unit for an
+  UNREADY one too): `nika arm --emit launchd|systemd --write`, then
+  loading the unit, or a resident `nika serve`. A beat whose workflow
+  calls a child reads UNREADY with no blocker, only the unknown « a
+  nested workflow's routes are judged only at its own dispatch »:
+  rehearse it with `nika serve --once --dry` before activating it. A
+  suspension is the triple `actif: false`, `raison:` and
+  `jusqu_au: YYYY-MM-DD`; deleting the line does not
   disarm. Reference: https://docs.nika.sh/reference/arm
 
 ## MCP servers and definition drift

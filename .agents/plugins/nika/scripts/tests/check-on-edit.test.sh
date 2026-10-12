@@ -82,6 +82,17 @@ edit 'a told suspension stays silent' "$ROOT/suspended/nika.yaml" 0 ''
 project untold 'TZ=Europe/Paris 30 7 * * 1-5' $'    plafond: 0.20\n    manqué: sauter\n    actif: false\n    jusqu_au: 2099-12-31\n'
 edit 'a suspension without its reason reaches the agent' "$ROOT/untold/nika.yaml" 2 'cadence.suspension-sans-raison'
 
+if command -v python3 >/dev/null 2>&1; then
+  mkdir -p "$ROOT/nested/workflows"
+  printf 'nika: brief\npermits:\n  tools: ["nika:log"]\ntasks:\n  noop:\n    invoke: { tool: "nika:log", args: { message: "child" } }\n' \
+    >"$ROOT/nested/workflows/brief.nika"
+  printf 'nika: parent\npermits:\n  tools: ["nika:log"]\ntasks:\n  call:\n    invoke: { workflow: "./brief.nika" }\n' \
+    >"$ROOT/nested/workflows/parent.nika"
+  printf 'nika: my-project\narm:\n  - workflow: workflows/parent.nika\n    cadence: "TZ=Europe/Paris 30 7 * * 1-5"\n    plafond: 0.20\n    manqué: sauter\n' \
+    >"$ROOT/nested/nika.yaml"
+  edit 'a beat calling a child (an unknown, no blocker) stays silent' "$ROOT/nested/nika.yaml" 0 ''
+fi
+
 mkdir -p "$ROOT/starter" "$ROOT/nobeat"
 cat >"$ROOT/starter/nika.yaml" <<'YAML'
 # nika.yaml — the project file (OPTIONAL · an absent key is its built-in default).

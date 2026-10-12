@@ -1,6 +1,6 @@
 ---
 name: nika-authoring
-description: Author, check and repair .nika workflows and static NIKA findings. Use migration for existing automation ports and debugging for run failures.
+description: Author, check and repair Nika projects (.nika workflows, the nika.yaml project file and its beats, supporting files, child workflows) and static NIKA findings. Use migration for existing automation ports and debugging for run failures.
 ---
 
 # Authoring Nika workflows
@@ -13,6 +13,11 @@ not a claim of readiness. These instructions apply across models and clients;
 installed engine capabilities and host tools determine what is available.
 
 ## Start from the task
+
+The unit of work is the project: its workflows, the optional `nika.yaml`
+(name, ceiling, beats, trace and registry policy), the files the workflows
+read and the child workflows they call. Check every file you touch, from the
+project root ([Project](references/project.md)).
 
 For a small edit, inspect the named file and affected dependencies. For a new
 job, `nika list` lists candidates; it does not certify them. Use
@@ -32,6 +37,8 @@ the user's model and do not invent an identifier from a marketing name.
 | Choose native tools, retain an exec, build JSON or prove deterministic rules | [Native tools and artifacts](references/native-and-artifacts.md) |
 | Paid inference, extraction schemas or paid-readiness blockers | [Paid inference](references/paid-inference.md) |
 | Parent/child calls, containment, child outputs or budgets | [Composition](references/composition.md) |
+| A project: `nika.yaml`, beats and their zone, supporting files, children, path bases | [Project](references/project.md) |
+| An open value, a human gate, exact identifiers, readback, a refused write, a model step a hint questions | [Decisions and effects](references/decisions-and-effects.md) |
 
 Consult only the needed references. When loaded as a Nika runtime skill, linked
 files are not automatically injected: the host must supply an authorized read
@@ -61,8 +68,8 @@ tool and read grants, or explicitly supply the required files as context.
 ## Finish at the requested outcome
 
 For authoring, report the file, actual check verdict, effect scope and remaining
-blockers. For an authorized run, retain its session and exact trace, inspect
-outputs against the task's expected result, and report the exit status and
-verified evidence tier. Reconcile partial effects before any retry. A golden
+blockers. For an authorized run, retain its session and exact trace, read
+back what it wrote or created and inspect that against the task's expected
+result, and report the exit status and verified evidence tier. Reconcile partial effects before any retry. A golden
 is suitable only for the simulated plane that supports the workflow; a green
 static check alone proves neither behavior nor parity.

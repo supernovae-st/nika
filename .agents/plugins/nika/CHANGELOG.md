@@ -5,6 +5,20 @@ Versions move together across all manifests (the mirror gate pins it).
 
 ## Unreleased
 
+The authoring skill takes the project as its unit of work. A new
+`references/project.md` covers the project file, supporting files, child
+workflows and their two path bases, and beats with their zone, ceiling
+and missed-slot rule as each targeted binary reads them, with a checked
+three-file project. A new `references/decisions-and-effects.md`
+separates a question, a default and a human gate, and teaches exact
+identifiers, readback after an effect, refused writes and keeping the
+model steps a request needs; each example is checked, and run where it
+runs offline, on 0.122.0 and the 0.123 previews. The operating skill
+documents Stop and resume and the three consents of a beat; the
+debugging skill adds an observed failure → remedy table. The
+check-on-edit hook reports an UNREADY beat only when `nika arm --json`
+names a blocker: a beat calling a child stays silent.
+
 Schedules are taught where the engine keeps them. The operating skill
 said to schedule with cron, CI or a systemd timer, a path that skips
 the firer (`nika arm fire`) and with it the missed-slot rule, the

@@ -2,10 +2,11 @@
 # check-on-edit — the plugin's seatbelt: after the agent edits a
 # *.nika, run the audit so findings reach the agent immediately
 # (the file is the contract; check is the oracle). An edit to the project
-# file, nika.yaml, gets the project's two judges: `nika check` on its keys
-# and required values, and `nika arm`, which reads every beat (cadence,
-# zone, suspension, workflow) and is read-only: it schedules nothing and
-# writes nothing.
+# file, nika.yaml, gets the project's two judges: `nika check` on the file
+# (its keys and required values and, from the 0.123 line, every beat's
+# laws), and `nika arm`, which reads every beat's readiness (cadence, zone,
+# suspension, workflow) and is read-only: it schedules nothing and writes
+# nothing.
 #
 # ONE script, TWO dialects, THREE surfaces (Codex emits the Claude Code
 # dialect verbatim — live-proven 2026-07-12). Sniffed from stdin — `hook_event_name` is
@@ -88,23 +89,37 @@ fi
 # or without a ledger entry. The flag costs legitimate execs nothing.
 set +e
 if [ "$kind" = project ]; then
-  # `nika check` does not read cadences, and a beat that reads UNREADY
-  # (its workflow unreadable, a required input with no value, a policy the
-  # firer refuses) exits 0 from `nika arm`: both are findings here.
-  # `nika arm` discovers nika.yaml from its working directory, so it runs
-  # from the edited file's own directory.
+  # Readiness is `nika arm`'s. A beat UNREADY with a blocker (its workflow
+  # unreadable, a required input with no value, a policy the firer
+  # refuses) exits 0 from `nika arm` and is a finding here; a beat UNREADY
+  # with only an unknown (a nested workflow's routes, judged at its own
+  # dispatch) is not a defect and stays silent. Without python3 to read the
+  # JSON, every UNREADY beat is reported. `nika arm` discovers nika.yaml
+  # from its working directory, so it runs from the edited file's own
+  # directory.
   project_dir="$(cd "$(dirname "$file")" && pwd)"
   shape="$("$NIKA" check "$file" --color never 2>&1)"
   shape_rc=$?
   beats="$(cd "$project_dir" && "$NIKA" arm --color never 2>&1)"
   beats_rc=$?
+  blocked=""
+  if command -v python3 >/dev/null 2>&1; then
+    blocked="$(cd "$project_dir" && "$NIKA" arm --json 2>/dev/null | python3 -c 'import json, sys
+try:
+    rows = json.load(sys.stdin).get("schedules") or []
+except Exception:
+    rows = []
+print("blocked" if any(row.get("blockers") for row in rows) else "")' 2>/dev/null || true)"
+  elif printf '%s' "$beats" | grep -q '\[UNREADY\]'; then
+    blocked="blocked"
+  fi
   rc=0
   findings=""
   if [ "$shape_rc" -eq 2 ]; then
     rc=2
     findings="$shape"
   fi
-  if [ "$beats_rc" -eq 2 ] || printf '%s' "$beats" | grep -q '\[UNREADY\]'; then
+  if [ "$beats_rc" -eq 2 ] || [ -n "$blocked" ]; then
     rc=2
     findings="${findings:+$findings
 }$beats"
