@@ -24,6 +24,17 @@ follow_ups: ["the crate members already split for the 15,000 wall stay as they a
 
 # ADR-154: Size walls — 25,000 production lines per crate and 2,500 lines per file
 
+## Amendment · 12 October 2026 · one file-size policy for both gates
+
+The CI file ratchet (`scripts/ci/check-loc-limits.sh`) refused every file above 2,500 lines and
+ignored the `LOC-EXEMPT` marker that hygiene vector 12 honours, so a whitelisted file the table
+above allows up to 5,000 lines still failed CI. Both gates now read ONE policy,
+`scripts/ci/file-size-policy.sh`: the three levels, the whitelist, the parser of a marker on the
+first 5 lines, and the verdict each gate states for a file, in the same words. CI enforces the
+table as written. `scripts/hygiene/tests/file-size-agreement.test.sh` drives both gates over the
+same fixtures (marked 2,501, 3,000 and 5,000 pass; marked 5,001, unmarked 2,501 and an unlisted
+reason are refused) and fails when they disagree.
+
 ## Context
 
 ADR-004 sized every crate to 15,000 lines so that a whole crate fit in an AI

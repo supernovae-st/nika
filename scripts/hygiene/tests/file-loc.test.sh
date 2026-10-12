@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# COVERS: scripts/hygiene/check-file-loc.sh
+# COVERS: scripts/hygiene/check-file-loc.sh scripts/ci/file-size-policy.sh
 #
 # Mutation proof for vector 12's three file tiers (ADR-023's tiers, ADR-154's
 # values): a file above 1,500 lines warns and never blocks, a file above 2,500
@@ -12,6 +12,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 VECTOR="$ROOT/scripts/hygiene/check-file-loc.sh"
+POLICY="$ROOT/scripts/ci/file-size-policy.sh"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -34,8 +35,9 @@ lines() {
 run_case() {
   cases=$((cases + 1))
   local dir="$WORK/case-$cases"
-  mkdir -p "$dir/scripts/hygiene" "$dir/crates/demo/src"
+  mkdir -p "$dir/scripts/hygiene" "$dir/scripts/ci" "$dir/crates/demo/src"
   cp "$VECTOR" "$dir/scripts/hygiene/"
+  cp "$POLICY" "$dir/scripts/ci/"
   lines "$1" "${2:-}" >"$dir/crates/demo/src/lib.rs"
   OUT=$(bash "$dir/scripts/hygiene/check-file-loc.sh" 2>&1)
   RC=$?

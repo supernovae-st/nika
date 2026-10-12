@@ -20,7 +20,7 @@ a single-purpose ratchet. See `ci/` for the full list.
 
 | Script | Rule |
 |---|---|
-| `check-loc-limits.sh` | file ≤ 2,500 LOC (ADR-154) |
+| `check-loc-limits.sh` | file ≤ 2,500 LOC, or ≤ 5,000 with a whitelisted LOC-EXEMPT marker (ADR-154; one policy with vector 12: `file-size-policy.sh`) |
 | `check-crate-size.sh` | crate ≤ 25,000 production LOC, one ceiling for every crate (ADR-154) |
 | `check-fn-length.sh` | fn ≤ 100 lines |
 | `check-unwrap.sh` | 0 `.unwrap()` in src/ |

@@ -48,7 +48,7 @@ keep their number: renumbering is churn for no value.
 | 9 | `check-org-readme.sh` | Org profile README mentions every canonical public repo (whole-word, so a longer sibling's name cannot cover a missing one) · and the counts it quotes match `canon.yaml`. YELLOW when canon.yaml is unreachable — the parity is then unmeasured, and the verdict says so rather than asserting it. The count derives from the list in the script; it was written here as "6" while the script carried 13 |
 | 10 | `check-license.sh` | LICENSE file present + AGPL-3.0-or-later (renamed from `check-citation.sh` 2026-04-16; name was misleading — never checked CITATION.cff which doesn't exist) |
 | 11 | `check-unwraps.sh` | Zero `.unwrap()` / `.expect(` outside tests |
-| 12 | `check-file-loc.sh` | Three-tier file-LOC discipline (ADR-023, values of ADR-154): YELLOW above 1500 (never blocks) / RED above 2500 / CRITICAL above 5000 even with a `// LOC-EXEMPT: <reason>` marker (codegen, lookup-table, enum-mega) |
+| 12 | `check-file-loc.sh` | Three-tier file-LOC discipline (ADR-023, values of ADR-154): YELLOW above 1500 (never blocks) / RED above 2500 / CRITICAL above 5000 even with a `// LOC-EXEMPT: <reason>` marker (codegen, lookup-table, enum-mega); the levels and the marker parser are shared with the CI file ratchet through `scripts/ci/file-size-policy.sh` |
 | 13 | `check-claude-coauthor.sh` | No `Co-Authored-By: Claude` on diamond branch |
 | 14 | `check-private-leaks.sh` | No `/.claude/projects/…` in tracked code |
 | 15 | `check-cargo-audit.sh` | `cargo audit` shows no RustSec advisories |

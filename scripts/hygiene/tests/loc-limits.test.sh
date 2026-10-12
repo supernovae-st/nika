@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# COVERS: scripts/ci/check-loc-limits.sh
+# COVERS: scripts/ci/check-loc-limits.sh scripts/ci/file-size-policy.sh
 #
 # Mutation proof for the CI file ratchet (ADR-154): a tracked .rs file may hold
 # 2,500 lines and no more. A file above the 1,500-line warning passes here: the
@@ -53,7 +53,7 @@ echo "CI file ratchet · limit mutation proof"
 expect 0 'a file above the 1,500-line warning passes the CI ratchet' 1501
 expect 0 'a file of exactly 2,500 lines passes' 2500
 expect 1 'a file above 2,500 lines fails with its count and the limit' 2501 \
-  'crates/demo/src/lib.rs  2501 LOC (max 2500)'
+  'crates/demo/src/lib.rs  2501 LOC (over the 2500-line limit without a LOC-EXEMPT marker)'
 
 if [ "$fails" -gt 0 ]; then
   printf '\n%d/%d case(s) wrong — the CI file limit moved.\n' "$fails" "$cases" >&2
