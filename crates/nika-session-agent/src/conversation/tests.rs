@@ -22,14 +22,15 @@ fn citations(lines: &[(&str, &str)]) -> Citations {
     out
 }
 
+/// The plan a proposal shows as a choice with its default: HN and TC into DIGEST.
 fn plan() -> Value {
-    json!({"questions": [{"key": "plan", "question": "HN et TC → ./news/digest.md ?",
+    json!({"key": "plan", "question": "HN et TC → ./news/digest.md ?",
         "options": [{"key": "recommended", "label": "Oui", "recommended": true, "values": [
             {"role": "read_source", "value": HN, "name": "Hacker News"},
             {"role": "read_source", "value": TC, "name": "TechCrunch"},
             {"role": "output_path", "value": DIGEST}]},
             {"key": "other", "label": "Autre"}],
-        "free_text": true}]})
+        "free_text": true})
 }
 
 fn offered(value: &str, role: &str, message: &str) -> Value {
@@ -41,24 +42,36 @@ fn retained(value: &str, role: &str) -> Value {
     json!({"value": value, "kind": "retained", "role": role, "message": "u2"})
 }
 
-/// A conversation where the plan offer was asked and the person's u2 accepted it.
+/// A conversation whose first proposal showed the plan open with its default, and whose u2 kept
+/// that default.
 fn accepted(asker: &Arc<Incarnation>) -> (Conversation, Citations) {
     let mut conversation = Conversation::default();
+    let request = citations(&[("u1", "un digest des news tech")]);
+    let reply = write(
+        &mut conversation,
+        &request,
+        &format!("{HN} {TC} {DIGEST}"),
+        json!([]),
+    );
+    assert!(!reply.is_error, "{reply:?}");
     let mut mint = |context: &str| QuestionId::new(context.to_owned(), asker);
-    let reply = conversation.ask(
-        &Citations::default(),
-        &plan(),
+    let open = conversation.open_choices(
+        &request,
+        &json!({"open": [plan()]}),
         Some("c1"),
         (&mut mint, &mut |_: &str| None),
     );
-    assert!(reply.ends_turn, "{reply:?}");
-    assert_eq!(conversation.asked_ids().len(), 1);
+    let shown = (
+        "S0".to_owned(),
+        open.expect("the plan is shown with its default"),
+    );
+    assert_eq!(conversation.propose(&request, &json!({}), shown), Ok(None));
     let lines = citations(&[("u1", "un digest des news tech"), ("u2", "oui tout me va")]);
-    // A sentence picks by the Session's reading: here, the recommended offer.
+    // A sentence picks by the Session's reading: here, the default the proposal carries.
     let read = BTreeMap::from([("plan".to_owned(), Pick::Offer("recommended".to_owned()))]);
     let said = conversation.answered_by("u2", "oui tout me va", &read);
     assert!(said[0].contains("picked `recommended`"), "{said:?}");
-    assert!(conversation.asked_ids().is_empty());
+    assert!(conversation.asked_ids().is_empty() && conversation.open().is_empty());
     (conversation, lines)
 }
 
@@ -403,7 +416,8 @@ fn a_reopen_keeps_the_evidence_and_no_authority() {
     let kept = conversation.kept();
     let restored = Conversation::restored(&kept).unwrap();
     assert_eq!(kinds(&restored), kinds(&conversation));
-    assert_eq!(restored.candidate().map(|c| c.number), Some(1));
+    let number = conversation.candidate().map(|c| c.number);
+    assert_eq!(restored.candidate().map(|c| c.number), number);
     assert!(restored.shown.is_none() && restored.questions().is_empty());
     // A kept value is still the person's to keep after the reopen.
     let lines = citations(&[("u1", "un digest des news tech"), ("u2", "oui tout me va")]);
@@ -420,17 +434,43 @@ fn a_reopen_keeps_the_evidence_and_no_authority() {
 
 const YC: &str = "https://www.ycombinator.com/blog/";
 
-/// « Which source for Y Combinator? » asked after the request u1, Hacker News recommended.
-fn ask_source(conversation: &mut Conversation, lines: &Citations, asker: &Arc<Incarnation>) {
-    let source = json!({"questions": [{"key": "yc_source", "role": "read_source",
+/// « Which source for Y Combinator? », Hacker News its default when a proposal shows it.
+fn source_choice() -> Value {
+    json!({"key": "yc_source", "role": "read_source",
         "question": "Pour « Y Combinator », quelle source ?", "options": [
             {"key": "hackernews", "label": "Hacker News", "recommended": true,
              "values": [{"role": "read_source", "value": HN, "name": "Hacker News"}]},
             {"key": "yc_blog", "label": "Le blog YC",
-             "values": [{"role": "read_source", "value": YC, "name": "Le blog YC"}]}]}]});
+             "values": [{"role": "read_source", "value": YC, "name": "Le blog YC"}]}]})
+}
+
+/// The same question asked after the request u1, with no recommended option.
+fn ask_source(conversation: &mut Conversation, lines: &Citations, asker: &Arc<Incarnation>) {
+    let mut question = source_choice();
+    question["options"][0]["recommended"] = json!(false);
+    let source = json!({"questions": [question]});
     let mut mint = |context: &str| QuestionId::new(context.to_owned(), asker);
     let reply = conversation.ask(lines, &source, Some("c1"), (&mut mint, &mut |_: &str| None));
     assert!(reply.ends_turn, "{reply:?}");
+}
+
+/// The same choice shown by a proposal with its default, after the request u1.
+fn show_source(conversation: &mut Conversation, asker: &Arc<Incarnation>) {
+    let request = citations(&[("u1", "les news de Y Combinator")]);
+    let reply = write(conversation, &request, HN, json!([]));
+    assert!(!reply.is_error, "{reply:?}");
+    let mut mint = |context: &str| QuestionId::new(context.to_owned(), asker);
+    let open = conversation.open_choices(
+        &request,
+        &json!({"open": [source_choice()]}),
+        Some("c1"),
+        (&mut mint, &mut |_: &str| None),
+    );
+    let shown = (
+        "S0".to_owned(),
+        open.expect("the source is shown with its default"),
+    );
+    assert_eq!(conversation.propose(&request, &json!({}), shown), Ok(None));
 }
 
 fn source_offered(value: &str, option: &str, message: &str) -> Value {
@@ -506,14 +546,14 @@ fn only_the_offer_the_person_picked_is_admitted() {
     assert!(!reply.is_error, "{reply:?}");
 }
 
-/// Item 4(a): a reply that deflects takes the recommendation, visibly delegated.
+/// Item 4(a): a reply that deflects takes the default the proposal shows, visibly delegated.
 #[test]
 fn a_deflection_takes_the_recommendation_as_delegated() {
     let asker = Arc::new(Incarnation);
     let mut conversation = Conversation::default();
     let deflects = "Je t'ai déjà donné les sources.";
     let lines = citations(&[("u1", "les news de Y Combinator"), ("u2", deflects)]);
-    ask_source(&mut conversation, &lines, &asker);
+    show_source(&mut conversation, &asker);
     let read = BTreeMap::from([("yc_source".to_owned(), Pick::Delegated)]);
     let said = conversation.answered_by("u2", deflects, &read);
     assert!(said[0].contains("recommended `hackernews`"), "{said:?}");
@@ -557,7 +597,8 @@ fn a_value_left_to_the_author_is_never_asked_again() {
         ("u3", "Oui, fais au mieux."),
     ]);
     let name = json!({"questions": [{"key": "new_name", "role": "output_path",
-        "question": "Quel nouveau nom ?", "options": []}]});
+        "question": "Quel nouveau nom ?", "options": [],
+        "reopens": {"message": "u2", "excerpt": "change le nom"}}]});
     let mut mint = |context: &str| QuestionId::new(context.to_owned(), &asker);
     conversation.ask(&lines, &name, Some("c1"), (&mut mint, &mut |_: &str| None));
     let read = BTreeMap::from([("new_name".to_owned(), Pick::Delegated)]);
