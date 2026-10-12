@@ -122,8 +122,8 @@ child process needs to see.
   not a migration — that is `native-first/005`. Unbundle the helper
   into fetch/jq/read/write tasks.
 - A prompt chain in a doc usually hides implicit state ("then take
-  the output and…") — make every handoff an explicit
-  `${{ tasks.X.output }}` reference so the checker can trace it.
+  the output and…") — make every handoff an explicit `with:` binding
+  of `${{ tasks.<id>.output }}`, read as `${{ with.<name> }}`, so the checker can trace it.
 - Scripts swallow errors (`|| true`); workflows should not. If the
   source ignored a failure, ask whether that was intent or debt —
   default to letting the task fail loudly.
