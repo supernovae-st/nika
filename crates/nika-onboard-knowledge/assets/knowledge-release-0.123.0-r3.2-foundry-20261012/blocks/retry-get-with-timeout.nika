@@ -1,0 +1,11 @@
+nika: p27-retry
+permits:
+  tools: ["nika:fetch"]
+  net: { http: ["api.example.com"] }
+tasks:
+  pull:
+    retry: { max_attempts: 3, backoff_ms: 500, backoff_strategy: exponential, backoff_max_ms: 4000, jitter: true, on_codes: ["NIKA-TIMEOUT-001", "NIKA-BUILTIN-FETCH-001"] }
+    timeout: "20s"
+    invoke: { tool: "nika:fetch", args: { url: "https://api.example.com/v1/items", mode: jq, jq: ".items" } }
+outputs:
+  items: ${{ tasks.pull.output }}

@@ -38,6 +38,16 @@ pub fn nika_verb_infer::InferValue::as_any(&self) -> &(dyn core::any::Any + 'sta
 impl<T> typenum::type_operators::Same for nika_verb_infer::InferValue
 pub type nika_verb_infer::InferValue::Output = T
 #[non_exhaustive] pub enum nika_verb_infer::VerbInferError
+pub nika_verb_infer::VerbInferError::AnswerCut
+pub nika_verb_infer::VerbInferError::AnswerCut::detail: alloc::string::String
+pub nika_verb_infer::VerbInferError::AnswerCut::model: alloc::string::String
+pub nika_verb_infer::VerbInferError::AnswerCut::partial_output: alloc::string::String
+pub nika_verb_infer::VerbInferError::AnswerCut::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_infer::VerbInferError::AnswerCut::stop_reason: alloc::string::String
+pub nika_verb_infer::VerbInferError::AnswerInterrupted
+pub nika_verb_infer::VerbInferError::AnswerInterrupted::model: alloc::string::String
+pub nika_verb_infer::VerbInferError::AnswerInterrupted::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_infer::VerbInferError::AnswerInterrupted::stop_reason: alloc::string::String
 pub nika_verb_infer::VerbInferError::EmptyAnswer
 pub nika_verb_infer::VerbInferError::EmptyAnswer::detail: alloc::string::String
 pub nika_verb_infer::VerbInferError::EmptyAnswer::model: alloc::string::String
@@ -68,6 +78,7 @@ pub nika_verb_infer::VerbInferError::UsageUnmetered
 pub nika_verb_infer::VerbInferError::UsageUnmetered::model: alloc::string::String
 pub nika_verb_infer::VerbInferError::UsageUnmetered::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 impl nika_verb_infer::VerbInferError
+pub fn nika_verb_infer::VerbInferError::details_of(err: &dyn nika_error::traits::NikaErrorCode) -> core::option::Option<serde_json::value::Value>
 pub fn nika_verb_infer::VerbInferError::spend(&self) -> core::option::Option<&nika_types::cost::SpendOnFailure>
 impl core::error::Error for nika_verb_infer::VerbInferError
 pub fn nika_verb_infer::VerbInferError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>

@@ -334,6 +334,14 @@ fn request_body(
     if let Some(rf) = response_format_value(&req.response_format, provider_id) {
         obj.insert("response_format".to_owned(), rf);
     }
+    // OpenAI routes and accounts its prompt cache by key, so one conversation's calls stay
+    // together; never another compatible provider, and a caller's own key stays alone.
+    if provider_id == "openai"
+        && let Some(key) = &req.cache_key
+        && !req.extra.params.contains_key("prompt_cache_key")
+    {
+        obj.insert("prompt_cache_key".to_owned(), json!(key));
+    }
     // Provider extras never override the structural keys this adapter set
     // (model · messages · stream · tools · …) — first-write-wins. The two
     // token-budget spellings are ONE logical key: when the adapter already
@@ -602,7 +610,11 @@ fn usage_from(u: &Value) -> Option<TokenUsage> {
 fn map_finish(raw: Option<&str>) -> StopReason {
     match raw {
         Some("stop") => StopReason::EndTurn,
-        Some("length") => StopReason::MaxTokens,
+        // Mistral's `model_length` is the context length reached: cut, as at the output cap.
+        Some("length" | "model_length") => StopReason::MaxTokens,
+        // DeepSeek's resource and abort finishes, and the `error` finish of OpenRouter and
+        // Mistral: the provider interrupted the generation.
+        Some("insufficient_system_resource" | "aborted" | "error") => StopReason::Interrupted,
         Some("tool_calls") => StopReason::ToolUse,
         Some("content_filter") => StopReason::ContentFilter,
         Some(other) => StopReason::Unknown(other.to_owned()),

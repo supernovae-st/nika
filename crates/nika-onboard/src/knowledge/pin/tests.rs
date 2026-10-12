@@ -270,11 +270,11 @@ fn an_embedded_pin_reopens_from_memory_with_the_same_identity_and_record() {
     assert_eq!(pin.origin, KnowledgeOrigin::Embedded);
     assert_eq!(
         pin.manifest_sha256,
-        "1be7d6101dab9eff54f35be07463f4e320607c4a837d04ef90519abaadf48166"
+        "8d52df01a5105fc4661851218e89ca172c5799bf3016aedbce1574ecac096075"
     );
     assert_eq!(
         pin.version.as_deref(),
-        Some("knowledge-0.123.0-r2-json-filter-records-20261009")
+        Some("knowledge-0.123.0-r3.2-foundry-20261012")
     );
     let reopened = pin.reopen().expect("admitted again in memory");
     assert_eq!(pin.moved(&reopened), None, "the same release has not moved");

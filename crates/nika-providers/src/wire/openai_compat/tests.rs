@@ -986,3 +986,44 @@ fn deepseek_stream_reasoning_maps_to_thinking_before_the_answer() {
         "{out:?}"
     );
 }
+
+/// The catalog's reasoning facts for `DeepSeek`'s direct route are this wire's behavior: a plain
+/// call leaves the model its own (thinking) default, and no `.nika` control reaches the off
+/// switch the provider documents (`thinking: {type: disabled}`): a budget is never written.
+#[test]
+fn deepseek_catalog_reasoning_facts_match_this_wire() {
+    use nika_catalog::types::model::ThinkingOff;
+    let mut budget = req(vec![Message::text(Role::User, "x")]);
+    budget.thinking_budget = Some(0);
+    for model in ["deepseek-flash", "deepseek-v4-pro"] {
+        let facts = nika_catalog::model_capabilities("deepseek", model).reasoning_facts;
+        assert_eq!(facts.reasons_by_default, Some(true), "{model}");
+        assert_eq!(facts.thinking_off, Some(ThinkingOff::NotReached), "{model}");
+        let body = body_of(model, &budget, false, true, "deepseek").expect("body");
+        assert!(body.get("thinking").is_none(), "{model}: {body}");
+    }
+}
+
+/// A request's cache key reaches `OpenAI` as `prompt_cache_key`, and no other compatible
+/// provider; without a key, or when the caller's extras name their own, nothing of ours is sent.
+#[test]
+fn the_cache_key_reaches_openai_alone() {
+    let mut keyed = req(vec![Message::text(Role::User, "hi")]);
+    keyed.cache_key = Some("conversation-digest".to_owned());
+    let openai = body_of("gpt-5.6", &keyed, false, true, "openai").expect("body");
+    assert_eq!(openai["prompt_cache_key"], "conversation-digest");
+    for provider in ["deepseek", "openrouter", "mistral", "groq"] {
+        let body = body_of("m", &keyed, false, true, provider).expect("body");
+        assert!(body.get("prompt_cache_key").is_none(), "{provider}: {body}");
+    }
+    let unkeyed = req(vec![Message::text(Role::User, "hi")]);
+    let body = body_of("gpt-5.6", &unkeyed, false, true, "openai").expect("body");
+    assert!(body.get("prompt_cache_key").is_none(), "{body}");
+    let mut own = keyed.clone();
+    own.extra.params.insert(
+        "prompt_cache_key".to_owned(),
+        serde_json::json!("the caller's"),
+    );
+    let body = body_of("gpt-5.6", &own, false, true, "openai").expect("body");
+    assert_eq!(body["prompt_cache_key"], "the caller's");
+}

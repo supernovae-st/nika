@@ -72,8 +72,8 @@ pub nika_session_agent::conversation::Pick::Offer(alloc::string::String)
 pub nika_session_agent::conversation::Pick::Unread
 impl nika_session_agent::conversation::Pick
 pub fn nika_session_agent::conversation::Pick::consent_question(id: nika_session_change::outcome::QuestionId) -> nika_session_change::work::conversation::AskedQuestion
-pub fn nika_session_agent::conversation::Pick::consented(line: &str, run: bool, id: nika_session_change::outcome::QuestionId, read: impl core::ops::function::FnOnce(&str) -> core::option::Option<alloc::string::String>) -> bool
-pub fn nika_session_agent::conversation::Pick::consents(&self, run: bool) -> bool
+pub fn nika_session_agent::conversation::Pick::consented(line: &str, acts: nika_session_agent::conversation::Acts, id: nika_session_change::outcome::QuestionId, read: impl core::ops::function::FnOnce(&str) -> core::option::Option<alloc::string::String>) -> bool
+pub fn nika_session_agent::conversation::Pick::consents(&self, acts: nika_session_agent::conversation::Acts) -> bool
 impl nika_session_agent::conversation::Pick
 pub fn nika_session_agent::conversation::Pick::of_line(question: &nika_session_change::work::conversation::AskedQuestion, line: &str) -> core::option::Option<Self>
 pub fn nika_session_agent::conversation::Pick::prompt(question: &nika_session_change::work::conversation::AskedQuestion, line: &str) -> alloc::string::String
@@ -125,6 +125,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_session_agent::conversation
 impl<T> typenum::type_operators::Same for nika_session_agent::conversation::Pick
 pub type nika_session_agent::conversation::Pick::Output = T
 #[non_exhaustive] pub struct nika_session_agent::conversation::Acts
+pub nika_session_agent::conversation::Acts::revised: bool
 pub nika_session_agent::conversation::Acts::run: bool
 pub nika_session_agent::conversation::Acts::save: bool
 impl core::clone::Clone for nika_session_agent::conversation::Acts
@@ -226,6 +227,7 @@ impl<T> typenum::type_operators::Same for nika_session_agent::conversation::Cand
 pub type nika_session_agent::conversation::Candidate::Output = T
 pub struct nika_session_agent::conversation::Citations
 impl nika_session_agent::conversation::Citations
+pub fn nika_session_agent::conversation::Citations::first(&self, from: u64) -> core::option::Option<&str>
 pub fn nika_session_agent::conversation::Citations::get(&self, cite: &str) -> core::option::Option<&nika_session_agent::conversation::Cited>
 pub fn nika_session_agent::conversation::Citations::last(&self) -> u64
 pub fn nika_session_agent::conversation::Citations::record(&mut self, at: u64, person: core::option::Option<(alloc::string::String, alloc::string::String)>)
@@ -327,6 +329,7 @@ impl nika_session_agent::conversation::Conversation
 pub fn nika_session_agent::conversation::Conversation::answered_by(&mut self, cite: &str, line: &str, read: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_session_agent::conversation::Pick>) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_session_agent::conversation::Conversation::to_read(&self, line: &str) -> alloc::vec::Vec<nika_session_change::work::conversation::AskedQuestion>
 impl nika_session_agent::conversation::Conversation
+pub fn nika_session_agent::conversation::Conversation::answers(&self) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub fn nika_session_agent::conversation::Conversation::ask(&mut self, citations: &nika_session_agent::conversation::Citations, args: &serde_json::value::Value, call: core::option::Option<&str>, (mint, facts): (nika_session_agent::conversation::Mint<'_>, nika_session_agent::conversation::Facts<'_>)) -> nika_session_change::tools::ToolReply
 pub fn nika_session_agent::conversation::Conversation::asked_ids(&self) -> alloc::vec::Vec<nika_session_change::outcome::QuestionId>
 pub fn nika_session_agent::conversation::Conversation::bindings(&self) -> &[nika_session_change::work::conversation::Binding]

@@ -60,8 +60,10 @@ ADR-144 pattern), owns the conversation and nothing else:
   them as Nika's loop records its own; a steering line stops the agent's turn once and becomes
   its next prompt.
 - `steer` — the person's lines while a run is under way: a steering line enters after the
-  current calls, the calls not yet run are skipped so the model reads it first; a follow-up
-  line enters when the model would end; Stop returns both unsent.
+  calls under way. The message's later calls that hand the turn over (`ask`, `propose`,
+  `new_request`) are held back so the model reads the line before handing the turn to the
+  person or replacing the request; its ordinary calls already decided (candidate work, reads)
+  still run. A follow-up line enters when the model would end; Stop returns both unsent.
 - `tree` — the Session tree: every entry with its parent, one line per entry, each line bound
   to the line before it by a digest. The branch from the root to the leaf is what a model
   reads; the person's lines carry a citation (`u1`, `u2`, …) the model uses to name their
@@ -139,3 +141,18 @@ selections; they are bound only by the person.
 **Consequences.** The question turn before a first proposal disappears whenever every open
 choice has a recommendation; a choice without one is still asked first. Item 4's policy holds:
 a settled value is never shown again and a delegated one is never asked again.
+
+## Amendment 2026-10-12 — steering keeps the calls a message decided
+
+**Context.** A steering line skipped every call of the message not yet run, so a candidate write
+or a read the author had already decided was lost and cost another call.
+
+**Decision.** A steering line holds back only the calls that hand the turn over (`ask`, `propose`,
+`new_request`); the message's other calls still run, and the line enters after them. The model
+reads the line before any proposal or question it would otherwise have shown, so no stale offer is
+published. The ACP route is unchanged: a steering line stops the agent's turn once and becomes its
+next prompt.
+
+**Consequences.** Already decided ordinary work is kept; an obsolete question, proposal or
+replacement is never shown. The witness is
+`a_steering_line_holds_back_only_the_calls_that_hand_the_turn_over` (nika-session-agent).

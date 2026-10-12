@@ -191,6 +191,156 @@ pub fn criteria(question: &ChoiceQuestion) -> Map<String, Value> {
         .collect()
 }
 
+/// The option keys in the order the request's `criteria` carries them: the wire order a record
+/// keeps beside the question's own order.
+#[must_use]
+pub fn sent_order(question: &ChoiceQuestion) -> Vec<String> {
+    criteria(question).into_iter().map(|(key, _)| key).collect()
+}
+
+/// The order a request writes a question's Choice criteria in. `Alphabetical` is today's bytes
+/// exactly (the criteria are a sorted map); `Question` is the question's own option order and
+/// `Reversed` its mirror, the pair a both-order reading averages to cancel a position lean.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum Order {
+    /// Sorted by key: the wire order of every request today.
+    #[default]
+    Alphabetical,
+    /// The question's own option order.
+    Question,
+    /// The question's own option order, reversed.
+    Reversed,
+}
+
+/// The option keys of `question` in `order`: the sequence [`body`] writes its criteria in.
+#[must_use]
+pub fn sent_order_in(question: &ChoiceQuestion, order: Order) -> Vec<String> {
+    let own = (question.options.iter()).map(|o| o.key.clone());
+    match order {
+        Order::Alphabetical => sent_order(question),
+        Order::Question => own.collect(),
+        Order::Reversed => own.rev().collect(),
+    }
+}
+
+/// The bytes of ONE request for `questions` in `order`: [`request`]'s body, each question's
+/// criteria written in its [`sent_order_in`] sequence. `Alphabetical` writes the same bytes as
+/// serializing [`request`]; the length never depends on the order.
+#[must_use]
+pub fn body(model: &str, questions: &[&ChoiceQuestion], order: Order) -> Vec<u8> {
+    let value = request(model, questions);
+    let orders: BTreeMap<String, Vec<String>> = (questions.iter())
+        .map(|q| (q.id.clone(), sent_order_in(q, order)))
+        .collect();
+    serde_json::to_vec(&OrderedBody {
+        value: &value,
+        orders: &orders,
+    })
+    .unwrap_or_default()
+}
+
+/// [`request`]'s body with each question's criteria written in its own sequence.
+struct OrderedBody<'a> {
+    value: &'a Value,
+    orders: &'a BTreeMap<String, Vec<String>>,
+}
+
+impl serde::Serialize for OrderedBody<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap as _;
+        let Some(top) = self.value.as_object() else {
+            return self.value.serialize(serializer);
+        };
+        let mut map = serializer.serialize_map(Some(top.len()))?;
+        for (key, value) in top {
+            match (key.as_str(), value.as_object()) {
+                ("questions", Some(questions)) => map.serialize_entry(
+                    key,
+                    &OrderedQuestions {
+                        questions,
+                        orders: self.orders,
+                    },
+                )?,
+                _ => map.serialize_entry(key, value)?,
+            }
+        }
+        map.end()
+    }
+}
+
+/// The request's questions, each with its criteria in its own sequence.
+struct OrderedQuestions<'a> {
+    questions: &'a Map<String, Value>,
+    orders: &'a BTreeMap<String, Vec<String>>,
+}
+
+impl serde::Serialize for OrderedQuestions<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap as _;
+        let mut map = serializer.serialize_map(Some(self.questions.len()))?;
+        for (id, question) in self.questions {
+            let order = self.orders.get(id).map(Vec::as_slice).unwrap_or_default();
+            map.serialize_entry(id, &OrderedQuestion { question, order })?;
+        }
+        map.end()
+    }
+}
+
+/// One question of the request, its `criteria` written in `order`.
+struct OrderedQuestion<'a> {
+    question: &'a Value,
+    order: &'a [String],
+}
+
+impl serde::Serialize for OrderedQuestion<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap as _;
+        let Some(fields) = self.question.as_object() else {
+            return self.question.serialize(serializer);
+        };
+        let mut map = serializer.serialize_map(Some(fields.len()))?;
+        for (key, value) in fields {
+            match (key.as_str(), value.as_object()) {
+                ("criteria", Some(criteria)) => {
+                    let ordered = OrderedCriteria {
+                        criteria,
+                        order: self.order,
+                    };
+                    map.serialize_entry(key, &ordered)?;
+                }
+                _ => map.serialize_entry(key, value)?,
+            }
+        }
+        map.end()
+    }
+}
+
+/// A question's criteria: the order's keys first, then any key the order does not name (none,
+/// by construction).
+struct OrderedCriteria<'a> {
+    criteria: &'a Map<String, Value>,
+    order: &'a [String],
+}
+
+impl serde::Serialize for OrderedCriteria<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap as _;
+        let mut map = serializer.serialize_map(Some(self.criteria.len()))?;
+        for key in self.order {
+            if let Some(value) = self.criteria.get(key) {
+                map.serialize_entry(key, value)?;
+            }
+        }
+        for (key, value) in self.criteria {
+            if !self.order.contains(key) {
+                map.serialize_entry(key, value)?;
+            }
+        }
+        map.end()
+    }
+}
+
 /// The state the request carries once: what every question reads alike ([`Carried::common`]),
 /// or `{}` when they read nothing alike and are not all `null` (every question reads the request
 /// state, so it never holds what one of them does not read).
@@ -867,12 +1017,14 @@ impl Partition {
         (at.iter().filter_map(each))
             .map(|(item, answer, outcome)| {
                 let mut record = json!({"question": item.question.id,
-                    "options": item.question.keys(), "outcome": word.unwrap_or(outcome)});
+                    "options": item.question.keys(), "options_sent": sent_order(&item.question),
+                    "outcome": word.unwrap_or(outcome)});
                 match (word, answer) {
                     (Some(_), _) => {}
                     (None, Ok(answer)) => {
                         record["choice"] = json!(answer.choice);
                         record["confidence"] = json!(answer.confidence);
+                        record["probabilities"] = json!(answer.probabilities);
                     }
                     (None, Err(error)) => record["error"] = json!(error.0),
                 }

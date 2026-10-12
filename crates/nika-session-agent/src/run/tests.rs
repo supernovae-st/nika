@@ -753,3 +753,129 @@ fn a_model_that_only_reasons_twice_ends_the_run_without_a_third_call() {
         ["user", "assistant", "note", "assistant"]
     );
 }
+
+/// A summary cut at the provider's output limit is no summary: the turn says why, nothing is
+/// folded, no request is sent over the cut meaning, and every original entry stays in the branch.
+#[test]
+fn a_summary_cut_at_the_output_limit_folds_nothing() {
+    let (mut tree, mut lines) = fresh();
+    let tools = Tools::new();
+    let cut = Reply::new(
+        vec![ContentBlock::Text {
+            text: "The person asked for".into(),
+        }],
+        StopReason::MaxTokens,
+    );
+    let mut model = Script::new(vec![says("Done."), Ok(cut)]);
+    let mut events = Vec::new();
+    let second = {
+        let mut agent = Agent::new(&mut tree, &mut lines, &tools, &now)
+            .with_window(Window::new(1_000, 200, 100));
+        let first = agent.prompt(&"a".repeat(3_200), &mut model, &mut |_| {});
+        assert!(matches!(first, Outcome::Answered { .. }));
+        agent.prompt("and now?", &mut model, &mut |e| events.push(e))
+    };
+    let refused = matches!(&second, Outcome::Failed { error: AgentError::Model(why) }
+        if why.contains("cut at the output limit"));
+    assert!(refused, "the turn says why");
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, AgentEvent::Compacted { .. })),
+        "nothing folded"
+    );
+    assert_eq!(model.seen.len(), 2, "no request after the cut summary");
+    let context = tree.context();
+    assert_eq!(
+        context.messages.len(),
+        3,
+        "the line, its answer and the new line stay"
+    );
+}
+
+/// A line steered while the summary is being made enters the next request, once: the context the
+/// model reads right after the compaction carries the correction, and nothing asks again.
+#[test]
+fn a_line_steered_during_compaction_enters_the_next_request_once() {
+    let (mut tree, mut lines) = fresh();
+    let steering = Steering::new();
+    let person = steering.clone();
+    let tools = Tools::new();
+    let mut model =
+        Script::new(vec![says("Done."), says("SUMMARY"), says("Next.")]).during(move |rank| {
+            if rank == 1 {
+                person
+                    .steer("use Le Monde too")
+                    .expect("the run reads its queue");
+            }
+        });
+    let second = {
+        let mut agent = Agent::new(&mut tree, &mut lines, &tools, &now)
+            .with_window(Window::new(1_000, 200, 100))
+            .with_steering(&steering);
+        let first = agent.prompt(&"a".repeat(3_200), &mut model, &mut |_| {});
+        assert!(matches!(first, Outcome::Answered { .. }));
+        agent.prompt("and now?", &mut model, &mut |_| {})
+    };
+    assert!(matches!(&second, Outcome::Answered { text } if text == "Next."));
+    assert_eq!(model.seen.len(), 3, "no request after the answer");
+    let steered = |request: &Request| {
+        (request.messages.iter())
+            .flat_map(|message| message.content.iter())
+            .filter(
+                |block| matches!(block, ContentBlock::Text { text } if text == "use Le Monde too"),
+            )
+            .count()
+    };
+    assert_eq!(
+        steered(&model.seen[2]),
+        1,
+        "the request after the summary carries it once"
+    );
+}
+
+/// Stop while one message's observations run side by side: each one already started settles with
+/// its own reply, the message's later write never runs and reads as not run.
+#[test]
+fn stop_in_an_observation_batch_keeps_the_started_replies() {
+    let (mut tree, mut lines) = fresh();
+    let cancel = CancelCtx::new();
+    let stop = cancel.clone();
+    let tools = Tools::with_hook(move |_| stop.cancel());
+    let observe = |id: &str, url: &str| ContentBlock::ToolUse {
+        id: id.into(),
+        name: "observe".into(),
+        input: json!({"url": url}),
+    };
+    let write = ContentBlock::ToolUse {
+        id: "c4".into(),
+        name: "candidate_write".into(),
+        input: json!({"source": "nika: x\n"}),
+    };
+    let blocks = vec![
+        observe("c1", "https://a.example"),
+        observe("c2", "https://b.example"),
+        observe("c3", "https://c.example"),
+        write,
+    ];
+    let mut model = Script::new(vec![Ok(Reply::new(blocks, StopReason::ToolUse))]);
+    let mut run = Agent::new(&mut tree, &mut lines, &tools, &now).with_cancel(&cancel);
+    let outcome = run.prompt("observe", &mut model, &mut |_| {});
+    drop(run);
+    assert!(matches!(outcome, Outcome::Stopped { .. }));
+    let called: Vec<String> = (tools.called().into_iter()).map(|(name, _)| name).collect();
+    assert_eq!(
+        called,
+        ["observe", "observe", "observe"],
+        "the write never ran"
+    );
+    let context = tree.context();
+    let results = last_results(&Request::new(None, context.messages, Vec::new()));
+    let ids: Vec<&str> = results.iter().map(|(id, ..)| id.as_str()).collect();
+    assert_eq!(ids, ["c1", "c2", "c3", "c4"]);
+    assert!(
+        results[..3].iter().all(|(_, _, error)| !error),
+        "the started observations settled with their replies"
+    );
+    assert!(results[3].2, "the write reads as not run");
+}

@@ -3,7 +3,7 @@
 //! Project existing tariff ownership into immutable per-dispatch observations.
 use super::BillingRoute;
 use crate::admission::DeclaredTariff;
-use nika_kernel::ai::provider::{InferResponse, UsageCompleteness};
+use nika_kernel::ai::provider::{InferResponse, TokenUsage, UsageCompleteness};
 use nika_types::cost::{Cost, InferenceCall, InferenceRoute};
 
 pub(crate) fn record(
@@ -48,29 +48,39 @@ pub(crate) fn observe(
     let Some(usage) = &call.usage else {
         return call;
     };
-    if !call.usage_complete
-        || call.response_model.as_deref() != Some(route.model.as_str())
-        || usage.cache_write_tokens.unwrap_or(0) != 0
-        || usage.cache_creation_tokens.unwrap_or(0) != 0
-        || usage.cache_read_tokens.unwrap_or(0) > usage.input_tokens
-    {
+    let Some(written) = cache_writes(usage) else {
         return call;
-    }
+    };
     let (input, output, cached) = (
         usage.input_tokens,
         usage.output_tokens,
         usage.cache_read_tokens.unwrap_or(0),
     );
+    if !call.usage_complete
+        || call.response_model.as_deref() != Some(route.model.as_str())
+        || cached
+            .checked_add(written)
+            .is_none_or(|subsets| subsets > input)
+    {
+        return call;
+    }
     if let Some(d) = declared {
-        call.estimated_usd = d
-            .price_native(input, output, cached)
-            .filter(|_| d.currency() == "USD")
-            .map(Cost::new);
+        // A declared tariff states no cache-write rate: a call that wrote stays unknown.
+        if written == 0 {
+            call.estimated_usd = d
+                .price_native(input, output, cached)
+                .filter(|_| d.currency() == "USD")
+                .map(Cost::new);
+        }
     } else if let Some(tariff) = route.tariff() {
-        call.estimated_usd = tariff.price(input, output, cached);
+        // Nor does an admission tariff.
+        if written == 0 {
+            call.estimated_usd = tariff.price(input, output, cached);
+        }
     } else {
-        // The vendored snapshot remains the owner of other exact first-party rows.
-        call.estimated_usd = snapshot_estimate(route, input, output, cached);
+        // The vendored snapshot remains the owner of other exact first-party rows; a cache write
+        // prices at the row's own write rate, the 5-minute one (the only TTL Nika asks for).
+        call.estimated_usd = snapshot_estimate(route, input, output, cached, written);
         if call.estimated_usd.is_some() {
             let pin = nika_catalog::pricing_snapshot();
             call.pricing = Some(
@@ -87,7 +97,22 @@ pub(crate) fn observe(
     call
 }
 
-fn snapshot_estimate(route: &BillingRoute, input: u64, output: u64, cached: u64) -> Option<Cost> {
+/// The tokens a call wrote to the provider's cache, in whichever meter its wire reports them
+/// (Anthropic's creation, another wire's write); `None` when both are reported and disagree.
+fn cache_writes(usage: &TokenUsage) -> Option<u64> {
+    match (usage.cache_creation_tokens, usage.cache_write_tokens) {
+        (Some(created), Some(written)) if created != written => None,
+        (created, written) => Some(created.or(written).unwrap_or(0)),
+    }
+}
+
+fn snapshot_estimate(
+    route: &BillingRoute,
+    input: u64,
+    output: u64,
+    cached: u64,
+    written: u64,
+) -> Option<Cost> {
     let official = crate::profile::seed().iter().any(|p| {
         p.id == route.provider
             && if matches!(p.wire, crate::profile::WireFormat::Gemini) {
@@ -105,11 +130,12 @@ fn snapshot_estimate(route: &BillingRoute, input: u64, output: u64, cached: u64)
     if !official
         || row.model_pattern != route.model
         || (cached > 0 && row.cache_read_per_million.is_none())
+        || (written > 0 && row.cache_write_per_million.is_none())
     {
         return None;
     }
     let model = format!("{}/{}", route.provider, route.model);
-    let nano = (nika_catalog::estimate_cost_usage_for(&model, input, output, cached, 0)?.usd
+    let nano = (nika_catalog::estimate_cost_usage_for(&model, input, output, cached, written)?.usd
         * 1_000_000_000.0)
         .round();
     if !nano.is_finite() || !(0.0..1e38).contains(&nano) {

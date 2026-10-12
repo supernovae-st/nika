@@ -24,8 +24,9 @@ use nika_compile_seats::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, Dec
 /// The admitted filter-then-report block of the current release.
 const BLOCK: &str = "block:validate-quarantine-total";
 /// Its admitted bytes, as the release ships them.
-const BYTES: &str =
-    include_str!("../../assets/knowledge-release-r2/blocks/validate-quarantine-total.nika");
+const BYTES: &str = include_str!(
+    "../../assets/knowledge-release-0.123.0-r3.2-foundry-20261012/blocks/validate-quarantine-total.nika"
+);
 
 fn current() -> Snapshot {
     bundled::admit(Some(&bundled::identity().unwrap())).unwrap()
@@ -59,10 +60,7 @@ fn bindings() -> Vec<Binding> {
 fn a_checked_block_resolves_by_id_and_release_with_its_admitted_bytes() {
     let snapshot = current();
     let release = snapshot.release();
-    assert_eq!(
-        release.version,
-        "knowledge-0.123.0-r2-json-filter-records-20261009"
-    );
+    assert_eq!(release.version, "knowledge-0.123.0-r3.2-foundry-20261012");
     assert_eq!(release.snapshot_sha256, snapshot.manifest_sha256());
     let pinned = ComponentRef::new(BLOCK)
         .at_version(release.version.clone())
@@ -224,12 +222,17 @@ impl DecisionSeat for OnlyTheBlock {
 async fn a_request_sharing_no_word_with_the_block_reaches_it_through_the_whole_catalogue() {
     let snapshot = current();
     let intent = "Écarte chaque commande non conforme au contrat puis additionne le reste";
-    let pack: AuthoringKnowledge = snapshot.pack(intent, None).unwrap();
-    assert!(
-        !pack.references.iter().any(|r| r.id == BLOCK),
-        "the lexical pack never held it: {:?}",
-        pack.references.iter().map(|r| &r.id).collect::<Vec<_>>()
-    );
+    let mut pack: AuthoringKnowledge = snapshot.pack(intent, None).unwrap();
+    // No word of the request reaches the block: since r3.1 the pack holds it only through a
+    // pattern it realizes, never by its own text.
+    let reason = (pack.selection["blocks"].as_array().into_iter().flatten())
+        .find(|row| row["id"] == BLOCK)
+        .and_then(|row| row["why"].as_str())
+        .unwrap_or_default();
+    assert!(reason.starts_with("realizes pattern:"), "{reason:?}");
+    // A pack without it, as an earlier release's was, still reaches it through the whole
+    // catalogue: the seat finds it by its descriptor, and it is resolved in full.
+    pack.references.retain(|r| r.id != BLOCK);
     let request = CompileRequest::create(intent).with_authoring_knowledge(pack);
     let (shown, record) = qualified_with(intent, &request, Some(&OnlyTheBlock), Some(&snapshot))
         .await
@@ -237,8 +240,8 @@ async fn a_request_sharing_no_word_with_the_block_reaches_it_through_the_whole_c
     let coverage = &record["coverage"];
     assert_eq!(coverage["complete"], true, "{coverage:#}");
     assert_eq!(
-        coverage["admitted_entries"], 358,
-        "every r2 row but its 9 source artifacts"
+        coverage["admitted_entries"], 491,
+        "every r3 row but its 9 source artifacts"
     );
     assert_eq!(coverage["resolved_in_full"], 1);
     assert_eq!(

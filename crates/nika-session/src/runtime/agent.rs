@@ -836,7 +836,7 @@ impl SessionRuntime {
         }
         let asked = QuestionId::new(id.to_string(), &self.questions.asker());
         let read = |prompt: &str| self.reason_with_money(prompt, true).ok().map(|r| r.text);
-        if Pick::consented(&cited, acts.run, asked, read) {
+        if Pick::consented(&cited, acts, asked, read) {
             return Ok(Some((id, if acts.run { "save & run" } else { "yes" })));
         }
         if let Some(driver) = self.agent.as_mut() {

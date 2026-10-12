@@ -444,12 +444,14 @@ fn settled_one(question: &ChoiceQuestion, result: &Result<Exchange, ExchangeErro
             json!({
                 "question": question.id,
                 "options": question.keys(),
+                "options_sent": super::system_one::sent_order(question),
                 "sent": true,
                 "outcome": outcome,
                 "status": exchange.status,
                 "choice": answer.choice,
                 "model": answer.model,
                 "confidence": answer.confidence,
+                "probabilities": answer.probabilities,
                 "usage": {
                     "input_tokens": answer.input_tokens,
                     "output_tokens": answer.output_tokens,

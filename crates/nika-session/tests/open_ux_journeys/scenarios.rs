@@ -13,6 +13,18 @@ use serde_json::{Value, json};
 
 use super::peer::{Script, Step, call, call_saying, hold, say, think};
 
+#[path = "trials.rs"]
+mod trials;
+pub(crate) use self::trials::{OBSERVED_AT, TRIED_ON, feeds};
+use self::trials::{
+    OFFSET_BROKEN, OFFSET_FIXED, RFC_822_BROKEN, RFC_822_FIXED, SALES, own_filter, reads_sales,
+    trial_assert, trial_names_what_it_skips, tried, two_edits, write_carries_its_findings,
+};
+
+#[path = "open_choices.rs"]
+mod open_choices;
+use self::open_choices::{default_not_asked, open_defaults, open_pick_other};
+
 /// The Session's reading of the sentence that accepts the plan: its recommended option.
 /// The Session's reading of each cited consent the journey's author claims: save and run.
 fn consented(reads: usize) -> Vec<String> {
@@ -231,8 +243,9 @@ fn retained(value: &str, role: &str, message: &str) -> Value {
     json!({"value": value, "kind": "retained", "role": role, "message": message})
 }
 
-/// The author's one recommendation for the ordinary request, asked as a choice.
-pub(crate) fn plan_offer(sources: &[(&str, &str)]) -> Value {
+/// The author's one recommendation for the ordinary request, as a choice a proposal shows with
+/// its default: the sources and the file the candidate already carries.
+pub(crate) fn plan_choice(sources: &[(&str, &str)]) -> Value {
     let values: Vec<Value> = sources
         .iter()
         .map(|(name, url)| json!({"role": "read_source", "value": url, "name": name}))
@@ -241,7 +254,7 @@ pub(crate) fn plan_offer(sources: &[(&str, &str)]) -> Value {
         ))
         .collect();
     let names: Vec<&str> = sources.iter().map(|(name, _)| *name).collect();
-    json!({"questions": [{
+    json!({
         "key": "plan",
         "question": format!("Je prends {} et j'écris le résumé dans {DIGEST} : ça te va ?", names.join(", ")),
         "why": "La demande ne nomme ni les sources ni le fichier de sortie.",
@@ -249,6 +262,26 @@ pub(crate) fn plan_offer(sources: &[(&str, &str)]) -> Value {
             {"key": "recommended", "label": format!("Oui : {} → {DIGEST}", names.join(", ")),
              "recommended": true, "values": values},
             {"key": "other", "label": "D'autres sources ou un autre fichier"}
+        ],
+        "free_text": true
+    })
+}
+
+/// The sources asked as a question that recommends none: the journeys that prove how the
+/// Session handles a question and its answers ask it.
+pub(crate) fn sources_question(sources: &[(&str, &str)]) -> Value {
+    let values: Vec<Value> = sources
+        .iter()
+        .map(|(name, url)| json!({"role": "read_source", "value": url, "name": name}))
+        .collect();
+    let names: Vec<&str> = sources.iter().map(|(name, _)| *name).collect();
+    json!({"questions": [{
+        "key": "plan",
+        "question": "Quelles sources d'actualités tech veux-tu ?",
+        "why": "La demande ne nomme ni les sources ni le fichier de sortie.",
+        "options": [
+            {"key": "sources", "label": names.join(", "), "values": values},
+            {"key": "other", "label": "D'autres sources"}
         ],
         "free_text": true
     }]})
@@ -271,10 +304,26 @@ fn accepted_digest() -> Value {
     })
 }
 
-/// The first two turns every accepting journey shares: the offer, then its acceptance.
+/// The tech digest with the plan's defaults written and no selection stated: the proposal shows
+/// them as its open choice.
+fn defaults_digest() -> Value {
+    json!({
+        "source": digest(&[("hacker_news", HACKER_NEWS), ("techcrunch", TECHCRUNCH)], DIGEST),
+        "resolutions": [],
+        "summary": "Hacker News et TechCrunch, résumé dans ./news/digest.md"
+    })
+}
+
+/// The first two turns every accepting journey shares: the proposal with the plan open at once,
+/// then, once the person's line kept its default, the candidate with the values it bound.
 fn accepted_steps() -> Vec<Step> {
     vec![
-        call("ask", plan_offer(&tech())),
+        call("candidate_write", defaults_digest()),
+        call_saying(
+            "Je propose Hacker News et TechCrunch, résumé dans ./news/digest.md.",
+            "propose",
+            json!({"open": [plan_choice(&tech())]}),
+        ),
         call("candidate_write", accepted_digest()),
         call_saying(
             "Voici le workflow : Hacker News et TechCrunch, résumé dans ./news/digest.md.",
@@ -314,6 +363,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "save_and_run_scope_changed" => save_and_run_scope_changed(),
         "explanation_cited_as_consent" => explanation_cited_as_consent(),
         "steer_mid_run" => steer_mid_run(),
+        "steer_before_proposal" => steer_before_proposal(),
         "follow_up_after_run" => follow_up_after_run(),
         "stop_mid_request" => stop_mid_request(),
         "refused_offer" => refused_offer(),
@@ -326,6 +376,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "doubted_candidate" => doubted_candidate(),
         "trial_offset" => tried("raw", OFFSET_BROKEN, OFFSET_FIXED),
         "trial_kept_nothing" => tried("feed", RFC_822_BROKEN, RFC_822_FIXED),
+        "trial_assert" => trial_assert(),
         "trial_names_what_it_skips" => trial_names_what_it_skips(),
         "own_filter" => own_filter(),
         "two_edits" => two_edits(),
@@ -335,6 +386,10 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "thought_only" => thought_only(),
         "open_defaults" => open_defaults(),
         "open_pick_other" => open_pick_other(),
+        "consent_bytes_changed" => consent_bytes_changed(),
+        "change_then_run" => change_then_run(),
+        "default_not_asked" => default_not_asked(),
+        "answered_literal" => answered_literal(),
         other => panic!("unknown scenario {other}"),
     }
 }
@@ -374,7 +429,7 @@ fn accept_offer() -> Scenario {
         acts: vec![
             Act::Turn(REQUEST),
             Act::Submit(ACCEPT),
-            Act::AnswerQuestionOf(0, "oui"),
+            Act::SubmitAsShownAfter(0, "oui"),
         ],
         script: Script {
             agent: accepted_steps(),
@@ -496,7 +551,7 @@ fn already_given() -> Scenario {
         ],
         script: Script {
             agent: vec![
-                call("ask", plan_offer(&tech())),
+                call("ask", sources_question(&tech())),
                 call("candidate_write", typed),
                 call_saying(
                     "Voici le workflow : Hacker News, résumé dans ./news/digest.md.",
@@ -556,11 +611,11 @@ fn question_about_the_question() -> Scenario {
         ],
         script: Script {
             agent: vec![
-                call("ask", plan_offer(&tech())),
+                call("ask", sources_question(&tech())),
                 call_saying(
                     "La demande ne nomme ni les sources ni le fichier de sortie : voici ce que je propose.",
                     "ask",
-                    plan_offer(&tech()),
+                    sources_question(&tech()),
                 ),
             ],
             replies: Vec::new(),
@@ -627,8 +682,8 @@ fn stale_answers() -> Scenario {
         ],
         script: Script {
             agent: vec![
-                call("ask", plan_offer(&tech())),
-                call("ask", plan_offer(&le_monde)),
+                call("ask", sources_question(&tech())),
+                call("ask", sources_question(&le_monde)),
             ],
             replies: Vec::new(),
             picks: Vec::new(),
@@ -858,16 +913,17 @@ pub(crate) const TIMED_OUT: &str = "NIKA-INFER-001 provider call failed during `
 pub(crate) const FIX_AND_RUN: &str = "corrige et relance";
 pub(crate) const EMPTY: &str = "Il n'y a rien dedans, corrige et relance.";
 
-/// The question E1 asked: which source « Y Combinator » means, Hacker News recommended.
-fn yc_question() -> Value {
-    json!({"questions": [{"key": "yc_source", "role": "read_source",
+/// The choice E1 was asked: which source « Y Combinator » means, shown by the proposal with
+/// Hacker News its default.
+fn yc_choice() -> Value {
+    json!({"key": "yc_source", "role": "read_source",
         "question": "Pour « Y Combinator », quelle source d'actualités veux-tu ?",
         "options": [
             {"key": "hackernews", "label": "Hacker News", "recommended": true,
              "values": [{"role": "read_source", "value": HACKER_NEWS, "name": "Hacker News"}]},
             {"key": "yc_blog", "label": "Le blog YC",
              "values": [{"role": "read_source", "value": YC_BLOG, "name": "Le blog YC"}]}],
-        "free_text": true}]})
+        "free_text": true})
 }
 
 /// F2: the person refuses the plan; the author's claim that they accepted it is refused.
@@ -898,7 +954,7 @@ fn refused_offer() -> Scenario {
         acts: vec![Act::Turn(REQUEST), Act::Submit(REFUSE)],
         script: Script {
             agent: vec![
-                call("ask", plan_offer(&tech())),
+                call("ask", sources_question(&tech())),
                 call("candidate_write", accepted_digest()),
                 say("D'accord, je cherche autre chose."),
             ],
@@ -927,7 +983,12 @@ fn deflection_takes_the_recommendation() -> Scenario {
         acts: vec![Act::Turn(YC_REQUEST), Act::Submit(DEFLECT)],
         script: Script {
             agent: vec![
-                call("ask", yc_question()),
+                call("candidate_write", write.clone()),
+                call_saying(
+                    "Je prends Hacker News pour Y Combinator, et TechCrunch.",
+                    "propose",
+                    json!({"open": [yc_choice()]}),
+                ),
                 call("candidate_write", write),
                 call_saying(
                     "Je garde mon conseil : Hacker News et TechCrunch.",
@@ -1157,72 +1218,96 @@ fn complaint_after_success() -> Scenario {
         script: Script {
             agent,
             replies: Vec::new(),
-            picks: [accepted_pick(), consented(2)].concat(),
+            // « corrige et relance » asks for a change, then the run: the repair answers it.
+            picks: [
+                accepted_pick(),
+                consented(1),
+                vec![CHANGE_THEN_RUN_PICK.to_owned()],
+            ]
+            .concat(),
             verdicts: Vec::new(),
         },
     }
 }
-/// When every journey's pages were observed: 2026-10-10 08:00 UTC.
-pub(crate) const OBSERVED_AT: u64 = 1_791_619_200_000;
-/// The feed the trial journeys read.
-pub(crate) const STORIES: &str = "https://feed.example/stories";
-/// Its stories dated without an offset: the E1 shape `fromdateiso8601` refuses.
-const NO_OFFSET: &str = r#"{"hits": [{"title": "A", "created_at": "2026-10-10T08:00:00"}, {"title": "B", "created_at": "2026-10-10T09:30:00"}]}"#;
-/// Its stories as an RSS feed, whose `feed` mode gives each item an RFC 3339 `published`.
-const STORIES_RSS: &str = "<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><title>Stories</title><item><title>A</title><link>https://feed.example/a</link><pubDate>Sat, 10 Oct 2026 08:00:00 GMT</pubDate></item><item><title>B</title><link>https://feed.example/b</link><pubDate>Sat, 10 Oct 2026 09:30:00 GMT</pubDate></item></channel></rss>";
-/// The request of the trial journeys: the feed and the file, both named.
-pub(crate) const STORIES_REQUEST: &str =
-    "recupere https://feed.example/stories et garde les stories du jour dans ./news/today.json";
-/// The request that sends a summary of the feed to a hook.
-pub(crate) const SEND_REQUEST: &str = "recupere https://feed.example/stories, resume les et envoie le resume a https://hooks.example/team";
-/// A filter that refuses a date without an offset, and its repair.
-const OFFSET_BROKEN: &str = "fromjson | [.hits[] | select((.created_at | fromdateiso8601) >= 0)]";
-/// The repair keeps the civil date the request means, never inventing an offset.
-const OFFSET_FIXED: &str =
-    "fromjson | [.hits[] | select(.created_at | startswith(\"2026-10-10\"))]";
-/// A filter that reads RFC 822 dates out of an RFC 3339 feed (it keeps nothing), and its repair.
-const RFC_822_BROKEN: &str = "[.items[] | select(.published | test(\"^[A-Z][a-z]{2}, \"))]";
-const RFC_822_FIXED: &str = "[.items[] | select(.published | startswith(\"2026-10-10\"))]";
-/// What the author says once its repaired candidate is shown.
-pub(crate) const TRIED: &str = "Voici le workflow corrigé : il garde les stories du jour.";
-/// The words a proposal's trial opens with.
-pub(crate) const TRIED_ON: &str =
-    "tried on the pages observed at 08:00 UTC: https://feed.example/stories";
 
-/// The pages a scenario's trials observe, by address: every other page is none of the journey's.
-pub(crate) fn feeds(name: &str) -> Vec<(&'static str, &'static str)> {
-    match name {
-        "trial_offset" => vec![(STORIES, NO_OFFSET)],
-        "trial_kept_nothing" | "trial_names_what_it_skips" | "own_filter" | "two_edits" => {
-            vec![(STORIES, STORIES_RSS)]
-        }
-        _ => Vec::new(),
+/// A count over the lines that carry the person's customer code, a fact only they have.
+pub(crate) const CODE_REQUEST: &str = "compte les lignes de ./data/ventes.csv qui portent mon code client et ecris le total dans ./out/total.txt";
+/// The person's customer code, their answer.
+pub(crate) const CODE: &str = "C-1042";
+/// The sales, two lines with the person's code.
+const CODED_SALES: &str =
+    "date,client,montant\n2026-10-01,C-1042,12\n2026-10-02,C-7,30\n2026-10-03,C-1042,8\n";
+
+/// The person's customer code, asked: no default can stand for it.
+fn code_question() -> Value {
+    json!({"questions": [{"key": "client_code", "role": "value",
+        "question": "Quel est ton code client ?", "free_text": true}]})
+}
+
+/// The count of the lines that carry the answered code.
+fn coded_count() -> Value {
+    let filter = format!("map(select(contains(\\\"{CODE}\\\")))");
+    json!({"source": COUNT.replace("map(select(length > 0))", &filter), "resolutions": [],
+        "summary": "compte les lignes qui portent C-1042"})
+}
+
+/// The code asked, answered, bound by its question and written into the filter; the judge
+/// doubts the request unless it reads that answer.
+fn answered_literal() -> Scenario {
+    let bind = json!({"answered": [{"key": "client_code", "value": CODE, "message": "u2",
+        "excerpt": CODE}]});
+    Scenario {
+        files: vec![("data/ventes.csv", CODED_SALES)],
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(CODE_REQUEST), Act::Submit(CODE)],
+        script: Script {
+            agent: vec![
+                call("ask", code_question()),
+                call("ask", bind),
+                call("candidate_write", coded_count()),
+                call_saying(
+                    "Voici le workflow : il compte les lignes qui portent C-1042.",
+                    "propose",
+                    json!({}),
+                ),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: vec![
+                "unless-answered:client_code".to_owned(),
+                "unexercised".to_owned(),
+            ],
+        },
     }
 }
 
-/// The stories of the day the jq `filter` keeps of the page read in `mode`, written to
-/// `./news/today.json`.
-fn stories(mode: &str, filter: &str) -> Value {
-    let source = format!(
-        "nika: today-stories\npermits:\n  tools: [\"nika:fetch\", \"nika:jq\", \"nika:write\"]\n  net:\n    http: [\"feed.example\"]\n  fs:\n    write: [\"./news/today.json\"]\ntasks:\n  stories:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"{STORIES}\", mode: {mode} }}\n  today:\n    with: {{ stories: \"${{{{ tasks.stories.output }}}}\" }}\n    invoke:\n      tool: \"nika:jq\"\n      args: {{ input: \"${{{{ with.stories }}}}\", expression: '{filter}' }}\n  keep:\n    with: {{ kept: \"${{{{ tasks.today.output }}}}\" }}\n    invoke:\n      tool: \"nika:write\"\n      args: {{ path: \"./news/today.json\", content: \"${{{{ with.kept }}}}\" }}\n"
-    );
-    json!({"source": source, "resolutions": [],
-        "summary": "les stories du jour dans ./news/today.json"})
-}
+/// A correction steered while the author prepares its proposal: its own filter, no path.
+pub(crate) const STEER_EMPTY: &str = "non, compte aussi les lignes vides";
 
-/// A candidate whose `broken` filter fails its trial, then its `fixed` revision.
-fn tried(mode: &str, broken: &str, fixed: &str) -> Scenario {
+/// The count written, then, while the author's next request is held, the person steers its
+/// filter: the `propose` that answers is held back, and the author proposes the revision.
+fn steer_before_proposal() -> Scenario {
+    let count = json!({"source": COUNT, "resolutions": [],
+        "summary": "compte les lignes de ./data/ventes.csv"});
+    let moved = json!({"source": COUNT.replace("map(select(length > 0)) | ", ""),
+        "resolutions": [], "summary": "compte aussi les lignes vides"});
     Scenario {
-        files: Vec::new(),
+        files: vec![("data/ventes.csv", SALES)],
         history: false,
         preparing: false,
-        acts: vec![Act::Turn(STORIES_REQUEST)],
+        acts: vec![Act::While(COUNT_REQUEST, HELD, During::Steer(STEER_EMPTY))],
         script: Script {
             agent: vec![
-                call("candidate_write", stories(mode, broken)),
+                call("candidate_write", count),
+                hold(HELD),
                 call("propose", json!({})),
-                call("candidate_write", stories(mode, fixed)),
-                call_saying(TRIED, "propose", json!({})),
+                call("candidate_write", moved),
+                call_saying(
+                    "Voici le workflow : il compte aussi les lignes vides.",
+                    "propose",
+                    json!({}),
+                ),
             ],
             replies: Vec::new(),
             picks: Vec::new(),
@@ -1231,212 +1316,94 @@ fn tried(mode: &str, broken: &str, fixed: &str) -> Scenario {
     }
 }
 
-/// I4c item 1: the broken filter and the workflow's name changed by one `candidate_edit`.
-fn two_edits() -> Scenario {
-    let edits = json!({"edits": [
-        {"old": RFC_822_BROKEN, "new": RFC_822_FIXED},
-        {"old": "nika: today-stories", "new": "nika: stories-of-the-day"}]});
-    Scenario {
-        files: Vec::new(),
-        history: false,
-        preparing: false,
-        acts: vec![Act::Turn(STORIES_REQUEST)],
-        script: Script {
-            agent: vec![
-                call("candidate_write", stories("feed", RFC_822_BROKEN)),
-                call("candidate_edit", edits),
-                call_saying(TRIED, "propose", json!({})),
-            ],
-            replies: Vec::new(),
-            picks: Vec::new(),
-            verdicts: Vec::new(),
-        },
-    }
-}
-
-/// The author's own jq filter over the named feed, written and proposed with no selection for it.
-fn own_filter() -> Scenario {
-    Scenario {
-        files: Vec::new(),
-        history: false,
-        preparing: false,
-        acts: vec![Act::Turn(STORIES_REQUEST)],
-        script: Script {
-            agent: vec![
-                call("candidate_write", stories("feed", RFC_822_FIXED)),
-                call_saying(TRIED, "propose", json!({})),
-            ],
-            replies: Vec::new(),
-            picks: Vec::new(),
-            verdicts: Vec::new(),
-        },
-    }
-}
-
-/// The feed summarized by the session's model and sent to a hook: a trial runs neither.
-fn trial_names_what_it_skips() -> Scenario {
-    let source = format!(
-        "nika: stories-digest\nmodel: {SEAT}\npermits:\n  tools: [\"nika:fetch\"]\n  net:\n    http: [\"feed.example\", \"hooks.example\"]\ntasks:\n  stories:\n    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"{STORIES}\", mode: feed }} }}\n  summarize:\n    with: {{ stories: \"${{{{ tasks.stories.output }}}}\" }}\n    infer: {{ prompt: \"Résume ces stories : ${{{{ with.stories }}}}\", max_tokens: 400 }}\n  send:\n    with: {{ digest: \"${{{{ tasks.summarize.output }}}}\" }}\n    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://hooks.example/team\", method: POST, body: \"${{{{ with.digest }}}}\" }} }}\n"
+/// The author changes what the summary says, not what the workflow may do, then claims the
+/// person's consent to the revision they saw covers the new bytes.
+fn consent_bytes_changed() -> Scenario {
+    let source = digest(
+        &[("hacker_news", HACKER_NEWS), ("techcrunch", TECHCRUNCH)],
+        DIGEST,
     );
-    let write = json!({"source": source, "resolutions": [],
-        "summary": "le résumé des stories envoyé à https://hooks.example/team"});
-    Scenario {
-        files: Vec::new(),
-        history: false,
-        preparing: false,
-        acts: vec![Act::Turn(SEND_REQUEST)],
-        script: Script {
-            agent: vec![
-                call("candidate_write", write),
-                call_saying(
-                    "Voici le workflow : il résume les stories et envoie le résumé.",
-                    "propose",
-                    json!({}),
-                ),
-            ],
-            replies: Vec::new(),
-            picks: Vec::new(),
-            verdicts: Vec::new(),
-        },
-    }
-}
-/// The sales the counting journeys read.
-const SALES: &str = "date,montant\n2026-10-01,12\n2026-10-02,30\n";
-
-/// The counting workflow, written for the counting request.
-fn count_write() -> Value {
-    json!({"source": COUNT, "resolutions": [], "summary": "compte les lignes de ./data/ventes.csv"})
-}
-/// The same sales, changed after the proposal.
-pub(crate) const SALES_CHANGED: &str = "date,montant\n2026-10-01,12\n2026-10-02,30\n2026-10-03,7\n";
-/// What the author says once the counting workflow is shown.
-const COUNTED: &str = "Voici le workflow : il compte les lignes de ./data/ventes.csv.";
-
-/// The counting workflow proposed, then the person's yes; `changed` edits the sales between.
-fn reads_sales(changed: bool) -> Scenario {
-    let mut acts = vec![Act::Turn(COUNT_REQUEST)];
-    if changed {
-        acts.push(Act::Edit("data/ventes.csv", SALES_CHANGED));
-    }
-    acts.push(Act::Submit("oui"));
-    Scenario {
-        files: vec![("data/ventes.csv", SALES)],
-        history: false,
-        preparing: false,
-        acts,
-        script: Script {
-            agent: vec![
-                call("candidate_write", count_write()),
-                call_saying(COUNTED, "propose", json!({})),
-            ],
-            replies: Vec::new(),
-            picks: Vec::new(),
-            verdicts: Vec::new(),
-        },
-    }
-}
-
-/// The counting workflow written once over an output path no word of the person names, then
-/// over the one they named, then proposed: no `check` or `verify` round trip.
-fn write_carries_its_findings() -> Scenario {
-    let invented = json!({"source": COUNT.replace("./out/total.txt", "./out/other.txt"),
-        "resolutions": [], "summary": "compte les lignes de ./data/ventes.csv"});
-    Scenario {
-        files: vec![("data/ventes.csv", SALES)],
-        history: false,
-        preparing: false,
-        acts: vec![Act::Turn(COUNT_REQUEST)],
-        script: Script {
-            agent: vec![
-                call("candidate_write", invented),
-                call("candidate_write", count_write()),
-                call_saying(
-                    "Voici le workflow : il compte les lignes de ./data/ventes.csv.",
-                    "propose",
-                    json!({}),
-                ),
-            ],
-            replies: Vec::new(),
-            picks: Vec::new(),
-            verdicts: Vec::new(),
-        },
-    }
-}
-
-/// A French news request: two sites named, a Markdown summary in a folder left open.
-pub(crate) const NEWS_REQUEST: &str = "Récupère les dernières actualités tech de Y Combinator et TechCrunch, fais-moi un résumé et sauvegarde-le en Markdown dans un dossier.";
-/// What the author says with its first proposal.
-pub(crate) const SHOWN_WITH_DEFAULTS: &str = "Voici le workflow : Hacker News pour Y Combinator, TechCrunch, le résumé dans ./news/digest.md. Dis oui, ou choisis une autre option.";
-/// The other folder the author offers.
-pub(crate) const NOTES_DIGEST: &str = "./notes/digest.md";
-/// What the author says when the person picked the YC blog, without revising.
-pub(crate) const BLOG_NOTED: &str = "D'accord, le blog de Y Combinator.";
-
-/// The request's candidate and the choices its proposal shows with their defaults: the Y Combinator
-/// site, the folder, the run model.
-fn news_proposed() -> Vec<Step> {
-    let write = json!({
-        "source": digest(&[("hacker_news", HACKER_NEWS), ("techcrunch", TECHCRUNCH)], DIGEST),
-        "resolutions": [resolution(TECHCRUNCH, "named", "read_source", "u1", "TechCrunch")],
-        "summary": "Hacker News et TechCrunch, résumé dans ./news/digest.md",
+    let english = json!({
+        "source": source.replace("Résume en Markdown", "Résume en anglais et en Markdown"),
+        "resolutions": [
+            retained(HACKER_NEWS, "read_source", "u2"),
+            retained(TECHCRUNCH, "read_source", "u2"),
+            retained(DIGEST, "output_path", "u2"),
+        ],
+        "summary": "le résumé est en anglais"
     });
-    let open = json!({"open": [
-        {"key": "yc", "question": "Quel site de Y Combinator ?", "role": "read_source",
-         "options": [
-            {"key": "hn", "label": "Hacker News", "recommended": true,
-             "values": [{"role": "read_source", "value": HACKER_NEWS, "name": "Hacker News"}]},
-            {"key": "blog", "label": "Le blog YC",
-             "values": [{"role": "read_source", "value": YC_BLOG}]}]},
-        {"key": "folder", "question": "Dans quel dossier ?", "role": "output_path",
-         "options": [
-            {"key": "news", "label": "news/", "recommended": true,
-             "values": [{"role": "output_path", "value": DIGEST}]},
-            {"key": "notes", "label": "notes/",
-             "values": [{"role": "output_path", "value": NOTES_DIGEST}]}]},
-        {"key": "model", "question": "Quel modèle pour le résumé ?", "role": "run_model",
-         "options": [
-            {"key": "seat", "label": "Le modèle de cette Session", "recommended": true,
-             "values": [{"role": "run_model", "value": SEAT}]}]}]});
-    vec![
-        call("candidate_write", write),
-        call_saying(SHOWN_WITH_DEFAULTS, "propose", open),
-    ]
-}
-
-/// The news request proposed at once with its open choices; « oui » keeps the defaults.
-fn open_defaults() -> Scenario {
-    Scenario {
-        files: Vec::new(),
-        history: false,
-        preparing: false,
-        acts: vec![Act::Turn(NEWS_REQUEST), Act::Submit("oui")],
-        script: Script {
-            agent: news_proposed(),
-            replies: Vec::new(),
-            picks: Vec::new(),
-            verdicts: Vec::new(),
-        },
-    }
-}
-
-/// The YC blog picked at the proposal; the author does not revise, so « oui » waits.
-fn open_pick_other() -> Scenario {
-    let mut agent = news_proposed();
-    agent.push(say(BLOG_NOTED));
+    let mut agent = accepted_steps();
+    agent.extend([
+        call("candidate_write", english),
+        call_saying(
+            "Je l'enregistre et je le lance.",
+            "propose",
+            json!({"acts": ["save", "run"],
+                "authorized_by": {"message": "u3", "excerpt": SAVE_AND_RUN_WORDS}}),
+        ),
+    ]);
     Scenario {
         files: Vec::new(),
         history: false,
         preparing: false,
         acts: vec![
-            Act::Turn(NEWS_REQUEST),
-            Act::Submit("blog"),
-            Act::Submit("oui"),
+            Act::Turn(REQUEST),
+            Act::Submit(ACCEPT),
+            Act::Submit(SAVE_AND_RUN),
         ],
         script: Script {
             agent,
             replies: Vec::new(),
-            // The Session reads the line against the folder and the model: it picks neither.
-            picks: vec!["NONE".to_owned(), "NONE".to_owned()],
+            picks: [accepted_pick(), consented(1)].concat(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// The reading of words that ask for a change, then the save and the run.
+const CHANGE_THEN_RUN_PICK: &str = "change_then_save_and_run";
+/// A change asked with its save and run.
+pub(crate) const CHANGE_THEN_RUN: &str = "mets le resume en anglais puis enregistre-le et lance-le";
+
+/// The person asks for a change, then the save and the run: the author writes the revision in
+/// answer to that line and proposes it with the acts, citing the same line.
+fn change_then_run() -> Scenario {
+    let source = digest(
+        &[("hacker_news", HACKER_NEWS), ("techcrunch", TECHCRUNCH)],
+        DIGEST,
+    );
+    let english = json!({
+        "source": source.replace("Résume en Markdown", "Résume en anglais et en Markdown"),
+        "resolutions": [
+            retained(HACKER_NEWS, "read_source", "u2"),
+            retained(TECHCRUNCH, "read_source", "u2"),
+            retained(DIGEST, "output_path", "u2"),
+        ],
+        "summary": "le résumé est en anglais"
+    });
+    let mut agent = accepted_steps();
+    agent.extend([
+        call("candidate_write", english),
+        call_saying(
+            "Je l'ai mis en anglais ; je l'enregistre et je le lance.",
+            "propose",
+            json!({"acts": ["save", "run"],
+                "authorized_by": {"message": "u3", "excerpt": "puis enregistre-le et lance-le"}}),
+        ),
+    ]);
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![
+            Act::Turn(REQUEST),
+            Act::Submit(ACCEPT),
+            Act::Submit(CHANGE_THEN_RUN),
+        ],
+        script: Script {
+            agent,
+            replies: Vec::new(),
+            picks: [accepted_pick(), vec![CHANGE_THEN_RUN_PICK.to_owned()]].concat(),
             verdicts: Vec::new(),
         },
     }

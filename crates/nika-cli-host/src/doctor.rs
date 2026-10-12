@@ -868,6 +868,26 @@ fn provider_finding(p: &ProviderProbe) -> Finding {
     provider_finding_auth(p, crate::probe::key_auth_of(p))
 }
 
+/// A 403: the provider refused this key for the route (never ready), with its fix.
+fn key_refused(
+    p: &ProviderProbe,
+    access: nika_types::access::AccessClass,
+    locus_note: &str,
+) -> Finding {
+    Finding {
+        level: Level::Warn,
+        label: "provider".to_owned(),
+        detail: format!(
+            "{} — {access} · recognized · 403 · key refused for this route{locus_note}",
+            p.id
+        ),
+        fix: Some(format!(
+            "export {}=…  # a key this route accepts",
+            p.fix_var
+        )),
+    }
+}
+
 fn provider_finding_auth(p: &ProviderProbe, auth: KeyAuth) -> Finding {
     // An override endpoint off the vendor default is the exception that
     // gets the ink (P0-20): a proxy/LAN front is NAMED with its locus,
@@ -927,6 +947,7 @@ fn provider_finding_auth(p: &ProviderProbe, auth: KeyAuth) -> Finding {
             ),
             fix: Some(format!("export {}=…  # a live key", p.fix_var)),
         },
+        KeyAuth::Forbidden => key_refused(p, access, &locus_note),
         KeyAuth::PaymentRequired => Finding {
             level: Level::Warn,
             label: "provider".to_owned(),

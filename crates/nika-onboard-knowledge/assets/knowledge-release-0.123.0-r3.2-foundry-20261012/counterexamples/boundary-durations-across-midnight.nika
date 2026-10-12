@@ -1,0 +1,24 @@
+nika: boundary-durations-across-midnight
+const:
+  events_path: "./planning/events.json"
+permits:
+  fs: { read: ["./planning/events.json"] }
+  tools: ["nika:read", "nika:jq"]
+tasks:
+  events_read:
+    invoke: { tool: "nika:read", args: { path: "${{ const.events_path }}" } }
+  durations:
+    with: { raw: "${{ tasks.events_read.output }}" }
+    invoke:
+      tool: nika:jq
+      args:
+        input: { raw: "${{ with.raw }}" }
+        expression: |
+          # minutes since midnight of an HH:MM wall-clock time
+          def minutes: split(":") | (.[0] | tonumber) * 60 + (.[1] | tonumber);
+          [.raw | fromjson | .[] | (.start | minutes) as $begins | (.end | minutes) as $ends
+           | {id, planned_minutes: ($ends - $begins)}]
+          | {events: ., total_minutes: (map(.planned_minutes) | add // 0)}
+outputs:
+  events: ${{ tasks.durations.output.events }}
+  total_minutes: ${{ tasks.durations.output.total_minutes }}

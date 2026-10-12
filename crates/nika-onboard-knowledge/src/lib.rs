@@ -55,7 +55,9 @@ use std::path::{Path, PathBuf};
 
 use nika_compile::{AuthoringKnowledge, KnowledgeReference};
 use nika_compile_seats::foundry::entry::entry_text;
-use nika_compile_seats::foundry::recall::{block_metadata, interleave, rank, text_of, tokens};
+use nika_compile_seats::foundry::recall::{
+    block_metadata, interleave, rank, rank_by_stems, text_of, tokens,
+};
 use nika_compile_seats::foundry::release::r2;
 use nika_event::source_id::sha256_hex;
 use serde_json::{Value, json};
@@ -110,7 +112,9 @@ pub fn redact_host_paths(identity: &mut serde_json::Value) {
 /// block metadata, every repair principle of a code).
 /// v7 recalls by informative words: a row that shares only stopwords with the request (« the »,
 /// « with ») is not reached.
-pub const PACK_BUILDER: &str = "nika-compile/knowledge-door-v7";
+/// v8 ranks the families by their words' light French stems, in the request and in the rows
+/// (« importées » meets « importer »); the rows reached by their own text keep their words.
+pub const PACK_BUILDER: &str = "nika-compile/knowledge-door-v8";
 
 /// Why the knowledge door refused a source: a named source is never replaced by no knowledge.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -443,10 +447,10 @@ impl Snapshot {
         Ok(pack)
     }
 
-    /// 1 · the families by BM25 over their need, title and facets, every one the request shares an
-    /// informative word with.
+    /// 1 · the families by BM25 over the light French stems of their need, title and facets, every
+    /// one the request shares a stem with.
     fn recall_families(&self, intent: &str, composition: &mut Composition) -> Vec<(String, f64)> {
-        let families = rank(intent, self.rows("families"), |r| {
+        let families = rank_by_stems(intent, self.rows("families"), |r| {
             text_of(r, &["title", "need", "facets"])
         });
         let available = self.rows("families").len();
@@ -841,7 +845,7 @@ impl Composition {
                 "intent_tokens": tokens(intent).len(),
                 "retriever": "bm25",
                 "selector": {
-                    "families": "BM25 over title, need, facets and evidence",
+                    "families": "BM25 over the light French stems of title, need, facets and evidence",
                     "patterns": "each recalled family's patterns (RECOMMENDS a pack that CONTAINS them), then BM25 over title, purpose and notes, taken in turn",
                     "blocks": "for each of those sources, the blocks that REALIZE its patterns, the most covering first, taken in turn",
                     "examples": "BM25 over intent and title",

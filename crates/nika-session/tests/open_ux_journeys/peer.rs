@@ -261,6 +261,21 @@ impl Queues {
                     ["enum"];
                 let offers =
                     |key: &str| keys.as_array().is_some_and(|k| k.iter().any(|k| k == key));
+                // `unless-answered:<key>` doubts the whole request unless the judge's state
+                // carries the person's answer to <key>: a judge that reads an answered literal no
+                // word of the request names holds it as invented.
+                let unless = (self.verdicts.first())
+                    .and_then(|verdict| verdict.strip_prefix("unless-answered:"))
+                    .map(str::to_owned);
+                if let Some(key) = unless.filter(|_| offers("unfaithful")) {
+                    self.verdicts.remove(0);
+                    let choice = if answered(body, &key) {
+                        "faithful"
+                    } else {
+                        "unfaithful"
+                    };
+                    return text_completion(&json!({"choice": choice}).to_string());
+                }
                 // A scripted verdict answers the first question that offers it.
                 let scripted = (self.verdicts.first()).is_some_and(|verdict| offers(verdict));
                 let choice = if scripted {
@@ -422,4 +437,15 @@ fn respond(stream: &mut TcpStream, body: &str) {
     let _ = stream.write_all(head.as_bytes());
     let _ = stream.write_all(body.as_bytes());
     let _ = stream.flush();
+}
+
+/// Whether the judge's state (its user turn, `STATE:` before `OPTIONS:`) carries the person's
+/// answer to `key`.
+fn answered(body: &Value, key: &str) -> bool {
+    let said = (body["messages"].as_array().into_iter().flatten())
+        .filter(|message| message["role"] == "user")
+        .find_map(|message| message["content"].as_str()?.strip_prefix("STATE:\n"));
+    let state = (said.and_then(|said| said.split_once("\n\nOPTIONS:\n")))
+        .and_then(|(state, _)| serde_json::from_str::<Value>(state).ok());
+    state.is_some_and(|state| !state["answers"][key].is_null())
 }

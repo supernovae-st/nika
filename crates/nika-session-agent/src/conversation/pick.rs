@@ -12,6 +12,8 @@ use nika_session_change::decision::{is_no, is_save_and_run, is_yes};
 use nika_session_change::outcome::QuestionId;
 use nika_session_change::work::{AskedQuestion, Offer};
 
+use super::Acts;
+
 /// What one answer picks among the offers of the question it answers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -125,53 +127,69 @@ pub const NOT_READ_AS_CONSENT: &str = "The person's words you cited as consent w
 
 impl Pick {
     /// The question a cited line is read against when an author claims it consents to saving
-    /// (and running) the proposal shown: one offer per act the line may ask for, none
-    /// recommended.
+    /// (and running) a proposal: one offer per act the line may ask for, as shown or after a
+    /// change it asks for, none recommended.
     #[must_use]
     pub fn consent_question(id: QuestionId) -> AskedQuestion {
         let offers = vec![
-            Offer::new("save_and_run", "save it and run it once", false),
-            Offer::new("save", "save it only", false),
+            Offer::new("save_and_run", "save it as shown and run it once", false),
+            Offer::new("save", "save it as shown only", false),
+            Offer::new(
+                "change_then_save_and_run",
+                "change it as the line asks, then save it and run it once",
+                false,
+            ),
+            Offer::new(
+                "change_then_save",
+                "change it as the line asks, then save it only",
+                false,
+            ),
             Offer::new("neither", "neither: no consent to save or run", false),
         ];
-        let question = "Nika showed the person a workflow it proposes: should it save it, save \
-                        it and run it once, or neither?";
+        let question = "Nika showed the person a workflow it proposes: does their line ask to \
+                        save it as shown, to save it and run it once, to change it first and \
+                        then save it (or save and run it), or none of these?";
         AskedQuestion::new(id, "consent", question).with_options(offers, false, false)
     }
 
-    /// Whether this reading of a cited line consents to the acts claimed (`run`: saving and
-    /// running): only the offer covering them does; any other pick, an unread one included,
-    /// consents to nothing.
+    /// Whether this reading of a cited line consents to the acts claimed: an « as shown » offer
+    /// covers only the revision shown, a « change it, then » offer only a revision written in
+    /// answer to the line (`acts.revised`); either covers saving, and running when it says so.
+    /// Any other pick, an unread one included, consents to nothing.
     #[must_use]
-    pub fn consents(&self, run: bool) -> bool {
-        match self {
-            Self::Offer(key) if key == "save_and_run" => true,
-            Self::Offer(key) if key == "save" => !run,
+    pub fn consents(&self, acts: Acts) -> bool {
+        let Self::Offer(key) = self else {
+            return false;
+        };
+        match (key.as_str(), acts.revised) {
+            ("save_and_run", false) | ("change_then_save_and_run", true) => true,
+            ("save", false) | ("change_then_save", true) => !acts.run,
             _ => false,
         }
     }
 
     /// Whether the person's cited `line` consents to the acts claimed: a whole-line consent word
-    /// does (`save & run` covers both acts, `yes` saving only); any other line is read once
-    /// against [`Pick::consent_question`] (`read` answers its prompt, `None` when nothing could
-    /// read it), and only the offer covering the acts consents.
+    /// answers the proposal shown (`save & run` covers both acts, `yes` saving only), never a
+    /// revision of it; any other line is read once against [`Pick::consent_question`] (`read`
+    /// answers its prompt, `None` when nothing could read it), and only the offer covering the
+    /// acts consents ([`Pick::consents`]).
     #[must_use]
     pub fn consented(
         line: &str,
-        run: bool,
+        acts: Acts,
         id: QuestionId,
         read: impl FnOnce(&str) -> Option<String>,
     ) -> bool {
         if is_save_and_run(line) {
-            return true;
+            return !acts.revised;
         }
         if is_yes(line) {
-            return !run;
+            return !acts.revised && !acts.run;
         }
         let question = Self::consent_question(id);
         let pick = read(&Self::prompt(&question, line))
             .map_or(Self::Unread, |reply| Self::read(&reply, &question));
-        pick.consents(run)
+        pick.consents(acts)
     }
 }
 

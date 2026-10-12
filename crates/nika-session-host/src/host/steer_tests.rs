@@ -12,7 +12,7 @@ use std::path::Path;
 use nika_session::intelligence::{
     IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence, UserIntelligencePreference,
 };
-use nika_session::steer::{QueuedState, Steering};
+use nika_session::steer::{MAX_QUEUED, QueuedState, Steering};
 use nika_session::{ScriptedReasoner, SessionReasoner, SessionRuntime};
 use serde_json::Value;
 
@@ -156,6 +156,57 @@ fn a_line_while_the_conversation_reads_is_queued_with_its_identity_and_shown_bus
         2,
         "the lines no run read come back unsent"
     );
+    gate.release();
+    assert!(host.wait_result("c-1").is_some());
+}
+
+/// A line past the lines one run takes is refused `full` and never queued: the receipt says so
+/// and names the turn, the queue under way keeps the lines it took, and the line stays the
+/// person's to send once the run ended.
+#[test]
+fn a_line_past_the_lines_a_run_takes_is_refused_full_and_never_queued() {
+    let root = world();
+    let runtime = led(root.path());
+    let steering: Steering = runtime
+        .steering()
+        .expect("the host door keeps the conversation");
+    let host = start(runtime);
+    let gate = Gate::default();
+    held_turn(&host, &gate);
+    steering.open();
+    for k in 0..MAX_QUEUED {
+        let (command, said) = (format!("s-{k}"), format!("line {k}"));
+        let queued = logged(host.dispatch(line("steer", &command, &said)));
+        assert_eq!(
+            queued["receipt"], "queued",
+            "a line within the bound is queued"
+        );
+    }
+    let refused = logged(host.dispatch(line("steer", "s-full", "one more line")));
+    assert_eq!(refused["receipt"], "full");
+    assert_eq!(refused["target"], "c-1");
+    assert!(
+        refused["queued"].is_null(),
+        "a refused line is no queued line"
+    );
+    let again = logged(host.dispatch(line("steer", "s-full", "one more line")));
+    assert_eq!(
+        again["replayed"], true,
+        "the receipt replays; nothing is queued twice"
+    );
+    let busy = serde_json::to_value(host.snapshot()).expect("snapshot")["snapshot"]["busy"].clone();
+    let lines: Vec<&str> = (busy["queued"]
+        .as_array()
+        .expect("the queue under way")
+        .iter())
+    .filter_map(|q| q["line"].as_str())
+    .collect();
+    assert_eq!(lines.len(), MAX_QUEUED);
+    assert!(
+        !lines.contains(&"one more line"),
+        "the refused line is not in the queue"
+    );
+    steering.close();
     gate.release();
     assert!(host.wait_result("c-1").is_some());
 }

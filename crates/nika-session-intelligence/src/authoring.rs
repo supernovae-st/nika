@@ -649,9 +649,11 @@ pub fn compile_in_rehearsed(
 
 /// Verify the document the Session's conversation wrote for what the person `stated`, as a
 /// compile round of the same request would face it: the files the words name observed as for
-/// any compile, the same seat and decision model, the verdicts the conversation kept
-/// (`declined`: a judge is never asked again on bytes it rejected). READY only on the verdict;
-/// it never grants Save or Run.
+/// any compile, the same seat and decision model, the person's `answers` by question (JSON
+/// literals, as a compile round states them) and their request as first stated (`original`,
+/// when later lines answer or correct it), the verdicts the conversation kept (`declined`: a
+/// judge is never asked again on bytes it rejected). READY only on the verdict; it never grants
+/// Save or Run.
 ///
 /// # Errors
 /// As [`compile_in`], plus local admission refusal.
@@ -659,13 +661,19 @@ pub fn compile_in_rehearsed(
 pub fn verify_in(
     seat: &AuthoringSeat,
     context: &AuthoringContext,
-    stated: &str,
+    (stated, answers, original): (&str, &BTreeMap<String, String>, Option<&str>),
     (candidate, selections): (&str, (&[Resolution], &[Resolution])),
     declined: Vec<Value>,
     account: Option<&nika_providers::InferenceAdmission>,
     host: Option<&dyn Rehearse>,
 ) -> Result<CompileOutcome, AuthoringError> {
-    let request = CompileRequest::create(stated).with_declined(declined);
+    let mut request = CompileRequest::create(stated).with_declined(declined);
+    for (key, literal) in answers {
+        request = request.answer(key.as_str(), literal.as_str());
+    }
+    if let Some(original) = original {
+        request = request.with_original_intent(original);
+    }
     let attach = Attach::Carried(None, stated);
     let work = Work::Verify(candidate, selections);
     attached(seat, context, &request, attach, (account, host), work)

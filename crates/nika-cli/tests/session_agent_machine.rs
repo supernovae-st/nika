@@ -3,11 +3,12 @@
 
 //! `nika session --json`, the real binary, led by the selected intelligence (ADR-153): the
 //! person's kept local route is answered by a loopback model scripted to call the Session's tools.
-//! It asks one question whose recommended option carries concrete values, writes the candidate
-//! the accepted option binds, and proposes it; the snapshot types the question, the values'
-//! provenance and the proposal, and the person's `yes` through the consent door saves exactly
-//! the bytes shown, never a run. Keyless: an isolated HOME and an empty environment; the model is
-//! a double that scripts what an author decides, never what Nika checks.
+//! It asks which sources to read, offering concrete values and recommending none, writes the
+//! candidate the picked option binds (its output file derived from the request), and proposes
+//! it; the snapshot types the question, the values' provenance and the proposal, and the
+//! person's `yes` through the consent door saves exactly the bytes shown, never a run. Keyless:
+//! an isolated HOME and an empty environment; the model is a double that scripts what an author
+//! decides, never what Nika checks.
 #![allow(clippy::expect_used, clippy::panic, clippy::disallowed_types)]
 
 use std::io::{BufRead as _, BufReader, Lines, Read as _, Write as _};
@@ -21,7 +22,10 @@ use std::thread::JoinHandle;
 use serde_json::{Value, json};
 
 const REQUEST: &str = "fais moi un workflow tres simple qui recupere les news tech recentes, les resume et ecrit le resultat en markdown dans un dossier du projet";
-const ACCEPT: &str = "oui tout me va";
+/// The person's answer, a sentence the Session reads to pick the offer it names.
+const ACCEPT: &str = "prends mes sources du projet";
+/// The words of the request the output file is derived from.
+const FOLDER: &str = "ecrit le resultat en markdown dans un dossier du projet";
 /// A file of the project the offer names: the trial reads the project's copy, so nothing is
 /// fetched (a reserved name such as `.invalid` is no address a source may have).
 const SOURCE: &str = "./news/sources.md";
@@ -38,19 +42,20 @@ fn digest() -> String {
 
 /// What the scripted author does, one step per request that offers tools.
 fn script() -> Vec<Value> {
-    let offered = |value: &str, role: &str| {
-        json!({"value": value, "kind": "offered", "role": role, "message": "u2",
-            "question": "plan", "option": "recommended"})
-    };
+    let offered = json!({"value": SOURCE, "kind": "offered", "role": "read_source",
+        "message": "u2", "question": "sources", "option": "project"});
+    let derived = json!({"value": OUTPUT, "kind": "derived", "role": "output_path",
+        "message": "u1", "excerpt": FOLDER});
     vec![
         json!({"tool": "ask", "args": {"questions": [{
-            "key": "plan", "question": "Je lis ./news/sources.md et j'écris le résumé dans ./news/digest.md : ça te va ?",
-            "options": [{"key": "recommended", "label": "Oui", "recommended": true, "values": [
-                {"role": "read_source", "value": SOURCE, "name": "tes sources"},
-                {"role": "output_path", "value": OUTPUT}]}],
+            "key": "sources", "question": "Quelles actualités tech dois-je résumer ?",
+            "options": [
+                {"key": "project", "label": "Tes sources : ./news/sources.md", "values": [
+                    {"role": "read_source", "value": SOURCE, "name": "tes sources"}]},
+                {"key": "other", "label": "D'autres sources"}],
             "free_text": true}]}}),
         json!({"tool": "candidate_write", "args": {"source": digest(), "summary": "Tes sources, résumé dans ./news/digest.md",
-            "resolutions": [offered(SOURCE, "read_source"), offered(OUTPUT, "output_path")]}}),
+            "resolutions": [offered, derived]}}),
         json!({"tool": "propose", "args": {}}),
         json!({"say": "Voici le workflow : tes sources, résumé dans ./news/digest.md."}),
     ]
@@ -136,7 +141,7 @@ const APPROVALS: [&str; 5] = [
 ];
 
 /// What the loopback answers a request that offers no tools: the verifier's closed choice
-/// approved, the Session's reading of the accepting answer as the recommended offer; anything
+/// approved, the Session's reading of the person's answer as the project's sources; anything
 /// else gets a plain word.
 fn reply(body: &Value) -> Value {
     let keys = &body["response_format"]["json_schema"]["schema"]["properties"]["choice"]["enum"];
@@ -148,7 +153,7 @@ fn reply(body: &Value) -> Value {
     let last = (body["messages"].as_array().into_iter().flatten()).next_back();
     let reading = (last.and_then(|message| message["content"].as_str()))
         .is_some_and(|text| text.contains("One word only, nothing else."));
-    let content = if reading { "recommended" } else { "D'accord." };
+    let content = if reading { "project" } else { "D'accord." };
     json!({"role": "assistant", "content": content})
 }
 
@@ -273,8 +278,8 @@ impl Door {
     }
 }
 
-/// The request met with one question whose recommended option carries concrete values, under
-/// the identity a host answers; the author was offered the Session's tools.
+/// The request met with one question whose first option carries concrete values, none
+/// recommended, under the identity a host answers; the author was offered the Session's tools.
 fn assert_asked(asked: &Value, author: &Author) {
     assert_eq!(asked["outcomes"][0]["kind"], "question", "{asked}");
     let work = &asked["snapshot"]["work"];
@@ -287,6 +292,17 @@ fn assert_asked(asked: &Value, author: &Author) {
     assert_eq!(
         question["options"][0]["values"][0]["value"], SOURCE,
         "{asked}"
+    );
+    let options = question["options"].as_array().into_iter().flatten();
+    assert!(
+        options.clone().all(|option| option["recommended"] != true),
+        "{asked}"
+    );
+    assert!(
+        options
+            .flat_map(|option| option["values"].as_array().into_iter().flatten())
+            .all(|value| value["role"] != "output_path"),
+        "the output is never asked: {asked}"
     );
     let tools = author.bodies()[0]["tools"].clone();
     for name in ["ask", "candidate_write", "propose", "new_request"] {
@@ -339,18 +355,19 @@ fn assert_no_authority_door(author: &Author) {
     }
 }
 
-/// The accepted offer's candidate proposed with each value's provenance, its exact bytes shown
-/// and nothing written; returns where it lands.
+/// The picked offer's candidate proposed with each value's provenance (the source from the
+/// answer, the output from the request), its exact bytes shown and nothing written; returns
+/// where it lands.
 fn assert_proposed(proposed: &Value, author: &Author, project: &Path) -> String {
     assert_eq!(proposed["outcomes"][0]["kind"], "proposal", "{proposed}");
     let work = &proposed["snapshot"]["work"];
     assert_eq!(work["waiting"]["kind"], "consent", "{proposed}");
-    for value in [SOURCE, OUTPUT] {
+    for (value, kind, line) in [(SOURCE, "offered", "u2"), (OUTPUT, "derived", "u1")] {
         let bound = (work["bindings"].as_array().into_iter().flatten())
             .find(|b| b["value"] == value)
             .unwrap_or_else(|| panic!("{value} is bound: {work}"));
-        assert_eq!(bound["provenance"]["kind"], "offered", "{bound}");
-        assert_eq!(bound["provenance"]["message"], "u2", "{bound}");
+        assert_eq!(bound["provenance"]["kind"], kind, "{bound}");
+        assert_eq!(bound["provenance"]["message"], line, "{bound}");
     }
     let file = &work["candidate"]["files"][0];
     let path = file["path"].as_str().expect("path").to_owned();

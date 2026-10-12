@@ -1,0 +1,27 @@
+nika: boundary-zone-day-bounds
+const:
+  attachments_path: "./mail/attachments.json"
+  tz: "Europe/Paris"
+permits:
+  fs: { read: ["./mail/attachments.json"] }
+  tools: ["nika:read", "nika:jq"]
+tasks:
+  attachments_read:
+    invoke: { tool: "nika:read", args: { path: "${{ const.attachments_path }}" } }
+  folders:
+    with: { raw: "${{ tasks.attachments_read.output }}" }
+    invoke:
+      tool: nika:jq
+      args:
+        input: { raw: "${{ with.raw }}" }
+        expression: |
+          # each attachment under the year and month it was received, folders in first-seen order
+          (.raw | fromjson) as $attachments
+          | [$attachments[] | .received_at[0:4] + "/" + .received_at[5:7]] as $months
+          | reduce range(0; $attachments | length) as $i ({order: [], folders: {}};
+              $months[$i] as $f
+              | if .folders | has($f) then .folders[$f] += [$attachments[$i].id]
+                else .order += [$f] | .folders[$f] = [$attachments[$i].id] end)
+          | {folders: [.order[] as $f | {folder: $f, ids: .folders[$f]}]}
+outputs:
+  folders: ${{ tasks.folders.output.folders }}

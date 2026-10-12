@@ -2,9 +2,9 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The knowledge door's retrieval helpers, below the door that composes a pack from an admitted
-//! release (`nika_onboard::knowledge`): BM25 over a release's rows by their informative words, the
-//! relevance interleave of ranked sources, a row's text fields and a block row's metadata as a
-//! seat reads it. Pure over the admitted rows.
+//! release (`nika_onboard::knowledge`): BM25 over a release's rows by their informative words or
+//! by those words' light French stems, the relevance interleave of ranked sources, a row's text
+//! fields and a block row's metadata as a seat reads it. Pure over the admitted rows.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
@@ -132,6 +132,70 @@ fn informative(text: &str) -> Vec<String> {
     words
 }
 
+/// The [`informative`] words, each read by its [`stem`]. A stopword leaves before its stem is
+/// read, so it never becomes another word.
+fn stems(text: &str) -> Vec<String> {
+    (informative(text).into_iter())
+        .map(|word| stem(&word))
+        .collect()
+}
+
+/// The endings [`stem`] reads past, longest first: one goes only when the stem it leaves keeps at
+/// least so many letters.
+const ENDINGS: [(&str, usize); 27] = [
+    ("issements", 5),
+    ("issement", 5),
+    ("ements", 5),
+    ("ement", 5),
+    ("ations", 5),
+    ("ation", 5),
+    ("atrices", 5),
+    ("atrice", 5),
+    ("ateurs", 5),
+    ("ateur", 5),
+    ("euses", 4),
+    ("euse", 4),
+    ("eurs", 4),
+    ("eur", 4),
+    ("ites", 4),
+    ("ite", 4),
+    ("ives", 4),
+    ("ive", 4),
+    ("ifs", 4),
+    ("if", 4),
+    ("ees", 4),
+    ("ee", 4),
+    ("er", 4),
+    ("ir", 4),
+    ("re", 4),
+    ("es", 4),
+    ("e", 4),
+];
+
+/// A folded word's light French stem, so a request and a row meet whatever the inflection:
+/// « -aux » reads « -al », a final « s » or « x » goes (never « ss »), then one inflectional or
+/// common derivational ending, the stem keeping its first letters: « importées », « importer »
+/// and « import » all read « import ». English words take the same rules on both sides of a
+/// comparison, so « feeds » meets « feed ».
+pub(super) fn stem(word: &str) -> String {
+    let letters = word.chars().count();
+    if letters > 4
+        && let Some(base) = word.strip_suffix("aux")
+    {
+        return format!("{base}al");
+    }
+    let word = match word.strip_suffix(['s', 'x']) {
+        Some(single) if letters > 3 && !word.ends_with("ss") => single,
+        _ => word,
+    };
+    (ENDINGS.iter())
+        .find_map(|&(ending, keep)| {
+            (word.strip_suffix(ending)).filter(|rest| rest.chars().count() >= keep)
+        })
+        .unwrap_or(word)
+        .to_owned()
+}
+
 /// The text of a row's `fields`, joined by a blank: a text as written, any other value as JSON.
 #[must_use]
 pub fn text_of(row: &Value, fields: &[&str]) -> String {
@@ -148,19 +212,41 @@ pub fn text_of(row: &Value, fields: &[&str]) -> String {
 
 /// BM25 over the rows' informative words for one query (their [`tokens`] without the shared
 /// stopwords): every id that shares an informative word with it, best first.
-// The counts are rows and words of a snapshot (hundreds, thousands): far below the 2^53
-// where a usize stops converting exactly.
-#[allow(clippy::cast_precision_loss)]
 pub fn rank<'a>(
     query: &str,
     rows: impl IntoIterator<Item = &'a Value>,
     text: impl Fn(&Value) -> String,
 ) -> Vec<(String, f64)> {
+    bm25(query, rows, text, informative)
+}
+
+/// [`rank`] over the words' light French stems, so a request and a row meet whatever the
+/// inflection: « importées » meets « importer ». The knowledge door ranks its families so; the rows
+/// it reaches by their own text keep their words.
+pub fn rank_by_stems<'a>(
+    query: &str,
+    rows: impl IntoIterator<Item = &'a Value>,
+    text: impl Fn(&Value) -> String,
+) -> Vec<(String, f64)> {
+    bm25(query, rows, text, stems)
+}
+
+/// BM25 over the words `words` reads in the query and in each row: every id that shares one with
+/// the query, best first.
+// The counts are rows and words of a snapshot (hundreds, thousands): far below the 2^53
+// where a usize stops converting exactly.
+#[allow(clippy::cast_precision_loss)]
+fn bm25<'a>(
+    query: &str,
+    rows: impl IntoIterator<Item = &'a Value>,
+    text: impl Fn(&Value) -> String,
+    words: fn(&str) -> Vec<String>,
+) -> Vec<(String, f64)> {
     let docs: Vec<(String, Vec<String>)> = rows
         .into_iter()
         .filter_map(|r| {
             let id = r.get("id")?.as_str()?.to_owned();
-            Some((id, informative(&text(r))))
+            Some((id, words(&text(r))))
         })
         .collect();
     if docs.is_empty() {
@@ -174,7 +260,7 @@ pub fn rank<'a>(
             *df.entry(term.as_str()).or_insert(0.0) += 1.0;
         }
     }
-    let query: Vec<String> = informative(query);
+    let query: Vec<String> = words(query);
     let (k1, b) = (1.5_f64, 0.75_f64);
     let mut scored: Vec<(String, f64)> = docs
         .iter()

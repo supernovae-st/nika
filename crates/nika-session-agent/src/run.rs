@@ -412,6 +412,13 @@ impl<'a> Agent<'a> {
         if summary.trim().is_empty() {
             return Err(AgentError::Model("the summary came back empty".into()));
         }
+        // A summary cut at the output limit would silently replace what it folds: nothing is
+        // folded, the originals stay the context, and the turn says why.
+        if matches!(reply.stop, StopReason::MaxTokens) {
+            return Err(AgentError::Model(
+                "the summary was cut at the output limit: nothing was folded".into(),
+            ));
+        }
         let at = (self.now)();
         let store = &mut *self.store;
         let entry =
@@ -453,10 +460,14 @@ impl<'a> Agent<'a> {
             if self.cancel.is_cancelled() {
                 return self.stop(StopReach::BetweenSteps);
             }
-            match self.fit(model, events) {
-                Ok(()) => {}
+            let compacted = match self.fit(model, events) {
+                Ok(compacted) => compacted,
                 Err(AgentError::Stopped) => return self.stop(StopReach::RequestDropped),
                 Err(error) => return Outcome::Failed { error },
+            };
+            // A line steered while the context was compacted enters the request it prepared, once.
+            if compacted && let Err(error) = self.dequeue(QueueMode::Steer, events) {
+                return Outcome::Failed { error };
             }
             turn = turn.saturating_add(1);
             events(AgentEvent::TurnStart { turn });
@@ -521,19 +532,21 @@ impl<'a> Agent<'a> {
         }
     }
 
-    /// Compact before a request that would leave the reply less than the window's reserve.
+    /// Compact before a request that would leave the reply less than the window's reserve;
+    /// returns whether it compacted.
     fn fit(
         &mut self,
         model: &mut dyn Model,
         events: &mut dyn FnMut(AgentEvent),
-    ) -> Result<(), AgentError> {
+    ) -> Result<bool, AgentError> {
         let Some(window) = self.window else {
-            return Ok(());
+            return Ok(false);
         };
         if !window.exceeded_by(compact::estimate(self.tree)) {
-            return Ok(());
+            return Ok(false);
         }
-        self.compact(None, model, events).map(|_| ())
+        self.compact(None, model, events)
+            .map(|folded| folded.is_some())
     }
 
     /// The request the model reads now: the branch's context and the Session's tools.
@@ -588,7 +601,9 @@ impl<'a> Agent<'a> {
         let mut parked: Option<(String, String)> = None;
         let mut ahead: VecDeque<ToolReply> = VecDeque::new();
         for (k, (call, name, input)) in made.iter().enumerate() {
-            if parked.is_none() && self.cancel.is_cancelled() {
+            // A Stop ends the message before its next call; the calls of a batch already run
+            // (`ahead`) keep their replies.
+            if parked.is_none() && ahead.is_empty() && self.cancel.is_cancelled() {
                 break;
             }
             let skip = match &parked {

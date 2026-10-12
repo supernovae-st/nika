@@ -9,6 +9,7 @@
 //! loop calls them during a turn, an ACP agent reaches them over MCP on the tool server's
 //! thread, and between turns no call reaches a capability.
 
+use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use nika_compile_fidelity::fidelity::resolution::Resolution;
@@ -45,12 +46,13 @@ pub(crate) trait Desk: Send {
     fn knowledge(&mut self, query: Option<&str>, skill: Option<&str>) -> Result<String, String>;
     /// Document operations applied to `source`: the new source.
     fn compose(&mut self, source: &str, operations: &[Value]) -> Result<String, String>;
-    /// The candidate judged whole against what the person `stated`, with its selections
-    /// (stated by the author, verified by the Session): the digest of what it may do.
+    /// The candidate judged whole against what the person `stated`, their answers by question
+    /// and their request as first stated, with its selections (stated by the author, verified
+    /// by the Session): the digest of what it may do.
     fn verify(
         &mut self,
         source: &str,
-        stated: &str,
+        stated: (&str, &BTreeMap<String, String>, Option<&str>),
         selections: (&[Resolution], &[Resolution]),
     ) -> Result<String, String>;
     /// What Nika judges of `source` with no model: its check findings, then the laws over the
@@ -371,10 +373,12 @@ impl Parts<'_> {
         if !dropped.is_empty() {
             return Err(dropped.join("\n"));
         }
-        let stated = self.citations().stated(self.conversation.since());
+        let (citations, since) = (self.citations(), self.conversation.since());
+        let (stated, answers) = (citations.stated(since), self.conversation.answers());
         let (authored, mut host) = self.conversation.selections();
         host.extend(Conversation::defaults(open));
-        self.desk.verify(&source, &stated, (&authored, &host))
+        let said = (stated.as_str(), &answers, citations.first(since));
+        self.desk.verify(&source, said, (&authored, &host))
     }
 
     fn verify(&mut self) -> ToolReply {

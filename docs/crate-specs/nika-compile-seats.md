@@ -271,8 +271,10 @@ as an external consumer.
   lines a candidate kept, a lexical trace, never causal proof) and `traced` (the record on
   the outcome, `decision.knowledge_qualification`). `foundry::recall` is the knowledge door's
   text recall: BM25 over a release's rows by their informative words (their `tokens` without
-  the compiler's shared `STOPWORDS`), so a row that shares only « the » with a request is not
-  recalled. `foundry::document` applies the
+  the compiler's shared `STOPWORDS` and retrieval lexicon), so a row that shares only « the »
+  with a request is not recalled; `rank_by_stems` reads those words by their light French stem
+  (« importées » meets « importer »), which the door does for its families only.
+  `foundry::document` applies the
   operations a revision states over a complete base no semantic record binds (document edits
   made by the `nika-schema` document editor, each re-read and byte-proven: `set`, `insert`,
   `insert_text`, `push`, `remove`, `rename`; `compose` an admitted component, `rebind` one

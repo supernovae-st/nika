@@ -1,39 +1,39 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The current release, the r2 run contract, against its producer's record, written out here apart
-//! from the module's constants: the issued identity, the payload's exact inventory and kind counts,
-//! the same admission on disk and in memory, and a moved, added or foreign byte refused, typed.
-//! Its pins are tested beside the pin, in nika-onboard (`knowledge::pin`).
+//! The current release (r3 under the r2 run contract) against its producer's record, written out
+//! apart from the module's constants: the issued identity, the payload's exact inventory and kind
+//! counts, the same admission on disk and in memory, and a moved, added or foreign byte refused,
+//! typed. Its pins are tested beside the pin, in nika-onboard (`knowledge::pin`).
 
 use nika_compile_seats::foundry::release::r2;
 
 use super::*;
 
-const R2_SNAPSHOT: &str = "1be7d6101dab9eff54f35be07463f4e320607c4a837d04ef90519abaadf48166";
+const R2_SNAPSHOT: &str = "8d52df01a5105fc4661851218e89ca172c5799bf3016aedbce1574ecac096075";
 const R2_POLICY: &str = "policy-r2";
-const R2_POLICY_SHA256: &str = "53ef65a30e54220dfe76472f9fd766af2ef4817d4daea6bab38dab1337381cdf";
+const R2_POLICY_SHA256: &str = "fb070b7ac25066c86c3fe41d4253d25741565b8c494908658661b868d1ae5764";
 /// The payload as qualified: its files, their bytes, its rows by kind and its relations.
-const R2_FILES: usize = 137;
-const R2_BYTES: usize = 951_856;
+const R2_FILES: usize = 153;
+const R2_BYTES: usize = 1_297_216;
 const R2_ROWS: [(&str, usize); 15] = [
-    ("blocks", 37),
+    ("blocks", 41),
     ("callables", 29),
     ("capability_interfaces", 32),
     ("constructs", 30),
-    ("counterexamples", 38),
-    ("diagnostics", 106),
-    ("examples", 26),
-    ("families", 0),
-    ("intent_facets", 0),
-    ("patterns", 20),
-    ("pattern_packs", 1),
+    ("counterexamples", 44),
+    ("diagnostics", 108),
+    ("examples", 33),
+    ("families", 16),
+    ("intent_facets", 14),
+    ("patterns", 83),
+    ("pattern_packs", 23),
     ("repair_principles", 0),
     ("skeletons", 23),
-    ("skills", 16),
+    ("skills", 15),
     ("source_artifacts", 9),
 ];
-const R2_RELATIONS: usize = 1121;
+const R2_RELATIONS: usize = 2108;
 
 fn r2_identity() -> TrustedIdentity {
     TrustedIdentity::r2(R2_SNAPSHOT, R2_POLICY, R2_POLICY_SHA256).expect("issued")

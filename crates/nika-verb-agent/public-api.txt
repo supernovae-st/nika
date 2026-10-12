@@ -121,6 +121,10 @@ impl<T> nika_error::traits::AsAny for nika_verb_agent::config::RouterConfig wher
 pub fn nika_verb_agent::config::RouterConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_verb_agent::errors
 #[non_exhaustive] pub enum nika_verb_agent::errors::VerbAgentError
+pub nika_verb_agent::errors::VerbAgentError::FinalCut
+pub nika_verb_agent::errors::VerbAgentError::FinalCut::partial_output: alloc::string::String
+pub nika_verb_agent::errors::VerbAgentError::FinalCut::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_agent::errors::VerbAgentError::FinalCut::stop_reason: alloc::string::String
 pub nika_verb_agent::errors::VerbAgentError::Harness
 pub nika_verb_agent::errors::VerbAgentError::Harness::source: nika_kernel_ai::harness::HarnessError
 pub nika_verb_agent::errors::VerbAgentError::Harness::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
@@ -158,6 +162,9 @@ pub nika_verb_agent::errors::VerbAgentError::Stalled::repeats: u32
 pub nika_verb_agent::errors::VerbAgentError::Stalled::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::ToolDefs
 pub nika_verb_agent::errors::VerbAgentError::ToolDefs::source: nika_kernel_ai::tool_defs::ToolDefsError
+pub nika_verb_agent::errors::VerbAgentError::TurnInterrupted
+pub nika_verb_agent::errors::VerbAgentError::TurnInterrupted::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_agent::errors::VerbAgentError::TurnInterrupted::stop_reason: alloc::string::String
 pub nika_verb_agent::errors::VerbAgentError::UsageUnmetered
 pub nika_verb_agent::errors::VerbAgentError::UsageUnmetered::model: alloc::string::String
 pub nika_verb_agent::errors::VerbAgentError::UsageUnmetered::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
@@ -165,6 +172,7 @@ pub nika_verb_agent::errors::VerbAgentError::WhitelistViolation
 pub nika_verb_agent::errors::VerbAgentError::WhitelistViolation::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::WhitelistViolation::tool: alloc::string::String
 impl nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::details_of(err: &dyn nika_error::traits::NikaErrorCode) -> core::option::Option<serde_json::value::Value>
 pub fn nika_verb_agent::errors::VerbAgentError::spend(&self) -> core::option::Option<&nika_types::cost::SpendOnFailure>
 pub fn nika_verb_agent::errors::VerbAgentError::with_spend(self, incurred: nika_types::cost::SpendOnFailure) -> Self
 impl core::error::Error for nika_verb_agent::errors::VerbAgentError
@@ -740,6 +748,10 @@ pub fn nika_verb_agent::observe::ToolSource::as_any(&self) -> &(dyn core::any::A
 impl<T> outref::AsOut<T> for nika_verb_agent::observe::ToolSource where T: core::marker::Copy
 pub fn nika_verb_agent::observe::ToolSource::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub enum nika_verb_agent::VerbAgentError
+pub nika_verb_agent::VerbAgentError::FinalCut
+pub nika_verb_agent::VerbAgentError::FinalCut::partial_output: alloc::string::String
+pub nika_verb_agent::VerbAgentError::FinalCut::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_agent::VerbAgentError::FinalCut::stop_reason: alloc::string::String
 pub nika_verb_agent::VerbAgentError::Harness
 pub nika_verb_agent::VerbAgentError::Harness::source: nika_kernel_ai::harness::HarnessError
 pub nika_verb_agent::VerbAgentError::Harness::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
@@ -777,6 +789,9 @@ pub nika_verb_agent::VerbAgentError::Stalled::repeats: u32
 pub nika_verb_agent::VerbAgentError::Stalled::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::ToolDefs
 pub nika_verb_agent::VerbAgentError::ToolDefs::source: nika_kernel_ai::tool_defs::ToolDefsError
+pub nika_verb_agent::VerbAgentError::TurnInterrupted
+pub nika_verb_agent::VerbAgentError::TurnInterrupted::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_agent::VerbAgentError::TurnInterrupted::stop_reason: alloc::string::String
 pub nika_verb_agent::VerbAgentError::UsageUnmetered
 pub nika_verb_agent::VerbAgentError::UsageUnmetered::model: alloc::string::String
 pub nika_verb_agent::VerbAgentError::UsageUnmetered::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
@@ -784,6 +799,7 @@ pub nika_verb_agent::VerbAgentError::WhitelistViolation
 pub nika_verb_agent::VerbAgentError::WhitelistViolation::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::WhitelistViolation::tool: alloc::string::String
 impl nika_verb_agent::errors::VerbAgentError
+pub fn nika_verb_agent::errors::VerbAgentError::details_of(err: &dyn nika_error::traits::NikaErrorCode) -> core::option::Option<serde_json::value::Value>
 pub fn nika_verb_agent::errors::VerbAgentError::spend(&self) -> core::option::Option<&nika_types::cost::SpendOnFailure>
 pub fn nika_verb_agent::errors::VerbAgentError::with_spend(self, incurred: nika_types::cost::SpendOnFailure) -> Self
 impl core::error::Error for nika_verb_agent::errors::VerbAgentError

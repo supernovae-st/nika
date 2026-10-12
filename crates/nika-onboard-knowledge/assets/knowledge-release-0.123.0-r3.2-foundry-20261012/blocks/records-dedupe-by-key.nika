@@ -1,0 +1,55 @@
+nika: p63-records-dedupe-by-key
+const:
+  source_path: "./data/contacts.json"
+  key: ["email"]
+  match: "folded"
+  keep: "first"
+  output_path: "./out/contacts-unique.json"
+permits:
+  fs: { read: ["./data/contacts.json"], write: ["./out/contacts-unique.json"] }
+  tools: ["nika:read", "nika:write"]
+tasks:
+  dedupe_read:
+    invoke: { tool: "nika:read", args: { path: "${{ const.source_path }}" } }
+  dedupe_records:
+    with: { raw: "${{ tasks.dedupe_read.output }}" }
+    invoke:
+      tool: nika:jq
+      args:
+        input: { raw: "${{ with.raw }}", key: "${{ const.key }}", match: "${{ const.match }}", keep: "${{ const.keep }}" }
+        expression: |
+          # a key path walked through objects only: anything else on the way reads null, never an error
+          def at($path): reduce $path[] as $key (.; if type == "object" then .[$key] else null end);
+          # a comparable key: a text, ASCII letters folded and surrounding spaces removed when match is "folded",
+          # or a number (1 and 1.0 alike, "1" apart); anything else (absent, null, a boolean, a list, an object)
+          # matches nothing
+          def key($match):
+            if type == "string" then (if $match == "folded" then ascii_downcase | trim else . end)
+            elif type == "number" then . else null end;
+          .match as $match | .keep as $keep | .key as $kp
+          | if $match == "exact" or $match == "folded" then . else error("match is exact or folded, not \($match)") end
+          | if $keep == "first" or $keep == "last" then . else error("keep is first or last, not \($keep)") end
+          | (.raw | fromjson | if type == "array" then . else error("the source document is not a JSON array of records") end) as $records
+          | [range(0; $records | length) as $i
+             | {i: $i, k: ($records[$i] | if type == "object" then at($kp) | key($match) else null end)}] as $keyed
+          # each key with its positions, keys in order of first appearance
+          | (reduce ($keyed[] | select(.k != null)) as $e ([];
+              (first(range(0; length) as $g | select(.[$g].key == $e.k) | $g) // null) as $g
+              | if $g == null then . + [{key: $e.k, positions: [$e.i]}] else .[$g].positions += [$e.i] end)) as $keys
+          # the occurrence kept for each key is its first or its last; a record without a comparable key is kept
+          | [$keys[] | .positions | if $keep == "first" then .[0] else .[length - 1] end] as $chosen
+          | [$keyed[] | .i as $i | select(.k == null or ($chosen | any(. == $i))) | $i] as $kept
+          | {
+              records: [$kept[] as $i | $records[$i]],
+              report: {
+                count: ($records | length), kept: ($kept | length), removed: (($records | length) - ($kept | length)),
+                unkeyed: ([$keyed[] | select(.k == null)] | length),
+                duplicates: [$keys[] | select((.positions | length) > 1) | {key, positions}]
+              }
+            }
+  dedupe_write:
+    with: { records: "${{ tasks.dedupe_records.output.records }}" }
+    invoke: { tool: "nika:write", args: { path: "${{ const.output_path }}", content: "${{ with.records }}" } }
+outputs:
+  records: ${{ tasks.dedupe_records.output.records }}
+  report: ${{ tasks.dedupe_records.output.report }}

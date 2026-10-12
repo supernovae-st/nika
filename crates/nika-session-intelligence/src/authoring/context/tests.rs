@@ -479,7 +479,7 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
     assert_eq!(record["identity"]["source"], "embedded");
     assert_eq!(
         record["identity"]["snapshot_sha256"],
-        "1be7d6101dab9eff54f35be07463f4e320607c4a837d04ef90519abaadf48166"
+        "8d52df01a5105fc4661851218e89ca172c5799bf3016aedbce1574ecac096075"
     );
     assert!(record["identity"].get("dir").is_none());
     assert_eq!(record["presented"], true);

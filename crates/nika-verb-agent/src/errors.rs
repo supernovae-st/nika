@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `VerbAgentError` — the `agent` verb error surface (NIKA-460..468).
+//! `VerbAgentError` — the `agent` verb error surface (NIKA-460..470).
 //!
 //! Spec mapping (`docs/crate-specs/nika-verb-agent.md` §4): budgets are
 //! FAILURES (460 turns · 461 tokens · spec `NIKA-AGENT-001/002`), the
@@ -14,11 +14,12 @@
 //! stall verdict (467 · ADR-096), and the security-boundary refusal
 //! (468 · a whitelisted tool denied by `permits:`/the SSRF floor mid-loop
 //! — the wire speaks the boundary's own `NIKA-SEC-004`/`NIKA-SEC-005`,
-//! never fed back to the model).
+//! never fed back to the model), and the final message cut at the output
+//! cap (470 · spec `NIKA-AGENT-006`).
 
 use nika_error::codes::{
     NIKA_460, NIKA_461, NIKA_462, NIKA_463, NIKA_464, NIKA_465, NIKA_466, NIKA_467, NIKA_468,
-    NIKA_469, NIKA_1806, NikaCode,
+    NIKA_469, NIKA_470, NIKA_1806, NikaCode,
 };
 use nika_error::traits::NikaErrorCode;
 use nika_kernel::ai::provider::ProviderError;
@@ -69,6 +70,42 @@ pub enum VerbAgentError {
         total_tokens: u64,
         /// The last assistant text (the spec's `partial_output`).
         partial_output: String,
+        /// The spend the loop had already incurred.
+        spend: Box<SpendOnFailure>,
+    },
+
+    /// The final message (no tool calls) stopped at the output cap: cut, not a completion
+    /// (NIKA-470 · wire `NIKA-AGENT-006` · the rule of the `infer` verb's
+    /// `NIKA-INFER-005`). An agent turn runs under the provider's own cap; the cut text
+    /// rides `partial_output` for an `on_error:` recovery.
+    #[error(
+        "agent's final message was cut at the provider's output cap (stop reason \
+         `{stop_reason}`) — ask for a shorter final message, or recover the partial \
+         message through on_error:"
+    )]
+    #[diagnostic(code(nika::verb::agent_final_cut))]
+    FinalCut {
+        /// The cut final message (the spec's `partial_output`).
+        partial_output: String,
+        /// The provider's own word for the stop (`max_tokens` · `length` · `MAX_TOKENS`).
+        stop_reason: String,
+        /// The spend the loop had already incurred.
+        spend: Box<SpendOnFailure>,
+    },
+
+    /// The provider interrupted a turn's generation on its side (`StopReason::Interrupted` ·
+    /// NIKA-463 · wire `NIKA-INFER-001`, the code of every mid-loop provider failure): the
+    /// message is incomplete, so none of it is acted on (no call is dispatched) and it carries
+    /// no `partial_output`. The provider can serve the next call: the author's `retry:` decides.
+    #[error(
+        "agent turn was interrupted by the provider (stop reason `{stop_reason}`): the message \
+         is incomplete; the task's retry: decides"
+    )]
+    #[diagnostic(code(nika::verb::agent_turn_interrupted))]
+    TurnInterrupted {
+        /// The provider's own word for the stop (`insufficient_system_resource` · `aborted` ·
+        /// `error` · `pause_turn`).
+        stop_reason: String,
         /// The spend the loop had already incurred.
         spend: Box<SpendOnFailure>,
     },
@@ -238,6 +275,8 @@ impl VerbAgentError {
         match &mut self {
             Self::MaxTurns { spend, .. }
             | Self::MaxTokens { spend, .. }
+            | Self::FinalCut { spend, .. }
+            | Self::TurnInterrupted { spend, .. }
             | Self::UsageUnmetered { spend, .. }
             | Self::WhitelistViolation { spend, .. }
             | Self::Inference { spend, .. }
@@ -259,6 +298,8 @@ impl VerbAgentError {
         match self {
             Self::MaxTurns { spend, .. }
             | Self::MaxTokens { spend, .. }
+            | Self::FinalCut { spend, .. }
+            | Self::TurnInterrupted { spend, .. }
             | Self::UsageUnmetered { spend, .. }
             | Self::WhitelistViolation { spend, .. }
             | Self::Inference { spend, .. }
@@ -270,6 +311,23 @@ impl VerbAgentError {
             Self::InvalidParam { .. } | Self::ToolDefs { .. } => None,
         }
     }
+
+    /// The record's `details` (spec 05) of a cut final message: the text received and the
+    /// provider's stop reason. Every other failure, and any other error, carries none.
+    #[must_use]
+    pub fn details_of(err: &dyn NikaErrorCode) -> Option<serde_json::Value> {
+        match err.as_any().downcast_ref::<Self>()? {
+            Self::FinalCut {
+                partial_output,
+                stop_reason,
+                ..
+            } => Some(serde_json::json!({
+                "partial_output": partial_output,
+                "stop_reason": stop_reason,
+            })),
+            _ => None,
+        }
+    }
 }
 
 impl NikaErrorCode for VerbAgentError {
@@ -277,8 +335,9 @@ impl NikaErrorCode for VerbAgentError {
         match self {
             Self::MaxTurns { .. } => NIKA_460,
             Self::MaxTokens { .. } => NIKA_461,
+            Self::FinalCut { .. } => NIKA_470,
             Self::WhitelistViolation { .. } => NIKA_462,
-            Self::Inference { .. } => NIKA_463,
+            Self::Inference { .. } | Self::TurnInterrupted { .. } => NIKA_463,
             Self::SchemaValidation { .. } => NIKA_464,
             Self::InvalidParam { .. } => NIKA_465,
             Self::ToolDefs { .. } => NIKA_466,
@@ -312,9 +371,10 @@ impl NikaErrorCode for VerbAgentError {
         match self {
             Self::MaxTurns { .. } => "NIKA-AGENT-001".to_owned(),
             Self::MaxTokens { .. } => "NIKA-AGENT-002".to_owned(),
+            Self::FinalCut { .. } => "NIKA-AGENT-006".to_owned(),
             Self::UsageUnmetered { .. } => "NIKA-AGENT-005".to_owned(),
             Self::WhitelistViolation { .. } => "NIKA-SEC-002".to_owned(),
-            Self::Inference { .. } => "NIKA-INFER-001".to_owned(),
+            Self::Inference { .. } | Self::TurnInterrupted { .. } => "NIKA-INFER-001".to_owned(),
             Self::SchemaValidation { .. } => "NIKA-INFER-002".to_owned(),
             Self::SecurityBoundary { code, .. } => code.clone(),
             Self::InvalidParam { .. }
@@ -333,6 +393,7 @@ impl NikaErrorCode for VerbAgentError {
             // blind rerun replays the proof.
             Self::MaxTurns { .. }
             | Self::MaxTokens { .. }
+            | Self::FinalCut { .. }
             | Self::WhitelistViolation { .. }
             | Self::SchemaValidation { .. }
             | Self::InvalidParam { .. }
@@ -340,6 +401,8 @@ impl NikaErrorCode for VerbAgentError {
             | Self::SecurityBoundary { .. }
             | Self::UsageUnmetered { .. }
             | Self::HarnessGate { .. } => false,
+            // The provider interrupted the turn on its side: the next call can be served.
+            Self::TurnInterrupted { .. } => true,
             // Mid-loop provider failures inherit the provider's verdict
             // (rate limits ARE transient).
             Self::Inference { source, .. } => source.is_transient(),

@@ -31,6 +31,7 @@ mod edit;
 mod pick;
 
 use self::answer::Answered;
+use self::choices::NotAsked;
 pub use self::edit::edited;
 pub use self::pick::{NOT_A_CONSENT, NOT_READ_AS_CONSENT, Pick};
 
@@ -78,6 +79,12 @@ impl Citations {
         self.last
     }
 
+    /// Whether what was written at the tree line `written` answers the person's line at `line`:
+    /// written after it, with no other line of theirs between.
+    fn written_in_answer(&self, line: u64, written: u64) -> bool {
+        line < written && !(self.lines.values()).any(|l| l.at > line && l.at < written)
+    }
+
     /// Every word the person wrote from the tree line `from` on, in order: the request a
     /// candidate answers, as the laws read it.
     #[must_use]
@@ -86,6 +93,17 @@ impl Citations {
         lines.sort_by_key(|line| line.at);
         let texts: Vec<&str> = lines.iter().map(|line| line.text.as_str()).collect();
         texts.join("\n")
+    }
+
+    /// The person's first line from the tree line `from` on, when later lines follow it: the
+    /// request as first stated, before the words that answer or correct it.
+    #[must_use]
+    pub fn first(&self, from: u64) -> Option<&str> {
+        let mut lines: Vec<&Cited> = self.lines.values().filter(|l| l.at >= from).collect();
+        lines.sort_by_key(|line| line.at);
+        (lines.first())
+            .filter(|_| lines.len() > 1)
+            .map(|line| line.text.as_str())
     }
 }
 
@@ -122,6 +140,9 @@ pub struct Acts {
     pub save: bool,
     /// Run it after saving, through the run's admission.
     pub run: bool,
+    /// The candidate is a revision of the proposal the person's words answered, written in answer
+    /// to those words: only words that ask for a change first cover it.
+    pub revised: bool,
 }
 
 /// The conversation's state.
@@ -138,6 +159,8 @@ pub struct Conversation {
     asked_at: BTreeMap<String, u64>,
     answered: BTreeMap<String, Answered>,
     shown: Option<Shown>,
+    /// The tree line the current candidate was written at.
+    written_at: u64,
     /// What the last proposal changed in the values the one before it bound.
     changed: Vec<String>,
     /// The values the last proposal the person saw bound, as it bound them.
@@ -305,8 +328,10 @@ impl Conversation {
     }
 
     /// `ask`: bind the answers the author read in the person's line, refuse what the person
-    /// already settled (with its value, to the author), ask the rest together. `mint` gives a
-    /// question its identity from its context. The turn ends when something is asked.
+    /// already settled (with its value, to the author) and what a default can stand for (a
+    /// recommended option, an output in the project), each with its reason, and ask the rest
+    /// together. `mint` gives a question its identity from its context. The turn ends when
+    /// something is asked.
     pub fn ask(
         &mut self,
         citations: &Citations,
@@ -326,7 +351,11 @@ impl Conversation {
         let questions = args["questions"].as_array().into_iter().flatten();
         for (ordinal, question) in questions.enumerate() {
             match self.question(question, citations, (call, ordinal), mint, facts) {
-                Ok(question) => asked.push(question),
+                // A default can stand for it: the proposal shows it in `open` instead.
+                Ok(one) => match choices::defaulted(&one, &question["reopens"], citations) {
+                    Some(not) => refused.push(not.refusal(&one.key)),
+                    None => asked.push(one),
+                },
                 Err(settled) => refused.push(settled),
             }
         }
@@ -389,7 +418,8 @@ impl Conversation {
         if let Some(settled) = settled
             && !reopened(citations, settled, &question["reopens"])
         {
-            return Err(json!({"key": key, "why": "already settled by the person",
+            return Err(json!({"key": key, "reason": NotAsked::Settled.word(),
+                "why": "already settled by the person",
                 "settled": {"value": settled.value, "message": settled.provenance.message}}));
         }
         if let Some(message) = self.left_to_author(key) {
@@ -397,7 +427,9 @@ impl Conversation {
                 "the person left it to you: choose it, bind it as {} citing their words, and say what you chose",
                 chosen_as(role)
             );
-            return Err(json!({"key": key, "why": why, "delegated": {"message": message}}));
+            let reason = NotAsked::Delegated.word();
+            let delegated = json!({"message": message});
+            return Err(json!({"key": key, "reason": reason, "why": why, "delegated": delegated}));
         }
         let text = question["question"].as_str().unwrap_or_default();
         let context = format!(
@@ -438,7 +470,7 @@ impl Conversation {
             (self.bindings.iter()).any(|b| b.role == v.role && same_literal(&b.value, &v.value))
         };
         if offered.peek().is_some() && offered.all(bound) {
-            return Err(json!({"key": key,
+            return Err(json!({"key": key, "reason": NotAsked::Bound.word(),
                 "why": "every value it offers is already bound: nothing is left to ask"}));
         }
         let after = (question["after"].as_array().into_iter().flatten())
@@ -535,6 +567,7 @@ impl Conversation {
             }
         }
         let number = self.candidate.as_ref().map_or(1, |c| c.number + 1);
+        self.written_at = citations.last();
         self.candidate = Some(Candidate {
             number,
             source,
@@ -729,6 +762,26 @@ impl Conversation {
         (authored, host)
     }
 
+    /// The person's answers by question, as a compile round states them to its judges: each
+    /// question's bound values (typed, picked, left to Nika, or kept by a consent) as one JSON
+    /// literal, a string or an array of them. A default the person never accepted is none.
+    #[must_use]
+    pub fn answers(&self) -> BTreeMap<String, String> {
+        let mut by_key: BTreeMap<String, Vec<&str>> = BTreeMap::new();
+        for binding in &self.bindings {
+            if let Some(key) = &binding.key {
+                let values = by_key.entry(key.clone()).or_default();
+                values.push(binding.value.as_str());
+            }
+        }
+        (by_key.into_iter())
+            .map(|(key, values)| match values.as_slice() {
+                [one] => (key, json!(one).to_string()),
+                _ => (key, json!(values).to_string()),
+            })
+            .collect()
+    }
+
     /// `propose`: the candidate is shown to the person, with the choices `open` shows beside it
     /// with their defaults ([`Conversation::open_choices`]). With acts, the person's own line
     /// authorizes them only when it was written after this exact revision's proposal was shown
@@ -754,6 +807,7 @@ impl Conversation {
         let wanted = Acts {
             save: acts.contains(&"save") || acts.contains(&"run"),
             run: acts.contains(&"run"),
+            revised: false,
         };
         self.changed = self.changes_since_seen();
         let authorized = if wanted.save && !open.is_empty() {
@@ -767,13 +821,19 @@ impl Conversation {
                 // Only the person's words written after the proposal shown answer it: those that
                 // ran a failed revision authorize nothing, whatever the candidate does now.
                 (Some(line), Some(shown)) if in_line(line, excerpt, None) && line.at > shown.at => {
-                    if shown.scope == scope {
-                        Ok(Some(wanted))
-                    } else {
+                    let revised = shown.number != number;
+                    if shown.scope != scope {
                         Err(format!(
                             "the person's {message} answered the proposal of revision {}; this candidate may do something else, so it waits for their consent",
                             shown.number
                         ))
+                    } else if revised && !citations.written_in_answer(line.at, self.written_at) {
+                        Err(format!(
+                            "the person's {message} answered the proposal of revision {}; revision {number} was not written in answer to it, so it waits for their consent",
+                            shown.number
+                        ))
+                    } else {
+                        Ok(Some(Acts { revised, ..wanted }))
                     }
                 }
                 _ => Err(format!(

@@ -53,6 +53,31 @@ fn reply(answers: &str) -> Reply {
     )
 }
 
+/// A settled question keeps its options in the question's order and, beside them, the order the
+/// request carried them in (`options_sent`) and the distribution the seat answered.
+#[test]
+fn a_settled_question_keeps_the_wire_order_and_the_distribution() {
+    let answer = r#""order": {"type": "choice", "choice": "zeta", "confidence": 0.4,
+        "probabilities": {"alpha": 0.3, "none": 0.0, "zeta": 0.7}}"#;
+    let peer = Peer::start(vec![reply(answer)]);
+    let setup = setup(&peer);
+    let seat = setup.consult(Ok(()));
+    let options = vec![
+        ChoiceOption::new("zeta", "the last letter"),
+        ChoiceOption::new("alpha", "the first letter"),
+    ];
+    let question = ChoiceQuestion::new("order", "Pick one.", json!({"request": "r"}), options);
+    let chosen = block_on(seat.choose(&question)).expect("answered");
+    assert_eq!(chosen.choice, "zeta");
+    let attempt = &setup.observations()[0]["attempts"][0];
+    assert_eq!(attempt["options"], json!(["zeta", "alpha", "none"]));
+    assert_eq!(attempt["options_sent"], json!(["alpha", "none", "zeta"]));
+    assert_eq!(
+        attempt["probabilities"],
+        json!({"alpha": 0.3, "none": 0.0, "zeta": 0.7})
+    );
+}
+
 fn choice(id: &str, key: &str) -> String {
     format!(r#""{id}": {{"type": "choice", "choice": "{key}", "confidence": 0.7}}"#)
 }

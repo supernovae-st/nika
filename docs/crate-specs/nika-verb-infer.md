@@ -117,8 +117,15 @@ Per Invariant #25: `VerbInferError` is `#[non_exhaustive]` from day one.
 | NIKA_433 | `ModelResolution` (registry resolve failed) | NIKA-INFER-001 family | `false` |
 | NIKA_434 | `UsageUnmetered` (priced model · no usage block) | NIKA-INFER-003 | `false` |
 | NIKA_435 | `EmptyAnswer` (blank visible answer WITH token spend) | NIKA-INFER-004 | `false` |
+| NIKA_436 | `AnswerCut` (visible answer the provider stopped at the output cap) | NIKA-INFER-005 | `false` |
 
-NIKA_436–439 stay reserved for the verb's future (vision staging · streaming
+`AnswerCut` fires before any `schema:` validation and without a repair: a
+cut answer is never the output, and a re-ask under the same cap would be cut
+again. The record's `details` carry `partial_output` and the provider's
+`stop_reason`; the message says whether the task set `max_tokens` or the
+provider default applied. A blank cut answer stays `EmptyAnswer`.
+
+NIKA_437–439 stay reserved for the verb's future (vision staging · streaming
 passthrough). Range registered in the kernel range-registry hub at admission.
 
 ## §3 · Scope fences (what this crate is NOT)

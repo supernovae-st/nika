@@ -1,3 +1,4 @@
+mod cut;
 mod reasoning;
 mod refusal;
 mod transport;
@@ -647,7 +648,8 @@ async fn retried_structured_task_bills_every_round_trip() {
 /// A structured reply cut off at the token limit reports the TRUNCATION
 /// as the cause, not a bare schema mismatch (review lens 5 · finding #5).
 /// `finish_reason: "length"` → `StopReason::MaxTokens` on the openai
-/// adapter; the terminal error must name the real fix.
+/// adapter: a cut answer (NIKA-INFER-005), refused before any validation,
+/// whose error names the real fix.
 #[tokio::test]
 async fn truncated_structured_reply_names_the_token_limit() {
     // Valid JSON, but the required `age` never arrived — the reply was
@@ -667,18 +669,20 @@ async fn truncated_structured_reply_names_the_token_limit() {
         .run(input)
         .await
         .expect_err("a truncated reply that misses the schema must error");
+    assert!(matches!(err, VerbInferError::AnswerCut { .. }), "{err:?}");
     let msg = err.to_string();
     assert!(
-        msg.contains("token limit"),
-        "the cause must be named: {msg}"
+        msg.contains("cut at the output cap") && msg.contains("raise max_tokens"),
+        "the cause and its fix must be named: {msg}"
     );
 }
 
 /// The truncation FAST-FAIL: a reply cut at `max_tokens` is terminal on
-/// FIRST sight even with retry budget remaining — the identical request
-/// would cut again (same budget · longer prompt), so every re-ask is a
-/// paid call spent on a failure class whose remedy is the budget, not
-/// the schema. The scripted SECOND reply must never be requested.
+/// FIRST sight even with retry budget remaining — a cut answer is never
+/// validated nor repaired (NIKA-INFER-005): the identical request would cut
+/// again (same budget · longer prompt), so every re-ask is a paid call spent
+/// on a failure class whose remedy is the budget, not the schema. The
+/// scripted SECOND reply must never be requested.
 #[tokio::test]
 async fn truncated_reply_fails_fast_without_burning_the_retry_budget() {
     let seam = SeamHttp::with_json(&[
@@ -698,22 +702,17 @@ async fn truncated_reply_fails_fast_without_burning_the_retry_budget() {
         .await
         .expect_err("truncation is terminal on first sight");
     match &err {
-        VerbInferError::SchemaValidation {
-            attempts,
-            detail,
-            spend,
-        } => {
-            assert_eq!(*attempts, 1, "no blind re-ask at the same budget");
+        VerbInferError::AnswerCut { detail, spend, .. } => {
             assert!(
                 spend.has_signal(),
                 "the round-trip reported usage — the billed call is honestly metered"
             );
             assert!(
-                detail.contains("token limit"),
+                detail.contains("raise max_tokens"),
                 "the real fix named: {detail}"
             );
         }
-        other => panic!("expected SchemaValidation, got {other:?}"),
+        other => panic!("expected AnswerCut, got {other:?}"),
     }
     assert_eq!(
         seam.captured().len(),

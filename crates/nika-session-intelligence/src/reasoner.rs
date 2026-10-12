@@ -504,13 +504,29 @@ impl ProviderReasoner {
             input.max_tokens = Some(input.max_tokens.unwrap_or(limits.max_tokens));
             input.timeout = Some(limits.timeout);
         }
-        let out = block_on(async { verb.run(input).await })?
-            .map_err(|e| ReasonError::Provider(e.to_string()))?;
-        let mut text = infer_text(&out.output);
-        if matches!(
-            out.response.stop_reason,
-            nika_kernel::ai::provider::StopReason::MaxTokens
-        ) {
+        let (mut text, cut, usage_observed) = match block_on(async { verb.run(input).await })? {
+            Ok(out) => (
+                infer_text(&out.output),
+                matches!(
+                    out.response.stop_reason,
+                    nika_kernel::ai::provider::StopReason::MaxTokens
+                ),
+                out.response.usage_reported,
+            ),
+            // The verb fails a reply cut at the output cap (NIKA-INFER-005); the reasoner keeps
+            // its own reading of it, the received text included.
+            Err(nika_verb_infer::VerbInferError::AnswerCut {
+                partial_output,
+                spend,
+                ..
+            }) => {
+                let reported =
+                    (spend.inference_calls.last()).is_some_and(|call| call.usage.is_some());
+                (partial_output, true, reported)
+            }
+            Err(e) => return Err(ReasonError::Provider(e.to_string())),
+        };
+        if cut {
             if purpose == ReplyPurpose::Label {
                 return Err(ReasonError::Provider(
                     "classification response was truncated at its output limit; no label was accepted".to_owned(),
@@ -520,7 +536,7 @@ impl ProviderReasoner {
         }
         Ok(Reply {
             text,
-            usage_observed: out.response.usage_reported,
+            usage_observed,
         })
     }
 }

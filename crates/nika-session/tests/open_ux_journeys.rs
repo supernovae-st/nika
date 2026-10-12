@@ -40,10 +40,10 @@ use std::time::{Duration, Instant};
 
 use peer::{Kind, Peer, Seen};
 use scenarios::{
-    ACCEPT, ALGOLIA, ALREADY, DEFLECT, DELEGATION, DIGEST, EMPTY, FOLLOWED, HACKER_NEWS, LE_MONDE,
-    LE_MONDE_WORDS, OUTPUT_WORDS, RENAMED, REPAIRING, REQUEST, SAVE_AND_RUN, STEER_B, STEERED,
-    STILL_HERE, STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C, THEN_STOP, TRIED_ON, UNRESOLVED, WHY,
-    YC_BLOG, scenario,
+    ACCEPT, ALGOLIA, ALREADY, CODE, CODE_REQUEST, DEFLECT, DELEGATION, DIGEST, EMPTY, FOLLOWED,
+    HACKER_NEWS, LE_MONDE, LE_MONDE_WORDS, OUTPUT_WORDS, RENAMED, REPAIRING, REQUEST, SAVE_AND_RUN,
+    STEER_B, STEERED, STILL_HERE, STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C, THEN_STOP, TRIED_ON,
+    UNRESOLVED, WHY, YC_BLOG, scenario,
 };
 use serde_json::{Value, json};
 
@@ -53,7 +53,7 @@ struct Journey {
     agent: Vec<Seen>,
     /// Every request the peer received, in order.
     seen: Vec<Seen>,
-    _dir: tempfile::TempDir,
+    dir: tempfile::TempDir,
 }
 
 impl Journey {
@@ -139,7 +139,7 @@ fn run(name: &str) -> Journey {
         report,
         agent,
         seen,
-        _dir: dir,
+        dir,
     }
 }
 
@@ -242,9 +242,20 @@ fn open_questions(step: &Value) -> Vec<(String, String)> {
         .collect()
 }
 
-/// The concrete values a waiting question's recommended option carries.
+/// The concrete values every option of a waiting question carries.
+fn offered_values(step: &Value) -> Vec<String> {
+    (rows(step, "questions").into_iter())
+        .flat_map(|q| q["options"].as_array().into_iter().flatten())
+        .flat_map(|option| option["values"].as_array().into_iter().flatten())
+        .filter_map(|value| value["value"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// The concrete values the recommended option of a waiting question, or of a choice the
+/// proposal shows, carries.
 fn recommended_values(step: &Value) -> Vec<String> {
     (rows(step, "questions").into_iter())
+        .chain(rows(step, "open_choices"))
         .flat_map(|q| q["options"].as_array().into_iter().flatten())
         .filter(|option| option["recommended"] == true)
         .flat_map(|option| option["values"].as_array().into_iter().flatten())
@@ -276,10 +287,12 @@ fn reached_the_author(journey: &Journey, line: &str) -> bool {
 fn accepting_the_current_offer_binds_its_values_never_the_word_yes() {
     let journey = run("accept_offer");
     let (asked, accepted) = (journey.step(0), journey.step(1));
-    assert!(
-        matches!(waiting(asked), "question" | "questions"),
-        "the request is met with one concrete offer: {asked:#}"
+    assert_eq!(
+        waiting(asked),
+        "consent",
+        "the request is met at once with one concrete proposal: {asked:#}"
     );
+    assert!(open_questions(asked).is_empty(), "nothing asked first");
     let offered = recommended_values(asked);
     for value in [HACKER_NEWS, TECHCRUNCH, DIGEST] {
         assert!(offered.iter().any(|v| v == value), "{value}: {offered:?}");
@@ -318,10 +331,16 @@ fn accepting_the_current_offer_binds_its_values_never_the_word_yes() {
         "{:#}",
         work(accepted)
     );
-    // The question was answered once: its identity answers nothing again.
+    // The proposal that line answered is no longer the one shown: a yes to it answers nothing.
     let again = journey.step(2);
     assert_eq!(again["outcome"]["kind"], "refusal", "{again:#}");
-    assert_eq!(again["outcome"]["class"], "already_consumed", "{again:#}");
+    assert!(
+        matches!(
+            again["outcome"]["class"].as_str(),
+            Some("already_consumed" | "stale_revision")
+        ),
+        "{again:#}"
+    );
 }
 
 #[test]
@@ -408,7 +427,7 @@ fn a_partial_correction_keeps_every_unaffected_selection_and_its_provenance() {
         LE_MONDE_WORDS
     );
     // The author's first correction silently dropped TechCrunch: refused, with the reason.
-    let refused = journey.agent[5].last();
+    let refused = journey.agent[6].last();
     assert!(
         refused.contains("techcrunch.com"),
         "the refusal names the retained source the correction dropped: {refused}"
@@ -476,7 +495,7 @@ fn a_reopened_session_keeps_selections_and_provenance_and_renews_identities() {
         assert!(source.contains(value), "{value}:\n{source}");
     }
     // The author's first request after the reopen carries the conversation it continues.
-    let resumed = &journey.agent[3];
+    let resumed = &journey.agent[4];
     for value in [ACCEPT, HACKER_NEWS, DIGEST] {
         assert!(
             resumed.text().contains(value),
@@ -502,8 +521,8 @@ fn a_question_about_the_question_is_answered_and_the_offer_is_renewed() {
         matches!(waiting(explained), "question" | "questions"),
         "{explained:#}"
     );
-    let offered = recommended_values(explained);
-    for value in [HACKER_NEWS, TECHCRUNCH, DIGEST] {
+    let offered = offered_values(explained);
+    for value in [HACKER_NEWS, TECHCRUNCH] {
         assert!(offered.iter().any(|v| v == value), "{value}: {offered:?}");
     }
     assert_ne!(
@@ -580,7 +599,7 @@ fn a_stale_screen_an_answered_question_and_another_session_answer_nothing() {
         "{first:#}"
     );
     assert!(
-        recommended_values(corrected).iter().any(|v| v == LE_MONDE),
+        offered_values(corrected).iter().any(|v| v == LE_MONDE),
         "the correction renews the offer: {corrected:#}"
     );
     assert_ne!(
@@ -827,7 +846,7 @@ fn a_refusal_binds_no_offer_the_author_claims() {
 #[test]
 fn a_deflection_takes_the_recommendation_visibly() {
     let journey = run("deflection_takes_the_recommendation");
-    assert_eq!(outcome_kind(journey.step(0)), "question");
+    assert_eq!(outcome_kind(journey.step(0)), "proposal");
     let proposed = journey.step(1);
     assert_eq!(outcome_kind(proposed), "proposal", "{proposed:#}");
     let hn = binding(proposed, HACKER_NEWS).expect("Hacker News is bound");
@@ -845,7 +864,7 @@ fn a_deflection_takes_the_recommendation_visibly() {
             .any(|d| d["message"] == "u2" && d["scope"] == "read_source"),
         "{delegations:?}"
     );
-    let read = &journey.agent[1];
+    let read = &journey.agent[2];
     assert!(
         read.text().contains("recommended `hackernews`"),
         "{}",
@@ -1208,4 +1227,158 @@ fn the_author_is_told_the_persons_time_zone() {
         told.contains("The person's time zone is `Asia/Dubai`"),
         "the zone is named"
     );
+}
+
+/// The first JSON value of a tool's reply (a note may follow it).
+fn reply_json(text: &str) -> Value {
+    let mut values = serde_json::Deserializer::from_str(text).into_iter::<Value>();
+    values.next().and_then(Result::ok).unwrap_or_default()
+}
+
+/// A question the author can recommend is never put to the person: the ask door refuses it with
+/// its typed reason, and the person sees the proposal with the choice open and its default.
+#[test]
+fn a_choice_with_a_default_is_proposed_not_asked() {
+    let journey = run("default_not_asked");
+    let shown = journey.step(0);
+    assert_eq!(outcome_kind(shown), "proposal", "{shown:#}");
+    assert!(
+        open_questions(shown).is_empty(),
+        "the person sees no question"
+    );
+    let card = shown["outcome"]["text"].as_str().unwrap_or_default();
+    assert!(card.contains("open choices"), "{card}");
+    let open = recommended_values(shown);
+    for value in [HACKER_NEWS, TECHCRUNCH, DIGEST] {
+        assert!(open.iter().any(|v| v == value), "{value}: {open:?}");
+    }
+    let reply = reply_json(&answered(&journey, 1));
+    let refused = reply["refused"].as_array().cloned().unwrap_or_default();
+    assert_eq!(refused.len(), 1, "the ask's one question is refused");
+    assert_eq!(
+        (refused[0]["key"].as_str(), refused[0]["reason"].as_str()),
+        (Some("plan"), Some("output"))
+    );
+    let why = refused[0]["why"].as_str().unwrap_or_default();
+    assert!(
+        why.contains("always has a name you can derive"),
+        "the author reads why it is not asked"
+    );
+}
+
+/// A property the person states (newest first), checked by an unconditional `nika:assert` over a
+/// task's output whose message quotes their words, before the write: the trial stops at the
+/// assertion the candidate breaks and names its task before any proposal, and the repaired
+/// revision is proposed.
+#[test]
+fn a_trial_catches_a_failed_assertion_before_any_proposal() {
+    let journey = run("trial_assert");
+    let step = journey.step(0);
+    assert_eq!(step["outcome"]["kind"], "proposal", "{step}");
+    let failed = answered(&journey, 2);
+    assert!(
+        failed.contains("run_failure") && failed.contains("\"ordered\""),
+        "{failed}"
+    );
+    assert!(
+        !failed.contains("shown to the person"),
+        "nothing was proposed: {failed}"
+    );
+}
+
+/// The state the verifier's judge read: the user turn, `STATE:` before `OPTIONS:`.
+fn judge_state(seen: &Seen) -> Option<Value> {
+    let said = (seen.body["messages"].as_array().into_iter().flatten())
+        .filter(|message| message["role"] == "user")
+        .find_map(|message| message["content"].as_str()?.strip_prefix("STATE:\n"))?;
+    let (state, _) = said.split_once("\n\nOPTIONS:\n")?;
+    serde_json::from_str(state).ok()
+}
+
+/// The person's answer reaches the judge as theirs: a count over the customer code they typed is
+/// judged with that answer and their request as first stated, so the code is no invented literal
+/// and the candidate is proposed.
+#[test]
+fn an_answered_literal_is_judged_as_the_persons_answer() {
+    let journey = run("answered_literal");
+    let proposed = journey.step(1);
+    assert_eq!(outcome_kind(proposed), "proposal", "{proposed:#}");
+    let state = (journey.seen.iter())
+        .filter(|seen| seen.kind == Kind::Judge)
+        .find_map(judge_state)
+        .expect("the judge read a state");
+    let answer = state["answers"]["client_code"].as_str().unwrap_or_default();
+    assert_eq!(
+        answer.trim_matches('"'),
+        CODE,
+        "the answer as the person gave it"
+    );
+    assert_eq!(
+        state["original_request"], CODE_REQUEST,
+        "the request as first stated"
+    );
+}
+
+/// A line steered while the author prepares its proposal holds that proposal back: the person is
+/// never shown the stale candidate, and the author proposes the revision the line asked for.
+#[test]
+fn a_line_steered_before_a_proposal_holds_it_back_and_the_revision_is_shown() {
+    let journey = run("steer_before_proposal");
+    let step = journey.step(0);
+    assert_eq!(outcome_kind(step), "proposal", "{step:#}");
+    let source = candidate(step);
+    assert!(
+        source.contains("./out/total.txt") && !source.contains("map(select(length > 0))"),
+        "{source}"
+    );
+    let tools = journey.report["tools"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let shown = (tools.iter())
+        .filter(|tool| tool[1] == "propose" && tool[2] == "finished")
+        .count();
+    assert_eq!(shown, 1, "the held-back proposal never ran: {tools:#?}");
+}
+
+/// Words that consent to saving and running the revision the person saw never cover new bytes
+/// with the same effects: the revised proposal waits for their consent, and nothing is saved or
+/// run.
+#[test]
+fn save_and_run_words_never_cover_bytes_they_were_not_shown() {
+    let journey = run("consent_bytes_changed");
+    let (before, said) = (journey.step(1), journey.step(2));
+    assert_ne!(outcome_kind(said), "run_requested", "{said:#}");
+    assert!(work(said)["saved"].is_null(), "nothing saved: {said:#}");
+    assert!(work(said)["requested"].is_null(), "nothing run: {said:#}");
+    assert_eq!(
+        waiting(said),
+        "consent",
+        "the new bytes ask their own consent"
+    );
+    assert_ne!(proposal(said), proposal(before));
+}
+
+/// Words that ask for a change, then the save and the run, cover the revision written in answer to
+/// them: it is saved and run with no second yes, and the saved bytes are that revision's, not the
+/// ones the person was shown before.
+#[test]
+fn a_change_then_run_line_runs_its_revision_without_a_second_yes() {
+    let journey = run("change_then_run");
+    let (shown, said) = (journey.step(1), journey.step(2));
+    assert_eq!(outcome_kind(said), "run_requested", "{said:#}");
+    assert_ne!(waiting(said), "consent", "no second yes: {said:#}");
+    let saved = work(said)["saved"]["workflow"].as_str().expect("saved");
+    let path = journey.dir.path().join("project").join(saved);
+    let bytes = std::fs::read_to_string(path).expect("the saved workflow");
+    assert!(
+        bytes.contains("Résume en anglais"),
+        "the revision the line asked for was saved"
+    );
+    let before = candidate(shown);
+    assert!(
+        before.contains("Résume en Markdown"),
+        "the bytes shown before"
+    );
+    assert_ne!(bytes, before, "not the bytes shown before");
 }

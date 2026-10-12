@@ -6,16 +6,102 @@
 //! so the person reads the candidate at once instead of after a round of questions. Their next
 //! line decides. A consent keeps every default shown, bound as the offer picked with that line; a
 //! pick of another offer binds it and sends the author to revise; while a question or a choice
-//! the proposal does not show is open, no consent saves it.
+//! the proposal does not show is open, no consent saves it. A question a default can stand for
+//! is never asked: the ask door refuses it ([`defaulted`]) and the proposal shows it here.
 
 use std::fmt::Write as _;
 
 use nika_compile_fidelity::fidelity::resolution::{Resolution, ResolutionKind};
-use nika_session_change::work::{AskedQuestion, Binding, Offer};
-use serde_json::Value;
+use nika_session_change::work::{AskedQuestion, Binding, Offer, ValueRole};
+use serde_json::{Value, json};
 
 use super::answer::{Answered, recommended};
-use super::{Citations, Conversation, Facts, Mint, Pick, bare, resolution_role};
+use super::{Citations, Conversation, Facts, Mint, Pick, bare, in_line, resolution_role};
+
+/// What the author reads when it asks a question that recommends an option: a default can stand
+/// for it, so the proposal shows it in `open`.
+const DEFAULT_NOT_ASKED: &str = "it has a default, its recommended option, so it is not asked: \
+                                 if the request can be done, write the default in the candidate \
+                                 and propose with this choice in `open`; if no default can stand \
+                                 for it (a fact only the person has, readings whose effects \
+                                 differ materially, an authority only they can grant), ask it \
+                                 with no recommended option; if the request cannot be done here, \
+                                 say so and why, and propose nothing";
+
+/// What the author reads when it asks for an output in the project, which always has a name it
+/// can derive.
+const OUTPUT_NOT_ASKED: &str = "an output in the project always has a name you can derive, so \
+                                it is not asked: write one in the candidate and propose with the \
+                                choice in `open`; ask it only when the person's later words ask \
+                                to change it, cited in `reopens`; if the request cannot be done \
+                                here, say so and why, and propose nothing";
+
+/// Why the ask door does not ask a question, as the same word on every route: the person settled
+/// it, left it to the author, or bound every value it offers; or a default can stand for it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum NotAsked {
+    /// The person settled it.
+    Settled,
+    /// The person left it to the author.
+    Delegated,
+    /// Every value it offers is already bound.
+    Bound,
+    /// It recommends an option: the proposal shows it in `open` with that default.
+    Default,
+    /// It names an output in the project, which always has a name the author derives.
+    Output,
+}
+
+impl NotAsked {
+    /// The machine word a refused question carries.
+    pub(super) const fn word(self) -> &'static str {
+        match self {
+            Self::Settled => "settled",
+            Self::Delegated => "delegated",
+            Self::Bound => "bound",
+            Self::Default => "default",
+            Self::Output => "output",
+        }
+    }
+
+    /// The refusal the author reads for the question `key` that a default can stand for.
+    pub(super) fn refusal(self, key: &str) -> Value {
+        let why = match self {
+            Self::Output => OUTPUT_NOT_ASKED,
+            _ => DEFAULT_NOT_ASKED,
+        };
+        json!({"key": key, "reason": self.word(), "why": why})
+    }
+}
+
+/// Whether a default can stand for the question `asked`, so the ask door does not ask it: it
+/// recommends an option, or it names an output in the project (as its role or a value it offers)
+/// and `reopens` does not cite the person's words asking to change it.
+pub(super) fn defaulted(
+    asked: &AskedQuestion,
+    reopens: &Value,
+    citations: &Citations,
+) -> Option<NotAsked> {
+    let output = asked.role == Some(ValueRole::OutputPath)
+        || (asked.options.iter())
+            .flat_map(|offer| &offer.values)
+            .any(|value| value.role == ValueRole::OutputPath);
+    if output && !cites_person(citations, reopens) {
+        return Some(NotAsked::Output);
+    }
+    (asked.options.iter())
+        .any(|offer| offer.recommended)
+        .then_some(NotAsked::Default)
+}
+
+/// Whether `reopens` cites a line of the person's that holds the words it quotes.
+fn cites_person(citations: &Citations, reopens: &Value) -> bool {
+    let (Some(message), Some(excerpt)) = (reopens["message"].as_str(), reopens["excerpt"].as_str())
+    else {
+        return false;
+    };
+    (citations.get(message)).is_some_and(|line| in_line(line, excerpt, None))
+}
 
 /// Why `choice` cannot be shown beside the candidate `source`, after the choices `shown`.
 fn unshowable(choice: &AskedQuestion, source: &str, shown: &[AskedQuestion]) -> Option<String> {

@@ -17,6 +17,7 @@ use serde::Deserialize;
 use crate::emit::{opt_rstr, rstr, str_slice_expr};
 use crate::error::CodegenError;
 use crate::providers::{ProviderEntry, validate_api_dialect};
+use crate::reasoning::{ReasoningFactsToml, emit_reasoning_facts};
 use crate::schema::{CAPABILITIES_SCHEMA, assert_schema};
 
 // ─── TOML schema types ───────────────────────────────────────────────────
@@ -137,6 +138,9 @@ struct CapsPatchEntry {
     /// The reasoning effort levels the exact model documents (R4 B16): `low`, `high`, `max`.
     #[serde(default)]
     reasoning_efforts: Option<Vec<String>>,
+    /// What the rule records of the model's reasoning ([`crate::reasoning`]); unrecorded = unknown.
+    #[serde(default)]
+    reasoning_facts: Option<ReasoningFactsToml>,
 }
 
 // ─── Public codegen entry ────────────────────────────────────────────────
@@ -477,6 +481,7 @@ fn caps_all_none(p: &CapsPatchEntry) -> bool {
         && p.max_output_tokens.is_none()
         && p.json_mode.is_none()
         && p.reasoning_efforts.is_none()
+        && p.reasoning_facts.is_none()
 }
 
 fn validate_caps_require_all(p: &CapsPatchEntry, where_: &str) -> Result<(), String> {
@@ -847,6 +852,12 @@ fn emit_cap_patch(p: &CapsPatchEntry) -> String {
         p.reasoning_efforts.as_deref(),
         |list: &[String]| emit_reasoning_level_slice(list),
     );
+    emit_opt(
+        &mut out,
+        "reasoning_facts",
+        p.reasoning_facts.as_ref(),
+        |facts: &ReasoningFactsToml| emit_reasoning_facts(*facts),
+    );
     out.push('}');
     out
 }
@@ -979,6 +990,7 @@ mod tests {
             max_output_tokens: None,
             json_mode: None,
             reasoning_efforts: Some(vec![]),
+            reasoning_facts: None,
         }
     }
 

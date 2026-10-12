@@ -50,3 +50,23 @@ fn one_edit_keeps_the_one_passage_words() {
     assert!(none.is_err(), "an empty old passage replaces nothing");
     assert!(edited(SOURCE, &[]).is_err(), "no edit, no revision");
 }
+
+/// A document with comments, an opaque block prompt, literal values, an explicit default and a
+/// field left absent: an edit replaces only its passage, and every other byte stays as it was.
+#[test]
+fn an_edit_keeps_every_byte_it_does_not_replace() {
+    let source = "# The morning digest, as the person reviewed it.\nnika: digest\nmodel: vllm/oux-author\ninputs:\n  limit: { type: integer, default: 5 }\ntasks:\n  fetch:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://news.ycombinator.com\", method: GET }  # one GET\n  summarize:\n    infer:\n      prompt: |\n        Summarize in 5 points at most, inventing nothing.\n        Keep the links as they are: ${{ tasks.fetch.output }}\n";
+    let (old, new) = ("5 points at most", "7 points at most");
+    let revised = edited(source, &pairs(&[(old, new)])).expect("one passage");
+    let at = source.find(old).expect("the passage");
+    assert_eq!(revised.get(..at), source.get(..at), "every byte before it");
+    assert_eq!(
+        revised.get(at + new.len()..),
+        source.get(at + old.len()..),
+        "every byte after it"
+    );
+    assert!(
+        !revised.contains("max_tokens"),
+        "a field left absent stays absent"
+    );
+}

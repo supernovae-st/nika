@@ -1331,4 +1331,36 @@ mod tests {
         let body = request_body(&r, "gemma-3-27b-it").expect("body");
         assert!(body["generationConfig"].get("thinkingConfig").is_none());
     }
+
+    /// The catalog's reasoning facts for the Gemini routes are this wire's behavior: a plain
+    /// call leaves the model its own (thinking) default, an authored `budget_tokens: 0` reaches
+    /// flash, and the pro tier's bound never goes below its 128 floor.
+    #[test]
+    fn catalog_reasoning_facts_match_this_wire() {
+        use nika_catalog::types::model::ThinkingOff;
+        let facts = |model| nika_catalog::model_capabilities("gemini", model).reasoning_facts;
+        let budget =
+            |body: &Value| body["generationConfig"]["thinkingConfig"]["thinkingBudget"].clone();
+        let flash = facts("gemini-2.5-flash");
+        assert_eq!(flash.reasons_by_default, Some(true));
+        let plain = request_body(
+            &req(vec![Message::text(Role::User, "x")]),
+            "gemini-2.5-flash",
+        );
+        assert_eq!(budget(&plain.expect("body")), Value::Null);
+        assert_eq!(flash.thinking_off, Some(ThinkingOff::BudgetZero));
+        let mut authored = req(vec![Message::text(Role::User, "x")]);
+        authored.thinking_budget = Some(0);
+        let off = request_body(&authored, "gemini-2.5-flash").expect("body");
+        assert_eq!(budget(&off), json!(0));
+        assert_eq!(
+            facts("gemini-2.5-pro").thinking_off,
+            Some(ThinkingOff::Never)
+        );
+        let mut bounded = req(vec![Message::text(Role::User, "x")]);
+        bounded.response_format = ResponseFormat::Json;
+        bounded.max_tokens = Some(500);
+        let floor = request_body(&bounded, "gemini-2.5-pro").expect("body");
+        assert_eq!(budget(&floor), json!(128));
+    }
 }

@@ -8,7 +8,10 @@
 use serde_json::{Value, json};
 
 use super::super::{ChoiceBatch, ChoiceOption, ChoiceQuestion};
-use super::{Capacity, Declared, Partition, Refusal, read, refusal, request};
+use super::{
+    Capacity, Declared, Order, Partition, Refusal, body, read, refusal, request, sent_order,
+    sent_order_in,
+};
 
 /// The refusal of a request past the context capacity, for many questions or one alone.
 const MAX_TOKENS: &str = r#"{"detail": {"error_type": "max_tokens_exceeded"}}"#;
@@ -455,9 +458,9 @@ fn withheld_items_never_leave_and_say_why() {
     assert_eq!(record["items"].as_array().map(Vec::len), Some(3));
 }
 
-/// A journal record names its items by id with their options and outcomes, never their words or
-/// state; in flight before its response, then settled; a half names the slot of the attempt it
-/// halves; its body's exact size and digest are what left.
+/// A journal record names its items by id with their options (in the question's order and as
+/// sent) and outcomes, never their words or state; in flight before its response, then settled; a
+/// half names the slot of the attempt it halves; its body's exact size and digest are what left.
 #[test]
 fn a_record_names_each_physical_request_without_its_text() {
     let batch = batch(2);
@@ -468,8 +471,8 @@ fn a_record_names_each_physical_request_without_its_text() {
     assert_eq!(flying["sent"], true);
     assert_eq!(
         flying["items"][0],
-        json!({"question": "item-0",
-        "options": ["applies", "none"], "outcome": "in_flight"})
+        json!({"question": "item-0", "options": ["applies", "none"],
+        "options_sent": ["applies", "none"], "outcome": "in_flight"})
     );
     let text = serde_json::to_string(&body).unwrap_or_default();
     assert_eq!(flying["body"]["bytes"], text.len());
@@ -506,6 +509,34 @@ fn a_record_names_each_physical_request_without_its_text() {
     assert_eq!(settled["usage"]["input_tokens"], 9);
     assert_eq!(settled["items"][0]["choice"], "applies");
     assert!(settled.get("refusal").is_none() && settled.get("halved").is_none());
+}
+
+/// A record keeps an item's options in the question's order and, beside them, the order its
+/// request carried them in (`options_sent`) and the whole distribution its answer reported.
+#[test]
+fn a_record_keeps_the_wire_order_and_the_distribution() {
+    let options = vec![
+        ChoiceOption::new("zeta", "the last letter"),
+        ChoiceOption::new("alpha", "the first letter"),
+    ];
+    let question = ChoiceQuestion::new("order", "Pick one.", json!({"request": "r"}), options);
+    assert_eq!(sent_order(&question), ["alpha", "none", "zeta"]);
+    let batch = ChoiceBatch::of("b", &[question]);
+    let mut partition = Partition::of(&batch);
+    let (at, _) = partition.begin(&batch, "jev").unwrap_or_default();
+    let answer = json!({"type": "choice", "choice": "zeta", "confidence": 0.4,
+        "probabilities": {"alpha": 0.3, "none": 0.0, "zeta": 0.7}});
+    let body = json!({"model": "jev-1.13.0", "answers": {"order": answer},
+        "usage": {"input_tokens": 5, "output_tokens": 1}});
+    let body = serde_json::to_vec(&body).unwrap_or_default();
+    partition.responded(at, &batch, 200, &body);
+    let item = &partition.record(at, &batch, &[])["items"][0];
+    assert_eq!(item["options"], json!(["zeta", "alpha", "none"]));
+    assert_eq!(item["options_sent"], json!(["alpha", "none", "zeta"]));
+    assert_eq!(
+        item["probabilities"],
+        json!({"alpha": 0.3, "none": 0.0, "zeta": 0.7})
+    );
 }
 
 /// A question whose reference text is `bytes` long.
@@ -626,4 +657,45 @@ fn the_planned_rate_never_counts_a_measured_body_short() {
     assert!(declared.fits(174_080, 0));
     assert!(!declared.fits(174_096, 0));
     assert_eq!(Declared::of("jev-test"), None);
+}
+
+/// `Alphabetical` writes today's bytes exactly; `Question` and `Reversed` write the criteria in
+/// the question's own order and its mirror; the bytes carry `sent_order_in`'s sequence, and
+/// every order is the same request.
+#[test]
+fn the_order_writes_the_criteria_and_alphabetical_keeps_todays_bytes() {
+    let options = vec![
+        ChoiceOption::new("zeta", "the last letter"),
+        ChoiceOption::new("alpha", "the first letter"),
+    ];
+    let question = ChoiceQuestion::new("order", "Pick one.", json!({"request": "r"}), options);
+    let today = serde_json::to_vec(&request("jev", &[&question])).unwrap_or_default();
+    assert_eq!(body("jev", &[&question], Order::Alphabetical), today);
+    assert_eq!(
+        sent_order_in(&question, Order::Question),
+        ["zeta", "alpha", "none"]
+    );
+    assert_eq!(
+        sent_order_in(&question, Order::Reversed),
+        ["none", "alpha", "zeta"]
+    );
+    for order in [Order::Alphabetical, Order::Question, Order::Reversed] {
+        let text = String::from_utf8(body("jev", &[&question], order)).unwrap_or_default();
+        assert_eq!(
+            text.len(),
+            today.len(),
+            "{order:?}: the length never depends on the order"
+        );
+        let at: Vec<usize> = (sent_order_in(&question, order).iter())
+            .filter_map(|key| text.find(&format!("\"{key}\":")))
+            .collect();
+        assert_eq!(at.len(), 3, "{order:?}: {text}");
+        assert!(at.windows(2).all(|w| w[0] < w[1]), "{order:?}: {text}");
+        let parsed: Value = serde_json::from_str(&text).unwrap_or_default();
+        assert_eq!(
+            parsed,
+            request("jev", &[&question]),
+            "{order:?}: the same request"
+        );
+    }
 }
