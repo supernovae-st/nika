@@ -44,12 +44,21 @@ pub(super) struct ResumeSetup {
     /// trace id, attested on the boot manifest and the settlement so a
     /// continuation renders as one. `None` = a fresh run.
     pub resumed_from: Option<String>,
+    /// The resumed journal, whose failed run may have moved files aside:
+    /// they go back before this run starts (consumed by
+    /// [`Self::bind_durable`]). `None` = a fresh run.
+    pub restore_from: Option<std::path::PathBuf>,
 }
 
 impl ResumeSetup {
-    /// Attach durable replay protection only after Run monetary admission.
+    /// Attach durable replay protection only after Run monetary admission,
+    /// then put back what the resumed run's teardown moved aside: this
+    /// run's cache hits name those files as written.
     pub(super) fn bind_durable(mut self, output_json: bool) -> Result<Self, u8> {
         self.paused = durable_paused(self.paused, output_json)?;
+        if let Some(journal) = self.restore_from.take() {
+            say_restored(nika_dap::quarantine::restore(&journal).as_ref());
+        }
         Ok(self)
     }
 
@@ -62,6 +71,23 @@ impl ResumeSetup {
             compat: None,
             unverified: None,
             resumed_from: None,
+            restore_from: None,
+        }
+    }
+}
+
+/// One stderr line per file put back or left in quarantine (stdout stays
+/// the machine lanes' own).
+fn say_restored(restored: Option<&Value>) {
+    let Some(restored) = restored else {
+        return;
+    };
+    let dir = restored["dir"].as_str().unwrap_or_default();
+    for entry in restored["restored"].as_array().into_iter().flatten() {
+        let path = entry["path"].as_str().unwrap_or_default();
+        match entry["reason"].as_str() {
+            None => eprintln!("nika run: --resume: put back {path} from {dir}"),
+            Some(reason) => eprintln!("nika run: --resume: {path} stays in {dir}: {reason}"),
         }
     }
 }
@@ -221,6 +247,7 @@ fn load_resume_plan(
         unverified,
         // #1462 · the continuation link: this leg names the trace it folded.
         resumed_from: nika_dap::resume::trace_run_id(&recovered.events),
+        restore_from: Some(trace.to_path_buf()),
     })
 }
 

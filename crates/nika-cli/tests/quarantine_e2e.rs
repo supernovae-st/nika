@@ -10,11 +10,13 @@
 //! réservé `finally`) at the REAL binary — palier v1, the quarantine:
 //!
 //! - **(a) the positive** — a FAILED run whose writer tasks settled
-//!   Success sees the semi-written outputs MOVED under
-//!   `.nika/quarantine/<run-stamp>/` and the moves attested on the
-//!   terminal `run_sealed` line's `covers["quarantine"]` (the F-P2
-//!   teardown's receipt surface — F-P2 proves THAT the end happened,
-//!   F-P14 says WHAT it must do).
+//!   Success sees the files it CREATED moved under
+//!   `.nika/quarantine/<run-stamp>/`, while a person's own file it only
+//!   edited stays in place with its original kept under `originals/`;
+//!   both attested on the terminal `run_sealed` line's
+//!   `covers["quarantine"]` (the F-P2 teardown's receipt surface — F-P2
+//!   proves THAT the end happened, F-P14 says WHAT it must do) and in the
+//!   dir's `manifest.json`.
 //! - **(b) the clean posture** — a SUCCESSFUL run attests NOTHING: the
 //!   `quarantine` key stays OUT of the covers (absent is honest).
 //! - **(c) the negative acceptance (v1 semantics)** — a follow-up run
@@ -23,6 +25,10 @@
 //!   run's input. (The true check-side cross-run finding — prior
 //!   quarantine lists × the next workflow's read paths — is the named
 //!   v2 owe.)
+//! - **(d) resume** — resuming the failed run puts its moved files back
+//!   before the run starts (its cache hits name them as written).
+//! - **(e) the failure path** — a writer admitted by `after: failure`
+//!   writes the record of the failure: its file stays.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -135,8 +141,8 @@ fn a_failed_run_quarantines_its_semi_written_outputs_and_attests_them() {
         String::from_utf8_lossy(&run.stderr)
     );
 
-    // The MOVE (the substance): the old paths are gone, the bytes live
-    // under the quarantine dir named by the journal's own stamp.
+    // The MOVE (the substance): the file the run created is gone, its
+    // bytes live under the quarantine dir named by the journal's own stamp.
     let covers = sealed_covers(&journal(dir.path()));
     let fold = &covers["quarantine"];
     let qdir = fold["dir"].as_str().expect("the fold names its dir");
@@ -145,33 +151,127 @@ fn a_failed_run_quarantines_its_semi_written_outputs_and_attests_them() {
         "the debt rides beside the journals: {qdir}"
     );
     assert!(
-        !dir.path().join("semi.txt").exists() && !dir.path().join("note.txt").exists(),
-        "the old paths no longer exist"
+        !dir.path().join("semi.txt").exists(),
+        "the created file's old path no longer exists"
     );
     let moved = dir.path().join(qdir);
     assert_eq!(
         std::fs::read_to_string(moved.join("semi.txt")).expect("the write moved"),
         "written before the crash"
     );
+    // The person's own note never moves: it stays edited where they keep
+    // it, and its original waits under `originals/`.
     assert_eq!(
-        std::fs::read_to_string(moved.join("note.txt")).expect("the edit moved"),
+        std::fs::read_to_string(dir.path().join("note.txt")).expect("the note stays"),
         "a final note"
     );
+    assert_eq!(
+        std::fs::read_to_string(moved.join("originals/note.txt")).expect("the original kept"),
+        "a draft note"
+    );
+    assert!(
+        !dir.path()
+            .join(".nika/originals")
+            .read_dir()
+            .is_ok_and(|mut d| d.next().is_some()),
+        "the staged originals are released once the run settled"
+    );
 
-    // The ATTESTATION: every entry stated with its origin + its target.
+    // The ATTESTATION: the created file with its target, the kept one
+    // with its original, and the same fold in the dir's manifest.
     let outputs = fold["outputs"].as_array().expect("the outputs fold");
-    assert_eq!(outputs.len(), 2, "both writers' debt rides: {fold}");
-    for (path, name) in [("semi.txt", "semi.txt"), ("note.txt", "note.txt")] {
-        let entry = outputs
-            .iter()
-            .find(|e| e["path"] == serde_json::json!(path))
-            .unwrap_or_else(|| panic!("{path} rides the fold: {fold}"));
-        assert_eq!(
-            entry["quarantined_to"],
-            serde_json::json!(format!("{qdir}/{name}")),
-            "{path} names its quarantine target"
-        );
-    }
+    assert_eq!(outputs.len(), 1, "only the created file moved: {fold}");
+    assert_eq!(outputs[0]["path"], serde_json::json!("semi.txt"));
+    assert_eq!(
+        outputs[0]["quarantined_to"],
+        serde_json::json!(format!("{qdir}/semi.txt"))
+    );
+    assert_eq!(fold["kept"][0]["path"], serde_json::json!("note.txt"));
+    assert_eq!(
+        fold["kept"][0]["original"],
+        serde_json::json!(format!("{qdir}/originals/note.txt"))
+    );
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(moved.join("manifest.json")).expect("manifest"))
+            .expect("manifest parses");
+    assert_eq!(manifest["outputs"], fold["outputs"]);
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert!(
+        stderr.contains("note.txt stays in place") && stderr.contains("semi.txt"),
+        "the person is told where their files are: {stderr}"
+    );
+}
+
+/// (d) Resuming the failed run puts the file it created back before the
+/// run starts: the resumed run's cache hit names it as written.
+#[test]
+fn resuming_the_failed_run_puts_its_files_back() {
+    let dir = fail_dir();
+    let envs = signing_key(dir.path());
+    let first = nika_run(dir.path(), "w.nika", &envs);
+    assert_eq!(first.status.code(), Some(1), "the debt run failed");
+    assert!(!dir.path().join("semi.txt").exists(), "quarantined");
+    let trace = journal(dir.path());
+
+    let resumed = bin()
+        .args(["run", "w.nika", "--json", "--color", "never", "--resume"])
+        .arg(&trace)
+        .current_dir(dir.path())
+        .envs(envs.iter().map(|(k, v)| (k, v)))
+        .output()
+        .expect("binary runs");
+    let stderr = String::from_utf8_lossy(&resumed.stderr);
+    assert!(
+        stderr.contains("put back semi.txt"),
+        "the restore is said: {stderr}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("semi.txt")).expect("back in place"),
+        "written before the crash"
+    );
+}
+
+/// (e) A writer on the failure path writes the record of the failure: its
+/// file is the point, never the debt.
+#[test]
+fn a_failure_path_writer_keeps_its_file() {
+    let dir = tempfile::tempdir().expect("tmpdir");
+    std::fs::write(
+        dir.path().join("w.nika"),
+        r#"
+nika: quarantine-failure-path
+permits:
+  tools: ["nika:write"]
+  fs: { write: ["prep.txt", "error.txt"] }
+  exec: ["false"]
+tasks:
+  prep:
+    invoke: { tool: "nika:write", args: { path: "prep.txt", content: "half the job" } }
+  boom:
+    after: { prep: success }
+    exec: { command: ["false"] }
+  report:
+    after: { boom: failure }
+    invoke: { tool: "nika:write", args: { path: "error.txt", content: "boom failed" } }
+"#,
+    )
+    .expect("workflow");
+    let envs = signing_key(dir.path());
+    let run = nika_run(dir.path(), "w.nika", &envs);
+    assert_eq!(
+        run.status.code(),
+        Some(1),
+        "the workflow failed · stderr: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert!(
+        !dir.path().join("prep.txt").exists(),
+        "the quarantine ran: the half-done file moved"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("error.txt")).expect("the report stays"),
+        "boom failed"
+    );
 }
 
 /// (b) The clean posture: a SUCCESSFUL run attests NOTHING — the

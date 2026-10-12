@@ -45,6 +45,12 @@ pub const TRACE_DIR: &str = ".nika/traces";
 /// `traces/`, and the v2 cross-run finding reads both from here.
 pub const QUARANTINE_DIR: &str = ".nika/quarantine";
 
+/// Where a run copies the original bytes of a file it is about to change
+/// for the first time, relative to the run's CWD — one `<execution-id>/`
+/// child per run, emptied when the run settles: a failed run's originals
+/// move beside its quarantine, any other run's change was the intent.
+pub const ORIGINALS_DIR: &str = ".nika/originals";
+
 /// A trace's terminal state — the LAST workflow-level terminal event
 /// decides (ADR-100 · the ADR-099 journal vocabulary).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

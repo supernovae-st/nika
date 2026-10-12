@@ -14,20 +14,58 @@ use nika_schema::raw::RawWorkflow;
 /// before the seal) and its fold rides; everywhere else `attend` is a
 /// no-op `None` and the key stays OUT (absent is honest). The one-call
 /// composition keeps the three surface lanes under the fn-length
-/// ratchet.
+/// ratchet. `origins` is the leg's write-origins ledger: only a file the
+/// run created moves, and the leg's staged originals are released once
+/// the quarantine took what it keeps.
 pub(super) fn attended_facts(
     wf: &RawWorkflow,
     report: &CheckReport,
     outcome: &RunOutcome,
     journal: Option<&std::path::Path>,
+    origins: &nika_runtime::WriteOrigins,
 ) -> nika_dap::seal::SealTeardown {
+    let quarantine =
+        nika_dap::quarantine::attend(wf, outcome, journal, &|path: &str| origins.origin(path));
+    nika_dap::quarantine::discard_staging(origins.staging());
+    if let Some(fold) = &quarantine {
+        say_quarantine(fold);
+    }
     teardown_fold(
         wf,
         report,
         outcome,
-        nika_dap::quarantine::attend(wf, outcome, journal),
+        quarantine,
         nika_dap::memory::attend(None),
     )
+}
+
+/// Say what the failed run's teardown did with the files it wrote, on
+/// stderr: the run's summary printed before the moves, and a person must
+/// know where their file and its original are.
+fn say_quarantine(fold: &serde_json::Value) {
+    let dir = fold["dir"].as_str().unwrap_or_default();
+    let moved: Vec<&str> = (fold["outputs"].as_array().into_iter().flatten())
+        .filter(|entry| entry.get("quarantined_to").is_some())
+        .filter_map(|entry| entry["path"].as_str())
+        .collect();
+    if !moved.is_empty() {
+        eprintln!(
+            "nika run: the failed run's own files moved to {dir}: {}",
+            moved.join(", ")
+        );
+    }
+    for kept in fold["kept"].as_array().into_iter().flatten() {
+        let path = kept["path"].as_str().unwrap_or_default();
+        match (kept["original"].as_str(), kept["original_error"].as_str()) {
+            (Some(original), _) => {
+                eprintln!("nika run: {path} stays in place; its original is at {original}");
+            }
+            (None, Some(reason)) => {
+                eprintln!("nika run: {path} stays in place; its original was not kept: {reason}");
+            }
+            (None, None) => eprintln!("nika run: {path} stays in place"),
+        }
+    }
 }
 
 /// The run's teardown facts for the seal's extended `covers` (F-P2 ·
