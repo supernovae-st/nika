@@ -9,7 +9,8 @@
 //! what each task of the judged bytes touches decides which task a judge may still name as doing
 //! something unasked ([`Effects`]), and a doubt nothing located is asked where it is once
 //! ([`Doubt`]); a value a revision drops on the person's cited words is asked whether those
-//! words remove it ([`Removal`]).
+//! words remove it ([`Removal`]). A typed property the request states and no executable check of
+//! the bytes carries is named before any question ([`Witness`]).
 
 use nika_compile::surface::{EditChange, Input, sha256};
 use nika_compile::{CompileOutcome, CompileRequest};
@@ -18,12 +19,14 @@ use serde_json::{Value, json};
 use crate::foundry::ComponentCatalog;
 use crate::foundry::witness::witness;
 
+mod carriers;
 mod clause;
 mod construction;
 mod doubt;
 mod effects;
 mod framing;
 mod removal;
+pub use carriers::{Property, Witness};
 pub use clause::{
     CLAUSE, EXTRA, NO_OPERATION, PART, POINT, POINT_OMITTED, RESTRICTING, SUPERSEDED, WHOLE,
     part_question,
