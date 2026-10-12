@@ -231,8 +231,9 @@ fn retained(value: &str, role: &str, message: &str) -> Value {
     json!({"value": value, "kind": "retained", "role": role, "message": message})
 }
 
-/// The author's one recommendation for the ordinary request, asked as a choice.
-pub(crate) fn plan_offer(sources: &[(&str, &str)]) -> Value {
+/// The author's one recommendation for the ordinary request, as a choice a proposal shows with
+/// its default: the sources and the file the candidate already carries.
+pub(crate) fn plan_choice(sources: &[(&str, &str)]) -> Value {
     let values: Vec<Value> = sources
         .iter()
         .map(|(name, url)| json!({"role": "read_source", "value": url, "name": name}))
@@ -241,7 +242,7 @@ pub(crate) fn plan_offer(sources: &[(&str, &str)]) -> Value {
         ))
         .collect();
     let names: Vec<&str> = sources.iter().map(|(name, _)| *name).collect();
-    json!({"questions": [{
+    json!({
         "key": "plan",
         "question": format!("Je prends {} et j'écris le résumé dans {DIGEST} : ça te va ?", names.join(", ")),
         "why": "La demande ne nomme ni les sources ni le fichier de sortie.",
@@ -249,6 +250,26 @@ pub(crate) fn plan_offer(sources: &[(&str, &str)]) -> Value {
             {"key": "recommended", "label": format!("Oui : {} → {DIGEST}", names.join(", ")),
              "recommended": true, "values": values},
             {"key": "other", "label": "D'autres sources ou un autre fichier"}
+        ],
+        "free_text": true
+    })
+}
+
+/// The sources asked as a question that recommends none: the journeys that prove how the
+/// Session handles a question and its answers ask it.
+pub(crate) fn sources_question(sources: &[(&str, &str)]) -> Value {
+    let values: Vec<Value> = sources
+        .iter()
+        .map(|(name, url)| json!({"role": "read_source", "value": url, "name": name}))
+        .collect();
+    let names: Vec<&str> = sources.iter().map(|(name, _)| *name).collect();
+    json!({"questions": [{
+        "key": "plan",
+        "question": "Quelles sources d'actualités tech veux-tu ?",
+        "why": "La demande ne nomme ni les sources ni le fichier de sortie.",
+        "options": [
+            {"key": "sources", "label": names.join(", "), "values": values},
+            {"key": "other", "label": "D'autres sources"}
         ],
         "free_text": true
     }]})
@@ -271,10 +292,26 @@ fn accepted_digest() -> Value {
     })
 }
 
-/// The first two turns every accepting journey shares: the offer, then its acceptance.
+/// The tech digest with the plan's defaults written and no selection stated: the proposal shows
+/// them as its open choice.
+fn defaults_digest() -> Value {
+    json!({
+        "source": digest(&[("hacker_news", HACKER_NEWS), ("techcrunch", TECHCRUNCH)], DIGEST),
+        "resolutions": [],
+        "summary": "Hacker News et TechCrunch, résumé dans ./news/digest.md"
+    })
+}
+
+/// The first two turns every accepting journey shares: the proposal with the plan open at once,
+/// then, once the person's line kept its default, the candidate with the values it bound.
 fn accepted_steps() -> Vec<Step> {
     vec![
-        call("ask", plan_offer(&tech())),
+        call("candidate_write", defaults_digest()),
+        call_saying(
+            "Je propose Hacker News et TechCrunch, résumé dans ./news/digest.md.",
+            "propose",
+            json!({"open": [plan_choice(&tech())]}),
+        ),
         call("candidate_write", accepted_digest()),
         call_saying(
             "Voici le workflow : Hacker News et TechCrunch, résumé dans ./news/digest.md.",
@@ -374,7 +411,7 @@ fn accept_offer() -> Scenario {
         acts: vec![
             Act::Turn(REQUEST),
             Act::Submit(ACCEPT),
-            Act::AnswerQuestionOf(0, "oui"),
+            Act::SubmitAsShownAfter(0, "oui"),
         ],
         script: Script {
             agent: accepted_steps(),
@@ -496,7 +533,7 @@ fn already_given() -> Scenario {
         ],
         script: Script {
             agent: vec![
-                call("ask", plan_offer(&tech())),
+                call("ask", sources_question(&tech())),
                 call("candidate_write", typed),
                 call_saying(
                     "Voici le workflow : Hacker News, résumé dans ./news/digest.md.",
@@ -556,11 +593,11 @@ fn question_about_the_question() -> Scenario {
         ],
         script: Script {
             agent: vec![
-                call("ask", plan_offer(&tech())),
+                call("ask", sources_question(&tech())),
                 call_saying(
                     "La demande ne nomme ni les sources ni le fichier de sortie : voici ce que je propose.",
                     "ask",
-                    plan_offer(&tech()),
+                    sources_question(&tech()),
                 ),
             ],
             replies: Vec::new(),
@@ -627,8 +664,8 @@ fn stale_answers() -> Scenario {
         ],
         script: Script {
             agent: vec![
-                call("ask", plan_offer(&tech())),
-                call("ask", plan_offer(&le_monde)),
+                call("ask", sources_question(&tech())),
+                call("ask", sources_question(&le_monde)),
             ],
             replies: Vec::new(),
             picks: Vec::new(),
@@ -858,16 +895,17 @@ pub(crate) const TIMED_OUT: &str = "NIKA-INFER-001 provider call failed during `
 pub(crate) const FIX_AND_RUN: &str = "corrige et relance";
 pub(crate) const EMPTY: &str = "Il n'y a rien dedans, corrige et relance.";
 
-/// The question E1 asked: which source « Y Combinator » means, Hacker News recommended.
-fn yc_question() -> Value {
-    json!({"questions": [{"key": "yc_source", "role": "read_source",
+/// The choice E1 was asked: which source « Y Combinator » means, shown by the proposal with
+/// Hacker News its default.
+fn yc_choice() -> Value {
+    json!({"key": "yc_source", "role": "read_source",
         "question": "Pour « Y Combinator », quelle source d'actualités veux-tu ?",
         "options": [
             {"key": "hackernews", "label": "Hacker News", "recommended": true,
              "values": [{"role": "read_source", "value": HACKER_NEWS, "name": "Hacker News"}]},
             {"key": "yc_blog", "label": "Le blog YC",
              "values": [{"role": "read_source", "value": YC_BLOG, "name": "Le blog YC"}]}],
-        "free_text": true}]})
+        "free_text": true})
 }
 
 /// F2: the person refuses the plan; the author's claim that they accepted it is refused.
@@ -898,7 +936,7 @@ fn refused_offer() -> Scenario {
         acts: vec![Act::Turn(REQUEST), Act::Submit(REFUSE)],
         script: Script {
             agent: vec![
-                call("ask", plan_offer(&tech())),
+                call("ask", sources_question(&tech())),
                 call("candidate_write", accepted_digest()),
                 say("D'accord, je cherche autre chose."),
             ],
@@ -927,7 +965,12 @@ fn deflection_takes_the_recommendation() -> Scenario {
         acts: vec![Act::Turn(YC_REQUEST), Act::Submit(DEFLECT)],
         script: Script {
             agent: vec![
-                call("ask", yc_question()),
+                call("candidate_write", write.clone()),
+                call_saying(
+                    "Je prends Hacker News pour Y Combinator, et TechCrunch.",
+                    "propose",
+                    json!({"open": [yc_choice()]}),
+                ),
                 call("candidate_write", write),
                 call_saying(
                     "Je garde mon conseil : Hacker News et TechCrunch.",

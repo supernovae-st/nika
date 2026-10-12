@@ -41,9 +41,9 @@ const TECHCRUNCH: &str = "https://techcrunch.com";
 const DIGEST: &str = "./news/digest.md";
 /// The ordinary request: sources and output left open.
 pub(crate) const REQUEST: &str = "fais moi un workflow tres simple qui recupere les news tech recentes, les resume et ecrit le resultat en markdown dans un dossier du projet";
-/// The acceptance of the agent's recommendation: the consent word, a pick by protocol (a
+/// The person's answer: the label of the sources the agent offers, a pick by protocol (a
 /// sentence would be read by the seat's own one-shot, which this fixture does not script).
-pub(crate) const ACCEPT: &str = "oui";
+pub(crate) const ACCEPT: &str = "Hacker News et TechCrunch";
 /// The person asks which model runs their workflow.
 pub(crate) const CHOOSE: &str = "which model should run my workflow?";
 /// A model no route on this machine offers.
@@ -79,40 +79,39 @@ fn digest() -> String {
     source
 }
 
-/// The agent's one recommendation for the ordinary request, asked as a choice.
+/// The agent asks which sources, recommending none.
 fn plan_offer() -> Value {
     let values = json!([
         {"role": "read_source", "value": HACKER_NEWS, "name": "Hacker News"},
-        {"role": "read_source", "value": TECHCRUNCH, "name": "TechCrunch"},
-        {"role": "output_path", "value": DIGEST}
+        {"role": "read_source", "value": TECHCRUNCH, "name": "TechCrunch"}
     ]);
     json!({"questions": [{
         "key": "plan",
-        "question": format!("Je prends Hacker News, TechCrunch et j'écris le résumé dans {DIGEST} : ça te va ?"),
+        "question": "Quelles sources d'actualités tech veux-tu ?",
         "why": "La demande ne nomme ni les sources ni le fichier de sortie.",
         "options": [
-            {"key": "recommended", "label": format!("Oui : Hacker News, TechCrunch → {DIGEST}"),
-             "recommended": true, "values": values},
-            {"key": "other", "label": "D'autres sources ou un autre fichier"}
+            {"key": "tech", "label": ACCEPT, "values": values},
+            {"key": "other", "label": "D'autres sources"}
         ],
         "free_text": true
     }]})
 }
 
-/// A selection taken from the recommended option the person accepted with `u2`.
+/// A selection taken from the option the person picked with `u2`.
 fn offered(value: &str, role: &str) -> Value {
     json!({"value": value, "kind": "offered", "role": role, "message": "u2", "excerpt": ACCEPT,
-        "question": "plan", "option": "recommended"})
+        "question": "plan", "option": "tech"})
 }
 
-/// The candidate the accepted recommendation builds.
+/// The candidate the sources the person picked build, its file derived from their request.
 fn accepted_digest() -> Value {
     json!({
         "source": digest(),
         "resolutions": [
             offered(HACKER_NEWS, "read_source"),
             offered(TECHCRUNCH, "read_source"),
-            offered(DIGEST, "output_path"),
+            {"value": DIGEST, "kind": "derived", "role": "output_path", "message": "u1",
+             "excerpt": "ecrit le resultat en markdown dans un dossier du projet"},
         ],
         "summary": "Hacker News et TechCrunch, résumé dans ./news/digest.md"
     })
@@ -156,7 +155,8 @@ fn offered_model() -> (String, Value) {
     (offer.model.clone(), facts)
 }
 
-/// The agent asks which model runs the workflow: one the inventory offers, one it does not.
+/// The agent asks which model runs the workflow, recommending neither: one the inventory offers,
+/// one it does not.
 fn model_offer(model: &str) -> Value {
     let option = |key: &str, value: &str, recommended: bool| {
         json!({"key": key, "label": value, "recommended": recommended,
@@ -166,7 +166,7 @@ fn model_offer(model: &str) -> Value {
         "key": "model",
         "role": "run_model",
         "question": "Which model runs the workflow?",
-        "options": [option("offered", model, true), option("invented", INVENTED, false)],
+        "options": [option("offered", model, false), option("invented", INVENTED, false)],
         "free_text": false
     }]})
 }
@@ -339,7 +339,7 @@ fn assert_asked(asked: &Value) {
     assert_eq!(kind(asked), "question", "{asked:#}");
     let text = asked["outcome"]["text"].as_str().unwrap();
     assert!(
-        text.starts_with("Je te propose deux sources tech.") && text.contains("ça te va ?"),
+        text.starts_with("Je te propose deux sources tech.") && text.contains("Quelles sources"),
         "{text}"
     );
     assert_eq!(asked["shown"]["waiting"]["kind"], "question", "{asked:#}");
@@ -363,9 +363,21 @@ fn assert_proposed(proposed: &Value) {
     assert!(text.starts_with("Voici le workflow"), "{text}");
     let bindings = proposed["shown"]["work"]["bindings"].as_array().unwrap();
     assert_eq!(bindings.len(), 3, "{bindings:#?}");
-    let offered =
-        |b: &Value| b["provenance"]["kind"] == "offered" && b["provenance"]["message"] == "u2";
-    assert!(bindings.iter().all(offered), "{bindings:#?}");
+    let kinds: Vec<(&str, &str)> = (bindings.iter())
+        .map(|b| {
+            let provenance = &b["provenance"];
+            (
+                provenance["kind"].as_str().unwrap_or_default(),
+                provenance["message"].as_str().unwrap_or_default(),
+            )
+        })
+        .collect();
+    let count = |kind: &str, line: &str| kinds.iter().filter(|k| **k == (kind, line)).count();
+    assert_eq!(
+        (count("offered", "u2"), count("derived", "u1")),
+        (2, 1),
+        "{bindings:#?}"
+    );
     assert_eq!(proposed["shown"]["proposal"], proposed["outcome"]["id"]);
 }
 
@@ -384,7 +396,7 @@ fn assert_agent_read(world: &World) {
         first.ends_with(&format!("{REQUEST}\n\n(cited as u1)")),
         "{first}"
     );
-    // The answer, then what Nika read it to pick: the recommended offer, bound by Nika.
+    // The answer, then what Nika read it to pick: the offer its label names, bound by Nika.
     let answer = format!("The person answered, cited as u2:\n{ACCEPT}\n\nNika (not the person):\n");
     assert!(
         prompts[1].as_str().unwrap().starts_with(&answer),
@@ -395,7 +407,7 @@ fn assert_agent_read(world: &World) {
         prompts[1]
             .as_str()
             .unwrap()
-            .contains("the person picked `recommended`"),
+            .contains("the person picked `tech`"),
         "{}",
         prompts[1]
     );

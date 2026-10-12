@@ -242,9 +242,20 @@ fn open_questions(step: &Value) -> Vec<(String, String)> {
         .collect()
 }
 
-/// The concrete values a waiting question's recommended option carries.
+/// The concrete values every option of a waiting question carries.
+fn offered_values(step: &Value) -> Vec<String> {
+    (rows(step, "questions").into_iter())
+        .flat_map(|q| q["options"].as_array().into_iter().flatten())
+        .flat_map(|option| option["values"].as_array().into_iter().flatten())
+        .filter_map(|value| value["value"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// The concrete values the recommended option of a waiting question, or of a choice the
+/// proposal shows, carries.
 fn recommended_values(step: &Value) -> Vec<String> {
     (rows(step, "questions").into_iter())
+        .chain(rows(step, "open_choices"))
         .flat_map(|q| q["options"].as_array().into_iter().flatten())
         .filter(|option| option["recommended"] == true)
         .flat_map(|option| option["values"].as_array().into_iter().flatten())
@@ -276,10 +287,12 @@ fn reached_the_author(journey: &Journey, line: &str) -> bool {
 fn accepting_the_current_offer_binds_its_values_never_the_word_yes() {
     let journey = run("accept_offer");
     let (asked, accepted) = (journey.step(0), journey.step(1));
-    assert!(
-        matches!(waiting(asked), "question" | "questions"),
-        "the request is met with one concrete offer: {asked:#}"
+    assert_eq!(
+        waiting(asked),
+        "consent",
+        "the request is met at once with one concrete proposal: {asked:#}"
     );
+    assert!(open_questions(asked).is_empty(), "nothing asked first");
     let offered = recommended_values(asked);
     for value in [HACKER_NEWS, TECHCRUNCH, DIGEST] {
         assert!(offered.iter().any(|v| v == value), "{value}: {offered:?}");
@@ -318,10 +331,16 @@ fn accepting_the_current_offer_binds_its_values_never_the_word_yes() {
         "{:#}",
         work(accepted)
     );
-    // The question was answered once: its identity answers nothing again.
+    // The proposal that line answered is no longer the one shown: a yes to it answers nothing.
     let again = journey.step(2);
     assert_eq!(again["outcome"]["kind"], "refusal", "{again:#}");
-    assert_eq!(again["outcome"]["class"], "already_consumed", "{again:#}");
+    assert!(
+        matches!(
+            again["outcome"]["class"].as_str(),
+            Some("already_consumed" | "stale_revision")
+        ),
+        "{again:#}"
+    );
 }
 
 #[test]
@@ -408,7 +427,7 @@ fn a_partial_correction_keeps_every_unaffected_selection_and_its_provenance() {
         LE_MONDE_WORDS
     );
     // The author's first correction silently dropped TechCrunch: refused, with the reason.
-    let refused = journey.agent[5].last();
+    let refused = journey.agent[6].last();
     assert!(
         refused.contains("techcrunch.com"),
         "the refusal names the retained source the correction dropped: {refused}"
@@ -476,7 +495,7 @@ fn a_reopened_session_keeps_selections_and_provenance_and_renews_identities() {
         assert!(source.contains(value), "{value}:\n{source}");
     }
     // The author's first request after the reopen carries the conversation it continues.
-    let resumed = &journey.agent[3];
+    let resumed = &journey.agent[4];
     for value in [ACCEPT, HACKER_NEWS, DIGEST] {
         assert!(
             resumed.text().contains(value),
@@ -502,8 +521,8 @@ fn a_question_about_the_question_is_answered_and_the_offer_is_renewed() {
         matches!(waiting(explained), "question" | "questions"),
         "{explained:#}"
     );
-    let offered = recommended_values(explained);
-    for value in [HACKER_NEWS, TECHCRUNCH, DIGEST] {
+    let offered = offered_values(explained);
+    for value in [HACKER_NEWS, TECHCRUNCH] {
         assert!(offered.iter().any(|v| v == value), "{value}: {offered:?}");
     }
     assert_ne!(
@@ -580,7 +599,7 @@ fn a_stale_screen_an_answered_question_and_another_session_answer_nothing() {
         "{first:#}"
     );
     assert!(
-        recommended_values(corrected).iter().any(|v| v == LE_MONDE),
+        offered_values(corrected).iter().any(|v| v == LE_MONDE),
         "the correction renews the offer: {corrected:#}"
     );
     assert_ne!(
@@ -827,7 +846,7 @@ fn a_refusal_binds_no_offer_the_author_claims() {
 #[test]
 fn a_deflection_takes_the_recommendation_visibly() {
     let journey = run("deflection_takes_the_recommendation");
-    assert_eq!(outcome_kind(journey.step(0)), "question");
+    assert_eq!(outcome_kind(journey.step(0)), "proposal");
     let proposed = journey.step(1);
     assert_eq!(outcome_kind(proposed), "proposal", "{proposed:#}");
     let hn = binding(proposed, HACKER_NEWS).expect("Hacker News is bound");
@@ -845,7 +864,7 @@ fn a_deflection_takes_the_recommendation_visibly() {
             .any(|d| d["message"] == "u2" && d["scope"] == "read_source"),
         "{delegations:?}"
     );
-    let read = &journey.agent[1];
+    let read = &journey.agent[2];
     assert!(
         read.text().contains("recommended `hackernews`"),
         "{}",
