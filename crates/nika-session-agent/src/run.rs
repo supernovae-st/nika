@@ -412,6 +412,13 @@ impl<'a> Agent<'a> {
         if summary.trim().is_empty() {
             return Err(AgentError::Model("the summary came back empty".into()));
         }
+        // A summary cut at the output limit would silently replace what it folds: nothing is
+        // folded, the originals stay the context, and the turn says why.
+        if matches!(reply.stop, StopReason::MaxTokens) {
+            return Err(AgentError::Model(
+                "the summary was cut at the output limit: nothing was folded".into(),
+            ));
+        }
         let at = (self.now)();
         let store = &mut *self.store;
         let entry =

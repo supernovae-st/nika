@@ -753,3 +753,42 @@ fn a_model_that_only_reasons_twice_ends_the_run_without_a_third_call() {
         ["user", "assistant", "note", "assistant"]
     );
 }
+
+/// A summary cut at the provider's output limit is no summary: the turn says why, nothing is
+/// folded, no request is sent over the cut meaning, and every original entry stays in the branch.
+#[test]
+fn a_summary_cut_at_the_output_limit_folds_nothing() {
+    let (mut tree, mut lines) = fresh();
+    let tools = Tools::new();
+    let cut = Reply::new(
+        vec![ContentBlock::Text {
+            text: "The person asked for".into(),
+        }],
+        StopReason::MaxTokens,
+    );
+    let mut model = Script::new(vec![says("Done."), Ok(cut)]);
+    let mut events = Vec::new();
+    let second = {
+        let mut agent = Agent::new(&mut tree, &mut lines, &tools, &now)
+            .with_window(Window::new(1_000, 200, 100));
+        let first = agent.prompt(&"a".repeat(3_200), &mut model, &mut |_| {});
+        assert!(matches!(first, Outcome::Answered { .. }));
+        agent.prompt("and now?", &mut model, &mut |e| events.push(e))
+    };
+    let refused = matches!(&second, Outcome::Failed { error: AgentError::Model(why) }
+        if why.contains("cut at the output limit"));
+    assert!(refused, "the turn says why");
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, AgentEvent::Compacted { .. })),
+        "nothing folded"
+    );
+    assert_eq!(model.seen.len(), 2, "no request after the cut summary");
+    let context = tree.context();
+    assert_eq!(
+        context.messages.len(),
+        3,
+        "the line, its answer and the new line stay"
+    );
+}
