@@ -1,3 +1,22 @@
 # Default owner for everything in the repo — review routes to the
 # maintainer until additional maintainers join (GOVERNANCE forthcoming).
 * @ThibautMelen
+
+# Sensitive surfaces — author texts, compile cards, the compiler's law and
+# retrieval word lists, ask/verify laws, fidelity record forms, knowledge, and
+# the reviewed authoring-prompt sources. These are the paths the
+# `evaluation-receipt` gate (.github/workflows/evaluation-receipt.yml) holds
+# for the evaluator's paired evaluation. The entries are for visibility: the
+# mechanical gate is the required `evaluation-receipt` status, not a code-owner
+# review (the ruleset keeps require_code_owner_review off, so these never block
+# a PR on a manual review).
+crates/nika-session/assets/           @ThibautMelen
+crates/nika-compile-cognition/assets/ @ThibautMelen
+crates/nika-compile-reader/assets/    @ThibautMelen
+crates/nika-compile/assets/           @ThibautMelen
+crates/nika-compile-fidelity/assets/  @ThibautMelen
+crates/nika-onboard-knowledge/assets/ @ThibautMelen
+crates/nika-compile-seats/src/foundry/ @ThibautMelen
+# The gate protects itself: editing it requires the paired evaluation too.
+/.github/workflows/evaluation-receipt.yml @ThibautMelen
+/.github/CODEOWNERS                        @ThibautMelen
