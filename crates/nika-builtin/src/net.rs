@@ -615,7 +615,22 @@ pub(super) fn build_request(
     if let Some(body) = args.get("body") {
         let bytes = match body {
             serde_json::Value::String(s) => s.clone().into_bytes(),
-            other => serde_json::to_vec(other).map_err(|e| e.to_string())?,
+            other => {
+                // A non-string body goes out as JSON ("objects auto-JSON"),
+                // so it says so, as a `json=` client does: a receiver that
+                // parses by content type read an untyped body as empty. The
+                // author's own `content-type` header wins.
+                let typed = request
+                    .headers
+                    .keys()
+                    .any(|k| k.eq_ignore_ascii_case("content-type"));
+                if !typed {
+                    request
+                        .headers
+                        .insert("content-type".to_owned(), "application/json".to_owned());
+                }
+                serde_json::to_vec(other).map_err(|e| e.to_string())?
+            }
         };
         request.body = Some(bytes.into());
     }

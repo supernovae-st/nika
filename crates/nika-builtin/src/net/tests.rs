@@ -836,6 +836,48 @@ async fn fetch_post_carries_the_body() {
 }
 
 #[tokio::test]
+async fn fetch_a_json_body_names_its_type_unless_the_author_did() {
+    // « objects auto-JSON » went out untyped: a receiver that parses by
+    // content type read the body as empty.
+    let calls = [
+        (
+            serde_json::json!({ "text": "hello" }),
+            None,
+            Some("application/json"),
+        ),
+        (serde_json::json!([1, 2]), None, Some("application/json")),
+        (
+            serde_json::json!({ "a": 1 }),
+            Some("application/vnd.api+json"),
+            Some("application/vnd.api+json"),
+        ),
+        (serde_json::json!("a=1"), None, None),
+    ];
+    for (body, declared, expected) in calls {
+        let http = MockHttp::new().enqueue_ok(200, b"ok".to_vec());
+        let mut call = serde_json::json!({
+            "url": "https://x.test/hook", "method": "POST", "mode": "raw", "body": body
+        });
+        if let Some(declared) = declared {
+            call["headers"] = serde_json::json!({ "Content-Type": declared });
+        }
+        fetch(&http, &args(call)).await.expect("ok");
+        let sent = http.sent_requests();
+        let types: Vec<&str> = sent[0]
+            .headers
+            .iter()
+            .filter(|(name, _)| name.eq_ignore_ascii_case("content-type"))
+            .map(|(_, value)| value.as_str())
+            .collect();
+        assert_eq!(
+            types,
+            expected.into_iter().collect::<Vec<_>>(),
+            "{declared:?}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn fetch_maps_every_method_to_the_request() {
     for (name, expected) in [
         ("GET", HttpMethod::Get),
