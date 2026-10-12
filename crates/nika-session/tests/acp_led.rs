@@ -703,3 +703,39 @@ fn an_acp_agents_question_with_a_default_is_refused_at_the_relay() {
         "the agent reads why it is not asked"
     );
 }
+
+/// An ACP agent that writes a candidate and ends its turn in words is asked once, in Nika's words,
+/// to end it with a proposal, a question or a refusal: it proposes, and the person sees it.
+#[test]
+fn an_acp_agents_words_over_an_unproposed_candidate_are_asked_once() {
+    let write = json!({"source": digest(), "resolutions": [],
+        "summary": "Hacker News et TechCrunch, résumé dans ./news/digest.md"});
+    // Proposed as the relay's other journeys propose it: the sources and the output shown as the
+    // defaults of one open choice, which the person's yes keeps.
+    let values = json!([
+        {"role": "read_source", "value": HACKER_NEWS, "name": "Hacker News"},
+        {"role": "read_source", "value": TECHCRUNCH, "name": "TechCrunch"},
+        {"role": "output_path", "value": DIGEST}
+    ]);
+    let plan = json!({"key": "plan", "question": "Je prends Hacker News et TechCrunch : ça te va ?",
+        "options": [{"key": "recommended", "label": "Oui", "recommended": true, "values": values},
+            {"key": "other", "label": "D'autres sources ou un autre fichier"}]});
+    let turns = json!([
+        [
+            call("toolu_write", "candidate_write", &write),
+            {"say": "J'ai écrit le workflow."}
+        ],
+        [
+            call("toolu_propose", "propose", &json!({"open": [plan]})),
+            {"say": "Voici le workflow."}
+        ]
+    ]);
+    let world = World::new(Some(&turns));
+    let report = world.run("prose");
+    let step = &report["steps"][0];
+    assert_eq!(kind(step), "proposal", "{step:#}");
+    let prompts = world.observed("prompts");
+    assert_eq!(prompts.len(), 2, "asked once: {prompts:#?}");
+    let asked = prompts[1].as_str().unwrap_or_default();
+    assert!(asked.contains("not proposed"), "{asked}");
+}

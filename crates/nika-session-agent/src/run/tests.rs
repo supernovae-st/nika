@@ -879,3 +879,69 @@ fn stop_in_an_observation_batch_keeps_the_started_replies() {
     );
     assert!(results[3].2, "the write reads as not run");
 }
+
+/// An answer its provider interrupted is no answer: nothing of it is kept or run, and the turn
+/// fails as the transient failure it is, so the line can be sent again.
+#[test]
+fn an_answer_its_provider_interrupted_is_neither_kept_nor_run() {
+    let (mut tree, mut lines) = fresh();
+    let tools = Tools::new();
+    let interrupted = Reply::new(
+        vec![
+            ContentBlock::Text {
+                text: "Je lis".into(),
+            },
+            ContentBlock::ToolUse {
+                id: "c1".into(),
+                name: "read".into(),
+                input: json!({"path": "a.nika"}),
+            },
+        ],
+        StopReason::Interrupted,
+    );
+    let mut model = Script::new(vec![Ok(interrupted)]);
+    let outcome =
+        Agent::new(&mut tree, &mut lines, &tools, &now).prompt("read it", &mut model, &mut |_| {});
+    let failed = matches!(&outcome, Outcome::Failed { error: AgentError::Model(why) }
+        if why.contains("interrupted"));
+    assert!(failed, "the turn says its provider interrupted it");
+    assert!(tools.called().is_empty(), "none of its calls ran");
+    assert_eq!(kinds(tree.entries()), ["user"], "nothing of it was kept");
+}
+
+/// A summary its provider interrupted folds nothing either: the turn says why, and every
+/// original entry stays the context.
+#[test]
+fn a_summary_its_provider_interrupted_folds_nothing() {
+    let (mut tree, mut lines) = fresh();
+    let tools = Tools::new();
+    let interrupted = Reply::new(
+        vec![ContentBlock::Text {
+            text: "The person asked for".into(),
+        }],
+        StopReason::Interrupted,
+    );
+    let mut model = Script::new(vec![says("Done."), Ok(interrupted)]);
+    let mut events = Vec::new();
+    let second = {
+        let mut agent = Agent::new(&mut tree, &mut lines, &tools, &now)
+            .with_window(Window::new(1_000, 200, 100));
+        let first = agent.prompt(&"a".repeat(3_200), &mut model, &mut |_| {});
+        assert!(matches!(first, Outcome::Answered { .. }));
+        agent.prompt("and now?", &mut model, &mut |e| events.push(e))
+    };
+    let refused = matches!(&second, Outcome::Failed { error: AgentError::Model(why) }
+        if why.contains("interrupted"));
+    assert!(refused, "the turn says why");
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, AgentEvent::Compacted { .. })),
+        "nothing folded"
+    );
+    assert_eq!(
+        tree.context().messages.len(),
+        3,
+        "every original entry stays"
+    );
+}

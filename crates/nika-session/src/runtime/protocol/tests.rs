@@ -339,7 +339,7 @@ fn read_only_lines_at_a_question_keep_it_and_bind_nothing() {
     ));
 }
 
-/// P1: an UNKNOWN route — the classifier could not tell, or its call failed — binds nothing,
+/// An UNKNOWN route — the classifier could not tell, or its call failed — binds nothing,
 /// even through a reading that could have found a value: the question waits with the same
 /// identity and names the ways on. An ANSWER still binds (the control).
 #[test]

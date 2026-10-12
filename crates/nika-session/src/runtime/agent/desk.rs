@@ -226,7 +226,11 @@ impl Desk for SessionDesk {
             ));
         };
         let root = OwnedDir::open(&self.root).map_err(|e| e.to_string())?;
-        let over = format!("`{path}` is larger than {READ_CAP} bytes");
+        let over = format!(
+            "`{path}` is larger than {READ_CAP} bytes; offset and limit cannot help, since the \
+             whole file is read before they apply: author from a smaller file, or let the \
+             workflow read and filter this one when it runs"
+        );
         let text = (root.read_capped_below(dirs, name, READ_CAP, &over))
             .map_err(|e| format!("`{path}` cannot be read: {e}"))?
             .ok_or_else(|| format!("`{path}` does not exist in the project"))?;

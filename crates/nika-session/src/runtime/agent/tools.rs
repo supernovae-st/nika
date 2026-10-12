@@ -320,7 +320,7 @@ impl Parts<'_> {
 
     fn edit(&mut self, args: &Value) -> ToolReply {
         let Some(candidate) = self.conversation.candidate() else {
-            return ToolReply::error("no candidate to edit: write one with candidate_write");
+            return ToolReply::error(self.conversation.no_candidate());
         };
         // One passage (`old`, `new`) or several (`edits`), applied as one revision.
         let text = |edit: &Value, key: &str| edit[key].as_str().unwrap_or_default().to_owned();
@@ -350,7 +350,7 @@ impl Parts<'_> {
     fn report(&mut self, inspect: bool) -> ToolReply {
         match self.source() {
             Some(source) => reply(self.desk.report(&source, inspect)),
-            None => ToolReply::error("no candidate yet: write one with candidate_write"),
+            None => ToolReply::error(self.conversation.no_candidate()),
         }
     }
 
@@ -368,7 +368,7 @@ impl Parts<'_> {
     fn judged(&mut self, open: &[AskedQuestion]) -> Result<String, String> {
         let source = self
             .source()
-            .ok_or("no candidate to judge: write one with candidate_write")?;
+            .ok_or_else(|| self.conversation.no_candidate())?;
         let dropped = self.conversation.dropped();
         if !dropped.is_empty() {
             return Err(dropped.join("\n"));

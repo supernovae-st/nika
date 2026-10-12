@@ -240,7 +240,7 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path, observed: &Path) -> Va
             let first = session.turn(CHOOSE);
             steps.push(step(&session, CHOOSE, &first));
         }
-        "unavailable" | "default" => {
+        "unavailable" | "default" | "prose" => {
             let first = session.turn(REQUEST);
             steps.push(step(&session, REQUEST, &first));
         }

@@ -322,7 +322,7 @@
   {
    "name": "ask",
    "read_only": false,
-   "description": "Ask the person only what no default can stand for: a fact only they have, readings whose effects differ materially, an authority only they can grant. A question carries no recommended option: a choice you can recommend goes into propose's open, and Nika refuses it here, as it refuses a question for an output in the project unless `reopens` cites their later words asking to change it; each refused question comes back with its reason. Independent questions together, a dependent one with after. An option may carry the concrete values accepting it binds. Bind first, in answered, what their last line already answered. A value they already settled is not asked again: the reply gives it back, unless the question cites in `reopens` their later words that ask to change it. When something is asked, the turn ends and their next line answers.",
+   "description": "Ask the person only what no default can stand for: a fact only they have, readings whose effects differ materially, an authority only they can grant. A question carries no recommended option: a choice you can recommend goes into propose's open, and Nika refuses it here, as it refuses a question for an output in the project unless `reopens` cites their later words asking to change it; each refused question comes back with its reason. Independent questions together, a dependent one naming in after the keys of the questions it waits for (question keys, unrelated to a task's after: map in a workflow). An option may carry the concrete values accepting it binds. Bind first, in answered, what their last line already answered. A value they already settled is not asked again: the reply gives it back, unless the question cites in `reopens` their later words that ask to change it. When something is asked, the turn ends and their next line answers.",
    "input_schema": {
     "type": "object",
     "properties": {
@@ -671,6 +671,7 @@
      "type": "boolean"
     },
     "after": {
+     "description": "The keys of the questions this one waits for: a list of question keys, unrelated to a task's after: map in a workflow.",
      "type": "array",
      "items": {
       "type": "string"

@@ -738,7 +738,7 @@ fn a_line_steered_into_the_run_enters_after_the_calls_under_way() {
     let mut entered = queued("l1", "steer", STEER_B, "entered");
     entered["cite"] = json!("u2");
     assert_eq!(work(step)["queued"], json!([entered]));
-    // Both calls ran: the one answered once the line arrived hands no turn over (I4c item 6),
+    // Both calls ran: the one answered once the line arrived hands no turn over,
     // and the author read the line, cited, right after that call's reply.
     assert_eq!(journey.agent.len(), 3, "{:#?}", journey.agent);
     assert!(
@@ -820,7 +820,7 @@ fn said(step: &Value) -> &str {
     step["outcome"]["text"].as_str().unwrap_or_default()
 }
 
-/// F2: a refusal picks no offer, and the author's claim that the person accepted one binds
+/// A refusal picks no offer, and the author's claim that the person accepted one binds
 /// nothing.
 #[test]
 fn a_refusal_binds_no_offer_the_author_claims() {
@@ -842,7 +842,7 @@ fn a_refusal_binds_no_offer_the_author_claims() {
     );
 }
 
-/// Item 4(a), E1 machine-1: a deflection takes the recommended offer, delegated and visible.
+/// A deflection takes the recommended offer, delegated and visible.
 #[test]
 fn a_deflection_takes_the_recommendation_visibly() {
     let journey = run("deflection_takes_the_recommendation");
@@ -872,7 +872,7 @@ fn a_deflection_takes_the_recommendation_visibly() {
     );
 }
 
-/// Item 4(b), E1 machine-2: a value left to the author is chosen once and never asked again.
+/// A value left to the author is chosen once and never asked again.
 #[test]
 fn a_name_left_to_the_author_is_never_asked_again() {
     let journey = run("delegated_name");
@@ -897,8 +897,8 @@ fn a_name_left_to_the_author_is_never_asked_again() {
     assert!(said(named).contains(&changed), "{}", said(named));
 }
 
-/// I4c item 1, the Pi study: one `candidate_edit` carries several edits, each read in the
-/// original candidate, and lands them as one revision.
+/// One `candidate_edit` carries several edits, each read in the original candidate, and
+/// lands them as one revision.
 #[test]
 fn two_edits_in_one_call_make_one_revision() {
     let journey = run("two_edits");
@@ -911,9 +911,9 @@ fn two_edits_in_one_call_make_one_revision() {
     assert!(edited, "two edits, one revision");
 }
 
-/// The evaluator's tickets, biz24-07 and all-tags cells: an author's own filters, programs, globs
-/// and rights state no selection and are never asked. The author reads it in its instructions and
-/// in `candidate_write`, and its own jq filter, stated nowhere, is proposed at once.
+/// An author's own filters, programs, globs and rights state no selection and are never asked.
+/// The author reads it in its instructions and in `candidate_write`, and its own jq filter,
+/// stated nowhere, is proposed at once.
 #[test]
 fn an_authors_own_filter_is_proposed_without_a_question() {
     let journey = run("own_filter");
@@ -930,7 +930,7 @@ fn an_authors_own_filter_is_proposed_without_a_question() {
     assert!(write.contains("state none"), "candidate_write says it too");
 }
 
-/// Item 4(e) and lane B's T3, E1 TUI: « today » removes no source, and a replacement in words
+/// « Today » removes no source, and a replacement in words
 /// that name the source is said under the proposal.
 #[test]
 fn a_source_is_replaced_only_by_words_that_name_it_and_the_change_is_said() {
@@ -947,7 +947,7 @@ fn a_source_is_replaced_only_by_words_that_name_it_and_the_change_is_said() {
     assert!(said(swapped).contains(&changed), "{}", said(swapped));
 }
 
-/// Item 4(f), E1 TUI: the folder typed at a proposal is a revision; the card never files it as
+/// The folder typed at a proposal is a revision; the card never files it as
 /// money input.
 #[test]
 fn a_folder_line_at_a_proposal_is_never_money_input() {
@@ -959,7 +959,7 @@ fn a_folder_line_at_a_proposal_is_never_money_input() {
     assert!(said(moved).contains(&request), "{}", said(moved));
 }
 
-/// Item 5, E1 machine-2: a failed Run goes back to its author at once with the run's facts; the
+/// A failed Run goes back to its author at once with the run's facts; the
 /// repaired revision never runs on the words that ran the failed one, and runs on new words.
 #[test]
 fn a_failed_run_is_repaired_and_runs_again_only_on_new_words() {
@@ -989,7 +989,7 @@ fn a_failed_run_is_repaired_and_runs_again_only_on_new_words() {
     assert_eq!(outcome_kind(again), "run_requested", "{again:#}");
 }
 
-/// Item 5, the evaluator's repair cell: a complaint about a successful Run reaches the author
+/// A complaint about a successful Run reaches the author
 /// with the run's facts, and the repair runs on those words.
 #[test]
 fn a_complaint_about_a_run_reaches_the_author_with_its_facts() {
@@ -1012,7 +1012,7 @@ fn a_complaint_about_a_run_reaches_the_author_with_its_facts() {
     assert_eq!(outcome_kind(again), "run_requested", "{again:#}");
 }
 
-/// Lane B's verifier on the conversation's candidate: a judge that rejects the request as a
+/// The verifier on the conversation's candidate: a judge that rejects the request as a
 /// whole and locates nothing holds it, so nothing is proposed and the author repairs from the
 /// findings; the same bytes verified again ask the judge nothing (R6).
 #[test]
@@ -1046,7 +1046,7 @@ fn answered(journey: &Journey, n: usize) -> String {
     journey.agent.get(n).map(Seen::last).unwrap_or_default()
 }
 
-/// Item 2: a candidate is tried before it is proposed, on the pages its sources answered. A jq
+/// A candidate is tried before it is proposed, on the pages its sources answered. A jq
 /// step that refuses a date without an offset fails the trial: nothing is proposed, the author
 /// reads the trial's facts (the task, its code, its message) and proposes the repaired
 /// revision, whose trial passes and binds to the proposal that shows what it ran on.
@@ -1072,7 +1072,7 @@ fn a_trial_catches_a_date_without_an_offset_before_any_proposal() {
     );
 }
 
-/// Item 2, the repair cell: a filter that keeps nothing of the items an RFC 3339 feed gives
+/// A filter that keeps nothing of the items an RFC 3339 feed gives
 /// fails the trial with what came in, so the author repairs it before any proposal.
 #[test]
 fn a_trial_catches_a_filter_that_keeps_nothing_before_any_proposal() {
@@ -1093,7 +1093,7 @@ fn a_trial_catches_a_filter_that_keeps_nothing_before_any_proposal() {
     assert!(text.contains(TRIED_ON), "{text}");
 }
 
-/// Item 2: what a trial does not run is said to the person: the model step and the POST.
+/// What a trial does not run is said to the person: the model step and the POST.
 #[test]
 fn a_trial_names_the_steps_it_did_not_run() {
     let journey = run("trial_names_what_it_skips");
@@ -1105,7 +1105,7 @@ fn a_trial_names_the_steps_it_did_not_run() {
     assert!(text.contains(skipped), "{text}");
 }
 
-/// P0: an agent-led proposal that reads a project file is saved after the person's yes; its
+/// An agent-led proposal that reads a project file is saved after the person's yes; its
 /// sources are judged by the exact bytes it was shown over, never by a compile it never had.
 #[test]
 fn an_agent_proposal_that_reads_a_project_file_is_saved_after_the_yes() {
@@ -1125,7 +1125,7 @@ fn an_agent_proposal_that_reads_a_project_file_is_saved_after_the_yes() {
     );
 }
 
-/// P0: a project file changed after the proposal withdraws it at the yes, as stale.
+/// A project file changed after the proposal withdraws it at the yes, as stale.
 #[test]
 fn a_file_changed_after_the_proposal_withdraws_it_at_the_yes() {
     let journey = run("a_read_file_changes");
@@ -1169,7 +1169,7 @@ fn a_write_reply_carries_its_findings_and_the_repaired_write_proposes() {
 }
 
 /// A model that only reasons is asked once more, in Nika's words; silent again, the turn says
-/// so instead of ending in an empty reply (lane C's Gemini thought-only turns).
+/// so instead of ending in an empty reply (a reasoning model's thought-only turns).
 #[test]
 fn a_thought_only_answer_never_ends_a_turn_in_silence() {
     let journey = run("thought_only");
@@ -1381,4 +1381,89 @@ fn a_change_then_run_line_runs_its_revision_without_a_second_yes() {
         "the bytes shown before"
     );
     assert_ne!(bytes, before, "not the bytes shown before");
+}
+
+/// The asserted write the author's instructions show, built into a candidate as an author
+/// following them writes it, is clean for `nika check` and proposed: its `after:` is the map the
+/// strict parser reads, never the list it refuses.
+#[test]
+fn the_asserted_write_the_instructions_show_is_accepted() {
+    let journey = run("taught_assert");
+    let step = journey.step(0);
+    assert_eq!(outcome_kind(step), "proposal", "{step:#}");
+}
+
+/// The author's instructions teach the language's own forms: every `after:` they show is a map,
+/// none is a list, and each orders a workflow `nika check` accepts; no condition reads
+/// `${{ tasks.… }}` outside `with:`; and the `ask` field `after` says it lists question keys,
+/// unlike a task's `after:` map.
+#[test]
+fn the_instructions_teach_the_language_forms() {
+    let text = include_str!("../assets/author_system.md");
+    let lists: Vec<&str> = text.lines().filter(|l| l.contains("after: [")).collect();
+    assert!(lists.is_empty(), "{lists:#?}");
+    let shown: Vec<&str> = (text.split("after: { ").skip(1))
+        .filter_map(|rest| rest.split(" }").next())
+        .collect();
+    assert!(shown.len() >= 2, "the after: map is shown: {shown:?}");
+    for entry in shown {
+        let (producer, outcome) = entry.split_once(": ").unwrap();
+        let source = format!(
+            "nika: after-form\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  {producer}:\n    invoke: {{ tool: \"nika:jq\", args: {{ input: 1, expression: \".\" }} }}\n  next:\n    after: {{ {producer}: {outcome} }}\n    invoke: {{ tool: \"nika:jq\", args: {{ input: 2, expression: \".\" }} }}\n"
+        );
+        let options = nika_cli_host::oracle::AuditOptions::new(None, None);
+        let audit =
+            nika_cli_host::oracle::audit_source(&source, "after-form.nika", None, None, options)
+                .unwrap();
+        assert!(
+            audit.verdict.clean,
+            "nika check refuses the form:\n{source}"
+        );
+    }
+    let direct: Vec<&str> = (text.lines())
+        .filter(|l| l.contains("condition") && l.contains("${{ tasks."))
+        .collect();
+    assert!(direct.is_empty(), "{direct:#?}");
+    let tools: Value = serde_json::from_str(include_str!("../assets/author_tools.json")).unwrap();
+    let after = &tools["$defs"]["question"]["properties"]["after"];
+    let said = after["description"].as_str().unwrap_or_default();
+    assert!(said.contains("question keys"), "{after:#}");
+}
+
+/// An edit after a refused write names that refusal and its reason and asks for the whole
+/// candidate again, since no candidate stands for the edit to change. Written again, the
+/// candidate is proposed.
+#[test]
+fn an_edit_after_a_refused_write_names_the_refusal() {
+    let journey = run("edit_after_refused_write");
+    let edited = journey.agent[2].last();
+    assert!(edited.contains("was refused"), "{edited}");
+    assert!(edited.contains("never a list"), "{edited}");
+    let step = journey.step(0);
+    assert_eq!(outcome_kind(step), "proposal", "{step:#}");
+}
+
+/// A project file over the read cap: the reply says that offset and limit cannot help, since the
+/// whole file is read before they apply, and what can.
+#[test]
+fn reading_an_oversized_file_says_offset_and_limit_cannot_help() {
+    let journey = run("oversized_read");
+    let refused = journey.agent[1].last();
+    assert!(refused.contains("larger than 262144 bytes"), "{refused}");
+    assert!(
+        refused.contains("offset and limit cannot help"),
+        "{refused}"
+    );
+}
+
+/// A turn that would end in words over a candidate the author wrote and never proposed is asked
+/// once, in Nika's words, to end with a proposal, a question or a refusal: the author proposes it.
+#[test]
+fn words_over_an_unproposed_candidate_are_asked_once_to_end_the_turn() {
+    let journey = run("written_not_proposed");
+    let step = journey.step(0);
+    assert_eq!(outcome_kind(step), "proposal", "{step:#}");
+    assert_eq!(journey.agent.len(), 3, "asked once: {:#?}", journey.agent);
+    let asked = journey.agent[2].last();
+    assert!(asked.contains("not proposed"), "{asked}");
 }

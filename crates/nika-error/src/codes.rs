@@ -432,7 +432,7 @@ fn run_code_help(num: u16) -> &'static str {
             "`NIKA_SANDBOX` held an unknown word — expected exactly `auto`, `require`, or `off`. A typo'd security knob refuses to start rather than loudly default (fail-closed)."
         }
         1712 => {
-            "A value the rehearsal run built crossed its room's bound: a rehearsal vouches for nothing a run builds past what its room holds. The task that built it failed where it was built, and the room reports a data bound; the same workflow run outside a room has no such bound."
+            "A value the rehearsal run built crossed its room's bound: a rehearsal vouches for nothing a run builds past what its room holds. The task that built it failed where it was built, and the room reports a data bound; the same workflow run outside a room has no such bound. Shrink the value this task builds, or run the workflow outside a rehearsal room, where no bound applies."
         }
         _ => "Runtime error. Re-run `nika check`, then `nika explain` the exact code.",
     }
@@ -768,6 +768,14 @@ fn is_provider_code(code: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A value over a rehearsal room's bound teaches how to clear it, beside its cause.
+    #[test]
+    fn value_bound_teaches_its_remedy() {
+        let help = run_code_help(1712);
+        assert!(help.contains("crossed its room's bound"), "{help}");
+        assert!(help.contains("Shrink the value this task builds"), "{help}");
+    }
 
     /// The one-voice namespace teaching both explain surfaces consume:
     /// builtin and provider codes teach, everything else stays `None`

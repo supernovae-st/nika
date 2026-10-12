@@ -8,7 +8,7 @@ use nika_session_change::work::Offer;
 
 use super::*;
 
-/// « Which source for Y Combinator? » with Hacker News recommended, as E1 asked it.
+/// « Which source for Y Combinator? » with Hacker News recommended.
 fn source() -> AskedQuestion {
     let id = QuestionId::new("witness-source".to_owned(), &Arc::new(Incarnation));
     let options = vec![

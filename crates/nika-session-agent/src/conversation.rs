@@ -170,6 +170,8 @@ pub struct Conversation {
     /// Why the proposal shown cannot be saved as it is: an option of its choices the person
     /// picked instead of the default it carries, until the author proposes again.
     picked_other: Vec<String>,
+    /// The first line of why the last `candidate_write` was refused, until one is accepted.
+    refused_write: Option<String>,
 }
 
 /// What a Session keeps of a conversation across a reopen: the evidence, never an authority
@@ -318,6 +320,35 @@ impl Conversation {
     #[must_use]
     pub fn candidate(&self) -> Option<&Candidate> {
         self.candidate.as_ref()
+    }
+
+    /// Whether the candidate's revision waits unproposed: written, and not the one the last
+    /// proposal showed.
+    #[must_use]
+    pub fn unproposed(&self) -> bool {
+        (self.candidate.as_ref())
+            .is_some_and(|c| (self.shown.as_ref()).is_none_or(|s| s.number != c.number))
+    }
+
+    /// What a call that needs the candidate answers when none stands (edit, check, inspect,
+    /// verify, trial, propose): when the last `candidate_write` was refused, that refusal and the
+    /// first line of its reason, and that the whole candidate is written again.
+    #[must_use]
+    pub fn no_candidate(&self) -> String {
+        match &self.refused_write {
+            Some(why) => format!(
+                "no candidate yet: your last candidate_write was refused ({why}); fix that and \
+                 call candidate_write again, since there is nothing yet for candidate_edit to edit"
+            ),
+            None => "no candidate yet: write one with candidate_write".to_owned(),
+        }
+    }
+
+    /// A refused `candidate_write`: its reply, the first line of its reason kept for an edit
+    /// that finds no candidate.
+    fn refused(&mut self, why: String) -> ToolReply {
+        self.refused_write = why.lines().next().map(str::to_owned);
+        ToolReply::error(why)
     }
 
     /// The tree line the current request starts on: the person's words from it on are what a
@@ -502,11 +533,11 @@ impl Conversation {
         check: &mut dyn FnMut(&str) -> Result<(), String>,
     ) -> ToolReply {
         if let Err(findings) = check(&source) {
-            return ToolReply::error(format!("the document does not parse: {findings}"));
+            return self.refused(format!("the document does not parse: {findings}"));
         }
         let rows = match Resolution::read_all(rows) {
             Ok(rows) => rows,
-            Err(why) => return ToolReply::error(format!("the selections cannot be read: {why}")),
+            Err(why) => return self.refused(format!("the selections cannot be read: {why}")),
         };
         let mut refusals = Vec::new();
         let mut released = Vec::new();
@@ -533,8 +564,9 @@ impl Conversation {
             }
         }
         if !refusals.is_empty() {
-            return ToolReply::error(refusals.join("\n"));
+            return self.refused(refusals.join("\n"));
         }
+        self.refused_write = None;
         self.accepted
             .retain(|kept| !released.iter().any(|v| same_literal(v, &kept.value)));
         // What a proposal the person saw bound stays theirs while the document carries it.
@@ -800,7 +832,7 @@ impl Conversation {
     ) -> Result<Option<Acts>, String> {
         let number = (self.candidate.as_ref())
             .map(|c| c.number)
-            .ok_or("no candidate to propose")?;
+            .ok_or_else(|| self.no_candidate())?;
         let acts: Vec<&str> = (args["acts"].as_array().into_iter().flatten())
             .filter_map(Value::as_str)
             .collect();

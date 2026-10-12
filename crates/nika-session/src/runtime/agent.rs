@@ -599,11 +599,13 @@ impl SessionRuntime {
                 calls(&event);
             }
         };
+        let pending = || toolbox.with(|c| c.unproposed());
         let mut agent = Agent::new(tree, store, &**observed, &now)
             .with_steering(steering)
             .with_cancel(cancel)
             .with_reading(&read)
-            .with_note(run_note);
+            .with_note(run_note)
+            .with_pending(&pending);
         if let Some(window) = route_window(model.model()) {
             agent = agent.with_window(window);
         }

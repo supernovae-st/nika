@@ -479,7 +479,7 @@ fn source_offered(value: &str, option: &str, message: &str) -> Value {
         "question": "yc_source", "option": option})
 }
 
-/// F2: a refusal picks no offer, so no value of any offer is admitted as offered from it.
+/// A refusal picks no offer, so no value of any offer is admitted as offered from it.
 #[test]
 fn a_refusal_picks_no_offer_and_admits_none() {
     let asker = Arc::new(Incarnation);
@@ -522,7 +522,7 @@ fn a_refusal_picks_no_offer_and_admits_none() {
     );
 }
 
-/// F2: the Session binds the offer the person picked, and only that offer is admitted.
+/// The Session binds the offer the person picked, and only that offer is admitted.
 #[test]
 fn only_the_offer_the_person_picked_is_admitted() {
     let asker = Arc::new(Incarnation);
@@ -547,7 +547,7 @@ fn only_the_offer_the_person_picked_is_admitted() {
     assert!(!reply.is_error, "{reply:?}");
 }
 
-/// Item 4(a): a reply that deflects takes the default the proposal shows, visibly delegated.
+/// A reply that deflects takes the default the proposal shows, visibly delegated.
 #[test]
 fn a_deflection_takes_the_recommendation_as_delegated() {
     let asker = Arc::new(Incarnation);
@@ -587,7 +587,7 @@ fn a_deflection_takes_the_recommendation_as_delegated() {
     );
 }
 
-/// Item 4(b): a value left to the author is chosen once, bound delegated, never asked again.
+/// A value left to the author is chosen once, bound delegated, never asked again.
 #[test]
 fn a_value_left_to_the_author_is_never_asked_again() {
     let asker = Arc::new(Incarnation);
@@ -621,7 +621,7 @@ fn a_value_left_to_the_author_is_never_asked_again() {
     assert!(!reply.is_error, "{reply:?}");
 }
 
-/// Item 4(d): a question whose every offered value is already bound is not asked.
+/// A question whose every offered value is already bound is not asked.
 #[test]
 fn a_question_over_values_already_bound_is_not_asked() {
     let asker = Arc::new(Incarnation);
@@ -669,7 +669,7 @@ fn words_nika_asked_about_never_name_the_value() {
     assert!(!reply.is_error, "{reply:?}");
 }
 
-/// Lane B's T3: a removal must cite words that name the value, and a kept value must still be
+/// A removal must cite words that name the value, and a kept value must still be
 /// in the document.
 #[test]
 fn a_removal_names_the_value_and_a_kept_value_is_in_the_document() {

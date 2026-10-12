@@ -128,11 +128,13 @@ impl SessionRuntime {
         };
         let opening = leading.opening.take();
         let mut events = |_: AgentEvent| {};
+        let pending = || toolbox.with(|c| c.unproposed());
         let mut run = Agent::new(tree, store, &**relay, &now)
             .with_steering(steering)
             .with_cancel(cancel)
             .with_reading(&read)
-            .with_note(run_note);
+            .with_note(run_note)
+            .with_pending(&pending);
         let agent = &mut *leading.agent;
         let outcome = match said {
             Said::Note(note) => run.lead_note(note, opening.as_deref(), agent, relay, &mut events),
