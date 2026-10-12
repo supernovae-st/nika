@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # check-on-edit — the plugin's seatbelt: after the agent edits a
 # *.nika, run the audit so findings reach the agent immediately
-# (the file is the contract; check is the oracle).
+# (the file is the contract; check is the oracle). An edit to the project
+# file, nika.yaml, gets the project's two judges: `nika check` on its keys
+# and required values, and `nika arm`, which reads every beat (cadence,
+# zone, suspension, workflow) and is read-only: it schedules nothing and
+# writes nothing.
 #
 # ONE script, TWO dialects, THREE surfaces (Codex emits the Claude Code
 # dialect verbatim — live-proven 2026-07-12). Sniffed from stdin — `hook_event_name` is
@@ -40,8 +44,10 @@ else
   file="$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
 fi
 
+kind=""
 case "$file" in
-  *.nika | *.nika) ;;
+  *.nika) kind=workflow ;;
+  nika.yaml | */nika.yaml) kind=project ;;
   *) done_quiet ;;
 esac
 
@@ -81,8 +87,32 @@ fi
 # Measured before wiring: a script wrapper fails, `exec git` passes with
 # or without a ledger entry. The flag costs legitimate execs nothing.
 set +e
-findings="$("$NIKA" check "$file" --native-strict --color never 2>&1)"
-rc=$?
+if [ "$kind" = project ]; then
+  # `nika check` does not read cadences, and a beat that reads UNREADY
+  # (its workflow unreadable, a required input with no value, a policy the
+  # firer refuses) exits 0 from `nika arm`: both are findings here.
+  # `nika arm` discovers nika.yaml from its working directory, so it runs
+  # from the edited file's own directory.
+  project_dir="$(cd "$(dirname "$file")" && pwd)"
+  shape="$("$NIKA" check "$file" --color never 2>&1)"
+  shape_rc=$?
+  beats="$(cd "$project_dir" && "$NIKA" arm --color never 2>&1)"
+  beats_rc=$?
+  rc=0
+  findings=""
+  if [ "$shape_rc" -eq 2 ]; then
+    rc=2
+    findings="$shape"
+  fi
+  if [ "$beats_rc" -eq 2 ] || printf '%s' "$beats" | grep -q '\[UNREADY\]'; then
+    rc=2
+    findings="${findings:+$findings
+}$beats"
+  fi
+else
+  findings="$("$NIKA" check "$file" --native-strict --color never 2>&1)"
+  rc=$?
+fi
 set -e
 
 # WHICH oracle answered. A verdict that does not name the binary behind it
@@ -113,7 +143,11 @@ oracle="$(command -v "$NIKA" 2>/dev/null || printf '%s' "$NIKA")"
 tag="$("$NIKA" --version 2>/dev/null | head -1)"
 
 if [ "$rc" -eq 0 ] && [ -n "${NIKA_CHECK_ANNOUNCE_CLEAN:-}" ]; then
-  printf 'nika check --native-strict · clean · %s (tag %s)\n' "$oracle" "${tag:-unknown}" >&2
+  if [ "$kind" = project ]; then
+    printf 'nika check + nika arm · clean · %s (tag %s)\n' "$oracle" "${tag:-unknown}" >&2
+  else
+    printf 'nika check --native-strict · clean · %s (tag %s)\n' "$oracle" "${tag:-unknown}" >&2
+  fi
 fi
 
 if [ "$rc" -ne 2 ]; then
@@ -125,7 +159,12 @@ printf '%s\n' "$findings" | head -c 2000 >&2
 # Name the FLAG, not just the verb. A reader told to "re-run nika check"
 # runs the bare form, reads a green that this hook does not accept, and
 # loops against a gate it cannot see.
-printf '\nre-check with the same oracle this hook used:\n  %s check --native-strict %s\n' "$oracle" "$file" >&2
+if [ "$kind" = project ]; then
+  printf '\nre-check with the same oracle this hook used (activate a beat only once it reads READY):\n  cd %s && %s check nika.yaml && %s arm --json\n' \
+    "$project_dir" "$oracle" "$oracle" >&2
+else
+  printf '\nre-check with the same oracle this hook used:\n  %s check --native-strict %s\n' "$oracle" "$file" >&2
+fi
 printf 'oracle: %s (tag %s · a tag does not say what the build contains)\n' \
   "$oracle" "${tag:-unknown}" >&2
 printf 'inside the engine tree the hook prefers the tree build by default (F14) — override:\n  export NIKA_BIN=<path-to-nika>\n' >&2

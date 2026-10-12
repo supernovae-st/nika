@@ -31,7 +31,7 @@ brew install supernovae-st/tap/nika   # the binary first; the plugin invokes it
 | `/nika:trace` · `/nika:permits` | read a run's flight recorder (verdict · root cause · resume line) · infer and paste the tightest permits boundary |
 | `/nika:doctor` | diagnose this machine's Nika surface — binary · installed plugin kits (train drift, per-client fix) · providers · wiring — advisory by design, never breaks automation |
 | session-context hook | a workspace with workflows greets the agent with the full nika map at session start (surfaces · laws · where traces live) — Cursor **and** Claude Code dialects |
-| check-on-edit hook | every agent edit to a `*.nika` is audited immediately (findings in the hook log; never blocks the edit) |
+| check-on-edit hook | every agent edit to a `*.nika` is audited immediately, and an edit to `nika.yaml` gets its shape checked and every beat read by `nika arm` (findings in the hook log; never blocks the edit) |
 | guard-run hook | pre-run judgment with findings on refusal (Cursor `beforeShellExecution` · Claude Code `PreToolUse`); installation and availability boundaries below |
 | MCP oracle (9 tools) | `nika_check` · `nika_explain` · `nika_schema` · `nika_examples` · `nika_template` · `nika_canon` · `nika_catalog` · `nika_tools` · `nika_inspect` — read-only, by design |
 
