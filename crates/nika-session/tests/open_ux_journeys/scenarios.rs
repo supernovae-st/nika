@@ -364,6 +364,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "explanation_cited_as_consent" => explanation_cited_as_consent(),
         "steer_mid_run" => steer_mid_run(),
         "steer_before_proposal" => steer_before_proposal(),
+        "taught_assert" => trials::taught_assert(),
         "follow_up_after_run" => follow_up_after_run(),
         "stop_mid_request" => stop_mid_request(),
         "refused_offer" => refused_offer(),

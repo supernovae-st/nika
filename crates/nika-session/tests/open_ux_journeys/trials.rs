@@ -255,3 +255,60 @@ pub(super) fn trial_assert() -> Scenario {
         },
     }
 }
+
+/// A request with a property its output must hold: five items at most.
+const TOP_REQUEST: &str =
+    "garde au plus cinq éléments de la liste et écris-les dans ./out/top.json";
+
+/// The author's instructions, as the Session sends them.
+const AUTHOR_SYSTEM: &str = include_str!("../../assets/author_system.md");
+
+/// The tasks of the asserted write the instructions show (their one `yaml` example), as entries
+/// under `tasks:`; empty when the instructions show none.
+fn taught_tasks() -> String {
+    let block: Vec<&str> = (AUTHOR_SYSTEM.lines())
+        .skip_while(|line| line.trim() != "```yaml")
+        .skip(1)
+        .take_while(|line| line.trim() != "```")
+        .map(|line| line.strip_prefix("  ").unwrap_or(line))
+        .collect();
+    block.join("\n")
+}
+
+/// The asserted write the instructions show, built into a candidate as an author following them
+/// writes it: clean for the `nika check` oracle, and proposed by the Session.
+pub(super) fn taught_assert() -> Scenario {
+    let tasks = taught_tasks();
+    assert!(!tasks.is_empty(), "the instructions show no asserted write");
+    let source = format!(
+        "nika: top-five\npermits:\n  tools: [\"nika:jq\", \"nika:assert\", \"nika:write\"]\n  fs:\n    write: [\"./out/top.json\"]\ntasks:\n  top:\n    invoke:\n      tool: \"nika:jq\"\n      args: {{ input: [5, 3, 2], expression: \".\" }}\n{tasks}\n"
+    );
+    let options = nika_cli_host::oracle::AuditOptions::new(None, None);
+    let audit = nika_cli_host::oracle::audit_source(&source, "top-five.nika", None, None, options)
+        .expect("the strict parser reads the example");
+    assert!(
+        audit.verdict.clean,
+        "nika check refuses the example:\n{source}"
+    );
+    let write = json!({"source": source, "resolutions": [],
+        "summary": "cinq éléments au plus, vérifiés puis écrits"});
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(TOP_REQUEST)],
+        script: Script {
+            agent: vec![
+                call("candidate_write", write),
+                call_saying(
+                    "Voici le workflow : il vérifie qu'il garde cinq éléments au plus, puis les écrit.",
+                    "propose",
+                    json!({}),
+                ),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}

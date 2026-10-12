@@ -1382,3 +1382,50 @@ fn a_change_then_run_line_runs_its_revision_without_a_second_yes() {
     );
     assert_ne!(bytes, before, "not the bytes shown before");
 }
+
+/// The asserted write the author's instructions show, built into a candidate as an author
+/// following them writes it, is clean for `nika check` and proposed: its `after:` is the map the
+/// strict parser reads, never the list it refuses.
+#[test]
+fn the_asserted_write_the_instructions_show_is_accepted() {
+    let journey = run("taught_assert");
+    let step = journey.step(0);
+    assert_eq!(outcome_kind(step), "proposal", "{step:#}");
+}
+
+/// The author's instructions teach the language's own forms: every `after:` they show is a map,
+/// none is a list, and each orders a workflow `nika check` accepts; no condition reads
+/// `${{ tasks.… }}` outside `with:`; and the `ask` field `after` says it lists question keys,
+/// unlike a task's `after:` map.
+#[test]
+fn the_instructions_teach_the_language_forms() {
+    let text = include_str!("../assets/author_system.md");
+    let lists: Vec<&str> = text.lines().filter(|l| l.contains("after: [")).collect();
+    assert!(lists.is_empty(), "{lists:#?}");
+    let shown: Vec<&str> = (text.split("after: { ").skip(1))
+        .filter_map(|rest| rest.split(" }").next())
+        .collect();
+    assert!(shown.len() >= 2, "the after: map is shown: {shown:?}");
+    for entry in shown {
+        let (producer, outcome) = entry.split_once(": ").unwrap();
+        let source = format!(
+            "nika: after-form\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  {producer}:\n    invoke: {{ tool: \"nika:jq\", args: {{ input: 1, expression: \".\" }} }}\n  next:\n    after: {{ {producer}: {outcome} }}\n    invoke: {{ tool: \"nika:jq\", args: {{ input: 2, expression: \".\" }} }}\n"
+        );
+        let options = nika_cli_host::oracle::AuditOptions::new(None, None);
+        let audit =
+            nika_cli_host::oracle::audit_source(&source, "after-form.nika", None, None, options)
+                .unwrap();
+        assert!(
+            audit.verdict.clean,
+            "nika check refuses the form:\n{source}"
+        );
+    }
+    let direct: Vec<&str> = (text.lines())
+        .filter(|l| l.contains("condition") && l.contains("${{ tasks."))
+        .collect();
+    assert!(direct.is_empty(), "{direct:#?}");
+    let tools: Value = serde_json::from_str(include_str!("../assets/author_tools.json")).unwrap();
+    let after = &tools["$defs"]["question"]["properties"]["after"];
+    let said = after["description"].as_str().unwrap_or_default();
+    assert!(said.contains("question keys"), "{after:#}");
+}
