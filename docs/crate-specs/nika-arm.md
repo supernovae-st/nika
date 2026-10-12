@@ -68,12 +68,19 @@ same in-process service.
   lease and makes no guarantee against a later concurrent change. The existing
   `last` repair-capable API remains unchanged for its mutation-authorized callers.
 - `unit_io` owns the existing explicit emission environment-path persistence,
-  unit-file writes, and printed load instructions. It preserves the prior CLI
-  filesystem behavior and refusal text, exposes a typed input/host error, and
-  never loads a unit or acquires schedule authority. Parsing, human rendering,
-  and exit-code projection remain in the CLI. Emitted OS files use the existing
-  operator-selected paths; this descent does not claim additional path custody
-  or change the separately descriptor-rooted firing journal.
+  unit-file writes, and printed load instructions. It exposes a typed
+  input/host error and never loads a unit or acquires schedule authority.
+  Parsing, human rendering, and exit-code projection remain in the CLI.
+  Emitted OS files use the existing operator-selected paths; this descent does
+  not claim additional path custody or change the separately descriptor-rooted
+  firing journal.
+- `ProjectUnits` judges whose a unit is: a file named with the project's key,
+  or a unit whose GENERATED header names the project file (the header path is
+  canonicalized first). Another project's unit is never read for an env-file
+  wrap or replaced by `write_units`. `legacy_units` finds an older engine's
+  unkeyed units for the registry's beats, and `retire_commands` prints their
+  retirement, the unload while the file still exists, then its removal; an
+  emit never removes one.
 
 No default API accepts an arbitrary sidecar path or raw ledger mutation. The
 one production mutation outside firing is the typed `record_disarm`, which takes
@@ -205,10 +212,14 @@ inputs have three owners:
   identical project still reads `current_generation`, never
   project-verified. No journal format changed.
 
-**Status law.** `DORMANT` when `actif: false`. `READY` only when
-`program_ready`, `trigger_binding_ready`, `required_inputs_ready` and
-`model_cost_ready` are all proven true with no blocker and no unknown;
-otherwise `UNREADY` (false OR unknown). `STATUS_SCOPE` states the scope in
+**Status law.** `DORMANT` when `actif: false`. `UNREADY` when a blocker
+stands or one of `program_ready`, `trigger_binding_ready`,
+`required_inputs_ready` and `model_cost_ready` is proven false; otherwise
+`READY`. An axis left unknown (`null`) never makes a beat `UNREADY` on its
+own: `nika arm fire` fires such a beat, so its receipt reads `READY` and
+keeps each unknown in `unknowns`, and the human view names each one and
+counts them on its READY line (an unpriced model stays a blocker).
+`STATUS_SCOPE` states the scope in
 every receipt: the current configuration, never OS activation, acquired
 authority or the current window. `run_ready_now` is the tick law's `Fire`
 AND `READY`, so an out-of-window skip leaves a READY schedule READY.
@@ -243,11 +254,13 @@ and `NIKA-1709` (budget floor) plus stable kind slugs. R4 89's
 `NIKA-SCHEDULE-INPUT-UNBOUND` is illustrative: it maps to
 `kind: input_unbound` with `code: NIKA-1708`; no registry code was invented.
 
-**Tests.** 12 `readiness::tests` over real ledgers (claim plus fenced receipt,
-legacy receipt, torn append): READY needs every axis proven, an unknown model
-cost stays UNREADY, dormancy is never computed, `manqué: rattraper` is a
-schedule blocker, the current, historical, legacy, unattributed and refused
-bindings, bytes unchanged by inspection, the project binding kept apart from
-the generation, one verdict in JSON and human, and a cadence change leaving
-the earlier record unattributed. Disabling the slot-identity or the
+**Tests.** 15 `readiness::tests` over real ledgers (claim plus fenced receipt,
+legacy receipt, torn append): an axis proven false or a blocker is UNREADY, an
+unknown alone reads READY with the unknown named in JSON and human, a
+suspension past its date reads armed again, dormancy is never computed,
+`manqué: rattraper` is a schedule blocker, the current, historical, legacy,
+unattributed and refused bindings, bytes unchanged by inspection, the project
+binding kept apart from the generation, one verdict in JSON and human, a
+cadence change leaving the earlier record unattributed, and an anchored
+interval and a month end read as clocks. Disabling the slot-identity or the
 cadence-membership check fails the foreign-evidence test.

@@ -23,13 +23,18 @@
 //! - **D6 · v0 refuses what it cannot keep** — [`crate::v0_unsupported`]
 //!   (one policy set). Emit refuses BEFORE the unit lands; the firer
 //!   refuses AT the tick via [`crate::tick_decision`].
+//! - **A unit carries its project** — every unit name carries the
+//!   project key ([`project_key`]), so two projects arming beats of the
+//!   same name never share, overwrite or disarm one unit; the GENERATED
+//!   header names the project file the unit belongs to
+//!   ([`generated_source`]).
 //!
 //! Split (the ~700-line single-file bar): the private `launchd` and
 //! `systemd` submodules own each target's text.
 
 use std::path::PathBuf;
 
-use crate::registry::{ArmRegistry, Cadence, Locus};
+use crate::registry::{ArmRegistry, Beat, Cadence, Locus};
 
 mod launchd;
 mod systemd;
@@ -37,6 +42,94 @@ mod systemd;
 /// The mark every emitted unit carries on its first line — the disarm
 /// gesture recognizes its own by it and NEVER touches a foreign unit.
 pub const GENERATED_MARK: &str = "nika arm · GENERATED from";
+
+/// How many characters of the project root's fingerprint a unit name
+/// carries: 32 bits keep one person's projects apart, and the GENERATED
+/// header names the project for the rare collision the L4 edge refuses.
+pub const PROJECT_KEY_LEN: usize = 8;
+
+/// The project key every unit name carries: the first
+/// [`PROJECT_KEY_LEN`] characters of the project root's fingerprint (the
+/// L4 edge computes it from the canonical root, the one a run trace and
+/// a readiness receipt bind).
+#[must_use]
+pub fn project_key(root_fingerprint: &str) -> String {
+    root_fingerprint.chars().take(PROJECT_KEY_LEN).collect()
+}
+
+/// A beat's unit label, the launchd `Label` and the systemd unit stem:
+/// `nika.arm.<project key>.<beat label>`.
+#[must_use]
+pub fn beat_unit(project_key: &str, label: &str) -> String {
+    format!("nika.arm.{project_key}.{label}")
+}
+
+/// The unit label an older engine gave a beat, without the project key
+/// (`nika.arm.<beat label>`). It is never written again: the L4 edge
+/// recognizes it to report it, and to disarm this project's own.
+#[must_use]
+pub fn legacy_beat_unit(label: &str) -> String {
+    format!("nika.arm.{label}")
+}
+
+/// A project's `nika serve` unit label: `nika.serve.<project key>`.
+#[must_use]
+pub fn serve_unit(project_key: &str) -> String {
+    format!("nika.serve.{project_key}")
+}
+
+/// The files a beat's unit label names on `target`: the plist, or the
+/// systemd timer and its service.
+#[must_use]
+pub fn beat_unit_files(target: Target, unit: &str) -> Vec<String> {
+    match target {
+        Target::Launchd => vec![format!("{unit}.plist")],
+        Target::SystemdUser => vec![format!("{unit}.timer"), format!("{unit}.service")],
+    }
+}
+
+/// The project file a GENERATED unit names, read back from its header
+/// exactly as the render wrote it. `None` for a unit without the mark.
+#[must_use]
+pub fn generated_source(body: &str) -> Option<&str> {
+    let (_, after) = body.split_once(GENERATED_MARK)?;
+    let line = after.lines().next()?.strip_prefix(' ')?;
+    let (head, _) = line.split_once(" · do not hand-edit")?;
+    let (source, _) = head.rsplit_once(" · ")?;
+    Some(source)
+}
+
+/// Hex characters of a unit revision.
+pub const UNIT_REV_LEN: usize = 12;
+
+/// The revision of the schedule a beat's unit encodes: what decides when the
+/// OS wakes it, the cadence as written and, on launchd, the machine zone it
+/// was rendered in (a systemd calendar names its own zone). The unit hands it
+/// to the firer (`arm fire <label> --unit-rev <rev>`), which refuses a wake
+/// from a unit whose revision the registry no longer gives: a stale unit.
+#[must_use]
+pub fn unit_revision(expression: &str, target: Target, machine_tz: &str) -> String {
+    use sha2::Digest as _;
+    let zone = if target == Target::Launchd {
+        machine_tz
+    } else {
+        ""
+    };
+    let preimage = format!("nika/unit-rev@1\n{}\n{expression}\n{zone}", target.word());
+    let digest = format!("{:x}", sha2::Sha256::digest(preimage.as_bytes()));
+    digest[..UNIT_REV_LEN].to_owned()
+}
+
+/// The schedule revision a GENERATED unit carries in its header (`beat
+/// <label> rev <rev>`); `None` for a unit written before revisions.
+#[must_use]
+pub fn revision_in_unit(body: &str) -> Option<&str> {
+    let (_, after) = body.split_once(GENERATED_MARK)?;
+    let line = after.lines().next()?;
+    let (head, _) = line.split_once(" · do not hand-edit")?;
+    let (_, rev) = head.rsplit_once(" rev ")?;
+    (rev.len() == UNIT_REV_LEN && rev.bytes().all(|b| b.is_ascii_hexdigit())).then_some(rev)
+}
 
 /// The launchd interval budget: past it the plist is a load, not a
 /// calendar (the cartesian product of the cadence's restricted fields,
@@ -87,6 +180,8 @@ pub struct EmitCtx {
     /// The project file the units are generated from (the header cites
     /// it — a unit always names its source).
     pub project_file: PathBuf,
+    /// The project key every unit name carries ([`project_key`]).
+    pub project_key: String,
     /// The env file the unit loads — provider keys live there, never in
     /// the unit (D7).
     pub env_file: Option<PathBuf>,
@@ -103,6 +198,7 @@ impl EmitCtx {
         nika_bin: PathBuf,
         project_root: PathBuf,
         project_file: PathBuf,
+        project_key: String,
         env_file: Option<PathBuf>,
         log_dir: PathBuf,
         machine_tz: String,
@@ -111,6 +207,7 @@ impl EmitCtx {
             nika_bin,
             project_root,
             project_file,
+            project_key,
             env_file,
             log_dir,
             machine_tz,
@@ -123,8 +220,9 @@ impl EmitCtx {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Unit {
-    /// The file name (`nika.arm.<radical>.plist` ·
-    /// `nika.arm.<radical>.timer` + `.service` · `nika.serve.*`).
+    /// The file name (`nika.arm.<key>.<radical>.plist` ·
+    /// `nika.arm.<key>.<radical>.timer` + `.service` ·
+    /// `nika.serve.<key>.*`).
     pub file_name: String,
     /// The unit's full text.
     pub body: String,
@@ -193,8 +291,9 @@ pub enum EmitRefusal {
 
 /// The beat labels, in file order (D4): the workflow file's radical —
 /// `workflows/doctor.nika` → `doctor` — a collision taking `-2`,
-/// `-3`. The ONE identity both consumers read: the firer (`nika arm
-/// fire <label>` delegates here) and the units (`nika.arm.<label>`).
+/// `-3`. The ONE identity both consumers read: the firer
+/// (`nika arm fire <label>` delegates here) and the units
+/// ([`beat_unit`]).
 #[must_use]
 pub fn labels(reg: &ArmRegistry) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
@@ -220,11 +319,12 @@ fn radical_of(workflow: &str) -> String {
     nika_source::program_stem(base).unwrap_or(base).to_owned()
 }
 
-/// Render the units for `target` + `mode`. Per-beat: one unit per
-/// ACTIVE · LOCAL beat (a suspended or cloud beat emits nothing — the
-/// L4 verb says why). The first refusal stops the render, in file
-/// order: a unit set that half-landed is the failure this shape
-/// refuses.
+/// Render the units for `target` + `mode`. Per-beat: one unit per LOCAL
+/// beat. A suspended beat keeps its unit: the firer journals it
+/// « inactive » until its `jusqu_au`, then wakes it, so nothing has to
+/// re-arm it. A cloud beat emits nothing (the L4 verb says why). The first
+/// refusal stops the render, in file order: a unit set that half-landed is
+/// the failure this shape refuses.
 ///
 /// The registry must have passed [`validate`](crate::validate) first
 /// (the door): a cadence that still refuses to parse is an engine
@@ -248,53 +348,87 @@ pub fn render(
     let names = labels(reg);
     let mut units = Vec::new();
     for (beat, label) in reg.beats().zip(names.iter()) {
-        if !beat.is_active() || beat.locus() != Locus::Local {
+        if beat.locus() != Locus::Local {
             continue;
         }
-        let cadence = match Cadence::parse(&beat.cadence) {
-            Ok(cadence) => cadence,
-            Err(e) => {
-                return Err(EmitRefusal::EngineFault {
-                    beat: label.clone(),
-                    detail: format!("une cadence validée refuse de se relire — {e}"),
-                });
-            }
-        };
-        if let Some((what, arrives)) = crate::tick::v0_unsupported(beat) {
-            return Err(EmitRefusal::UnsupportedInV0 {
-                beat: label.clone(),
-                what: what.to_owned(),
-                arrives: arrives.to_owned(),
-            });
-        }
-        // The anchored interval wakes weekly on its anchor's weekday and
-        // time (no OS calendar says « every other week »): on an off week
-        // the firer finds the on-week slot already claimed and skips.
-        let (tz, spec) = match &cadence {
-            Cadence::Cron { tz, spec } => (tz, *spec),
-            Cadence::Every { tz, anchor, .. } => (tz, crate::every::weekly_wake(*anchor)),
-            _ => {
-                return Err(EmitRefusal::Webhook {
-                    beat: label.clone(),
-                });
-            }
-        };
-        let spec = &spec;
-        match target {
-            Target::Launchd => {
-                if tz != &ctx.machine_tz {
-                    return Err(EmitRefusal::TzMismatch {
-                        beat: label.clone(),
-                        cadence_tz: tz.clone(),
-                        machine_tz: ctx.machine_tz.clone(),
-                    });
-                }
-                units.push(launchd::per_beat(ctx, label, spec)?);
-            }
-            Target::SystemdUser => units.extend(systemd::per_beat(ctx, label, beat, tz, spec)),
-        }
+        units.extend(beat_units(beat, label, ctx, target)?);
     }
     Ok(units)
+}
+
+/// Render one beat's units (its label, as [`labels`] spells it): what
+/// [`render`] writes for that beat alone, so a gesture on one beat is never
+/// refused for another. A cloud or unknown beat has none.
+///
+/// # Errors
+/// As [`render`], for this beat only.
+pub fn render_beat(
+    reg: &ArmRegistry,
+    ctx: &EmitCtx,
+    target: Target,
+    label: &str,
+) -> Result<Vec<Unit>, EmitRefusal> {
+    let names = labels(reg);
+    match reg
+        .beats()
+        .zip(names.iter())
+        .find(|(_, name)| name.as_str() == label)
+    {
+        Some((beat, name)) if beat.locus() == Locus::Local => beat_units(beat, name, ctx, target),
+        _ => Ok(Vec::new()),
+    }
+}
+
+/// One local beat's units on `target`.
+fn beat_units(
+    beat: &Beat,
+    label: &str,
+    ctx: &EmitCtx,
+    target: Target,
+) -> Result<Vec<Unit>, EmitRefusal> {
+    let cadence = match Cadence::parse(&beat.cadence) {
+        Ok(cadence) => cadence,
+        Err(e) => {
+            return Err(EmitRefusal::EngineFault {
+                beat: label.to_owned(),
+                detail: format!("une cadence validée refuse de se relire — {e}"),
+            });
+        }
+    };
+    if let Some((what, arrives)) = crate::tick::v0_unsupported(beat) {
+        return Err(EmitRefusal::UnsupportedInV0 {
+            beat: label.to_owned(),
+            what: what.to_owned(),
+            arrives: arrives.to_owned(),
+        });
+    }
+    // The anchored interval wakes weekly on its anchor's weekday and
+    // time (no OS calendar says « every other week »): on an off week
+    // the firer finds the on-week slot already claimed and skips.
+    let (tz, spec) = match &cadence {
+        Cadence::Cron { tz, spec } => (tz, *spec),
+        Cadence::Every { tz, anchor, .. } => (tz, crate::every::weekly_wake(*anchor)),
+        _ => {
+            return Err(EmitRefusal::Webhook {
+                beat: label.to_owned(),
+            });
+        }
+    };
+    let spec = &spec;
+    let rev = unit_revision(&beat.cadence, target, &ctx.machine_tz);
+    match target {
+        Target::Launchd => {
+            if tz != &ctx.machine_tz {
+                return Err(EmitRefusal::TzMismatch {
+                    beat: label.to_owned(),
+                    cadence_tz: tz.clone(),
+                    machine_tz: ctx.machine_tz.clone(),
+                });
+            }
+            Ok(vec![launchd::per_beat(ctx, label, spec, &rev)?])
+        }
+        Target::SystemdUser => Ok(systemd::per_beat(ctx, label, beat, tz, spec, &rev).into()),
+    }
 }
 
 /// The env-file path a unit names, if it sources one (D7).

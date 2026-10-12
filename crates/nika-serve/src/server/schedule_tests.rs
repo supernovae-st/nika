@@ -40,6 +40,9 @@ pub(super) struct ManualClock {
     now: Mutex<jiff::Zoned>,
     generation: AtomicUsize,
     sleeps: AtomicUsize,
+    /// What each sleep asked for: this clock wakes only when advanced, so a
+    /// scheduler that asks for zero would spin on a real one.
+    asked: Mutex<Vec<Duration>>,
     changed: tokio::sync::Notify,
     sleep_started: tokio::sync::Notify,
 }
@@ -50,9 +53,15 @@ impl ManualClock {
             now: Mutex::new(now.parse().expect("manual zoned time")),
             generation: AtomicUsize::new(0),
             sleeps: AtomicUsize::new(0),
+            asked: Mutex::new(Vec::new()),
             changed: tokio::sync::Notify::new(),
             sleep_started: tokio::sync::Notify::new(),
         }
+    }
+
+    /// The duration the scheduler's last sleep asked for.
+    pub(super) fn last_asked(&self) -> Option<Duration> {
+        self.asked.lock().expect("asked sleeps").last().copied()
     }
 
     pub(super) fn advance_to(&self, now: &str) {
@@ -81,8 +90,9 @@ impl super::ResidentClock for ManualClock {
         self.now.lock().expect("manual clock").clone()
     }
 
-    fn sleep(&self, _duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+    fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         let generation = self.generation.load(Ordering::SeqCst);
+        self.asked.lock().expect("asked sleeps").push(duration);
         self.sleeps.fetch_add(1, Ordering::SeqCst);
         self.sleep_started.notify_waiters();
         Box::pin(async move {
@@ -954,7 +964,9 @@ async fn a_project_beat_fired_by_the_resident_is_proven_in_the_arm_ledger() {
 }
 
 /// A slot the CLI edge already answered in the ARM ledger is not the
-/// resident's to fire: one slot, one firer (#1377).
+/// resident's to fire: one slot, one firer (#1377). The resident consumes
+/// it too, as answered elsewhere: left due, it was offered again at every
+/// pass with a zero wake, and the resident spun.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_slot_the_edge_answered_is_skipped_by_the_resident() {
     let world = TestWorld::new();
@@ -983,6 +995,99 @@ async fn a_slot_the_edge_answered_is_skipped_by_the_resident() {
         0,
         "the slot the edge answered is never fired twice"
     );
+    let decided = crate::ScheduleStore::open(&world.state)
+        .expect("the resident's schedule store")
+        .last_decision(nika_cadence::ScheduleOrigin::Project, "root")
+        .expect("the decision reads")
+        .expect("the answered slot is consumed");
+    assert_eq!(
+        decided.action(),
+        crate::schedule::ScheduleSlotAction::Skipped
+    );
+    assert_eq!(decided.reason(), Some("answered_elsewhere"));
+    assert_ne!(
+        clock.last_asked(),
+        Some(Duration::ZERO),
+        "the resident never wakes again at once"
+    );
+    server.stop().await.expect("stop");
+}
+
+/// The CLI edge holds the beat lock (it is firing the slot now): the slot
+/// stays due, and the resident looks again after its rescan, never at once.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_slot_the_edge_is_firing_is_looked_at_again_after_the_rescan() {
+    let world = TestWorld::new();
+    write_daily_beat(&world);
+    let backend = Arc::new(CountingBackend::default());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:30Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    clock.wait_for_sleeps(1).await;
+    let slot: jiff::Zoned = "2026-09-01T08:01:00Z[UTC]".parse().expect("slot");
+    let now: jiff::Zoned = "2026-09-01T08:01:01Z[UTC]".parse().expect("now");
+    let edge = nika_arm::claim_for_resident(
+        &world.workflows,
+        "root",
+        &slot,
+        nika_cadence::SlotId::derive("root.nika", "TZ=UTC 1 8 * * *", &slot),
+        None,
+        std::process::id(),
+        &now,
+    )
+    .expect("the edge holds the beat lock");
+    clock.advance_to("2026-09-01T08:01:01Z[UTC]");
+    clock.wait_for_sleeps(2).await;
+    assert_eq!(
+        backend.calls(),
+        0,
+        "the slot the edge is firing is not fired twice"
+    );
+    assert_eq!(
+        clock.last_asked(),
+        Some(Duration::from_secs(5)),
+        "looked at again after the rescan, never at once"
+    );
+    drop(edge);
+    server.stop().await.expect("stop");
+}
+
+/// `chevauchement: sauter` (the default): a slot due while the previous run
+/// still runs is skipped once, journaled, and never fires late once the run
+/// ends.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_overlapped_slot_is_skipped_once_and_never_fires_late() {
+    let world = TestWorld::new();
+    write_daily_beat(&world);
+    let backend = Arc::new(CountingBackend::gated());
+    let clock = Arc::new(ManualClock::new("2026-09-01T08:00:30Z[UTC]"));
+    let server = world
+        .start_with_clock(backend.clone(), limits(), clock.clone())
+        .await;
+    clock.wait_for_sleeps(1).await;
+    clock.advance_to("2026-09-01T08:01:01Z[UTC]");
+    backend.wait_for_call().await;
+    // The next day's slot comes due while the first run still holds the gate.
+    clock.advance_to("2026-09-02T08:01:01Z[UTC]");
+    clock.wait_for_sleeps(3).await;
+    let store = crate::ScheduleStore::open(&world.state).expect("the resident's schedule store");
+    let skipped = || {
+        store
+            .last_decision(nika_cadence::ScheduleOrigin::Project, "root")
+            .expect("the decision reads")
+            .is_some_and(|decided| {
+                decided.action() == crate::schedule::ScheduleSlotAction::Skipped
+                    && decided.reason() == Some("overlap")
+            })
+    };
+    assert!(skipped(), "the overlapped slot is skipped, journaled");
+    backend.release();
+    // The run ends and the resident wakes: the skipped slot is never claimed
+    // late (a late fire would record its claim before the next sleep).
+    clock.wait_for_sleeps(4).await;
+    assert!(skipped(), "the overlapped slot never fires late");
+    assert_eq!(backend.calls(), 1);
     server.stop().await.expect("stop");
 }
 

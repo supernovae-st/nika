@@ -407,13 +407,28 @@ pub fn plan_schedule(
     }
 }
 
-/// The declared pause bound, judged the arm-fire way: a `pauseUntil`
-/// strictly before the decision instant's own civil date means the
+/// The declared pause bound, judged by the one suspension law the arm-fire
+/// edge reads too: a `pauseUntil` strictly before now's civil date in the
+/// cadence's own zone (UTC for a one-shot or a webhook) means the
 /// suspension is over and the definition plans as active again.
 fn pause_expired(definition: &ScheduleDefinition, now: &Zoned) -> bool {
-    definition
-        .pause_until()
-        .is_some_and(|until| crate::tick::date_expired(until, now))
+    definition.pause_until().is_some_and(|until| {
+        crate::tick::suspension_date_over(until, definition.when().cadence_expression(), now)
+    })
+}
+
+/// The instant a lapsed pause woke (the start of the day after its
+/// `pauseUntil`, in the cadence's zone), for a definition still declared
+/// inactive: its window counts from there, never across the pause.
+fn pause_woke_at(definition: &ScheduleDefinition) -> Option<Timestamp> {
+    if definition.is_active() {
+        return None;
+    }
+    crate::tick::wake_of(
+        definition.pause_until()?,
+        definition.when().cadence_expression(),
+    )
+    .map(|wake| wake.timestamp())
 }
 
 fn paused_plan(definition: &ScheduleDefinition, now: &Zoned) -> SchedulePlan {
@@ -474,7 +489,8 @@ fn plan_cadence(
     limit: usize,
 ) -> SchedulePlan {
     let last = applicable_last(definition, state);
-    let window = cadence_window(definition, expression, cadence, now, last);
+    let since = window_start(last, pause_woke_at(definition));
+    let window = cadence_window(definition, expression, cadence, now, since);
     let verdict = window.map_or(ScheduleDueVerdict::NotDue, |window| {
         let slot = match definition.missed() {
             MissPolicy::Rattraper => window.first,
@@ -496,14 +512,28 @@ struct DueWindow {
     count: u32,
 }
 
+/// Where a definition's due window starts: its last decided slot, or for a
+/// lapsed pause the wake when that is later, so the slots a pause slept
+/// through are never counted as missed. A definition never decided has no
+/// window to count, woken or not: its on-time slot alone decides. The window
+/// is read strictly after its start, so a wake's start sits just before the
+/// wake: a slot AT the wake instant is owed.
+fn window_start(last: Option<&ScheduleLastSlot>, woke: Option<Timestamp>) -> Option<Timestamp> {
+    let woke = woke.and_then(|wake| wake.checked_sub(jiff::SignedDuration::from_nanos(1)).ok());
+    match (last.map(|last| last.scheduled_for), woke) {
+        (Some(slot), Some(woke)) => Some(slot.max(woke)),
+        (slot, _) => slot,
+    }
+}
+
 fn cadence_window(
     definition: &ScheduleDefinition,
     expression: &str,
     cadence: &Cadence,
     now: &Zoned,
-    last: Option<&ScheduleLastSlot>,
+    since: Option<Timestamp>,
 ) -> Option<DueWindow> {
-    let Some(last) = last else {
+    let Some(since) = since else {
         let slot = recent_slot(cadence, now)?;
         let slot = ScheduleSlot::cadence(definition, expression, &slot);
         return within_on_time(now, slot.scheduled_for).then(|| DueWindow {
@@ -512,7 +542,7 @@ fn cadence_window(
             count: 1,
         });
     };
-    let cursor = last.scheduled_for.to_zoned(TimeZone::UTC);
+    let cursor = since.to_zoned(TimeZone::UTC);
     let mut due = next_slots(cadence, &cursor, MISSED_SLOTS_CAP);
     let first = due.next().filter(|slot| slot.at <= *now)?;
     let mut latest = first.clone();

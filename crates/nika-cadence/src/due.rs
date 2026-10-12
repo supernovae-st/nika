@@ -14,8 +14,10 @@
 //! The law:
 //!
 //! - only ACTIVE, LOCAL beats are ever due — a suspended beat is told
-//!   and bounded (`actif: false` carries `raison:` + `jusqu_au:`), and
-//!   a cloud beat's calendar stays the operator's;
+//!   and bounded (`actif: false` carries `raison:` + `jusqu_au:`) and
+//!   wakes after its `jusqu_au` in its cadence's zone, counting its
+//!   silence from the wake (the slots it slept through are not missed),
+//!   and a cloud beat's calendar stays the operator's;
 //! - a beat is due when a slot should have fired in `(last_fired,
 //!   now]` — strictly after the last fire (an already-fired slot never
 //!   re-fires), at or before now (a slot AT now has just passed). The
@@ -35,6 +37,7 @@ use jiff::Zoned;
 use crate::error::CadenceError;
 use crate::next::{Slot, next_slots};
 use crate::registry::{ArmRegistry, Beat, Cadence, Locus};
+use crate::tick::{still_suspended, wake_instant};
 
 /// The on-time grace: a slot fired within five minutes of its instant
 /// is ON TIME, not missed. A `SignedDuration`, not a `Span`: the window
@@ -96,11 +99,11 @@ pub fn due<'a>(
 ) -> Result<impl Iterator<Item = Due<'a>>, CadenceError> {
     let mut out = Vec::new();
     for (index, beat) in reg.beats().enumerate() {
-        if !beat.is_active() || beat.locus() != Locus::Local {
+        if still_suspended(beat, now) || beat.locus() != Locus::Local {
             continue;
         }
         let cadence = Cadence::parse(&beat.cadence)?;
-        match last_fired(index) {
+        match since(last_fired(index), beat) {
             None => {
                 // N2: no state, no invented backlog — the on-time
                 // window alone decides.
@@ -150,11 +153,23 @@ pub fn earliest_next(
 ) -> Result<Option<(usize, Slot)>, CadenceError> {
     let mut best: Option<(usize, Slot)> = None;
     for (index, beat) in reg.beats().enumerate() {
-        if !beat.is_active() || beat.locus() != Locus::Local {
+        if beat.locus() != Locus::Local {
             continue;
         }
+        // A suspension still asleep offers its first slot after the wake:
+        // the edge never sleeps through it.
+        let from = if still_suspended(beat, now) {
+            let Some(before_wake) = wake_instant(beat)
+                .and_then(|wake| wake.checked_sub(jiff::SignedDuration::from_nanos(1)).ok())
+            else {
+                continue;
+            };
+            before_wake
+        } else {
+            now.clone()
+        };
         let cadence = Cadence::parse(&beat.cadence)?;
-        let Some(slot) = cadence.next_after(now) else {
+        let Some(slot) = cadence.next_after(&from) else {
             continue;
         };
         if best.as_ref().is_none_or(|(_, held)| slot.at < held.at) {
@@ -162,6 +177,21 @@ pub fn earliest_next(
         }
     }
     Ok(best)
+}
+
+/// Where a beat's silence starts: its last fire, or for a woken suspension
+/// the wake when that is later, so the slots a suspension slept through are
+/// never counted as missed. A beat that never fired has no silence, woken or
+/// not (N2: the on-time window alone decides). The silence is read strictly
+/// after its start, so a woken beat's starts just before the wake: a slot AT
+/// the wake instant is owed.
+fn since(last_fired: Option<Zoned>, beat: &Beat) -> Option<Zoned> {
+    let woke = wake_instant(beat)
+        .and_then(|wake| wake.checked_sub(jiff::SignedDuration::from_nanos(1)).ok());
+    match (last_fired, woke) {
+        (Some(fired), Some(woke)) if woke.timestamp() > fired.timestamp() => Some(woke),
+        (fired, _) => fired,
+    }
 }
 
 /// The silence between the last fire and now, over the FIRE set: the

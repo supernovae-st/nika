@@ -502,6 +502,101 @@ fn a_pause_whose_until_passed_wakes_at_the_decision_date() {
     );
 }
 
+/// One beat, one meaning: a suspension whose `jusqu_au` has passed wakes under the resident's
+/// planner and under `nika arm fire` alike; both firers read the same bytes.
+#[test]
+fn a_passed_suspension_wakes_under_both_firers() {
+    let registry = parse_registry(concat!(
+        "nika: proj\n",
+        "arm:\n",
+        "  - workflow: workflows/report.nika\n",
+        "    cadence: \"TZ=UTC 0 9 * * *\"\n",
+        "    plafond: 0.25\n",
+        "    manqué: sauter\n",
+        "    actif: false\n",
+        "    raison: \"operator maintenance\"\n",
+        "    jusqu_au: \"2026-08-31\"\n",
+    ))
+    .expect("parse");
+    assert_eq!(
+        crate::validate(&registry).count(),
+        0,
+        "the fixture is lawful"
+    );
+    let beat = registry.beats().next().expect("one beat");
+    let definition = ScheduleDraft::from_project("report", beat)
+        .and_then(ScheduleDraft::validate)
+        .expect("the resident admits the beat");
+    let now = zoned("2026-09-01T09:00:00Z");
+    let plan = plan_schedule(&definition, &now, &ScheduleDecisionState::empty(), 3).expect("plan");
+    assert!(
+        matches!(plan.due(), ScheduleDueVerdict::ScheduledOnTime { .. }),
+        "the resident wakes it: {:?}",
+        plan.due()
+    );
+    let fired = crate::tick::tick_decision(&registry, 0, "report", &now, None);
+    assert!(
+        matches!(fired, crate::tick::TickDecision::Fire { .. }),
+        "the OS-unit firer must wake it too: {fired:?}"
+    );
+}
+
+/// A woken pause counts its silence from the wake: the slots it slept through
+/// are never missed, so a catch-up policy never replays the pause.
+#[test]
+fn a_woke_pause_never_replays_the_slots_it_slept_through() {
+    let before = planned(
+        daily(MissPolicy::RattraperUneFois),
+        "2026-07-01T09:00:30Z",
+        &ScheduleDecisionState::empty(),
+    );
+    let ScheduleDueVerdict::ScheduledOnTime { slot } = before.due() else {
+        panic!("the last fire before the pause: {:?}", before.due());
+    };
+    let mut woke = daily(MissPolicy::RattraperUneFois);
+    woke.active = Some(false);
+    woke.pause_reason = Some("holidays".to_owned());
+    woke.pause_until = Some("2026-08-31".to_owned());
+    let plan = planned(woke, "2026-09-01T09:00:30Z", &state_after(slot));
+    assert!(
+        matches!(plan.due(), ScheduleDueVerdict::ScheduledOnTime { .. }),
+        "the first slot after the wake is on time, not a catch-up of July and August: {:?}",
+        plan.due()
+    );
+}
+
+/// The bound reads the cadence's own zone: « until 31 October » in Europe/Paris
+/// ends at midnight Paris (23:00Z), not at midnight UTC.
+#[test]
+fn a_pause_ends_at_midnight_in_the_cadence_zone() {
+    let paris = |now: &str| {
+        let mut paused = draft(
+            ScheduleWhenDraft::Cadence {
+                expression: "TZ=Europe/Paris 0 9 * * *".to_owned(),
+            },
+            MissPolicy::Sauter,
+        );
+        paused.active = Some(false);
+        paused.pause_reason = Some("holidays".to_owned());
+        paused.pause_until = Some("2026-10-31".to_owned());
+        planned(paused, now, &ScheduleDecisionState::empty())
+    };
+    assert!(
+        matches!(
+            paris("2026-10-31T22:30:00Z").due(),
+            ScheduleDueVerdict::PausedInactive { .. }
+        ),
+        "23:30 in Paris on 31 October: still paused"
+    );
+    assert!(
+        !matches!(
+            paris("2026-10-31T23:30:00Z").due(),
+            ScheduleDueVerdict::PausedInactive { .. }
+        ),
+        "00:30 in Paris on 1 November: the pause is over, though UTC still reads 31 October"
+    );
+}
+
 #[test]
 fn a_woke_pause_faces_the_same_refusals_as_an_active_declaration() {
     let mut woke = daily(MissPolicy::Rattraper);
