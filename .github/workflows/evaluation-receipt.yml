@@ -1,0 +1,184 @@
+# The evaluation-receipt gate.
+#
+# A PR that touches no SENSITIVE path passes automatically: this workflow posts
+# the `evaluation-receipt` commit status = success ("not required"). A PR that
+# touches a sensitive path (author texts, compile cards, the compiler's law
+# and retrieval word lists, ask/verify laws, fidelity record forms, knowledge,
+# reviewed authoring-prompt sources, OR this gate itself) gets
+# `evaluation-receipt` = pending, and ONLY the evaluator clears it to success on
+# the PR head with a verdict and a public summary — so a sensitive change cannot
+# merge without the paired evaluation. The `main-protection` ruleset requires the
+# `evaluation-receipt` status (applied separately). GitHub rulesets cannot
+# require a status per path, so the path logic lives here and the ruleset
+# requires the context unconditionally.
+#
+# SECURITY — a gate must judge from trusted logic, fail closed, and protect
+# itself:
+#  - `pull_request_target` runs THIS file from the BASE branch, never the PR's
+#    edited copy, so a PR cannot weaken the gate that judges it. `edited` is in
+#    the activity types so a base retarget re-runs the gate (no stale status);
+#    a title or body edit changes nothing that merges, so the receipt (per head
+#    SHA) stands and the evaluator's success is never discarded by an edit.
+#  - No `actions/checkout`: the changed-file list comes from the API, so PR code
+#    is never fetched or executed and the base token is safe. The job uses only
+#    `statuses: write` + `pull-requests: read`.
+#  - `.github/workflows/evaluation-receipt.yml` and `.github/CODEOWNERS` are
+#    themselves sensitive, so editing the gate requires the paired evaluation.
+#  - The files API lists at most 3,000 files. When the PR's `changed_files`
+#    count is higher than the entries listed, the gate posts pending, so an
+#    oversized PR cannot hide a sensitive path past the cap.
+#  - Fail closed: the ONLY success path is a provably non-sensitive PR; any
+#    error leaves no status and the required check keeps the PR unmergeable.
+#
+# BYPASS ALERT — the ruleset admits a merge without its required contexts only
+# through its pull-request bypass. Every use is made visible: when a PR merges
+# into the default branch while any context the branch rules require (plus
+# `evaluation-receipt` itself) was not success on its head, the `bypass-alert`
+# job opens an issue « ruleset bypass on PR #N » naming those contexts. It
+# reads statuses and check runs only, never checks out the PR, and holds
+# `issues: write` as its only write permission.
+name: evaluation-receipt
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, closed]
+permissions: {}
+jobs:
+  receipt-gate:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+      pull-requests: read
+    steps:
+      - name: Decide whether a paired evaluation is required
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          EVENT_ACTION: ${{ github.event.action }}
+          BASE_CHANGED: ${{ github.event.changes.base != null }}
+        run: |
+          set -euo pipefail
+          # Only a base retarget re-judges an edited PR. The skip needs an
+          # explicit `false`: any other value re-judges (fail closed).
+          if [ "$EVENT_ACTION" = edited ] && [ "$BASE_CHANGED" = false ]; then
+            echo "edited without a base change; the receipt for ${HEAD_SHA} stands"
+            exit 0
+          fi
+          # The sensitive path set (anchored prefixes) — keep in step with the
+          # sensitive entries in .github/CODEOWNERS. The onboarding brief
+          # crates/nika-onboard/assets/NIKA.md is deliberately absent: the
+          # paired evaluation does not exercise what external agents read, and
+          # the onboarding kit test already runs `nika check` over every
+          # complete workflow it prints (the_kit_never_teaches_a_form_the_engine_refuses).
+          sensitive_re='^(crates/nika-session/assets/|crates/nika-compile-cognition/assets/|crates/nika-compile-reader/assets/|crates/nika-compile/assets/|crates/nika-compile-fidelity/assets/|crates/nika-onboard-knowledge/assets/|crates/nika-compile-seats/src/foundry/|\.github/workflows/evaluation-receipt\.yml$|\.github/CODEOWNERS$)'
+          post() {
+            gh api "repos/${REPO}/statuses/${HEAD_SHA}" \
+              -f state="$1" -f context=evaluation-receipt -f description="$2"
+          }
+          # The PR's true changed-file count. The files API below lists at most
+          # 3,000 entries, so a PR it cannot list in full is never judged
+          # non-sensitive. A count that is not a number stops here, with no status.
+          changed="$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '.changed_files')"
+          case "$changed" in
+            '' | *[!0-9]*) echo "unreadable changed_files: '${changed}'"; exit 1 ;;
+          esac
+          # The PR's changed files, computed by the API against the CURRENT base
+          # (immune to base.sha staleness / retarget). Filenames are data, never
+          # executed. BOTH the new path (.filename) and a rename's old path
+          # (.previous_filename) are judged, so moving sensitive content out of a
+          # protected directory still asks for the receipt. Each entry is one
+          # JSON line, so a filename holding a newline cannot inflate the count.
+          entries="$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files" \
+            --jq '.[] | [.filename, .previous_filename] | @json')"
+          listed="$(printf '%s' "$entries" | jq -s 'length')"
+          files="$(printf '%s' "$entries" | jq -r '.[] | select(. != null)')"
+          hits="$(printf '%s\n' "$files" | grep -E "$sensitive_re" || true)"
+          if [ "$listed" -lt "$changed" ]; then
+            printf 'the files API listed %s of %s changed files\n' "$listed" "$changed"
+            post pending 'more changed files than the API lists — awaiting the evaluator paired evaluation'
+            echo "the evaluator must post evaluation-receipt=success on ${HEAD_SHA}"
+          elif [ -n "$hits" ]; then
+            printf 'sensitive paths changed:\n%s\n' "$hits"
+            post pending 'sensitive path — awaiting the evaluator paired evaluation'
+            echo "the evaluator must post evaluation-receipt=success on ${HEAD_SHA}"
+          else
+            post success 'no sensitive path — paired evaluation not required'
+            echo "no sensitive path touched; receipt not required"
+          fi
+  bypass-alert:
+    if: >-
+      github.event.action == 'closed' && github.event.pull_request.merged &&
+      github.event.pull_request.base.ref == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      checks: read
+      statuses: read
+    steps:
+      - name: Open an issue when a PR merged without its required contexts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          MERGED_BY: ${{ github.event.pull_request.merged_by.login }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # A read that fails is named in the issue instead of ending the job
+          # in silence: a detection control fails toward alerting.
+          unread=""
+          branch="$(jq -rn --arg branch "$BASE_REF" '$branch | @uri')"
+          # The contexts the branch rules require, plus this workflow's own
+          # receipt, so a rules read that lists none still guards it.
+          required="$(gh api --paginate "repos/${REPO}/rules/branches/${branch}" \
+            --jq '.[] | select(.type == "required_status_checks")
+              | .parameters.required_status_checks[].context')" ||
+            { required=""; unread="${unread}- the branch rules"$'\n'; }
+          required="$(printf '%s\nevaluation-receipt\n' "$required")"
+          # The head's latest commit statuses and check runs, one JSON line each.
+          statuses="$(gh api --paginate "repos/${REPO}/commits/${HEAD_SHA}/status" \
+            --jq '.statuses[] | [.context, .state] | @json')" ||
+            { statuses=""; unread="${unread}- the head's commit statuses"$'\n'; }
+          checks="$(gh api --paginate "repos/${REPO}/commits/${HEAD_SHA}/check-runs" \
+            --jq '.check_runs[] | [.name, .conclusion] | @json')" ||
+            { checks=""; unread="${unread}- the head's check runs"$'\n'; }
+          # A context passes only when the head shows it and every status and
+          # check run under its name passed (a success status; a success,
+          # neutral or skipped check run), so a failing source is never masked
+          # by a passing one of the same name. Every other context is named
+          # with what the head showed, or `missing`.
+          missing="$(jq -rn --arg required "$required" --arg statuses "$statuses" \
+            --arg checks "$checks" '
+            def entries: split("\n") | map(select(length > 0));
+            ($statuses | entries | map(fromjson)) as $status
+            | ($checks | entries | map(fromjson)) as $check
+            | $required | entries | unique | .[]
+            | . as $context
+            | [$status[] | select(.[0] == $context) | .[1]] as $states
+            | [$check[] | select(.[0] == $context) | (.[1] // "pending")] as $conclusions
+            | if ($states + $conclusions | length) > 0
+                and ($states | all(. == "success"))
+                and ($conclusions | all(. == "success" or . == "neutral" or . == "skipped"))
+              then empty
+              else ($states + $conclusions | unique | join(", ")) as $seen
+                | "\($context) (\(if $seen == "" then "missing" else $seen end))"
+              end')"
+          if [ -z "$missing" ] && [ -z "$unread" ]; then
+            echo "PR #${PR_NUMBER} merged with every required context passing"
+            exit 0
+          fi
+          printf 'merged without these required contexts:\n%s\n' "$missing"
+          listed="$(printf '%s\n' "$missing" | sed '/^$/d; s/^/- /')"
+          body="$(printf 'PR #%s merged into %s by @%s at head %s while these required contexts were not success:\n\n%s\n\nThe ruleset admits that only through its pull-request bypass; review the merged change.\n' \
+            "$PR_NUMBER" "$BASE_REF" "$MERGED_BY" "$HEAD_SHA" "$listed")"
+          title="ruleset bypass on PR #${PR_NUMBER}"
+          if [ -n "$unread" ]; then
+            printf 'unread:\n%s' "$unread"
+            title="ruleset bypass check incomplete on PR #${PR_NUMBER}"
+            body="$(printf '%s\n\nThese reads failed, so the list above may be incomplete:\n\n%s' \
+              "$body" "$unread")"
+          fi
+          gh issue create --repo "$REPO" --title "$title" --body "$body"
