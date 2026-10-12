@@ -266,7 +266,7 @@ tasks:
             .contains("/private/operator-only/secret")
     );
     let before = raw.clone();
-    let result = ServiceExecutionResult::from_runtime(&outcome, Vec::new());
+    let result = ServiceExecutionResult::from_runtime(outcome, Vec::new());
     assert_eq!(result.status(), ServiceExecutionStatus::Failed);
     assert!(
         !result
@@ -283,7 +283,11 @@ tasks:
         Some(&expected),
         "only diagnostic text changes"
     );
-    assert_eq!(*raw, before, "local outcome remains forensic truth");
+    assert_eq!(
+        result.run_outcome().map(|run| &run.settlement),
+        Some(&before),
+        "the in-process outcome remains forensic truth"
+    );
     assert!(
         events.0.iter().any(|event| event
             .str_field("error_message")
