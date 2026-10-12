@@ -108,3 +108,48 @@ async fn documented_cut_and_interrupted_finishes_are_never_a_normal_end() {
     let (stop, _, _) = finish_of("deepseek", &compat("stop")).await;
     assert!(!stop.is_incomplete(), "a complete answer stays complete");
 }
+
+/// The finishes that say the answer filled the model's context window stay cut (never a normal
+/// end, their calls never run) and carry the window-full marker, which an output cap alone never
+/// sets: a loop compacts on it instead of re-issuing the call into the same full window.
+#[tokio::test]
+async fn a_window_full_finish_is_incomplete_and_marked_window_full() {
+    let anthropic = |stop: &str| {
+        json!({"id": "a", "model": "claude-haiku-4-5", "stop_reason": stop,
+            "content": [{"type": "text", "text": "the notes, cut"}],
+            "usage": {"input_tokens": 9, "output_tokens": 64}})
+    };
+    let compat = |finish: &str| {
+        json!({"id": "c", "model": "m", "choices": [{"finish_reason": finish,
+            "message": {"content": "the notes, cut"}}],
+            "usage": {"prompt_tokens": 9, "completion_tokens": 64}})
+    };
+    let cases = [
+        (
+            "anthropic",
+            anthropic("model_context_window_exceeded"),
+            true,
+        ),
+        ("anthropic", anthropic("max_tokens"), false),
+        ("mistral", compat("model_length"), true),
+        ("mistral", compat("length"), false),
+        ("deepseek", compat("length"), false),
+    ];
+    for (provider, body, window_full) in cases {
+        let http = FakeHttp::with_json(200, &body.to_string());
+        let response = (resolved_with(&http, provider, "test-key").infer(request("m")))
+            .await
+            .expect("a well-formed answer");
+        assert_eq!(response.stop_reason, StopReason::MaxTokens, "{provider}");
+        assert!(response.stop_reason.is_incomplete(), "{provider}");
+        assert_eq!(response.window_full, window_full, "{provider} {body}");
+    }
+    let http = FakeHttp::with_json(200, &compat("stop").to_string());
+    let complete = (resolved_with(&http, "mistral", "test-key").infer(request("m")))
+        .await
+        .expect("a complete answer");
+    assert!(
+        !complete.window_full,
+        "a complete answer never carries the marker"
+    );
+}

@@ -165,3 +165,76 @@ async fn oversized_stream_body_is_capped_and_still_reports_status() {
     assert_eq!(details.code(), None);
     assert_eq!(details.retry_after_ms(), Some(1000));
 }
+
+/// The documented overflow code turns a 400 into a typed context overflow: terminal, with the
+/// provider's sanitized answer kept. The same words in prose classify nothing, and 429 · 503 ·
+/// 529 stay transient rejections whatever code rides them.
+#[test]
+fn an_overflow_status_with_its_documented_code_is_a_typed_overflow() {
+    let body = br#"{"error":{"message":"This model's maximum context length is 128000 tokens.",
+        "type":"invalid_request_error","param":"messages","code":"context_length_exceeded"}}"#;
+    let error = status_error(400, body, None, None);
+    let ProviderError::ContextOverflow { limit, details } = &error else {
+        panic!("{error:?}")
+    };
+    assert_eq!(*limit, None, "the wire does not know the route's window");
+    let details = details.as_ref().expect("the provider's answer is kept");
+    assert_eq!(details.code(), Some("context_length_exceeded"));
+    assert_eq!(details.error_type(), Some("invalid_request_error"));
+    assert!(!error.is_transient());
+    assert_eq!(error.nika_code().num, 330);
+    assert!(crate::retry::transient_rejection(&error).is_none());
+    assert!(
+        error
+            .to_string()
+            .starts_with("the request exceeds the model's context window: "),
+        "{error}"
+    );
+
+    let prose = status_error(
+        400,
+        br#"{"error":{"message":"context_length_exceeded: maximum context length reached","type":"invalid_request_error"}}"#,
+        None,
+        None,
+    );
+    assert!(
+        matches!(prose, ProviderError::HttpResponse { .. }),
+        "prose classifies nothing: {prose:?}"
+    );
+    for status in [429, 503, 529] {
+        let transient = status_error(status, body, Some("1"), None);
+        assert!(
+            crate::retry::transient_rejection(&transient).is_some(),
+            "{status} stays a transient rejection: {transient:?}"
+        );
+    }
+}
+
+/// `OpenRouter` documents its overflow class beside a numeric code, in
+/// `error.metadata.error_type`: that structured field types the overflow too.
+#[test]
+fn openrouters_documented_error_type_is_a_typed_overflow() {
+    let body = br#"{"error":{"code":400,"message":"This endpoint's maximum context length is 8192 tokens.",
+        "metadata":{"error_type":"context_length_exceeded","provider_name":"Example"}}}"#;
+    let error = status_error(400, body, None, None);
+    assert!(
+        matches!(
+            error,
+            ProviderError::ContextOverflow {
+                limit: None,
+                details: Some(_)
+            }
+        ),
+        "{error:?}"
+    );
+    let other = status_error(
+        400,
+        br#"{"error":{"code":400,"message":"bad","metadata":{"error_type":"unknown_class"}}}"#,
+        None,
+        None,
+    );
+    assert!(
+        matches!(other, ProviderError::HttpResponse { .. }),
+        "{other:?}"
+    );
+}

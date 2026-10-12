@@ -133,7 +133,9 @@ impl Model for AgentModel {
         let infer = (self.infer_request(wire_model, request)).map_err(ModelError::Failed)?;
         let response = transport.asked(&infer, self.admission.as_ref())?;
         usable(&self.model, &response).map_err(ModelError::Failed)?;
-        let reply = Reply::new(response.content, response.stop_reason).with_model(&self.model);
+        let reply = Reply::new(response.content, response.stop_reason)
+            .with_model(&self.model)
+            .with_window_full(response.window_full);
         Ok(if response.usage_reported {
             reply.with_usage(response.usage)
         } else {

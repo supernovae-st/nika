@@ -1054,10 +1054,12 @@ pub nika_session_agent::run::Reply::content: alloc::vec::Vec<nika_kernel_ai::pro
 pub nika_session_agent::run::Reply::model: core::option::Option<alloc::string::String>
 pub nika_session_agent::run::Reply::stop: nika_kernel_ai::provider::StopReason
 pub nika_session_agent::run::Reply::usage: core::option::Option<nika_types::token_usage::TokenUsage>
+pub nika_session_agent::run::Reply::window_full: bool
 impl nika_session_agent::run::Reply
 pub fn nika_session_agent::run::Reply::new(content: alloc::vec::Vec<nika_kernel_ai::provider::ContentBlock>, stop: nika_kernel_ai::provider::StopReason) -> Self
 pub fn nika_session_agent::run::Reply::with_model(self, model: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_session_agent::run::Reply::with_usage(self, usage: nika_types::token_usage::TokenUsage) -> Self
+pub fn nika_session_agent::run::Reply::with_window_full(self, window_full: bool) -> Self
 impl core::clone::Clone for nika_session_agent::run::Reply
 pub fn nika_session_agent::run::Reply::clone(&self) -> nika_session_agent::run::Reply
 impl core::fmt::Debug for nika_session_agent::run::Reply
@@ -2643,10 +2645,12 @@ pub nika_session_agent::Reply::content: alloc::vec::Vec<nika_kernel_ai::provider
 pub nika_session_agent::Reply::model: core::option::Option<alloc::string::String>
 pub nika_session_agent::Reply::stop: nika_kernel_ai::provider::StopReason
 pub nika_session_agent::Reply::usage: core::option::Option<nika_types::token_usage::TokenUsage>
+pub nika_session_agent::Reply::window_full: bool
 impl nika_session_agent::run::Reply
 pub fn nika_session_agent::run::Reply::new(content: alloc::vec::Vec<nika_kernel_ai::provider::ContentBlock>, stop: nika_kernel_ai::provider::StopReason) -> Self
 pub fn nika_session_agent::run::Reply::with_model(self, model: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_session_agent::run::Reply::with_usage(self, usage: nika_types::token_usage::TokenUsage) -> Self
+pub fn nika_session_agent::run::Reply::with_window_full(self, window_full: bool) -> Self
 impl core::clone::Clone for nika_session_agent::run::Reply
 pub fn nika_session_agent::run::Reply::clone(&self) -> nika_session_agent::run::Reply
 impl core::fmt::Debug for nika_session_agent::run::Reply

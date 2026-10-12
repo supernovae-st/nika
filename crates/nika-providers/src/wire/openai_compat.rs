@@ -572,6 +572,7 @@ fn parse_response(
         .and_then(Value::as_str)
         .map(ToOwned::to_owned);
     resp.finish_reason_raw = raw_finish.map(ToOwned::to_owned);
+    resp.window_full = window_full(raw_finish);
     resp.gen_ai.system = gen_ai_system(rp.profile.id);
     resp.gen_ai.response_id = resp.request_id.clone();
     resp.gen_ai.response_model = v
@@ -605,6 +606,13 @@ fn usage_from(u: &Value) -> Option<TokenUsage> {
     usage.reasoning_tokens = at("/completion_tokens_details/reasoning_tokens");
     usage.total_tokens = at("/total_tokens");
     Some(usage)
+}
+
+/// Whether the finish says the model's context length was reached: Mistral's `model_length`.
+/// Evidence: name only (checked 2026-10-12): Mistral's API lists it beside `length` without a
+/// documented meaning. It maps to `MaxTokens`, and the response carries the window-full marker.
+fn window_full(raw: Option<&str>) -> bool {
+    raw == Some("model_length")
 }
 
 fn map_finish(raw: Option<&str>) -> StopReason {
