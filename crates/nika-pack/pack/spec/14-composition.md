@@ -16,7 +16,8 @@
 > whole receipt exists, « proven » is not a word this contract lets an
 > implementation use.
 >
-> This chapter is **parent→child** composition (`invoke: { workflow: }`
+> This chapter is **parent→child** composition
+> (`invoke: { workflow: "./child.nika" }`
 > · lesson 10). The agent loop's self-check builtin `nika:compose` is a
 > different door (ADR-096 · loop-only · lesson 15). Do not fuse them.
 
@@ -44,6 +45,14 @@ tasks:
   `registry:owner/name@version`. A `${{ }}`-templated target is refused
   at check — a call graph you cannot draw before the run is a call
   graph you cannot bound (`NIKA-COMP-001`).
+- **A registry child does not run yet, so the check refuses it.** A
+  pinned `registry:owner/name@version` target is well-formed, but no
+  registry child is resolved before the run: its contract, its effects
+  and its place in the call graph cannot be judged, and the run refuses
+  it. Until registry children run, a check refuses a pinned registry
+  target with `NIKA-COMP-001`, naming the target, as the run does; a
+  filesystem child is the form today. A check that accepted it promised
+  a run that refuses.
 
 ## The CallableContract (normative · G20)
 
@@ -71,7 +80,8 @@ today's separate invoke/agent/LSP tables ends here.
 A composition is well-formed iff **all ten** hold:
 
 1. **Static target** — the callee is resolvable before the run (path or
-   pinned registry ref · never templated).
+   pinned registry ref · never templated · a pinned registry ref is
+   refused until registry children run, [§the form](#the-form-normative)).
 2. **Typed call** — the parent's `args:` fit the child's `inputs:` and
    the child's `outputs:` fit the parent's `returns:` (the assignable
    relation of [09](./09-types.md) · one type core, composed).
@@ -127,7 +137,7 @@ the top-level form.
 
 | Code | Category | Meaning |
 |---|---|---|
-| `NIKA-COMP-001` | `validation_error` | a `workflow:` target is not statically resolvable (templated · malformed · unpinned registry ref) |
+| `NIKA-COMP-001` | `validation_error` | a `workflow:` target is not statically resolvable (templated · malformed · unpinned registry ref · a pinned registry ref until registry children run) |
 | `NIKA-COMP-002` | `security_error` | the child's effect boundary exceeds the parent ∩ declared (law 3/4) |
 | `NIKA-COMP-003` | `validation_error` | the static call graph is not acyclic (self-launch · cycle · law 7) |
 | `NIKA-COMP-004` | `validation_error` | the typed call does not compose (args ⋢ inputs, or outputs ⋢ returns · law 2) |

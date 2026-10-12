@@ -320,3 +320,5 @@ verbs	(harness-image-observation)	journal-evidence	conformance/tests/runtime/tra
 verbs	(harness-image-observation)	journal-evidence	conformance/tests/runtime/trace/022-image-count-mismatch
 verbs	(harness-image-observation)	journal-evidence	conformance/tests/runtime/trace/023-image-malformed-frame
 verbs	(harness-image-observation)	journal-evidence	conformance/tests/runtime/trace/024-image-stored-without-blob
+composition	NIKA-COMP-001	check-reject	conformance/tests/deep/composition/013-pinned-registry-child-refused
+composition	(positive)	positive-check	conformance/tests/deep/composition/014-relative-child-accepted

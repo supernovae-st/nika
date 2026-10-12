@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 7471
+  classified_files: 7493
   file_rows: 11
   pattern_rows: 24
   by_class:
-    authored: 4293
+    authored: 4315
     authored-pin: 2
     generated: 271
     pinned-copy: 200
@@ -67,7 +67,7 @@ files:
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
   class: authored-pin
-  sha256: e917e7dcc6f1943e98b1640181fb8403787e4ef504b2ebd36fea74f9f4b91b49
+  sha256: 4c1bdbd5a9e211b7469fb6d49691c44b7e1185c83f1151bebede7cf619c36245
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 199
-  aggregate_sha256: a8bf0118a6c4a06ad139c4cca344909f53fb77352ecdd138fb1b527776362de8
+  aggregate_sha256: 6ee07e0bd5d045d2bd11b07df10d9eff5902ae763ea081e9e0b1b41533814e42
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout at SPEC_PIN> — spec-pin-heal.yml advances the pin and pack together, and Diamond CI refuses any pack differing from spec@SPEC_PIN"
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 90
-  aggregate_sha256: 25e33180c93ea1643f25ecc8c087e33e35d1ed51a6f51d94bb65e9bdef1bf490
+  aggregate_sha256: 198f6221ac6bfd5f76d56993fbec2266374690c56a313ff0f4d7d74c6fe20952
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,18 +151,18 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 2073
-  aggregate_sha256: d8bcb798fa2c2ac354af7921f4d6b2e8f2cf8e50f402c604ae275fc8a8a1ab42
+  match_count: 2080
+  aggregate_sha256: 74643d5ccb8c480a6548115a62957e659df2001e50013cebb0aef89bdf0cebdf
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
-  match_count: 806
-  aggregate_sha256: b08da6c3a44e005616e51029f38111f5175be652aa8aede02b4363d255e2bf7d
+  match_count: 809
+  aggregate_sha256: 327a0184ae179358f60cc60f671eb73a4fc4e3c45b8887641679d10c5d8070aa
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
   match_count: 550
-  aggregate_sha256: 8ff29ca030c5fdef3dfe9da49cf38eb884ac78a4dd4a02b95e6dd8301e6873fa
+  aggregate_sha256: 996c79e40e978807b006ba696e6ffee8d50489c541f84c319e2f2c07aa6311b5
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "scripts/sync-pack.sh is the ONE vendoring lane; the divergent crate-local duplicate was retired"
 - glob: "fuzz/**"
@@ -173,7 +173,7 @@ patterns:
 - glob: "docs/adr/**"
   class: authored
   match_count: 119
-  aggregate_sha256: a4f047a29e5a9aa4b6670c9ac9267e73c2f69bc2162e5a61a93eb09409211a18
+  aggregate_sha256: 2110945f3f19b1e080e5dd66bdda521efb7f0413de418d32fe1f64240eb499a1
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
 - glob: "docs/testimonials/**"
   class: testimonial
@@ -183,12 +183,12 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 146
-  aggregate_sha256: 763b8df55430ea3b86c66cece1f88e35c6140b0061aefd22077a0ba10f993736
+  aggregate_sha256: a7dc6f2ad17825f00c7cf80b45d994f9269dd082d1fe9756b39b26f10c5fd004
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
   match_count: 334
-  aggregate_sha256: 7ea374091b2e975dcb16ecbc27928dc931ef8c5ba174225a1935fc901a522d9c
+  aggregate_sha256: a66a5959b6f048661d8561d16a5e3e68f194225709b6d683dc9b66291f17ef8e
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -241,8 +241,8 @@ patterns:
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "changelog.d/**"
   class: authored
-  match_count: 125
-  aggregate_sha256: a8554cc24502ae36ab24763d54de3d966672b7f645c40b1f2024956a42a207ea
+  match_count: 137
+  aggregate_sha256: a0496ac71aa6ca0ced519c446673ec6d75eeeeb4daa98437da14b425a98484ba
   evidence: "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one"
   note: "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time"
 - glob: "*"

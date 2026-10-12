@@ -11,7 +11,8 @@
 # between the two files is the child's signature, nothing more.
 #
 # Demonstrates ·
-#   - `invoke: { workflow:, args: }` · the composition door
+#   - `invoke: { workflow: "./10-compose-child.nika", args: { topic: "${{ inputs.topic }}" } }`
+#     · the composition door
 #   - `returns:` on the call · names the child-outputs contract the parent
 #     relies on (child outputs that do not fit are `NIKA-COMP-004`)
 #   - `${{ tasks.call.output.<field> }}` · reading a child output by name
