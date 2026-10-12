@@ -1442,3 +1442,16 @@ fn an_edit_after_a_refused_write_names_the_refusal() {
     let step = journey.step(0);
     assert_eq!(outcome_kind(step), "proposal", "{step:#}");
 }
+
+/// A project file over the read cap: the reply says that offset and limit cannot help, since the
+/// whole file is read before they apply, and what can.
+#[test]
+fn reading_an_oversized_file_says_offset_and_limit_cannot_help() {
+    let journey = run("oversized_read");
+    let refused = journey.agent[1].last();
+    assert!(refused.contains("larger than 262144 bytes"), "{refused}");
+    assert!(
+        refused.contains("offset and limit cannot help"),
+        "{refused}"
+    );
+}

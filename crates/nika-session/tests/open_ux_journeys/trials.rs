@@ -7,7 +7,7 @@
 use serde_json::{Value, json};
 
 use super::{Act, COUNT, COUNT_REQUEST, SEAT, Scenario};
-use crate::peer::{Script, call, call_saying};
+use crate::peer::{Script, call, call_saying, say};
 
 /// When every journey's pages were observed: 2026-10-10 08:00 UTC.
 pub(crate) const OBSERVED_AT: u64 = 1_791_619_200_000;
@@ -375,6 +375,33 @@ pub(super) fn edit_after_refused_write() -> Scenario {
                     "propose",
                     json!({}),
                 ),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// A request over a project file larger than the author's read cap.
+const BIG_REQUEST: &str = "compte les lignes de ./data/big.csv";
+
+/// A project file over the read cap (300,000 bytes): the author reads it with an offset and a
+/// limit, which cannot help, since the whole file is read before they apply.
+pub(super) fn oversized_read() -> Scenario {
+    let big: &'static str = Box::leak("ligne\n".repeat(50_000).into_boxed_str());
+    Scenario {
+        files: vec![("data/big.csv", big)],
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(BIG_REQUEST)],
+        script: Script {
+            agent: vec![
+                call(
+                    "read",
+                    json!({"path": "./data/big.csv", "offset": 0, "limit": 10}),
+                ),
+                say("Le fichier est trop grand pour que je le lise."),
             ],
             replies: Vec::new(),
             picks: Vec::new(),
