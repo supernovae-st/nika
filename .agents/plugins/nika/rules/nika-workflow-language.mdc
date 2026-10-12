@@ -24,7 +24,7 @@ Envelope: nine keys — `nika` · `model` · `inputs` · `const` · `secrets` ·
 
 ## Authoring Discipline
 - Interpolation uses `${{ inputs.x }}` · `${{ const.x }}` · `${{ secrets.X }}` · `${{ tasks.id.output }}` · `${{ with.alias }}`.
-- Bindings use `with: { alias: ${{ tasks.id.output }} }` then `${{ with.alias }}` — inside a FLOW mapping, quote the value (`"${{ … }}"`) or YAML reads `{{` as a nested map (`NIKA-PARSE-001`).
+- Bindings use `with: { alias: "${{ tasks.id.output }}" }` then `${{ with.alias }}` — inside a FLOW mapping the value is quoted, or YAML reads `{{` as a nested map (`NIKA-PARSE-001`); in block style, `alias: ${{ tasks.id.output }}` on its own line under `with:`, a bare reference is fine.
 - `permits:` IS the boundary, and ABSENT MEANS ZERO AUTHORITY: any effect without a grant refuses `NIKA-AUTH-006` at check, before a token is spent. A pure-compute body states the zero explicitly as `permits: {}`. `nika check --infer-permits` prints the tightest block. Every permit bound is a literal, never an interpolation (`NIKA-AUTH-007`), and `*.example.com` is refused — name exact hosts (`NIKA-AUTH-010`).
 - A spawned child inherits NOTHING from the engine: its environment is composed from a cleared slate — the runner floor ∪ the names in `permits: { env: [NAME] }` ∪ the task's own `env:` map. A variable the child needs must be named.
 - Models use the combined form `provider/name` (for example `mock/echo`, `ollama/qwen3.5:4b`, `mistral/mistral-small`).

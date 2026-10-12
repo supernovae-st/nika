@@ -40,8 +40,8 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 | `$SOME_SETTING` (non-sensitive) | an `inputs:` declaration with `required: false` and a `default:` · read as `${{ inputs.KEY }}` |
 | an env var a CHILD process must see | `permits: { env: [NAME] }` — a child inherits nothing |
 | `API_KEY=…` literals | `${{ secrets.X }}` + `secrets:` block with its `egress:` sink |
-| step B reads step A's output | `with: { a: "${{ tasks.A.output }}" }` on B — the binding IS the edge — then `${{ with.a }}` in the body |
-| step B only waits for step A (no data) | `after: { A: success }` (predicates: `success` · `failure` · `skipped` · `terminal`) |
+| step B reads step A's output | `with: { a: "${{ tasks.step_a.output }}" }` on `step_b` — the binding IS the edge — then `${{ with.a }}` in the body (task ids are snake_case) |
+| step B only waits for step A (no data) | `after: { step_a: success }` (predicates: `success` · `failure` · `skipped` · `terminal`) |
 | the irreversible step (deploy, send, publish) | preserve its authorization and any required gate; use `nika:prompt` for a decision still needed at run time, not to re-request authorization already given |
 | what no builtin/MCP covers (git, build tools) | `exec:` with `command:` as ARGV (`["git", "log", "-1"]`) + a row in the exec ledger |
 | a pipe, redirect or glob inside the command | `shell:` explicitly — `command:` has no implicit shell |
