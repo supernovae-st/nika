@@ -10,6 +10,7 @@
 //! then the `mode:` extraction (`nika-extract`) — `mode: jq`
 //! composes THIS crate's one jq engine (`data::jq`), never a second one.
 
+mod notify;
 mod response;
 
 use bytes::Bytes;
@@ -574,7 +575,9 @@ pub(crate) fn is_transient_status(status: u16) -> bool {
 
 /// `nika:notify` — send an alert. `webhook` MUST work (POST the message);
 /// other channels are feature-gated → `NIKA-BUILTIN-NOTIFY-001` when
-/// unconfigured (stdlib §notify).
+/// unconfigured (stdlib §notify). A Slack or Discord webhook gets the
+/// body its receiver reads ([`notify::Receiver`]), and a refused delivery
+/// names the receiver's own answer.
 ///
 /// SECURITY: `target:` is workflow-controlled — callers MUST inject an
 /// SSRF-guarding `H` (production = `ReqwestHttp` with
@@ -597,13 +600,7 @@ pub(crate) async fn notify<H: HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutc
     request
         .headers
         .insert("content-type".to_owned(), "application/json".to_owned());
-    // `{ message, severity, data? }` — `data:` carries structured context
-    // so receivers branch on machine fields, never parse the human
-    // message (stdlib §notify · the key is ABSENT when not given).
-    let mut payload = serde_json::json!({ "message": message, "severity": severity });
-    if let (Some(map), Some(data)) = (payload.as_object_mut(), args.get("data")) {
-        map.insert("data".to_owned(), data.clone());
-    }
+    let payload = notify::Receiver::of(target).payload(message, severity, args.get("data"));
     let body = serde_json::to_vec(&payload)
         .map_err(|e| BuiltinFailure::new(C1, format!("payload serialization failed: {e}")))?;
     request.body = Some(body.into());
@@ -616,13 +613,19 @@ pub(crate) async fn notify<H: HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutc
             .unwrap_or_else(|| BuiltinFailure::new(C2, format!("delivery failed: {e}")))
     })?;
     if (200..300).contains(&response.status) {
-        Ok(serde_json::Value::Null)
-    } else {
-        Err(
-            BuiltinFailure::new(C2, format!("webhook returned HTTP {}", response.status))
-                .with_transient(is_transient_status(response.status)),
-        )
+        return Ok(serde_json::Value::Null);
     }
+    // The receiver's answer (`no_text`, a missing field) is the cause a
+    // person or a repair loop acts on; `details.status_code` is the
+    // machine field, as on fetch.
+    let status = response.status;
+    let message = match notify::answer(status, &response.body, target) {
+        Some(said) => format!("webhook returned HTTP {status}; the receiver said: \"{said}\""),
+        None => format!("webhook returned HTTP {status}"),
+    };
+    Err(BuiltinFailure::new(C2, message)
+        .with_transient(is_transient_status(status))
+        .with_details(serde_json::json!({ "status_code": status })))
 }
 
 #[cfg(test)]
