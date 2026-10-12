@@ -77,40 +77,55 @@ pub(crate) fn assert(args: &Args) -> BuiltinOutcome {
     }
 }
 
+/// A prompt nobody can answer: no human and no `default:` (stdlib
+/// §prompt) — the one failure the runtime turns into a durable pause.
+const PROMPT_UNANSWERED: &str = "NIKA-BUILTIN-PROMPT-001";
+
+/// A prompt configured wrongly (stdlib §prompt's parse error). No answer
+/// repairs it, so it fails at once instead of pausing for one.
+const PROMPT_CONFIG: &str = "NIKA-BUILTIN-PROMPT-002";
+
 /// `nika:prompt` — interactive human-in-the-loop · 3 modes · the
-/// normative non-interactive contract (stdlib §prompt).
+/// normative non-interactive contract (stdlib §prompt). A missing message,
+/// an unknown mode or a `default:` the mode cannot use is
+/// [`PROMPT_CONFIG`], judged before anyone is asked; only the unanswerable
+/// prompt is [`PROMPT_UNANSWERED`].
 pub(crate) fn prompt<P: Prompter>(prompter: &P, args: &Args) -> BuiltinOutcome {
-    const C1: &str = "NIKA-BUILTIN-PROMPT-001";
-    const C2: &str = "NIKA-BUILTIN-PROMPT-002";
-    let mode = opt_str(args, "mode", C1)?.unwrap_or("confirm");
-    let message = req_str(args, "message", C1)?;
+    const C2: &str = PROMPT_CONFIG;
+    let mode = opt_str(args, "mode", C2)?.unwrap_or("confirm");
+    let message = req_str(args, "message", C2)?;
 
     match mode {
-        "confirm" => match prompter.confirm(message) {
-            Some(answer) => Ok(serde_json::Value::Bool(answer)),
+        "confirm" => {
             // The remedy NAMES the right fix (F6): a string `default:` is
             // the `input` mode's contract — `confirm` wants a yes/no. The
             // prior message said only "must be a boolean for this mode",
             // which sent the author to fix the default when the real fix is
             // `mode: input` (the misguided-DX footgun).
-            None => default_or_fail(
+            let default = typed_default(
                 args,
-                C1,
                 "a boolean",
-                "use `mode: input` for a string default, or give a boolean `default:` for confirm",
-                |d| d.as_bool().map(serde_json::Value::Bool),
-            ),
-        },
-        "input" => match prompter.input(message) {
-            Some(text) => Ok(serde_json::Value::String(text)),
-            None => default_or_fail(
+                "use `mode: input` for a string default, or give `default: true` or `false` \
+                 for confirm",
+                |d| confirm_default(d).map(serde_json::Value::Bool),
+            )?;
+            match prompter.confirm(message) {
+                Some(answer) => Ok(serde_json::Value::Bool(answer)),
+                None => default_or_fail(default),
+            }
+        }
+        "input" => {
+            let default = typed_default(
                 args,
-                C1,
                 "a string",
                 "give a string `default:` (input mode answers with text)",
                 |d| d.as_str().map(|s| serde_json::Value::String(s.to_owned())),
-            ),
-        },
+            )?;
+            match prompter.input(message) {
+                Some(text) => Ok(serde_json::Value::String(text)),
+                None => default_or_fail(default),
+            }
+        }
         "choice" => {
             let choices = string_choices(args, C2)?;
             // `default:` (if present) is a PARSE-TIME contract: it MUST be a
@@ -132,39 +147,61 @@ pub(crate) fn prompt<P: Prompter>(prompter: &P, args: &Args) -> BuiltinOutcome {
             }
             match prompter.choice(message, &choices) {
                 Some(chosen) => Ok(serde_json::Value::String(chosen)),
-                None => default_or_fail(
-                    args,
-                    C1,
-                    "a string",
-                    "give a `default:` that is one of `choices:`",
-                    |d| d.as_str().map(|s| serde_json::Value::String(s.to_owned())),
-                ),
+                None => default_or_fail(args.get("default").cloned()),
             }
         }
-        other => Err(BuiltinFailure::new(C1, format!("unknown mode `{other}`"))),
+        other => Err(BuiltinFailure::new(
+            C2,
+            format!("unknown mode `{other}` — `mode:` is `confirm`, `input` or `choice`"),
+        )),
     }
 }
 
-/// No human answered: use `default:` when present, else the normative
-/// `NIKA-BUILTIN-PROMPT-001` (never hang, never invent · stdlib §prompt).
-/// Distinguishes a PRESENT-but-wrong-type default (its own honest message)
-/// from an ABSENT one — the prior code conflated them and reported "no
-/// `default:`" when a wrong-typed default WAS present (a silent lie that
-/// gave a model-repair loop nothing to repair).
-fn default_or_fail(
+/// The `default:` in the mode's type, `None` when absent. A PRESENT
+/// default the mode cannot use is its own honest [`PROMPT_CONFIG`] — the
+/// prior code conflated it with an ABSENT one and reported "no
+/// `default:`" (a silent lie that gave a model-repair loop nothing to
+/// repair), then coded it as the pausing failure, so an unattended run
+/// waited forever for an answer that could not fix it.
+fn typed_default(
     args: &Args,
-    code: &'static str,
     type_hint: &str,
     remedy: &str,
     pick: impl Fn(&serde_json::Value) -> Option<serde_json::Value>,
-) -> BuiltinOutcome {
-    match args.get("default") {
-        Some(raw) => pick(raw).ok_or_else(|| {
-            BuiltinFailure::new(
-                code,
-                format!("`default:` must be {type_hint} for this mode (got {raw}) — {remedy}"),
-            )
-        }),
+) -> Result<Option<serde_json::Value>, BuiltinFailure> {
+    args.get("default")
+        .map(|raw| {
+            pick(raw).ok_or_else(|| {
+                BuiltinFailure::new(
+                    PROMPT_CONFIG,
+                    format!("`default:` must be {type_hint} for this mode (got {raw}) — {remedy}"),
+                )
+            })
+        })
+        .transpose()
+}
+
+/// A confirm `default:`: a boolean, or a word a person answers a confirm
+/// with (`yes`/`y`/`no`/`n`, as `--answer` reads them, and
+/// `"true"`/`"false"`). YAML 1.2 reads an unquoted `yes` as a string.
+fn confirm_default(raw: &serde_json::Value) -> Option<bool> {
+    match raw {
+        serde_json::Value::Bool(answer) => Some(*answer),
+        serde_json::Value::String(word) => match word.trim().to_ascii_lowercase().as_str() {
+            "yes" | "y" | "true" => Some(true),
+            "no" | "n" | "false" => Some(false),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// No human answered: the typed `default:` when present, else the
+/// normative [`PROMPT_UNANSWERED`] (never hang, never invent · stdlib
+/// §prompt).
+fn default_or_fail(default: Option<serde_json::Value>) -> BuiltinOutcome {
+    match default {
+        Some(answer) => Ok(answer),
         // Teach EVERY exit from the headless dead-end (stateful gauntlet
         // 2026-07-11 · re-taught 2026-07-31): the stdlib contract fails
         // here by design (never hang, never invent) — and the reference
@@ -172,7 +209,7 @@ fn default_or_fail(
         // (ADR-099 rider), so the old "run with `--json`" recipe is
         // retired: the message names the routes that ship.
         None => Err(BuiltinFailure::new(
-            code,
+            PROMPT_UNANSWERED,
             "non-interactive and no `default:` — cannot answer without a human · \
              pre-answer with `--answer <task>=<value>` · declare `default:` \
              (unattended runs answer with it) · or let the run pause durably \
@@ -521,15 +558,15 @@ mod tests {
             "{choice_num:?}"
         );
 
-        // confirm · a string default (wrong type for a yes/no) names the
+        // confirm · a string default that is no answer word names the
         // type AND the right remedy (`mode: input` · F6) instead of just
         // telling the author to fix a default that confirm can't use.
         let confirm_str = prompt(
             &NonInteractive,
-            &args(serde_json::json!({ "message": "ok?", "default": "yes" })),
+            &args(serde_json::json!({ "message": "ok?", "default": "later" })),
         );
         assert!(
-            matches!(&confirm_str, Err(f) if f.code == "NIKA-BUILTIN-PROMPT-001"
+            matches!(&confirm_str, Err(f) if f.code == "NIKA-BUILTIN-PROMPT-002"
                 && f.message.contains("must be a boolean")
                 && f.message.contains("mode: input")),
             "the confirm-mode error names `mode: input` as the fix: {confirm_str:?}"
@@ -541,7 +578,7 @@ mod tests {
             &args(serde_json::json!({ "mode": "input", "message": "?", "default": 42 })),
         );
         assert!(
-            matches!(&input_num, Err(f) if f.code == "NIKA-BUILTIN-PROMPT-001"
+            matches!(&input_num, Err(f) if f.code == "NIKA-BUILTIN-PROMPT-002"
                 && f.message.contains("must be a string")),
             "{input_num:?}"
         );
@@ -555,6 +592,73 @@ mod tests {
         )
         .expect("valid default used");
         assert_eq!(ok, serde_json::Value::String("a".to_owned()));
+    }
+
+    #[test]
+    fn prompt_config_errors_fail_at_once_instead_of_pausing() {
+        // PROMPT-001 is the branch the runtime turns into a durable pause.
+        // An unknown mode used to take it: the run paused, and resuming
+        // it with an answer paused again, forever.
+        let unknown = prompt(
+            &NonInteractive,
+            &args(serde_json::json!({ "mode": "select", "message": "pick", "default": "a" })),
+        );
+        assert!(
+            matches!(&unknown, Err(f) if f.code == "NIKA-BUILTIN-PROMPT-002"
+                && f.message.contains("`select`") && f.message.contains("`choice`")),
+            "{unknown:?}"
+        );
+        let silent = prompt(
+            &NonInteractive,
+            &args(serde_json::json!({ "default": true })),
+        );
+        assert!(
+            matches!(&silent, Err(f) if f.code == "NIKA-BUILTIN-PROMPT-002"),
+            "a prompt without a message: {silent:?}"
+        );
+        // A default the mode cannot use is refused before anyone is asked:
+        // the author learns it at the first attended run, not at the first
+        // unattended one.
+        let attended = prompt(
+            &AlwaysPrompter,
+            &args(serde_json::json!({ "message": "ok?", "default": "later" })),
+        );
+        assert!(
+            matches!(&attended, Err(f) if f.code == "NIKA-BUILTIN-PROMPT-002"),
+            "{attended:?}"
+        );
+        // Only the unanswerable prompt keeps the pausing code.
+        let unanswered = prompt(
+            &NonInteractive,
+            &args(serde_json::json!({ "message": "ok?" })),
+        );
+        assert!(
+            matches!(&unanswered, Err(f) if f.code == "NIKA-BUILTIN-PROMPT-001"),
+            "{unanswered:?}"
+        );
+    }
+
+    #[test]
+    fn prompt_confirm_default_reads_the_words_a_person_answers_with() {
+        // `default: yes` is a string in YAML 1.2; `--answer` already reads
+        // `yes`/`y`/`no`/`n` for a confirm, and so does its default.
+        for (word, expected) in [
+            ("yes", true),
+            ("Y", true),
+            ("true", true),
+            (" no ", false),
+            ("n", false),
+            ("FALSE", false),
+        ] {
+            let answer = prompt(
+                &NonInteractive,
+                &args(serde_json::json!({ "message": "ship?", "default": word })),
+            );
+            assert!(
+                matches!(&answer, Ok(serde_json::Value::Bool(b)) if *b == expected),
+                "{word:?}: {answer:?}"
+            );
+        }
     }
 
     #[test]
