@@ -369,7 +369,8 @@ fn words_cover_only_the_revision_whose_proposal_they_answered() {
         acts,
         Ok(Some(Acts {
             save: true,
-            run: true
+            run: true,
+            revised: false
         }))
     );
     // Those words ran that revision: a repair proposed on them, whatever it changed, is not theirs.

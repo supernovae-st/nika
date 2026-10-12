@@ -72,8 +72,8 @@ pub nika_session_agent::conversation::Pick::Offer(alloc::string::String)
 pub nika_session_agent::conversation::Pick::Unread
 impl nika_session_agent::conversation::Pick
 pub fn nika_session_agent::conversation::Pick::consent_question(id: nika_session_change::outcome::QuestionId) -> nika_session_change::work::conversation::AskedQuestion
-pub fn nika_session_agent::conversation::Pick::consented(line: &str, run: bool, id: nika_session_change::outcome::QuestionId, read: impl core::ops::function::FnOnce(&str) -> core::option::Option<alloc::string::String>) -> bool
-pub fn nika_session_agent::conversation::Pick::consents(&self, run: bool) -> bool
+pub fn nika_session_agent::conversation::Pick::consented(line: &str, acts: nika_session_agent::conversation::Acts, id: nika_session_change::outcome::QuestionId, read: impl core::ops::function::FnOnce(&str) -> core::option::Option<alloc::string::String>) -> bool
+pub fn nika_session_agent::conversation::Pick::consents(&self, acts: nika_session_agent::conversation::Acts) -> bool
 impl nika_session_agent::conversation::Pick
 pub fn nika_session_agent::conversation::Pick::of_line(question: &nika_session_change::work::conversation::AskedQuestion, line: &str) -> core::option::Option<Self>
 pub fn nika_session_agent::conversation::Pick::prompt(question: &nika_session_change::work::conversation::AskedQuestion, line: &str) -> alloc::string::String
@@ -125,6 +125,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_session_agent::conversation
 impl<T> typenum::type_operators::Same for nika_session_agent::conversation::Pick
 pub type nika_session_agent::conversation::Pick::Output = T
 #[non_exhaustive] pub struct nika_session_agent::conversation::Acts
+pub nika_session_agent::conversation::Acts::revised: bool
 pub nika_session_agent::conversation::Acts::run: bool
 pub nika_session_agent::conversation::Acts::save: bool
 impl core::clone::Clone for nika_session_agent::conversation::Acts

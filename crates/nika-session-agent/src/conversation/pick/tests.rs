@@ -84,3 +84,28 @@ fn a_reading_binds_an_offered_key_or_a_closed_word_and_nothing_else() {
         assert_eq!(Pick::read(unread, &q), Pick::Unread, "{unread:?}");
     }
 }
+
+/// A reading covers the revision shown with « as shown » words, and a revision written in answer
+/// to the line only with words that ask for a change first; any other pick covers nothing.
+#[test]
+fn a_reading_covers_a_revision_only_when_it_asks_for_a_change_first() {
+    let shown = Acts {
+        save: true,
+        run: true,
+        revised: false,
+    };
+    let revised = Acts {
+        revised: true,
+        ..shown
+    };
+    let offer = |key: &str| Pick::Offer(key.to_owned());
+    assert!(offer("save_and_run").consents(shown));
+    assert!(!offer("save_and_run").consents(revised));
+    assert!(offer("change_then_save_and_run").consents(revised));
+    assert!(!offer("change_then_save_and_run").consents(shown));
+    assert!(
+        !offer("change_then_save").consents(revised),
+        "saving only never runs"
+    );
+    assert!(!offer("neither").consents(shown) && !Pick::Unread.consents(revised));
+}

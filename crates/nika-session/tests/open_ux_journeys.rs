@@ -53,7 +53,7 @@ struct Journey {
     agent: Vec<Seen>,
     /// Every request the peer received, in order.
     seen: Vec<Seen>,
-    _dir: tempfile::TempDir,
+    dir: tempfile::TempDir,
 }
 
 impl Journey {
@@ -139,7 +139,7 @@ fn run(name: &str) -> Journey {
         report,
         agent,
         seen,
-        _dir: dir,
+        dir,
     }
 }
 
@@ -1339,4 +1339,46 @@ fn a_line_steered_before_a_proposal_holds_it_back_and_the_revision_is_shown() {
         .filter(|tool| tool[1] == "propose" && tool[2] == "finished")
         .count();
     assert_eq!(shown, 1, "the held-back proposal never ran: {tools:#?}");
+}
+
+/// Words that consent to saving and running the revision the person saw never cover new bytes
+/// with the same effects: the revised proposal waits for their consent, and nothing is saved or
+/// run.
+#[test]
+fn save_and_run_words_never_cover_bytes_they_were_not_shown() {
+    let journey = run("consent_bytes_changed");
+    let (before, said) = (journey.step(1), journey.step(2));
+    assert_ne!(outcome_kind(said), "run_requested", "{said:#}");
+    assert!(work(said)["saved"].is_null(), "nothing saved: {said:#}");
+    assert!(work(said)["requested"].is_null(), "nothing run: {said:#}");
+    assert_eq!(
+        waiting(said),
+        "consent",
+        "the new bytes ask their own consent"
+    );
+    assert_ne!(proposal(said), proposal(before));
+}
+
+/// Words that ask for a change, then the save and the run, cover the revision written in answer to
+/// them: it is saved and run with no second yes, and the saved bytes are that revision's, not the
+/// ones the person was shown before.
+#[test]
+fn a_change_then_run_line_runs_its_revision_without_a_second_yes() {
+    let journey = run("change_then_run");
+    let (shown, said) = (journey.step(1), journey.step(2));
+    assert_eq!(outcome_kind(said), "run_requested", "{said:#}");
+    assert_ne!(waiting(said), "consent", "no second yes: {said:#}");
+    let saved = work(said)["saved"]["workflow"].as_str().expect("saved");
+    let path = journey.dir.path().join("project").join(saved);
+    let bytes = std::fs::read_to_string(path).expect("the saved workflow");
+    assert!(
+        bytes.contains("Résume en anglais"),
+        "the revision the line asked for was saved"
+    );
+    let before = candidate(shown);
+    assert!(
+        before.contains("Résume en Markdown"),
+        "the bytes shown before"
+    );
+    assert_ne!(bytes, before, "not the bytes shown before");
 }

@@ -374,6 +374,8 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "thought_only" => thought_only(),
         "open_defaults" => open_defaults(),
         "open_pick_other" => open_pick_other(),
+        "consent_bytes_changed" => consent_bytes_changed(),
+        "change_then_run" => change_then_run(),
         "default_not_asked" => default_not_asked(),
         "answered_literal" => answered_literal(),
         other => panic!("unknown scenario {other}"),
@@ -1204,7 +1206,13 @@ fn complaint_after_success() -> Scenario {
         script: Script {
             agent,
             replies: Vec::new(),
-            picks: [accepted_pick(), consented(2)].concat(),
+            // « corrige et relance » asks for a change, then the run: the repair answers it.
+            picks: [
+                accepted_pick(),
+                consented(1),
+                vec![CHANGE_THEN_RUN_PICK.to_owned()],
+            ]
+            .concat(),
             verdicts: Vec::new(),
         },
     }
@@ -1638,6 +1646,99 @@ fn steer_before_proposal() -> Scenario {
             ],
             replies: Vec::new(),
             picks: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// The author changes what the summary says, not what the workflow may do, then claims the
+/// person's consent to the revision they saw covers the new bytes.
+fn consent_bytes_changed() -> Scenario {
+    let source = digest(
+        &[("hacker_news", HACKER_NEWS), ("techcrunch", TECHCRUNCH)],
+        DIGEST,
+    );
+    let english = json!({
+        "source": source.replace("Résume en Markdown", "Résume en anglais et en Markdown"),
+        "resolutions": [
+            retained(HACKER_NEWS, "read_source", "u2"),
+            retained(TECHCRUNCH, "read_source", "u2"),
+            retained(DIGEST, "output_path", "u2"),
+        ],
+        "summary": "le résumé est en anglais"
+    });
+    let mut agent = accepted_steps();
+    agent.extend([
+        call("candidate_write", english),
+        call_saying(
+            "Je l'enregistre et je le lance.",
+            "propose",
+            json!({"acts": ["save", "run"],
+                "authorized_by": {"message": "u3", "excerpt": SAVE_AND_RUN_WORDS}}),
+        ),
+    ]);
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![
+            Act::Turn(REQUEST),
+            Act::Submit(ACCEPT),
+            Act::Submit(SAVE_AND_RUN),
+        ],
+        script: Script {
+            agent,
+            replies: Vec::new(),
+            picks: [accepted_pick(), consented(1)].concat(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// The reading of words that ask for a change, then the save and the run.
+const CHANGE_THEN_RUN_PICK: &str = "change_then_save_and_run";
+/// A change asked with its save and run.
+pub(crate) const CHANGE_THEN_RUN: &str = "mets le resume en anglais puis enregistre-le et lance-le";
+
+/// The person asks for a change, then the save and the run: the author writes the revision in
+/// answer to that line and proposes it with the acts, citing the same line.
+fn change_then_run() -> Scenario {
+    let source = digest(
+        &[("hacker_news", HACKER_NEWS), ("techcrunch", TECHCRUNCH)],
+        DIGEST,
+    );
+    let english = json!({
+        "source": source.replace("Résume en Markdown", "Résume en anglais et en Markdown"),
+        "resolutions": [
+            retained(HACKER_NEWS, "read_source", "u2"),
+            retained(TECHCRUNCH, "read_source", "u2"),
+            retained(DIGEST, "output_path", "u2"),
+        ],
+        "summary": "le résumé est en anglais"
+    });
+    let mut agent = accepted_steps();
+    agent.extend([
+        call("candidate_write", english),
+        call_saying(
+            "Je l'ai mis en anglais ; je l'enregistre et je le lance.",
+            "propose",
+            json!({"acts": ["save", "run"],
+                "authorized_by": {"message": "u3", "excerpt": "puis enregistre-le et lance-le"}}),
+        ),
+    ]);
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![
+            Act::Turn(REQUEST),
+            Act::Submit(ACCEPT),
+            Act::Submit(CHANGE_THEN_RUN),
+        ],
+        script: Script {
+            agent,
+            replies: Vec::new(),
+            picks: [accepted_pick(), vec![CHANGE_THEN_RUN_PICK.to_owned()]].concat(),
             verdicts: Vec::new(),
         },
     }

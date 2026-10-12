@@ -79,6 +79,12 @@ impl Citations {
         self.last
     }
 
+    /// Whether what was written at the tree line `written` answers the person's line at `line`:
+    /// written after it, with no other line of theirs between.
+    fn written_in_answer(&self, line: u64, written: u64) -> bool {
+        line < written && !(self.lines.values()).any(|l| l.at > line && l.at < written)
+    }
+
     /// Every word the person wrote from the tree line `from` on, in order: the request a
     /// candidate answers, as the laws read it.
     #[must_use]
@@ -134,6 +140,9 @@ pub struct Acts {
     pub save: bool,
     /// Run it after saving, through the run's admission.
     pub run: bool,
+    /// The candidate is a revision of the proposal the person's words answered, written in answer
+    /// to those words: only words that ask for a change first cover it.
+    pub revised: bool,
 }
 
 /// The conversation's state.
@@ -150,6 +159,8 @@ pub struct Conversation {
     asked_at: BTreeMap<String, u64>,
     answered: BTreeMap<String, Answered>,
     shown: Option<Shown>,
+    /// The tree line the current candidate was written at.
+    written_at: u64,
     /// What the last proposal changed in the values the one before it bound.
     changed: Vec<String>,
     /// The values the last proposal the person saw bound, as it bound them.
@@ -556,6 +567,7 @@ impl Conversation {
             }
         }
         let number = self.candidate.as_ref().map_or(1, |c| c.number + 1);
+        self.written_at = citations.last();
         self.candidate = Some(Candidate {
             number,
             source,
@@ -795,6 +807,7 @@ impl Conversation {
         let wanted = Acts {
             save: acts.contains(&"save") || acts.contains(&"run"),
             run: acts.contains(&"run"),
+            revised: false,
         };
         self.changed = self.changes_since_seen();
         let authorized = if wanted.save && !open.is_empty() {
@@ -808,13 +821,19 @@ impl Conversation {
                 // Only the person's words written after the proposal shown answer it: those that
                 // ran a failed revision authorize nothing, whatever the candidate does now.
                 (Some(line), Some(shown)) if in_line(line, excerpt, None) && line.at > shown.at => {
-                    if shown.scope == scope {
-                        Ok(Some(wanted))
-                    } else {
+                    let revised = shown.number != number;
+                    if shown.scope != scope {
                         Err(format!(
                             "the person's {message} answered the proposal of revision {}; this candidate may do something else, so it waits for their consent",
                             shown.number
                         ))
+                    } else if revised && !citations.written_in_answer(line.at, self.written_at) {
+                        Err(format!(
+                            "the person's {message} answered the proposal of revision {}; revision {number} was not written in answer to it, so it waits for their consent",
+                            shown.number
+                        ))
+                    } else {
+                        Ok(Some(Acts { revised, ..wanted }))
                     }
                 }
                 _ => Err(format!(
