@@ -72,17 +72,9 @@ pub fn callables(names: &[String]) -> Vec<Reference> {
     };
     let mut out = Vec::new();
     for name in names {
-        let heading = format!("### `nika:{name}`");
-        let Some(start) = page.find(&heading) else {
+        let Some(section) = stdlib_section(page, name) else {
             continue;
         };
-        let rest = &page[start..];
-        let end = rest[heading.len()..]
-            .find("\n### ")
-            .or_else(|| rest[heading.len()..].find("\n## "))
-            .map_or(rest.len(), |at| at + heading.len());
-        // The whole section: an argument table cut mid-way reads complete and is not.
-        let section = rest[..end].trim();
         let text = match name.as_str() {
             "fetch" => fetch_outputs(section),
             "date" => format!("{section}\n\n{DATE_SPANS}"),
@@ -92,6 +84,23 @@ pub fn callables(names: &[String]) -> Vec<Reference> {
         out.push(Reference::new(format!("nika:{name}"), "callable", text));
     }
     out
+}
+
+/// One builtin's whole section of the stdlib page, from the heading that names `nika:<name>` to
+/// the next heading of level 3 or above, whichever comes first: the last builtin of a chapter
+/// stops before the next chapter's `##` heading, and an argument table cut mid-way reads complete
+/// and is not.
+fn stdlib_section<'a>(page: &'a str, name: &str) -> Option<&'a str> {
+    let heading = format!("### `nika:{name}`");
+    let start = page.find(&heading)?;
+    let rest = &page[start..];
+    let tail = &rest[heading.len()..];
+    let end = [tail.find("\n### "), tail.find("\n## ")]
+        .into_iter()
+        .flatten()
+        .min()
+        .map_or(rest.len(), |at| at + heading.len());
+    Some(rest[..end].trim())
 }
 
 /// The `nika:fetch` contract with what each `mode:` returns, which its section only points to:
@@ -302,7 +311,7 @@ impl crate::foundry::ComponentCatalog for Templates {
 
 #[cfg(test)]
 mod tests {
-    use super::{DATE_SPANS, EVERYDAY, JQ_ONE_VALUE, JSON_API, callables};
+    use super::{DATE_SPANS, EVERYDAY, JQ_ONE_VALUE, JSON_API, callables, stdlib_section};
 
     /// The `nika:fetch` contract carries what each mode returns and the feed dates' format: an
     /// author reading it knows a feed item's `published` is an RFC 3339 instant, never the
@@ -349,5 +358,39 @@ mod tests {
         let fetch = &cut[2].text;
         let table = fetch.find("| `raw` |").zip(fetch.find(JSON_API));
         assert!(table.is_some_and(|(row, note)| row < note), "{fetch}");
+    }
+
+    /// Every builtin's section on the whole embedded page is its own and nothing more: after its
+    /// heading no heading of level 1 to 3 follows outside a code block, and its code fences close,
+    /// so a cut never ends inside an example. The last builtin of a chapter (`nika:notify` before
+    /// `## Introspection builtins (2)`, and four more) once carried that chapter's heading.
+    #[test]
+    fn every_builtin_section_stops_before_the_next_heading_and_closes_its_fences() {
+        let page = nika_pack::doc("stdlib/builtins-v0.1.md").expect("the embedded stdlib page");
+        let names: Vec<&str> = page
+            .lines()
+            .filter_map(|line| line.strip_prefix("### `nika:")?.split('`').next())
+            .collect();
+        assert!(names.len() >= 20, "{names:?}");
+        for name in names {
+            let section = stdlib_section(page, name).expect("a listed heading has its section");
+            let mut fenced = false;
+            for line in section.lines().skip(1) {
+                if line.trim_start().starts_with("```") {
+                    fenced = !fenced;
+                    continue;
+                }
+                let hashes = line.len() - line.trim_start_matches('#').len();
+                let heading = (1..=3).contains(&hashes) && line[hashes..].starts_with(' ');
+                assert!(fenced || !heading, "nika:{name} runs into {line:?}");
+            }
+            assert!(!fenced, "nika:{name} ends inside a code block");
+        }
+        let notify = callables(&["notify".to_owned()]);
+        assert!(
+            !notify[0].text.contains("## Introspection builtins"),
+            "{}",
+            notify[0].text
+        );
     }
 }
