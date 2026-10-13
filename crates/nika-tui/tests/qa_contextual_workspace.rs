@@ -127,6 +127,17 @@ fn action_at_width(screen: &qa_support::vt::Screen, label: &str, cols: u16) -> b
     })
 }
 
+/// Open the listed workflow through the project, without submitting the draft.
+/// Expansion needs a selected object; an empty welcome now yields to the exchange.
+fn open_listed_workflow(term: &mut Term) {
+    term.send("\x1b[17;2~"); // Shift+F6: conversation -> project.
+    term.send("\x1b[B\r"); // The first workflow follows the conversation.
+    term.wait_workspace_frame("the listed workflow is the selected object", |screen| {
+        screen.contains("path   release.nika") && screen.contains("tasks  4")
+    });
+    term.send(F6); // Project -> conversation; later keys keep their ordinary route.
+}
+
 #[test]
 fn contextual_expansion_is_one_action_and_preserves_the_same_draft() {
     let mut term = Term::proto_with(&[], 120, 40, &[("NO_COLOR", "1")]);
@@ -465,6 +476,23 @@ fn leave_after_settlement(term: &mut Term) {
     mouse_restored(term);
 }
 
+fn assert_no_empty_object_expansion(term: &mut Term) {
+    term.send(F4);
+    term.send("\x0f");
+    term.wait_text("commands ›");
+    term.send("\x0f");
+    term.wait_workspace_frame(
+        "F4 is inert while the preparation has no object",
+        |screen| {
+            !screen.contains("commands ›")
+                && !screen.contains(EXPAND)
+                && !screen.contains(RESTORE)
+                && screen.contains(BUSY)
+                && draft_is_exact(screen)
+        },
+    );
+}
+
 #[test]
 fn stop_is_reachable_from_an_expanded_palette_and_the_small_terminal() {
     for small in [false, true] {
@@ -479,6 +507,8 @@ fn stop_is_reachable_from_an_expanded_palette_and_the_small_terminal() {
         term.wait_text(BUSY);
         term.send("keep this draft");
         term.wait_text(DRAFT);
+        assert_no_empty_object_expansion(&mut term);
+        open_listed_workflow(&mut term);
         term.send(F4);
         term.wait_text(RESTORE);
         if small {
@@ -637,9 +667,7 @@ fn a_pending_question_and_its_answer_survive_expansion_palette_and_resize() {
         .into_iter()
         .all(|part| screen.contains(part))
     };
-    let mut term = Term::proto_with(&[], 120, 40, &[("NO_COLOR", "1")]);
-    term.wait_prompt(FREE);
-    term.send("\x14");
+    let mut term = child::spawn("demo:0:workspace", None, 120, 40);
     term.wait_workspace_frame("workspace before the question", |screen| {
         screen.on_alt() && screen.contains("this conversation") && screen.contains(FREE)
     });
@@ -656,6 +684,20 @@ fn a_pending_question_and_its_answer_survive_expansion_palette_and_resize() {
     term.wait_workspace_frame("commands temporarily over the pending answer", |screen| {
         screen.contains("commands ›")
     });
+    term.send(F4);
+    term.wait_workspace_frame(
+        "F4 preserves the pending answer when no object exists",
+        |screen| {
+            !screen.contains(EXPAND)
+                && !screen.contains(RESTORE)
+                && !screen.contains("commands ›")
+                && draft_with_prompt(screen, answer)
+                && question_visible(screen)
+        },
+    );
+    open_listed_workflow(&mut term);
+    term.send("\x0f");
+    term.wait_text("commands ›");
     term.send(F4);
     term.wait_workspace_frame("expansion returns to the same pending answer", |screen| {
         screen.contains(RESTORE)
