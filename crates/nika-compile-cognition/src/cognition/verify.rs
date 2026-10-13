@@ -46,6 +46,9 @@ use crate::{
     Strategy,
 };
 
+/// The choices a candidate makes where the request leaves one open, as the provider judge lists
+/// them: shown, never held.
+mod assumed;
 mod faithful;
 mod grounding;
 mod held;
@@ -167,6 +170,9 @@ pub(super) struct Verdict {
     /// The decision seat this verdict asked, when a seat judges: a call it cannot answer is
     /// named with it, and with its own reason.
     pub(super) seat: Option<String>,
+    /// The choices the provider judge listed where the request leaves one open: shown when the
+    /// verdict carries the request, never held.
+    pub(super) assumed: Vec<String>,
     /// The author's candidate-free reading and separate audit, never human authority.
     pub(super) request_interpretation: Option<Value>,
 }
@@ -869,6 +875,7 @@ fn record<P: ProviderInferDyn>(
         entry["request_interpretation"] = reading.clone();
     }
     model_parts::recorded(verdict, &mut entry, out);
+    assumed::recorded(verdict, &mut entry);
     if let Some(attempts) = decision["semantic_verification"].as_array_mut() {
         attempts.push(entry);
     } else {
@@ -1500,6 +1507,7 @@ pub(super) async fn verdict_by<P: ProviderInferDyn>(
                 said.clone(),
             );
         }
+        assumed::shown(&verdict, &mut out);
         route(&mut out, &format!("verify: judged ({})", judge.kind()));
         return Ok(out);
     }

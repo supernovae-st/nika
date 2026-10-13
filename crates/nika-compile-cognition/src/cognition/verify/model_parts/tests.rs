@@ -278,7 +278,7 @@ async fn a_judge_that_states_nothing_leaves_the_law_unrun() {
     assert!(verdict.settled());
     let schemas = judge.schemas.lock().unwrap();
     assert_eq!(schemas.len(), 1, "one call: the whole request");
-    let required = json!(["choice", "model_parts", "reason"]);
+    let required = json!(["choice", "model_parts", "assumed", "reason"]);
     assert_eq!(schemas[0]["required"], required);
     let sinks = &schemas[0]["properties"]["model_parts"]["items"]["properties"]["sink"]["enum"];
     assert_eq!(sinks, &json!(["task:write", "none"]));

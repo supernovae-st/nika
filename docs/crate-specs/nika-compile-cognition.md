@@ -622,6 +622,12 @@ no distribution (a provider judge's, or a mass for its choice alone) is taken at
 before; one read back from an earlier attempt keeps what its seat reported (`probabilities`,
 `confidence`).
 
+A provider judge also lists, beside its whole answer, the choices the program makes where the
+request leaves one open (`assumed`: a language, a format, a default, an output field the request
+does not name). At most three, each on one line and cut at 160 characters, are recorded on the
+attempt (`assumed`); when the verdict carries the request, each is an Applied `verify_assumption`
+finding: an assumption the person changes by restating, never a hold. A seat lists none.
+
 The whole-request question also establishes the model-written parts of a result. A provider
 judge returns `model_parts` beside its choice, quoting the request and choosing a sink from the
 candidate's own writes and returned outputs. Every provider question records its `reason`

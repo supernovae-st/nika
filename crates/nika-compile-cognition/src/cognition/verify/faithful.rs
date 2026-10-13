@@ -52,7 +52,7 @@ pub(super) fn interpretation_protocol() -> String {
 
 use serde_json::{Value, json};
 
-use super::{Declined, Judge, Verdict, ask, model_parts, parts, prefetch, read_back};
+use super::{Declined, Judge, Verdict, ask, assumed, model_parts, parts, prefetch, read_back};
 use crate::CompileOutcome;
 use crate::decide::{ChoiceOption, ChoiceQuestion};
 use crate::rehearse::trial_receipts;
@@ -220,7 +220,7 @@ pub(super) async fn whole<P: ProviderInferDyn>(
         }
         _ => alone,
     };
-    let question = model_parts::asked(judge, paths.as_ref(), request);
+    let question = assumed::asked(judge, model_parts::asked(judge, paths.as_ref(), request));
     let sinks = model_parts::sink_questions(judge, paths.as_ref(), base, intent);
     if !sinks.is_empty() {
         let step = [std::slice::from_ref(&question), sinks.as_slice()].concat();
@@ -238,6 +238,7 @@ pub(super) async fn whole<P: ProviderInferDyn>(
         out,
     ))
     .await;
+    verdict.assumed = assumed::read(verdict);
     model_parts::settle(intent, judge, paths.as_ref(), &sinks, verdict);
 }
 
