@@ -1104,3 +1104,207 @@ async fn a_broken_candidate_doubted_at_its_bar_with_no_run_stays_held() {
     let unlocated = json!({"probability": 0.99, "bar": 0.9, "outcome": "held"});
     assert_eq!(attempt["unlocated_rejection"], unlocated, "{attempt:#}");
 }
+
+/// A request that asks the person before its effect: post the report, but only once they said
+/// yes.
+const GATED_SEND: &str =
+    "Lis ./report.md et envoie-le à http://127.0.0.1:8768/notify, mais demande-moi avant d'envoyer";
+
+/// What the deterministic door emits for [`GATED_SEND`] (its contract fixture): the send runs only
+/// on the person's typed yes, asked before it, with no default answering for them.
+const CONFIRMED_SEND: &str = r"const:
+  send_endpoint: http://127.0.0.1:8768/notify
+  source_path: ./report.md
+nika: compiled-workflow
+outputs:
+  send_review: ${{ tasks.send_review.output }}
+  send_status: ${{ tasks.send.status }}
+permits:
+  fs:
+    read:
+    - ./report.md
+  net:
+    http:
+    - 127.0.0.1
+  tools:
+  - nika:notify
+  - nika:prompt
+  - nika:read
+tasks:
+  read_source:
+    invoke:
+      args:
+        path: ${{ const.source_path }}
+      tool: nika:read
+  send:
+    invoke:
+      args:
+        channel: webhook
+        message: ${{ with.content }}
+        target: ${{ const.send_endpoint }}
+      tool: nika:notify
+    when: ${{ with.approved == true }}
+    with:
+      approved: ${{ tasks.send_review.output }}
+      content: ${{ tasks.read_source.output }}
+  send_review:
+    after:
+      read_source: success
+    invoke:
+      args:
+        message: 'Approve posting this exact content to ${{ const.send_endpoint }}? Content: ${{ with.content }}'
+      tool: nika:prompt
+    with:
+      content: ${{ tasks.read_source.output }}
+";
+
+/// [`CONFIRMED_SEND`] without its confirmation: the send runs unasked. The language alone finds
+/// nothing wrong with it; only the request says a confirmation was asked for.
+const UNCONFIRMED_SEND: &str = r"const:
+  send_endpoint: http://127.0.0.1:8768/notify
+  source_path: ./report.md
+nika: compiled-workflow
+outputs:
+  send_status: ${{ tasks.send.status }}
+permits:
+  fs:
+    read:
+    - ./report.md
+  net:
+    http:
+    - 127.0.0.1
+  tools:
+  - nika:notify
+  - nika:read
+tasks:
+  read_source:
+    invoke:
+      args:
+        path: ${{ const.source_path }}
+      tool: nika:read
+  send:
+    invoke:
+      args:
+        channel: webhook
+        message: ${{ with.content }}
+        target: ${{ const.send_endpoint }}
+      tool: nika:notify
+    with:
+      content: ${{ tasks.read_source.output }}
+";
+
+/// [`CONFIRMED_SEND`] whose confirmation no longer gates the send: asked first, then sent
+/// whatever the answer.
+const IGNORED_CONFIRMATION: &str = r"const:
+  send_endpoint: http://127.0.0.1:8768/notify
+  source_path: ./report.md
+nika: compiled-workflow
+outputs:
+  send_review: ${{ tasks.send_review.output }}
+  send_status: ${{ tasks.send.status }}
+permits:
+  fs:
+    read:
+    - ./report.md
+  net:
+    http:
+    - 127.0.0.1
+  tools:
+  - nika:notify
+  - nika:prompt
+  - nika:read
+tasks:
+  read_source:
+    invoke:
+      args:
+        path: ${{ const.source_path }}
+      tool: nika:read
+  send:
+    invoke:
+      args:
+        channel: webhook
+        message: ${{ with.content }}
+        target: ${{ const.send_endpoint }}
+      tool: nika:notify
+    after:
+      send_review: success
+    with:
+      content: ${{ tasks.read_source.output }}
+  send_review:
+    after:
+      read_source: success
+    invoke:
+      args:
+        message: 'Approve posting this exact content to ${{ const.send_endpoint }}? Content: ${{ with.content }}'
+      tool: nika:prompt
+    with:
+      content: ${{ tasks.read_source.output }}
+";
+
+/// The document `candidate` verified for the created [`GATED_SEND`] under `cognition`, with no
+/// selection and no room: nothing is sent.
+async fn gated_send<P: ProviderInferDyn>(
+    candidate: &str,
+    cognition: Cognition<'_, P>,
+) -> CompileOutcome {
+    let policy = AuthoringPolicy::new("mock/judge", 1024, Duration::from_secs(2));
+    let request = CompileRequest::create(GATED_SEND).with_authoring_policy(policy);
+    verify_document(&request, candidate, (&[], &[]), cognition, None)
+        .await
+        .unwrap()
+}
+
+/// A confirmation the request asks for before its effect, implemented as the deterministic door
+/// emits it: no law refuses it, and it is READY on the judge's verdict.
+#[tokio::test]
+async fn a_requested_confirmation_before_the_effect_is_ready() {
+    let judge = Judge::new("faithful", "unlocated");
+    let cognition = Cognition::<NoProvider> {
+        provider: None,
+        seat: Some(&judge as &dyn DecisionSeat),
+    };
+    let out = gated_send(CONFIRMED_SEND, cognition).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(out.candidate.as_deref(), Some(CONFIRMED_SEND));
+    assert_eq!(judge.ids(), ["verify-request"]);
+    let attempt = &decision(&out)["semantic_verification"][0];
+    assert_eq!(attempt["settled_by"], "verify-request", "{attempt:#}");
+}
+
+/// The same program without that confirmation, or with one that no longer gates the send, never
+/// passes, whichever judge the caller permits: the approval law refuses it before any judge, any
+/// reading of the request or any run, and nothing is proposed.
+#[tokio::test]
+async fn the_same_program_without_its_confirmation_never_passes() {
+    for (candidate, head) in [
+        (UNCONFIRMED_SEND, "MISSING APPROVAL"),
+        (IGNORED_CONFIRMATION, "APPROVAL ORDER"),
+    ] {
+        let judge = Judge::new("faithful", "unlocated");
+        let alone = Cognition::<NoProvider> {
+            provider: None,
+            seat: Some(&judge as &dyn DecisionSeat),
+        };
+        let paired = Cognition {
+            provider: Some(&Approving),
+            seat: Some(&judge as &dyn DecisionSeat),
+        };
+        for out in [
+            gated_send(candidate, alone).await,
+            gated_send(candidate, paired).await,
+        ] {
+            assert_eq!(out.status, CompileStatus::Incomplete, "{head}: {out:#?}");
+            let refused = findings(&out, "conversation");
+            assert!(
+                refused.iter().any(|said| said.starts_with(head)),
+                "{head}: {refused:?}"
+            );
+            let decision = out.provenance.decision.as_ref();
+            let read = decision.is_some_and(|d| d.get("request_interpretation").is_some());
+            assert!(!read, "{head}: {decision:?}");
+            let calls = (out.provenance.authoring.as_ref()).map_or(0, |receipt| receipt.calls);
+            assert_eq!(calls, 0, "{head}");
+        }
+        assert!(judge.ids().is_empty(), "{head}: {:?}", judge.ids());
+    }
+}
