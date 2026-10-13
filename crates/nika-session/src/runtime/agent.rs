@@ -744,7 +744,11 @@ impl SessionRuntime {
                     said
                 };
                 let authorized = decided.acts.zip(decided.cited);
-                match self.agent_propose(driver, &text, (authorized, decided.trigger)) {
+                match self.agent_propose(
+                    driver,
+                    &text,
+                    (authorized, decided.trigger, decided.reused),
+                ) {
                     TurnOutcome::Proposal { id, preview } => TurnOutcome::Proposal {
                         id,
                         preview: unsent(&queued)
@@ -772,7 +776,11 @@ impl SessionRuntime {
                 match decided.proposed {
                     Some(revision) if current == Some(revision) => {
                         let authorized = decided.acts.zip(decided.cited);
-                        self.agent_propose(driver, &text, (authorized, decided.trigger))
+                        self.agent_propose(
+                            driver,
+                            &text,
+                            (authorized, decided.trigger, decided.reused),
+                        )
                     }
                     _ => TurnOutcome::Reply(text),
                 }
@@ -804,7 +812,11 @@ impl SessionRuntime {
         &mut self,
         driver: &mut Driver,
         said: &str,
-        (acts, trigger): (Option<(Acts, String)>, Option<TriggerRequirement>),
+        (acts, trigger, reused): (
+            Option<(Acts, String)>,
+            Option<TriggerRequirement>,
+            Option<u64>,
+        ),
     ) -> TurnOutcome {
         let Some(candidate) = driver.toolbox.with(|c| c.candidate().cloned()) else {
             return TurnOutcome::Reply(said.to_owned());
@@ -842,6 +854,10 @@ impl SessionRuntime {
             Ok(set) => set,
             Err(error) => return TurnOutcome::Refusal(Refusal::from_change(&error)),
         };
+        // The proposal shown before this one, read before the new set, card and money binding:
+        // its identity and its set.
+        let shown =
+            (self.pending.as_ref()).map(|before| (self.proposal_id(before), before.clone()));
         let mut bytes = self.draft_preview(&set);
         let id = ProposalId::of(&bytes);
         // The trial of these very bytes, bound to the proposal that shows them.
@@ -850,6 +866,12 @@ impl SessionRuntime {
             .and_then(|mut kept| kept.take_tried());
         if let Some(tried) = tried {
             self.bind_trial((&id, &set), tried, &mut bytes);
+        } else {
+            // No trial of its own: the revision shown, proposed again under the verdict the
+            // person saw, may carry the rehearsal of those very bytes from that proposal only.
+            let shown = (shown.as_ref()).map(|(old, before)| (old, before));
+            let reused = reused == Some(candidate.number);
+            self.carry_rehearsal((shown, reused), (&id, &set), &mut bytes);
         }
         self.bind_proposal_money(&id);
         // The source basis of these bytes, bound to the identity the person reviews.

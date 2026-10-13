@@ -98,6 +98,8 @@ struct Proof {
     origin: ProofOrigin,
     witness: Witness,
     lines: String,
+    /// The proposal it was proved for, when it was carried here from it with the same bytes.
+    carried_from: Option<ProposalId>,
 }
 
 impl Rehearsals {
@@ -299,6 +301,7 @@ impl SessionRuntime {
                 origin: ProofOrigin::Copy,
                 witness: q.witness.clone(),
                 lines: rehearsed_lines(q),
+                carried_from: None,
             })
         } else if let Some((intent, native)) = native {
             let exact = intent == round.effective_intent()
@@ -317,6 +320,7 @@ impl SessionRuntime {
                     origin: ProofOrigin::Native,
                     witness,
                     lines,
+                    carried_from: None,
                 })
             } else {
                 *preview = preview.replacen(crate::review::NOTHING_RAN, &lines, 1);
@@ -358,6 +362,41 @@ impl SessionRuntime {
         Ok(())
     }
 
+    /// The proposal `new` of `set`, with no trial of its own: when it is the revision shown
+    /// proposed again under the verdict the person saw (`reused`), with the same project root
+    /// and the same changes as the proposal `shown` (its identity and set: only its goal and card
+    /// may differ), the proof proved for exactly that identity over exactly these bytes follows
+    /// it, as a money-only amendment's does. The proof keeps where it came from and `preview`
+    /// says so. Anything else carries nothing: the proof stays where it was bound and the yes
+    /// judges it as before, the world it ran in included.
+    pub(super) fn carry_rehearsal(
+        &mut self,
+        (shown, reused): (Option<(&ProposalId, &ProjectChangeSet)>, bool),
+        (new, set): (&ProposalId, &ProjectChangeSet),
+        preview: &mut String,
+    ) {
+        let Some((old, before)) = shown else {
+            return;
+        };
+        if !reused || before.root != set.root || before.changes != set.changes {
+            return;
+        }
+        let Some((proven, mut proof)) = self.rehearsals.pending.take() else {
+            return;
+        };
+        if proven == *old && proven != *new && selected(set, &proof.witness) {
+            proof.lines = format!(
+                "{}  rehearsed for the proposal {proven} you saw, carried with these same bytes\n",
+                proof.lines
+            );
+            shown_in(preview, &proof.lines);
+            proof.carried_from = Some(proven);
+            self.rehearsals.pending = Some((new.clone(), proof));
+        } else {
+            self.rehearsals.pending = Some((proven, proof));
+        }
+    }
+
     /// Whether the pending proposal `id` is a rehearsed one.
     pub(super) fn rehearsed_pending(&self, id: &ProposalId) -> bool {
         self.rehearsals
@@ -395,7 +434,13 @@ impl SessionRuntime {
                 &format!("the files this proposal was rehearsed on changed: {why}"),
             ));
         }
-        let held = held_words(&proof.witness);
+        let held = match &proof.carried_from {
+            Some(old) => format!(
+                "{} (rehearsed for the proposal {old}, carried with the same bytes)",
+                held_words(&proof.witness)
+            ),
+            None => held_words(&proof.witness),
+        };
         self.rehearsals.pending = Some((proven, proof));
         Ok(Some(held))
     }
@@ -621,13 +666,7 @@ impl SessionRuntime {
         }
         let (witness, lines) = tried.into_parts();
         let lines = format!("{lines}{words}");
-        if preview.contains(crate::review::NOTHING_RAN) {
-            *preview = preview.replacen(crate::review::NOTHING_RAN, &lines, 1);
-        } else {
-            // An agent's card has no « nothing ran » line: the trial comes before its question.
-            let at = preview.find("apply this?").unwrap_or(preview.len());
-            preview.insert_str(at, &lines);
-        }
+        shown_in(preview, &lines);
         self.rehearsals.pending = witness.map(|witness| {
             let origin = ProofOrigin::Native;
             (
@@ -636,6 +675,7 @@ impl SessionRuntime {
                     origin,
                     witness,
                     lines,
+                    carried_from: None,
                 },
             )
         });
@@ -649,6 +689,17 @@ impl SessionRuntime {
 }
 
 /// Whether `set` is exactly one workflow whose bytes are the ones `witness` selected.
+/// A rehearsal's `lines` in `preview`: in place of its « nothing ran » line, or before the
+/// question of an agent's card, which has none.
+fn shown_in(preview: &mut String, lines: &str) {
+    if preview.contains(crate::review::NOTHING_RAN) {
+        *preview = preview.replacen(crate::review::NOTHING_RAN, lines, 1);
+    } else {
+        let at = preview.find("apply this?").unwrap_or(preview.len());
+        preview.insert_str(at, lines);
+    }
+}
+
 fn selected(set: &ProjectChangeSet, witness: &Witness) -> bool {
     matches!(set.changes.as_slice(),
         [change] if sha256_hex(change.content().as_bytes()) == witness.candidate_sha256())

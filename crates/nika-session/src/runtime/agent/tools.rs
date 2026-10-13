@@ -83,6 +83,8 @@ pub(crate) struct Decided {
     pub(crate) cited: Option<String>,
     /// The schedule the proposal carries beside its candidate, read and in its zone.
     pub(crate) trigger: Option<TriggerRequirement>,
+    /// The revision proposed again under the verdict the person was shown, judging nothing.
+    pub(crate) reused: Option<u64>,
 }
 
 /// A question's identity, from the context it was asked in.
@@ -437,6 +439,7 @@ impl Parts<'_> {
         let verdict = (self.conversation.shown_verdict())
             .filter(|_| consents && open.is_empty())
             .map(str::to_owned);
+        let reused = verdict.is_some();
         let scope = match verdict {
             Some(scope) => scope,
             None => match self.judged(&open) {
@@ -459,6 +462,7 @@ impl Parts<'_> {
             acts,
             cited,
             trigger,
+            reused: revision.filter(|_| reused),
         };
         let said = match (&authorized, acts) {
             (_, Some(acts)) if acts.run => {
