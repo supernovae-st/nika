@@ -847,6 +847,11 @@ impl SessionRuntime {
                 ));
             }
         }
+        self.finish_intelligence_choice(pref)
+    }
+
+    /// Hold an admitted choice and resume its waiting line only when no decision is suspended.
+    fn finish_intelligence_choice(&mut self, pref: UserIntelligencePreference) -> TurnOutcome {
         self.adopt(pref);
         self.pending_choice = false;
         let notice = format!(

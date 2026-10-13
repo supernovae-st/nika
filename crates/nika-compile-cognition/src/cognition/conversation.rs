@@ -255,17 +255,8 @@ async fn judged<P: ProviderInferDyn>(
         // A run serves only a verdict: with no judge, the room runs nothing.
         (None, None) => return pending(&intent, reading, out),
     };
-    if !removals.is_empty() {
-        // Boxed where it is built: its questions are the verdict's, at the verdict's size.
-        let claims = verify::removals::unconfirmed(&judge, removals, &intent, &mut out);
-        let held = Box::pin(claims).await;
-        if !held.is_empty() {
-            for why in held {
-                crate::finding(&mut out, DiagnosticKind::Refused, REMOVAL, why);
-            }
-            out.status = CompileStatus::Incomplete;
-            return out;
-        }
+    if !removals_confirmed(&judge, removals, &intent, &mut out).await {
+        return out;
     }
     // A carried terminal rejection is repeated before any new author or trial call. Carried
     // readings cannot grant an acceptance: every other candidate receives a fresh audit.
@@ -319,6 +310,29 @@ async fn judged<P: ProviderInferDyn>(
             }
         }
     }
+}
+
+/// Qualify every removal before interpretation or trial; an unconfirmed claim holds the document.
+async fn removals_confirmed<P: ProviderInferDyn>(
+    judge: &Judge<'_, P>,
+    removals: &[Removal],
+    intent: &str,
+    out: &mut CompileOutcome,
+) -> bool {
+    if removals.is_empty() {
+        return true;
+    }
+    // Boxed where it is built: its questions are the verdict's, at the verdict's size.
+    let claims = verify::removals::unconfirmed(judge, removals, intent, out);
+    let held = Box::pin(claims).await;
+    if held.is_empty() {
+        return true;
+    }
+    for why in held {
+        crate::finding(out, DiagnosticKind::Refused, REMOVAL, why);
+    }
+    out.status = CompileStatus::Incomplete;
+    false
 }
 
 /// No judge was permitted: the whole request stays pending on these bytes, recorded as the core

@@ -445,18 +445,7 @@ async fn prepare_claim(
         } else {
             None
         };
-        let claim = ScheduleClaimEvidence::new(
-            prepared.run_id().as_str().to_owned(),
-            prepared
-                .execution_id()
-                .ok_or(ServerError::ScheduledAdmission)?
-                .to_owned(),
-            prepared
-                .trace_id()
-                .ok_or(ServerError::ScheduledAdmission)?
-                .to_owned(),
-            generation,
-        );
+        let claim = prepared_claim_evidence(&prepared, generation)?;
         let consumed = store.consume_claimed_slot(
             candidate.schedule.origin,
             &candidate.schedule.definition,
@@ -469,6 +458,25 @@ async fn prepare_claim(
     })
     .await
     .map_err(|_| ServerError::BlockingTask)?
+}
+
+/// Bind the prepared run's identities to the slot's admitted generation.
+fn prepared_claim_evidence(
+    prepared: &PreparedScheduledRun,
+    generation: ArmGeneration,
+) -> Result<ScheduleClaimEvidence, ServerError> {
+    Ok(ScheduleClaimEvidence::new(
+        prepared.run_id().as_str().to_owned(),
+        prepared
+            .execution_id()
+            .ok_or(ServerError::ScheduledAdmission)?
+            .to_owned(),
+        prepared
+            .trace_id()
+            .ok_or(ServerError::ScheduledAdmission)?
+            .to_owned(),
+        generation,
+    ))
 }
 
 fn consume_skip(state: &AuthorityState, candidate: SkipCandidate) -> Result<(), ServerError> {

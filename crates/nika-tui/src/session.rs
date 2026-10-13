@@ -456,7 +456,6 @@ impl Live {
         reply: Option<&str>,
     ) -> (Vec<Beat>, Option<Handoff>) {
         let mut beats = Vec::new();
-        let mut handoff = None;
         match outcome {
             TurnOutcome::Quit => return (self.quit_beats(), None),
             TurnOutcome::RunReviewed { review, approve } => {
@@ -509,11 +508,7 @@ impl Live {
                 );
                 beats.push(Beat::Say(Committed::new(Kind::Report, label.clone())));
                 let work = Work::Run(run);
-                if self.runner(&work).is_some() {
-                    beats.extend(self.run_inline(&work));
-                    return (beats, None);
-                }
-                handoff = Some(self.keep(work, label));
+                return self.run_or_handoff(work, label, beats);
             }
             TurnOutcome::Question { key, question, .. } => {
                 beats.push(Beat::Say(self.question(&key, question)));
@@ -534,11 +529,7 @@ impl Live {
                     trace,
                     answer,
                 };
-                if self.runner(&work).is_some() {
-                    beats.extend(self.run_inline(&work));
-                    return (beats, None);
-                }
-                handoff = Some(self.keep(work, label));
+                return self.run_or_handoff(work, label, beats);
             }
             TurnOutcome::Refusal(why) => {
                 beats.push(Beat::Say(Committed::new(Kind::Refusal, why.to_string())));
@@ -548,11 +539,24 @@ impl Live {
             TurnOutcome::Cancelled(note) => beats.push(Beat::Cancelled(note)),
             _ => {}
         }
-        if handoff.is_none() {
-            beats.extend(self.reply_footer(reply));
-            beats.push(self.wait());
+        beats.extend(self.reply_footer(reply));
+        beats.push(self.wait());
+        (beats, None)
+    }
+
+    /// Dispatch an admitted Run or resume without adding another reply footer or prompt.
+    fn run_or_handoff(
+        &mut self,
+        work: Work,
+        label: String,
+        mut beats: Vec<Beat>,
+    ) -> (Vec<Beat>, Option<Handoff>) {
+        if self.runner(&work).is_some() {
+            beats.extend(self.run_inline(&work));
+            (beats, None)
+        } else {
+            (beats, Some(self.keep(work, label)))
         }
-        (beats, handoff)
     }
 
     /// Preserve the cost wording or capture the logical question's strong identity.

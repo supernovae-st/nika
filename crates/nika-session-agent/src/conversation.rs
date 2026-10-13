@@ -320,6 +320,34 @@ fn chosen_as(role: Option<ValueRole>) -> &'static str {
     }
 }
 
+/// Project offered values in order, lending model facts only from the host's inventory.
+fn question_options(question: &Value, facts: Facts<'_>) -> Vec<Offer> {
+    (question["options"].as_array().into_iter().flatten())
+        .map(|option| {
+            let values = (option["values"].as_array().into_iter().flatten())
+                .filter_map(|v| {
+                    let role = role_word(v["role"].as_str()?)?;
+                    let name = v["name"].as_str().map(str::to_owned);
+                    let value = v["value"].as_str()?;
+                    // A model offered carries the inventory's facts, never the author's.
+                    let choice = (role == ValueRole::RunModel)
+                        .then(|| facts(value))
+                        .flatten();
+                    Some(OfferValue::new(role, value, name).with_choice(choice))
+                })
+                .collect();
+            let recommended = option["recommended"].as_bool().unwrap_or(false);
+            let label = option["label"].as_str().unwrap_or_default();
+            Offer::new(
+                option["key"].as_str().unwrap_or_default(),
+                label,
+                recommended,
+            )
+            .with_values(values)
+        })
+        .collect()
+}
+
 impl Conversation {
     /// The values the candidate binds.
     #[must_use]
@@ -549,30 +577,7 @@ impl Conversation {
             call.unwrap_or_default(),
             question["options"]
         );
-        let options: Vec<Offer> = (question["options"].as_array().into_iter().flatten())
-            .map(|option| {
-                let values = (option["values"].as_array().into_iter().flatten())
-                    .filter_map(|v| {
-                        let role = role_word(v["role"].as_str()?)?;
-                        let name = v["name"].as_str().map(str::to_owned);
-                        let value = v["value"].as_str()?;
-                        // A model offered carries the inventory's facts, never the author's.
-                        let choice = (role == ValueRole::RunModel)
-                            .then(|| facts(value))
-                            .flatten();
-                        Some(OfferValue::new(role, value, name).with_choice(choice))
-                    })
-                    .collect();
-                let recommended = option["recommended"].as_bool().unwrap_or(false);
-                let label = option["label"].as_str().unwrap_or_default();
-                Offer::new(
-                    option["key"].as_str().unwrap_or_default(),
-                    label,
-                    recommended,
-                )
-                .with_values(values)
-            })
-            .collect();
+        let options = question_options(question, facts);
         // Values carry their roles even when the optional question role is omitted.
         // Omitting that field cannot reopen an output or model the person settled.
         let settled = self.bindings.iter().find(|binding| {
