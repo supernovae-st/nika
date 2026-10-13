@@ -847,19 +847,31 @@ model: anthropic/claude-sonnet-4-6
         }
     }
 
+    /// Spec 01 rule 2 reserves whole `v` + digits tags in both parsing modes.
+    /// Lenient parsing relaxes unknown fields, not the workflow name contract.
     #[test]
-    fn the_dead_version_literals_are_now_ordinary_names() {
-        // DELIBERATE, and the inverse of what this file asserted before
-        // the envelope nuke: `v1` and `v2` are legal kebab-case ids. The
-        // old test refused `nika: v2` because the slot was a VERSION;
-        // the slot is a NAME now, so a file may legitimately be called
-        // `v2`. Nothing here blesses `nika: v1` as an envelope marker —
-        // it simply names a workflow `v1`, and spec 01 calls that an
-        // anti-pattern in prose, not a refusal.
-        for name in ["v1", "v2", "v999"] {
-            let yaml = format!("nika: {name}\n");
-            let wf = parse_strict(&yaml).expect("a version-shaped name is just a name");
-            assert_eq!(wf.workflow.expect("nika").value, name);
+    fn retired_version_tags_stay_reserved_in_both_parse_modes() {
+        for mode in [ParseMode::Strict, ParseMode::Lenient] {
+            for tag in ["v0", "v01", "v1", "v2", "v999"] {
+                let err = parse(&format!("nika: {tag}\n"), fid(), mode)
+                    .expect_err("a whole retired version tag is not a workflow name");
+                assert!(
+                    matches!(&err, SchemaError::BadNikaId { id, .. } if id == tag),
+                    "{mode:?}: {tag} → {err:?}"
+                );
+                assert_eq!(
+                    err.to_string(),
+                    format!(
+                        "`nika: {tag}` — `nika:` names the workflow; `{tag}` is the retired \
+                         schema tag: give the workflow a name (`nika: my-workflow`)"
+                    )
+                );
+            }
+            for name in ["v", "v0-tool", "v999backup"] {
+                let workflow = parse(&format!("nika: {name}\n"), fid(), mode)
+                    .expect("a version-prefixed ordinary name");
+                assert_eq!(workflow.workflow.expect("nika").value, name);
+            }
         }
     }
 
