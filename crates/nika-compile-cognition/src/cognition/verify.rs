@@ -275,6 +275,7 @@ impl Verdict {
             model_parts: model_parts::read(&attempt["model_parts"]),
             model_parts_unrun: attempt["model_parts_unrun"].as_str().map(str::to_owned),
             unlocated: attempt.get("unlocated_rejection").cloned(),
+            assumed: strings("assumed"),
             ..Self::default()
         }
     }

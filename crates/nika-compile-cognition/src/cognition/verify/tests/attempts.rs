@@ -421,3 +421,31 @@ fn the_forensic_summary_states_the_last_verdict_and_its_binding() {
         "last_settled_by": "verify-request", "candidate_binding": "other_bytes"});
     assert_eq!(summary(true, settled), elsewhere);
 }
+
+/// A verdict repeated with no call is read back from its attempt's record with the choices the
+/// provider judge listed where the request leaves one open: the repeat records them as the
+/// original did.
+#[test]
+fn a_repeat_keeps_the_choices_the_judge_listed() {
+    let policy = AuthoringPolicy::new(MODEL, 256, Duration::from_secs(2));
+    let provider = Approving::default();
+    let judge = Judge::Provider(&policy, &provider);
+    let listed = vec!["the replies are written in English".to_owned()];
+    let verdict = Verdict {
+        doubt: vec!["unfaithful".to_owned()],
+        contested: vec![INTENT.to_owned()],
+        declined: Declined::Rejected,
+        whole_asked: true,
+        request: Some(INTENT.to_owned()),
+        assumed: listed.clone(),
+        ..Verdict::default()
+    };
+    let mut out = crate::initial();
+    record(&mut out, &judge, &verdict, 0);
+    let original = attempts(&out)[0].clone();
+    assert_eq!(original["assumed"], json!(listed));
+    let repeated = Verdict::recorded(&original, 0);
+    assert_eq!(repeated.assumed, listed);
+    record(&mut out, &judge, &repeated, 1);
+    assert_eq!(attempts(&out)[1]["assumed"], original["assumed"]);
+}
