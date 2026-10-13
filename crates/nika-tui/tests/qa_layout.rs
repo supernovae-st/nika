@@ -15,6 +15,8 @@
 //! The screen is `qa_support::vt::Screen`: what a terminal shows after the
 //! bytes, so a proof reads rows and words, not escape fragments.
 
+#[path = "qa_support/child.rs"]
+mod child;
 mod qa_support;
 
 use nika_tui::workspace::geometry::Geometry;
@@ -24,6 +26,11 @@ use qa_support::{
     SAVED, SIZES, Step, Term, assert_restored, exit_code,
 };
 use ratatui::layout::Rect;
+
+#[test]
+fn qa_child_host() {
+    child::host();
+}
 
 /// Two `Ctrl+C` from an idle prompt: the terminal comes back with 130.
 fn leave(term: &mut Term) {
@@ -371,6 +378,17 @@ fn rule_at(screen: &Screen, x: u16, rows: std::ops::Range<u16>) -> bool {
         >= 10
 }
 
+/// Open the listed workflow through the project, without submitting the draft:
+/// contextual expansion needs a selected object (`F4` is inert without one).
+fn open_listed_workflow(term: &mut Term) {
+    term.send(SHIFT_F6); // Conversation -> project.
+    term.send("\x1b[B\r"); // The first workflow follows the conversation.
+    term.wait_workspace_frame("the listed workflow is the selected object", |s| {
+        s.contains("path   release.nika") && s.contains("tasks  4")
+    });
+    term.send(F6); // Project -> conversation.
+}
+
 /// One step of the demo journey in the workspace, whose prompts are inset.
 fn step_in_workspace(term: &mut Term, step: &Step) {
     term.send(step.send);
@@ -476,19 +494,21 @@ fn prove_settled_bounds(term: &mut Term, cols: u16, rows: u16) {
 }
 
 /// Layout changes are view changes: with a consent-shaped draft in the
-/// composer, neither the proposal nor the gate is answered by `F4`, the
-/// object's control, a dragged separator, the separator keys or a resize; the
-/// draft stays unsent until `Enter`, and each decision is then the human's.
+/// composer and a listed workflow as the selected object, neither the proposal
+/// nor the gate is answered by `F4`, the object's control, a dragged
+/// separator, the separator keys or a resize; the draft stays unsent until
+/// `Enter`, and each decision is then the human's.
 #[test]
 fn contextual_expansion_and_sizing_keep_the_draft_unsent_and_decisions_waiting() {
-    let mut term = Term::proto(&[], 120, 40);
-    term.wait_prompt(FREE);
-    term.send("\x14");
-    term.wait_text(EXPAND_CONTROL);
+    let mut term = child::spawn("demo:0:workspace", None, 120, 40);
+    term.wait_workspace_frame("the workspace before the journey", |s| {
+        s.on_alt() && s.contains(EXPAND_CONTROL) && s.contains(FREE)
+    });
     for step in &JOURNEY[..2] {
         step_in_workspace(&mut term, step);
     }
     term.send("yes");
+    open_listed_workflow(&mut term);
     rearrange(&mut term, "Save? › yes");
     assert!(
         term.screen.contains(PROPOSAL),
