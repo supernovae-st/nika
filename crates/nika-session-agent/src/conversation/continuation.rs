@@ -5,7 +5,8 @@
 //! These receipts keep the selected meaning, not a live question or execution authority.
 
 use super::{
-    Citations, Cited, Conversation, Pick, QuestionId, Value, Witness, answer, in_line, json,
+    Acts, Citations, Cited, Conversation, OfferValue, Pick, QuestionId, Value, Witness, answer,
+    bare, in_line, json, same_literal,
 };
 use serde::{Deserialize, Serialize};
 
@@ -63,6 +64,73 @@ impl Conversation {
     pub(super) fn preparation_continues(&self, citations: &Citations, at: u64) -> bool {
         self.continuations_after(citations, at)
             .is_some_and(|later| later.iter().all(|(_, line, _)| line.at <= self.written_at))
+    }
+
+    /// Whether the person's words at `at` still mandate the proposal of revision `number`,
+    /// asking `wanted` with `scope`: the one predicate for both of its gates. Every later line of
+    /// theirs is an exact bound answer, and the candidate was written after those answers (after
+    /// the proposal shown, when one was). Without such a rewrite, only the very bytes that
+    /// proposal showed are proposed again, with its scope, on the words it cited and within the
+    /// acts it asked, once the person answered each choice it showed, and nothing else, with the
+    /// default those bytes carry.
+    pub(super) fn mandate_continues(
+        &self,
+        citations: &Citations,
+        at: u64,
+        (number, scope, wanted): (u64, &str, Acts),
+    ) -> bool {
+        let Some(shown) = &self.shown else {
+            return at <= self.written_at && self.preparation_continues(citations, at);
+        };
+        if at > shown.at {
+            return false;
+        }
+        if self.written_at > shown.at {
+            return self.preparation_continues(citations, at);
+        }
+        let Some(later) = self.continuations_after(citations, at) else {
+            return false;
+        };
+        let picks: Vec<&str> = (later.iter())
+            .filter(|(_, line, _)| line.at > shown.at)
+            .map(|(cite, _, _)| *cite)
+            .collect();
+        let bytes = (self.candidate.as_ref()).map(|c| Witness::of(c.source.as_bytes()).0);
+        let within = |asked: Acts| (asked.save || !wanted.save) && (asked.run || !wanted.run);
+        let defaulted = |id: &QuestionId, cite: &str| self.picked_default(id, cite);
+        shown.number == number
+            && bytes.as_deref() == Some(shown.witness.as_str())
+            && shown.scope == scope
+            && (shown.mandate).is_some_and(|(line, asked)| line == at && within(asked))
+            && !shown.choices.is_empty()
+            && self.picked_other.is_empty()
+            && (later.iter()).all(|(_, line, _)| line.at > shown.at || line.at <= self.written_at)
+            && (picks.iter()).all(|&cite| shown.choices.iter().any(|id| defaulted(id, cite)))
+            && (shown.choices.iter()).all(|id| picks.iter().any(|&cite| defaulted(id, cite)))
+    }
+
+    /// Whether the person's line `cite` answered the shown choice `id` with the default it
+    /// carries: an exact pick of its one recommended offer, each of whose values that pick bound
+    /// and the candidate holds.
+    fn picked_default(&self, id: &QuestionId, cite: &str) -> bool {
+        let source = (self.candidate.as_ref()).map_or("", |c| c.source.as_str());
+        (self.answered.values()).any(|one| {
+            let key = Some(one.question.key.as_str());
+            let bound = |value: &OfferValue| {
+                (self.bindings.iter()).any(|b| {
+                    b.key.as_deref() == key
+                        && b.role == value.role
+                        && same_literal(&b.value, &value.value)
+                })
+            };
+            one.question.id == *id
+                && one.cite == cite
+                && answer::recommended(&one.question).is_some_and(|default| {
+                    matches!(&one.pick, Pick::Offer(picked) if *picked == default.key)
+                        && (default.values.iter())
+                            .all(|value| source.contains(bare(&value.value)) && bound(value))
+                })
+        })
     }
 
     /// A bound answer continues the most recent human instruction, not a new act. Every

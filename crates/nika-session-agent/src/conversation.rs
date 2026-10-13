@@ -136,6 +136,12 @@ pub(crate) struct Shown {
     pub(crate) scope: String,
     /// The tree line after which the person's lines were written while it was shown.
     pub(crate) at: u64,
+    /// The witness of the bytes it shows.
+    pub(crate) witness: String,
+    /// The choices it showed with their defaults, by identity.
+    pub(crate) choices: Vec<QuestionId>,
+    /// The tree line of the person's words it cited, with the acts it asked on them.
+    pub(crate) mandate: Option<(u64, Acts)>,
 }
 
 /// What a proposal lets the Session do once every check passed.
@@ -924,8 +930,8 @@ impl Conversation {
         args: &Value,
         (scope, open): (String, Vec<AskedQuestion>),
     ) -> Result<Option<Acts>, String> {
-        let number = (self.candidate.as_ref())
-            .map(|c| c.number)
+        let (number, witness) = (self.candidate.as_ref())
+            .map(|c| (c.number, Witness::of(c.source.as_bytes()).0))
             .ok_or_else(|| self.no_candidate())?;
         let acts: Vec<&str> = (args["acts"].as_array().into_iter().flatten())
             .filter_map(Value::as_str)
@@ -950,15 +956,12 @@ impl Conversation {
                 // human words are still read independently by Pick::consented, after the whole
                 // candidate passed verification. Only exact bound clarification picks may
                 // follow it; their meaning also reaches the independent consent reading.
-                // If a proposal has already shown defaults, the author must rewrite after
-                // it; the original mandate still covers those exact bound clarifications.
-                (Some(line), shown)
+                // If a proposal has already shown defaults, the author rewrites after it, or
+                // proposes its very bytes again once the person picked each default they carry.
+                (Some(line), _)
                     if line.at >= self.since
                         && line.at > self.consumed_through
-                        && shown.as_ref().map_or(line.at <= self.written_at, |shown| {
-                            line.at <= shown.at && self.written_at > shown.at
-                        })
-                        && self.preparation_continues(citations, line.at) =>
+                        && self.mandate_continues(citations, line.at, (number, &scope, wanted)) =>
                 {
                     Ok(Some(Acts {
                         revised: true,
@@ -1007,6 +1010,9 @@ impl Conversation {
             number,
             scope,
             at: citations.last(),
+            witness,
+            choices: self.open.iter().map(|choice| choice.id.clone()).collect(),
+            mandate: authorization.map(|(_, line)| (line.at, wanted)),
         });
         authorized
     }
