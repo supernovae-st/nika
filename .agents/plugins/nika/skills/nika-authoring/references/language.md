@@ -112,9 +112,7 @@ tasks:
     invoke:
       tool: nika:log
       args:
-        message: "${{ item }} at ${{ index }}"
-outputs:
-  lines: .each
+        message: "${{ item }} at ${{ index }}"   # nika:log returns null · the line goes to the run stream
 ```
 
 Checked and RUN against the shipped binary before it was written here ·

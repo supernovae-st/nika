@@ -3,7 +3,8 @@
 #
 # 15 · Compose self-check — the loop checks the draft, never runs it.
 #
-# 10 taught parent→child composition (`invoke: { workflow: }`). This
+# 10 taught parent→child composition
+# (`invoke: { workflow: "./10-compose-child.nika" }`). This
 # file is the other compose: `nika:compose` inside an `agent:` whitelist
 # (ADR-096). The model drafts a nine-key workflow as YAML, gets the
 # in-memory Core report back as JSON, repairs until `valid`, then

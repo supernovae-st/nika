@@ -12,7 +12,7 @@ use std::path::{Component, Path, PathBuf};
 use nika_cli_host::oracle::{AuditOptions, audit_source};
 
 pub use crate::closure::Closure;
-// The rows a review shows of a report are the report's render owner's (C10).
+// The rows a review shows of a report are the report's render owner's.
 use nika_display::check_render::review::{effect_rows, finding_rows};
 use nika_fs::OwnedDir;
 
@@ -326,7 +326,7 @@ impl PendingGate {
     }
 
     /// The question as the session asks it, naming before any answer the completed tasks the
-    /// resume would run again (Q8 · [`nika_trace::run_view::live_again`]).
+    /// resume would run again ([`nika_trace::run_view::live_again`]).
     #[must_use]
     pub fn question(&self) -> String {
         let how = match self.mode.as_str() {

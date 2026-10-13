@@ -10,6 +10,7 @@
 //! then the `mode:` extraction (`nika-extract`) — `mode: jq`
 //! composes THIS crate's one jq engine (`data::jq`), never a second one.
 
+mod notify;
 mod response;
 
 use bytes::Bytes;
@@ -273,7 +274,8 @@ impl ExtractPlan {
     /// Decode per `mode` and run the extraction. `raw`/`jq` demand strict
     /// UTF-8 (raw is the spec's UTF-8 contract; jq input is JSON = UTF-8
     /// by RFC 8259); the HTML/feed/sitemap modes decode charset-aware
-    /// from `Content-Type` (the web is not all UTF-8).
+    /// from `Content-Type` (the web is not all UTF-8), and the page modes
+    /// return a body served as other text as it is.
     fn run(self, code: &'static str) -> BuiltinOutcome {
         match self.mode {
             ExtractMode::Raw => Ok(serde_json::Value::String(decode_utf8_strict(
@@ -305,6 +307,16 @@ impl ExtractPlan {
             // and mojibake non-ASCII (review lens 2 · P3-7).
             ExtractMode::Feed => nika_extract::feed_from_bytes(&self.body)
                 .map_err(|e| BuiltinFailure::new(code, e.to_string())),
+            // The page modes clean a page. A body served as other text (CSV,
+            // plain text, JSON, XML) has none: read as HTML it lost its line
+            // breaks and gained markdown escapes, and a CSV then parsed to no
+            // rows. It comes back as served.
+            ExtractMode::Markdown | ExtractMode::Article | ExtractMode::Text
+                if self.content_type.as_deref().is_some_and(served_as_text) =>
+            {
+                let text = decode_text(&self.body, self.content_type.as_deref());
+                Ok(serde_json::Value::String(text.into_owned()))
+            }
             other => {
                 let mut opts = ExtractOptions::new();
                 opts.base_url = Some(&self.base_url);
@@ -399,6 +411,53 @@ pub(crate) fn decode_charset<'a>(
         .or_else(|| meta_charset(body))
         .unwrap_or(encoding_rs::UTF_8);
     encoding.decode(body).0
+}
+
+/// A `Content-Type` serving text that is not a page: any `text/*` but
+/// HTML, and the structured `application/` types (JSON, XML, CSV, YAML,
+/// NDJSON, TOML and the `+json`/`+xml`/`+yaml` suffixes, never XHTML).
+fn served_as_text(content_type: &str) -> bool {
+    let essence = content_type
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    let Some((kind, subtype)) = essence.split_once('/') else {
+        return false;
+    };
+    match kind {
+        "text" => subtype != "html",
+        "application" => {
+            subtype != "xhtml+xml"
+                && (matches!(
+                    subtype,
+                    "json" | "xml" | "csv" | "ndjson" | "x-ndjson" | "yaml" | "x-yaml" | "toml"
+                ) || ["+json", "+xml", "+yaml"]
+                    .into_iter()
+                    .any(|suffix| subtype.ends_with(suffix)))
+        }
+        _ => false,
+    }
+}
+
+/// Decode a body the page modes return as served: the BOM or declared
+/// charset first (as [`decode_charset`]), else UTF-8 when the bytes are
+/// UTF-8, else windows-1252, the legacy default of spreadsheet exports
+/// (WHATWG's fallback for Latin-script locales).
+fn decode_text<'a>(body: &'a [u8], content_type: Option<&str>) -> std::borrow::Cow<'a, str> {
+    let declared = encoding_rs::Encoding::for_bom(body).is_some()
+        || content_type
+            .and_then(charset_label)
+            .and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes()))
+            .is_some();
+    if declared {
+        return decode_charset(body, content_type);
+    }
+    match std::str::from_utf8(body) {
+        Ok(text) => std::borrow::Cow::Borrowed(text),
+        Err(_) => encoding_rs::WINDOWS_1252.decode(body).0,
+    }
 }
 
 /// Number of leading bytes scanned for a `<meta>` charset declaration —
@@ -556,7 +615,22 @@ pub(super) fn build_request(
     if let Some(body) = args.get("body") {
         let bytes = match body {
             serde_json::Value::String(s) => s.clone().into_bytes(),
-            other => serde_json::to_vec(other).map_err(|e| e.to_string())?,
+            other => {
+                // A non-string body goes out as JSON ("objects auto-JSON"),
+                // so it says so, as a `json=` client does: a receiver that
+                // parses by content type read an untyped body as empty. The
+                // author's own `content-type` header wins.
+                let typed = request
+                    .headers
+                    .keys()
+                    .any(|k| k.eq_ignore_ascii_case("content-type"));
+                if !typed {
+                    request
+                        .headers
+                        .insert("content-type".to_owned(), "application/json".to_owned());
+                }
+                serde_json::to_vec(other).map_err(|e| e.to_string())?
+            }
         };
         request.body = Some(bytes.into());
     }
@@ -574,7 +648,9 @@ pub(crate) fn is_transient_status(status: u16) -> bool {
 
 /// `nika:notify` — send an alert. `webhook` MUST work (POST the message);
 /// other channels are feature-gated → `NIKA-BUILTIN-NOTIFY-001` when
-/// unconfigured (stdlib §notify).
+/// unconfigured (stdlib §notify). A Slack or Discord webhook gets the
+/// body its receiver reads ([`notify::Receiver`]), and a refused delivery
+/// names the receiver's own answer.
 ///
 /// SECURITY: `target:` is workflow-controlled — callers MUST inject an
 /// SSRF-guarding `H` (production = `ReqwestHttp` with
@@ -597,13 +673,7 @@ pub(crate) async fn notify<H: HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutc
     request
         .headers
         .insert("content-type".to_owned(), "application/json".to_owned());
-    // `{ message, severity, data? }` — `data:` carries structured context
-    // so receivers branch on machine fields, never parse the human
-    // message (stdlib §notify · the key is ABSENT when not given).
-    let mut payload = serde_json::json!({ "message": message, "severity": severity });
-    if let (Some(map), Some(data)) = (payload.as_object_mut(), args.get("data")) {
-        map.insert("data".to_owned(), data.clone());
-    }
+    let payload = notify::Receiver::of(target).payload(message, severity, args.get("data"));
     let body = serde_json::to_vec(&payload)
         .map_err(|e| BuiltinFailure::new(C1, format!("payload serialization failed: {e}")))?;
     request.body = Some(body.into());
@@ -616,13 +686,19 @@ pub(crate) async fn notify<H: HttpPostDyn>(http: &H, args: &Args) -> BuiltinOutc
             .unwrap_or_else(|| BuiltinFailure::new(C2, format!("delivery failed: {e}")))
     })?;
     if (200..300).contains(&response.status) {
-        Ok(serde_json::Value::Null)
-    } else {
-        Err(
-            BuiltinFailure::new(C2, format!("webhook returned HTTP {}", response.status))
-                .with_transient(is_transient_status(response.status)),
-        )
+        return Ok(serde_json::Value::Null);
     }
+    // The receiver's answer (`no_text`, a missing field) is the cause a
+    // person or a repair loop acts on; `details.status_code` is the
+    // machine field, as on fetch.
+    let status = response.status;
+    let message = match notify::answer(status, &response.body, target) {
+        Some(said) => format!("webhook returned HTTP {status}; the receiver said: \"{said}\""),
+        None => format!("webhook returned HTTP {status}"),
+    };
+    Err(BuiltinFailure::new(C2, message)
+        .with_transient(is_transient_status(status))
+        .with_details(serde_json::json!({ "status_code": status })))
 }
 
 #[cfg(test)]

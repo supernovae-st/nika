@@ -1055,12 +1055,54 @@ impl<T> core::convert::From<T> for nika_kernel_core::io::fs::FsError
 pub fn nika_kernel_core::io::fs::FsError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_core::io::fs::FsError where T: 'static
 pub fn nika_kernel_core::io::fs::FsError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_core::io::fs::FileIdentity
+pub nika_kernel_core::io::fs::FileIdentity::device: u64
+pub nika_kernel_core::io::fs::FileIdentity::inode: u64
+pub nika_kernel_core::io::fs::FileIdentity::links: u64
+impl nika_kernel_core::io::fs::FileIdentity
+pub const fn nika_kernel_core::io::fs::FileIdentity::new(device: u64, inode: u64, links: u64) -> Self
+impl core::clone::Clone for nika_kernel_core::io::fs::FileIdentity
+pub fn nika_kernel_core::io::fs::FileIdentity::clone(&self) -> nika_kernel_core::io::fs::FileIdentity
+impl core::cmp::Eq for nika_kernel_core::io::fs::FileIdentity
+impl core::cmp::PartialEq for nika_kernel_core::io::fs::FileIdentity
+pub fn nika_kernel_core::io::fs::FileIdentity::eq(&self, other: &nika_kernel_core::io::fs::FileIdentity) -> bool
+impl core::fmt::Debug for nika_kernel_core::io::fs::FileIdentity
+pub fn nika_kernel_core::io::fs::FileIdentity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_kernel_core::io::fs::FileIdentity
+impl core::marker::StructuralPartialEq for nika_kernel_core::io::fs::FileIdentity
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::fs::FileIdentity
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::fs::FileIdentity where U: core::convert::From<T>
+pub fn nika_kernel_core::io::fs::FileIdentity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::fs::FileIdentity where U: core::convert::Into<T>
+pub type nika_kernel_core::io::fs::FileIdentity::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::fs::FileIdentity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::fs::FileIdentity where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::fs::FileIdentity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::fs::FileIdentity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::fs::FileIdentity where T: core::clone::Clone
+pub type nika_kernel_core::io::fs::FileIdentity::Owned = T
+pub fn nika_kernel_core::io::fs::FileIdentity::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::fs::FileIdentity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::fs::FileIdentity where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::fs::FileIdentity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::fs::FileIdentity where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::fs::FileIdentity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::fs::FileIdentity where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::fs::FileIdentity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::fs::FileIdentity where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::fs::FileIdentity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::fs::FileIdentity
+pub fn nika_kernel_core::io::fs::FileIdentity::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::fs::FileIdentity where T: 'static
+pub fn nika_kernel_core::io::fs::FileIdentity::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_core::io::fs::FileMetadata
+pub nika_kernel_core::io::fs::FileMetadata::identity: core::option::Option<nika_kernel_core::io::fs::FileIdentity>
 pub nika_kernel_core::io::fs::FileMetadata::is_dir: bool
 pub nika_kernel_core::io::fs::FileMetadata::is_file: bool
 pub nika_kernel_core::io::fs::FileMetadata::len: u64
 impl nika_kernel_core::io::fs::FileMetadata
 pub fn nika_kernel_core::io::fs::FileMetadata::new(len: u64, is_file: bool, is_dir: bool) -> Self
+pub const fn nika_kernel_core::io::fs::FileMetadata::with_identity(self, identity: nika_kernel_core::io::fs::FileIdentity) -> Self
 impl core::clone::Clone for nika_kernel_core::io::fs::FileMetadata
 pub fn nika_kernel_core::io::fs::FileMetadata::clone(&self) -> nika_kernel_core::io::fs::FileMetadata
 impl core::cmp::Eq for nika_kernel_core::io::fs::FileMetadata

@@ -316,6 +316,7 @@ fn execute_and_ask(
         resumed,
         trace_sink(no_trace_file, world.execution_id, world.trace_id),
         (world.execution_id, &world.snapshot_digest),
+        &world.write_origins,
         !no_outputs,
         model_override,
         &carry,
@@ -447,6 +448,7 @@ fn answered_leg(
         true,
         trace_sink(no_trace_file, world.execution_id, world.trace_id),
         (world.execution_id, &world.snapshot_digest),
+        &world.write_origins,
         outputs,
         model_override,
         &carry,
@@ -561,6 +563,7 @@ fn composed_runtime(
     (_no_trace_file, output_json): (bool, bool),
     world: &AdmittedWorld,
 ) -> Result<AuthorizedRuntime, u8> {
+    // `restore_from` was consumed when the durable step bound the setup.
     let ResumeSetup {
         plan: resume_plan,
         answers,
@@ -568,7 +571,14 @@ fn composed_runtime(
         compat,
         unverified,
         resumed_from,
+        restore_from: _,
+        restored,
     } = setup;
+    // The files a resume put back are this run's again (F-P14): its ledger
+    // adopts them, so a failure of this run quarantines them once more.
+    for path in &restored {
+        world.write_origins.adopt(path, put_back_file(path));
+    }
     let inputs::ValidatedInputs {
         values: overrides,
         origins,
@@ -579,14 +589,8 @@ fn composed_runtime(
     // R-2 · the boot-manifest access stamps, PROJECTED from the frozen
     // plan (P3 B5 · One Door wave 1).
     let boot_access = crate::verbs::check::models_rung::boot_access_fields(plan);
-    // F-P3 · the run: declaration rides the SAME composition path (clock ·
-    // jitter seed — the stamper half is picked at the drive site). The driver
-    // already owns the exact workflow/report/skills admitted with its bytes.
-    let composed = match cost_config {
-        Some(config) => world.driver.compose_with_config(default_model, config),
-        None => world.driver.compose(default_model),
-    };
-    match composed {
+    let config = run_config(world, cost_config);
+    match world.driver.compose_with_config(default_model, config) {
         Ok(rt) => {
             let rt = rt
                 .with_var_overrides(overrides)
@@ -643,6 +647,23 @@ fn composed_runtime(
             output_json,
         )),
     }
+}
+
+/// The run's runtime config. F-P3 · the `run:` declaration rides the SAME
+/// composition path (clock · jitter seed — the stamper half is picked at the
+/// drive site); the driver already owns the exact workflow/report/skills
+/// admitted with its bytes. The leg's write-origins ledger rides the host
+/// config (the driver hands it through unchanged): the teardown tells a
+/// person's file from one the run created. A cost review's config is kept.
+fn run_config(
+    world: &AdmittedWorld,
+    cost_config: Option<nika_runtime::RuntimeConfig>,
+) -> nika_runtime::RuntimeConfig {
+    let wf = world.driver.workflow();
+    let seed = nika_runtime::RunSeams::of(wf.run.as_ref().map(|r| &r.value)).jitter_seed;
+    cost_config
+        .unwrap_or_else(|| nika_runtime::RuntimeConfig::new(None, seed))
+        .with_write_origins(std::sync::Arc::clone(&world.write_origins))
 }
 
 /// Execute a CHECKED workflow with the MOCK provider and capture the typed
@@ -870,6 +891,7 @@ async fn execute(
     resumed: bool,
     trace: TraceFileSink,
     identity: (nika_types::id::ExecutionId, &str),
+    origins: &nika_runtime::WriteOrigins,
     outputs: bool,
     model_override: Option<&str>,
     carry: &str,
@@ -888,7 +910,7 @@ async fn execute(
             theme,
             resumed,
             trace,
-            identity.0,
+            (identity.0, origins),
             carry,
             scoped,
         )
@@ -901,7 +923,7 @@ async fn execute(
             stamper.as_mut(),
             resumed,
             trace,
-            identity,
+            (identity, origins),
             carry,
             scoped,
         )
@@ -909,8 +931,7 @@ async fn execute(
     } else {
         execute_fold_lane(
             runtime,
-            wf,
-            report,
+            (wf, report, origins),
             stamper.as_mut(),
             file,
             theme,
@@ -941,7 +962,7 @@ async fn execute_output_json_lane(
     theme: Theme,
     resumed: bool,
     trace: TraceFileSink,
-    execution: nika_types::id::ExecutionId,
+    (execution, origins): (nika_types::id::ExecutionId, &nika_runtime::WriteOrigins),
     carry: &str,
     scoped: bool,
 ) -> RunVerdict {
@@ -974,7 +995,7 @@ async fn execute_output_json_lane(
         notify::deliver_paused(&label, pause, &p, &hint, stamper, &mut trace).await;
     }
     // Quarantine failed outputs before the seal (F-P14).
-    let teardown = attended_facts(wf, report, &outcome, trace.path());
+    let teardown = attended_facts(wf, report, &outcome, trace.path(), origins);
     let trace_path = match surfaced_trace(surface_trace(
         trace,
         TraceNote::Stderr,
@@ -1030,7 +1051,10 @@ async fn execute_json_lane(
     stamper: &mut dyn Stamper,
     resumed: bool,
     trace: TraceFileSink,
-    identity: (nika_types::id::ExecutionId, &str),
+    (identity, origins): (
+        (nika_types::id::ExecutionId, &str),
+        &nika_runtime::WriteOrigins,
+    ),
     carry: &str,
     scoped: bool,
 ) -> RunVerdict {
@@ -1047,7 +1071,7 @@ async fn execute_json_lane(
         let label = notify::workflow_label(wf);
         notify::deliver_paused(&label, pause, &p, &hint, stamper, &mut trace).await;
     }
-    let mut teardown = attended_facts(wf, report, &outcome, trace.path());
+    let mut teardown = attended_facts(wf, report, &outcome, trace.path(), origins);
     teardown.sdk_receipt = Some(nika_cli_host::run_settlement::local_receipt_binding(
         identity.0, identity.1,
     ));
@@ -1124,8 +1148,7 @@ async fn execute_json_lane(
 #[allow(clippy::too_many_arguments)]
 async fn execute_fold_lane(
     runtime: &AuthorizedRuntime,
-    wf: &RawWorkflow,
-    report: &CheckReport,
+    (wf, report, origins): (&RawWorkflow, &CheckReport, &nika_runtime::WriteOrigins),
     stamper: &mut dyn Stamper,
     file: &str,
     theme: Theme,
@@ -1193,7 +1216,7 @@ async fn execute_fold_lane(
     }
     fold_lane_verdict(
         &mut sink,
-        (wf, report),
+        (wf, report, origins),
         &outcome,
         trace,
         mode,
@@ -1210,7 +1233,7 @@ async fn execute_fold_lane(
 #[allow(clippy::too_many_arguments)] // the lane's own teardown facts
 fn fold_lane_verdict(
     sink: &mut FoldSink<std::io::Stdout>,
-    (wf, report): (&RawWorkflow, &CheckReport),
+    (wf, report, origins): (&RawWorkflow, &CheckReport, &nika_runtime::WriteOrigins),
     outcome: &nika_runtime::RunOutcome,
     trace: TraceFileSink,
     mode: RenderMode,
@@ -1238,7 +1261,7 @@ fn fold_lane_verdict(
         );
     }
     // F-P14 · the failure lane's quarantine runs BEFORE the seal.
-    let teardown = attended_facts(wf, report, outcome, trace.path());
+    let teardown = attended_facts(wf, report, outcome, trace.path(), origins);
     let trace_path = match surfaced_trace(surface_trace(
         trace,
         // The thread prints the trace note too (nika#1385): a `/run`
@@ -1448,6 +1471,18 @@ fn trace_sink(
         TraceFileSink::new(nika_dap::store::TRACE_DIR)
     };
     sink.for_execution(execution, trace)
+}
+
+/// Which file a resume put back at `path` (resolved from the project root,
+/// the working directory), so that a failure of this run quarantines that
+/// very file again: the quarantine moves nothing it cannot identify.
+fn put_back_file(path: &str) -> Option<nika_runtime::CreatedFile> {
+    use std::os::unix::fs::MetadataExt as _;
+    let meta = std::fs::symlink_metadata(path)
+        .ok()
+        .filter(std::fs::Metadata::is_file)?;
+    let identity = nika_kernel::fs::FileIdentity::new(meta.dev(), meta.ino(), meta.nlink());
+    Some(nika_runtime::CreatedFile::new(identity, meta.len()))
 }
 
 #[cfg(test)]

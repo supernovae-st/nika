@@ -25,6 +25,13 @@ use self::trials::{
 mod open_choices;
 use self::open_choices::{default_not_asked, open_defaults, open_pick_other};
 
+#[path = "schedules.rs"]
+mod schedules;
+pub(crate) use self::schedules::{WHEN, ZONE};
+use self::schedules::{
+    schedule_activated, schedule_saved, schedule_without_hour, schedule_zone_unseen,
+};
+
 /// The Session's reading of the sentence that accepts the plan: its recommended option.
 /// The Session's reading of each cited consent the journey's author claims: save and run.
 fn consented(reads: usize) -> Vec<String> {
@@ -394,6 +401,10 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "change_then_run" => change_then_run(),
         "default_not_asked" => default_not_asked(),
         "answered_literal" => answered_literal(),
+        "schedule_saved" => schedule_saved(),
+        "schedule_activated" => schedule_activated(),
+        "schedule_zone_unseen" => schedule_zone_unseen(),
+        "schedule_without_hour" => schedule_without_hour(),
         other => panic!("unknown scenario {other}"),
     }
 }

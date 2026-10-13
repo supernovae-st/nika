@@ -356,6 +356,8 @@ pub fn nika_session_agent::conversation::Conversation::defaults(open: &[nika_ses
 pub fn nika_session_agent::conversation::Conversation::open(&self) -> &[nika_session_change::work::conversation::AskedQuestion]
 pub fn nika_session_agent::conversation::Conversation::open_choices(&self, citations: &nika_session_agent::conversation::Citations, args: &serde_json::value::Value, call: core::option::Option<&str>, (mint, facts): (nika_session_agent::conversation::Mint<'_>, nika_session_agent::conversation::Facts<'_>)) -> core::result::Result<alloc::vec::Vec<nika_session_change::work::conversation::AskedQuestion>, alloc::string::String>
 pub fn nika_session_agent::conversation::Conversation::unsaved(&self, shown: &[alloc::string::String]) -> core::option::Option<alloc::string::String>
+impl nika_session_agent::conversation::Conversation
+pub fn nika_session_agent::conversation::Conversation::schedule(&self, citations: &nika_session_agent::conversation::Citations, args: &serde_json::value::Value, open: &[nika_session_change::work::conversation::AskedQuestion]) -> core::result::Result<core::option::Option<(alloc::string::String, alloc::string::String)>, alloc::string::String>
 impl core::default::Default for nika_session_agent::conversation::Conversation
 pub fn nika_session_agent::conversation::Conversation::default() -> nika_session_agent::conversation::Conversation
 impl core::fmt::Debug for nika_session_agent::conversation::Conversation

@@ -24,12 +24,12 @@ pub(super) struct MoneyState {
     // It never replaces the Session draft, guard or shared admission account.
     pub gate: Option<MonetaryDecision>,
     pub reconfirm: bool,
-    // The live round was admitted while `reconfirm` held: its answers keep that admission (C11).
+    // The live round was admitted while `reconfirm` held: its answers keep that admission.
     pub stated_under_reconfirm: bool,
     pub current: Option<MonetaryDecision>,
     pub draft: Option<MonetaryDecision>,
     pub pending: Option<MonetaryDecision>,
-    // The monetary directives of the current work request this gate admitted (R4 A6): the
+    // The monetary directives of the current work request this gate admitted: the
     // compiler reads them as this ceiling, never as business clauses. A line no work admission
     // reads (a local run line) clears them: no admitted directive rides with it.
     pub admitted: Vec<std::ops::Range<usize>>,
@@ -105,7 +105,7 @@ impl SessionRuntime {
         }
         // Blocked cognition reads nothing, and a line that states no money has nothing
         // to admit: a restored exposure's refusal would expire the proposal for a line
-        // nobody read. The route holds it with its observed effects (E5 FB3).
+        // nobody read. The route holds it with its observed effects.
         let law = super::authoring::run_prefix(answer).is_none();
         let stated = self.read_money(answer, law);
         let unread = !review
@@ -244,7 +244,7 @@ impl SessionRuntime {
     }
 
     // Shared validation precedes either scope's continuation fast path. Work, consent and answer
-    // lines state money only in their directives (R4 A6 · B15); Run and gate lines, the whole line.
+    // lines state money only in their directives; Run and gate lines, the whole line.
     fn read_money(
         &self,
         input: &str,
@@ -417,7 +417,7 @@ impl SessionRuntime {
 
     /// The monetary directives of request bytes Session built from the human's words (a
     /// replacement, a restatement), as spans of exactly those bytes, never offsets carried from
-    /// another text (C11). A malformed or conflicting amount refuses under the money law, and so
+    /// another text. A malformed or conflicting amount refuses under the money law, and so
     /// does a built request stating another ceiling than the account holds.
     pub(super) fn built_money(
         &mut self,

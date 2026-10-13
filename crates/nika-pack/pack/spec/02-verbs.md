@@ -413,7 +413,7 @@ The teaching shape is
 (`nika:done` first so `mock/echo` closes at turn one). See
 [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) §`nika:compose`.
 Do not confuse this loop intrinsic with parent→child composition
-(`invoke: { workflow: }` · [14](./14-composition.md) · lesson 10).
+(`invoke: { workflow: "./child.nika" }` · [14](./14-composition.md) · lesson 10).
 
 **Termination outcomes (normative)** ·
 

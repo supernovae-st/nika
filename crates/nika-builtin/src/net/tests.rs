@@ -73,6 +73,73 @@ async fn fetch_default_mode_is_markdown_extraction() {
 }
 
 #[tokio::test]
+async fn fetch_page_modes_return_a_body_served_as_text_unchanged() {
+    // A CSV export read as HTML lost its line breaks and gained markdown
+    // escapes (`A\_1`), and `nika:convert` then found no rows.
+    let csv = "name,amount\nA_1,10\nB *2*,20\n";
+    for (content_type, mode) in [
+        ("text/csv; charset=utf-8", None),
+        ("text/plain", Some("text")),
+        ("application/json", Some("article")),
+        ("application/problem+json", Some("markdown")),
+        ("TEXT/MARKDOWN", None),
+    ] {
+        let http = MockHttp::new().enqueue_ok_with_headers(
+            200,
+            [("Content-Type", content_type)],
+            csv.as_bytes().to_vec(),
+        );
+        let mut call = serde_json::json!({ "url": "https://x.test/export" });
+        if let Some(mode) = mode {
+            call["mode"] = serde_json::Value::from(mode);
+        }
+        let out = fetch(&http, &args(call)).await.expect("ok");
+        assert_eq!(out.as_str(), Some(csv), "{content_type}");
+    }
+}
+
+#[tokio::test]
+async fn fetch_page_modes_still_clean_a_page_or_an_untyped_body() {
+    let html = "<h1>Title</h1><p>Hello <b>world</b></p>";
+    for content_type in [
+        Some("text/html; charset=utf-8"),
+        Some("application/xhtml+xml"),
+        None,
+    ] {
+        let headers: Vec<(&str, &str)> = content_type
+            .map(|value| ("Content-Type", value))
+            .into_iter()
+            .collect();
+        let http = MockHttp::new().enqueue_ok_with_headers(200, headers, html.as_bytes().to_vec());
+        let out = fetch(&http, &args(serde_json::json!({ "url": "https://x.test" })))
+            .await
+            .expect("ok");
+        let md = out.as_str().expect("string");
+        assert!(
+            md.contains("# Title") && md.contains("**world**"),
+            "{content_type:?}: {md}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn fetch_reads_an_undeclared_legacy_text_body_as_windows_1252() {
+    // A spreadsheet export in windows-1252 with no charset: 'é' = 0xE9.
+    let http = MockHttp::new().enqueue_ok_with_headers(
+        200,
+        [("Content-Type", "text/csv")],
+        b"caf\xe9;12\n".to_vec(),
+    );
+    let out = fetch(
+        &http,
+        &args(serde_json::json!({ "url": "https://x.test/e.csv" })),
+    )
+    .await
+    .expect("ok");
+    assert_eq!(out.as_str(), Some("café;12\n"));
+}
+
+#[tokio::test]
 async fn fetch_mode_jq_composes_the_one_jq_engine() {
     let json = br#"{"items":[{"name":"a"},{"name":"b"}]}"#.to_vec();
     let http = MockHttp::new().enqueue_ok(200, json);
@@ -769,6 +836,48 @@ async fn fetch_post_carries_the_body() {
 }
 
 #[tokio::test]
+async fn fetch_a_json_body_names_its_type_unless_the_author_did() {
+    // « objects auto-JSON » went out untyped: a receiver that parses by
+    // content type read the body as empty.
+    let calls = [
+        (
+            serde_json::json!({ "text": "hello" }),
+            None,
+            Some("application/json"),
+        ),
+        (serde_json::json!([1, 2]), None, Some("application/json")),
+        (
+            serde_json::json!({ "a": 1 }),
+            Some("application/vnd.api+json"),
+            Some("application/vnd.api+json"),
+        ),
+        (serde_json::json!("a=1"), None, None),
+    ];
+    for (body, declared, expected) in calls {
+        let http = MockHttp::new().enqueue_ok(200, b"ok".to_vec());
+        let mut call = serde_json::json!({
+            "url": "https://x.test/hook", "method": "POST", "mode": "raw", "body": body
+        });
+        if let Some(declared) = declared {
+            call["headers"] = serde_json::json!({ "Content-Type": declared });
+        }
+        fetch(&http, &args(call)).await.expect("ok");
+        let sent = http.sent_requests();
+        let types: Vec<&str> = sent[0]
+            .headers
+            .iter()
+            .filter(|(name, _)| name.eq_ignore_ascii_case("content-type"))
+            .map(|(_, value)| value.as_str())
+            .collect();
+        assert_eq!(
+            types,
+            expected.into_iter().collect::<Vec<_>>(),
+            "{declared:?}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn fetch_maps_every_method_to_the_request() {
     for (name, expected) in [
         ("GET", HttpMethod::Get),
@@ -878,4 +987,119 @@ async fn notify_data_rides_the_payload_and_is_absent_when_not_given() {
         serde_json::json!({ "message": "m", "severity": "info" })
     );
     assert!(body.get("data").is_none(), "absent, never null");
+}
+
+/// The one request body a notify call sent.
+fn sent_body(http: &MockHttp) -> serde_json::Value {
+    let sent = http.sent_requests();
+    assert_eq!(sent.len(), 1, "one delivery");
+    serde_json::from_slice(sent[0].body.as_ref().expect("body")).expect("json")
+}
+
+#[tokio::test]
+async fn notify_gives_a_slack_incoming_webhook_its_text_field() {
+    // Slack refuses a body without `text` (`no_text`): the message, the
+    // severity and the data become plain text, controls as entities.
+    let http = MockHttp::new().enqueue_ok(200, b"ok".to_vec());
+    notify(
+        &http,
+        &args(serde_json::json!({
+            "channel": "webhook",
+            "target": "https://hooks.slack.com/services/T0/B0/X",
+            "message": "Run <!channel> finished & ok", "severity": "warning",
+            "data": { "count": 2 }
+        })),
+    )
+    .await
+    .expect("ok");
+    assert_eq!(
+        sent_body(&http),
+        serde_json::json!({
+            "text": "[warning] Run &lt;!channel&gt; finished &amp; ok\n{\"count\":2}",
+            "mrkdwn": false
+        })
+    );
+    let sent = http.sent_requests();
+    assert_eq!(
+        sent[0].headers.get("content-type").map(String::as_str),
+        Some("application/json")
+    );
+}
+
+#[tokio::test]
+async fn notify_gives_a_discord_webhook_content_that_mentions_no_one() {
+    let http = MockHttp::new().enqueue_ok(204, Vec::new());
+    notify(
+        &http,
+        &args(serde_json::json!({
+            "target": "https://discord.com/api/webhooks/1/tok",
+            "message": "@everyone **deploy** done <@1>"
+        })),
+    )
+    .await
+    .expect("ok");
+    assert_eq!(
+        sent_body(&http),
+        serde_json::json!({
+            "content": r"@everyone \*\*deploy\*\* done \<@1\>",
+            "allowed_mentions": { "parse": [] }
+        })
+    );
+}
+
+#[tokio::test]
+async fn notify_keeps_the_stdlib_payload_beyond_the_two_chat_receivers() {
+    // A Slack Workflow Builder trigger takes custom variables, Discord's
+    // `/slack` adapter is not its execute form, and a look-alike path on
+    // another host is any receiver: none is reshaped.
+    for target in [
+        "https://hooks.slack.com/triggers/T0/1/x",
+        "https://discord.com/api/webhooks/1/tok/slack",
+        "https://hooks.example.test/services/T0/B0/X",
+    ] {
+        let http = MockHttp::new().enqueue_ok(200, Vec::new());
+        notify(
+            &http,
+            &args(serde_json::json!({ "target": target, "message": "m" })),
+        )
+        .await
+        .expect("ok");
+        assert_eq!(
+            sent_body(&http),
+            serde_json::json!({ "message": "m", "severity": "info" }),
+            "{target}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn notify_refusal_names_the_receiver_answer_and_its_status() {
+    let http = MockHttp::new().enqueue_ok(400, b"no_text".to_vec());
+    let failure = notify(
+        &http,
+        &args(serde_json::json!({ "target": "https://hooks.example.test/x", "message": "m" })),
+    )
+    .await
+    .expect_err("400 fails");
+    assert_eq!(failure.code, "NIKA-BUILTIN-NOTIFY-002");
+    assert_eq!(
+        failure.message,
+        "webhook returned HTTP 400; the receiver said: \"no_text\""
+    );
+    assert!(!failure.transient);
+    assert_eq!(
+        failure.details,
+        Some(serde_json::json!({ "status_code": 400 }))
+    );
+
+    // An answer without words keeps the bare status.
+    let http = MockHttp::new().enqueue_ok(502, Vec::new());
+    let failure = notify(
+        &http,
+        &args(serde_json::json!({ "target": "https://hooks.example.test/x", "message": "m" })),
+    )
+    .await
+    .expect_err("502 fails");
+    assert_eq!(failure.message, "webhook returned HTTP 502");
+    assert!(failure.transient);
 }

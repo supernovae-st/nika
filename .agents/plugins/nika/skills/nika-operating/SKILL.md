@@ -138,9 +138,22 @@ fsync durability or that a detached write has stopped.
 - `--native-strict` in CI keeps `exec:` honest: any shell task an
   embedded builtin covers fails the gate (the exec ledger documents
   the survivors).
-- Schedule with the scheduler you already have (cron · CI · a
-  systemd timer): the engine is a binary, the workflow is a file, and
-  `--var key=value` carries the `inputs:` the file declares.
+- Recurring work is a beat in the project's `nika.yaml`, never a cron
+  line, a CI schedule or a hand-written timer (they skip the firer: no
+  missed-slot rule, no overlap lock, no ceiling per firing, no firing
+  record). One `arm:` entry names the workflow, the cadence with its
+  zone inside (`TZ=Europe/Paris 30 7 * * 1-5`, an IANA zone name), the
+  ceiling of one firing (`plafond:`) and what a missed slot becomes
+  (`manqué: sauter` or `rattraper-une-fois`; `rattraper` is reserved and
+  reads UNREADY); neither has a default. Per-beat `inputs:` give the
+  workflow's declared inputs their values. `nika check nika.yaml` judges
+  the keys; `nika arm --json` reads every cadence and reports READY,
+  UNREADY or DORMANT, writing nothing. Activation is the person's own
+  step, for a READY beat only (`--emit` prints a unit for an UNREADY one
+  too): `nika arm --emit launchd|systemd --write`, then loading the unit,
+  or a resident `nika serve`. A suspension is the triple `actif: false`,
+  `raison:` and `jusqu_au: YYYY-MM-DD`; deleting the line does not
+  disarm. Reference: https://docs.nika.sh/reference/arm
 
 ## MCP servers and definition drift
 

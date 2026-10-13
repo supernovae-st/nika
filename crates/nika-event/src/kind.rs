@@ -205,6 +205,18 @@ pub enum EventKind {
     /// seal's covers). Same diagnostic posture as its named sibling: the
     /// fold attests the count, the journal names the evidence, bounded.
     MemoryRejectionsSummary,
+    // ── additive cohort 2026-10-12 · a failed run's quarantine is
+    //    journaled before the seal mints. MINOR-bump additive per the
+    //    header law. ──
+    /// A failed run's teardown attended the files it wrote (`dir` ·
+    /// `moved` · `missed` · `kept` fields, plus `manifest` and
+    /// `manifest_sha256`, or `manifest_error`): the files it created moved
+    /// under the quarantine dir (`missed` counts a move that failed and
+    /// left the file in place), the person's files stayed in place with
+    /// their originals kept beside it, and the manifest naming each path
+    /// is bound by its digest. Lands BEFORE the seal, so an unsigned run's
+    /// journal still records it and a signed run's seal covers it.
+    QuarantineRecorded,
 }
 
 impl EventKind {
@@ -251,6 +263,7 @@ impl EventKind {
             Self::MemoryRejectionsSummary => "memory_rejections_summary",
             Self::NotifyDelivered => "notify_delivered",
             Self::NotifyFailed => "notify_failed",
+            Self::QuarantineRecorded => "quarantine_recorded",
         }
     }
 
@@ -321,7 +334,9 @@ impl EventKind {
             | Self::TaskCancelled
             | Self::TaskCacheHit => EventClass::Task,
             Self::VerbInvoked | Self::ToolInvoked => EventClass::Dispatch,
-            Self::CheckpointWritten | Self::RunSealed => EventClass::Durability,
+            Self::CheckpointWritten | Self::RunSealed | Self::QuarantineRecorded => {
+                EventClass::Durability
+            }
             Self::CostIncurred => EventClass::Cost,
             Self::InferChunk => EventClass::Stream,
             Self::PermitChecked
@@ -417,6 +432,7 @@ mod tests {
         EventKind::MemoryRejectionsSummary,
         EventKind::NotifyDelivered,
         EventKind::NotifyFailed,
+        EventKind::QuarantineRecorded,
     ];
 
     #[test]
@@ -459,10 +475,11 @@ mod tests {
                 | EventKind::MemoryEntryRejected
                 | EventKind::MemoryRejectionsSummary
                 | EventKind::NotifyDelivered
-                | EventKind::NotifyFailed => {}
+                | EventKind::NotifyFailed
+                | EventKind::QuarantineRecorded => {}
             }
         }
-        assert_eq!(ALL.len(), 34, "extend ALL when a variant is added");
+        assert_eq!(ALL.len(), 35, "extend ALL when a variant is added");
     }
 
     /// FCI-003: the canonical wire slug has TWO independent encoders — the
@@ -536,7 +553,9 @@ mod tests {
                 s if s.starts_with("workflow_") => Some(EventClass::Workflow),
                 s if s.starts_with("task_") => Some(EventClass::Task),
                 "verb_invoked" | "tool_invoked" => Some(EventClass::Dispatch),
-                "checkpoint_written" | "run_sealed" => Some(EventClass::Durability),
+                "checkpoint_written" | "run_sealed" | "quarantine_recorded" => {
+                    Some(EventClass::Durability)
+                }
                 "cost_incurred" => Some(EventClass::Cost),
                 "infer_chunk" => Some(EventClass::Stream),
                 "permit_checked"

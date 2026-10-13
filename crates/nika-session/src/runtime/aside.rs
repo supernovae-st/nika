@@ -172,7 +172,7 @@ mod tests {
 
     /// Two effects behind one gate are both listed, whatever their depth:
     /// the task after the gate and the task that reads that task's output;
-    /// a task the gate does not hold back is not listed (A10 · P-153).
+    /// a task the gate does not hold back is not listed.
     #[test]
     fn a_gate_lists_every_task_it_holds_back_at_any_depth() {
         let dir = tempfile::tempdir().expect("tmp");

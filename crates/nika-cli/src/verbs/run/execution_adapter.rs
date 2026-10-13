@@ -17,6 +17,9 @@ pub(super) struct AdmittedWorld {
     display_root: std::path::PathBuf,
     task_scope: Option<String>,
     trace: bool,
+    /// What this leg's `nika:write`/`nika:edit` created or changed, read
+    /// by its teardown: a failed run moves only the files it created.
+    pub(super) write_origins: std::sync::Arc<nika_runtime::WriteOrigins>,
 }
 
 impl AdmittedWorld {
@@ -46,6 +49,8 @@ impl AdmittedWorld {
         .with_child_trace_factory(std::sync::Arc::new(
             child_runner::CliChildTraceFactory::new(trace),
         ));
+        let staging =
+            std::path::Path::new(nika_dap::store::ORIGINALS_DIR).join(execution_id.to_string());
         Some(Self {
             driver,
             execution_id,
@@ -56,6 +61,7 @@ impl AdmittedWorld {
             display_root,
             task_scope: None,
             trace,
+            write_origins: std::sync::Arc::new(nika_runtime::WriteOrigins::new(staging)),
         })
     }
 
@@ -388,7 +394,7 @@ fn run_admitted_context_over(
     {
         return RunVerdict::bare(code);
     }
-    let setup = match setup.bind_durable(machine) {
+    let setup = match setup.bind_durable(&wf, machine) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };

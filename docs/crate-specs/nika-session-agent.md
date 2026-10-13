@@ -89,6 +89,9 @@ Session's tools act on the Session, and only the Session's doors save, run or re
   that recommends an option, or that names an output in the project unless its `reopens` cites
   the person's later words, each refused question with its reason (`default`, `output`, beside
   `settled`, `delegated` and `bound`); a choice with a default is shown by `propose` in `open`.
+- A schedule is never assumed: `Conversation::schedule` takes `propose`'s `schedule` only with
+  the cited line's own words and a zone the person's words name or a choice the proposal shows
+  offers as its default; such a choice may offer the zone, which the candidate never carries.
 
 ## 4. Gate evidence (admission with the unit)
 

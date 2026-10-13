@@ -259,6 +259,15 @@ pub fn revise_intent(request: &CompileRequest) -> Option<String> {
     Some(lexicon::fold_apostrophes(&intent))
 }
 
+/// The trigger a phrase states (« chaque lundi à 9h », "every Friday at 10"), read as the
+/// compiler reads the trigger of a request: its kind, the cadence and the time of day the words
+/// state, and the cron fields they state whole, never a guessed hour or day. A requirement beside
+/// a program, never a binding: the zone, the missed policy and the ceiling are the binding's.
+#[must_use]
+pub fn trigger_of(phrase: &str) -> Option<TriggerRequirement> {
+    trigger::requirement_of(phrase, false)
+}
+
 /// An outcome with nothing decided yet: incomplete, no candidate, the compiler's own identity.
 #[must_use]
 pub fn initial() -> CompileOutcome {

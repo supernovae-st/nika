@@ -29,6 +29,20 @@ pub(crate) fn push_integrity_fields(
     }
 }
 
+/// The spec 14 law 8 child-run row `{target, trace_id, chain_head, def_hash,
+/// outcome}` — pushed onto a terminal task frame for an `invoke: workflow:`
+/// call, on success AND on failure, so both read the same typed row (law 9 ·
+/// the parent's chain commits to the child's head · Merkle). `None` off a
+/// child call, so a plain task frame is unchanged.
+pub(crate) fn push_child_field(
+    fields: &mut Vec<(&'static str, FieldValue)>,
+    child: Option<&crate::child::ChildRunSummary>,
+) {
+    if let Some(row) = child.map(crate::child::ChildRunSummary::json) {
+        fields.push(("child", s(&row.to_string())));
+    }
+}
+
 /// `task_recovered` — the ONE emission site (INV#24 · engine#301 · the
 /// D-2026-07-08-N4 sequence lock): INSERTS before the terminal, so
 /// `task_completed` stays the one success terminal and audit surfaces read
@@ -109,14 +123,11 @@ pub(crate) fn emit_completed(
     if let Some(msg) = warning {
         fields.push(("warning", s(msg)));
     }
-    // spec 14 law 8 (trace forest) — the child-run row `{target,
-    // trace_id, chain_head, def_hash, outcome}` rides the terminal
-    // frame; law 9 (receipts) — this frame is itself hash-chained, so
-    // the parent's chain COMMITS to the child's head (Merkle).
-    let child_json = child.map(crate::child::ChildRunSummary::json);
-    if let Some(row) = &child_json {
-        fields.push(("child", s(&row.to_string())));
-    }
+    // spec 14 law 8 (trace forest) — the child-run row rides the terminal
+    // frame; law 9 (receipts) — this frame is itself hash-chained, so the
+    // parent's chain COMMITS to the child's head (Merkle). The failed-child
+    // frame pushes the SAME row through this one helper.
+    push_child_field(&mut fields, child);
     // ADR-099 · the checkpoint fields — only a stamped success carries
     // them (additive trace fields).
     let output_text =

@@ -261,8 +261,16 @@ re-parsed source hint. Missing/unsupported/conflicting requirements refuse
 before a declaration proposal, naming the need to restate a supported period
 and explicit daily/weekly time; there is no implicit 08:00 or Monday.
 
-The existing activation questions still require timezone, missed-run policy
-and positive per-occurrence ceiling. The zone answer is judged by `nika-cadence`
+On the agent route the trigger comes from `propose`'s `schedule` (ADR-153, 2026-10-12): the
+person's cited words, read by Compile's own trigger reading (`nika_compile::trigger_of`) into the
+same exact cron fields, in the zone the proposal shows them. Its goal states the Runs lines, the
+save keeps the trigger as the last saved workflow's, and « activate » consumes it as above.
+
+The activation questions require the missed-run policy and a positive
+per-occurrence ceiling, and the timezone unless the person already chose it for
+this schedule (the default they consented to with the proposal, or a compile-time
+`trigger.timezone` answer): a chosen zone is named in the questions and shown in
+the declaration's exact bytes, never asked again. The zone answer is judged by `nika-cadence`
 itself when it is given (a name its bundled IANA base lacks, or `/Europe/Paris`,
 is refused at once and the question keeps waiting), never by a second shape
 rule. The full `TZ=...` expression is validated

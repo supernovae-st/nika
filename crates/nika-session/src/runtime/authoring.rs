@@ -17,7 +17,7 @@ use nika_onboard::compile::program_records;
 use nika_onboard::compile::round::{change_money, compiled};
 use nika_onboard::compile::{CompileOutcome, CompileQuestion, CompileRequest, revise_intent};
 // The compiler's reasons in a human's words and its questions' own grammar live beside the
-// reading they refine (C10).
+// reading they refine.
 pub(crate) use nika_onboard::compile::reading::human_reasons;
 pub(super) use nika_onboard::compile::reading::{asks_for_syntax, clause_of};
 use nika_onboard::compile::reading::{clauses_understood, incomplete_words, syntax_prompt};
@@ -78,7 +78,7 @@ impl SessionRuntime {
     /// its change) through the seat under the session's context, its pack
     /// composed for `intent`, bracketed like every other dispatch. Like a
     /// round's, it is handed the verdicts that rejected candidate bytes in the
-    /// goal's earlier compiles and keeps the ones it records (R6). `target` is the file the
+    /// goal's earlier compiles and keeps the ones it records. `target` is the file the
     /// result rewrites, when it rewrites one: its child workflows are checked there.
     pub(super) fn compile_request_at(
         &mut self,
@@ -121,8 +121,8 @@ impl SessionRuntime {
     }
 
     /// The session's authoring context rooted at its own project, never the process's working
-    /// directory: every round observes the files it names there, never through a link outside it
-    /// (R4 S1). A seated round roots the session's context with it; a deterministic one reads it.
+    /// directory: every round observes the files it names there, never through a link outside it.
+    /// A seated round roots the session's context with it; a deterministic one reads it.
     pub(super) fn project_context(&self) -> AuthoringContext {
         let root = self.snapshot.root.clone();
         self.authoring_context.clone().with_project_root(root)
@@ -200,7 +200,7 @@ impl SessionRuntime {
                 }
             }
             Reading::Unsettled(out) => Some(match &self.seat {
-                // The ceiling refuses the seat (R4 A6): what the reader could not settle is
+                // The ceiling refuses the seat: what the reader could not settle is
                 // still said — a directive that also names a field is the human's to restate.
                 AuthoringSeat::Provider { .. } | AuthoringSeat::Harness { .. }
                     if self.money_blocks_cognition() =>
@@ -233,7 +233,7 @@ impl SessionRuntime {
         }
     }
 
-    /// Work the reader could not settle, under a ceiling that refuses the seat (R4 A6): the
+    /// Work the reader could not settle, under a ceiling that refuses the seat: the
     /// refusal says the compiler's reasons, never the bare ceiling; `why` keeps the outcome.
     fn refused_unsettled(&mut self, out: CompileOutcome) -> TurnOutcome {
         let text = incomplete_words(&out, Some(&self.cognition_blocked()));
@@ -347,7 +347,7 @@ impl SessionRuntime {
             }
             break out;
         };
-        // A replayed candidate its verifier did not accept is never asked of it again (R6): the
+        // A replayed candidate its verifier did not accept is never asked of it again: the
         // round keeps the record held with that rejection, so a stronger seat's own judge decides
         // those bytes with no authoring call; under a decision seat, the round writes afresh.
         if let Ok(held) = &out
@@ -437,7 +437,7 @@ impl SessionRuntime {
         line: &str,
         restated: Option<(crate::outcome::QuestionId, String)>,
     ) -> TurnOutcome {
-        // Its directives, the request's own and the added ones, are spans of this very string (C11).
+        // Its directives, the request's own and the added ones, are spans of this very string.
         let asked = restated.as_ref().map(|(question, _)| question.clone());
         let money = match self.built_money(&intent, line) {
             Ok(money) => money,
@@ -549,7 +549,7 @@ impl SessionRuntime {
         round.target = Some((path, witness));
         round.continuation = plan;
         round.edit = Some((base, change.trim().to_owned(), original));
-        // The line's own admitted directives, as the law reads the change the EDIT holds (B15).
+        // The line's own admitted directives, as the law reads the change the EDIT holds.
         round.money = change_money(change.trim(), !self.money.admitted.is_empty());
         let request = round.request();
         let revised = revise_intent(&request).unwrap_or_else(|| goal.clone());
@@ -908,7 +908,7 @@ impl SessionRuntime {
             Ok(set) => {
                 let bytes = self.draft_preview(&set);
                 let id = ProposalId::of(&bytes);
-                // What the candidate records of its sources is bound before any yes (F4).
+                // What the candidate records of its sources is bound before any yes.
                 self.bind_basis(&id, &set, compiled(round.request(), out), out);
                 let mut preview = self.draft_review(&set, out, &bytes);
                 if let Err(refused) =

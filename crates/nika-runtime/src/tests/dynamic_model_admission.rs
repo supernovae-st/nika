@@ -1157,6 +1157,7 @@ impl crate::child::ChildRunner for ChildOnWires {
                 cost_usd: outcome.total_cost_usd,
                 trace: None,
                 failure,
+                paused: None,
             })
         })
     }
@@ -1199,4 +1200,54 @@ async fn a_nested_route_meets_the_budget_its_parent_hands_down() {
         );
         assert!(wires.normal.posts().is_empty(), "the child sent nothing");
     }
+}
+
+/// A child runner whose run FAILS but still reports a trace-forest row — the
+/// shape a real failed child call produces (spec 14 law 8).
+struct FailingChildWithTrace;
+
+impl crate::child::ChildRunner for FailingChildWithTrace {
+    fn run_child(&self, _call: crate::child::ChildCall) -> ChildRun<'_> {
+        Box::pin(async move {
+            Ok(crate::child::ChildOutcome {
+                ok: false,
+                outputs: std::collections::BTreeMap::new(),
+                cost_usd: None,
+                trace: Some(crate::child::ChildRunSummary::new(
+                    "./child.nika",
+                    false,
+                    (
+                        Some("trace-child-1".to_owned()),
+                        Some("head-child-1".to_owned()),
+                        Some("def-child-1".to_owned()),
+                    ),
+                )),
+                failure: Some(("NIKA-EXEC-001".to_owned(), "child boom".to_owned())),
+                paused: None,
+            })
+        })
+    }
+}
+
+/// spec 14 law 8: a FAILED child call records the SAME typed `child` row
+/// a success does (`outcome: "failure"`) on the terminal frame — the free-text
+/// trace note it used to carry is retired.
+#[tokio::test]
+async fn a_failed_child_call_records_a_typed_child_row() {
+    let parent = "nika: parent\ntasks:\n  call:\n    invoke:\n      workflow: \"./child.nika\"\n";
+    let wires = Wires::new(5);
+    let runtime = runtime_on(MockShell::new(), (None, None), None, &wires, Some(1.0))
+        .with_child_runner(Arc::new(FailingChildWithTrace));
+    let (result, events) = run_on(&runtime, parent).await;
+    let outcome = result.expect("the parent starts");
+    assert!(
+        !outcome.ok,
+        "the child failed, so the parent fails: {outcome:?}"
+    );
+    let row = events
+        .iter()
+        .find_map(|e| e.str_field("child"))
+        .expect("a typed child row on the failed child's frame");
+    assert!(row.contains("\"outcome\":\"failure\""), "{row}");
+    assert!(row.contains("trace-child-1"), "{row}");
 }

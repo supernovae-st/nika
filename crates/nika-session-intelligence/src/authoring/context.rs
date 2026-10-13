@@ -22,7 +22,7 @@ use nika_cli_host::compile::config::{
 };
 use nika_cli_host::compile::knowledge::{KnowledgeError, RefusalCode};
 use nika_onboard::compile::{AuthoringKnowledge, AuthoringReasoning, NativeMode};
-// The pin owns its identity beside the snapshot door (C7 · D1); the policy stays here.
+// The pin owns its identity beside the snapshot door; the policy stays here.
 use nika_onboard::knowledge::pin::KnowledgePin;
 
 use super::DecisionSetup;
@@ -336,7 +336,7 @@ impl AuthoringContext {
                 self.source
             );
         }
-        // Scoped to the LLM calls: the TypeSafe decision seat is a separate backend (B19).
+        // Scoped to the LLM calls: the TypeSafe decision seat is a separate backend.
         let effort = self.reasoning().map_or_else(String::new, |r| {
             let seat = (self.decision.is_some()).then_some(
                 "; the TypeSafe decision seat is a separate backend: no effort is sent to it",

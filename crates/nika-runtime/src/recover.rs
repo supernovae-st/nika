@@ -313,6 +313,7 @@ fn try_park(
             cost_unpriced: failed.cost_unpriced,
             access: failed.access,
             access_refused: failed.access_refused,
+            child: failed.child,
         },
     };
     let settle = SettleAs::Ran(Box::new(ran));
@@ -466,6 +467,7 @@ fn resolve_parked(
         access,
         usage,
         access_refused,
+        child,
     } = failed;
     let result = match recover_template(scope.wf, task_index) {
         Some(template) => {
@@ -478,6 +480,7 @@ fn resolve_parked(
                     cost_unpriced,
                     access: access.clone(),
                     access_refused: access_refused.clone(),
+                    child: child.clone(),
                 },
             }
         }
@@ -489,6 +492,7 @@ fn resolve_parked(
             cost_unpriced,
             access: access.clone(),
             access_refused: access_refused.clone(),
+            child: child.clone(),
         },
     };
     let mut settled_as = SettleAs::Ran(Box::new(RanTask {

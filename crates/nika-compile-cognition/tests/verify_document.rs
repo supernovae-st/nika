@@ -17,7 +17,9 @@ use std::time::Duration;
 use nika_compile::{AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus};
 use nika_compile_cognition::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
 use nika_compile_cognition::rehearse::{
-    Attempt, EffectCounts, Rehearsal, RehearsalFuture, RehearsalReport, Rehearse,
+    Attempt, Bounds, CopyReceipt, Digest, EffectCounts, FinalReceipt, FinalState, Held,
+    LedgerFacts, Observation, Rehearsal, RehearsalFuture, RehearsalReport, Rehearse,
+    RehearsedOutput, RoomEvidence, Spent,
 };
 use nika_compile_cognition::{
     Cognition, NoProvider, Removal, verify_document, verify_document_with,
@@ -653,4 +655,225 @@ async fn an_unweighed_missing_part_no_task_fails_still_holds() {
     let attempt = &decision(&out)["semantic_verification"][0];
     assert_eq!(attempt["settled_by"], Value::Null, "{attempt:#}");
     assert!(findings(&out, "verify_doubt").is_empty(), "{out:#?}");
+}
+
+const SALES_PATH: &str = "./in/sales.json";
+const TOTAL_PATH: &str = "./out/total.json";
+const SALES: &str =
+    r#"[{"client":"a","amount":10},{"client":"b","amount":5},{"client":"a","amount":2.5}]"#;
+const TOTAL_INTENT: &str = "Read ./in/sales.json, compute the total of the amount column and write the total to ./out/total.json";
+
+/// The document a conversation wrote for [`TOTAL_INTENT`]: it reads the sales, checks its total
+/// as the request words it and writes it.
+const TOTALS: &str = r#"nika: totals
+permits:
+  tools: ["nika:read", "nika:jq", "nika:assert", "nika:write"]
+  fs:
+    read: ["./in/sales.json"]
+    write: ["./out/total.json"]
+tasks:
+  load:
+    invoke:
+      tool: "nika:read"
+      args: { path: "./in/sales.json" }
+  sum:
+    with: { rows: "${{ tasks.load.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args: { input: "${{ with.rows }}", expression: "fromjson | {total: (map(.amount) | add)} | tojson" }
+  verified:
+    with: { total: "${{ tasks.sum.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args: { input: "${{ with.total }}", expression: "fromjson | .total != null" }
+  admit:
+    with: { ok: "${{ tasks.verified.output }}" }
+    invoke:
+      tool: "nika:assert"
+      args: { condition: "${{ with.ok }}", message: "the total breaks « the total of the amount column »" }
+  save:
+    after: { admit: success }
+    with: { total: "${{ tasks.sum.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "./out/total.json", content: "${{ with.total }}" }
+"#;
+
+/// A room whose one run copies the sales in whole and writes `output` as the total, counted.
+struct Totals {
+    output: &'static str,
+    runs: Mutex<usize>,
+}
+
+impl Rehearse for Totals {
+    fn rehearse<'a>(&'a self, candidate: &'a str, _inputs: &'a [String]) -> RehearsalFuture<'a> {
+        *self.runs.lock().unwrap() += 1;
+        let mut observed = Observation::none();
+        observed.bounds = Bounds::new(10_000, 1_048_576, 65_536);
+        let sales = Digest::of(SALES.as_bytes());
+        let copy = CopyReceipt::new(
+            SALES_PATH,
+            sales.clone(),
+            Some(sales),
+            Held::Whole(SALES.into()),
+        );
+        observed.copies = vec![copy];
+        let held = Held::Whole(self.output.into());
+        let digest = Digest::of(self.output.as_bytes());
+        observed.finals = vec![FinalReceipt::new(
+            TOTAL_PATH,
+            FinalState::File { digest, held },
+        )];
+        observed.ledger = LedgerFacts::clean(vec![TOTAL_PATH.into()]);
+        observed.spent = Spent::new(SALES.len() as u64, self.output.len() as u64);
+        let outputs = vec![RehearsedOutput::new(TOTAL_PATH, self.output)];
+        let digest = nika_compile::surface::sha256(candidate);
+        let report = RehearsalReport::new(
+            Rehearsal::Passed { outputs },
+            Attempt::Completed { elapsed_ms: 2 },
+            EffectCounts::none(),
+            digest,
+        )
+        .with_admitted_digest("fixture-admission")
+        .with_room(RoomEvidence::new(true, true))
+        .with_observation(observed);
+        Box::pin(async move { report })
+    }
+    fn bound(&self) -> Duration {
+        Duration::from_secs(1)
+    }
+}
+
+/// A decision seat that carries the whole request and every part, the parts a run is shown for
+/// included, keeping the ids it was asked.
+struct Carrying(Mutex<Vec<String>>);
+
+impl DecisionSeat for Carrying {
+    fn name(&self) -> &'static str {
+        "fixture/carrying"
+    }
+
+    fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
+        let id = question.id.as_str();
+        self.0.lock().unwrap().push(id.to_owned());
+        let choice = match id {
+            "verify-request" => "faithful",
+            "verify-extra" => "only_requested",
+            _ if id.contains("part-") => "carried",
+            _ => "none",
+        };
+        let answer = ChoiceAnswer::new(choice, "fixture/carrying");
+        Box::pin(async move { Ok(answer) })
+    }
+}
+
+/// The class a judge alone let through: a conversation's document ran clean and its judge carried
+/// it, but its trial wrote a total the request refuses. The core's own judgment of that very run
+/// withdraws it, naming the obligation; the right total stays READY, judged once.
+#[tokio::test]
+async fn a_carried_document_whose_trial_writes_a_wrong_total_is_never_ready() {
+    for (output, kept) in [(r#"{"total":17.5}"#, true), (r#"{"total":16}"#, false)] {
+        let judge = Carrying(Mutex::new(Vec::new()));
+        let room = Totals {
+            output,
+            runs: Mutex::new(0),
+        };
+        let cognition = Cognition::<NoProvider> {
+            provider: None,
+            seat: Some(&judge as &dyn DecisionSeat),
+        };
+        let request = CompileRequest::create(TOTAL_INTENT);
+        let out = verify_document(&request, TOTALS, (&[], &[]), cognition, Some(&room))
+            .await
+            .unwrap();
+        let asked = judge.0.lock().unwrap().clone();
+        assert_eq!(
+            asked.first().map(String::as_str),
+            Some("verify-request"),
+            "{output}"
+        );
+        assert_eq!(*room.runs.lock().unwrap(), 1, "{output}");
+        assert_eq!(
+            out.status == CompileStatus::Ready,
+            kept,
+            "{output}: {out:#?}"
+        );
+        let failed: Vec<Value> = findings(&out, "rehearsal")
+            .iter()
+            .filter_map(|said| serde_json::from_str::<Value>(said).ok())
+            .filter(|said| said["kind"] == "behaviour_failed")
+            .collect();
+        assert_eq!(failed.len(), usize::from(!kept), "{output}: {out:#?}");
+    }
+}
+
+const RANK_INTENT: &str =
+    "Read ./rows.json, keep the top 2 rows by points and write them to ./top.json";
+
+/// The ranked rows of [`RANK_INTENT`], written with no check of the order or of the size.
+const RANKED: &str = r#"nika: top
+permits:
+  tools: ["nika:read", "nika:jq", "nika:write"]
+  fs:
+    read: ["./rows.json"]
+    write: ["./top.json"]
+tasks:
+  load:
+    invoke: { tool: "nika:read", args: { path: "./rows.json" } }
+  rank:
+    with: { rows: "${{ tasks.load.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.rows }}", expression: "fromjson | sort_by(.points) | reverse | .[:2] | tojson" } }
+  save:
+    with: { top: "${{ tasks.rank.output }}" }
+    invoke: { tool: "nika:write", args: { path: "./top.json", content: "${{ with.top }}" } }
+"#;
+
+/// The same rows checked and asserted with the request's words before they are written.
+const CHECKED: &str = r#"  ranked:
+    with: { top: "${{ tasks.rank.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.top }}", expression: "fromjson | length <= 2" } }
+  admit:
+    with: { ok: "${{ tasks.ranked.output }}" }
+    invoke: { tool: "nika:assert", args: { condition: "${{ with.ok }}", message: "the rows are not « keep the top 2 rows by points »" } }
+"#;
+
+/// A conversation's document whose stated property no check carries is held before any judge or
+/// run, the property named and the bytes kept as the preview; with its check, it is judged as it
+/// was.
+#[tokio::test]
+async fn a_document_whose_stated_property_no_check_carries_is_held_before_any_judge() {
+    let checked = checked();
+    for (source, held) in [(RANKED, true), (checked.as_str(), false)] {
+        let judge = Judge::new("faithful", "unlocated");
+        let room = Room(Mutex::new(0));
+        let cognition = Cognition::<NoProvider> {
+            provider: None,
+            seat: Some(&judge as &dyn DecisionSeat),
+        };
+        let request = CompileRequest::create(RANK_INTENT);
+        let out = verify_document(&request, source, (&[], &[]), cognition, Some(&room))
+            .await
+            .unwrap();
+        let named = (findings(&out, "semantic_verification").iter())
+            .any(|said| said.contains("keep the top 2 rows by points"));
+        assert_eq!(named, held, "{out:#?}");
+        if held {
+            assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+            assert!(out.candidate.is_some(), "kept as the preview");
+            assert!(judge.ids().is_empty(), "no judge asked: {:?}", judge.ids());
+            assert_eq!(*room.0.lock().unwrap(), 0, "no run");
+        } else {
+            let asked = judge.ids();
+            assert_eq!(asked.first().map(String::as_str), Some("verify-request"));
+        }
+    }
+}
+
+/// [`RANKED`] with [`CHECKED`]: its permits name the assert it calls.
+fn checked() -> String {
+    let permits = RANKED.replace(
+        r#""nika:jq", "nika:write""#,
+        r#""nika:jq", "nika:assert", "nika:write""#,
+    );
+    format!("{permits}{CHECKED}")
 }

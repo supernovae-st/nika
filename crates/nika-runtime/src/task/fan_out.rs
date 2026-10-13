@@ -263,6 +263,8 @@ pub(super) fn fan_out_result(
             cost_unpriced,
             access: None,
             access_refused: None,
+            // A fan-out aggregate failure has no single child (law 8).
+            child: None,
         },
     }
 }
@@ -460,6 +462,7 @@ mod tests {
                 cost_usd: None,
                 cost_unpriced: None,
                 access: None,
+                child: None,
             },
         )
     }
@@ -760,6 +763,7 @@ mod tests {
                 cost_usd: None,
                 cost_unpriced: None,
                 access: None,
+                child: None,
             },
         );
         stamp_iteration(&mut ran, 2, &Value::String("gamma".into()));

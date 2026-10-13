@@ -8,13 +8,16 @@
   "properties": {
     "nika": {
       "type": "string",
-      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-      "description": "The project's name — a kebab identifier (`my-project`)."
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "The project's name — kebab-case opening with a letter (`my-project`). The retired schema tag (`v1`, `v2`, …) is refused: the version lives on the `$schema` line.",
+      "not": {
+        "pattern": "^v[0-9]+$"
+      }
     },
     "ceiling": {
       "type": "number",
-      "minimum": 0,
-      "description": "The default `--max-cost-usd` for every run in this project (USD). A run may lower it, never raise it silently."
+      "description": "The default `--max-cost-usd` for every run in this project (USD). A run may lower it, never raise it silently.",
+      "exclusiveMinimum": 0
     },
     "arm": {
       "type": "array",
@@ -24,7 +27,9 @@
         "additionalProperties": false,
         "required": [
           "workflow",
-          "cadence"
+          "cadence",
+          "plafond",
+          "manqué"
         ],
         "properties": {
           "workflow": {
@@ -34,7 +39,7 @@
           },
           "cadence": {
             "type": "string",
-            "description": "When the beat fires — a cadence phrase (`dimanche 18h07` · `toutes les 6h` · `chaque jour à 09:00`) or a five-field cron line."
+            "description": "When the beat fires, its IANA zone first: five cron fields (`TZ=Europe/Paris 0 9 * * 1`), a French weekday and its time (`TZ=Europe/Paris lundi 9h07`), an anchored interval (`TZ=Europe/Paris every 2 weeks from 2026-10-05 09:00`), or `on-webhook`, the one form with no zone. The zone is required for every scheduled form; `nika check`, `nika arm` and `nika serve` refuse a cadence without it."
           },
           "où": {
             "type": "string",
@@ -46,8 +51,8 @@
           },
           "plafond": {
             "type": "number",
-            "minimum": 0,
-            "description": "The beat's own spend ceiling in USD (`--max-cost-usd` for each fire); defaults to the project's `ceiling`."
+            "description": "Required, with no default: the beat's spend ceiling in USD for each fire (`--max-cost-usd`). Choosing for the operator would be choosing who pays.",
+            "exclusiveMinimum": 0
           },
           "manqué": {
             "type": "string",
@@ -56,7 +61,7 @@
               "rattraper-une-fois",
               "sauter"
             ],
-            "description": "What a missed slot becomes when the resident comes back: `rattraper` (fire every missed slot), `rattraper-une-fois` (fire once for all of them), `sauter` (skip them)."
+            "description": "Required, with no default: what a missed slot becomes when the firer comes back: `rattraper` (fire every missed slot), `rattraper-une-fois` (fire once for all of them), `sauter` (skip them)."
           },
           "chevauchement": {
             "type": "string",
@@ -81,11 +86,12 @@
           },
           "raison": {
             "type": "string",
-            "description": "Why the beat is suspended, verbatim — required when `actif: false`."
+            "description": "Why the beat is suspended, verbatim. Required with `actif: false`."
           },
           "jusqu_au": {
             "type": "string",
-            "description": "The beat's expiry — an instant after which it no longer fires (`2026-12-31` · `2026-12-31T18:00:00Z`)."
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "description": "The date that bounds a suspension: an ISO calendar date (`2026-12-31`), nothing else. Required with `actif: false`."
           },
           "tolérance": {
             "type": "string",
@@ -94,7 +100,10 @@
           },
           "décalage": {
             "type": "string",
-            "description": "A fixed offset applied to every slot (`+7m` · `-1h`)."
+            "enum": [
+              "hash"
+            ],
+            "description": "`hash`, the one value: a deterministic offset derived from the workflow path. Accepted in the file; both firers refuse it until the jitter law exists."
           },
           "par": {
             "type": "string",
@@ -111,7 +120,42 @@
             },
             "description": "Per-beat inputs: the `--var KEY=VALUE` pairs every fire binds to the workflow's declared `inputs:` — one scalar per key, coerced by the declared type at admission (a typed array input takes its JSON text in quotes). A key the workflow does not declare refuses before the claim."
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "actif"
+              ],
+              "properties": {
+                "actif": {
+                  "const": false
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "raison",
+                "jusqu_au"
+              ]
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "après_saut",
+                "chevauchement"
+              ]
+            },
+            "then": {
+              "properties": {
+                "chevauchement": {
+                  "const": "sauter"
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "traces": {
@@ -124,7 +168,10 @@
           "pattern": "^[0-9]+d$",
           "description": "The retention age cap (`30d`): a trace older than this exits even under the keep-N window. A paused trace is never collected."
         }
-      }
+      },
+      "required": [
+        "keep"
+      ]
     },
     "registry": {
       "type": "object",
@@ -141,7 +188,20 @@
           ],
           "description": "Refuse artifacts below this provenance tier: `unprovenanced` (digest-consistent) · `provenanced` (minisign-verified under the publisher's key) · `stage-clear` (a staged-window statement) · `verified` (a complete in-toto layout)."
         }
-      }
+      },
+      "required": [
+        "floor"
+      ]
     }
-  }
+  },
+  "anyOf": [
+    {
+      "maxProperties": 0
+    },
+    {
+      "required": [
+        "nika"
+      ]
+    }
+  ]
 }

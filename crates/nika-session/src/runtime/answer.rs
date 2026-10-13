@@ -109,7 +109,7 @@ pub(super) fn answers_alone(round: &AuthoringRound, line: &str) -> bool {
     })
 }
 
-/// A line owed no one-time review (F2): an offered key alone, a value alone, or a question.
+/// A line owed no one-time review: an offered key alone, a value alone, or a question.
 pub(super) fn owes_no_review(question: &CompileQuestion, line: &str) -> bool {
     (is_offered_choice(question) && names_an_offer_alone(question, line))
         || (!is_offered_choice(question) && as_typed(line))
@@ -247,7 +247,7 @@ impl SessionRuntime {
             AnswerReading::Part(value) => (value, ValueSource::ModelRead),
             AnswerReading::Waits(why) => return self.answer_waits(round, &why),
         };
-        // An explicit Create clarification makes its answer the request (C11): new bytes carry
+        // An explicit Create clarification makes its answer the request: new bytes carry
         // only the spans admitted for them; identical bytes keep their own.
         let fresh = round
             .replacement(&value)

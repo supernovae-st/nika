@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The verdicts that rejected candidate bytes in one goal's compiles, handed to every later
-//! compile of that goal (R6 across compiles): an answer round, the write-again after a located
+//! compile of that goal: an answer round, the write-again after a located
 //! defect, the stronger seat's retry, a continuation, a correction. The compiler carries one only
 //! into a compile of the very request it judged, so a judge is never asked again on bytes it
 //! rejected for that request, while a corrected request is judged again. Each is a

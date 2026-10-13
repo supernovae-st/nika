@@ -28,6 +28,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use nika_fs::OwnedDir;
+use nika_onboard::compile::TriggerRequirement;
 use nika_providers::InferenceAdmission;
 use nika_session_agent::conversation::{
     Acts, Conversation, NOT_A_CONSENT, NOT_READ_AS_CONSENT, Pick,
@@ -35,6 +36,7 @@ use nika_session_agent::conversation::{
 use nika_session_agent::{
     Agent, AgentEvent, EntryKind, Observed, Outcome, QueueMode, QueuedState, Relay, Steering, Tree,
 };
+use nika_session_change::review::runs_line;
 use nika_session_change::tools::SessionTools;
 use nika_session_intelligence::reasoner::agent_model::{AgentModel, model_calls, tool_steps};
 use nika_types::access::HarnessTransport;
@@ -667,7 +669,8 @@ impl SessionRuntime {
                 } else {
                     said
                 };
-                match self.agent_propose(driver, &text, decided.acts.zip(decided.cited)) {
+                let authorized = decided.acts.zip(decided.cited);
+                match self.agent_propose(driver, &text, (authorized, decided.trigger)) {
                     TurnOutcome::Proposal { id, preview } => TurnOutcome::Proposal {
                         id,
                         preview: unsent(&queued)
@@ -694,7 +697,8 @@ impl SessionRuntime {
                 let current = driver.toolbox.with(|c| c.candidate().map(|c| c.number));
                 match decided.proposed {
                     Some(revision) if current == Some(revision) => {
-                        self.agent_propose(driver, &text, decided.acts.zip(decided.cited))
+                        let authorized = decided.acts.zip(decided.cited);
+                        self.agent_propose(driver, &text, (authorized, decided.trigger))
                     }
                     _ => TurnOutcome::Reply(text),
                 }
@@ -720,12 +724,13 @@ impl SessionRuntime {
 
     /// The candidate the intelligence proposed, as the proposal the consent door answers: its
     /// exact bytes at a fresh destination, the same preview and identity as any proposal. The
-    /// acts the person's words authorized for it are kept for the turn's door to perform.
+    /// acts the person's words authorized for it are kept for the turn's door to perform; the
+    /// schedule it carries is shown in its card and kept for « activate » once it is saved.
     fn agent_propose(
         &mut self,
         driver: &mut Driver,
         said: &str,
-        acts: Option<(Acts, String)>,
+        (acts, trigger): (Option<(Acts, String)>, Option<TriggerRequirement>),
     ) -> TurnOutcome {
         let Some(candidate) = driver.toolbox.with(|c| c.candidate().cloned()) else {
             return TurnOutcome::Reply(said.to_owned());
@@ -747,6 +752,12 @@ impl SessionRuntime {
             let keys: Vec<String> = c.open().iter().map(|q| q.key.clone()).collect();
             (c.card(&candidate.summary, doubt.as_deref()), keys)
         });
+        // The schedule is part of what the person consents to, beside the bytes: saving
+        // declares nothing; « activate » declares it once the workflow is saved.
+        let goal = match &trigger {
+            Some(trigger) => format!("{goal}\nRuns\n{}", runs_line(Some(trigger))),
+            None => goal,
+        };
         let set = match ProjectChangeSet::workflow_at(&root, &goal, &at, candidate.source.clone()) {
             Ok(set) => set,
             Err(error) => return TurnOutcome::Refusal(Refusal::from_change(&error)),
@@ -765,6 +776,7 @@ impl SessionRuntime {
         let seen = (driver.verified.lock()).map(|kept| kept.read().clone());
         self.bind_read_basis(&id, &set, &seen.unwrap_or_default());
         self.pending = Some(set);
+        self.pending_trigger = trigger;
         driver.card = Some((goal, keys));
         driver.authorized = acts.map(|(acts, cited)| (id.clone(), acts, cited));
         // A value the person saw bound and this revision changes is said in words.

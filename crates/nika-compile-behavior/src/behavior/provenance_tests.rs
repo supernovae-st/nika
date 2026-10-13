@@ -9,8 +9,9 @@
 
 use std::collections::BTreeMap;
 
+use nika_compile_reader::aggregate::Shape;
 use nika_compile_reader::plan::{Effect, EffectPolicy, EffectVerb, Op, Plan, Step as PlanStep};
-use nika_compile_reader::rules::synthesize;
+use nika_compile_reader::rules::{Junction, Rule, synthesize};
 
 use super::judge_tests::{budget, outcome, run, unwritten};
 use super::provenance::{
@@ -420,4 +421,339 @@ fn the_sentence_is_matched_over_the_callers_own_bytes() {
         Some(Written::Count)
     );
     assert_eq!(written(format!("{COUNTED}..").as_str(), &plan), None);
+}
+
+const TOTAL: &str = "read ./data/input.csv, compute the total of the amount_usd column and write the total to ./out/result.json";
+const GROUPED: &str = "read ./data/input.csv, compute the total of the amount_usd column per status and write it to ./out/result.json";
+const SORTED: &str = "read ./data/input.csv, sort the rows by amount_usd descending and write them to ./out/result.json";
+const TOP: &str =
+    "read ./data/input.csv, keep the top 2 rows by amount_usd and write them to ./out/result.json";
+const TOTAL_RULE: &str = "the total of the amount_usd column";
+const GROUPED_RULE: &str = "the total of the amount_usd column per status";
+const SORTED_RULE: &str = "sort the rows by amount_usd descending";
+const TOP_RULE: &str = "keep the top 2 rows by amount_usd";
+const ROW_1: &str = r#"{"id":1,"amount_usd":5,"status":"paid"}"#;
+const ROW_2: &str = r#"{"id":2,"amount_usd":20,"status":"late"}"#;
+const ROW_3: &str = r#"{"id":3,"amount_usd":12,"status":"paid"}"#;
+
+/// The rows as one JSON list.
+fn rows(items: &[&str]) -> String {
+    format!("[{}]", items.join(","))
+}
+
+/// The outcome of the written result of `contract` on a completed run over `input`.
+fn written_as(contract: &Contract, input: &str, output: &str) -> Outcome {
+    outcome(contract, run(INPUT, input, RESULT, output))
+}
+
+/// What a contract judges of a run that wrote nothing.
+fn absent(contract: &Contract) -> Outcome {
+    outcome(contract, unwritten(RunEnd::Completed, INPUT, ROWS, RESULT))
+}
+
+#[test]
+fn totals_sorts_and_cuts_are_sentences_of_the_language() {
+    for (intent, rule, written) in [
+        (TOTAL, TOTAL_RULE, Written::Labelled("total".to_owned())),
+        (GROUPED, GROUPED_RULE, Written::Total),
+        (SORTED, SORTED_RULE, Written::Rows),
+        (TOP, TOP_RULE, Written::Rows),
+    ] {
+        let plan = hand_plan(rule, RESULT);
+        let produced = production(intent, &plan).expect("a sentence of the language");
+        assert_eq!(produced.written, written, "{intent}");
+        assert_eq!(produced.target, RESULT, "{intent}");
+        assert!(intent.contains(produced.rule.as_str()), "{intent}");
+    }
+    // The other names and directions of the closed words, each its own rule.
+    for (intent, rule, written) in [
+        (
+            "read ./data/input.csv, compute the average of the amount_usd column, and write it to ./out/result.json",
+            "the average of the amount_usd column",
+            Written::Total,
+        ),
+        (
+            "read ./data/input.csv, compute the maximum of the amount_usd column per status and write the maximum to ./out/result.json",
+            "the maximum of the amount_usd column per status",
+            Written::Labelled("maximum".to_owned()),
+        ),
+        (
+            "Read ./data/input.csv, sort the rows by amount_usd and write them to ./out/result.json.",
+            "sort the rows by amount_usd",
+            Written::Rows,
+        ),
+        (
+            "read ./data/input.csv, sort the rows by amount_usd ascending, write them to ./out/result.json",
+            "sort the rows by amount_usd ascending",
+            Written::Rows,
+        ),
+    ] {
+        let plan = hand_plan(rule, RESULT);
+        assert_eq!(
+            production(intent, &plan).map(|produced| produced.written),
+            Some(written),
+            "{intent}"
+        );
+    }
+}
+
+#[test]
+fn a_near_miss_of_a_total_a_sort_or_a_cut_proves_nothing() {
+    let parse = |intent: &str, rule: &str| {
+        production(intent, &hand_plan(rule, RESULT)).map(|produced| produced.written)
+    };
+    for (intent, rule) in [
+        // A word outside the closed set, or the same word in another case.
+        (
+            "read ./data/input.csv, compute the totals of the amount_usd column and write it to ./out/result.json",
+            TOTAL_RULE,
+        ),
+        (
+            "read ./data/input.csv, compute the Total of the amount_usd column and write it to ./out/result.json",
+            TOTAL_RULE,
+        ),
+        // A column not named as one, another name in the write, another field or group.
+        (
+            "read ./data/input.csv, compute the total of amount_usd and write it to ./out/result.json",
+            TOTAL_RULE,
+        ),
+        (
+            "read ./data/input.csv, compute the total of the amount_usd column and write the sum to ./out/result.json",
+            TOTAL_RULE,
+        ),
+        (
+            "read ./data/input.csv, compute the total of the id column and write it to ./out/result.json",
+            TOTAL_RULE,
+        ),
+        (
+            "read ./data/input.csv, compute the total of the amount_usd column per status and write it to ./out/result.json",
+            TOTAL_RULE,
+        ),
+        (
+            "read ./data/input.csv, compute the total of the amount_usd column and write it to ./out/result.json",
+            GROUPED_RULE,
+        ),
+        // Another direction, another size, a size in words or zero, residue after the key.
+        (
+            "read ./data/input.csv, sort the rows by amount_usd ascending and write them to ./out/result.json",
+            SORTED_RULE,
+        ),
+        (
+            "read ./data/input.csv, sort the rows by amount_usd, descending, and write them to ./out/result.json",
+            SORTED_RULE,
+        ),
+        (
+            "read ./data/input.csv, keep the top 3 rows by amount_usd and write them to ./out/result.json",
+            TOP_RULE,
+        ),
+        (
+            "read ./data/input.csv, keep the top two rows by amount_usd and write them to ./out/result.json",
+            TOP_RULE,
+        ),
+        (
+            "read ./data/input.csv, keep the top 0 rows by amount_usd and write them to ./out/result.json",
+            TOP_RULE,
+        ),
+        // A cut is no sort, and rows are no total.
+        (
+            "read ./data/input.csv, sort the rows by amount_usd descending and write them to ./out/result.json",
+            TOP_RULE,
+        ),
+        (
+            "read ./data/input.csv, keep the top 2 rows by amount_usd and write it to ./out/result.json",
+            TOP_RULE,
+        ),
+    ] {
+        assert_eq!(parse(intent, rule), None, "{intent} over {rule}");
+    }
+}
+
+#[test]
+fn a_proven_total_is_required_named_and_judged_by_its_value() {
+    let plan = hand_plan(TOTAL_RULE, RESULT);
+    let admitted = Provenance {
+        production: production(TOTAL, &plan),
+        ..Provenance::default()
+    };
+    // Old: the plan alone proves neither the write nor the name.
+    let old = contract_of(&plan, TOTAL, &BTreeMap::new());
+    assert_eq!(write_of(&old).presence, Presence::Unproven);
+    assert_eq!(
+        written_as(&old, ROWS, r#"{"total":37}"#),
+        Outcome::Incomplete
+    );
+    assert_eq!(absent(&old), Outcome::Incomplete);
+    let contract = proven(contract_of(&plan, TOTAL, &BTreeMap::new()), &admitted);
+    assert_eq!(write_of(&contract).presence, Presence::Required);
+    assert_eq!(namings(&contract), [Naming::Stated]);
+    for (output, expected) in [
+        (r#"{"total":37}"#, Outcome::Passed),
+        (r#"{"total":36}"#, Outcome::Failed),
+        (r#"{"sum":37}"#, Outcome::Failed),
+        ("37", Outcome::Failed),
+    ] {
+        assert_eq!(written_as(&contract, ROWS, output), expected, "{output}");
+    }
+    assert_eq!(absent(&contract), Outcome::Failed);
+}
+
+#[test]
+fn a_proven_group_total_is_required_and_its_free_name_is_certified() {
+    let plan = hand_plan(GROUPED_RULE, RESULT);
+    let admitted = Provenance {
+        production: production(GROUPED, &plan),
+        ..Provenance::default()
+    };
+    let right = r#"[{"status":"paid","total":17},{"status":"late","total":20}]"#;
+    let old = contract_of(&plan, GROUPED, &BTreeMap::new());
+    assert_eq!(written_as(&old, ROWS, right), Outcome::Incomplete);
+    let contract = proven(contract_of(&plan, GROUPED, &BTreeMap::new()), &admitted);
+    assert_eq!(write_of(&contract).presence, Presence::Required);
+    assert_eq!(namings(&contract), [Naming::Free]);
+    for (output, expected) in [
+        (right, Outcome::Passed),
+        (
+            r#"[{"status":"late","sum":20},{"status":"paid","sum":17}]"#,
+            Outcome::Passed,
+        ),
+        (r#"[{"status":"paid","total":17}]"#, Outcome::Failed),
+        (
+            r#"[{"status":"paid","total":37},{"status":"late","total":20}]"#,
+            Outcome::Failed,
+        ),
+        (r#"{"total":37}"#, Outcome::Failed),
+    ] {
+        assert_eq!(written_as(&contract, ROWS, output), expected, "{output}");
+    }
+    assert_eq!(absent(&contract), Outcome::Failed);
+}
+
+#[test]
+fn a_proven_sort_is_required_and_leaves_its_ties_free() {
+    let plan = hand_plan(SORTED_RULE, RESULT);
+    let admitted = Provenance {
+        production: production(SORTED, &plan),
+        ..Provenance::default()
+    };
+    let right = rows(&[ROW_2, ROW_3, ROW_1]);
+    let old = contract_of(&plan, SORTED, &BTreeMap::new());
+    assert_eq!(written_as(&old, ROWS, &right), Outcome::Incomplete);
+    let contract = proven(contract_of(&plan, SORTED, &BTreeMap::new()), &admitted);
+    assert_eq!(write_of(&contract).presence, Presence::Required);
+    assert_eq!(written_as(&contract, ROWS, &right), Outcome::Passed);
+    for wrong in [
+        rows(&[ROW_1, ROW_3, ROW_2]),
+        rows(&[ROW_2, ROW_3]),
+        rows(&[]),
+    ] {
+        assert_eq!(
+            written_as(&contract, ROWS, &wrong),
+            Outcome::Failed,
+            "{wrong}"
+        );
+    }
+    assert_eq!(absent(&contract), Outcome::Failed);
+    // Two rows of equal keys come in either order; no other row moves.
+    let tied = "id,amount_usd,status\n1,5,paid\n2,20,late\n3,5,paid\n";
+    let tied_3 = r#"{"id":3,"amount_usd":5,"status":"paid"}"#;
+    for valid in [rows(&[ROW_2, ROW_1, tied_3]), rows(&[ROW_2, tied_3, ROW_1])] {
+        assert_eq!(
+            written_as(&contract, tied, &valid),
+            Outcome::Passed,
+            "{valid}"
+        );
+    }
+    assert_eq!(
+        written_as(&contract, tied, &rows(&[ROW_1, ROW_2, tied_3])),
+        Outcome::Failed
+    );
+}
+
+#[test]
+fn a_proven_cut_is_required_and_a_tie_at_its_edge_keeps_either_row() {
+    let plan = hand_plan(TOP_RULE, RESULT);
+    let admitted = Provenance {
+        production: production(TOP, &plan),
+        ..Provenance::default()
+    };
+    let right = rows(&[ROW_2, ROW_3]);
+    let old = contract_of(&plan, TOP, &BTreeMap::new());
+    assert_eq!(written_as(&old, ROWS, &right), Outcome::Incomplete);
+    let contract = proven(contract_of(&plan, TOP, &BTreeMap::new()), &admitted);
+    assert_eq!(write_of(&contract).presence, Presence::Required);
+    assert_eq!(written_as(&contract, ROWS, &right), Outcome::Passed);
+    for wrong in [
+        rows(&[ROW_2, ROW_1]),
+        rows(&[ROW_3, ROW_2]),
+        rows(&[ROW_2, ROW_3, ROW_1]),
+        rows(&[ROW_2]),
+    ] {
+        assert_eq!(
+            written_as(&contract, ROWS, &wrong),
+            Outcome::Failed,
+            "{wrong}"
+        );
+    }
+    assert_eq!(absent(&contract), Outcome::Failed);
+    let edge = "id,amount_usd,status\n1,12,paid\n2,20,late\n3,12,paid\n";
+    let edge_1 = r#"{"id":1,"amount_usd":12,"status":"paid"}"#;
+    for valid in [rows(&[ROW_2, edge_1]), rows(&[ROW_2, ROW_3])] {
+        assert_eq!(
+            written_as(&contract, edge, &valid),
+            Outcome::Passed,
+            "{valid}"
+        );
+    }
+}
+
+#[test]
+fn the_reader_admits_each_new_sentence_and_its_contract_is_proven() {
+    for (intent, written) in [
+        (TOTAL, Written::Labelled("total".to_owned())),
+        (GROUPED, Written::Total),
+        (SORTED, Written::Rows),
+        (TOP, Written::Rows),
+    ] {
+        let (_, provenance) = read_request(intent);
+        assert!(provenance.admitted(), "{intent}: {provenance:?}");
+        let produced = provenance.production.as_ref().expect("a sentence");
+        assert_eq!(produced.written, written, "{intent}");
+        let contract = contract_of_request(intent, &BTreeMap::new());
+        assert_eq!(write_of(&contract).presence, Presence::Required, "{intent}");
+        assert_eq!(absent(&contract), Outcome::Failed, "{intent}");
+    }
+}
+
+#[test]
+fn a_rule_whose_words_match_but_whose_relation_differs_proves_nothing() {
+    // The plan's rule keeps the sentence's words but types another key, direction or size.
+    let typed = |text: &str, key: &str, descending: bool, limit: Option<u32>| {
+        let mut shape = Shape::default();
+        shape.sort_by = Some((key.to_owned(), descending));
+        let rule = Rule::typed(text, Vec::new(), Junction::And, shape);
+        let mut plan = hand_plan(text, RESULT);
+        plan.rules = vec![limit.map_or(rule.clone(), |n| rule.with_limit(n))];
+        plan
+    };
+    for (intent, plan) in [
+        (SORTED, typed(SORTED_RULE, "id", true, None)),
+        (SORTED, typed(SORTED_RULE, "amount_usd", false, None)),
+        (SORTED, typed(SORTED_RULE, "amount_usd", true, Some(2))),
+        (TOP, typed(TOP_RULE, "amount_usd", true, Some(3))),
+        (TOP, typed(TOP_RULE, "amount_usd", false, Some(2))),
+        (TOP, typed(TOP_RULE, "id", true, Some(2))),
+    ] {
+        assert_eq!(production(intent, &plan), None, "{intent}");
+    }
+    // The same words typed as the sentence states them are proven.
+    assert_eq!(
+        production(SORTED, &typed(SORTED_RULE, "amount_usd", true, None))
+            .map(|produced| produced.written),
+        Some(Written::Rows)
+    );
+    assert_eq!(
+        production(TOP, &typed(TOP_RULE, "amount_usd", true, Some(2)))
+            .map(|produced| produced.written),
+        Some(Written::Rows)
+    );
 }

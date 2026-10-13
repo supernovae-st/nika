@@ -374,7 +374,7 @@
   {
    "name": "propose",
    "read_only": false,
-   "description": "Present the current candidate to the person: Nika verifies it first (check, fidelity with the selections' provenance, kept values, its trial) and refuses it with findings. Shown, it ends your turn: write what you tell the person in the same message, before the call; their reply comes as their next line. To save, or save and run, on the person's explicit words, name the acts and cite their line written after this exact candidate was shown: Nika checks that the words still cover its effects, or the proposal waits for their consent. With open, the proposal also shows choices with their defaults, already in the candidate.",
+   "description": "Present the current candidate to the person: Nika verifies it first (check, fidelity with the selections' provenance, kept values, its trial) and refuses it with findings. Shown, it ends your turn: write what you tell the person in the same message, before the call; their reply comes as their next line. To save, or save and run, on the person's explicit words, name the acts and cite their line written after this exact candidate was shown: Nika checks that the words still cover its effects, or the proposal waits for their consent. With open, the proposal also shows choices with their defaults, already in the candidate. With schedule, it carries the schedule the person asked for beside the candidate, never in it: saving declares nothing.",
    "input_schema": {
     "type": "object",
     "properties": {
@@ -395,10 +395,34 @@
      "open": {
       "type": "array",
       "minItems": 1,
-      "description": "Choices the proposal shows with their defaults, each in ask's question shape with exactly one recommended option whose values the candidate already carries: the person's yes keeps every default, naming another option changes it. A choice you cannot recommend is asked first, with ask.",
+      "description": "Choices the proposal shows with their defaults, each in ask's question shape with exactly one recommended option whose values the candidate, or the schedule beside it, already carries: the person's yes keeps every default, naming another option changes it. A choice you cannot recommend is asked first, with ask.",
       "items": {
        "$ref": "#/$defs/question"
       }
+     },
+     "schedule": {
+      "type": "object",
+      "description": "When the person asked for the work to repeat: the citation of their line, their words that say when, verbatim (« chaque lundi à 9h »), and the IANA zone those words follow, which their words name or a choice in open offers as its recommended option. Nika reads the words as the compiler reads a schedule and refuses words that state no day or no hour.",
+      "properties": {
+       "message": {
+        "type": "string",
+        "pattern": "^u[0-9]+$"
+       },
+       "excerpt": {
+        "type": "string",
+        "minLength": 1
+       },
+       "timezone": {
+        "type": "string",
+        "minLength": 1
+       }
+      },
+      "required": [
+       "message",
+       "excerpt",
+       "timezone"
+      ],
+      "additionalProperties": false
      }
     },
     "additionalProperties": false

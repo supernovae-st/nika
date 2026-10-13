@@ -148,7 +148,7 @@ pub trait SessionReasoner: Send {
         ))
     }
 
-    /// One turn, or one bounded label, asking an explicit reasoning effort (R4 B16), under the
+    /// One turn, or one bounded label, asking an explicit reasoning effort, under the
     /// shared allowance when one is given. A path that cannot carry an effort refuses it before
     /// any call: the level is never dropped.
     ///
@@ -304,7 +304,7 @@ impl SessionReasoner for SelectedHarnessReasoner {
     }
     /// Over ACP the named effort travels with the turn: the session applies it through its
     /// advertised reasoning option and reads it back. A direct seat cannot carry it, and a
-    /// subscription holds no billed admission: both refuse before any call (R4 B16).
+    /// subscription holds no billed admission: both refuse before any call.
     fn reason_effort(
         &mut self,
         prompt: &str,
@@ -428,7 +428,7 @@ impl SessionReasoner for ProviderReasoner {
         )
     }
 
-    /// The same call, the same ceiling, asking the level (R4 B16): the effort never moves a cap.
+    /// The same call, the same ceiling, asking the level: the effort never moves a cap.
     fn reason_effort(
         &mut self,
         prompt: &str,

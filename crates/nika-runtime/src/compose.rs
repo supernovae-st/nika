@@ -773,7 +773,9 @@ pub fn production_runtime_with_emitter(
             // Images use fixed provider endpoints and their 600s transport ceiling;
             // the fetch idle guard is unsuitable. Resolve keys only at this boundary.
             .with_image_plane(Arc::clone(&provider_http), image_keys_from_env())
-            .with_tts_plane(Arc::clone(&provider_http), tts_keys_from_env()),
+            .with_tts_plane(Arc::clone(&provider_http), tts_keys_from_env())
+            // The host's write-origins ledger, read back by its teardown.
+            .with_write_origins(runtime_config.write_origins.clone()),
     );
     let invoke = Arc::new(InvokeVerb::new(Arc::clone(&dispatcher)));
 

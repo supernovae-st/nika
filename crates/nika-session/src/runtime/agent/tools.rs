@@ -13,12 +13,15 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use nika_compile_fidelity::fidelity::resolution::Resolution;
+use nika_onboard::compile::TriggerRequirement;
 use nika_session_change::outcome::QuestionId;
 use nika_session_change::tools::{SessionTools, ToolCall, ToolDef, ToolReply};
 use nika_session_change::work::{AskedQuestion, ModelFacts};
 use serde_json::{Value, json};
 
 use nika_session_agent::conversation::{Acts, Citations, Conversation, edited};
+
+use crate::runtime::schedule::scheduled;
 
 /// The tools' definitions: names, descriptions and argument schemas (`$defs` inlined).
 const DEFINITIONS: &str = include_str!("../../../assets/author_tools.json");
@@ -68,7 +71,7 @@ pub(crate) trait Desk: Send {
 }
 
 /// What a run decided that the Session acts on after it: a proposal shown, the acts an author
-/// claims the person's own words authorized for it, and those words.
+/// claims the person's own words authorized for it, those words, and the schedule it carries.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Decided {
     /// The candidate revision proposed last, when one was.
@@ -77,6 +80,8 @@ pub(crate) struct Decided {
     pub(crate) acts: Option<Acts>,
     /// The person's line cited for them, which the Session's door reads before it acts.
     pub(crate) cited: Option<String>,
+    /// The schedule the proposal carries beside its candidate, read and in its zone.
+    pub(crate) trigger: Option<TriggerRequirement>,
 }
 
 /// A question's identity, from the context it was asked in.
@@ -412,6 +417,16 @@ impl Parts<'_> {
             Ok(open) => open,
             Err(refused) => return ToolReply::error(refused),
         };
+        // The schedule the person asked for rides beside the candidate: their words read as the
+        // compiler reads a request's, in a zone they see.
+        let trigger = (self.conversation.schedule(&citations, args, &open)).and_then(|said| {
+            said.map(|(words, zone)| scheduled(&words, &zone))
+                .transpose()
+        });
+        let trigger = match trigger {
+            Ok(trigger) => trigger,
+            Err(refused) => return ToolReply::error(refused),
+        };
         // Words consenting to the proposal the person saw are no reason to judge its unchanged
         // bytes again: the verdict belongs to what they were shown.
         let consents = args["acts"].as_array().is_some_and(|acts| !acts.is_empty());
@@ -439,6 +454,7 @@ impl Parts<'_> {
             proposed: revision,
             acts,
             cited,
+            trigger,
         };
         let said = match (&authorized, acts) {
             (_, Some(acts)) if acts.run => {

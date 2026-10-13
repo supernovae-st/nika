@@ -132,7 +132,15 @@ fn static_target_defect(target: &str) -> Option<String> {
             }
             Ok(_) => {}
         }
-        return None;
+        // A well-formed pinned ref is resolvable in FORM, but the registry
+        // resolution lane is not wired, so the child cannot run — the child
+        // runner refuses it at run. Refuse it here in the same words, so check
+        // and run agree (spec 14 law 1): a call a run cannot make is refused.
+        return Some(
+            "registry child execution lands with the registry lane; \
+             run a filesystem child today (spec 14 §the form)"
+                .to_owned(),
+        );
     }
     if target.contains('\\') || target.starts_with('/') {
         return Some(
@@ -792,14 +800,36 @@ outputs:
     }
 
     #[test]
+    fn a_pinned_registry_child_is_refused_until_the_lane_ships() {
+        // A well-formed pinned registry child passes the FORM checks, but the
+        // registry resolution lane is not wired, so it cannot run; check
+        // refuses it NIKA-COMP-001 in the same words as the child runner.
+        let wf = parse(&parent_yaml("registry:acme/x@1.0.0", "{}"));
+        let f = scan_static(&wf);
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].code, "NIKA-COMP-001");
+        assert!(
+            f[0].detail
+                .contains("registry child execution lands with the registry lane"),
+            "{}",
+            f[0].detail
+        );
+    }
+
+    #[test]
     fn unpinned_registry_ref_is_comp_001() {
         let wf = parse(&parent_yaml("registry:acme/audit", "{}"));
         let f = scan_static(&wf);
         assert_eq!(f.len(), 1, "{f:?}");
         assert!(f[0].detail.contains("@version"), "{}", f[0].detail);
-        // …and the pinned form is clean.
+        // …and the pinned form is well formed: it asks for no version, and it is
+        // refused only until registry child execution ships (spec 14 §the form).
         let wf = parse(&parent_yaml("registry:acme/audit@1.2.0", "{}"));
-        assert!(scan_static(&wf).is_empty());
+        let f = scan_static(&wf);
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].code, "NIKA-COMP-001");
+        assert!(!f[0].detail.contains("@version"), "{}", f[0].detail);
+        assert!(f[0].detail.contains("registry lane"), "{}", f[0].detail);
     }
 
     #[test]

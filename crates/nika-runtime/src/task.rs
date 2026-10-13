@@ -295,6 +295,11 @@ pub(crate) enum RunResult {
         /// The typed refusal of a chosen seat that failed at the call —
         /// `access_refused` on the terminal frame. Boxed: cold.
         access_refused: Option<Box<nika_types::access::AccessRefused>>,
+        /// The child-run summary when the failed task was an
+        /// `invoke: workflow:` call (spec 14 law 8 · the same typed `child`
+        /// row the success path rides, `outcome: "failure"`). `None` on a
+        /// plain task failure. Boxed — cold, like the success twin.
+        child: Option<Box<crate::child::ChildRunSummary>>,
     },
     /// `on_error: recover` whose reference awaits not-yet-terminal
     /// referents (spec 05 §recover step 3 · a recover ref is NOT an
@@ -738,6 +743,7 @@ where
                         cost_unpriced: None,
                         access: None,
                         access_refused: None,
+                        child: None,
                     },
                 };
                 fan_out::stamp_iteration(&mut ran, locals.index, locals.item);
@@ -910,6 +916,7 @@ where
                             access: None,
                             usage: None,
                             access_refused: None,
+                            child: None,
                             record: TaskErrorRecord::new(
                                 TIMEOUT_CODE,
                                 format!("task exceeded its timeout of {} ms", limit.as_millis()),
@@ -1141,14 +1148,15 @@ fn replace_success_with_failure(settle: &mut SettleAs, error: TaskErrorRecord) {
         SettleAs::Ran(ran) if matches!(ran.result, RunResult::Success { .. }) => {
             // The dispatch DID run and may have billed — its spend stays
             // on the failed frame (the binding failure is downstream).
-            let (cost_usd, cost_unpriced, access) = match &ran.result {
+            let (cost_usd, cost_unpriced, access, child) = match &ran.result {
                 RunResult::Success {
                     cost_usd,
                     cost_unpriced,
                     access,
+                    child,
                     ..
-                } => (*cost_usd, *cost_unpriced, access.clone()),
-                _ => (None, None, None),
+                } => (*cost_usd, *cost_unpriced, access.clone(), child.clone()),
+                _ => (None, None, None, None),
             };
             ran.result = RunResult::Failed {
                 error,
@@ -1156,6 +1164,9 @@ fn replace_success_with_failure(settle: &mut SettleAs, error: TaskErrorRecord) {
                 cost_unpriced,
                 access,
                 access_refused: None,
+                // A succeeded child whose `output:` binding then errors keeps
+                // its typed child row on the now-failed frame (spec 14 law 8).
+                child,
             };
         }
         // A binding that fails over a REHYDRATED output fails the task
@@ -1352,6 +1363,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
         access,
         usage: _,
         access_refused,
+        child,
     } = failed;
     let Some(on_error) = task
         .on_error
@@ -1366,6 +1378,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             cost_unpriced,
             access,
             access_refused,
+            child,
         };
     };
     match &on_error.value.action {
@@ -1385,7 +1398,8 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
                             // a recovered divergence keeps its finding.
                             failed: FailedOutcome::new(error, cost_usd, cost_unpriced, evidence)
                                 .with_access(access.clone())
-                                .with_access_refused(access_refused.clone()),
+                                .with_access_refused(access_refused.clone())
+                                .with_child(child),
                             render_error,
                             awaiting,
                             with_ns: scope.with_namespace().cloned().unwrap_or_default(),
@@ -1397,6 +1411,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
                         cost_unpriced,
                         access,
                         access_refused,
+                        child,
                     },
                 }
             }
@@ -1417,6 +1432,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             cost_unpriced,
             access: None,
             access_refused: None,
+            child: None,
         },
     }
 }

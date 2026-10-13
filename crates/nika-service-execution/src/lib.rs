@@ -501,7 +501,7 @@ impl ServiceExecutionDriver {
             None => runtime.run(stamper.as_mut(), &mut sink).await,
         };
         Ok(ServiceExecutionResult::from_runtime(
-            &outcome,
+            outcome,
             sink.into_events(),
         ))
     }
@@ -1097,6 +1097,9 @@ pub struct ServiceExecutionResult {
     error_code: Option<String>,
     error_message: Option<String>,
     settlement: Option<RunSettlement>,
+    /// The runtime's own outcome, kept for the host's teardown (a failed
+    /// run's quarantine reads which writers settled); never projected.
+    run_outcome: Option<RunOutcome>,
 }
 
 impl std::fmt::Debug for ServiceExecutionResult {
@@ -1119,11 +1122,20 @@ impl ServiceExecutionResult {
             error_code: None,
             error_message: None,
             settlement: None,
+            run_outcome: None,
         }
     }
 
-    fn from_runtime(outcome: &Result<RunOutcome, RuntimeError>, events: Vec<ServiceEvent>) -> Self {
-        let (status, error) = match outcome {
+    /// The runtime's own outcome, for the host's teardown only: a failed
+    /// served run's quarantine reads which writer tasks settled. It is never
+    /// part of the redacted projection and never leaves the process.
+    #[must_use]
+    pub fn run_outcome(&self) -> Option<&RunOutcome> {
+        self.run_outcome.as_ref()
+    }
+
+    fn from_runtime(outcome: Result<RunOutcome, RuntimeError>, events: Vec<ServiceEvent>) -> Self {
+        let (status, error) = match &outcome {
             Err(error) => (
                 ServiceExecutionStatus::Refused,
                 Some((error.spec_code(), error.wire_message())),
@@ -1142,7 +1154,7 @@ impl ServiceExecutionResult {
             },
         };
         let mut result = Self::new(status, events);
-        if let Ok(outcome) = outcome {
+        if let Ok(outcome) = &outcome {
             result.outputs.clone_from(&outcome.outputs);
             // Preserve runtime facts and the local forensic outcome. Only
             // diagnostic text crosses the same public redaction boundary as
@@ -1157,6 +1169,7 @@ impl ServiceExecutionResult {
             result.error_code = Some(code);
             result.error_message = Some(redact_service_message(&message));
         }
+        result.run_outcome = outcome.ok();
         result
     }
 
@@ -1288,6 +1301,13 @@ impl ChildRunner for ServiceExecutionDriver {
                 cost_usd: cost,
                 trace,
                 failure,
+                // SKELETON (child-depth prompt pause), wired in the window: arm the child
+                // runtime's prompt pause (inherit the parent's `with_prompt_pause`
+                // at `base_runtime`), and when `run` returns `RunState::Paused`,
+                // carry its `WorkflowPause` out here as
+                // `WorkflowPause::nested(child_path, pause)`. Always `None`
+                // today — a child prompt still fails NIKA-BUILTIN-PROMPT-001.
+                paused: None,
             })
         })
     }
@@ -1324,7 +1344,11 @@ fn child_run_parts(run: &Result<RunOutcome, RuntimeError>) -> ChildRunParts {
 fn effective_permits(child: Option<&Permits>, parent: Option<&Permits>) -> Permits {
     let zero = Permits::new();
     let parent = parent.unwrap_or(&zero);
-    child.map_or_else(|| parent.clone(), |child| child.intersect(parent))
+    // An absent child `permits:` block is the DECLARED zero, at run as at check
+    // (spec 01-envelope.md §permits · spec 14 law 4): it is never the parent's
+    // boundary. `permits: {}` and an absent block compute the same boundary, so
+    // the run-time boundary matches what the child's own check judged (F-O8).
+    child.map_or_else(Permits::new, |child| child.intersect(parent))
 }
 
 fn resolve_logical(parent: &str, target: &str) -> Result<String, String> {

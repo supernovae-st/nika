@@ -305,7 +305,20 @@ async fn metadata_for_file() {
 
     fs.write(&path, b"12345").await.unwrap();
     let meta = fs.metadata(&path).await.unwrap();
-    assert_eq!(meta, FileMetadata::new(5, true, false));
+    assert_eq!(
+        (meta.len, meta.is_file, meta.is_dir),
+        (5, true, false),
+        "{meta:?}"
+    );
+    let identity = meta.identity.expect("the backend says which file it is");
+    assert_eq!(identity.links, 1, "one name");
+    let again = fs.metadata(&path).await.unwrap();
+    assert_eq!(
+        again.identity,
+        Some(identity),
+        "the same file reads the same"
+    );
+    let _ = FileMetadata::new(5, true, false);
 }
 
 #[tokio::test]

@@ -204,6 +204,19 @@ as an external consumer.
   « missing » decide only at the same confidence read over that question's own options, NONE
   counted (`PART_CONFIDENCE` 0.75: (1 + 0.75·(n − 1)) / n, 0.833 to 0.8 for the three to five
   options a part question offers; amended 2026-10-11), `None` for an unweighed answer;
+  `Witness` (added 2026-10-12) lists the typed properties a request states, from the reader's
+  plan with its stated rules promoted: a count or a total for each aggregate of a typed rule, an
+  order for its sort or cut and a limit for its cut, each with the rule's text as evidence: values
+  the workflow computes without a model. A bound on produced text (lines, bullets, words) is no
+  such property: what a model writes is never asserted and the room runs no model step, so it
+  stays the judge's. A candidate carries a property only through a check its runs evaluate: a
+  `nika:assert` with no `when:` whose condition reads a `with:` binding of a task's output (the
+  one place a task reads another's) and whose message quotes the evidence (apostrophes folded,
+  whitespace collapsed, ASCII case ignored), or the reader's own lowering of the rule run by
+  `nika:jq`. `Witness::required` gives
+  the excerpts an author's checks quote; `defect` is the repair's starting point (`witness`,
+  with the remedy), and `hold` keeps a READY outcome from being proposed: INCOMPLETE, the bytes
+  kept as the preview, each property named, its replayable record dropped. No model is called.
   `Doubt::stated(records, restated)` and `Doubt::stated_with(records, restated, doubted)` word
   what the parts overrule (any whole-request answer but `faithful`, with its probability, each
   part a repair attempt met that stands again, and each part judged missing that decided

@@ -735,6 +735,7 @@ fn emit_format(
 fn parse_csv(text: &str, has_header: bool) -> Result<serde_json::Value, String> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(has_header)
+        .delimiter(csv_delimiter(text))
         .from_reader(text.as_bytes());
     let mut rows = Vec::new();
     if has_header {
@@ -762,6 +763,33 @@ fn parse_csv(text: &str, has_header: bool) -> Result<serde_json::Value, String> 
         }
     }
     Ok(serde_json::Value::Array(rows))
+}
+
+/// The field separator of a CSV text, counted on its first line outside
+/// quotes: a semicolon (a European spreadsheet export, whose decimals
+/// take the comma) or a tab (TSV) when it outnumbers the comma, else the
+/// comma (RFC 4180). Read with the comma, a `nom;montant` export became
+/// one column, or failed on its first decimal.
+fn csv_delimiter(text: &str) -> u8 {
+    let (mut comma, mut semicolon, mut tab) = (0_usize, 0_usize, 0_usize);
+    let mut quoted = false;
+    for byte in text.bytes() {
+        match byte {
+            b'"' => quoted = !quoted,
+            b'\n' | b'\r' if !quoted => break,
+            b',' if !quoted => comma += 1,
+            b';' if !quoted => semicolon += 1,
+            b'\t' if !quoted => tab += 1,
+            _ => {}
+        }
+    }
+    if semicolon > comma && semicolon >= tab {
+        b';'
+    } else if tab > comma {
+        b'\t'
+    } else {
+        b','
+    }
 }
 
 /// An array of objects → CSV. The header is the named `columns` first, in
@@ -798,8 +826,10 @@ fn emit_csv(
             .map(|h| {
                 let raw = match obj.get(h) {
                     Some(serde_json::Value::String(s)) => s.clone(),
+                    // A null is an empty cell, as an absent key is (the
+                    // spreadsheet reading), never the text `null`.
+                    Some(serde_json::Value::Null) | None => String::new(),
                     Some(other) => other.to_string(),
-                    None => String::new(),
                 };
                 guard_formula(raw, formula_guard)
             })

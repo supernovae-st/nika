@@ -1523,6 +1523,7 @@ pub fn nika_session_change::review::parse(candidate: &str) -> core::option::Opti
 pub fn nika_session_change::review::propose(root: &std::path::Path, goal: &str, out: &nika_compile::types::CompileOutcome) -> core::result::Result<nika_session_change::change::ProjectChangeSet, nika_session_change::change::ChangeError>
 pub fn nika_session_change::review::propose_over(root: &std::path::Path, goal: &str, path: &std::path::Path, base: &nika_session_change::change::Witness, out: &nika_compile::types::CompileOutcome) -> core::result::Result<nika_session_change::change::ProjectChangeSet, nika_session_change::change::ChangeError>
 pub fn nika_session_change::review::render(set: &nika_session_change::change::ProjectChangeSet, out: &nika_compile::types::CompileOutcome, bytes: &str) -> alloc::string::String
+pub fn nika_session_change::review::runs_line(trigger: core::option::Option<&nika_compile::types::TriggerRequirement>) -> alloc::string::String
 pub fn nika_session_change::review::workflow_id(candidate: &str) -> alloc::string::String
 pub mod nika_session_change::save_run
 #[non_exhaustive] pub struct nika_session_change::save_run::SaveRun

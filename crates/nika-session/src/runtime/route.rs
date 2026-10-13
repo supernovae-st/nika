@@ -92,8 +92,8 @@ impl SessionRuntime {
             None => fresh.as_mut().map(|fresh| fresh as &mut dyn TurnClassifier),
         };
         // Every label asks the session's named level through the classifier that sends it, a
-        // door's included (B19 F2). A word the session cannot ask, or a level that classifier
-        // cannot carry, refuses the label before any record or byte (R4 B16).
+        // door's included. A word the session cannot ask, or a level that classifier
+        // cannot carry, refuses the label before any record or byte.
         let effort = match (asked, classifier.as_mut()) {
             (Err(why), _) => Err(format!("nothing was sent · {why}")),
             // The classifier's typed refusal, said in its own words (display only).
@@ -326,7 +326,7 @@ pub(super) fn question_outside_money(intent: &str, money: &[std::ops::Range<usiz
 }
 
 /// A line the reader does not settle once its admitted directives are blanked is routed as
-/// written (R4 A6): conversation stays conversation, unread work stays work.
+/// written: conversation stays conversation, unread work stays work.
 pub(super) fn as_written(
     reading: Reading,
     round: &AuthoringRound,

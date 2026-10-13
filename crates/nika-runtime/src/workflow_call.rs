@@ -128,6 +128,12 @@ where
         contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
         let cost_source = out.cost_usd.is_some().then(|| format!("workflow:{target}"));
+        // SKELETON (child-depth prompt pause), wired in the window: a child that paused on a
+        // `nika:prompt` gate (`out.paused`) re-raises as the dispatch's own
+        // pause, not a failure — e.g. a `Dispatched::child_pause(note, pause)`
+        // arm the parent run collects into `RunOutcome.paused`, so the run
+        // pauses at any depth and `--resume --answer <child-path>:<task>=…`
+        // binds into the child. `out.paused` is always `None` today.
         if out.ok {
             let value = Value::Object(out.outputs.into_iter().collect());
             // Law 2, run half — the child's outputs fit the parent's
@@ -174,6 +180,9 @@ where
                 "child run failed without a failure surface".to_owned(),
             )
         });
+        // The message keeps the child's trace id and chain head that a reader
+        // already follows; the typed `child` row below carries the same facts
+        // for tools (spec 14 law 8).
         let trace_note = out
             .trace
             .as_ref()
@@ -203,6 +212,9 @@ where
                 // The child's own frames carry its metered calls' splits.
                 usage: None,
                 access: None,
+                // spec 14 law 8 · the failed child rides the same typed row a
+                // success does (`outcome: "failure"`), not a text note.
+                child: out.trace.clone().map(Box::new),
             }),
         }
     }

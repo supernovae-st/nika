@@ -11,9 +11,9 @@ use nika_compile_reader::rules::{Comparator, Junction, NumberPolicy};
 
 use super::judge_tests::{budget, run, top, unwritten, usage};
 use super::{
-    Consumed, Contract, Coverage, Decimal, Filter, Form, Format, Obligation, Outcome, Pipeline,
-    Presence, ReadBack, Requirement, Run, RunEnd, Stages, Step, Tally, Target, Test, Verdict,
-    judge,
+    Admission, Axis, Budget, Consumed, Contract, Coverage, Decimal, Filter, Form, Format,
+    Obligation, Outcome, Pipeline, Presence, ReadBack, Requirement, Run, RunEnd, Stages, Step,
+    Tally, Target, Test, Usage, Verdict, judge,
 };
 
 #[test]
@@ -250,5 +250,58 @@ fn contradictory_observations_make_the_fixture_invalid_in_any_order() {
                 .with_read_back(ReadBack::new("out/top.json", BEST))
         ),
         Outcome::InvalidHarness
+    );
+}
+
+#[test]
+fn a_report_states_its_failed_obligations_as_one_located_message() {
+    let contract = top(false, None);
+    let passed = judge(&contract, &[run(ORDERS, AMOUNTS, TOP, BEST)], &mut budget());
+    assert_eq!(passed.failures(), None);
+    // Of two fixtures, only the failing one's observation is stated, under the requested result.
+    let runs = [
+        run(ORDERS, AMOUNTS, TOP, WRONG),
+        run(ORDERS, AMOUNTS, TOP, BEST),
+    ];
+    let report = judge(&contract, &runs, &mut budget());
+    let message = report.failures().expect("a failed obligation");
+    let stated: serde_json::Value = serde_json::from_str(&message).expect("one JSON object");
+    let judged = &report.judged[0];
+    let failed: Vec<&str> = (judged.findings.iter())
+        .filter(|finding| finding.outcome == Outcome::Failed)
+        .map(|finding| finding.observed.as_str())
+        .collect();
+    assert_eq!(failed.len(), 1, "{report:?}");
+    assert_eq!(
+        stated,
+        serde_json::json!({"kind": "behaviour_failed", "obligations": [
+            {"requested": judged.requested, "observed": failed}
+        ]})
+    );
+}
+
+#[test]
+fn a_budget_of_runs_admits_one_run_a_round_and_so_many_a_turn() {
+    let one = Usage::new(1, 1, 10, 10, 5);
+    let mut first = Budget::runs(2, 100, 1_000, Usage::default());
+    assert_eq!(first.admission(), Admission::Open);
+    assert_eq!(first.charge(&one), Admission::Open);
+    assert_eq!(first.admission(), Admission::RoundSpent(Axis::Fixtures));
+    // The next round of the same turn starts from what the turn spent: its run is the last.
+    let mut second = Budget::runs(2, 100, 1_000, first.turn());
+    assert_eq!(second.admission(), Admission::Open);
+    assert_eq!(second.charge(&one), Admission::Open);
+    let third = Budget::runs(2, 100, 1_000, second.turn());
+    assert_eq!(third.admission(), Admission::TurnSpent(Axis::Fixtures));
+    // A run past the round's bytes or time ran beyond it.
+    let mut heavy = Budget::runs(2, 100, 1_000, Usage::default());
+    assert_eq!(
+        heavy.charge(&Usage::new(1, 1, 80, 80, 5)),
+        Admission::RoundSpent(Axis::Bytes)
+    );
+    let mut slow = Budget::runs(2, 100, 1_000, Usage::default());
+    assert_eq!(
+        slow.charge(&Usage::new(1, 1, 10, 10, 1_001)),
+        Admission::RoundSpent(Axis::Time)
     );
 }

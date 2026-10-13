@@ -134,7 +134,7 @@ new builtin → freeze the extract schema type → pin the glob
 
 **After valid, review the shape and judgment.** Inspect relevant examples
 when a construct is unfamiliar. Use `for_each` for collections and
-`invoke: { workflow: }` for child workflows; verify deterministic rules
+`invoke: { workflow: "./child.nika" }` for child workflows; verify deterministic rules
 with known-answer fixtures and `nika:jq`, not a second infer.
 For an execution-ready handoff, require a clean `nika check --native-strict`
 and preserve the intended authority. Before paid inference, also require

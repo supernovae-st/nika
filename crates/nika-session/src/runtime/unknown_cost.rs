@@ -260,8 +260,8 @@ impl SessionRuntime {
             && self.authoring.is_none()
             && !crate::authoring::is_greeting(input)
         {
-            // The line's own monetary directives, read as its round reads them once admitted
-            // (R4 A6); a malformed ceiling is the money gate's to refuse, precisely, next. An
+            // The line's own monetary directives, read as its round reads them once admitted;
+            // a malformed ceiling is the money gate's to refuse, precisely, next. An
             // explicit zero forbids every call on any route: no review is staged for it, and its
             // deterministic reading, question or refusal with the reader's reasons follows.
             let Ok(found) = super::money_parse::directives(input) else {
@@ -289,7 +289,7 @@ impl SessionRuntime {
                 .map_or(local, |q| super::answer::owes_no_review(q, input))
         }) {
             // A line bound with no reading, or a question, owes no review; any other line waits for
-            // the chosen seat's one-time review; restored authority never answers it (F2).
+            // the chosen seat's one-time review; restored authority never answers it.
             return Ok(());
         }
         let route = match self.selected_cost_route() {

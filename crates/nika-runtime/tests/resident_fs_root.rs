@@ -270,6 +270,7 @@ impl ChildRunner for SnapshotChildren {
                 cost_usd: None,
                 trace: None,
                 failure,
+                paused: None,
             })
         })
     }

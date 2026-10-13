@@ -403,6 +403,12 @@ pub fn parse_answers(
     pairs: &[String],
     wf: &RawWorkflow,
 ) -> Result<BTreeMap<String, serde_json::Value>, String> {
+    // SKELETON (child-depth prompt pause), wired in the window: a child-addressed answer
+    // `--answer <child-path>:<task>=…` (the id `WorkflowPause::nested` minted)
+    // splits on the FIRST `:` — `<child-path>` resolves the child workflow
+    // through the snapshot/reader and `<task>` is validated as a direct
+    // `invoke: nika:prompt` in THAT child, then bound into the child on resume.
+    // Today only same-file task ids are accepted (the child side is not wired).
     let mut answers = BTreeMap::new();
     for pair in pairs {
         let (task_id, raw) = match pair.split_once('=') {

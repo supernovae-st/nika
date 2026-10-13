@@ -30,6 +30,23 @@ pub fn refusal(path: &str, line: Option<usize>, slug: &str, detail: &str, remedy
     )
 }
 
+/// Several refusals in the project grammar's vocabulary, each `[slug, detail, remedy]` row with
+/// its fix: the arming door names every law a project's beats break at once, so a person fixes
+/// them together.
+#[must_use]
+pub fn refusals(path: &str, rows: &[[&str; 3]]) -> String {
+    use std::fmt::Write as _;
+
+    let mut text = format!("nika check · {path}\n");
+    for [slug, detail, remedy] in rows {
+        let _ = write!(
+            text,
+            " ✖ PROJECT  {path} · {slug} · {detail}\n   fix: {remedy}\n"
+        );
+    }
+    text
+}
+
 /// What the file governs, named from what it actually declared.
 ///
 /// A project that governs nothing says so, rather than rendering an
@@ -75,9 +92,46 @@ pub fn json(path: &str, clean: bool, name: Option<&str>, code: &str, message: &s
     }
 }
 
+/// The machine verdict of several refusals: the [`json`] envelope with one finding per
+/// `[code, message]` row, in the caller's order.
+#[must_use]
+pub fn json_refusals(path: &str, rows: &[[&str; 2]]) -> String {
+    let path = serde_json::json!(path);
+    let findings: Vec<serde_json::Value> = (rows.iter())
+        .map(|[code, message]| serde_json::json!({"code": code, "message": message}))
+        .collect();
+    let findings = serde_json::Value::Array(findings);
+    format!(
+        "{{\"report_version\":1,\"file\":{path},\"kind\":\"project\",\"clean\":false,\"findings\":{findings}}}"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn several_refusals_name_each_law_with_its_fix_in_order() {
+        let rows = [
+            ["cadence.tz-missing", "a.nika · no zone", "prefix TZ="],
+            ["cadence.decalage-inconnu", "b.nika · +7m", "décalage: hash"],
+        ];
+        let text = refusals("nika.yaml", &rows);
+        assert_eq!(text.matches("✖ PROJECT").count(), 2, "{text}");
+        let first = text.find("cadence.tz-missing · a.nika · no zone\n   fix: prefix TZ=");
+        let second = text.find("cadence.decalage-inconnu · b.nika · +7m\n   fix: décalage: hash");
+        assert!(
+            first.is_some_and(|at| second.is_some_and(|then| at < then)),
+            "{text}"
+        );
+        let wire: serde_json::Value =
+            serde_json::from_str(&json_refusals("nika.yaml", &[["a", "b"], ["c", "d"]]))
+                .expect("JSON");
+        assert_eq!(wire["clean"], false);
+        assert_eq!(wire["kind"], "project");
+        assert_eq!(wire["findings"][1]["code"], "c");
+        assert_eq!(wire["findings"][1]["message"], "d");
+    }
 
     #[test]
     fn a_project_that_declares_nothing_says_so() {

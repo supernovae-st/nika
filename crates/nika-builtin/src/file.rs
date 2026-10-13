@@ -280,6 +280,16 @@ pub(crate) async fn edit<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> Buil
     let path = req_str(args, "path", C1)?;
     let find = req_str(args, "find", C1)?;
     let replace = req_str(args, "replace", C1)?;
+    // An empty `find:` matches between every character: the replacement
+    // landed between every byte of the file, and the task succeeded. It
+    // names nothing to edit, the authoring bug EDIT-001 is for (stdlib
+    // §edit), refused before the file is read.
+    if find.is_empty() {
+        return Err(BuiltinFailure::new(
+            C1,
+            format!("`find:` is empty, so it names nothing to replace in {path}"),
+        ));
+    }
 
     let original = fs
         .read_to_string(Path::new(path))
@@ -1199,6 +1209,27 @@ mod tests {
         )
         .await;
         assert!(matches!(nomatch, Err(f) if f.code == "NIKA-BUILTIN-EDIT-001"));
+    }
+
+    #[tokio::test]
+    async fn edit_refuses_an_empty_find_and_leaves_the_file_whole() {
+        // `find: ""` (a templated input left empty) matched between every
+        // character: `price: 10` became `XpXrXiXcXeX…` and the task succeeded.
+        let fs = MockFs::new().with_file("conf.txt", "price: 10");
+        let empty = edit(
+            &fs,
+            &args(serde_json::json!({ "path": "conf.txt", "find": "", "replace": "X" })),
+        )
+        .await;
+        assert!(
+            matches!(&empty, Err(f) if f.code == "NIKA-BUILTIN-EDIT-001"
+                && f.message.contains("empty")),
+            "{empty:?}"
+        );
+        let after = read(&fs, &args(serde_json::json!({ "path": "conf.txt" })))
+            .await
+            .expect("ok");
+        assert_eq!(after, serde_json::Value::String("price: 10".to_owned()));
     }
 
     #[tokio::test]

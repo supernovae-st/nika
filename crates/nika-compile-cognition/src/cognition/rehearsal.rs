@@ -5,7 +5,7 @@
 //! final barrier. Replayed provenance is data, never evidence that the present world ran.
 
 use nika_compile_fidelity::behavior::{
-    Budget, Cause, Contract, Limits, Report, Run, RunEnd, Usage, judge,
+    Budget, Cause, Contract, Report, Run, RunEnd, Usage, contract_of_request, judge,
 };
 use serde_json::{Value, json};
 
@@ -217,19 +217,21 @@ impl<'a> Rehearsals<'a> {
         let attempts = attempts.unwrap_or_else(|| last.spent_before.fixtures.saturating_add(1));
         let time = u64::try_from(host.bound().as_millis()).unwrap_or(u64::MAX);
         let bytes = last.room_bytes.saturating_mul(2);
-        let round = Limits::new(1, 1, bytes, time);
-        let turn = Limits::new(
-            attempts,
-            attempts,
-            bytes.saturating_mul(u64::from(attempts)),
-            time.saturating_mul(u64::from(attempts)),
-        );
-        let mut budget = Budget::new(round, turn, last.spent_before);
-        Some(judge(
-            contract,
-            std::slice::from_ref(&last.run),
-            &mut budget,
-        ))
+        let mut budget = Budget::runs(attempts, bytes, time, last.spent_before);
+        let runs = std::slice::from_ref(&last.run);
+        Some(judge(contract, runs, &mut budget))
+    }
+
+    /// The request's own contract judged on the run the barrier accepted (no new run, no call): a
+    /// result it refuses withdraws the candidate. A revision's words state a change, not one.
+    fn behaved(&self, request: &CompileRequest, out: &mut CompileOutcome) {
+        let create = matches!(request.input, crate::types::Input::Create(_));
+        let contract = contract_of_request(&intent_of(request), &request.answers);
+        let judged = create && !contract.obligations.is_empty();
+        let report = judged.then(|| self.judged(&contract, None)).flatten();
+        if let Some(message) = report.as_ref().and_then(Report::failures) {
+            withdraw(out, message);
+        }
     }
 
     /// What this call's last run of exactly `candidate` read and wrote, as a judge may read it:
@@ -318,7 +320,7 @@ impl<'a> Rehearsals<'a> {
                 },
             };
             match verdict.result {
-                Result::Proceed => {}
+                Result::Proceed => self.behaved(request, out),
                 Result::Repair(diagnostic) => withdraw(out, diagnostic.message),
                 Result::Stop(reason) => withdraw(out, reason),
             }

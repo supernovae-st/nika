@@ -21,7 +21,12 @@ use nika_compile_trigger::{multiple, phrase_words, schedule, stated_cadence};
 
 /// The requirement the plan's trigger phrase states, when the plan carries one.
 pub(super) fn requirement(plan: &Plan, item: bool) -> Option<TriggerRequirement> {
-    let phrase = plan.trigger.as_deref()?.trim();
+    requirement_of(plan.trigger.as_deref()?, item)
+}
+
+/// The requirement a trigger phrase states, read from its words alone as a plan's phrase is.
+pub(super) fn requirement_of(phrase: &str, item: bool) -> Option<TriggerRequirement> {
+    let phrase = phrase.trim();
     if phrase.is_empty() {
         return None;
     }
@@ -381,6 +386,21 @@ mod tests {
         let mut plan = Plan::default();
         plan.trigger = Some(phrase.to_owned());
         requirement(&plan, item).expect("a trigger phrase")
+    }
+
+    /// A phrase a conversation cites reads as a request's trigger: the cron fields its words
+    /// state whole, and none for words that state no hour.
+    #[test]
+    fn a_cited_phrase_reads_as_a_requests_trigger() {
+        let weekly = crate::trigger_of("chaque lundi à 9h").expect("a schedule");
+        assert_eq!(weekly.kind, TriggerKind::Schedule);
+        assert_eq!(weekly.cron.as_deref(), Some("0 9 * * 1"));
+        assert_eq!(weekly.at.as_deref(), Some("09:00"));
+        assert_eq!(weekly.status, TriggerStatus::RequiresBinding);
+        assert_eq!(weekly.timezone, None, "the zone is the binding's");
+        let morning = crate::trigger_of("chaque matin").expect("a schedule");
+        assert_eq!(morning.cron, None, "no hour is invented");
+        assert_eq!(crate::trigger_of("  "), None);
     }
 
     #[test]

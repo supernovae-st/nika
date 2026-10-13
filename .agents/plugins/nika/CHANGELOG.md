@@ -5,6 +5,21 @@ Versions move together across all manifests (the mirror gate pins it).
 
 ## Unreleased
 
+Schedules are taught where the engine keeps them. The operating skill
+said to schedule with cron, CI or a systemd timer, a path that skips
+the firer (`nika arm fire`) and with it the missed-slot rule, the
+overlap lock, the ceiling of one firing and the firing record. It now
+teaches the `arm:` beat in the project's `nika.yaml`: the zone inside
+the cadence (`TZ=Europe/Paris 30 7 * * 1-5`), `plafond:` and `manqué:`
+chosen by the author, `nika arm --json` reading READY before the person
+activates the beat. The migration table gains the crontab row, and the
+language rule and the session map name the beat. The check-on-edit hook
+now audits an edited `nika.yaml` too: `nika check` on its keys and
+`nika arm` on every beat, both read-only, so a refused or UNREADY beat
+reaches the agent the way a workflow finding does
+(`scripts/tests/check-on-edit.test.sh` plays the hook's real bytes).
+Each claim holds on 0.122.0.
+
 The `check` command and the authoring/operating skills no longer teach
 two verdict keys. `nika check --native-strict --json` answers
 `clean: false` whenever it exits 2, with one `findings[]` row per exec a

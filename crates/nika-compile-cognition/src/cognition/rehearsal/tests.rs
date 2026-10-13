@@ -125,6 +125,10 @@ enum Mode {
     Copied,
     /// The same run, both texts held only as a prefix cut at the preview bound.
     Prefixed,
+    /// The run reads [`SALES_PATH`] whole and writes `output` to [`TOTAL_PATH`].
+    Totalled {
+        output: &'static str,
+    },
 }
 
 struct Host {
@@ -230,6 +234,8 @@ fn report(candidate: &str, mode: Mode) -> RehearsalReport {
         Rehearsal::Passed {
             outputs: vec![RehearsedOutput::new(TARGET, "hello")],
         }
+    } else if let Mode::Totalled { output } = mode {
+        totalled(&mut observed, output)
     } else {
         let bytes = crate::rehearse::Digest::of(b"hello");
         observed.finals = vec![FinalReceipt::new(
@@ -263,6 +269,29 @@ fn report(candidate: &str, mode: Mode) -> RehearsalReport {
     .with_admitted_digest("synthetic-admission")
     .with_room(RoomEvidence::new(true, !matches!(mode, Mode::DirtyRoom)))
     .with_observation(observed)
+}
+
+/// The run of [`Mode::Totalled`]: the sales copied in whole and `output` written as the total.
+fn totalled(observed: &mut Observation, output: &str) -> Rehearsal {
+    let sales = Digest::of(SALES.as_bytes());
+    let copy = CopyReceipt::new(
+        SALES_PATH,
+        sales.clone(),
+        Some(sales),
+        Held::Whole(SALES.into()),
+    );
+    observed.copies = vec![copy];
+    let held = Held::Whole(output.into());
+    let digest = Digest::of(output.as_bytes());
+    observed.finals = vec![FinalReceipt::new(
+        TOTAL_PATH,
+        FinalState::File { digest, held },
+    )];
+    observed.ledger = LedgerFacts::clean(vec![TOTAL_PATH.into()]);
+    observed.spent = Spent::new(SALES.len() as u64, output.len() as u64);
+    Rehearsal::Passed {
+        outputs: vec![RehearsedOutput::new(TOTAL_PATH, output)],
+    }
 }
 
 fn request(repairs: u32) -> CompileRequest {
@@ -1099,4 +1128,77 @@ async fn a_stated_path_the_candidate_only_writes_is_a_target_never_an_input() {
     let targets = host.targets.lock().unwrap().clone();
     assert_eq!(inputs, [Vec::<String>::new()], "the output is no input");
     assert_eq!(targets, [vec![TARGET.to_owned()]]);
+}
+
+const SALES_PATH: &str = "./in/sales.csv";
+const TOTAL_PATH: &str = "./out/total.json";
+const SALES: &str = "client,amount\na,10\nb,5\na,2.5\n";
+const TOTAL_INTENT: &str = "Read ./in/sales.csv, compute the total of the amount column and write the total to ./out/total.json";
+
+/// A workflow reading the sales and writing a total: what it writes is the room's to report.
+const TOTALS: &str = r#"nika: totals
+permits:
+  tools: ["nika:read", "nika:write"]
+  fs:
+    read: ["./in/sales.csv"]
+    write: ["./out/total.json"]
+tasks:
+  load:
+    invoke:
+      tool: "nika:read"
+      args: { path: "./in/sales.csv" }
+  save:
+    with: { text: "${{ tasks.load.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "./out/total.json", content: "${{ with.text }}" }
+"#;
+
+/// The located defects the barrier withdrew an outcome with.
+fn behaviour_failed(out: &CompileOutcome) -> Vec<Value> {
+    (out.diagnostics.iter())
+        .filter(|d| d.target == "rehearsal")
+        .filter_map(|d| serde_json::from_str::<Value>(&d.message).ok())
+        .filter(|said| said["kind"] == "behaviour_failed")
+        .collect()
+}
+
+/// The barrier judges the request's own contract on the run it accepted, with no other run: a
+/// total the request refuses withdraws the candidate with the obligation it fails; the right
+/// total stays READY. A revision's words state a change, never that contract: not judged.
+#[tokio::test]
+async fn the_barrier_withdraws_a_run_whose_result_the_request_refuses() {
+    for (output, kept) in [(r#"{"total":17.5}"#, true), (r#"{"total":16}"#, false)] {
+        let host = Host::new(Mode::Totalled { output });
+        let mut state = Rehearsals::new(Some(&host));
+        let mut out = crate::initial();
+        nika_compile::surface::finish(TOTALS.into(), &mut out);
+        assert!(ready(&out), "{out:#?}");
+        state
+            .finish(&CompileRequest::create(TOTAL_INTENT), &mut out)
+            .await;
+        assert_eq!(
+            out.status == CompileStatus::Ready,
+            kept,
+            "{output}: {out:#?}"
+        );
+        assert_eq!(out.candidate.is_some(), kept, "{output}");
+        let failed = behaviour_failed(&out);
+        assert_eq!(failed.len(), usize::from(!kept), "{output}: {out:#?}");
+        assert_eq!(
+            host.candidates.lock().unwrap().len(),
+            1,
+            "one run: {output}"
+        );
+    }
+    let host = Host::new(Mode::Totalled {
+        output: r#"{"total":16}"#,
+    });
+    let mut state = Rehearsals::new(Some(&host));
+    let mut out = crate::initial();
+    nika_compile::surface::finish(TOTALS.into(), &mut out);
+    let revision = CompileRequest::edit(TOTALS.to_owned(), TOTAL_INTENT);
+    state.finish(&revision, &mut out).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(behaviour_failed(&out).is_empty(), "{out:#?}");
 }

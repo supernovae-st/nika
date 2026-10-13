@@ -38,11 +38,20 @@ pub(super) struct Activation {
 
 impl Activation {
     fn new(workflow: PathBuf, trigger: TriggerRequirement) -> Self {
+        // A zone the person already chose for this schedule (the default they consented to with
+        // its proposal, or their answer) is theirs: only what is still open is asked.
+        let answers: BTreeMap<&'static str, String> = (trigger.timezone.iter())
+            .map(|zone| (TIMEZONE, zone.clone()))
+            .collect();
+        let needed = [TIMEZONE, MISSED, CEILING]
+            .into_iter()
+            .filter(|key| !answers.contains_key(key))
+            .collect();
         Self {
             workflow,
             trigger,
-            answers: BTreeMap::new(),
-            needed: vec![TIMEZONE, MISSED, CEILING],
+            answers,
+            needed,
         }
     }
 
@@ -68,6 +77,11 @@ impl Activation {
             .as_deref()
             .unwrap_or("this schedule");
         let at = self.trigger.at.as_deref().unwrap_or("the scheduled time");
+        // The zone already chosen says where that time falls.
+        let at = match self.answers.get(TIMEZONE) {
+            Some(zone) => format!("{at} ({zone})"),
+            None => at.to_owned(),
+        };
         let text = match self.current() {
             Some(TIMEZONE) => format!(
                 "Which time zone should « {when} » follow?\n  answer an IANA name, e.g. Europe/Paris · this machine's clock is not assumed\n  (this fixes when {at} falls, and how a summer/winter change is read)"
@@ -157,6 +171,27 @@ impl Activation {
     }
 }
 
+/// The trigger the person's `words` state, read as the compiler reads a request's, in the
+/// `zone` a proposal shows: a schedule whose day and hour the words state, valid in that zone,
+/// never one Nika completes.
+pub(super) fn scheduled(words: &str, zone: &str) -> Result<TriggerRequirement, String> {
+    let read = nika_compile::trigger_of(words);
+    let Some(mut trigger) = read.filter(|t| t.kind == TriggerKind::Schedule && t.cron.is_some())
+    else {
+        return Err(format!(
+            "« {words} » is not a complete schedule: cite only the person's words that say when it runs (« chaque lundi à 9h », \"every Friday at 10\"); when they state no day or no hour, ask them, never assume one"
+        ));
+    };
+    let cadence = format!("TZ={zone} {}", trigger.cron.as_deref().unwrap_or_default());
+    if let Err(why) = nika_cadence::registry::Cadence::parse(&cadence) {
+        return Err(format!(
+            "`{cadence}` is refused by the schedule grammar: {why}"
+        ));
+    }
+    trigger.timezone = Some(zone.to_owned());
+    Ok(trigger)
+}
+
 impl SessionRuntime {
     /// « activate » — the schedule the last accepted workflow asked for
     /// becomes a declaration to review: the three values the sentence did
@@ -189,13 +224,11 @@ impl SessionRuntime {
         }
         let activation = Activation::new(workflow, trigger);
         let question = activation.question();
+        let key = activation.current().unwrap_or(TIMEZONE).to_owned();
         self.intent.unresolved =
-            vec!["the schedule's time zone, missed policy and ceiling".to_owned()];
+            vec!["the values the schedule's declaration still needs".to_owned()];
         self.activation = Some(activation);
-        TurnOutcome::Question {
-            key: TIMEZONE.to_owned(),
-            question,
-        }
+        TurnOutcome::Question { key, question }
     }
 
     /// The human's line as the value of the activation question that

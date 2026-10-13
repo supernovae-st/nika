@@ -56,6 +56,7 @@ pub mod permits;
 pub mod tts;
 pub(crate) mod wire;
 pub mod witness;
+pub mod write_origins;
 
 use std::sync::Arc;
 
@@ -74,6 +75,7 @@ pub use image::ImageKeys;
 pub use live::LiveInspect;
 pub use permits::FsBoundary;
 pub use tts::TtsKeys;
+pub use write_origins::{CreatedFile, WriteOrigin, WriteOrigins};
 
 /// The closed builtin namespace prefix.
 pub const NAMESPACE: &str = "nika:";
@@ -288,6 +290,10 @@ pub struct BuiltinDispatcher<F, H, C, Em, P, W> {
     /// from the environment here).
     image_keys: image::ImageKeys,
     tts_keys: tts::TtsKeys,
+    /// The run's write origins (what `nika:write`/`nika:edit` created or
+    /// changed, originals kept aside) — `None` until the host wires its
+    /// ledger via [`Self::with_write_origins`].
+    write_origins: Option<Arc<WriteOrigins>>,
 }
 
 impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
@@ -314,6 +320,7 @@ impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
             tts_http: None,
             image_keys: image::ImageKeys::new(),
             tts_keys: tts::TtsKeys::new(),
+            write_origins: None,
         }
     }
 
@@ -357,6 +364,14 @@ impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
     pub fn with_tts_plane(mut self, http: Arc<H>, keys: tts::TtsKeys) -> Self {
         self.tts_http = Some(http);
         self.tts_keys = keys;
+        self
+    }
+
+    /// Record the run's write origins in `origins` (the host's ledger,
+    /// read back by its teardown); `None` records nothing.
+    #[must_use]
+    pub fn with_write_origins(mut self, origins: Option<Arc<WriteOrigins>>) -> Self {
+        self.write_origins = origins;
         self
     }
 }
@@ -582,7 +597,35 @@ where
     async fn guarded_write(&self, args: &Args) -> BuiltinOutcome {
         self.enforce_fs_path(args, &[permits::FsAccess::Write])
             .await?;
-        file::write(&self.judged(), args).await
+        self.note_write_origin(args).await;
+        let written = file::write(&self.judged(), args).await;
+        if written.is_ok() {
+            self.note_written(args).await;
+        }
+        written
+    }
+
+    /// Before a judged write, record what stood at its path (the ledger's
+    /// copy is the engine's, through the raw fs and its pin, never a read
+    /// the workflow makes).
+    async fn note_write_origin(&self, args: &Args) {
+        if let (Some(origins), Some(path)) = (
+            self.write_origins.as_deref(),
+            args.get("path").and_then(serde_json::Value::as_str),
+        ) {
+            origins.note(self.fs.as_ref(), path).await;
+        }
+    }
+
+    /// After a judged write landed, record the digest of a created file's
+    /// bytes, so a later run can tell them from a person's edit.
+    async fn note_written(&self, args: &Args) {
+        if let (Some(origins), Some(path)) = (
+            self.write_origins.as_deref(),
+            args.get("path").and_then(serde_json::Value::as_str),
+        ) {
+            origins.wrote(self.fs.as_ref(), path).await;
+        }
     }
 
     /// `nika:edit` under the boundary: gated BOTH directions; the read
@@ -590,7 +633,12 @@ where
     async fn guarded_edit(&self, args: &Args) -> BuiltinOutcome {
         self.enforce_fs_path(args, &[permits::FsAccess::Read, permits::FsAccess::Write])
             .await?;
-        file::edit(&self.judged(), args).await
+        self.note_write_origin(args).await;
+        let edited = file::edit(&self.judged(), args).await;
+        if edited.is_ok() {
+            self.note_written(args).await;
+        }
+        edited
     }
 
     /// `nika:chart` under the boundary — gate the `out:` artifact (WRITE ·

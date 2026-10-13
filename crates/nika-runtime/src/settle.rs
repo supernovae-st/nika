@@ -370,8 +370,9 @@ fn fresh_ran_record(
 }
 
 /// Settle every terminal shape with the dispatch binding evidence (F-P6),
-/// item table and repair count (#1276, #1397), and metered usage receipt.
-/// Borrow those independent fields directly so moving the result cannot lose them.
+/// item table and repair count (#1276, #1397), and metered usage receipt:
+/// the prologue frames and the record here, the terminal frame in
+/// [`settle_ran_terminal`].
 #[allow(clippy::too_many_arguments)] // the ran settle parts + the pens
 pub(crate) fn settle_ran(
     id: &str,
@@ -385,11 +386,27 @@ pub(crate) fn settle_ran(
     sink: &mut dyn EventSink,
 ) -> TaskRecord {
     let started_at = emit_ran_prologue(id, &run, declassified, approval, stamper, sink);
+    let mut record = fresh_ran_record(started_at, run.duration_ms, integrity);
+    record.harness_media = agent_events::image_rows(&run.agent_events);
+    settle_ran_terminal(id, run, resume, &mut record, ok, stamper, sink);
+    record
+}
+
+/// The terminal frame of [`settle_ran`], one arm per result shape. It borrows
+/// the run's evidence, items and usage directly beside the moved result, so
+/// moving the result cannot lose them.
+fn settle_ran_terminal(
+    id: &str,
+    run: task::RanTask,
+    resume: Option<&resume::ResumeStamp>,
+    record: &mut TaskRecord,
+    ok: &mut bool,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
     let duration = i64::try_from(run.duration_ms).unwrap_or(i64::MAX);
     // Every attempt including the settling one (spec 13 §payload).
     let attempts = run.attempts();
-    let mut record = fresh_ran_record(started_at, run.duration_ms, integrity);
-    record.harness_media = agent_events::image_rows(&run.agent_events);
     match run.result {
         task::RunResult::Success {
             value,
@@ -412,7 +429,7 @@ pub(crate) fn settle_ran(
             resume,
             (run.evidence.as_ref(), run.items.as_ref()),
             run.usage.as_deref(),
-            &mut record,
+            record,
             stamper,
             sink,
         ),
@@ -425,7 +442,7 @@ pub(crate) fn settle_ran(
             error,
             (cost_usd, cost_unpriced),
             run.evidence.as_ref(),
-            &mut record,
+            record,
             stamper,
             sink,
         ),
@@ -435,6 +452,7 @@ pub(crate) fn settle_ran(
             cost_unpriced,
             access,
             access_refused,
+            child,
         } => settle_failed_terminal(
             id,
             &run.note,
@@ -446,10 +464,11 @@ pub(crate) fn settle_ran(
                 access.as_deref(),
                 access_refused.as_deref(),
             ),
+            child.as_deref(),
             attempts,
             (run.evidence.as_ref(), run.items.as_ref()),
             run.usage.as_deref(),
-            &mut record,
+            record,
             ok,
             stamper,
             sink,
@@ -464,13 +483,12 @@ pub(crate) fn settle_ran(
             *pending,
             attempts,
             run.evidence.as_ref(),
-            &mut record,
+            record,
             ok,
             stamper,
             sink,
         ),
     }
-    record
 }
 
 /// The Ran prologue — `task_started` · the preamble (declassify ·
@@ -527,6 +545,7 @@ fn settle_pending_backstop(
             pending.failed.access.as_deref(),
             pending.failed.access_refused.as_deref(),
         ),
+        pending.failed.child.as_deref(),
         attempts,
         (evidence, None),
         pending.failed.usage.as_deref(),
@@ -633,6 +652,7 @@ fn settle_failed_terminal(
         Option<&nika_types::access::AccessPlan>,
         Option<&nika_types::access::AccessRefused>,
     ),
+    child: Option<&child::ChildRunSummary>,
     attempts: u32,
     (evidence, items): (
         Option<&crate::dispatch::commit::CommitEvidence>,
@@ -666,6 +686,10 @@ fn settle_failed_terminal(
     emit_task::push_access_fields(&mut fields, None, spend.2, spend.1);
     // A chosen seat that failed at the call names what to pin instead.
     emit_task::push_access_refused_field(&mut fields, spend.3);
+    // spec 14 law 8 · a FAILED child call rides the same typed `child` row as
+    // a successful one (the text note is retired), so the forest reads a
+    // failed child as data, not prose.
+    emit_task::push_child_field(&mut fields, child);
     // F-P6 · a divergence refusal carries its finding HERE (never a warn);
     // a post-gate verb failure attests the fired ≡ judged digests.
     push_commit_fields(&mut fields, evidence);

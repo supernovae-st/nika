@@ -340,14 +340,20 @@ fn remove_regular_host(path: &Path) -> Result<(), FsError> {
 }
 
 impl FsMetaDyn for TokioFs {
-    /// Get metadata for a path (follows symlinks, like `stat`).
+    /// Get metadata for a path (follows symlinks, like `stat`), with the
+    /// entry's identity (device, inode, names).
     ///
     /// CANCEL SAFETY: cancel-safe (read-only).
     async fn metadata(&self, path: &Path) -> Result<FileMetadata, FsError> {
+        use std::os::unix::fs::MetadataExt as _;
         let meta = tokio::fs::metadata(path)
             .await
             .map_err(|e| FsError::from_io(&e, path))?;
-        Ok(FileMetadata::new(meta.len(), meta.is_file(), meta.is_dir()))
+        Ok(
+            FileMetadata::new(meta.len(), meta.is_file(), meta.is_dir()).with_identity(
+                nika_kernel::fs::FileIdentity::new(meta.dev(), meta.ino(), meta.nlink()),
+            ),
+        )
     }
 }
 

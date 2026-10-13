@@ -50,8 +50,8 @@ otherwise, in this order:
 
 ## Native-first (the law)
 
-The order is `invoke: nika:*` → `invoke: mcp:<server>/<tool>` →
-`exec:`. Before writing ANY `exec:`, answer in your head:
+The order is a builtin (`invoke: { tool: "nika:<name>" }`) → an MCP tool
+(`invoke: { tool: "mcp:<server>/<tool>" }`) → `exec:`. Before writing ANY `exec:`, answer in your head:
 
 1. **Which builtin replaces it?** The embedded set spans SIX families.
    Assume one exists before assuming it does not — most `exec:` lines

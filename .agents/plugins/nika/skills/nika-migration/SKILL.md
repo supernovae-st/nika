@@ -40,11 +40,12 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 | `$SOME_SETTING` (non-sensitive) | an `inputs:` declaration with `required: false` and a `default:` · read as `${{ inputs.KEY }}` |
 | an env var a CHILD process must see | `permits: { env: [NAME] }` — a child inherits nothing |
 | `API_KEY=…` literals | `${{ secrets.X }}` + `secrets:` block with its `egress:` sink |
-| step B reads step A's output | `with: { a: "${{ tasks.A.output }}" }` on B — the binding IS the edge — then `${{ with.a }}` in the body |
-| step B only waits for step A (no data) | `after: { A: success }` (predicates: `success` · `failure` · `skipped` · `terminal`) |
+| step B reads step A's output | `with: { a: "${{ tasks.step_a.output }}" }` on `step_b` — the binding IS the edge — then `${{ with.a }}` in the body (task ids are snake_case) |
+| step B only waits for step A (no data) | `after: { step_a: success }` (predicates: `success` · `failure` · `skipped` · `terminal`) |
 | the irreversible step (deploy, send, publish) | preserve its authorization and any required gate; use `nika:prompt` for a decision still needed at run time, not to re-request authorization already given |
 | what no builtin/MCP covers (git, build tools) | `exec:` with `command:` as ARGV (`["git", "log", "-1"]`) + a row in the exec ledger |
 | a pipe, redirect or glob inside the command | `shell:` explicitly — `command:` has no implicit shell |
+| a crontab line, a CI `schedule:` or a timer that runs the script | an `arm:` beat in the project's `nika.yaml`: `cadence: "TZ=<IANA zone> <cron>"`, `plafond:` and `manqué:`, checked with `nika arm --json` (READY); the workflow holds no time, and activating the beat stays the person's step (https://docs.nika.sh/reference/arm) |
 
 ## The port protocol
 
@@ -122,8 +123,8 @@ child process needs to see.
   not a migration — that is `native-first/005`. Unbundle the helper
   into fetch/jq/read/write tasks.
 - A prompt chain in a doc usually hides implicit state ("then take
-  the output and…") — make every handoff an explicit
-  `${{ tasks.X.output }}` reference so the checker can trace it.
+  the output and…") — make every handoff an explicit `with:` binding
+  of `${{ tasks.<id>.output }}`, read as `${{ with.<name> }}`, so the checker can trace it.
 - Scripts swallow errors (`|| true`); workflows should not. If the
   source ignored a failure, ask whether that was intent or debt —
   default to letting the task fail loudly.

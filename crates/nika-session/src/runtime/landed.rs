@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! What a yes that landed its set reports (moved whole out of `runtime.rs` at its file bound,
-//! C9): the decision, the on-disk check of every workflow written, the project observed again,
+//! What a yes that landed its set reports (moved whole out of `runtime.rs` at its file bound): the
+//! decision, the on-disk check of every workflow written, the project observed again,
 //! and a run requested only when that check is clean.
 
 use std::fmt::Write as _;
@@ -38,7 +38,7 @@ impl SessionRuntime {
             .map(|p| format!("`{}`", p.display()))
             .collect();
         let mut report = format!("applied · wrote {}{evidence}", written.join(" · "));
-        // What the yes found of the sources the bytes rely on (F4 · `fresh.rs`).
+        // What the yes found of the sources the bytes rely on (`fresh.rs`).
         if let Some(basis) = basis {
             let _ = write!(report, "\n  {basis}");
         }

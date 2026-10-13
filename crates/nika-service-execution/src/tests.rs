@@ -266,7 +266,7 @@ tasks:
             .contains("/private/operator-only/secret")
     );
     let before = raw.clone();
-    let result = ServiceExecutionResult::from_runtime(&outcome, Vec::new());
+    let result = ServiceExecutionResult::from_runtime(outcome, Vec::new());
     assert_eq!(result.status(), ServiceExecutionStatus::Failed);
     assert!(
         !result
@@ -283,7 +283,11 @@ tasks:
         Some(&expected),
         "only diagnostic text changes"
     );
-    assert_eq!(*raw, before, "local outcome remains forensic truth");
+    assert_eq!(
+        result.run_outcome().map(|run| &run.settlement),
+        Some(&before),
+        "the in-process outcome remains forensic truth"
+    );
     assert!(
         events.0.iter().any(|event| event
             .str_field("error_message")
@@ -550,11 +554,42 @@ fn absent_parent_caps_every_child_at_zero() {
 
     let mut parent = Permits::new();
     parent.exec = Some(nika_schema::types::ExecPermit::Any);
-    assert!(GRANTS_SHELL(&effective_permits(None, Some(&parent))));
+    // An absent child block is the declared zero, never the parent's grant
+    // (spec 01-envelope §permits · the run-time boundary matches the check).
+    assert!(!GRANTS_SHELL(&effective_permits(None, Some(&parent))));
+    // A child that DECLARES exec still intersects the parent and keeps it.
     assert!(GRANTS_SHELL(&effective_permits(
         Some(&child),
         Some(&parent)
     )));
+}
+
+#[test]
+fn an_absent_child_permits_block_is_zero_authority_at_run() {
+    // spec 01-envelope §permits: an absent `permits:` block is the declared
+    // zero at run as at check; it never inherits the parent's boundary.
+    let mut parent = Permits::new();
+    parent.fs = Some(nika_schema::types::FsPermits::new(
+        Vec::new(),
+        vec!["./out/**".to_owned()],
+    ));
+    assert_eq!(effective_permits(None, Some(&parent)), Permits::new());
+}
+
+#[test]
+fn an_absent_and_an_empty_child_permits_block_agree_at_run() {
+    // The two spellings of zero authority — an absent block and `permits: {}`
+    // — compute the same run-time boundary under any parent.
+    let mut parent = Permits::new();
+    parent.fs = Some(nika_schema::types::FsPermits::new(
+        Vec::new(),
+        vec!["./out/**".to_owned()],
+    ));
+    let empty = Permits::new();
+    assert_eq!(
+        effective_permits(None, Some(&parent)),
+        effective_permits(Some(&empty), Some(&parent)),
+    );
 }
 
 /// An admitted driver whose anchored file plane is `directory`, so a child

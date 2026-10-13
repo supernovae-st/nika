@@ -2252,3 +2252,4 @@ pub fn nika_compile::retrieve_by_ops(ops: &[&str], k: usize) -> alloc::vec::Vec<
 pub fn nika_compile::revise_intent(request: &nika_compile::CompileRequest) -> core::option::Option<alloc::string::String>
 pub fn nika_compile::source_revision(request: &nika_compile::CompileRequest, stated: &serde_json::value::Value) -> nika_compile::CompileOutcome
 pub fn nika_compile::substitute(base: &str, path: &str, by: &str) -> core::result::Result<nika_compile_fidelity::sketch::import::Substituted, alloc::string::String>
+pub fn nika_compile::trigger_of(phrase: &str) -> core::option::Option<nika_compile::TriggerRequirement>

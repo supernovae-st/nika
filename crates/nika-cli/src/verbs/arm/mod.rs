@@ -41,6 +41,7 @@
 //! retention · registry rungs).
 
 use nika_arm::readiness::{STATUS_SCOPE, ScheduleReadinessReceipt};
+use nika_cadence::error::CadenceError;
 use nika_cadence::parse::{parse_registry, validate};
 use nika_cadence::registry::ArmRegistry;
 use nika_vocab::project;
@@ -196,37 +197,63 @@ pub(crate) fn load(
             )));
         }
     };
-    let registry = match parse_registry(&text) {
-        Ok(registry) => registry,
-        Err(e) => return Err(VerbOutput::file(format!("ARM ✗  {e}"))),
-    };
-
-    // Every law, named. An empty walk IS the green verdict.
-    let faults: Vec<String> = validate(&registry).map(|e| format!("  {e}")).collect();
-    if !faults.is_empty() {
-        return Err(VerbOutput::file(format!(
-            "ARM ✗  {} in {}\n{}",
-            crate::text::count(faults.len(), "refusal"),
-            path.display(),
-            faults.join("\n")
-        )));
+    match judged(&text, project.arm().len()) {
+        Ok(registry) => Ok((path, registry)),
+        Err(Refusal::Unread(e)) => Err(VerbOutput::file(format!("ARM ✗  {e}"))),
+        Err(Refusal::Laws(faults)) => {
+            let faults: Vec<String> = faults.iter().map(|e| format!("  {e}")).collect();
+            Err(VerbOutput::file(format!(
+                "ARM ✗  {} in {}\n{}",
+                crate::text::count(faults.len(), "refusal"),
+                path.display(),
+                faults.join("\n")
+            )))
+        }
+        Err(Refusal::Disagree { shape, grammar }) => Err(VerbOutput::file(format!(
+            "ARM ✗  the two readers of {} disagree · the project shape counts {shape}, \
+             the cadence grammar counts {grammar}\n  \
+             this is an ENGINE fault, not a file fault — report it with the file",
+            path.display()
+        ))),
     }
+}
 
+/// Why the arming door refuses a project's text that its shape reader admitted.
+pub(crate) enum Refusal {
+    /// The cadence grammar cannot read the text: the YAML, or a key outside its closed set.
+    Unread(CadenceError),
+    /// Every law the grammar names, each on its beat, in the file's order.
+    Laws(Vec<CadenceError>),
+    /// The two readers counted different beats: an engine fault, never the file's.
+    Disagree {
+        /// The beats the project shape counts.
+        shape: usize,
+        /// The beats the cadence grammar counts.
+        grammar: usize,
+    },
+}
+
+/// The arming door's judgment of a project's text beside its shape reader, which counted `shape`
+/// beats: the cadence grammar reads the text, every law it names holds, and the two readers count
+/// the same beats. `nika arm`, its emission and `nika check` share it, so none of them admits a
+/// beat another refuses.
+pub(crate) fn judged(text: &str, shape: usize) -> Result<ArmRegistry, Refusal> {
+    let registry = parse_registry(text).map_err(Refusal::Unread)?;
+    // Every law, named. An empty walk IS the green verdict.
+    let faults: Vec<CadenceError> = validate(&registry).collect();
+    if !faults.is_empty() {
+        return Err(Refusal::Laws(faults));
+    }
     // ⭐ The two parsers read the SAME bytes and must agree. They judge
     // different subsets on purpose, but a count that differs means one
     // of them saw an entry the other did not — and a file that passes
     // one gate and not the other is the fault this check exists to
     // refuse out loud rather than resolve silently.
-    let (shape, grammar) = (project.arm().len(), registry.beat_count());
+    let grammar = registry.beat_count();
     if shape != grammar {
-        return Err(VerbOutput::file(format!(
-            "ARM ✗  the two readers of {} disagree · the project shape counts {shape}, \
-             the cadence grammar counts {grammar}\n  \
-             this is an ENGINE fault, not a file fault — report it with the file",
-            path.display()
-        )));
+        return Err(Refusal::Disagree { shape, grammar });
     }
-    Ok((path, registry))
+    Ok(registry)
 }
 
 /// The report at an explicit root — the tempdir-injectable half

@@ -237,9 +237,11 @@ pub fn render(set: &ProjectChangeSet, out: &CompileOutcome, bytes: &str) -> Stri
 }
 
 /// The Runs line: by hand, or the schedule the request stated — kept
-/// beside the program (saving never activates it) — or a trigger the
-/// compiler read but cannot express.
-fn runs_line(trigger: Option<&TriggerRequirement>) -> String {
+/// beside the program (saving never activates it), in the zone chosen
+/// for it when one was — or a trigger the compiler read but cannot
+/// express. Both routes' proposals say it.
+#[must_use]
+pub fn runs_line(trigger: Option<&TriggerRequirement>) -> String {
     let Some(t) = trigger else {
         return "  when you ask (« run it ») · no schedule was asked".to_owned();
     };
@@ -263,7 +265,12 @@ fn runs_line(trigger: Option<&TriggerRequirement>) -> String {
             };
             let exact = t.cron.as_deref().map_or_else(
                 || "incomplete, conflicting or unsupported cadence · activation refuses until restated with an explicit supported period/time".to_owned(),
-                |fields| format!("proposed cron `{fields}` · timezone still belongs to activation"),
+                |fields| match t.timezone.as_deref() {
+                    Some(zone) => format!("proposed cron `{fields}` · zone {zone}"),
+                    None => {
+                        format!("proposed cron `{fields}` · timezone still belongs to activation")
+                    }
+                },
             );
             format!(
                 "  ↗ {when}{quoted} · a schedule to activate AFTER saving · saving alone activates nothing\n    {exact}"

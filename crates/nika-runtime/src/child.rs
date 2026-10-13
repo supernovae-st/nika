@@ -129,6 +129,15 @@ pub struct ChildOutcome {
     /// The child's failure surface when `ok == false` — `(code, message)`
     /// of the FIRST terminal failure (the child's own spec-plane code).
     pub failure: Option<(String, String)>,
+    /// SKELETON (child-depth prompt pause), wired in the integration window. The pause a
+    /// child run raised when a `nika:prompt` gate blocked inside it: the
+    /// runner carries the child's [`crate::pause::WorkflowPause`] out here
+    /// (its `task` already namespaced `<child-path>:<task>` via
+    /// [`crate::pause::WorkflowPause::nested`]) so the parent can re-raise it
+    /// as a run-level pause instead of folding it to a failure. `None` when
+    /// the child did not pause. Always `None` today — the re-raise is not yet
+    /// wired (a child prompt still fails `NIKA-BUILTIN-PROMPT-001`).
+    pub paused: Option<crate::pause::WorkflowPause>,
 }
 
 /// A composition refusal from the runner — the run-side voice of the

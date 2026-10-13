@@ -254,9 +254,9 @@ pub struct ArmEntry {
     /// `workflow:` — a repo-relative `*.nika` path (its EXISTENCE
     /// is judged at the consuming edge, never here — zero I/O law).
     pub workflow: String,
-    /// `cadence:` — the expression verbatim (`"dimanche 18h07"` · a
-    /// cron form). The expression LAW belongs to the cadence arc; the
-    /// shape law here is « a non-empty string ».
+    /// `cadence:` — the expression verbatim (`"TZ=Europe/Paris dimanche 18h07"`
+    /// · a cron form, each with its `TZ=` zone). The expression LAW belongs
+    /// to the cadence arc; the shape law here is « a non-empty string ».
     pub cadence: String,
     /// `où:` — the deployment locus (`None` = `local`, the safe
     /// default, at consumption time).

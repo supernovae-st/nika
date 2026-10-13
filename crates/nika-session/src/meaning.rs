@@ -739,7 +739,7 @@ mod tests {
         let doc = fixture("discussion");
         assert!(doc["provenance"]["decision"].is_null(), "{doc}");
         assert!(UNAVAILABLE.contains("unavailable"));
-        // The owner's words name no host's protocol (E8): its reader adds its own way on.
+        // The owner's words name no host's protocol: its reader adds its own way on.
         assert!(
             !UNAVAILABLE.contains('/') && !UNAVAILABLE.contains('`'),
             "{UNAVAILABLE}"
@@ -883,7 +883,7 @@ mod tests {
     }
 
     /// A ledger that is not an array, and duties of an unknown, missing or
-    /// mistyped state, are left out — never guessed — and disclosed (E8):
+    /// mistyped state, are left out — never guessed — and disclosed:
     /// over entries it could not read the view never says the compiler
     /// recorded no clause or that nothing waits; only a truly empty ledger
     /// says so. A revision between two clause-less ledgers says nothing; one

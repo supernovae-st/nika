@@ -456,6 +456,7 @@ fn replay_veto_debits_the_attempt_and_preserves_its_failure() {
         cost_unpriced: None,
         evidence: Some(evidence.clone()),
         access: None,
+        child: None,
     };
     let ledger = crate::ledger::RunLedger::new(Some(10.0));
     let mut total_cost = Some(0.125);

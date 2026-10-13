@@ -56,6 +56,11 @@ pub struct RuntimeConfig {
     /// the opening frame so a trace can only be resumed from the project
     /// that wrote it (#1367).
     pub project_root_fingerprint: Option<String>,
+    /// The host's write-origins ledger: what this run's `nika:write` and
+    /// `nika:edit` created or changed, originals kept aside, so a failed
+    /// run's teardown moves only what the run created. `None` = nothing
+    /// recorded (the teardown then moves nothing it cannot place).
+    pub write_origins: Option<std::sync::Arc<nika_builtin::WriteOrigins>>,
 }
 
 /// The ONE fingerprint of a project root — blake3 of its canonical path —
@@ -87,7 +92,19 @@ impl RuntimeConfig {
             sandbox_policy: None,
             sandbox_waived: false,
             project_root_fingerprint: None,
+            write_origins: None,
         }
+    }
+
+    /// Record the run's write origins in the host's ledger (builder —
+    /// `new()` stays stable).
+    #[must_use]
+    pub fn with_write_origins(
+        mut self,
+        origins: std::sync::Arc<nika_builtin::WriteOrigins>,
+    ) -> Self {
+        self.write_origins = Some(origins);
+        self
     }
 
     /// Attach approval attribution without reading process state during execution.

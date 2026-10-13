@@ -183,7 +183,7 @@ impl SessionRuntime {
         if self.money_blocks_cognition() {
             return Err(ReasonError::Provider(self.inference_line()));
         }
-        // A named level the session cannot ask refuses the turn before any record or byte (R4 B16).
+        // A named level the session cannot ask refuses the turn before any record or byte.
         let effort = (self.authoring_context.reasoning_asked())
             .map_err(|why| ReasonError::Provider(format!("{why} · nothing was sent")))?;
         if !self.reads_answers() {
@@ -196,7 +196,7 @@ impl SessionRuntime {
         let (account, entered) = self
             .enter_dispatch(model.flatten().as_deref())
             .map_err(|e| ReasonError::Provider(format!("{UNRECORDED}: {e}")))?;
-        // The session's explicit effort rides every call it names one for (R4 B16).
+        // The session's explicit effort rides every call it names one for.
         let reply = match (&account, effort) {
             (_, Some(effort)) => {
                 (self.reasoner).reason_effort(prompt, label, account.as_ref(), effort)
@@ -210,7 +210,7 @@ impl SessionRuntime {
         reply
     }
     /// One compile of `round` on `seat`. It is handed the verdicts that rejected candidate bytes
-    /// in the goal's earlier compiles, and keeps the ones it records for the next (R6): an
+    /// in the goal's earlier compiles, and keeps the ones it records for the next: an
     /// answer round, the write-again after a located defect and the stronger seat's retry never
     /// ask a judge again on bytes it rejected for the same request.
     pub(super) fn compile_round(
