@@ -832,20 +832,38 @@ mod tests {
             "the loaded entry must route to the local skill"
         );
         let skill = std::fs::read_to_string(tmp.join(skill_path)).expect("local skill");
-        let mut references = 0;
+        let references = tmp.join(".agents/skills/nika-authoring/references");
+        // A guide may be linked from more than one passage: reachability is per guide.
+        let mut linked = std::collections::BTreeSet::new();
         for part in skill.split("](references/").skip(1) {
             let relative = part.split(')').next().expect("reference link");
-            let path = tmp
-                .join(".agents/skills/nika-authoring/references")
-                .join(relative);
             assert!(
-                std::fs::read_to_string(path).is_ok(),
+                std::fs::read_to_string(references.join(relative)).is_ok(),
                 "reference {relative} is readable"
             );
-            references += 1;
+            linked.insert(relative.to_owned());
         }
+        let shipped: std::collections::BTreeSet<String> = std::fs::read_dir(&references)
+            .expect("the references are written")
+            .map(|entry| entry.expect("a reference entry").file_name())
+            .map(|name| name.to_string_lossy().into_owned())
+            .collect();
+        let guides = std::collections::BTreeSet::from(
+            [
+                "composition.md",
+                "decisions-and-effects.md",
+                "language.md",
+                "native-and-artifacts.md",
+                "paid-inference.md",
+                "project.md",
+                "validation-and-execution.md",
+                "workspace-and-examples.md",
+            ]
+            .map(str::to_owned),
+        );
+        assert_eq!(shipped, guides, "the eight guides the briefs write");
         assert_eq!(
-            references, 6,
+            linked, guides,
             "all conditional guides reachable from the entry"
         );
         std::fs::remove_dir_all(tmp).expect("remove temp project");
