@@ -598,8 +598,8 @@ fn unknown(clause: &str) -> String {
     )
 }
 
-/// Why a verification left the rest of its questions unasked.
-const STOPPED: &str = "The verification stopped at a judge call that got no answer (refused by the call bound, or failed: the receipt says which); nothing after it was asked of that judge. Next: another round, or a larger call bound.";
+/// What a verification says of the decision seat that could not answer: named, with its reason.
+const DECLINED: &str = "The decision seat `mock/typed-judge` cannot judge here: the seat is unavailable. Next: retry when it is available, choose another verifier, or verify with the authoring model.";
 
 /// A COLD candidate the judge doubts with no defect located (its computation clause carried,
 /// every part carried, its read and write the request's own so the engine's facts settle every
@@ -608,7 +608,7 @@ const STOPPED: &str = "The verification stopped at a judge call that got no answ
 /// again on these bytes. The clause the judge carried stays settled: the core names only the
 /// whole request pending, then the verifier the disagreement. A judge that answered nothing (its first call failed) is asked
 /// nothing more and keeps the record: a later round asks it; the core names both clauses
-/// pending, the verifier each one unknown and why it stopped.
+/// pending, the verifier each one unknown, and the seat that could not answer, with its reason.
 #[tokio::test]
 async fn a_doubted_cold_round_carries_its_rejection_and_an_unanswered_one_keeps_its_record() {
     let doubted: &[(&str, Result<&str, &str>)] = &[
@@ -660,7 +660,7 @@ async fn a_doubted_cold_round_carries_its_rejection_and_an_unanswered_one_keeps_
                 pending(&intent(), UNNAMED, candidate),
                 unknown(SUM),
                 unknown(&intent()),
-                STOPPED.to_owned(),
+                DECLINED.to_owned(),
             ];
             assert_eq!(told, expected);
             assert!(kept.is_empty(), "{kept:?}");

@@ -164,6 +164,9 @@ pub(super) struct Verdict {
     pub(super) model_parts: Option<Vec<nika_compile::ModelPart>>,
     /// Why the law did not run with this judge, said with the outcome.
     pub(super) model_parts_unrun: Option<String>,
+    /// The decision seat this verdict asked, when a seat judges: a call it cannot answer is
+    /// named with it, and with its own reason.
+    pub(super) seat: Option<String>,
     /// The author's candidate-free reading and separate audit, never human authority.
     pub(super) request_interpretation: Option<Value>,
 }
@@ -351,6 +354,7 @@ async fn ask<P: ProviderInferDyn>(
     verdict.attempted += 1;
     let (returned, answer) = match judge {
         Judge::Seat(seat) => {
+            verdict.seat = Some(seat.name().to_owned());
             let at = (verdict.prefetched.iter()).position(|(asked, _)| asked == question);
             let answer = match at {
                 Some(at) => verdict.prefetched.remove(at).1,

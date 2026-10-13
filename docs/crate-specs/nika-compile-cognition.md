@@ -837,7 +837,10 @@ apart, by its own words: « The judge found « `<part>` » missing but then name
 fails it and no operation it lacks: nothing decided it, and nothing is READY on it. »; and,
 when a call got no answer, « The verification stopped at a judge call that got no
 answer (refused by the call bound, or failed: the receipt says which); nothing after it was
-asked of that judge. Next: another round, or a larger call bound. »
+asked of that judge. Next: another round, or a larger call bound. »; a decision seat that cannot
+answer is named instead, with its own reason, verbatim from the record of that call: « The
+decision seat `<seat>` cannot judge here: `<its reason>`. Next: retry when it is available,
+choose another verifier, or verify with the authoring model. »
 
 Each attempt's record (`decision.semantic_verification[]`) carries the judge (`seat`, `kind`),
 `attempt` (the verdicts this compile recorded before it: the repairs that preceded it, at every

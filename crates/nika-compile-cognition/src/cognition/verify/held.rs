@@ -199,7 +199,7 @@ pub(super) fn blocked(out: &mut CompileOutcome, verdict: &Verdict, repairs: usiz
             out,
             DiagnosticKind::Unknown,
             "semantic_verification",
-            STOPPED,
+            stopped(verdict),
         );
     }
     if verdict.named.is_empty() {
@@ -209,3 +209,20 @@ pub(super) fn blocked(out: &mut CompileOutcome, verdict: &Verdict, repairs: usiz
 
 /// Why a verification left part of its questions unasked.
 const STOPPED: &str = "The verification stopped at a judge call that got no answer (refused by the call bound, or failed: the receipt says which); nothing after it was asked of that judge. Next: another round, or a larger call bound.";
+
+/// Why a verification stopped: a decision seat that could not answer is named, with its own
+/// reason verbatim from the record of the call it could not answer; any other call that got no
+/// answer says [`STOPPED`].
+fn stopped(verdict: &Verdict) -> String {
+    let reason = (verdict.records.iter().rev()).find_map(|record| record["error"].as_str());
+    match verdict.seat.as_deref().zip(reason) {
+        Some((seat, reason)) => {
+            let end = if reason.ends_with('.') { "" } else { "." };
+            format!("The decision seat `{seat}` cannot judge here: {reason}{end} {SEAT_NEXT}")
+        }
+        None => STOPPED.to_owned(),
+    }
+}
+
+/// What a person can do when the decision seat cannot judge.
+const SEAT_NEXT: &str = "Next: retry when it is available, choose another verifier, or verify with the authoring model.";
