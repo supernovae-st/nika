@@ -3352,6 +3352,7 @@ impl nika_compile_seats::judge::Doubt
 pub const nika_compile_seats::judge::Doubt::HOLDING_PROBABILITY: f64
 pub const nika_compile_seats::judge::Doubt::LOCATING_PROBABILITY: f64
 pub const nika_compile_seats::judge::Doubt::PART_CONFIDENCE: f64
+pub const nika_compile_seats::judge::Doubt::UNLOCATED_HOLDING_PROBABILITY: f64
 pub fn nika_compile_seats::judge::Doubt::decides(records: &[serde_json::value::Value]) -> bool
 pub fn nika_compile_seats::judge::Doubt::locates(records: &[serde_json::value::Value]) -> bool
 pub fn nika_compile_seats::judge::Doubt::new(parts: alloc::vec::Vec<alloc::string::String>, open: alloc::vec::Vec<alloc::string::String>) -> Self

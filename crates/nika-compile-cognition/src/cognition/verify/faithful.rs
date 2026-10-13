@@ -439,25 +439,60 @@ async fn locate<P: ProviderInferDyn>(
     }
     // No run decides it, no part is open and nothing is extra: asked once where it is.
     if trial.is_none() && !open && undecided.is_none() && verdict.doubt == ["unfaithful"] {
-        match doubted(&parts, asked, verdict, out).await {
-            // A seat taken at its word holds only what it locates: located nowhere, its parts
-            // carry the request, the doubt stated.
-            Some(false) if taken_at_its_word(asked.judge, &verdict.records) => {
-                let doubted = doubted_parts(&parts);
-                verdict.stated = Doubt::stated_with(&verdict.records, &restated, &doubted);
-                return Some("verify-parts");
-            }
-            Some(false) => {}
-            Some(true) => return None,
-            None => {
-                verdict.unknown.push(intent.to_owned());
-                return None;
-            }
-        }
+        let doubt = (&parts[..], &restated[..], why);
+        return Box::pin(asked_where(doubt, asked, observation, verdict, out)).await;
     }
     verdict.unknown.extend(undecided);
     doubt_stays(intent, why, verdict);
     None
+}
+
+/// Where a rejection the parts left standing is, asked once of the judge when no whole run of
+/// these bytes decides it ([`doubted`]): located, it is a defect or a contested part, and a call
+/// with no answer leaves the request unknown. Located nowhere, a seat taken at its word holds
+/// nothing ([`taken_at_its_word`]), and a seat's weighed rejection with no run of these bytes at
+/// all holds them only at its bar ([`holds_unlocated`]): the parts carry the request, the doubt
+/// stated, settled by `verify-parts`. Otherwise the doubt stays, with `why` nothing decided it.
+async fn asked_where<P: ProviderInferDyn>(
+    (parts, restated, why): (&[Part], &[String], &str),
+    asked: &Asked<'_, '_, P>,
+    observation: Option<&Value>,
+    verdict: &mut Verdict,
+    out: &mut CompileOutcome,
+) -> Option<&'static str> {
+    match doubted(parts, asked, verdict, out).await {
+        Some(false) => {
+            let stated = taken_at_its_word(asked.judge, &verdict.records)
+                || (observation.is_none() && !holds_unlocated(asked.judge, verdict));
+            if stated {
+                let doubted = doubted_parts(parts);
+                verdict.stated = Doubt::stated_with(&verdict.records, restated, &doubted);
+                return Some("verify-parts");
+            }
+            doubt_stays(asked.intent, why, verdict);
+            None
+        }
+        Some(true) => None,
+        None => {
+            verdict.unknown.push(asked.intent.to_owned());
+            None
+        }
+    }
+}
+
+/// Whether a decision seat's weighed rejection of the whole request, located nowhere with no run
+/// of these bytes, holds them: only at [`Doubt::UNLOCATED_HOLDING_PROBABILITY`], the probability
+/// it reported, that bar and the outcome recorded on the verdict. A provider judge's rejection,
+/// or an answer weighed by nothing, holds as before.
+fn holds_unlocated<P: ProviderInferDyn>(judge: &Judge<'_, P>, verdict: &mut Verdict) -> bool {
+    let reported = Doubt::reported(&verdict.records, "verify-request");
+    let (Judge::Seat(_), Some(p)) = (judge, reported) else {
+        return true;
+    };
+    let bar = Doubt::UNLOCATED_HOLDING_PROBABILITY;
+    let outcome = if p >= bar { "held" } else { "stated" };
+    verdict.unlocated = Some(json!({"probability": p, "bar": bar, "outcome": outcome}));
+    p >= bar
 }
 
 /// Legacy repair receipts may restate parts only when no whole-request answer decides.

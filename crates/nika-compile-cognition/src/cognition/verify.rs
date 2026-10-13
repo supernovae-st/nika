@@ -173,6 +173,10 @@ pub(super) struct Verdict {
     /// The choices the provider judge listed where the request leaves one open: shown when the
     /// verdict carries the request, never held.
     pub(super) assumed: Vec<String>,
+    /// A decision seat's weighed whole-request rejection that nothing located, with no run of
+    /// these bytes, as its bar decided it: the probability reported, the bar, and whether it held
+    /// or was stated (`unlocated_rejection` on the attempt).
+    pub(super) unlocated: Option<Value>,
     /// The author's candidate-free reading and separate audit, never human authority.
     pub(super) request_interpretation: Option<Value>,
 }
@@ -270,6 +274,7 @@ impl Verdict {
             usage: json!({"calls": 0, "input_tokens": 0, "output_tokens": 0, "complete": true}),
             model_parts: model_parts::read(&attempt["model_parts"]),
             model_parts_unrun: attempt["model_parts_unrun"].as_str().map(str::to_owned),
+            unlocated: attempt.get("unlocated_rejection").cloned(),
             ..Self::default()
         }
     }
@@ -870,6 +875,9 @@ fn record<P: ProviderInferDyn>(
     }
     if let Some(said) = &verdict.stated {
         entry["stated_doubt"] = json!(said);
+    }
+    if let Some(decision) = &verdict.unlocated {
+        entry["unlocated_rejection"] = decision.clone();
     }
     if let Some(reading) = &verdict.request_interpretation {
         entry["request_interpretation"] = reading.clone();

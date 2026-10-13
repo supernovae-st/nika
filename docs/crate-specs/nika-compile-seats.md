@@ -203,7 +203,12 @@ as an external consumer.
   `Doubt::decides` lets a whole-request answer decide only as `unfaithful` at
   `HOLDING_PROBABILITY` (0.83, a confidence of 0.75 over three options, `faithful` offered
   first: a seat leans toward the option listed first, so another order needs a new
-  calibration), an unweighed answer taken at its word; `Doubt::locates` lets this question's location name a defect only at
+  calibration), an unweighed answer taken at its word; a rejection nothing locates, with no run
+  of these bytes, holds them only at `UNLOCATED_HOLDING_PROBABILITY` (0.90, amended 2026-10-13:
+  every confident mutant rejection of the balanced labels read 0.90 or more, correct candidates
+  of a request no run could rehearse 0.82 to 0.88: a historical separation by a thin margin, the
+  current whole-question text and each build qualified by paired witness runs, which may move it);
+  `Doubt::locates` lets this question's location name a defect only at
   `LOCATING_PROBABILITY` (0.5); `Doubt::part_decides(records, question, options)` lets a part's
   « missing » decide only at the same confidence read over that question's own options, NONE
   counted (`PART_CONFIDENCE` 0.75: (1 + 0.75·(n − 1)) / n, 0.833 to 0.8 for the three to five

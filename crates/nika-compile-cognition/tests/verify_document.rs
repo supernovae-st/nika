@@ -934,3 +934,173 @@ fn checked() -> String {
     );
     format!("{permits}{CHECKED}")
 }
+
+/// A request whose effect no run rehearses (a POST to the person's own service): one record per
+/// invoice, even when the same invoice arrives twice.
+const INVOICES: &str = "Create one record in our CRM for each invoice found in ./inbox/: POST {invoice_id, customer, amount} as JSON to http://127.0.0.1:58495/crm/invoices. The mail server sometimes delivers the same invoice twice at the same moment; an invoice must still create exactly one record.";
+
+/// A correct candidate for [`INVOICES`], verbatim from a Session whose judge held it with no run of
+/// its bytes: each invoice read, duplicates collapsed by id, the collapse checked, then one POST
+/// per invoice.
+const ONE_RECORD_PER_INVOICE: &str = r#"nika: inbox-invoices-to-crm
+const:
+  crm_endpoint: "http://127.0.0.1:58495/crm/invoices"
+permits:
+  tools: ["nika:glob", "nika:read", "nika:jq", "nika:assert", "nika:fetch"]
+  fs: { read: ["./inbox/**"] }
+  net: { http: ["127.0.0.1"] }
+tasks:
+  list_invoices:
+    invoke:
+      tool: "nika:glob"
+      args: { pattern: "./inbox/*" }
+  read_invoices:
+    with: { paths: "${{ tasks.list_invoices.output }}" }
+    for_each: { items: "${{ with.paths }}", fail_fast: true }
+    invoke:
+      tool: "nika:read"
+      args: { path: "${{ item }}" }
+  invoice_records:
+    with: { texts: "${{ tasks.read_invoices.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { texts: "${{ with.texts }}" }
+        expression: '[.texts[] | fromjson | {invoice_id: .invoice_id, customer: .customer, amount: .amount}] | unique_by(.invoice_id)'
+  one_record_per_invoice:
+    with: { records: "${{ tasks.invoice_records.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { records: "${{ with.records }}" }
+        expression: '([.records[].invoice_id] | length) == ([.records[].invoice_id] | unique | length)'
+  check_one_per_invoice:
+    with: { ok: "${{ tasks.one_record_per_invoice.output }}" }
+    invoke:
+      tool: "nika:assert"
+      args:
+        condition: "${{ with.ok }}"
+        message: "« an invoice must still create exactly one record »"
+  create_records:
+    after: { check_one_per_invoice: success }
+    with: { records: "${{ tasks.invoice_records.output }}" }
+    for_each: { items: "${{ with.records }}" }
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ const.crm_endpoint }}"
+        method: POST
+        headers: { content-type: "application/json" }
+        body: "${{ item }}"
+outputs:
+  records: ${{ tasks.invoice_records.output }}
+  responses: ${{ tasks.create_records.output }}
+"#;
+
+/// A broken candidate for [`INVOICES`] from the same Session: its check always fails, so it posts
+/// nothing.
+const ALWAYS_FAILS: &str = r#"nika: inbox-invoices-to-crm
+model: deepseek/deepseek-flash
+const:
+  crm_endpoint: "http://127.0.0.1:58495/crm/invoices"
+permits:
+  tools: ["nika:glob", "nika:read", "nika:jq", "nika:assert", "nika:fetch"]
+  fs: { read: ["./inbox/**"] }
+  net: { http: ["127.0.0.1"] }
+tasks:
+  list_files:
+    invoke: { tool: "nika:glob", args: { pattern: "./inbox/*" } }
+  read_files:
+    with: { paths: "${{ tasks.list_files.output }}" }
+    for_each: { items: "${{ with.paths }}", fail_fast: true }
+    invoke: { tool: "nika:read", args: { path: "${{ item }}" } }
+  records:
+    with: { files: "${{ tasks.read_files.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { files: "${{ with.files }}" }
+        expression: '[.files[] | fromjson | {invoice_id: .invoice_id, customer: .customer, amount: .amount}] | unique_by(.invoice_id)'
+  one_record_per_invoice:
+    with: { records: "${{ tasks.records.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { records: "${{ with.records }}" }
+        expression: '([.records[].invoice_id] | length) == ([.records[].invoice_id] | unique | length)'
+  checked:
+    with: { files: "${{ tasks.read_files.output }}" }
+    invoke:
+      tool: "nika:assert"
+      args:
+        condition: false
+        message: "${{ with.files }}"
+  create_records:
+    after: { checked: success }
+    with: { records: "${{ tasks.records.output }}" }
+    for_each: { items: "${{ with.records }}" }
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "${{ const.crm_endpoint }}"
+        method: POST
+        headers: { content-type: "application/json" }
+        body: "${{ item }}"
+outputs:
+  records: ${{ tasks.records.output }}
+  posted: ${{ tasks.create_records.output }}
+"#;
+
+/// The document `candidate` verified for the created [`INVOICES`] under `judge`, with no selection
+/// and no room: no run of its bytes exists.
+async fn invoices(candidate: &str, judge: &Judge) -> CompileOutcome {
+    let cognition = Cognition::<NoProvider> {
+        provider: None,
+        seat: Some(judge as &dyn DecisionSeat),
+    };
+    let request = CompileRequest::create(INVOICES);
+    verify_document(&request, candidate, (&[], &[]), cognition, None)
+        .await
+        .unwrap()
+}
+
+/// A correct candidate the judge rejects as a whole at 0.84 and locates nowhere (its doubt points
+/// at a part below even odds), with no run of its bytes: under the bar a rejection located nowhere
+/// needs, its parts carry the request. READY with the doubt stated, the attempt recording the
+/// probability, the bar and the outcome. Held before, identical bytes went READY or held as the
+/// judge's lean crossed the holding probability.
+#[tokio::test]
+async fn a_correct_candidate_doubted_under_the_bar_with_no_run_is_proposed_with_its_doubt() {
+    let judge = Judge::new("unfaithful", "part-3").weighing(0.84, 0.25);
+    let out = invoices(ONE_RECORD_PER_INVOICE, &judge).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(judge.ids().last().map(String::as_str), Some("verify-doubt"));
+    let attempt = &decision(&out)["semantic_verification"][0];
+    assert_eq!(attempt["settled_by"], "verify-parts", "{attempt:#}");
+    let unlocated = json!({"probability": 0.84, "bar": 0.9, "outcome": "stated"});
+    assert_eq!(attempt["unlocated_rejection"], unlocated, "{attempt:#}");
+    let said = findings(&out, "verify_doubt");
+    let reported = format!("{OVERRULED} (reported at 0.84)");
+    assert!(
+        said.len() == 1 && said[0].starts_with(&reported),
+        "{said:?}"
+    );
+    assert!(findings(&out, "verify_held").is_empty(), "{out:#?}");
+}
+
+/// A broken candidate of the same request, rejected at 0.99 and located nowhere, with no run: at
+/// its bar the rejection still holds, never proposed, the decision recorded.
+#[tokio::test]
+async fn a_broken_candidate_doubted_at_its_bar_with_no_run_stays_held() {
+    let judge = Judge::new("unfaithful", "part-3").weighing(0.99, 0.34);
+    let out = invoices(ALWAYS_FAILS, &judge).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    let held = findings(&out, "verify_held");
+    assert!(
+        held.len() == 1 && held[0].starts_with(UNRESOLVED),
+        "{held:?}"
+    );
+    let attempt = &decision(&out)["semantic_verification"][0];
+    let unlocated = json!({"probability": 0.99, "bar": 0.9, "outcome": "held"});
+    assert_eq!(attempt["unlocated_rejection"], unlocated, "{attempt:#}");
+}
