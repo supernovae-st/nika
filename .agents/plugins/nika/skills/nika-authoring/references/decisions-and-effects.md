@@ -8,10 +8,12 @@ Three different forms answer « what if this value is missing »:
 
 | Form | Who decides, and when | Use it for |
 |---|---|---|
-| A question while authoring | the person, before the file exists | a value the request leaves open that changes the result or an effect: a recipient, a destination, a zone, a ceiling, a missed-slot rule |
-| An optional `inputs:` entry with its `default:` | the person, once, for every run | a deployment value the person gave; never a guess written down to avoid asking |
+| A question while authoring | the person, once, before the file exists | a fact that changes the result or an effect and that the person has neither given, nor kept in the project, nor delegated: a recipient, a destination, a zone, a ceiling, a missed-slot rule. Every such fact goes in one question |
+| An optional `inputs:` entry with its `default:` | the person, once, for every run | a deployment value the person gave or delegated to you (say the value you chose); never a guess written down to avoid asking |
 | A `nika:prompt` gate | a human, at run time, on every run | a decision taken when the run reaches it, above all before an irreversible effect |
 
+- A fact the person gave, the project keeps or the person delegated is not an open question:
+  use it, and never ask for it again.
 - Never invent the answer to an open question, and never bake a guess as a `default:`.
 - Headless, a gate with no `default:` pauses the run (exit 4) and names its resume line:
   `nika run <file> --resume <trace> --answer <task>=<value>` continues with the person's

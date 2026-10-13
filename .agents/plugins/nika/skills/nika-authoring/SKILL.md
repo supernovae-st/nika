@@ -27,6 +27,13 @@ an unfamiliar structure needs one. Read the relevant example, not a fixed quota.
 Use `nika --version` and the installed schema/catalog for exact names; preserve
 the user's model and do not invent an identifier from a marketing name.
 
+Use what the person already gave, what the project keeps and what they
+delegated to you. Ask, in one question, only for the facts still missing that
+change the result or an effect
+([Decisions and effects](references/decisions-and-effects.md)). One scoped
+instruction covers each effect it names (saving, running, activating a beat)
+once: carry it out without asking again.
+
 ## Read the reference that resolves the uncertainty
 
 | Task | Reference |

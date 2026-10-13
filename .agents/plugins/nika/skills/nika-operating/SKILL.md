@@ -130,8 +130,8 @@ fsync durability or that a detached write has stopped.
   structure first, spend later. The CLI override changes the envelope
   model only: inspect per-task model pins before calling a rehearsal
   offline. Tools, writes, subprocesses and secret sources remain real.
-- Sovereignty path: `--model ollama/<model>` runs local — same file,
-  same check, same trace. Give local providers `timeout: "300s"`+.
+- Local models: `--model ollama/<model>` runs on the machine — same
+  file, same check, same trace. Give local providers `timeout: "300s"`+.
 - The file does not hardcode a vendor: swapping cloud↔local is a
   `--model` flag or one line in the YAML, never a rewrite.
 
@@ -157,18 +157,20 @@ fsync durability or that a detached write has stopped.
   record). One `arm:` entry names the workflow, the cadence with its
   zone inside (`TZ=Europe/Paris 30 7 * * 1-5`, an IANA zone name), the
   ceiling of one firing (`plafond:`) and what a missed slot becomes
-  (`manqué:`); neither has a default, so ask the person when the request
-  leaves one open. Write the `manqué` value the targeted binary fires:
+  (`manqué:`); neither has a default: take each from what the person
+  gave, what the project keeps or what they delegated, and ask, once, only
+  for one still missing. Write the `manqué` value the targeted binary fires:
   0.122.0 and the 0.123 previews fire `sauter` and `rattraper-une-fois`,
   read `rattraper` UNREADY and refuse the bounded `{ rattraper: N }`;
   `nika arm --json` on that binary is the judge. Per-beat `inputs:` give
   the workflow's declared inputs their values. `nika check nika.yaml`
   judges the file; `nika arm --json` reads every beat and reports READY,
-  UNREADY with its `blockers`, or DORMANT, writing nothing. Saving,
-  running and activating are three separate consents; activation is the
-  person's own step, for a READY beat (`--emit` prints a unit for an
-  UNREADY one too): `nika arm --emit launchd|systemd --write`, then
-  loading the unit, or a resident `nika serve`. A beat whose workflow
+  UNREADY with its `blockers`, or DORMANT, writing nothing. One scoped
+  instruction can cover saving, running and, when it says so, activating,
+  each once: carry out what it covers without asking again. Activate a
+  READY beat (`--emit` prints a unit for an UNREADY one too):
+  `nika arm --emit launchd|systemd --write`, then loading the unit, or a
+  resident `nika serve`. A beat whose workflow
   calls a child reads UNREADY with no blocker, only the unknown « a
   nested workflow's routes are judged only at its own dispatch »:
   rehearse it with `nika serve --once --dry` before activating it. A

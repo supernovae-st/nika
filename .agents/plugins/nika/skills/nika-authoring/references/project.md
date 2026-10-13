@@ -38,21 +38,27 @@ Beside it:
   it) or optional (`required: false` with a `default:`). Both at once checks clean and teaches a
   contradiction: choose one.
 
-## Beats: zone, ceiling, missed slots, consent
+## Beats: zone, ceiling, missed slots, activation
 
 A recurring request becomes a beat in `nika.yaml`: the workflow, the cadence with its IANA zone
 inside (`TZ=Europe/Paris 0 9 * * 1`), the ceiling of one firing (`plafond:`, in USD) and what a
 missed slot becomes (`manqué:`). Neither `plafond` nor `manqué` has a default.
 
-- When the request does not state the zone, the ceiling or the missed-slot rule, ask the person
-  and say what each choice changes. Never pick one for them.
+- Take the zone, the ceiling and the missed-slot rule from what the person already gave: the
+  request, an earlier answer, the project (another beat's zone, the per-run `ceiling:`), or a
+  choice they delegated to you (then choose, and say what you chose). Ask only for one still
+  missing, all of them in one question, saying what each choice changes. Never write a value
+  the person neither gave nor delegated.
 - Write the `manqué` value the targeted binary fires; `nika arm --json` on that binary is the
   judge. 0.122.0 and the 0.123 previews fire `sauter` and `rattraper-une-fois`, read
   `rattraper` UNREADY (« not supported by this firer ») and refuse the bounded
   `{ rattraper: N }` (`project.bad-value`). Write the bounded catch-up only for a binary whose
   `nika arm --json` reads it READY.
-- Saving the project, running a workflow and activating a beat are three separate consents.
-  Writing a beat arms nothing: activation is the person's own step (an OS unit from
+- Saving the project, running a workflow and activating a beat are three distinct effects, and
+  one scoped instruction can cover them: « save it and run it » covers the Save and that run,
+  once; « … and run it every Monday » also covers activating the beat. Carry out what the
+  instruction covers without asking again; an effect it does not name waits for the person.
+  Writing a beat arms nothing by itself: activation is its own effect (an OS unit from
   `nika arm --emit launchd|systemd --write`, then loaded, or a resident `nika serve`). A saved
   revision of a workflow never silently changes what an active beat fires.
 - `nika check nika.yaml` judges the file. `nika arm --json` reads every beat and reports READY,
