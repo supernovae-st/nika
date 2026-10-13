@@ -113,6 +113,7 @@ use types::{EditChange, Input};
 pub use doors::import::{Substituted, source_revision, substitute};
 pub use doors::intent_sha256;
 pub use materialize::{MaterializeError, materialize_ready};
+pub use nika_compile_fidelity::model_paths::ModelSink;
 pub use nika_compile_reader::hot::{fold, stated_destinations, stated_sources};
 pub use nika_compile_reader::text;
 pub use observed::basis::{Basis, basis, basis_for};
@@ -121,8 +122,8 @@ pub use types::{
     AuthoringCognition, AuthoringKnowledge, AuthoringPolicy, AuthoringReasoning, AuthoringReceipt,
     ChoiceOffer, CompileDiagnostic, CompileError, CompileOutcome, CompilePreview,
     CompileProvenance, CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind, HotPolicy,
-    KnowledgeReference, NativeMode, PreviewScope, QuestionType, RepresentationError, Strategy,
-    TriggerKind, TriggerRequirement, TriggerStatus,
+    KnowledgeReference, ModelFound, ModelPart, NativeMode, PartBasis, PreviewScope, QuestionType,
+    RepresentationError, Strategy, TriggerKind, TriggerRequirement, TriggerStatus,
 };
 pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
 
@@ -279,6 +280,8 @@ pub fn initial() -> CompileOutcome {
         requested_boundary: None,
         requested_trigger: None,
         check_preview: None,
+        model_parts: None,
+        model_parts_unrun: None,
         provenance: CompileProvenance {
             authoring: None,
             compiler_version: env!("CARGO_PKG_VERSION").to_owned(),

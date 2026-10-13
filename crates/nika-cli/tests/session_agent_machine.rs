@@ -152,7 +152,7 @@ fn reply(body: &Value) -> Value {
     }
     let last = (body["messages"].as_array().into_iter().flatten()).next_back();
     let reading = (last.and_then(|message| message["content"].as_str()))
-        .is_some_and(|text| text.contains("One word only, nothing else."));
+        .is_some_and(|text| text.contains("One answer on one line, nothing else."));
     let content = if reading { "project" } else { "D'accord." };
     json!({"role": "assistant", "content": content})
 }

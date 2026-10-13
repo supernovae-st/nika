@@ -506,3 +506,79 @@ fn a_resume_names_the_completions_it_would_run_again_live() {
     assert!(!view.contains("run again"), "{view}");
     assert!(resumed_live(&path.with_file_name("absent.ndjson")).is_empty());
 }
+
+#[test]
+fn native_choices_keep_the_first_pause_and_first_field_exactly() {
+    let field = |key: &str, value: Value| serde_json::json!({"key":key,"value":value});
+    let first = serde_json::json!({"kind":"workflow_paused","fields":[
+        field("task", Value::String("pick".into())),
+        field("choices", Value::String(r#"["true","  spaced  ","/quit","é"]"#.into())),
+        field("choices", Value::String(r#"["replacement"]"#.into()))
+    ]});
+    let later = paused(r#"{"key":"task","value":"later"},{"key":"choices","value":"[\"later\"]"}"#);
+    let raw = format!("{first}\n{later}");
+    let facts = RunFacts::of(Path::new("choices.ndjson"), &raw).expect("facts");
+    assert_eq!(
+        facts.pause_choices(),
+        Some(
+            ["true", "  spaced  ", "/quit", "é"]
+                .map(str::to_owned)
+                .as_slice()
+        )
+    );
+    for bad in [
+        Value::Null,
+        serde_json::json!(["a"]),
+        Value::String("not JSON".into()),
+        Value::String("[1,\"a\"]".into()),
+    ] {
+        let malformed = serde_json::json!({"kind":"workflow_paused","fields":[
+            field("task", Value::String("pick".into())), field("choices", bad),
+            field("choices", Value::String(r#"["replacement"]"#.into()))
+        ]});
+        let raw = format!("{malformed}\n{later}");
+        assert_eq!(
+            RunFacts::of(Path::new("choices.ndjson"), &raw)
+                .expect("facts")
+                .pause_choices(),
+            None
+        );
+    }
+    let no_task = paused(r#"{"key":"choices","value":"[\"a\"]"}"#);
+    assert_eq!(
+        RunFacts::of(Path::new("choices.ndjson"), &format!("{no_task}\n{later}"))
+            .expect("facts")
+            .pause_choices(),
+        None
+    );
+}
+
+#[test]
+fn a_choice_gate_describes_a_string_answer_without_claiming_yes_or_no_semantics() {
+    let facts = RunFacts::read(&fixture("paused.ndjson")).expect("frames");
+    let gated = vec!["record · writes a file".to_owned()];
+    let choice = facts.gate(
+        Path::new("choice.nika"),
+        "Choose the exact report label",
+        "choice",
+        &gated,
+    );
+    assert!(choice.contains("\n  after your choice · record · writes a file"));
+    assert!(choice.contains(
+        "\n  the chosen value resumes the run · nothing after the gate has happened yet"
+    ));
+    assert!(!choice.contains("a yes lets happen") && !choice.contains("a no ends the run"));
+    let confirm = facts.gate(
+        Path::new("confirm.nika"),
+        "Write the report?",
+        "confirm",
+        &gated,
+    );
+    assert!(confirm.contains("\n  a yes lets happen · record · writes a file"));
+    assert!(
+        confirm.contains("\n  a no ends the run there · nothing after the gate has happened yet")
+    );
+    assert!(confirm.contains("answer yes or no"));
+}
+
+mod expiry;

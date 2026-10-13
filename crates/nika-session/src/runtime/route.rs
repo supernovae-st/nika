@@ -47,19 +47,38 @@ impl SessionRuntime {
     /// The context the classifier sees: the phase, the current automation
     /// in one line (the request it came from), the last thing Nika asked.
     fn turn_context(&self, phase: SessionPhase) -> TurnContext {
-        let automation = self
+        let mut automation = self
             .pending
             .as_ref()
             .map(|set| set.goal.clone())
             .or_else(|| self.intent.goal.clone());
+        if matches!(phase, SessionPhase::Idle | SessionPhase::QuestionPending)
+            && let Some(workflow) = &self.last_workflow
+        {
+            let saved = format!("The current saved workflow is `{}`.", workflow.display());
+            automation =
+                Some(automation.map_or_else(|| saved.clone(), |goal| format!("{goal}\n{saved}")));
+        }
+        let agent_prompt = || {
+            let questions = self.agent.as_ref()?.open();
+            (!questions.is_empty()).then(|| {
+                questions
+                    .into_iter()
+                    .map(|question| question.question)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+        };
         let last_prompt = match phase {
             SessionPhase::QuestionPending => self
                 .pending_question()
                 .map(|q| q.label.clone())
-                .or_else(|| self.pending_input().map(|n| format!("the value of `{n}`"))),
+                .or_else(|| self.pending_input().map(|n| format!("the value of `{n}`")))
+                .or_else(agent_prompt),
             SessionPhase::GatePending => self.pending_gate.as_ref().map(|g| g.message.clone()),
             SessionPhase::ProposalPending => Some("the proposal, waiting for yes or no".to_owned()),
-            // Idle, or a phase this session does not know (ADR-150): no last prompt.
+            SessionPhase::Idle => agent_prompt(),
+            // A phase this session does not know (ADR-150): no last prompt.
             _ => None,
         };
         TurnContext::new(phase, automation, last_prompt)
@@ -70,6 +89,31 @@ impl SessionRuntime {
     /// business), else UNKNOWN. Recorded.
     pub(super) fn classify(&mut self, phase: SessionPhase, raw: &str) -> TurnDecision {
         let context = self.turn_context(phase);
+        self.classify_context(&context, raw)
+    }
+
+    /// An existing file is context for the bounded reading, not permission to execute it.
+    /// The current workflow remains unchanged unless the ordinary Run admission succeeds.
+    pub(super) fn classify_named_run(
+        &mut self,
+        phase: SessionPhase,
+        raw: &str,
+        workflow: &std::path::Path,
+    ) -> TurnDecision {
+        let mut context = self.turn_context(phase);
+        let target = format!(
+            "The person's line explicitly names the existing project workflow `{}`. It can be run unchanged through Run admission; no new candidate is needed for that act. Its existence does not authorize a Run or settle a request to change it.",
+            workflow.display()
+        );
+        context.automation = Some(match context.automation {
+            Some(automation) => format!("{automation}\n{target}"),
+            None => target,
+        });
+        self.classify_context(&context, raw)
+    }
+
+    fn classify_context(&mut self, context: &TurnContext, raw: &str) -> TurnDecision {
+        let phase = context.phase;
         let blocked = self.money_blocks_cognition();
         let reads = self.reads_answers();
         let mut door = self.classifier.take();
@@ -124,8 +168,8 @@ impl SessionRuntime {
             }
             match (effort, classifier, &account) {
                 (Err(why), ..) => TurnDecision::failed(&why),
-                (Ok(()), Some(c), Some(a)) => c.classify_with_admission(&context, raw, a),
-                (Ok(()), Some(c), None) => c.classify(&context, raw),
+                (Ok(()), Some(c), Some(a)) => c.classify_with_admission(context, raw, a),
+                (Ok(()), Some(c), None) => c.classify(context, raw),
                 (Ok(()), None, _) => TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback),
             }
         };

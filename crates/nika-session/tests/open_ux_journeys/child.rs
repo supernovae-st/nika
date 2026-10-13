@@ -22,8 +22,8 @@ use nika_session::turn::{
 };
 use nika_session::work::Waiting;
 use nika_session::{
-    IntelligenceCensus, IntelligenceKind, QuestionId, ResolvedSessionIntelligence, SessionReasoner,
-    SessionRuntime, TurnOutcome, UserIntelligencePreference,
+    IntelligenceCensus, IntelligenceKind, ProposalId, QuestionId, ResolvedSessionIntelligence,
+    SessionReasoner, SessionRuntime, TurnOutcome, UserIntelligencePreference,
 };
 use serde_json::{Value, json};
 
@@ -131,6 +131,18 @@ fn shown(session: &SessionRuntime) -> Value {
         "question_id": session.pending_question_id().map(|id| id.to_string()),
         "proposal": session.pending_proposal().map(|id| id.to_string()),
     })
+}
+
+fn choices(session: &SessionRuntime) -> (Option<ProposalId>, Vec<QuestionId>) {
+    (
+        session.pending_proposal(),
+        session
+            .work()
+            .open_choices
+            .into_iter()
+            .map(|q| q.id)
+            .collect(),
+    )
 }
 
 /// The project's files, relative, sorted (the `.nika` store aside).
@@ -279,6 +291,7 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path, markers: &Path) -> Val
     watch_tools(&mut session, &tools);
     let mut waited: Vec<Waiting> = Vec::new();
     let mut asked: Vec<Option<QuestionId>> = Vec::new();
+    let mut offered = Vec::<(Option<ProposalId>, Vec<QuestionId>)>::new();
     let mut steps = Vec::new();
     for act in scenario.acts {
         let (line, result) = match act {
@@ -299,6 +312,7 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path, markers: &Path) -> Val
                 );
                 waited.push(session.waiting());
                 asked.push(session.pending_question_id());
+                offered.push(choices(&session));
                 continue;
             }
             Act::Submit(line) => {
@@ -316,6 +330,20 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path, markers: &Path) -> Val
                 };
                 (line, result)
             }
+            Act::AnswerProposalChoiceOf(at, index, line) => (
+                line,
+                proposal_choice(&mut session, &offered[at], index, line),
+            ),
+            Act::AnswerProposalChoiceElsewhere(at, index, line) => {
+                let (proposal, ids) = &offered[at];
+                let mut elsewhere = open(root, home, false);
+                let result = elsewhere.answer_proposal_choice_for(
+                    proposal.as_ref().expect("a proposal was shown"),
+                    &ids[index],
+                    line,
+                );
+                (line, outcome(&result))
+            }
             Act::AnswerElsewhere(at, line) => {
                 let mut elsewhere = open(root, home, false);
                 let result = match &asked[at] {
@@ -328,6 +356,7 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path, markers: &Path) -> Val
                     "shown": after}));
                 waited.push(session.waiting());
                 asked.push(session.pending_question_id());
+                offered.push(choices(&session));
                 continue;
             }
             Act::Edit(path, text) => {
@@ -347,8 +376,23 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path, markers: &Path) -> Val
         );
         waited.push(session.waiting());
         asked.push(session.pending_question_id());
+        offered.push(choices(&session));
     }
     let late = (session.steering()).map(|queue| receipt(queue.steer("trop tard")));
     let tools = tools.lock().expect("the tool steps").clone();
     json!({"steps": steps, "files": files(root), "after_turn": late, "tools": tools})
+}
+
+fn proposal_choice(
+    session: &mut SessionRuntime,
+    offered: &(Option<ProposalId>, Vec<QuestionId>),
+    index: usize,
+    line: &str,
+) -> Value {
+    let (proposal, ids) = offered;
+    outcome(&session.answer_proposal_choice_for(
+        proposal.as_ref().expect("a proposal was shown"),
+        &ids[index],
+        line,
+    ))
 }

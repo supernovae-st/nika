@@ -19,11 +19,14 @@
 
 mod desk;
 mod led;
+mod reopened;
 mod store;
+mod system;
 mod tools;
 
 use std::collections::BTreeMap;
 use std::io;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -58,6 +61,9 @@ pub(super) const DRIVER_ENV: &str = "NIKA_SESSION_DRIVER";
 /// The instructions every request of the conversation starts with.
 const SYSTEM: &str = include_str!("../../assets/author_system.md");
 
+/// Questions, interpreted selections and optional recovery context prepared for a turn.
+type PreparedLine = (Vec<QuestionId>, Vec<String>, Option<String>);
+
 /// The conversation the Session holds between turns: its tools (and the relay an ACP agent
 /// reaches them through), its tree, the person's queued lines, the turn's Stop and the agent
 /// leading it, when a seat's agent does.
@@ -69,6 +75,7 @@ pub(super) struct Driver {
     store: TreeFile,
     damaged: Option<String>,
     authorized: Option<(ProposalId, Acts, String)>,
+    pub(super) answering: Option<QuestionId>,
     /// The card of the proposal the conversation showed last: the goal its preview states,
     /// the choices it shows included, and the keys of those choices.
     card: Option<(String, Vec<String>)>,
@@ -91,7 +98,7 @@ pub(super) enum Said<'a> {
 }
 
 /// What Nika tells the author of a failed run of its candidate.
-const REPAIR: &str = "The run the person asked for failed; its facts follow. Read the document and what it wrote, write the repaired revision and propose it, saying in the person's language what failed and what you changed. It runs again only when the person says so.";
+const REPAIR: &str = "The run the person asked for failed; its facts follow. Diagnose the failure from its evidence and the relevant current inputs. Distinguish a defect in the workflow from an unavailable dependency (for example a missing input file, credential or service). For an unavailable dependency, keep the saved workflow unchanged and briefly explain what needs restoring and how the person can retry; ask only for information you actually need. Do not invent replacement data or revise a correct workflow merely because its environment failed. If the workflow itself is defective, read it, prepare the necessary repaired revision and propose it, saying in the person's language what failed and what you changed. A later user correction takes precedence over this diagnostic task. It runs again only when the person says so.";
 
 impl Driver {
     /// The driver a host door opens, unless the environment keeps the round driver.
@@ -100,6 +107,12 @@ impl Driver {
         // a driver NAME, never a secret
         let word = std::env::var(DRIVER_ENV).unwrap_or_default();
         (!word.trim().eq_ignore_ascii_case("rounds")).then(|| Self::with_store(TreeFile::memory()))
+    }
+
+    /// Keep the exact saved workflow as the next revision's destination.
+    pub(super) fn saved(&self, path: &str, bytes: &str) {
+        self.toolbox
+            .with(|conversation| conversation.saved_at(path, bytes));
     }
 
     fn with_store(store: TreeFile) -> Self {
@@ -115,6 +128,7 @@ impl Driver {
             store,
             damaged: None,
             authorized: None,
+            answering: None,
             card: None,
             steering: Steering::new(),
             cancel: CancelCtx::new(),
@@ -152,7 +166,7 @@ impl Driver {
     }
 
     /// The questions that wait for the person now.
-    fn open(&self) -> Vec<AskedQuestion> {
+    pub(super) fn open(&self) -> Vec<AskedQuestion> {
         self.toolbox.with(|conversation| {
             (conversation.questions().iter())
                 .filter(|q| q.state == AskedState::Open)
@@ -272,10 +286,12 @@ fn start_tree(store: &mut TreeFile, root: &std::path::Path, model: &str) -> Resu
     let system = EntryKind::System {
         text: instructions(model),
     };
-    (tree.append(system, at, |line| {
-        nika_session_agent::Store::append(&mut *store, line)
-    }))
-    .map_err(|e| e.to_string())?;
+    let id = tree
+        .append(system, at, |line| {
+            nika_session_agent::Store::append(&mut *store, line)
+        })
+        .map_err(|e| e.to_string())?;
+    system::mark(&mut tree, store, &id, &instructions(model))?;
     Ok(tree)
 }
 
@@ -350,9 +366,13 @@ impl SessionRuntime {
         if owned || door || unready || !self.agent_leads() {
             return None;
         }
-        let answering = (self.agent.as_ref())
-            .and_then(|d| d.tree.as_ref())
-            .is_some_and(|tree| tree.parked().is_some());
+        let answering = self.agent.as_ref().is_some_and(|driver| {
+            driver.answering.is_some()
+                || driver
+                    .tree
+                    .as_ref()
+                    .is_some_and(|tree| tree.parked().is_some())
+        });
         // A line at a proposal continues the work it shows: it amends the money decision only
         // with an amount of its own, never replacing the request the decision binds.
         let continuing = answering || self.pending.is_some();
@@ -362,7 +382,37 @@ impl SessionRuntime {
         if let Some(held) = self.hold_for_knowledge(line, true) {
             return Some(held);
         }
+        if let Some(outcome) = self.natural_run_turn(line) {
+            return Some(outcome);
+        }
         Some(self.agent_said(Said::Line(line)))
+    }
+
+    /// Record a natural rerun as the person's own line, ending only an agent's parked question.
+    /// Its facts are not fabricated as bound answers; Run still validates its current bytes.
+    pub(super) fn record_agent_rerun(&mut self, line: &str) -> Result<(), String> {
+        let Some(driver) = self.agent.as_mut() else {
+            return Ok(());
+        };
+        let Some(tree) = driver.tree.as_mut() else {
+            return Ok(());
+        };
+        let parked = tree.parked().map(|(call, _)| call.to_owned());
+        let note = "The person explicitly requested the named or current existing workflow. Nika is validating that run; no new candidate was requested.";
+        let store = &mut driver.store;
+        tree.append_user_read(
+            line,
+            (parked, None),
+            Some(note.to_owned()),
+            unix_ms(),
+            |entry| nika_session_agent::Store::append(&mut *store, entry),
+        )
+        .map_err(|error| error.to_string())?;
+        let closed = driver.toolbox.with(Conversation::supersede_questions);
+        for id in closed {
+            self.questions.close(Some(id));
+        }
+        Ok(())
     }
 
     /// Nika's own note to the conversation's author, as a turn with no person's line: none when
@@ -490,17 +540,29 @@ impl SessionRuntime {
         chosen: &str,
         line: &str,
         account: Option<InferenceAdmission>,
-    ) -> Result<(Vec<QuestionId>, Vec<String>), String> {
+    ) -> Result<PreparedLine, String> {
         if driver.tree.is_none() {
             let started = start_tree(&mut driver.store, &self.snapshot.root, chosen)?;
             driver.tree = Some(started);
         }
+        let recovery = if line.is_empty() {
+            None
+        } else {
+            let recovery = reopened::close_expired_ask(driver)?;
+            if let Some(tree) = driver.tree.as_mut() {
+                system::refresh(tree, &mut driver.store, chosen)?;
+            }
+            recovery
+        };
         let probes = (self.census.as_ref()).map(|c| c.provider_context.clone());
         let desk = SessionDesk {
             root: self.snapshot.root.clone(),
             probes: probes.unwrap_or_default(),
             knowledge: self.authoring_context.knowledge().cloned(),
             admitted: None,
+            saved: driver
+                .toolbox
+                .with(|c| c.saved().map(|(p, w)| (p.to_owned(), w.to_owned()))),
             judged: (driver.store.dir()).and_then(|dir| dir.try_clone().ok()),
             verifier: Verifier {
                 seat: self.seat.clone(),
@@ -522,7 +584,9 @@ impl SessionRuntime {
             .observed
             .watch(self.progress.listener().map(tool_steps));
         let waiting = (driver.tree.as_ref())
-            .filter(|tree| tree.parked().is_some())
+            // A bound answer has already passed the Session's identity/state checks. Another
+            // question from the same group can outlive the agent's intervening completed turn.
+            .filter(|tree| tree.parked().is_some() || driver.answering.is_some())
             .map(Tree::next_cite);
         let read = match waiting {
             Some(_) => self.read_answers(driver, line),
@@ -530,9 +594,13 @@ impl SessionRuntime {
         };
         Ok(driver.toolbox.with(|conversation| {
             let before = conversation.asked_ids();
-            let said = (waiting.map(|cite| conversation.answered_by(&cite, line, &read)))
+            let said = waiting
+                .map(|cite| match &driver.answering {
+                    Some(id) => conversation.answered_one_by(id, &cite, line, &read),
+                    None => conversation.answered_by(&cite, line, &read),
+                })
                 .unwrap_or_default();
-            (before, said)
+            (before, said, recovery)
         }))
     }
 
@@ -544,7 +612,12 @@ impl SessionRuntime {
             .toolbox
             .with(|conversation| conversation.to_read(line));
         let mut read = BTreeMap::new();
-        for question in questions {
+        for question in questions.into_iter().filter(|question| {
+            driver
+                .answering
+                .as_ref()
+                .is_none_or(|id| question.id == *id)
+        }) {
             let phase = crate::activity::Phase::Understanding;
             self.activity(&crate::activity::Activity::now(
                 phase,
@@ -575,7 +648,8 @@ impl SessionRuntime {
             Said::Note(_) => "",
         };
         let run_note = driver.run_note.take().filter(|_| !line.is_empty());
-        let (before, read) = match self.agent_begin(driver, model.model(), line, account) {
+        let (before, read, recovery) = match self.agent_begin(driver, model.model(), line, account)
+        {
             Ok(begun) => begun,
             Err(why) => return could_not_start(&why),
         };
@@ -606,7 +680,7 @@ impl SessionRuntime {
             .with_steering(steering)
             .with_cancel(cancel)
             .with_reading(&read)
-            .with_note(run_note)
+            .with_note(reopened::with_run_note(run_note, recovery))
             .with_pending(&pending);
         if let Some(window) = route_window(model.model()) {
             agent = agent.with_window(window);
@@ -736,13 +810,19 @@ impl SessionRuntime {
             return TurnOutcome::Reply(said.to_owned());
         };
         let root = self.snapshot.root.clone();
-        let Some(path) = crate::review::destination(&root, &candidate.source) else {
-            return refusal(
-                RefusalClass::AuthoringRefused,
-                "the candidate has no representable destination in the project · nothing was proposed",
-            );
+        let saved = driver
+            .toolbox
+            .with(|c| c.saved().map(|(p, w)| (p.to_owned(), w.to_owned())));
+        let read = driver
+            .verified
+            .lock()
+            .ok()
+            .map(|kept| kept.read().clone())
+            .unwrap_or_default();
+        let at = match desk::landing(&root, &candidate.source, saved.as_ref(), &read) {
+            Ok(at) => at,
+            Err(why) => return refusal(RefusalClass::AuthoringRefused, why),
         };
-        let at = path.display().to_string();
         // What the person reviews: the doubt the verifier stated and the choices the proposal
         // shows are in its goal, so the preview and the identity the consent answers cover them.
         let doubt = (driver.verified.lock())
@@ -885,6 +965,53 @@ impl SessionRuntime {
         (self.agent.as_ref()).is_some_and(|d| d.open().iter().any(|q| q.id == *id))
     }
 
+    /// The choice belongs to the proposal currently shown, not to another question or draft.
+    pub(super) fn agent_proposal_asks(&self, id: &QuestionId) -> bool {
+        self.agent.as_ref().is_some_and(|driver| {
+            driver.shown(self.pending.as_ref()).is_some()
+                && driver.toolbox.with(|conversation| {
+                    conversation
+                        .open()
+                        .iter()
+                        .any(|question| question.id == *id && question.state == AskedState::Open)
+                })
+        })
+    }
+
+    /// A validated proposal choice is an answer, never a command or consent token. It uses
+    /// the same model, money and knowledge boundaries as an ordinary conversation answer.
+    pub(super) fn agent_proposal_answer(&mut self, id: &QuestionId, line: &str) -> TurnOutcome {
+        if let Some(driver) = self.agent.as_mut() {
+            driver.authorized = None;
+        }
+        if !self.chosen || !self.intelligence.ready || !self.agent_leads() {
+            return self.answer_refused(
+                Some(id.clone()),
+                refusal(RefusalClass::NoIntelligence, "the selected intelligence cannot answer this choice; `/intelligence` chooses a usable route"),
+            );
+        }
+        // A held raw line resumes through the ordinary turn parser. Keep this typed choice
+        // instead, so repairing a refused knowledge source cannot turn an offer key into a
+        // command or consent. The host retains its exact selection for resubmission.
+        if self.knowledge_offered() {
+            return self.answer_refused(
+                Some(id.clone()),
+                refusal(RefusalClass::NotAllowed, "the configured knowledge source is unavailable; `/knowledge embedded` selects the built-in knowledge, then send this retained choice again · nothing was sent"),
+            );
+        }
+        if let Err(refused) = self.admit_money(line, true, false) {
+            return self.answer_refused(Some(id.clone()), refused);
+        }
+        if let Some(driver) = self.agent.as_mut() {
+            driver.answering = Some(id.clone());
+        }
+        let outcome = self.agent_said(Said::Line(line));
+        if let Some(driver) = self.agent.as_mut() {
+            driver.answering = None;
+        }
+        outcome
+    }
+
     /// Whether the conversation's intelligence reads a line typed at a proposal: open
     /// language, never the consent protocol (`yes` · `no` · `save & run` · a command · `show`).
     pub(super) fn agent_reads_at_consent(&self, line: &str) -> bool {
@@ -930,7 +1057,19 @@ impl SessionRuntime {
     /// The conversation a history resumes, in the history's own directory.
     pub(super) fn resume_agent(&mut self, dir: io::Result<OwnedDir>, kept: Option<&Value>) {
         if self.agent.is_some() {
-            self.agent = Some(Driver::resumed(dir, kept));
+            let driver = Driver::resumed(dir, kept);
+            if self.last_workflow.is_none() && driver.tree.is_some() && driver.damaged.is_none() {
+                // A saved destination is historical context, not consent to replay a Run.
+                // The next explicit request still checks its current bytes and effects.
+                self.last_workflow = driver.toolbox.with(|conversation| {
+                    let (path, _) = conversation.saved()?;
+                    super::natural_run::relative_workflow(&self.snapshot.root, Path::new(path))
+                });
+                // The rail keeps the historical Save fact, just as for the round driver's
+                // program record. This field grants no pending consent, check or Run.
+                self.consented.clone_from(&self.last_workflow);
+            }
+            self.agent = Some(driver);
         }
     }
 }

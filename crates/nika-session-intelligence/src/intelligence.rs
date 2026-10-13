@@ -387,6 +387,7 @@ impl IntelligenceCensus {
                         None,
                     ),
                 };
+                api_profile(&provider, model.as_deref())?;
                 Ok(UserIntelligencePreference::new(
                     IntelligenceKind::Api { provider },
                     model,
@@ -483,6 +484,30 @@ impl IntelligenceCensus {
             "`{other}` is not a choice — answer 1, 2, 3 or 4; a model follows its number: `{pick} {other}`"
         )
     }
+}
+
+/// API categories and example placeholders never become provider/model selections.
+fn api_profile(
+    provider: &str,
+    model: Option<&str>,
+) -> Result<nika_providers::profile::Profile, String> {
+    let profile = nika_providers::profile::seed().into_iter()
+        .find(|profile| profile.id == provider && profile.access_class() == nika_types::access::AccessClass::Api)
+        .ok_or_else(|| format!("unknown API provider `{provider}` — choose a named API connection from `/intelligence`; API is a connection type, not a provider"))?;
+    if let Some(model) = model {
+        let valid = model.split_once('/').is_some_and(|(prefix, name)| {
+            prefix == provider
+                && !name.is_empty()
+                && name != "default"
+                && !name.contains(['<', '>'])
+        });
+        if !valid {
+            return Err(format!(
+                "`{model}` is not a concrete API model — choose a listed model, or `2 {provider}` for the provider's catalog default"
+            ));
+        }
+    }
+    Ok(profile)
 }
 
 /// A choice's name as typed: `openai` names a provider, `claude-code` an app;
@@ -611,17 +636,20 @@ impl ResolvedSessionIntelligence {
                 )
             }
             IntelligenceKind::Api { provider } => {
-                if census.api_keys.iter().any(|k| k == provider) {
-                    (metered_or_gateway(provider), true, None)
-                } else {
-                    (
-                        metered_or_gateway(provider),
-                        false,
-                        Some(format!(
-                            "no key for `{provider}` in the environment — `export <VAR>=…` (`nika doctor` names the variable), or `/intelligence` to choose another path"
-                        )),
-                    )
-                }
+                let why = match api_profile(provider, pref.model.as_deref()) {
+                    Err(why) => Some(why),
+                    Ok(_) if census.api_keys.iter().any(|key| key == provider) => None,
+                    Ok(profile) => Some(format!(
+                        "no key for `{provider}` in the environment — configure {} (`nika doctor` checks the connection), or `/intelligence` to choose another path",
+                        profile
+                            .env_candidates()
+                            .iter()
+                            .map(|name| format!("`{name}`"))
+                            .collect::<Vec<_>>()
+                            .join(" or ")
+                    )),
+                };
+                (metered_or_gateway(provider), why.is_none(), why)
             }
             IntelligenceKind::Local { provider } => {
                 if census.locals.iter().any(|l| l == provider) {
@@ -822,6 +850,67 @@ mod tests {
             locals: vec![],
             provider_context: Vec::new(),
         }
+    }
+
+    #[test]
+    fn api_choices_refuse_categories_unknown_providers_and_placeholder_models() {
+        let mut c = census();
+        c.api_keys = vec!["deepseek".into()];
+        for answer in [
+            "2 API",
+            "2 API/default",
+            "2 nika-does-not-exist/no-model",
+            "2 <provider>/<model>",
+            "2 deepseek/<model>",
+            "2 deepseek/default",
+            "2 deepseek/",
+            "2 ollama/llama3.3",
+        ] {
+            assert!(c.choose(answer).is_err(), "{answer}");
+        }
+        let chosen = c.choose("2 deepseek").expect("known provider default");
+        assert_eq!(
+            chosen.kind,
+            IntelligenceKind::Api {
+                provider: "deepseek".into()
+            }
+        );
+        assert_eq!(chosen.model, None);
+        assert!(ResolvedSessionIntelligence::resolve(&chosen, &c).ready);
+        let named = c
+            .choose("2 deepseek/provider-future-model")
+            .expect("provider owns its model namespace");
+        assert_eq!(
+            named.model.as_deref(),
+            Some("deepseek/provider-future-model")
+        );
+        let broken = UserIntelligencePreference::new(
+            IntelligenceKind::Api {
+                provider: "API".into(),
+            },
+            Some("API/default".into()),
+        );
+        let resolved = ResolvedSessionIntelligence::resolve(&broken, &c);
+        assert!(!resolved.ready);
+        let why = resolved.why.expect("reason");
+        assert!(why.contains("unknown API provider"), "{why}");
+        assert!(!why.contains("<VAR>"), "{why}");
+    }
+
+    #[test]
+    fn an_unconfigured_known_api_names_its_real_key_variables() {
+        let c = census();
+        let chosen = c
+            .choose("2 deepseek")
+            .expect("explicit known provider retained");
+        let resolved = ResolvedSessionIntelligence::resolve(&chosen, &c);
+        assert!(!resolved.ready);
+        let why = resolved.why.expect("reason");
+        assert!(
+            why.contains("NIKA_DEEPSEEK_API_KEY") && why.contains("DEEPSEEK_API_KEY"),
+            "{why}"
+        );
+        assert!(!why.contains("<VAR>"), "{why}");
     }
 
     /// Presence never chooses between accounts, even when only one has sign-in evidence.

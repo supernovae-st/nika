@@ -595,6 +595,9 @@ pub struct Intelligence {
     /// The explicit reasoning effort every authoring call asks; `None` keeps each route's own
     /// default.
     pub effort: Option<String>,
+    /// Current native intelligence picker options, from the host inventory.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<Offer>,
 }
 
 impl Intelligence {
@@ -611,6 +614,7 @@ impl Intelligence {
             author,
             decision,
             effort,
+            options: Vec::new(),
         }
     }
 }

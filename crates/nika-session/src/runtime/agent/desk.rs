@@ -44,6 +44,8 @@ const PLAIN: Theme = Theme::new(false, false, false);
 /// knowledge release and the conversation's verifier.
 pub(crate) struct SessionDesk {
     pub(crate) root: PathBuf,
+    /// Exact workflow last saved by this conversation, reused only while its witness matches.
+    pub(crate) saved: Option<(String, String)>,
     pub(crate) probes: Vec<ProviderProbe>,
     pub(crate) knowledge: Option<KnowledgePin>,
     pub(crate) verifier: Verifier,
@@ -52,6 +54,68 @@ pub(crate) struct SessionDesk {
     /// Where the bytes each verification judged are kept (the history directory); none without
     /// history.
     pub(crate) judged: Option<OwnedDir>,
+}
+
+/// Reuse a known workflow's destination only when its on-disk bytes are still observed.
+/// A revision updates that workflow instead of creating a numbered duplicate.
+pub(super) fn landing(
+    root: &std::path::Path,
+    source: &str,
+    saved: Option<&(String, String)>,
+    read: &BTreeMap<String, Witness>,
+) -> Result<String, String> {
+    let id = crate::review::workflow_id(source);
+    let mut known: BTreeMap<String, Vec<&str>> = BTreeMap::new();
+    if let Some((path, witness)) = saved {
+        known.entry(path.clone()).or_default().push(witness);
+    }
+    for (path, witness) in read {
+        if std::path::Path::new(path)
+            .extension()
+            .is_some_and(|extension| extension == "nika")
+        {
+            known
+                .entry(path.trim_start_matches("./").to_owned())
+                .or_default()
+                .push(&witness.0);
+        }
+    }
+    let project = OwnedDir::open(root).map_err(|e| e.to_string())?;
+    // The workflow actually saved by this conversation takes precedence over a
+    // reference or copy read later, even when that file sorts before it.
+    let mut ordered: Vec<_> = known.into_iter().collect();
+    ordered.sort_by_key(|(path, _)| saved.is_none_or(|(saved, _)| saved != path));
+    let mut observed_match = None;
+    for (path, seen) in ordered {
+        let parts: Vec<&str> = path.split('/').collect();
+        let Some((name, dirs)) = parts.split_last() else {
+            continue;
+        };
+        let Ok(Some(text)) = project.read_capped_below(dirs, name, READ_CAP, "too large to revise")
+        else {
+            continue;
+        };
+        if crate::review::workflow_id(&text) != id {
+            continue;
+        }
+        if !seen.contains(&Witness::of(text.as_bytes()).0.as_str()) {
+            return Err(format!(
+                "`{path}` changed since this conversation saved or read it: read it again and preserve those changes before proposing"
+            ));
+        }
+        if saved.is_some_and(|(saved, _)| saved == &path) {
+            return Ok(path);
+        }
+        if observed_match.replace(path).is_some() {
+            return Err("several observed workflows have this name; identify the workflow to revise before proposing".to_owned());
+        }
+    }
+    if let Some(path) = observed_match {
+        return Ok(path);
+    }
+    crate::review::destination(root, source)
+        .map(|path| path.display().to_string())
+        .ok_or_else(|| "the candidate has no representable destination in the project".to_owned())
 }
 
 /// The most of one judged candidate the Session keeps.
@@ -411,11 +475,23 @@ impl Desk for SessionDesk {
         source: &str,
         (stated, answers, original): (&str, &BTreeMap<String, String>, Option<&str>),
         selections: (&[Resolution], &[Resolution]),
+        presentation: &Value,
     ) -> Result<String, String> {
-        // The same bytes against the same words, answers and selections: the verdict stands.
+        // A verdict stands only for the same bytes, words, selections and full presentation.
         let rows = |s: &[Resolution]| s.iter().map(Resolution::to_json).collect::<Vec<_>>();
         let (authored, host) = (rows(selections.0), rows(selections.1));
-        let said = json!([source, stated, authored, host, answers, original]);
+        let read = kept(&self.verifier)?.read.clone();
+        let at = landing(&self.root, source, self.saved.as_ref(), &read)?;
+        let said = json!([
+            source,
+            stated,
+            authored,
+            host,
+            answers,
+            original,
+            at,
+            presentation
+        ]);
         let key = blake3::hash(said.to_string().as_bytes())
             .to_hex()
             .to_string();
@@ -441,11 +517,11 @@ impl Desk for SessionDesk {
         // The same verification a compile round of the request faces: the files its words name
         // observed, the laws, the trial, then the whole-request verdict; ready only on that
         // verdict, and never on a failed trial.
-        let out = crate::authoring::verify_in(
+        let out = crate::authoring::verify_presented_in(
             &verifier.seat,
             &verifier.context,
             (stated, answers, original),
-            (source, selections),
+            (source, selections, presentation),
             declined,
             verifier.account.as_ref(),
             Some(&scoped),
@@ -460,9 +536,6 @@ impl Desk for SessionDesk {
             return Err(findings(&out));
         }
         kept(verifier)?.tried = tried.ok().flatten().map(|tried| (tried, words));
-        let path = (crate::review::destination(&self.root, source))
-            .ok_or("the candidate has no representable destination in the project")?;
-        let at = path.display().to_string();
         let set = ProjectChangeSet::workflow_at(&self.root, "verify", &at, source.to_owned())
             .map_err(|e| e.to_string())?;
         let audit = set.audits.first().ok_or("the candidate was not audited")?;
@@ -503,3 +576,6 @@ impl Desk for SessionDesk {
         nika_session_intelligence::reasoner::agent_model::model_facts(&self.probes, model)
     }
 }
+
+#[cfg(test)]
+mod tests;

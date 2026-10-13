@@ -302,7 +302,7 @@
   {
    "name": "verify",
    "read_only": true,
-   "description": "Judge the candidate against the whole request: Nika's check, the fidelity laws with the selections' provenance, what earlier revisions kept, a trial where nothing leaves the room (on the pages its public GET sources answer, each observed once, and the project files it reads; a model step, a request other than GET and any effect outside the room are not run), the whole-request verdict and the money gate. A failed trial comes back with its facts (task, code, message): repair the candidate, then verify again.",
+   "description": "Judge the candidate against the whole request: Nika's check, the fidelity laws with the selections' provenance, what earlier revisions kept, a trial where nothing leaves the room (on the pages its public GET sources answer, each observed once, and the project files it reads; a model step, a request other than GET and any effect outside the room are not run), the whole-request verdict and the money gate. A failed trial comes back with its facts (task, code, message): repair the candidate. When ready to show it, call propose directly with its open choices: propose already verifies that complete presentation. A standalone verify before adding choices does not qualify that later presentation and repeats work.",
    "input_schema": {
     "type": "object",
     "properties": {},

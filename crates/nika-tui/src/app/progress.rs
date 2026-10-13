@@ -18,7 +18,7 @@ use crate::model::{Conversation, UiState};
 use crate::session::feed::Observed;
 
 /// The card's update for one activity the shell saw `at` since the turn
-/// began: a call when the Session reported one, its phase otherwise.
+/// began: a call or tool when the Session reported one, its phase otherwise.
 fn update(activity: &Activity, at: Duration) -> Update<'_> {
     match &activity.call {
         Some(call) => Update::call(
@@ -29,7 +29,10 @@ fn update(activity: &Activity, at: Duration) -> Update<'_> {
             call.state,
             at,
         ),
-        None => Update::phase(activity.phase, &activity.note, activity.done),
+        None => match &activity.tool {
+            Some(tool) => Update::tool(activity.phase, &activity.note, tool.state),
+            None => Update::phase(activity.phase, &activity.note, activity.done),
+        },
     }
 }
 
@@ -109,5 +112,26 @@ mod tests {
             update(&done, Duration::ZERO),
             Update::Phase { done: true, .. }
         ));
+    }
+
+    #[test]
+    fn failed_tools_reach_the_card_as_failed_even_though_they_are_done() {
+        use nika_display::activity::{ToolState, tool_activity};
+        use nika_display::activity_card::ActivityCard;
+
+        for (state, row) in [
+            (ToolState::Failed, "✗ Generating · read failed · 7 ms"),
+            (ToolState::Finished, "✓ Generating · read · 7 ms"),
+        ] {
+            let activity = tool_activity("call-1", "read", state, Some(7));
+            assert!(activity.done, "both terminal reports have finished");
+            assert!(matches!(
+                update(&activity, Duration::ZERO),
+                Update::Tool { state: reported, .. } if reported == state
+            ));
+            let mut card = ActivityCard::new();
+            card.observe(update(&activity, Duration::ZERO));
+            assert_eq!(card.lines(false), ["Working", row]);
+        }
     }
 }

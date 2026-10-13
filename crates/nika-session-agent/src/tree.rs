@@ -591,7 +591,7 @@ impl Tree {
     }
 
     /// The call the run waits on (its identity and tool): the last call on the branch that
-    /// ended the turn, while no later line answers it.
+    /// ended the turn, while no later line answers it or terminal tool reply closes it.
     #[must_use]
     pub fn parked(&self) -> Option<(&str, &str)> {
         let branch = self.branch();
@@ -603,10 +603,18 @@ impl Tree {
                 EntryKind::Parked { call, name, .. } => Some((k, call.as_str(), name.as_str())),
                 _ => None,
             })?;
-        let answered = branch
-            .iter()
-            .skip(k + 1)
-            .any(|e| matches!(&e.kind, EntryKind::User { answers: Some(a), .. } if a == call));
+        let answered = branch.iter().skip(k + 1).any(|entry| match &entry.kind {
+            EntryKind::User {
+                answers: Some(answer),
+                ..
+            } => answer == call,
+            EntryKind::ToolResult {
+                call: answered,
+                reply,
+                ..
+            } => answered == call && !reply.ends_turn,
+            _ => false,
+        });
         (!answered).then_some((call, name))
     }
 

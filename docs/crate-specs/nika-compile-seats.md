@@ -123,6 +123,10 @@ as an external consumer.
   the base whole). The engine facts a request may condition on (A5) also ride that state;
   `judged_state` is the three together (`state`, `over_document`, `authoring` below), what every
   question of a verdict starts from.
+  Its model-facing `answers` decodes each stored JSON literal exactly once, so selected
+  option descriptions and human citations remain structured data. Quoted JSON stays text;
+  malformed literals and integers outside the exact range stay verbatim text. This projection
+  neither changes `CompileRequest.answers` nor validates, binds or authorizes an answer.
   `lent` records them once per settled attempt of a composing door (the document door's
   `document_create` section, or a document revision's `document_revision` section), in the
   native record its rounds replay (`facts`):

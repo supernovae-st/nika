@@ -171,7 +171,12 @@ impl ProviderInferDyn for Author {
         let mut asked = self.asked.lock().unwrap();
         let answer = if let Some(choice) = approved {
             asked.push("judge");
-            json!({"choice": choice}).to_string()
+            let mut judged = json!({"choice": choice});
+            // The whole request's question asks the parts a model must write: none here.
+            if schema["properties"]["model_parts"].is_object() {
+                judged["model_parts"] = json!([]);
+            }
+            judged.to_string()
         } else {
             let kind = if schema["properties"].get("fills").is_some() {
                 "fills"

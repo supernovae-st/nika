@@ -93,6 +93,13 @@ Session's tools act on the Session, and only the Session's doors save, run or re
   the cited line's own words and a zone the person's words name or a choice the proposal shows
   offers as its default; such a choice may offer the zone, which the candidate never carries.
 
+- A conversation keeps the workflow it saved last with the witness of the bytes saved
+  (`Conversation::saved_at`), across a reopen and a new request: what a revision replaces.
+- `Conversation::answers` keeps selected offer keys and labels beside their bound values
+  and cited provenance for semantic verification. An offer without business values still
+  carries its selection receipt; it invents no binding. Only selected alternatives enter
+  that context, including after reopening. This evidence grants neither Save nor Run.
+
 ## 4. Gate evidence (admission with the unit)
 
 | Gate | State |

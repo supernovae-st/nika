@@ -125,7 +125,18 @@ pub(crate) fn authored(reply: fn(&str) -> Value) -> Vec<(u16, Value)> {
 /// The verifier's closed choice, approved (native step 1, R4 A11): the explicit answer a test
 /// scripts at the judge's position, after a native candidate READY in its authoring round. The
 /// judge's call is a real request, counted and journaled like any other.
-pub(crate) const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
+/// It answers the whole request's `model_parts` too: no part a model must write.
+pub(crate) const JUDGE_APPROVES: &str = r#"{"choice":"faithful","model_parts":[]}"#;
+
+/// A judge's answer to a closed choice as a test scripts it: the whole request's keys
+/// (`faithful`, `unfaithful`) answer its `model_parts` too, no part a model must write.
+pub(crate) fn judge_answer(choice: &str) -> String {
+    let mut answer = json!({ "choice": choice });
+    if matches!(choice, "faithful" | "unfaithful") {
+        answer["model_parts"] = json!([]);
+    }
+    answer.to_string()
+}
 fn open(root: &Path) -> SessionRuntime {
     std::fs::write(root.join("entree.txt"), "A\n").expect("input");
     let selected = ResolvedSessionIntelligence::new(

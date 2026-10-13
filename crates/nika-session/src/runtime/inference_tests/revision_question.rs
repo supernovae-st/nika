@@ -923,9 +923,8 @@ fn a_ceiling_saved_with_other_bytes_refuses_the_revision_before_any_call() {
     let out = s.revise_saved(&saved, CHANGE);
     // The refusal speaks of this revision, never of running.
     assert!(
-        matches!(&out, TurnOutcome::Refusal(r) if r.text.contains("monetary decision")
-            && r.text.contains("this revision cannot inherit its ceiling")
-            && !r.text.contains("running")),
+        matches!(&out, TurnOutcome::Refusal(r) if r.class == RefusalClass::NotAllowed
+            && r.text == "the saved workflow changed since its execution constraint was recorded — this revision cannot inherit its ceiling · nothing was sent · or state this revision's ceiling"),
         "{out:?}"
     );
     assert_eq!(peer.bodies().len(), calls, "nothing sent");
@@ -964,7 +963,8 @@ fn a_ceiling_saved_for_another_resolved_file_refuses_the_revision() {
     let calls = peer.bodies().len();
     let out = s.revise_saved(&saved, CHANGE);
     assert!(
-        matches!(&out, TurnOutcome::Refusal(r) if r.text.contains("monetary decision")),
+        matches!(&out, TurnOutcome::Refusal(r) if r.class == RefusalClass::NotAllowed
+            && r.text == "the saved workflow changed since its execution constraint was recorded — this revision cannot inherit its ceiling · nothing was sent · or state this revision's ceiling"),
         "{out:?}"
     );
     assert_eq!(peer.bodies().len(), calls, "nothing sent");

@@ -111,7 +111,7 @@ impl TypesafeSeat {
                 }
             }
             let started = std::time::Instant::now();
-            match self.post(&body).await {
+            match self.post(body).await {
                 Ok(response) => partition.responded(at, batch, response.status, &response.body),
                 Err(failure) => {
                     partition.lost(at, failure.delivery != Delivery::NotSent, failure.error);

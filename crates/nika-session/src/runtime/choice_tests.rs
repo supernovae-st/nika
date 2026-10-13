@@ -14,6 +14,204 @@ use super::*;
 use crate::intelligence::{DataLocus, IntelligenceKind};
 use crate::reasoner::{NoReasoner, ScriptedReasoner};
 
+#[test]
+fn reopening_intelligence_and_api_labels_keep_the_exact_waiting_request() {
+    let dir = tree();
+    let home = tempfile::tempdir().expect("home");
+    let selections = Arc::new(AtomicUsize::new(0));
+    let selected = Arc::clone(&selections);
+    let census = IntelligenceCensus::new(vec![], vec!["deepseek".into()], vec![]);
+    let factory: ReasonerFactory = Box::new(move |resolved| {
+        if matches!(resolved.kind, IntelligenceKind::None) {
+            return Box::new(NoReasoner);
+        }
+        assert_eq!(
+            resolved.kind,
+            IntelligenceKind::Api {
+                provider: "deepseek".into()
+            }
+        );
+        selected.fetch_add(1, Ordering::SeqCst);
+        Box::new(ScriptedReasoner::new(vec![
+            "the kept request answered".into(),
+        ]))
+    });
+    let mut s = SessionRuntime::open_unchosen(dir.path(), census, Some(home.path()), factory);
+    s.enable_continuous_preparation();
+    assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Ask(_)));
+    for answer in ["/intelligence", "API", "2 API", "/intelligence 2 API"] {
+        for entry in ["turn", "submit", "choose"] {
+            let outcome = match entry {
+                "turn" => s.turn(answer),
+                "submit" => s.submit(answer, &s.waiting()),
+                _ => s.choose(answer),
+            };
+            let TurnOutcome::Ask(screen) = outcome else {
+                panic!("{entry}({answer}) reopens choices");
+            };
+            assert!(screen.contains("deepseek"), "{screen}");
+            assert_eq!(
+                s.interrupted.as_deref(),
+                Some(SMALL_TALK),
+                "{entry}({answer})"
+            );
+            assert!(s.pending_choice());
+            assert!(!s.intelligence_chosen());
+            assert_eq!(selections.load(Ordering::SeqCst), 0);
+            assert!(UserIntelligencePreference::load(home.path()).is_none());
+        }
+    }
+    let options = s.intelligence_options();
+    assert_eq!(
+        options
+            .iter()
+            .filter(|o| !o.label.contains("key required"))
+            .map(|o| o.key.as_str())
+            .collect::<Vec<_>>(),
+        ["2 deepseek"]
+    );
+    let TurnOutcome::Resumed { outcome, .. } = s.turn("2 deepseek") else {
+        panic!("a real choice resumes the request");
+    };
+    assert!(
+        matches!(*outcome, TurnOutcome::Reply(ref text) if text == "the kept request answered")
+    );
+    assert_eq!(selections.load(Ordering::SeqCst), 1);
+    assert_eq!(s.interrupted, None);
+    assert!(!s.pending_choice());
+}
+
+#[test]
+fn an_unknown_provider_never_replaces_the_current_choice_or_resumes_a_request() {
+    let dir = tree();
+    let selections = Arc::new(AtomicUsize::new(0));
+    let selected = Arc::clone(&selections);
+    let census = IntelligenceCensus::new(vec![], vec!["deepseek".into()], vec![]);
+    let pref = UserIntelligencePreference::new(
+        IntelligenceKind::Api {
+            provider: "deepseek".into(),
+        },
+        Some("deepseek/deepseek-v4-pro".into()),
+    );
+    let factory: ReasonerFactory = Box::new(move |_| {
+        selected.fetch_add(1, Ordering::SeqCst);
+        Box::new(NoReasoner)
+    });
+    let mut s = SessionRuntime::open_with(dir.path(), census, &pref, None, factory);
+    assert!(matches!(
+        s.ask_for_intelligence(SMALL_TALK, Need::Conversation),
+        TurnOutcome::Ask(_)
+    ));
+    for answer in [
+        "/intelligence 2 nika-does-not-exist/no-model",
+        "2 API/default",
+        "2 deepseek/default",
+        "2 <provider>/<model>",
+    ] {
+        assert!(
+            matches!(s.choose(answer), TurnOutcome::Refusal(ref refusal) if refusal.class == RefusalClass::IntelligenceRefused),
+            "{answer}"
+        );
+        assert_eq!(
+            s.intelligence.kind,
+            IntelligenceKind::Api {
+                provider: "deepseek".into()
+            }
+        );
+        assert_eq!(
+            s.intelligence.model.as_deref(),
+            Some("deepseek/deepseek-v4-pro")
+        );
+        assert_eq!(s.interrupted.as_deref(), Some(SMALL_TALK));
+        assert!(s.pending_choice());
+        assert_eq!(selections.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[test]
+fn an_api_without_a_key_is_discoverable_and_keeps_the_exact_waiting_request() {
+    let dir = tree();
+    let home = tempfile::tempdir().expect("home");
+    let selections = Arc::new(AtomicUsize::new(0));
+    let selected = Arc::clone(&selections);
+    let factory: ReasonerFactory = Box::new(move |_| {
+        selected.fetch_add(1, Ordering::SeqCst);
+        Box::new(NoReasoner)
+    });
+    let mut s = SessionRuntime::open_unchosen(
+        dir.path(),
+        IntelligenceCensus::empty(),
+        Some(home.path()),
+        factory,
+    );
+    s.enable_continuous_preparation();
+    let _ = s.turn("/intelligence");
+    let _ = s.request_before_intelligence(SMALL_TALK);
+    let initial_selections = selections.load(Ordering::SeqCst);
+    let options = s.intelligence_options();
+    let api = options
+        .iter()
+        .find(|offer| offer.key == "2 deepseek")
+        .expect("a known provider can be discovered before its key is configured");
+    assert_eq!(
+        api.label,
+        "deepseek API · key required · configure NIKA_DEEPSEEK_API_KEY or DEEPSEEK_API_KEY"
+    );
+    assert!(!api.recommended);
+    assert!(!options.iter().any(|offer| offer.key == "4"));
+    let TurnOutcome::Refusal(refused) = s.choose("2 deepseek/deepseek-v4-flash") else {
+        panic!("an unconfigured API does not become a selection");
+    };
+    assert_eq!(refused.class, RefusalClass::IntelligenceRefused);
+    assert!(refused.text.contains("NIKA_DEEPSEEK_API_KEY"));
+    assert!(refused.text.contains("DEEPSEEK_API_KEY"));
+    assert!(!refused.text.contains("<VAR>"));
+    assert!(!s.intelligence_chosen());
+    assert!(s.pending_choice());
+    assert_eq!(s.interrupted.as_deref(), Some(SMALL_TALK));
+    assert_eq!(selections.load(Ordering::SeqCst), initial_selections);
+    assert!(UserIntelligencePreference::load(home.path()).is_none());
+}
+
+#[test]
+fn an_api_without_a_key_never_replaces_a_configured_selection() {
+    let dir = tree();
+    let selections = Arc::new(AtomicUsize::new(0));
+    let selected = Arc::clone(&selections);
+    let pref = UserIntelligencePreference::new(
+        IntelligenceKind::Api {
+            provider: "deepseek".into(),
+        },
+        Some("deepseek/deepseek-v4-pro".into()),
+    );
+    let factory: ReasonerFactory = Box::new(move |_| {
+        selected.fetch_add(1, Ordering::SeqCst);
+        Box::new(NoReasoner)
+    });
+    let mut s = SessionRuntime::open_with(
+        dir.path(),
+        IntelligenceCensus::new(vec![], vec!["deepseek".into()], vec![]),
+        &pref,
+        None,
+        factory,
+    );
+    let _ = s.ask_for_intelligence(SMALL_TALK, Need::Conversation);
+    for answer in ["2 anthropic", "2 anthropic/claude-sonnet-4-5"] {
+        let TurnOutcome::Refusal(refused) = s.choose(answer) else {
+            panic!("{answer} must retain the current usable connection");
+        };
+        assert_eq!(refused.class, RefusalClass::IntelligenceRefused);
+        assert!(refused.text.contains("NIKA_ANTHROPIC_API_KEY"));
+        assert!(refused.text.contains("ANTHROPIC_API_KEY"));
+        assert_eq!(s.intelligence.kind, pref.kind);
+        assert_eq!(s.intelligence.model, pref.model);
+        assert!(s.intelligence.ready);
+        assert!(s.pending_choice());
+        assert_eq!(s.interrupted.as_deref(), Some(SMALL_TALK));
+        assert_eq!(selections.load(Ordering::SeqCst), 1);
+    }
+}
+
 /// The first run opens without a choice: the facts and the deterministic
 /// compiler answer at once; the first turn that needs an intelligence asks
 /// the first screen in context and keeps the line, a typo keeps it

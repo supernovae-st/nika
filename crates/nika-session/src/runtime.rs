@@ -42,13 +42,17 @@ mod durable;
 #[allow(clippy::expect_used, clippy::panic)]
 mod durable_tests;
 mod fresh;
+mod gate_choices;
 mod history;
 mod inference;
+mod initial_intelligence;
 mod knowledge;
 mod landed;
 mod money_gate;
+mod natural_run;
 // The lexical money reader grants no authority; admission stays here.
 use nika_onboard::compile::money as money_parse;
+mod intelligence_options;
 mod observed;
 mod protocol;
 mod question;
@@ -759,6 +763,9 @@ impl SessionRuntime {
     /// <words>` at once): the choice is judged, held for this conversation only and the reasoner
     /// rebuilt; refused with its fix when this census cannot read it, the previous choice standing.
     fn choose_unrecorded(&mut self, answer: &str) -> TurnOutcome {
+        if answer.trim() == "/intelligence" {
+            return self.intelligence_screen();
+        }
         let answer = (answer.trim().strip_prefix("/intelligence ")).map_or(answer, str::trim);
         let (Some(census), Some(_)) = (&self.census, &self.factory) else {
             self.pending_choice = false;
@@ -768,6 +775,16 @@ impl SessionRuntime {
                 "this session cannot re-choose its intelligence — quit and open `nika` again",
             ));
         };
+        let mut words = answer.split_whitespace();
+        if answer.trim().eq_ignore_ascii_case("api")
+            || (words.next() == Some("2")
+                && words
+                    .next()
+                    .is_some_and(|word| word.eq_ignore_ascii_case("api"))
+                && words.next().is_none())
+        {
+            return self.api_intelligence_screen();
+        }
         // Leaving is always one line away: no choice is made, the waiting
         // line is dropped (never sent anywhere).
         if is_quit(answer) {
@@ -775,11 +792,16 @@ impl SessionRuntime {
             self.interrupted = None;
             return TurnOutcome::Quit;
         }
-        // A cancel keeps going without a choice: the waiting line is dropped
-        // (never sent anywhere), the previous choice stands.
+        // Cancelling configuration over an existing decision keeps both that decision and
+        // any interrupted request. An initial choice retains its existing cancel protocol.
         if crate::authoring::is_cancel(answer) {
             self.pending_choice = false;
-            let text = match self.interrupted.take() {
+            let interrupted = if self.intelligence_suspends_decision() {
+                None
+            } else {
+                self.interrupted.take()
+            };
+            let text = match interrupted {
                 Some(_) => {
                     "no intelligence chosen · your request was not sent anywhere · the facts still answer (workflows · builtins · providers · check · explain) and work Nika can read on its own compiles · `/intelligence` chooses later"
                 }
@@ -810,6 +832,21 @@ impl SessionRuntime {
                 ));
             }
         };
+        // A known API without a key remains a configuration request. Keep both the
+        // previous intelligence and the interrupted line; no reasoner is built or called.
+        if matches!(pref.kind, IntelligenceKind::Api { .. }) {
+            let resolved = ResolvedSessionIntelligence::resolve(&pref, census);
+            if !resolved.ready {
+                self.pending_choice = true;
+                return TurnOutcome::Refusal(Refusal::new(
+                    RefusalClass::IntelligenceRefused,
+                    format!(
+                        "{} · the previous choice and any waiting request are kept",
+                        resolved.why.as_deref().unwrap_or("this API is not ready")
+                    ),
+                ));
+            }
+        }
         self.adopt(pref);
         self.pending_choice = false;
         let notice = format!(
@@ -818,6 +855,11 @@ impl SessionRuntime {
             self.seat.line(),
             self.connection_money()
         );
+        // Selecting a model is not a response to a Save, gate or cost decision. In particular,
+        // an older interrupted request cannot run past that decision through configuration.
+        if self.intelligence_suspends_decision() {
+            return TurnOutcome::Facts(notice);
+        }
         // The line that waited resumes exactly as typed, under the choice.
         match self.interrupted.take() {
             Some(line) => {
@@ -829,6 +871,13 @@ impl SessionRuntime {
             }
             None => TurnOutcome::Facts(notice),
         }
+    }
+
+    fn intelligence_suspends_decision(&self) -> bool {
+        self.pending.is_some()
+            || self.pending_gate.is_some()
+            || self.waiting_review().is_some()
+            || self.waiting_cost_choice()
     }
 
     /// The one line that names the path and where the context goes.
@@ -1231,6 +1280,16 @@ impl SessionRuntime {
             .map(|gate| GateId::new(&gate.trace, &gate.task))
     }
 
+    /// The waiting gate only when its declared mode is a finite confirmation.
+    /// This read-only projection grants no answer or resume authority.
+    #[must_use]
+    pub fn waiting_confirm_gate(&self) -> Option<GateId> {
+        self.pending_gate
+            .as_ref()
+            .filter(|gate| gate.mode == "confirm")
+            .map(|gate| GateId::new(&gate.trace, &gate.task))
+    }
+
     /// An answer that names the gate it decides (ADR-133): refused as
     /// stale when another gate or a run's cost review waits, as already consumed when that gate
     /// was answered, as the wrong state when none waits. The same gate
@@ -1310,6 +1369,10 @@ mod authoring_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod choice_tests;
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod intelligence_interruption_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod money_answer_tests;

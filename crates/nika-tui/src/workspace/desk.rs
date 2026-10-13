@@ -64,7 +64,7 @@ use super::object::{Object, Paint};
 use super::project::{self, Opened, ProjectView, Target};
 use super::screen::{self, Screen};
 use crate::composer::Composer;
-use crate::model::{Presentation, UiState};
+use crate::model::{Kind, Presentation, UiState};
 
 mod layout;
 use layout::Drag;
@@ -93,6 +93,10 @@ pub(crate) enum Route {
 /// The workspace's own state.
 #[derive(Debug)]
 #[non_exhaustive]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "These flags track independent display facts, not mutually exclusive workspace states."
+)]
 pub(crate) struct Desk {
     /// The project the conversation last lent; `None` when it lends none.
     pub(crate) view: Option<ProjectView>,
@@ -132,6 +136,8 @@ pub(crate) struct Desk {
     /// ([`Desk::prepare_for`], read through [`Desk::folds`]); another
     /// candidate drops it.
     fold: Option<((u16, u16), Arrangement, bool)>,
+    /// The welcome yields its space once the human starts the conversation.
+    conversation_started: bool,
 }
 
 /// The reading a request was made for: the leg's reading, and the child
@@ -261,6 +267,7 @@ impl Desk {
             drag: None,
             unsettled: false,
             fold: None,
+            conversation_started: false,
         }
     }
 
@@ -365,6 +372,10 @@ impl Desk {
     /// frame, whether that decision or the live question folds the stacked
     /// object ([`Desk::folds`]): the face is rendered for the cells it gets.
     pub(crate) fn prepare_for(&mut self, state: &UiState, ascii: bool, color: bool) {
+        self.conversation_started = state
+            .transcript
+            .iter()
+            .any(|block| block.kind == Kind::Human);
         let review = self.review(ascii);
         let reviewed = state.presentation == Presentation::Workspace
             && review::summarized(state, review.as_ref()).is_some();
@@ -919,6 +930,7 @@ pub(crate) fn draw(
             arrangement: desk.arrangement,
             dragging: desk.dragging(),
             folded: desk.folds((area.width, area.height)),
+            conversation_only: desk.conversation_only(),
         },
     )
 }
@@ -960,3 +972,7 @@ mod layout_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod fold_tests;
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod conversation_tests;

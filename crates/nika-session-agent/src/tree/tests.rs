@@ -500,3 +500,70 @@ fn the_last_words_are_the_text_of_the_last_message() {
     add(&mut tree, &mut lines, message(vec![call("c2", "ask")]));
     assert_eq!(tree.last_said(), "");
 }
+
+#[test]
+fn a_host_reply_can_close_a_parked_call_without_a_human_answer() {
+    let (mut tree, mut lines) = open();
+    say(&mut tree, &mut lines, "the original request");
+    add(
+        &mut tree,
+        &mut lines,
+        message(vec![call("c1", "ask"), call("c2", "read")]),
+    );
+    add(
+        &mut tree,
+        &mut lines,
+        result(
+            "c2",
+            "read",
+            ToolReply::ok("The observed file is unchanged."),
+        ),
+    );
+    add(
+        &mut tree,
+        &mut lines,
+        EntryKind::Parked {
+            call: "c1".into(),
+            name: "ask".into(),
+            reply: ToolReply::ends_turn("asked q1"),
+        },
+    );
+    add(
+        &mut tree,
+        &mut lines,
+        result("other", "ask", ToolReply::error("unrelated")),
+    );
+    assert_eq!(tree.parked(), Some(("c1", "ask")));
+    add(
+        &mut tree,
+        &mut lines,
+        result("c1", "ask", ToolReply::ends_turn("still waiting")),
+    );
+    assert_eq!(tree.parked(), Some(("c1", "ask")));
+    let expired = "The question expired; no answer or authorization was supplied.";
+    add(
+        &mut tree,
+        &mut lines,
+        result("c1", "ask", ToolReply::error(expired)),
+    );
+    assert_eq!(tree.parked(), None);
+    say(&mut tree, &mut lines, "continue my request");
+    let replayed = Tree::replay(&file(&lines)).unwrap();
+    assert_eq!(replayed.parked(), None);
+    let context = replayed.context();
+    assert_eq!(context.messages.len(), 4);
+    assert_eq!(
+        blocks(&context.messages[2]),
+        vec![
+            ("result", expired.into(), "c1".into(), true),
+            (
+                "result",
+                "The observed file is unchanged.".into(),
+                "c2".into(),
+                false
+            ),
+        ]
+    );
+    assert_eq!(blocks(&context.messages[3])[0].1, "continue my request");
+    assert_eq!(blocks(&context.messages[3])[1].1, "(cited as u2)");
+}

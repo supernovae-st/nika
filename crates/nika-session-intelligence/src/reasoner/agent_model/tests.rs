@@ -283,3 +283,42 @@ fn a_failed_tool_step_reaches_the_host_with_why_it_failed() {
     );
     assert!(seen.iter().all(|a| !a.note.contains("ABCDEFGH12345678")));
 }
+
+/// An authentication refusal is scoped to this conversation, not a workflow Run diagnostic.
+#[test]
+fn authentication_failure_guides_the_conversation_without_run_advice() {
+    let denied = serde_json::json!({"error": {"message": "Invalid API key", "type": "authentication_error"}});
+    let peer = Peer::start(vec![(401, denied)]);
+    let _http = test_transport::install(&peer.url);
+    let mut model = AgentModel::new("deepseek/deepseek-v4-pro");
+    let error = model
+        .complete(&line(), &mut |_| {})
+        .expect_err("401 refuses once");
+    let said = error.to_string();
+    assert!(
+        said.contains("deepseek") && said.contains("HTTP 401"),
+        "{said}"
+    );
+    assert!(
+        said.contains("NIKA_DEEPSEEK_API_KEY") && said.contains("DEEPSEEK_API_KEY"),
+        "{said}"
+    );
+    assert!(
+        said.contains("/intelligence") && said.contains("usage and billing unknown"),
+        "{said}"
+    );
+    assert!(
+        !said.contains("mock/echo") && !said.contains("timeout:") && !said.contains("XAI_API_KEY"),
+        "{said}"
+    );
+    assert_eq!(peer.bodies().len(), 1);
+}
+
+/// A quota refusal is not rewritten as a credential problem, even on an HTTP 403.
+#[test]
+fn conversation_auth_guidance_preserves_quota_diagnostics() {
+    let details =
+        nika_kernel::provider::ProviderHttpError::new(403, Some("insufficient_quota"), None, None);
+    let error = ProviderError::HttpResponse { details };
+    assert_eq!(conversation_error("deepseek", &error), error.to_string());
+}

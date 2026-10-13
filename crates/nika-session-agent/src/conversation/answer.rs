@@ -32,15 +32,18 @@ impl Answered {
         option: Option<&str>,
         (role, value): (ValueRole, &str),
     ) -> bool {
-        let Pick::Offer(picked) = &self.pick else {
+        let Some(option) = option.filter(|option| self.pick.includes(option)) else {
             return false;
         };
         self.cite == message
-            && option == Some(picked.as_str())
-            && self.question.options.iter().any(|offer| {
-                offer.key == *picked
-                    && (offer.values.iter())
-                        .any(|v| v.role == role && same_literal(&v.value, value))
+            && selected(&self.question, &self.pick).is_some_and(|offers| {
+                offers.iter().any(|offer| {
+                    offer.key == option
+                        && offer
+                            .values
+                            .iter()
+                            .any(|v| v.role == role && same_literal(&v.value, value))
+                })
             })
     }
 
@@ -48,6 +51,13 @@ impl Answered {
     fn said(&self) -> String {
         match &self.pick {
             Pick::Offer(key) => format!("picked `{key}`"),
+            Pick::Offers(keys) => format!(
+                "picked {}",
+                keys.iter()
+                    .map(|key| format!("`{key}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             Pick::Delegated => "left the choice to Nika".to_owned(),
             Pick::Declined => "declined the offers".to_owned(),
             Pick::Nothing => "picked none of the offers".to_owned(),
@@ -58,17 +68,54 @@ impl Answered {
     /// Why the proposal that shows this choice cannot be saved as it is: the person picked an
     /// option other than the default it carries.
     fn instead(&self) -> Option<String> {
-        let Pick::Offer(picked) = &self.pick else {
-            return None;
-        };
+        let offers = selected(&self.question, &self.pick)?;
         let default = recommended(&self.question).map(|offer| offer.key.as_str());
-        (default != Some(picked.as_str())).then(|| {
+        let is_default = offers.len() == 1 && default == Some(offers[0].key.as_str());
+        (!is_default).then(|| {
             format!(
-                "the person picked `{picked}` for `{}` with {}, and this proposal carries its default",
-                self.question.key, self.cite
+                "the person {} for `{}` with {}, and this proposal carries its default",
+                self.said(),
+                self.question.key,
+                self.cite
             )
         })
     }
+}
+
+/// Resolve every selected offer before changing bindings. A multiple choice
+/// cannot smuggle unknown/duplicate offers or conflicting single-valued roles.
+pub(super) fn selected<'a>(question: &'a AskedQuestion, pick: &Pick) -> Option<Vec<&'a Offer>> {
+    let keys: Vec<&str> = match pick {
+        Pick::Offer(key) => vec![key.as_str()],
+        Pick::Offers(keys) if question.multi_select && !keys.is_empty() => {
+            keys.iter().map(String::as_str).collect()
+        }
+        _ => return None,
+    };
+    if keys
+        .iter()
+        .enumerate()
+        .any(|(at, key)| keys[..at].contains(key))
+    {
+        return None;
+    }
+    let offers = keys
+        .iter()
+        .map(|key| question.options.iter().find(|offer| offer.key == *key))
+        .collect::<Option<Vec<_>>>()?;
+    let values = offers
+        .iter()
+        .flat_map(|offer| &offer.values)
+        .collect::<Vec<_>>();
+    if values.iter().enumerate().any(|(at, value)| {
+        single(value.role)
+            && values[..at].iter().any(|before| {
+                before.role == value.role && !same_literal(&before.value, &value.value)
+            })
+    }) {
+        return None;
+    }
+    Some(offers)
 }
 
 /// The one offer a question recommends, when it recommends exactly one.
@@ -118,7 +165,7 @@ impl Conversation {
         }
         for question in std::mem::take(&mut self.open) {
             let pick = Pick::of_line(&question, line).or_else(|| read.get(&question.key).cloned());
-            let Some(pick @ (Pick::Offer(_) | Pick::Delegated)) = pick else {
+            let Some(pick @ (Pick::Offer(_) | Pick::Offers(_) | Pick::Delegated)) = pick else {
                 self.open.push(question);
                 continue;
             };
@@ -153,9 +200,48 @@ impl Conversation {
                 let provenance = Provenance::new(ProvenanceKind::Offered, cite)
                     .with_offer(key, Some(picked.clone()));
                 self.bind_offer(key, offer, &provenance);
+                self.remember_answer(question, cite, &[offer], ProvenanceKind::Offered);
                 format!(
                     "`{key}`: the person picked `{picked}` ({}) with {cite}; Nika bound its values",
                     offer.label
+                )
+            }
+            Pick::Offers(_) => {
+                let Some(offers) = selected(question, &answer.pick) else {
+                    return format!(
+                        "`{key}`: the selected offers are invalid or contain conflicting single values; nothing is bound"
+                    );
+                };
+                // Remove the previous answer once, then bind the whole set.
+                // Repeated calls to bind_offer would erase earlier selections.
+                self.bindings.retain(|binding| {
+                    binding.key.as_deref() != Some(key)
+                        && !offers
+                            .iter()
+                            .flat_map(|offer| &offer.values)
+                            .any(|value| single(value.role) && value.role == binding.role)
+                });
+                for offer in &offers {
+                    let provenance = Provenance::new(ProvenanceKind::Offered, cite)
+                        .with_offer(key, Some(offer.key.clone()));
+                    for value in &offer.values {
+                        if !self.bindings.iter().any(|bound| {
+                            bound.key.as_deref() == Some(key)
+                                && bound.role == value.role
+                                && same_literal(&bound.value, &value.value)
+                                && bound.provenance == provenance
+                        }) {
+                            self.bindings.push(
+                                Binding::new(value.role, &value.value, provenance.clone())
+                                    .with_key(key),
+                            );
+                        }
+                    }
+                }
+                self.remember_answer(question, cite, &offers, ProvenanceKind::Offered);
+                format!(
+                    "`{key}`: the person {} with {cite}; Nika bound all selected values",
+                    answer.said()
                 )
             }
             Pick::Delegated => self.delegated(question, cite, line.trim()),
@@ -186,6 +272,7 @@ impl Conversation {
             .with_excerpt(excerpt)
             .with_offer(key, Some(offer.key.clone()));
         self.bind_offer(key, offer, &provenance);
+        self.remember_answer(question, cite, &[offer], ProvenanceKind::Delegated);
         for value in &offer.values {
             self.delegate(cite, excerpt, value.role);
         }
@@ -226,7 +313,7 @@ impl Conversation {
     ) -> String {
         let option = option.unwrap_or("?");
         match question.and_then(|key| self.answered.get(key)) {
-            Some(answer) if answer.cite == message && answer.pick == Pick::Offer(option.into()) => {
+            Some(answer) if answer.cite == message && answer.pick.includes(option) => {
                 format!(
                     "`{value}` is stated as offered, but it is no value of `{option}`, the offer the person picked with {message}"
                 )
@@ -262,3 +349,6 @@ impl Conversation {
             .map(|answer| answer.cite.as_str())
     }
 }
+
+#[cfg(test)]
+mod multi_tests;

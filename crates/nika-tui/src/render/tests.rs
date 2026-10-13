@@ -190,11 +190,8 @@ fn workspace_navigation_fits_one_row_and_yields_to_the_current_action() {
         }
     }
     for (waiting, narrow) in [
-        // The four choices keep their row; `cancel` takes the next.
-        (
-            Waiting::Choosing,
-            "1 account - 2 API - 3 local - 4 no AI\ncancel",
-        ),
+        // A missing connection keeps actionable local guidance visible.
+        (Waiting::Choosing, "connect an AI - /providers: connections"),
         (Waiting::Proposal, "yes + Enter: Save - no: cancel"),
         (Waiting::Gate, "approve or refuse"),
         (
@@ -658,6 +655,28 @@ fn activity_rows_wear_their_glyph_tone_and_keep_their_words() {
     assert_eq!(busy.spans[1].style, role::style(Role::Warn, true));
 }
 
+/// Failure remains readable without colour and never borrows the success tone.
+#[test]
+fn a_failed_tool_is_bad_in_the_activity_card_and_busy_row() {
+    for (ascii, text) in [
+        (false, "✗ Generating · read failed"),
+        (true, "x Generating - read failed"),
+    ] {
+        let block = Committed::new(Kind::Activity, format!("Working\n{text}"));
+        for color in [false, true] {
+            let lines = block_lines(&block, color, ascii);
+            assert_eq!(lines[1].spans[1].content.as_ref(), text);
+            assert_eq!(lines[1].spans[1].style, role::style(Role::Bad, color));
+        }
+    }
+    let mut state = UiState::new(Presentation::Workspace, true, (120, 40));
+    state.apply(Beat::Busy("✗ read failed".to_owned()));
+    assert_eq!(
+        status_line(&state, false, u16::MAX, None).spans[1].style,
+        role::style(Role::Bad, true)
+    );
+}
+
 /// While a turn works, the hint says what typing and Ctrl+C do then, in words; the
 /// hint of what waits returns with the turn's end. A completion still wins.
 #[test]
@@ -841,8 +860,8 @@ fn the_rail_and_the_status_cut_visibly_on_a_narrow_row() {
     }
 }
 
-/// A decision's hint too wide for its row drops a whole cue, or the choices
-/// set `cancel` on a second row: what stays is whole rows whose every key
+/// A decision's hint too wide for its row drops a whole cue:
+/// what stays is whole rows whose every key
 /// keeps what it does, never a key at a row's end.
 #[test]
 fn a_decision_keeps_each_key_with_its_effect_on_narrow_rows() {
@@ -868,8 +887,11 @@ fn a_decision_keeps_each_key_with_its_effect_on_narrow_rows() {
             let at = format!("{waiting:?} {width}: {text}");
             // Every row holds whole: none wraps.
             assert_eq!(usize::from(wrapped_rows(&hint, width)), hint.len(), "{at}");
-            let second = waiting == Waiting::Choosing && width == 44;
-            assert_eq!(hint.len(), 1 + usize::from(second), "{at}");
+            assert_eq!(hint.len(), 1, "{at}");
+            if waiting == Waiting::Choosing {
+                assert!(text.contains("/providers: connections"), "{at}");
+                assert!(!text.contains("cancel"), "{at}");
+            }
             let full = state.waiting.hint();
             let mut forms = std::iter::once(full).chain(narrower(&waiting).to_vec());
             assert!(forms.any(|form| form == text), "{at}");

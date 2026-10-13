@@ -126,6 +126,7 @@ async fn bytes_a_judge_declined_are_never_asked_of_it_again() {
         "candidate_sha256": sha,
         "declined": true, "rejected": true, "settled": false, "stopped": false,
         "unresolved": false, "engine": [],
+        "model_parts_unrun": "model-step check not run: the judge stated no model parts",
         "whole_asked": true,
         "request": INTENT,
         "same_bytes_as": 0,

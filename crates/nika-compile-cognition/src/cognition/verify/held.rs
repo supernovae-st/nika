@@ -7,9 +7,10 @@
 //! the preview where the document door's repairs end (as COLD keeps its own) or kept unjudged for
 //! a round that replays it under a judge, with the words each exit says. Split from `verify.rs`
 //! at the file-LOC cap (2026-10-07); the exits keep their paths
-//! (`verify::{withdrawn, held, kept, preserve_unjudged, HELD_TARGET}`).
+//! (`verify::{withdrawn, held, kept, preserve_unjudged, HELD_TARGET}`). The findings they leave
+//! ([`blocked`]) followed them at the same cap (2026-10-12), imported back as `verify::blocked`.
 
-use super::{Verdict, blocked, route};
+use super::{Verdict, route};
 use crate::{CompileOutcome, CompileStatus, DiagnosticKind};
 
 /// A judged candidate that is not READY, withdrawn with its questions, its requested boundary and
@@ -128,3 +129,83 @@ pub(in crate::cognition) fn preserve_unjudged(
 
 /// What an unjudged candidate's kept record offers.
 const RESUME: &str = "The candidate was not judged, so it is not offered; its bytes are kept: a round that replays this record under a judge asks it on the same candidate, with no new authoring call (a replay with no judge judges nothing).";
+
+/// The findings a blocked verification leaves: each duty the core named, as the core's (no judge
+/// was asked, B21 T3), each part the judge found missing (repaired from as the policy allowed)
+/// and each it could not settle, with the next action. No question asks the human for
+/// information the request already gives; a duty the core named keeps the clarification the
+/// core asks, its only next action.
+pub(super) fn blocked(out: &mut CompileOutcome, verdict: &Verdict, repairs: usize) {
+    for (evidence, kind) in &verdict.named {
+        crate::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "semantic_verification",
+            format!(
+                "The core named `{evidence}` ({kind}) and no element of the compiled workflow carries it; no judge was asked. {repairs} repair(s) from it did not settle it; nothing is READY. Next: the clarification the compiler asks, or a restatement of that part."
+            ),
+        );
+    }
+    for defect in &verdict.noted_defects() {
+        crate::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "semantic_verification",
+            format!(
+                "The judge compared the whole request with the candidate's bytes: it does not carry « {defect} ». {repairs} repair(s) from that defect did not settle it; nothing is READY. Next: a stronger authoring model, or a restatement of that part."
+            ),
+        );
+    }
+    // An interpretation held before any decision call is a preparation failure, not a judge
+    // abstention. Its precise finding already names the failing phase and source location.
+    let reading_held = verdict.attempted == 0
+        && verdict
+            .request_interpretation
+            .as_ref()
+            .is_some_and(|record| !super::interpretation::covered(record));
+    for unknown in verdict.unknown.iter().filter(|_| !reading_held) {
+        let message = format!(
+            "The judge could not settle `{unknown}` against the candidate (it abstained, answered outside its options, or its call failed); nothing is READY on it. Next: a judge that answers, or a restatement the deterministic reader reads."
+        );
+        crate::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "semantic_verification",
+            message,
+        );
+    }
+    for contested in &verdict.contested {
+        // The whole request is named apart from a part: each contested entry is said once.
+        let message = if verdict.request.as_deref() == Some(contested.as_str()) {
+            format!(
+                "The judge did not accept the request as carried ({}) and located no defect a repair could start from; the same judge asked again decides nothing ({}). Nothing is READY on it. Next: a correction of the request, or another verifier.",
+                verdict.doubt.join(", "),
+                verdict.unsettled.join("; ")
+            )
+        } else {
+            format!(
+                "The judge found « {contested} » missing but then named no task that fails it and no operation it lacks: nothing decided it, and nothing is READY on it."
+            )
+        };
+        crate::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "semantic_verification",
+            message,
+        );
+    }
+    if verdict.stopped {
+        crate::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "semantic_verification",
+            STOPPED,
+        );
+    }
+    if verdict.named.is_empty() {
+        out.questions.retain(|q| q.key != "intent.clarification");
+    }
+}
+
+/// Why a verification left part of its questions unasked.
+const STOPPED: &str = "The verification stopped at a judge call that got no answer (refused by the call bound, or failed: the receipt says which); nothing after it was asked of that judge. Next: another round, or a larger call bound.";

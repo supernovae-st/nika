@@ -11,14 +11,14 @@
 //! decides which vendor seats it: a `TypeSafe` System One request, a generative
 //! provider constrained to a closed enum, or a hermetic double in tests.
 
-use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Mutex};
+use std::{collections::BTreeMap, fmt::Write as _, future::Future, pin::Pin, sync::Mutex};
 
 use nika_compile::AuthoringReasoning;
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, ResponseFormat, Role,
     StopReason,
 };
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
 /// The reject-all option every closed choice carries.
 pub const NONE_OPTION: &str = "none";
@@ -45,6 +45,15 @@ pub struct ChoiceQuestion {
     pub state: Value,
     /// Admissible options plus NONE.
     pub options: Vec<ChoiceOption>,
+    /// The order a System One request writes the options in: `Alphabetical`, every request's
+    /// wire order so far, unless the question asks its own (a both-order reading asks one question
+    /// in `Question` order and its twin `Reversed`, and averages the two by key). A provider seat
+    /// lists the options in their own order whatever this holds.
+    pub order: system_one::Order,
+    /// The properties a provider judge returns beside its choice ([`AlsoProperty`]), in the order
+    /// they are asked; none for a closed choice that asks the choice alone, whose bytes are
+    /// unchanged.
+    pub also: Vec<AlsoProperty>,
 }
 
 impl ChoiceQuestion {
@@ -67,13 +76,67 @@ impl ChoiceQuestion {
             instructions: instructions.into(),
             state,
             options,
+            order: system_one::Order::Alphabetical,
+            also: Vec::new(),
         }
+    }
+
+    /// The same question, its options sent to a decision service in `order`.
+    #[must_use]
+    pub fn in_order(mut self, order: system_one::Order) -> Self {
+        self.order = order;
+        self
     }
     /// The option keys, in offered order.
     #[must_use]
     pub fn keys(&self) -> Vec<String> {
         self.options.iter().map(|o| o.key.clone()).collect()
     }
+
+    /// The same question, a provider judge also asked to return `also` beside its choice, after
+    /// the properties already declared.
+    #[must_use]
+    pub fn with_also(mut self, also: AlsoProperty) -> Self {
+        self.also.push(also);
+        self
+    }
+}
+
+/// A property a provider judge returns beside its choice, in the same JSON answer: its key, the
+/// JSON Schema of its value, and what the judge is told it holds ([`closed_choice`] asks it,
+/// [`decoded_also`] reads it). A decision service answers the choice alone.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct AlsoProperty {
+    /// The answer key, beside `choice`.
+    pub name: String,
+    /// The JSON Schema of its value.
+    pub schema: Value,
+    /// What the judge is told the property holds.
+    pub instructions: String,
+}
+
+impl AlsoProperty {
+    /// One property a provider judge returns beside its choice.
+    #[must_use]
+    pub fn new(name: impl Into<String>, schema: Value, instructions: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            schema,
+            instructions: instructions.into(),
+        }
+    }
+}
+
+/// The property a provider judge returns beside any choice: the one sentence that decided it,
+/// kept in the record for a reader and never parsed.
+#[must_use]
+pub fn reason() -> AlsoProperty {
+    AlsoProperty::new(
+        "reason",
+        json!({"type": "string"}),
+        "Also state in `reason`, in one sentence, what in the state decided your choice.",
+    )
 }
 
 /// A seat's answer. Probabilities are the seat's own report, never authority.
@@ -95,6 +158,9 @@ pub struct ChoiceAnswer {
     /// The call's reasoning, each fact apart (configured, transmitted, served, reasoning tokens,
     /// response model), when the seat observed one (R4 B16).
     pub reasoning: Option<Value>,
+    /// The values of the question's [`AlsoProperty`]s a provider judge returned with its choice,
+    /// by name; empty for a question without one, or an answer that holds none.
+    pub also: Map<String, Value>,
 }
 
 impl ChoiceOption {
@@ -120,6 +186,7 @@ impl ChoiceAnswer {
             input_tokens: None,
             output_tokens: None,
             reasoning: None,
+            also: Map::new(),
         }
     }
 }
@@ -151,6 +218,13 @@ pub trait DecisionSeat: Send + Sync {
     /// answers it so. One answer per item, in item order, each bound to its item by id.
     fn choose_each<'a>(&'a self, batch: &'a ChoiceBatch) -> BatchFuture<'a> {
         each_alone(batch, |question| self.choose(question))
+    }
+    /// Whether every answer of this seat reports a distribution over the offered keys (a
+    /// decision service weighs each answer). A law that averages an answer over both option
+    /// orders asks only a seat that weighs; a seat taken at its word answers the choice alone,
+    /// and that law does not run.
+    fn weighs(&self) -> bool {
+        false
     }
 }
 
@@ -267,20 +341,21 @@ impl<P: ProviderInferDyn> ProviderChoice<'_, P> {
     }
 
     /// The answer a response makes of one choice: the response's usage and reasoning ride the
-    /// answer only when `usage` (the first answered item of a batch carries the request's).
+    /// answer only when `usage` (the first answered item of a batch carries the request's). A
+    /// provider reports no distribution over the keys, so none is written: its choice is taken at
+    /// its word.
     fn answer(&self, choice: String, response: &InferResponse, usage: bool) -> ChoiceAnswer {
-        let mut probabilities = BTreeMap::new();
-        probabilities.insert(choice.clone(), 1.0);
         let reported = |tokens: u64| (usage && response.usage_reported).then_some(tokens);
         ChoiceAnswer {
             choice,
-            probabilities,
+            probabilities: BTreeMap::new(),
             confidence: None,
             model: self.model.clone(),
             input_tokens: reported(response.usage.input_tokens),
             output_tokens: reported(response.usage.output_tokens),
             reasoning: usage
                 .then(|| crate::reasoning::reasoning_record(self.reasoning, Some(response))),
+            also: Map::new(),
         }
     }
 }
@@ -337,7 +412,9 @@ impl<P: ProviderInferDyn> DecisionSeat for ProviderChoice<'_, P> {
             let infer = self.request(closed_choice(question))?;
             let response = self.call(infer, vec![question.id.clone()]).await?;
             let choice = decoded(question, &response)?;
-            Ok(self.answer(choice, &response, true))
+            let mut answer = self.answer(choice, &response, true);
+            answer.also = decoded_also(question, &response);
+            Ok(answer)
         })
     }
 }
@@ -346,8 +423,20 @@ impl<P: ProviderInferDyn> DecisionSeat for ProviderChoice<'_, P> {
 /// (R4 A11: the verifier journals the same bytes through the authoring call).
 #[must_use]
 pub fn closed_choice(question: &ChoiceQuestion) -> (Vec<Message>, Value) {
+    let returned = if question.also.is_empty() {
+        "{\"choice\": <key>}.".to_owned()
+    } else {
+        let mut keys = String::new();
+        for also in &question.also {
+            let _ = write!(keys, ", \"{}\": …", also.name);
+        }
+        let told: Vec<&str> = (question.also.iter())
+            .map(|also| also.instructions.as_str())
+            .collect();
+        format!("{{\"choice\": <key>{keys}}}. {}", told.join(" "))
+    };
     let system = format!(
-        "You settle ONE closed choice for a workflow compiler. Read the state and pick exactly one option key. {} Choose \"{NONE_OPTION}\" when no option fits. Return only a JSON object {{\"choice\": <key>}}.",
+        "You settle ONE closed choice for a workflow compiler. Read the state and pick exactly one option key. {} Choose \"{NONE_OPTION}\" when no option fits. Return only a JSON object {returned}",
         question.instructions
     );
     let options: Vec<String> = question
@@ -360,10 +449,16 @@ pub fn closed_choice(question: &ChoiceQuestion) -> (Vec<Message>, Value) {
         serde_json::to_string_pretty(&question.state).unwrap_or_default(),
         options.join("\n")
     );
-    let schema = json!({
+    let mut schema = json!({
         "type": "object", "additionalProperties": false, "required": ["choice"],
         "properties": {"choice": {"type": "string", "enum": question.keys()}}
     });
+    for also in &question.also {
+        schema["properties"][also.name.as_str()] = also.schema.clone();
+        if let Some(required) = schema["required"].as_array_mut() {
+            required.push(json!(also.name));
+        }
+    }
     (
         vec![
             Message::text(Role::System, system),
@@ -395,6 +490,8 @@ pub fn answer_text(response: &nika_kernel::ai::provider::InferResponse) -> Optio
 }
 
 #[cfg(test)]
+mod also_tests;
+#[cfg(test)]
 mod answer_tests;
 
 /// The option a provider's answer to `question` chooses: one complete JSON text naming an
@@ -425,6 +522,29 @@ pub fn decoded(
     Ok(choice)
 }
 
+/// The values of `question`'s [`AlsoProperty`]s in a provider's answer, read from the same JSON
+/// text as its choice ([`decoded`]), by name: those the answer holds (a judge that ignored one
+/// stated nothing for it).
+#[must_use]
+pub fn decoded_also(
+    question: &ChoiceQuestion,
+    response: &nika_kernel::ai::provider::InferResponse,
+) -> Map<String, Value> {
+    if question.also.is_empty() {
+        return Map::new();
+    }
+    let parsed = answer_text(response).and_then(|text| serde_json::from_str::<Value>(text).ok());
+    let Some(value) = parsed else {
+        return Map::new();
+    };
+    (question.also.iter())
+        .filter_map(|also| {
+            let held = value.get(also.name.as_str())?;
+            Some((also.name.clone(), held.clone()))
+        })
+        .collect()
+}
+
 /// Revalidate an answer against the question it claims to answer.
 ///
 /// # Errors
@@ -453,12 +573,18 @@ pub fn admit(question: &ChoiceQuestion, answer: &ChoiceAnswer) -> Result<(), Dec
 #[must_use]
 pub fn record(question: &ChoiceQuestion, answer: Result<&ChoiceAnswer, &DecisionError>) -> Value {
     match answer {
-        Ok(answer) => json!({
-            "question": question.id, "options": question.keys(), "choice": answer.choice,
-            "probabilities": answer.probabilities, "confidence": answer.confidence,
-            "model": answer.model, "input_tokens": answer.input_tokens, "output_tokens": answer.output_tokens,
-            "reasoning": answer.reasoning,
-        }),
+        Ok(answer) => {
+            let mut record = json!({
+                "question": question.id, "options": question.keys(), "choice": answer.choice,
+                "probabilities": answer.probabilities, "confidence": answer.confidence,
+                "model": answer.model, "input_tokens": answer.input_tokens, "output_tokens": answer.output_tokens,
+                "reasoning": answer.reasoning,
+            });
+            if !answer.also.is_empty() {
+                record["also"] = Value::Object(answer.also.clone());
+            }
+            record
+        }
         Err(error) => {
             json!({"question": question.id, "options": question.keys(), "error": error.0})
         }

@@ -73,6 +73,9 @@ impl SessionRuntime {
                     &id.to_string(),
                     &crate::broker::redact_for_record,
                 );
+                if let Some(driver) = &self.agent {
+                    driver.saved(&path, change.content());
+                }
             }
             self.saved_reach = world_of(&first).map(|world| (first.clone(), world));
             self.consented = Some(first.clone());

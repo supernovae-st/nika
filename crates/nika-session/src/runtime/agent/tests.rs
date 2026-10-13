@@ -4,6 +4,7 @@
 use nika_session_agent::Store;
 use nika_session_change::tools::ToolCall;
 use serde_json::json;
+use std::path::PathBuf;
 
 use super::store::TREE_FILE;
 use super::*;
@@ -59,6 +60,51 @@ fn kept_evidence_resumes_without_a_question() {
     assert!(driver.open().is_empty() && driver.tree.is_none());
     let unread = Driver::resumed(OwnedDir::open(dir.path()), Some(&json!({"version": 7})));
     assert!(unread.toolbox.with(|c| c.bindings().is_empty()));
+}
+
+/// Reopening keeps the saved target as context. It neither replays a run nor turns a request
+/// to rerun unchanged bytes into a new proposal that asks for another Save.
+#[test]
+fn a_restored_agent_remembers_the_saved_target_without_replaying_it() {
+    let project = tempfile::tempdir().unwrap();
+    let history = tempfile::tempdir().unwrap();
+    let source = "nika: saved\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke: { tool: \"nika:jq\", args: { input: 7, expression: \".\" } }\n";
+    std::fs::write(project.path().join("saved.nika"), source).unwrap();
+    let mut store = TreeFile::home(OwnedDir::open(history.path()).unwrap());
+    let _tree = start_tree(&mut store, project.path(), "deepseek/deepseek-flash").unwrap();
+    let mut conversation = Conversation::default();
+    conversation.saved_at("saved.nika", source);
+    let mut session = SessionRuntime::open(
+        project.path(),
+        crate::runtime::tests::ready(
+            crate::intelligence::IntelligenceKind::None,
+            crate::intelligence::DataLocus::None,
+        ),
+        Box::new(crate::reasoner::NoReasoner),
+    );
+    session.agent = Some(Driver::with_store(TreeFile::memory()));
+    session.resume_agent(OwnedDir::open(history.path()), Some(&conversation.kept()));
+    assert_eq!(session.last_workflow, Some(PathBuf::from("saved.nika")));
+    assert_eq!(session.consented, Some(PathBuf::from("saved.nika")));
+    assert_eq!(session.lifecycle().saved, crate::lifecycle::Stage::Done);
+    assert_eq!(
+        session.lifecycle().checked,
+        crate::lifecycle::Stage::Pending
+    );
+    assert!(session.requested_run.is_none());
+    assert!(session.pending.is_none());
+    assert_eq!(session.last_check_clean, None);
+    let outcome = session.run_turn("run it");
+    assert!(
+        matches!(outcome, Some(TurnOutcome::RunRequested { ref run, .. })
+        if run.workflow == Path::new("saved.nika")),
+        "{outcome:?}"
+    );
+    assert!(session.pending.is_none());
+    assert_eq!(
+        std::fs::read_to_string(project.path().join("saved.nika")).unwrap(),
+        source
+    );
 }
 
 /// The tools live as long as the conversation, and between turns no call reaches a capability:
@@ -193,3 +239,66 @@ fn the_author_sees_the_efforts_a_run_model_documents() {
         "a mock documents none"
     );
 }
+
+/// Repairs keep the saved destination, but a concurrently edited workflow must be read again.
+#[test]
+fn a_saved_revision_lands_in_place_and_protects_changed_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+    let first = "nika: saved\ntasks: {}\n";
+    let changed = "nika: saved\nconst: {changed: true}\ntasks: {}\n";
+    std::fs::write(dir.path().join("saved.nika"), first).unwrap();
+    let saved = ("saved.nika".to_owned(), Witness::of(first.as_bytes()).0);
+    assert_eq!(
+        desk::landing(dir.path(), changed, Some(&saved), &BTreeMap::new()).unwrap(),
+        "saved.nika"
+    );
+    std::fs::write(dir.path().join("saved.nika"), changed).unwrap();
+    assert!(
+        desk::landing(dir.path(), first, Some(&saved), &BTreeMap::new())
+            .unwrap_err()
+            .contains("changed since")
+    );
+    let observed = BTreeMap::from([("saved.nika".to_owned(), Witness::of(changed.as_bytes()))]);
+    assert_eq!(
+        desk::landing(dir.path(), first, Some(&saved), &observed).unwrap(),
+        "saved.nika"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("saved.nika")).unwrap(),
+        changed
+    );
+}
+
+#[test]
+fn a_saved_target_takes_precedence_over_an_observed_copy() {
+    let dir = tempfile::tempdir().unwrap();
+    let first = "nika: saved\ntasks: {}\n";
+    let revision = "nika: saved\nconst: {changed: true}\ntasks: {}\n";
+    for path in ["a-reference.nika", "saved.nika"] {
+        std::fs::write(dir.path().join(path), first).unwrap();
+    }
+    let witness = Witness::of(first.as_bytes());
+    let saved = ("saved.nika".to_owned(), witness.0.clone());
+    let observed = BTreeMap::from([("a-reference.nika".to_owned(), witness.clone())]);
+    assert_eq!(
+        desk::landing(dir.path(), revision, Some(&saved), &observed).unwrap(),
+        "saved.nika"
+    );
+    let ambiguous = BTreeMap::from([
+        ("a-reference.nika".to_owned(), witness.clone()),
+        ("saved.nika".to_owned(), witness),
+    ]);
+    assert_eq!(
+        desk::landing(dir.path(), revision, None, &ambiguous).unwrap_err(),
+        "several observed workflows have this name; identify the workflow to revise before proposing"
+    );
+    for path in ["a-reference.nika", "saved.nika"] {
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join(path)).unwrap(),
+            first
+        );
+    }
+}
+
+#[path = "tests/recovery.rs"]
+mod recovery;

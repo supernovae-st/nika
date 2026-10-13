@@ -240,6 +240,22 @@ pub fn body(model: &str, questions: &[&ChoiceQuestion], order: Order) -> Vec<u8>
     .unwrap_or_default()
 }
 
+/// The bytes of ONE request for `questions`, each question's criteria in its own
+/// [`ChoiceQuestion::order`]: what a decision service receives. A request whose questions all keep
+/// the default `Alphabetical` order writes exactly the bytes of serializing [`request`].
+#[must_use]
+pub fn request_bytes(model: &str, questions: &[&ChoiceQuestion]) -> Vec<u8> {
+    let value = request(model, questions);
+    let orders: BTreeMap<String, Vec<String>> = (questions.iter())
+        .map(|q| (q.id.clone(), sent_order_in(q, q.order)))
+        .collect();
+    serde_json::to_vec(&OrderedBody {
+        value: &value,
+        orders: &orders,
+    })
+    .unwrap_or_default()
+}
+
 /// [`request`]'s body with each question's criteria written in its own sequence.
 struct OrderedBody<'a> {
     value: &'a Value,
@@ -731,11 +747,12 @@ impl Partition {
         !self.waiting.is_empty()
     }
 
-    /// Begin the next request: its attempt, in flight, and the body to send for `model`; `None`
-    /// when nothing waits. A request as large as one refused for capacity, in items or in body
-    /// size, or whose body is past the capacity its model documents, is first split in halves,
-    /// the first half begun and the second waiting next, until it is smaller or a single item.
-    pub fn begin(&mut self, batch: &ChoiceBatch, model: &str) -> Option<(usize, Value)> {
+    /// Begin the next request: its attempt, in flight, and the bytes to send for `model`, each
+    /// question's options in its own order ([`request_bytes`]); `None` when nothing waits. A
+    /// request as large as one refused for capacity, in items or in body size, or whose body is
+    /// past the capacity its model documents, is first split in halves, the first half begun and
+    /// the second waiting next, until it is smaller or a single item.
+    pub fn begin(&mut self, batch: &ChoiceBatch, model: &str) -> Option<(usize, Vec<u8>)> {
         let mut part = self.waiting.pop_front()?;
         while part.items.len() > 1 {
             let (below, bytes) = match self.below.filter(|b| part.items.len() >= *b) {
@@ -755,16 +772,15 @@ impl Partition {
                 split_bytes: part.split_bytes,
             });
         }
-        let body = request(model, &carried(batch, &part.items));
-        let text = serde_json::to_string(&body).unwrap_or_default();
+        let body = request_bytes(model, &carried(batch, &part.items));
         self.attempts.push(Attempt {
             items: part.items,
             halves: part.halves,
             split_below: part.split_below,
             split_bytes: part.split_bytes,
             elapsed_ms: None,
-            bytes: text.len(),
-            sha256: sha256(&text),
+            bytes: body.len(),
+            sha256: sha256(&String::from_utf8_lossy(&body)),
             sent: true,
             status: None,
             usage: Usage::default(),
@@ -1017,7 +1033,7 @@ impl Partition {
         (at.iter().filter_map(each))
             .map(|(item, answer, outcome)| {
                 let mut record = json!({"question": item.question.id,
-                    "options": item.question.keys(), "options_sent": sent_order(&item.question),
+                    "options": item.question.keys(), "options_sent": sent_order_in(&item.question, item.question.order),
                     "outcome": word.unwrap_or(outcome)});
                 match (word, answer) {
                     (Some(_), _) => {}

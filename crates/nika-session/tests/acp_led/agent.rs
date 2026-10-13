@@ -53,11 +53,15 @@ def choice(text):
     except ValueError:
         schema = {}
     keys = []
+    properties = {}
     if isinstance(schema, dict):
         properties = schema.get("properties") or schema.get("schema", {}).get("properties") or {}
         keys = properties.get("choice", {}).get("enum") or []
     picked = next((key for key in APPROVALS if key in keys), "none")
-    return json.dumps({"choice": picked})
+    answer = {"choice": picked}
+    if "model_parts" in properties:
+        answer["model_parts"] = []
+    return json.dumps(answer)
 
 if not new["params"].get("mcpServers"):
     send({"jsonrpc": "2.0", "id": new["id"], "result": {"sessionId": "s-once"}})

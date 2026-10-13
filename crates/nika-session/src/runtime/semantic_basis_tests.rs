@@ -17,7 +17,8 @@ const MODEL: &str = "deepseek/deepseek-v4-pro";
 const WORK: &str = "Read inventory.json, keep the items whose stock is under 8, sort them by sku and write that JSON array to ./reorder.json.";
 const ROWS: &str =
     r#"[{"sku": "B2", "stock": 3}, {"sku": "A1", "stock": 9}, {"sku": "C3", "stock": 5}]"#;
-const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
+/// It answers the whole request's `model_parts` too: no part a model must write.
+const JUDGE_APPROVES: &str = r#"{"choice":"faithful","model_parts":[]}"#;
 
 /// The seat's graph: read the inventory, keep and sort it, write the array.
 fn graph() -> String {

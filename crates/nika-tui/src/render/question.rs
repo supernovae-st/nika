@@ -61,7 +61,9 @@ fn painted(state: &UiState) -> Option<&Asked> {
 /// A typed choice opens the surface instead, and one that offers nothing has
 /// neither.
 fn waiting(state: &UiState) -> Option<&Asked> {
-    let Waiting::QuestionDocument { asked, .. } = &state.waiting else {
+    let (Waiting::QuestionDocument { asked, .. } | Waiting::ProposalChoice { asked, .. }) =
+        &state.waiting
+    else {
         return None;
     };
     matches!(asked.shape, Shape::Text | Shape::Literal).then_some(asked)
@@ -77,7 +79,12 @@ pub(crate) fn asked_block(state: &UiState) -> Option<usize> {
     {
         return None;
     }
-    let Waiting::QuestionDocument { asked, .. } = &state.waiting else {
+    if matches!(state.waiting, Waiting::Action { .. }) {
+        return action_block(state);
+    }
+    let (Waiting::QuestionDocument { asked, .. } | Waiting::ProposalChoice { asked, .. }) =
+        &state.waiting
+    else {
         return None;
     };
     let (index, block) = (state.transcript.iter().enumerate())
@@ -87,6 +94,24 @@ pub(crate) fn asked_block(state: &UiState) -> Option<usize> {
     let later =
         (state.transcript.iter().skip(index + 1)).any(|block| !matches!(shown(block), Shown::Said));
     (tied && !later).then_some(index)
+}
+
+/// The exact kind of owner context for a finite action, shared by its head and F2.
+/// Save has the proposal reader; unknown action kinds do not borrow old questions.
+pub(crate) fn action_block(state: &UiState) -> Option<usize> {
+    let Waiting::Action { key, .. } = &state.waiting else {
+        return None;
+    };
+    let kind = match key.as_str() {
+        "gate" | "gate_choice" => Kind::Gate,
+        "judgment" => Kind::Reply,
+        "run_cost" | "unknown_cost" | "project.missed" | "run_input" => Kind::Question,
+        _ => return None,
+    };
+    state
+        .transcript
+        .iter()
+        .rposition(|block| block.kind == kind)
 }
 
 /// Whether the card stands as the question's live home: a typed question tied
@@ -287,6 +312,7 @@ pub(crate) fn render(state: &UiState, area: Rect, buf: &mut Buffer) {
 fn header(asked: &Asked, width: usize, home: bool, (ascii, color): (bool, bool)) -> Line<'static> {
     let shape = match &asked.shape {
         Shape::Choice(_) => "Offered answers",
+        Shape::Multiple(_) => "Several answers",
         Shape::Text => "A text answer",
         Shape::Literal => "An exact value",
     };

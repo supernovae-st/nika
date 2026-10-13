@@ -30,7 +30,8 @@ use nika_session::{
 /// The verifier's closed choice, approved (native step 1, R4 A11): the explicit answer scripted at
 /// the judge's position, after a candidate READY in its authoring round. The judge's call is a
 /// real call, counted like any other.
-const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
+/// It answers the whole request's `model_parts` too: no part a model must write.
+const JUDGE_APPROVES: &str = r#"{"choice":"faithful","model_parts":[]}"#;
 
 const INPUT: &str = "Prépare la copie de entree.txt dans sortie.txt.";
 const NATIVE_INPUT: &str =

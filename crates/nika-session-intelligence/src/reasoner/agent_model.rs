@@ -13,7 +13,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use nika_kernel::provider::{
-    InferRequest, InferResponse, Message, ProviderError, ReasoningEffort, Role, StopReason,
+    InferRequest, InferResponse, Message, ProviderError, ProviderMeta, ReasoningEffort, Role,
+    StopReason,
 };
 use nika_onboard::compile::AuthoringReasoning;
 use nika_providers::authoring::{policy::completion_bounds, preparation::PreparationCosts};
@@ -157,7 +158,7 @@ impl AgentModel {
             registry = registry.with_inference_admission(admission.clone());
         }
         let provider = (registry.resolve(&self.model))
-            .map_err(|error| ModelError::Failed(error.to_string()))?;
+            .map_err(|error| ModelError::Failed(conversation_error(&self.model, &error)))?;
         if let Some(LocalLiveness::Mute(addr) | LocalLiveness::Silent(addr)) =
             local_run_gate(&registry, &self.model)
         {
@@ -194,19 +195,29 @@ impl Transport {
                 Err((error, _report)) => error,
             };
             let Some(rejection) = transient_rejection(&error) else {
-                return Err(ModelError::Failed(failed(&error, &waited, None)));
+                return Err(ModelError::Failed(failed(
+                    self.provider.name(),
+                    &error,
+                    &waited,
+                    None,
+                )));
             };
             let wait =
                 (rejection.retry_after).unwrap_or(Duration::from_secs(1_u64 << waited.len()));
             // An account that keeps the rejected call's charge as unknown sends nothing more.
             if account.is_some_and(|account| !admits(account)) {
-                let said = failed(&error, &waited, None);
+                let said = failed(self.provider.name(), &error, &waited, None);
                 return Err(ModelError::Failed(format!(
                     "{said} · the money account keeps that call's charge as unknown, so Nika did not ask again"
                 )));
             }
             if waited.len() == ASKED_AGAIN || wait > LONGEST_WAIT {
-                return Err(ModelError::Failed(failed(&error, &waited, Some(wait))));
+                return Err(ModelError::Failed(failed(
+                    self.provider.name(),
+                    &error,
+                    &waited,
+                    Some(wait),
+                )));
             }
             // The timer is made inside the runtime that drives it, never before.
             let slept = async { PreparationCosts::while_active(tokio::time::sleep(wait)).await };
@@ -223,8 +234,13 @@ fn admits(account: &nika_providers::InferenceAdmission) -> bool {
 
 /// What the person reads of a call the policy gave up on: the provider's own error, the delay it
 /// asked that no turn waits, and the asks made again with the time they waited.
-fn failed(error: &ProviderError, waited: &[Duration], asked: Option<Duration>) -> String {
-    let mut said = error.to_string();
+fn failed(
+    provider: &str,
+    error: &ProviderError,
+    waited: &[Duration],
+    asked: Option<Duration>,
+) -> String {
+    let mut said = conversation_error(provider, error);
     if let Some(wait) = asked.filter(|wait| *wait > LONGEST_WAIT) {
         let secs = wait.as_secs();
         let _ = write!(
@@ -241,6 +257,37 @@ fn failed(error: &ProviderError, waited: &[Duration], asked: Option<Duration>) -
         );
     }
     said
+}
+
+/// Authentication in a conversation has its own next step. The kernel's full Run guidance
+/// remains unchanged for workflow callers; sanitized provider details and billing stay here.
+fn conversation_error(route: &str, error: &ProviderError) -> String {
+    let detail = match error.unobserved() {
+        ProviderError::AuthFailed { reason } => reason.clone(),
+        ProviderError::HttpResponse { details }
+            if matches!(details.status(), 401 | 403) && !details.is_quota_exhausted() =>
+        {
+            let mut detail = format!("authentication failed (HTTP {})", details.status());
+            if let Some(message) = details.message() {
+                let _ = write!(detail, "; {message}");
+            }
+            detail.push_str("; usage and billing unknown");
+            detail
+        }
+        _ => return error.to_string(),
+    };
+    let provider = nika_providers::canonical_provider(route.split('/').next().unwrap_or(route));
+    let keys = nika_providers::profile::seed()
+        .into_iter()
+        .find(|profile| profile.id == provider)
+        .map(|profile| profile.env_candidates().join(" or "));
+    let next = keys.map_or_else(
+        || "Check this connection's credentials".to_owned(),
+        |keys| format!("Check {keys}"),
+    );
+    format!(
+        "{provider} could not authenticate this conversation request: {detail}. {next} outside the conversation, then reopen Nika and ask to continue, or use /intelligence. Your messages are kept."
+    )
 }
 
 /// What this machine's inventory says of `model` as a run's model: the route that serves it

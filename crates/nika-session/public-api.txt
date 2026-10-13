@@ -738,6 +738,7 @@ pub fn nika_session::runtime::SessionRuntime::choose(&mut self, answer: &str) ->
 pub fn nika_session::runtime::SessionRuntime::consent(&mut self, answer: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::enable_history(&mut self, home: &std::path::Path) -> core::result::Result<core::option::Option<alloc::string::String>, nika_session_change::outcome::Refusal>
 pub fn nika_session::runtime::SessionRuntime::kept_run(&self) -> core::option::Option<core::result::Result<nika_trace::run_view::kept::KeptRun, alloc::string::String>>
+pub fn nika_session::runtime::SessionRuntime::kept_turn_is_human(&self, index: usize) -> bool
 pub fn nika_session::runtime::SessionRuntime::kept_turns(&self) -> &[(alloc::string::String, alloc::string::String)]
 pub fn nika_session::runtime::SessionRuntime::observe_run(&mut self, exit: u8, trace: core::option::Option<&std::path::Path>) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::observe_run_leg(&mut self, exit: u8, trace: core::option::Option<&std::path::Path>, leg: nika_trace::run_view::kept::KeptRun) -> nika_session::runtime::TurnOutcome
@@ -1395,6 +1396,7 @@ pub fn nika_session::runtime::SessionRuntime::choose(&mut self, answer: &str) ->
 pub fn nika_session::runtime::SessionRuntime::consent(&mut self, answer: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::enable_history(&mut self, home: &std::path::Path) -> core::result::Result<core::option::Option<alloc::string::String>, nika_session_change::outcome::Refusal>
 pub fn nika_session::runtime::SessionRuntime::kept_run(&self) -> core::option::Option<core::result::Result<nika_trace::run_view::kept::KeptRun, alloc::string::String>>
+pub fn nika_session::runtime::SessionRuntime::kept_turn_is_human(&self, index: usize) -> bool
 pub fn nika_session::runtime::SessionRuntime::kept_turns(&self) -> &[(alloc::string::String, alloc::string::String)]
 pub fn nika_session::runtime::SessionRuntime::observe_run(&mut self, exit: u8, trace: core::option::Option<&std::path::Path>) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::observe_run_leg(&mut self, exit: u8, trace: core::option::Option<&std::path::Path>, leg: nika_trace::run_view::kept::KeptRun) -> nika_session::runtime::TurnOutcome

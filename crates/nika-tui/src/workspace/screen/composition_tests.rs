@@ -116,6 +116,7 @@ fn frame_of(
         arrangement,
         dragging: None,
         folded: false,
+        conversation_only: false,
     };
     terminal
         .draw(|frame| {
@@ -322,6 +323,7 @@ fn the_conversation_title_is_quiet_and_separators_stay_dim() {
                 arrangement: restored(),
                 dragging: None,
                 folded: false,
+                conversation_only: false,
             };
             terminal
                 .draw(|frame| {
@@ -720,6 +722,7 @@ fn a_full_title_row_leaves_the_action_to_the_cue_row() {
             arrangement: restored(),
             dragging: None,
             folded: true,
+            conversation_only: false,
         };
         let mut terminal = Terminal::new(TestBackend::new(size.0, size.1)).expect("terminal");
         terminal

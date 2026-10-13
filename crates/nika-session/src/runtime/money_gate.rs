@@ -6,6 +6,8 @@
 
 use std::path::PathBuf;
 
+mod saved;
+
 use super::money_parse::{self, ParsedMoney};
 use super::{DEFAULT_CEILING_USD, SessionRuntime, TurnOutcome};
 use crate::change::{ProjectChangeSet, Witness};
@@ -526,9 +528,9 @@ impl SessionRuntime {
     }
 
     /// A saved workflow's revision stating no amount keeps that workflow's ceiling: the one live
-    /// binding to the resolved file AND the exact base the revision compiled. A binding to other
-    /// bytes, or more than one, refuses (never a default in its place); with none (a restart, a
-    /// file never linked) the change's own admitted law stands. No account is replaced or
+    /// binding to the resolved file AND the exact base the revision compiled, including the
+    /// durable constraint after reopening. Changed or missing evidence refuses; a file never
+    /// linked to a Save keeps the change's own admitted law. No account is replaced or
     /// refilled and no Run authority is restored.
     pub(super) fn bind_revision_money(
         &mut self,
@@ -543,7 +545,7 @@ impl SessionRuntime {
             return Ok(());
         }
         let resolved = self.snapshot.root.join(saved).canonicalize();
-        let kept = match resolved.map(|resolved| self.live_binding(saved, &resolved, Some(base))) {
+        let kept = match resolved.map(|resolved| self.saved_binding(saved, &resolved, Some(base))) {
             Ok(Ok(None)) => return Ok(()),
             Ok(Ok(Some(kept))) => kept,
             Ok(Err(why)) => {
@@ -621,7 +623,7 @@ impl SessionRuntime {
             ));
         };
         let now = std::fs::read(&target).ok().map(|bytes| Witness::of(&bytes));
-        match self.live_binding(workflow, &resolved, now.as_ref()) {
+        match self.saved_binding(workflow, &resolved, now.as_ref()) {
             Ok(Some(decision)) => {
                 self.money.current = Some(self.inference_observation(decision));
                 return Ok(());
@@ -629,25 +631,58 @@ impl SessionRuntime {
             Err(why) => return Err(self.refuse_run_money(input, why)),
             Ok(None) => {}
         }
-        // The existing journal proves that Save occurred, but its v1 schema does not record
-        // spending constraints. After reopening, absence of an in-memory binding therefore cannot
-        // justify a fresh default. Read at Run even when the host did not call restore_state; do
-        // not restore execution authority or equate distinct files by their bytes.
-        let records = match ConsentRecord::read_all(&self.snapshot.root) {
-            Ok(records) if records.iter().all(|r| r.version == ConsentRecord::VERSION) => records,
-            _ => return Err(self.refuse_run_money(input, "saved monetary evidence is unreadable — provide an explicit Run ceiling or prepare and review the workflow again")),
-        };
-        if records
-            .iter()
-            .any(|record| (record.written.iter()).any(|path| self.names(path, workflow, &resolved)))
-        {
-            return Err(self.refuse_run_money(input, "the saved spending constraint cannot be proved in this session — provide an explicit Run ceiling or prepare and review the workflow again; no default was substituted"));
-        }
         // No saved identity or journal claim binds this file. Its own Run
         // default does not amend the ongoing Session inference allowance.
         self.money.current =
             Some(self.inference_observation(self.money_decision(input, &ParsedMoney::default())));
         Ok(())
+    }
+
+    /// The latest Save's exact execution constraint, shared by Run and revision.
+    /// Durable evidence is checked before RAM so another Session's newer Save cannot
+    /// leave an older ceiling effective. A live binding can cover its own Save whose
+    /// monetary receipt failed to write, never a different or incomplete Save.
+    fn saved_binding(
+        &self,
+        workflow: &std::path::Path,
+        resolved: &PathBuf,
+        witness: Option<&Witness>,
+    ) -> Result<Option<MonetaryDecision>, &'static str> {
+        let records = match ConsentRecord::read_all(&self.snapshot.root) {
+            Ok(records) if records.iter().all(|r| r.version == ConsentRecord::VERSION) => records,
+            _ => {
+                return Err(
+                    "saved monetary evidence is unreadable — provide an explicit ceiling or prepare and review the workflow again",
+                );
+            }
+        };
+        let latest = records.iter().rev().find(|record| {
+            record
+                .written
+                .iter()
+                .any(|path| self.names(path, workflow, resolved))
+        });
+        let Some(record) = latest else {
+            return self.live_binding(workflow, resolved, witness);
+        };
+        if let Some(decision) = saved::restore(&self.snapshot.root, record, resolved, witness)? {
+            return Ok(Some(decision));
+        }
+        if let Some(decision) = self.live_binding(workflow, resolved, witness)?
+            && decision
+                .proposal
+                .as_ref()
+                .is_some_and(|p| p.as_str() == record.proposal)
+            && record.witnesses.iter().any(|w| {
+                self.names(&w.path, workflow, resolved)
+                    && witness.is_some_and(|now| now.0 == w.after)
+            })
+        {
+            return Ok(Some(decision));
+        }
+        Err(
+            "the saved spending constraint cannot be proved in this session — provide an explicit Run ceiling or prepare and review the workflow again; no default was substituted",
+        )
     }
 
     /// Whether `path` names `workflow`: the same text, or a file resolving to `resolved`.

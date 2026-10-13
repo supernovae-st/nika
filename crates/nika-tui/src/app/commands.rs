@@ -400,6 +400,11 @@ impl<C: Conversation + 'static> Shell<C> {
     /// reply of a typed choice holding the line, else the draft; data every
     /// way, never a key.
     pub(super) fn paste(&mut self, text: &str) {
+        if !text.is_empty() {
+            // New pasted words are a new act, just like a typed edit. Their Enter
+            // must not be consumed as a repeat of the previous choice's activation.
+            self.guard.edited();
+        }
         if self.composer.paste_query(text) {
             return;
         }

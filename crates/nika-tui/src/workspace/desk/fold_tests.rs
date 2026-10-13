@@ -424,11 +424,9 @@ fn f4_expands_the_strip_and_restores_to_it() {
     }
 }
 
-/// A long typed question that keeps its card (a text; a typed choice opens
-/// the surface over the conversation instead) folds the object at 60x18 and
-/// 80x24: at rest its first words, the line that answers it and where the
-/// whole question is read show together. Where a short one folds is measured, not assumed
-/// ([`a_homed_question_keeps_three_rows_of_its_exchange_in_view`]).
+/// Before an object exists, a long typed question takes the welcome's space
+/// at 60x18 and 80x24. At rest its first words, the line that answers it and
+/// where the whole question is read show together, without an object strip.
 #[test]
 fn the_live_question_keeps_its_first_words_and_the_reader_cue() {
     let witness = "3:q-currency";
@@ -452,7 +450,8 @@ fn the_live_question_keeps_its_first_words_and_the_reader_cue() {
             let mut desk = Desk::new();
             desk.view = Some(demo_project());
             desk.prepare_for(&state, ascii, false);
-            assert!(desk.folds(size), "{at}");
+            assert!(!desk.folds(size), "{at}: no object remains to fold");
+            assert!(desk.geometry(size).expect("fits").object.is_empty());
             let shown = rows(&desk, &state, &Composer::new());
             let read = reading(&shown);
             assert!(
@@ -466,44 +465,61 @@ fn the_live_question_keeps_its_first_words_and_the_reader_cue() {
     }
 }
 
-/// The restored stacked conversation keeps three rows of the exchange that
-/// led to a homed question above the question's own row at rest; short of
-/// them the object folds to its strip, and folded they hold. The boundary is
-/// measured from the shared rest geometry at the shortest workspace and at
-/// 80x24, 80x30, 99x30 and 80x40, never pinned; both outcomes occur.
+/// A homed question keeps three rows of its preceding exchange at rest.
+/// Without an object, the welcome has yielded all its space. With an object,
+/// the restored split folds only where that actual geometry needs it; the
+/// object then keeps its three-row strip. Both cases use the shared measure.
 #[test]
 fn a_homed_question_keeps_three_rows_of_its_exchange_in_view() {
     let witness = "3:q-currency";
     let mut outcomes = Vec::new();
-    for size in [(60, 16), (60, 18), (80, 24), (80, 30), (99, 30), (80, 40)] {
-        let mut state = UiState::new(Presentation::Workspace, false, size);
-        state
-            .transcript
-            .push(Committed::new(Kind::Human, "sum the amounts"));
-        state
-            .transcript
-            .push(Committed::question(witness, "the currency code"));
-        let asked = Asked::new("the currency code", "", true, Shape::Text, witness, 3);
-        state.waiting = Waiting::asked("const.currency", asked);
-        let mut desk = Desk::new();
-        desk.view = Some(demo_project());
-        let thread = desk.screen(false).thread;
-        let from = question::asked_block(&state).expect("the question's block");
-        let context = (None, Some(from));
-        let rest = screen::rest_transcript(&restored(&desk, size), &state, &thread, None);
-        let need = cards::rows_from(&state, rest, context, from) + DECISION_CONTEXT;
-        let folds = need > usize::from(rest.height);
-        desk.prepare_for(&state, false, false);
-        let at = format!("{size:?}: {need} rows asked of {}", rest.height);
-        assert_eq!(desk.folds(size), folds, "{at}");
-        if folds {
+    for has_object in [false, true] {
+        for size in [(60, 16), (60, 18), (80, 24), (80, 30), (99, 30), (80, 40)] {
+            let mut state = UiState::new(Presentation::Workspace, false, size);
+            state
+                .transcript
+                .push(Committed::new(Kind::Human, "sum the amounts"));
+            state
+                .transcript
+                .push(Committed::question(witness, "the currency code"));
+            let asked = Asked::new("the currency code", "", true, Shape::Text, witness, 3);
+            state.waiting = Waiting::asked("const.currency", asked);
+            let mut desk = Desk::new();
+            desk.view = Some(demo_project());
+            if has_object {
+                desk.proposed(Some(fixture::candidate(fixture::id(), false)));
+            }
+            let thread = desk.screen(false).thread;
+            let from = question::asked_block(&state).expect("the question's block");
+            let context = (None, Some(from));
+            let baseline = if has_object {
+                restored(&desk, size)
+            } else {
+                screen::conversation_only(restored(&desk, size), Region::Conversation)
+            };
+            let rest = screen::rest_transcript(&baseline, &state, &thread, None);
+            let need = cards::rows_from(&state, rest, context, from) + DECISION_CONTEXT;
+            let folds = has_object && need > usize::from(rest.height);
+            desk.prepare_for(&state, false, false);
+            let at = format!(
+                "{size:?} object={has_object}: {need} rows asked of {}",
+                rest.height
+            );
+            assert_eq!(desk.folds(size), folds, "{at}");
             let geometry = desk.geometry(size).expect("fits");
-            assert_eq!(geometry.object.height, 3, "{at}: the strip");
+            if folds {
+                assert_eq!(geometry.object.height, 3, "{at}: the strip");
+            } else {
+                assert_eq!(geometry, baseline, "{at}: all available space");
+            }
             let held = screen::rest_transcript(&geometry, &state, &thread, None);
             let kept = cards::rows_from(&state, held, context, from) + DECISION_CONTEXT;
-            assert!(kept <= usize::from(held.height), "{at}: folded they hold");
+            assert!(
+                kept <= usize::from(held.height),
+                "{at}: the question and three context rows fit"
+            );
+            outcomes.push(folds);
         }
-        outcomes.push(folds);
     }
     let both = outcomes.contains(&true) && outcomes.contains(&false);
     assert!(both, "{outcomes:?}");

@@ -12,11 +12,20 @@
 use std::fmt::Write as _;
 
 use nika_compile_fidelity::fidelity::resolution::{Resolution, ResolutionKind};
-use nika_session_change::work::{AskedQuestion, Binding, Offer, ValueRole};
+use nika_session_change::work::{AskedQuestion, Binding, Offer, ProvenanceKind, ValueRole};
 use serde_json::{Value, json};
 
 use super::answer::{Answered, recommended};
-use super::{Citations, Conversation, Facts, Mint, Pick, bare, in_line, resolution_role};
+use super::{
+    Citations, Conversation, Facts, Mint, Pick, bare, in_line, resolution_role, same_literal,
+};
+
+/// The same offer shape can ask for missing information or show a candidate's default.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum QuestionUse {
+    Ask,
+    Propose,
+}
 
 /// What the author reads when it asks a question that recommends an option: a default can stand
 /// for it, so the proposal shows it in `open`.
@@ -146,6 +155,64 @@ fn option_words(offer: &Offer) -> String {
 }
 
 impl Conversation {
+    /// A routine output derived for this candidate is a recommendation, not a human pick.
+    /// A still-unanswered choice can retain its same default across another choice's answer.
+    /// Otherwise an output a proposal kept, or the person delegated, remains protected.
+    /// The ask door still refuses it; only a carried recommended default can be shown.
+    pub(super) fn proposable_output_default(
+        &self,
+        binding: &Binding,
+        key: &str,
+        options: &[Offer],
+    ) -> bool {
+        let pending_default = self.open.iter().any(|question| {
+            question.key == key
+                && recommended(question).is_some_and(|offer| {
+                    offer.values.iter().any(|value| {
+                        value.role == binding.role && same_literal(&value.value, &binding.value)
+                    })
+                })
+        });
+        if binding.role != ValueRole::OutputPath
+            || binding.provenance.kind != ProvenanceKind::Derived
+            || binding.key.is_some()
+            || self.accepted.iter().any(|kept| {
+                kept.role == binding.role
+                    && !(pending_default
+                        && kept.provenance.kind == ProvenanceKind::Derived
+                        && kept.key.is_none()
+                        && same_literal(&kept.value, &binding.value))
+            })
+            || self
+                .delegations
+                .iter()
+                .any(|choice| choice.scope == binding.role)
+        {
+            return false;
+        }
+        let Some(candidate) = self.candidate.as_ref() else {
+            return false;
+        };
+        if !candidate.source.contains(bare(&binding.value))
+            || !candidate.rows.iter().any(|row| {
+                (row.kind == ResolutionKind::Derived
+                    || (pending_default && row.kind == ResolutionKind::Retained))
+                    && row.role == resolution_role(binding.role)
+                    && same_literal(&row.value, &binding.value)
+            })
+        {
+            return false;
+        }
+        let mut defaults = options.iter().filter(|offer| offer.recommended);
+        let Some(default) = defaults.next() else {
+            return false;
+        };
+        defaults.next().is_none()
+            && default.values.iter().any(|value| {
+                value.role == binding.role && same_literal(&value.value, &binding.value)
+            })
+    }
+
     /// The goal a proposal states: the author's `summary`, the `doubt` the verifier stated, then
     /// each choice it shows with its options, the default said, so the preview and the identity
     /// the person consents to cover them.
@@ -202,7 +269,14 @@ impl Conversation {
         let choices = args["open"].as_array().into_iter().flatten();
         for (ordinal, choice) in choices.enumerate() {
             let key = choice["key"].as_str().unwrap_or_default();
-            match self.question(choice, citations, (call, ordinal), mint, facts) {
+            match self.question(
+                choice,
+                citations,
+                (call, ordinal),
+                mint,
+                facts,
+                QuestionUse::Propose,
+            ) {
                 Ok(question) => match unshowable(&question, &carried, &shown) {
                     Some(why) => refused.push(format!("`{key}`: {why}")),
                     None => shown.push(question),
@@ -287,3 +361,8 @@ impl Conversation {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[path = "choices/derived_tests.rs"]
+mod derived_tests;

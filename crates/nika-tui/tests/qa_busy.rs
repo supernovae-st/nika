@@ -421,9 +421,10 @@ fn a_fresh_question_keeps_palette_aside_words_only_in_the_transcript() {
         screen.lines().iter().any(|row| row == ANSWER)
     });
     assert!(!term.screen.contains("set aside:"), "{}", term.dump());
+    let visible = term.screen.lines().join(" ");
     assert!(
-        term.screen.seen("you typed « yes /status »")
-            && term.screen.seen("kept in this conversation, whole:"),
+        visible.contains("your draft « yes /status »")
+            && visible.contains("kept in this conversation, whole:"),
         "{}",
         term.dump()
     );

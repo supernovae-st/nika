@@ -5,6 +5,8 @@
 //! becomes a run request only after a clean check on disk, the money admitted and every declared
 //! input bound, one question per missing input (moved whole out of `authoring.rs`).
 
+mod choices;
+
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
@@ -161,6 +163,7 @@ impl SessionRuntime {
             .filter(|name| !given.iter().any(|v| v.starts_with(&format!("{name}="))))
             .collect();
         let inputs = RunInputs {
+            admission: choices::next_admission(),
             workflow,
             max_cost_usd,
             access_pin,
@@ -262,8 +265,15 @@ impl SessionRuntime {
                 "the input needs a value — nothing answers for you (`cancel` drops the run)",
             ));
         }
-        // A value in quotes is its content: the escape for a word the protocol would take.
-        let value = serde_json::from_str::<String>(value).unwrap_or_else(|_| value.to_owned());
+        // Finite declarations keep their canonical JSON literal through Run parsing.
+        // Open inputs keep the existing quoted-protocol escape and raw-text behavior.
+        let value = match inputs.literal(&self.snapshot.root, value) {
+            Ok(value) => value,
+            Err(refusal) => {
+                self.run_inputs = Some(inputs);
+                return TurnOutcome::Refusal(refusal);
+            }
+        };
         let name = inputs.needed.remove(0);
         inputs.given.push(format!("{name}={value}"));
         self.intent.unresolved.clear();
@@ -276,6 +286,9 @@ impl SessionRuntime {
 /// inputs (required, no default): the next lines bind them, in order.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct RunInputs {
+    /// One admitted request, even when another request has identical content.
+    /// Presentation identity only; never persisted or used to authorize a Run.
+    admission: u64,
     workflow: PathBuf,
     max_cost_usd: f64,
     access_pin: Option<String>,

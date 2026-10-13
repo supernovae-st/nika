@@ -33,9 +33,14 @@ pub(super) fn compile(
                 request, cognition, host, catalog,
             ),
         ))??,
-        super::Work::Verify(candidate, selections) => {
-            super::complete(Box::pin(nika_compile_cognition::verify_document(
-                request, candidate, selections, cognition, host,
+        super::Work::Verify(candidate, selections, presentation) => {
+            super::complete(Box::pin(super::verify_work(
+                request,
+                candidate,
+                selections,
+                presentation,
+                cognition,
+                host,
             )))??
         }
     };

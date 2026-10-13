@@ -151,10 +151,20 @@ impl DecisionSeat for Judging {
                 .unwrap_or_else(|| panic!("an unscripted question: {}", question.id));
             assert_eq!(question.id, id);
             answer
-                .map(|key| ChoiceAnswer::new(key, JUDGE))
+                .map(|key| weighs_rejection(question, ChoiceAnswer::new(key, JUDGE)))
                 .map_err(|why| DecisionError(why.to_owned()))
         })
     }
+}
+
+/// A seat's rejection of the whole request, weighed at 0.9 (over the holding probability): a seat
+/// that weighs it holds what it cannot locate, where one taken at its word lets its parts decide.
+fn weighs_rejection(question: &ChoiceQuestion, mut answer: ChoiceAnswer) -> ChoiceAnswer {
+    if question.id == "verify-request" && answer.choice == "unfaithful" {
+        let weights = [("unfaithful".to_owned(), 0.9), ("none".to_owned(), 0.1)];
+        answer.probabilities.extend(weights);
+    }
+    answer
 }
 
 /// The COLD request under `policy`, authored by `author` and judged by `judge`.
@@ -708,7 +718,7 @@ impl DecisionSeat for Warm {
                 Ok("lookup")
             };
             answer
-                .map(|key| ChoiceAnswer::new(key, JUDGE))
+                .map(|key| weighs_rejection(question, ChoiceAnswer::new(key, JUDGE)))
                 .map_err(|why| DecisionError(why.to_owned()))
         })
     }

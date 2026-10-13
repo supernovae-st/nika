@@ -25,12 +25,12 @@ use ratatui::widgets::{Paragraph, Widget, Wrap};
 use unicode_width::UnicodeWidthStr;
 
 use super::chooser::{aside_line, context, fit};
-use super::question::{WHOLE, asked_block, hang, word_cap};
+use super::question::{WHOLE, hang, word_cap};
 use super::{own, status_line};
 use crate::composer::Composer;
 use crate::composer::answer::choice;
 use crate::composer::chooser::{Door, Listing};
-use crate::model::{Asked, Offer, UiState, Waiting};
+use crate::model::{Asked, Kind, Offer, Shape, UiState, Waiting};
 use crate::visual::role;
 
 /// At most this many rows carry the selected command's scope and help.
@@ -63,6 +63,7 @@ enum Held<'a> {
         asked: &'a Asked,
         offers: &'a [Offer],
         selected: Option<usize>,
+        checked: Vec<usize>,
         armed: bool,
     },
 }
@@ -91,6 +92,9 @@ impl<'a> Held<'a> {
             asked,
             offers,
             selected: composer.offer_selected(&state.waiting),
+            checked: (0..offers.len())
+                .filter(|index| composer.offer_checked(&state.waiting, *index))
+                .collect(),
             armed: composer.offers_armed(&state.waiting),
         })
     }
@@ -100,7 +104,9 @@ impl<'a> Held<'a> {
     fn items(&self) -> usize {
         match self {
             Self::Commands { listing, .. } => listing.entries.len().max(1),
-            Self::Choice { offers, .. } => offers.len(),
+            Self::Choice { asked, offers, .. } => {
+                offers.len() + usize::from(matches!(asked.shape, Shape::Multiple(_)))
+            }
         }
     }
 
@@ -109,7 +115,9 @@ impl<'a> Held<'a> {
     fn count(&self) -> usize {
         match self {
             Self::Commands { listing, .. } => listing.entries.len(),
-            Self::Choice { offers, .. } => offers.len(),
+            Self::Choice { asked, offers, .. } => {
+                offers.len() + usize::from(matches!(asked.shape, Shape::Multiple(_)))
+            }
         }
     }
 
@@ -154,9 +162,39 @@ fn head_rows(held: &Held<'_>, state: &UiState, width: u16) -> (Vec<Line<'static>
             (rows, whole)
         }
         Held::Choice { asked, .. } => {
+            if !asked.why.is_empty()
+                && matches!(&state.waiting, Waiting::Action { key, .. } if matches!(key.as_str(), "gate" | "gate_choice"))
+            {
+                return expired_gate_head(asked, width, (ascii, color));
+            }
             let mut rows = retained_rows(asked, width, (ascii, color));
-            let block = asked_block(state).and_then(|index| state.transcript.get(index));
-            let text = block.map_or_else(|| asked.label.clone(), |block| block.text.clone());
+            let text = if matches!(state.waiting, Waiting::Selection { .. }) {
+                state
+                    .transcript
+                    .iter()
+                    .rev()
+                    .find(|block| {
+                        matches!(
+                            block.kind,
+                            Kind::Question | Kind::Reply | Kind::Refusal | Kind::Notice
+                        )
+                    })
+                    .map_or_else(
+                        || asked.label.clone(),
+                        |block| format!("{}\n{}", asked.label, block.text),
+                    )
+            } else if matches!(&state.waiting, Waiting::Action { key, .. } if key != "save") {
+                super::question::action_block(state)
+                    .and_then(|index| state.transcript.get(index))
+                    .map_or_else(
+                        || asked.label.clone(),
+                        |block| format!("{}\n{}", asked.label, block.text),
+                    )
+            } else {
+                // One transcript block can contain a whole group. These offers
+                // answer only the active question; F2 keeps the complete block.
+                asked.label.clone()
+            };
             let mut words: Vec<Line<'static>> = (hang(&text, usize::from(width)).into_iter())
                 .map(Line::raw)
                 .collect();
@@ -165,12 +203,50 @@ fn head_rows(held: &Held<'_>, state: &UiState, width: u16) -> (Vec<Line<'static>
                 words.truncate(cap);
                 words.push(whole_row(width, (ascii, color)));
             }
-            // The kept request and the question's first row show whole.
-            let whole = u16::try_from(rows.len() + 1).unwrap_or(u16::MAX);
+            // A settings guide must keep its feedback above the catalogue: the title
+            // and the same two detail rows used by a selected command. Models page
+            // before these rows disappear. Ordinary questions retain their first row.
+            let readable = if matches!(
+                &state.waiting,
+                Waiting::Action { key, .. } if matches!(key.as_str(), "gate" | "gate_choice")
+            ) {
+                // Keep the active gate's question when its run context cannot fit.
+                // Further words yield to the offers and remain available through F2.
+                1
+            } else if matches!(state.waiting, Waiting::Action { .. }) {
+                // The offered act must retain the cost facts it decides.
+                words.len()
+            } else if matches!(state.waiting, Waiting::Selection { .. }) {
+                words.len().min(1 + usize::from(DETAIL_ROWS))
+            } else {
+                1
+            };
+            let whole = u16::try_from(rows.len() + readable).unwrap_or(u16::MAX);
             rows.extend(words);
             (rows, whole)
         }
     }
+}
+
+/// Keep the exact prompt and expiry notice before offers, even in the compact
+/// workspace. Full context remains in the gate's F2 reader; no clock or I/O here.
+fn expired_gate_head(
+    asked: &Asked,
+    width: u16,
+    (ascii, color): (bool, bool),
+) -> (Vec<Line<'static>>, u16) {
+    let cue = own(" … F2", ascii);
+    let room = usize::from(width).saturating_sub(cue.width());
+    let prompt = asked.label.split_whitespace().collect::<Vec<_>>().join(" ");
+    let question = Line::from(vec![
+        Span::raw(fit(&prompt, room, ascii)),
+        Span::styled(cue, role::style(Role::Dim, color)),
+    ]);
+    let notice = Line::styled(
+        fit(&asked.why, usize::from(width), ascii),
+        role::style(Role::Warn, color),
+    );
+    (vec![question, notice], 2)
 }
 
 /// What the Session keeps of the request beside a typed choice, one quiet
@@ -315,22 +391,54 @@ pub(crate) fn render(state: &UiState, composer: &Composer, band: (Rect, bool), b
             }
         }
         Held::Choice {
+            asked,
             offers,
             selected,
+            checked,
             armed,
-            ..
         } => {
+            let multiple = matches!(asked.shape, Shape::Multiple(_));
+            let knowledge = matches!(state.waiting, Waiting::Knowledge { .. });
             let column = (offers.iter().map(|offer| offer.key.width()).max())
                 .unwrap_or(0)
                 .clamp(1, KEY_COLUMN);
             let width = plan.list.width;
             for (y, index) in (plan.list.y..plan.list.bottom()).zip(page) {
-                let Some(offer) = offers.get(index) else {
-                    break;
-                };
                 let mark = Mark::new(*selected == Some(index), *armed);
-                let words = (offer.key.as_str(), offer.label.as_str());
-                let line = surface::row(words, column, width, mark, glyphs);
+                let line = if let Some(offer) = offers.get(index) {
+                    if knowledge {
+                        surface::row((&offer.key, &offer.label), column, width, mark, glyphs)
+                    } else {
+                        let glyph = match (
+                            multiple,
+                            checked.contains(&index),
+                            mark.selected,
+                            state.ascii,
+                        ) {
+                            (true, true, _, _) => "[x]",
+                            (true, false, _, _) => "[ ]",
+                            (false, _, true, true) => "(*)",
+                            (false, _, true, false) => "(●)",
+                            (false, _, false, _) => "( )",
+                        };
+                        let label = if offer.label.trim().is_empty() {
+                            &offer.key
+                        } else {
+                            &offer.label
+                        };
+                        let words = format!("{glyph} {label}");
+                        surface::row((&words, ""), 0, width, mark, glyphs)
+                    }
+                } else if multiple && index == offers.len() {
+                    let detail = if checked.is_empty() {
+                        "select at least one, or write your reply".to_owned()
+                    } else {
+                        format!("{} selected", checked.len())
+                    };
+                    surface::row(("Submit", &detail), 6, width, mark, glyphs)
+                } else {
+                    continue;
+                };
                 buf.set_line(plan.list.x, y, &line, width);
             }
         }
@@ -392,7 +500,17 @@ fn title(held: &Held<'_>, page: &Range<usize>, width: u16, state: &UiState) -> L
                     offers.len()
                 );
             }
-            let name = if knowledge { "Knowledge" } else { "Question" };
+            let name = if knowledge {
+                "Knowledge"
+            } else if matches!(state.waiting, Waiting::Selection { .. }) {
+                "Intelligence"
+            } else if matches!(state.waiting, Waiting::Action { .. }) {
+                "Decision"
+            } else if matches!(state.waiting, Waiting::ProposalChoice { .. }) {
+                "Proposal choice"
+            } else {
+                "Question"
+            };
             surface::title((name, &own(&facts, state.ascii)), "", width, glyphs)
         }
     }

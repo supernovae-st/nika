@@ -15,8 +15,8 @@ impl TurnClassifier for Modify {
 fn live_for_revision(room: &Room) -> Live {
     std::fs::create_dir(room.0.join("notes")).expect("notes");
     std::fs::write(room.0.join("notes/brief.md"), "unchanged input\n").expect("input");
-    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
-    let mut live = Live::new(room.0.clone(), IntelligenceCensus::empty(), Some(none), None,
+    let (census, selected) = crate::session::intelligence::fixture();
+    let mut live = Live::new(room.0.clone(), census, Some(selected), None,
         Box::new(|_| Box::new(nika_session::reasoner::NoReasoner)), runners())
         .with_run_tapped_observed(Box::new(|_, _, sink| {
             let mut story = nika_display::run_story::RunStory::default();
@@ -47,9 +47,11 @@ fn a_failed_saved_revision_is_not_presented_as_the_old_runs_success() {
     let room = Room::new("last-turn");
     let mut live = live_for_revision(&room);
     let proposed = live.submit("Read ./notes/brief.md and write it to ./out/copy.md");
-    assert!(
-        waits(&proposed.beats) == Some(Waiting::Proposal),
-        "deterministic proposal"
+    assert_native_action(
+        &proposed.beats,
+        "save",
+        &["yes", "save & run", "no", "/show"],
+        true,
     );
     let saved = live.submit("yes");
     assert!(
@@ -153,7 +155,12 @@ fn reply_status_never_replaces_a_pending_save_or_invents_a_failure() {
     old.exit = Some(0);
     live.kept = Some(Ok(old));
     let shown = live.submit("/show");
-    assert!(waits(&shown.beats) == Some(Waiting::Proposal));
+    assert_native_action(
+        &shown.beats,
+        "save",
+        &["yes", "save & run", "no", "/show"],
+        true,
+    );
     assert!(shown_status(&shown.beats).starts_with("Ready for review"));
     assert!(
         footer::reply_label(&TurnOutcome::Facts("an arbitrary fact".into()))

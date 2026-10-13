@@ -23,7 +23,7 @@
 
 use std::time::Duration;
 
-use crate::activity::{CallState, Phase};
+use crate::activity::{CallState, Phase, ToolState};
 
 /// The most rows one card keeps; older ones are counted, not shown.
 pub const ROWS: usize = 12;
@@ -40,6 +40,15 @@ pub enum Update<'a> {
         note: &'a str,
         /// Finished (`true`) or under way.
         done: bool,
+    },
+    /// A tool report, whose terminal state distinguishes failure from success.
+    Tool {
+        /// The phase the Session reported.
+        phase: Phase,
+        /// The Session’s words.
+        note: &'a str,
+        /// Where the tool stands.
+        state: ToolState,
     },
     /// One physical call, as the producer reported it.
     Call {
@@ -65,6 +74,12 @@ impl<'a> Update<'a> {
     #[must_use]
     pub const fn phase(phase: Phase, note: &'a str, done: bool) -> Self {
         Self::Phase { phase, note, done }
+    }
+
+    /// A tool report with its producer’s terminal state intact.
+    #[must_use]
+    pub const fn tool(phase: Phase, note: &'a str, state: ToolState) -> Self {
+        Self::Tool { phase, note, state }
     }
 
     /// A call report the door saw `at` since the turn began.
@@ -103,6 +118,7 @@ pub enum Ending {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Mark {
     Done,
+    Failed,
     Working,
     Repairing,
     Step,
@@ -157,6 +173,14 @@ impl ActivityCard {
     pub fn observe(&mut self, update: Update<'_>) -> bool {
         match update {
             Update::Phase { phase, note, done } => self.phase(phase, note, done),
+            Update::Tool { phase, note, state } => {
+                let mark = match state {
+                    ToolState::Started => Mark::Working,
+                    ToolState::Finished => Mark::Done,
+                    ToolState::Failed => Mark::Failed,
+                };
+                self.marked(phase, note, mark)
+            }
             Update::Call {
                 ordinal,
                 role,
@@ -205,6 +229,10 @@ impl ActivityCard {
             (false, Phase::Repairing) => Mark::Repairing,
             (false, _) => Mark::Working,
         };
+        self.marked(phase, note, mark)
+    }
+
+    fn marked(&mut self, phase: Phase, note: &str, mark: Mark) -> bool {
         if mark == Mark::Repairing {
             let seen = (self.rows.iter().position(|row| row.mark == Mark::Repairing))
                 .map_or(0, |at| self.rows.remove(at).seen);
@@ -322,7 +350,7 @@ const fn word(phase: Phase) -> &'static str {
     }
 }
 
-/// One row: the Session's glyph (`✓` done · `●` under way · `↻` repair, or
+/// One row: the Session's glyph (`✓` done · `✗` failed · `●` under way · `↻` repair, or
 /// their ASCII twins), the phase's word and the Session's words. A step is
 /// kept exactly as said.
 fn row_words(row: &Row, ascii: bool) -> String {
@@ -330,9 +358,11 @@ fn row_words(row: &Row, ascii: bool) -> String {
     let glyph = match (row.mark, ascii) {
         (Mark::Step, _) => return row.text.clone(),
         (Mark::Done, false) => "✓",
+        (Mark::Failed, false) => "✗",
         (Mark::Working, false) => "●",
         (Mark::Repairing, false) => "↻",
         (Mark::Done, true) => "ok",
+        (Mark::Failed, true) => "x",
         (Mark::Working, true) => ">",
         (Mark::Repairing, true) => "r",
     };
@@ -508,6 +538,29 @@ mod tests {
         assert!(
             !card.observe(Update::Step("x")),
             "repeated at once: kept once"
+        );
+    }
+
+    /// A failed tool finished, but did not succeed. Its typed state owns the
+    /// mark, even when the note is identical, and later work may continue.
+    #[test]
+    fn tool_failures_keep_their_state_when_later_work_succeeds() {
+        let mut card = ActivityCard::new();
+        card.observe(Update::tool(Phase::Authoring, "read", ToolState::Started));
+        card.observe(Update::tool(Phase::Authoring, "read", ToolState::Failed));
+        assert_eq!(card.lines(false), ["Working", "✗ Generating · read"]);
+        assert_eq!(card.lines(true), ["Working", "x Generating - read"]);
+        assert!(card.is_live(), "one tool failure does not end the turn");
+        card.observe(Update::tool(Phase::Authoring, "read", ToolState::Started));
+        card.observe(Update::tool(Phase::Authoring, "read", ToolState::Finished));
+        assert_eq!(
+            card.lines(false),
+            ["Working", "✗ Generating · read", "✓ Generating · read"]
+        );
+        card.settle(Ending::Completed, None);
+        assert_eq!(
+            card.lines(true),
+            ["Settled", "x Generating - read", "ok Generating - read"]
         );
     }
 

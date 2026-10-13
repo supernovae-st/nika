@@ -636,10 +636,16 @@ fn a_question_over_values_already_bound_is_not_asked() {
         Some("c9"),
         (&mut mint, &mut |_: &str| None),
     );
-    assert!(
-        !reply.ends_turn && reply.text.contains("already bound"),
-        "{reply:?}"
+    assert!(!reply.ends_turn, "{reply:?}");
+    let result: Value = serde_json::from_str(&reply.text).unwrap();
+    assert_eq!(result["asked"], json!([]));
+    assert_eq!(result["bound"], json!([]));
+    assert_eq!(result["refused"][0]["reason"], "settled");
+    assert_eq!(
+        result["refused"][0]["settled"],
+        json!({"message": "u2", "value": DIGEST})
     );
+    assert!(conversation.asked_ids().is_empty());
 }
 
 /// Addendum to F2: words Nika had to ask about never name the value they were ambiguous about;
@@ -861,4 +867,155 @@ fn an_output_name_is_not_asked_unless_the_persons_words_reopen_it() {
     let reply = conversation.ask(&lines, &args, Some("c2"), (&mut mint, &mut |_: &str| None));
     assert!(reply.ends_turn, "{reply:?}");
     assert_eq!(conversation.questions().len(), 1);
+}
+
+/// The workflow a conversation saved is kept with the witness of its bytes across a reopen and a
+/// new request: what a later revision of it replaces.
+#[test]
+fn the_saved_workflow_survives_a_reopen_and_a_new_request() {
+    let lines = citations(&[
+        ("u1", "lis ./notes/semaine.md"),
+        ("u2", "refais tout autrement"),
+    ]);
+    let mut conversation = Conversation::default();
+    conversation.saved_at("./weekly.nika", "nika: weekly\n");
+    let witness = Witness::of(b"nika: weekly\n").0;
+    assert_eq!(
+        conversation.saved(),
+        Some(("weekly.nika", witness.as_str()))
+    );
+    let reopened = Conversation::restored(&conversation.kept()).unwrap();
+    assert_eq!(reopened.saved(), conversation.saved());
+    let replaced = json!({"message": "u2", "excerpt": "refais tout autrement"});
+    assert!(!conversation.replace(&lines, &replaced).is_error);
+    assert_eq!(
+        conversation.saved().map(|(path, _)| path),
+        Some("weekly.nika")
+    );
+}
+
+/// The initial explicit mandate can cover preparation and saving once; a later instruction or
+/// a reopened conversation cannot turn the same words into another save or run.
+#[test]
+fn an_initial_preparation_mandate_is_scoped_and_consumed_once() {
+    let line = "Crée le workflow, enregistre et lance maintenant";
+    let mut lines = citations(&[("u1", line)]);
+    let mut conversation = Conversation::default();
+    assert!(
+        !write(
+            &mut conversation,
+            &lines,
+            "nika: hello\ntasks: {}\n",
+            json!([])
+        )
+        .is_error
+    );
+    let args = json!({"acts":["save","run"],"authorized_by":{"message":"u1","excerpt":line}});
+    let acts = conversation
+        .propose(&lines, &args, ("S1".into(), Vec::new()))
+        .unwrap()
+        .unwrap();
+    assert!(acts.save && acts.run && acts.revised);
+    assert!(
+        conversation
+            .propose(&lines, &args, ("S1".into(), Vec::new()))
+            .is_err()
+    );
+    let mut restored = Conversation::restored(&conversation.kept()).unwrap();
+    assert!(!write(&mut restored, &lines, "nika: hello\ntasks: {}\n", json!([])).is_error);
+    assert!(
+        restored
+            .propose(&lines, &args, ("S1".into(), Vec::new()))
+            .is_err()
+    );
+    let mut fresh = Conversation::default();
+    assert!(!write(&mut fresh, &lines, "nika: hello\ntasks: {}\n", json!([])).is_error);
+    lines.record(8, Some(("u2".into(), "Finalement, ne lance rien".into())));
+    assert!(
+        fresh
+            .propose(&lines, &args, ("S1".into(), Vec::new()))
+            .is_err()
+    );
+}
+
+#[test]
+fn a_bound_answer_cannot_answer_another_question_with_the_same_offer_key() {
+    let asker = Arc::new(Incarnation);
+    let first_id = QuestionId::new("first".into(), &asker);
+    let second_id = QuestionId::new("second".into(), &asker);
+    let make = |id: QuestionId, key: &str, value: &str| {
+        AskedQuestion::new(id, key, "Choose a source").with_options(
+            vec![
+                nika_session_change::work::Offer::new("yes", "Use it", true).with_values(vec![
+                    nika_session_change::work::OfferValue::new(ValueRole::ReadSource, value, None),
+                ]),
+            ],
+            true,
+            false,
+        )
+    };
+    let mut conversation = Conversation {
+        asked: vec![
+            make(first_id.clone(), "first", HN),
+            make(second_id.clone(), "second", TC),
+        ],
+        ..Conversation::default()
+    };
+    let said = conversation.answered_one_by(&first_id, "u2", "yes", &BTreeMap::new());
+    assert_eq!(said.len(), 1);
+    assert_eq!(conversation.asked_ids(), std::slice::from_ref(&second_id));
+    assert_eq!(conversation.bindings().len(), 1);
+    assert_eq!(conversation.bindings()[0].value, HN);
+    assert_eq!(conversation.bindings()[0].key.as_deref(), Some("first"));
+    assert!(!conversation.answered.contains_key("second"));
+    let stale = conversation.answered_one_by(&first_id, "u3", "yes", &BTreeMap::new());
+    assert_eq!(stale, Vec::<String>::new());
+    assert_eq!(conversation.asked_ids(), [second_id]);
+    assert_eq!(conversation.bindings().len(), 1);
+}
+
+/// A saved byte witness prevents a false proposal reminder without reviving the proposal.
+#[test]
+fn saved_candidate_bytes_need_no_new_proposal_after_reopen_but_new_bytes_do() {
+    let lines = citations(&[("u1", "Create and save this workflow.")]);
+    let source = "nika: hello\ntasks: {}\n";
+    let mut conversation = Conversation::default();
+    assert!(!write(&mut conversation, &lines, source, json!([])).is_error);
+    assert!(
+        conversation.unproposed(),
+        "a new unsaved draft still needs a proposal"
+    );
+    let unsaved = Conversation::restored(&conversation.kept()).unwrap();
+    assert!(unsaved.unproposed());
+    conversation.saved_at("hello.nika", source);
+    assert!(!conversation.unproposed());
+    let mut resumed = Conversation::restored(&conversation.kept()).unwrap();
+    assert!(!resumed.unproposed());
+    assert!(resumed.shown.is_none());
+    assert!(resumed.shown_verdict().is_none());
+    assert!(resumed.questions().is_empty() && resumed.open().is_empty());
+    assert_eq!(resumed.consumed_through, conversation.consumed_through);
+    assert!(
+        !write(
+            &mut resumed,
+            &lines,
+            "nika: changed\ntasks: {}\n",
+            json!([])
+        )
+        .is_error
+    );
+    assert!(
+        resumed.unproposed(),
+        "the old save never covers new candidate bytes"
+    );
+    assert!(
+        Conversation::restored(&resumed.kept())
+            .unwrap()
+            .unproposed()
+    );
+    assert_eq!(resumed.saved(), conversation.saved());
+    // An identical rewrite changes the revision number, not the saved bytes or any authority.
+    assert!(!write(&mut resumed, &lines, source, json!([])).is_error);
+    assert!(!resumed.unproposed());
+    assert!(resumed.shown_verdict().is_none());
 }

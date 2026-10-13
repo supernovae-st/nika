@@ -57,6 +57,7 @@ pub(crate) trait Desk: Send {
         source: &str,
         stated: (&str, &BTreeMap<String, String>, Option<&str>),
         selections: (&[Resolution], &[Resolution]),
+        presentation: &Value,
     ) -> Result<String, String>;
     /// What Nika judges of `source` with no model: its check findings, then the laws over the
     /// person's words (`stated`) and its selections. Empty when nothing stands against it.
@@ -383,7 +384,10 @@ impl Parts<'_> {
         let (authored, mut host) = self.conversation.selections();
         host.extend(Conversation::defaults(open));
         let said = (stated.as_str(), &answers, citations.first(since));
-        self.desk.verify(&source, said, (&authored, &host))
+        // The author proposes these validated choices; none is a human answer or consent.
+        let presentation = json!({"kind": "proposal", "pending_choices": open, "selected": null});
+        self.desk
+            .verify(&source, said, (&authored, &host), &presentation)
     }
 
     fn verify(&mut self) -> ToolReply {
@@ -448,7 +452,7 @@ impl Parts<'_> {
         let acts = authorized.as_ref().ok().copied().flatten();
         let cited = acts.and_then(|_| {
             let message = args["authorized_by"]["message"].as_str()?;
-            citations.get(message).map(|line| line.text.clone())
+            self.conversation.authorization_text(&citations, message)
         });
         *self.decided = Decided {
             proposed: revision,
@@ -475,3 +479,6 @@ impl Parts<'_> {
         ToolReply::ends_turn(text.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests;

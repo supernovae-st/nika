@@ -15,6 +15,8 @@ use nika_display::front_door::recovery;
 use nika_fs::OwnedDir;
 use serde::{Deserialize, Serialize};
 
+mod presentation;
+
 const LOG: &str = "events.ndjson";
 const GENESIS: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 /// How long a lease may look held before it is refused as foreign. A sibling
@@ -114,6 +116,8 @@ pub(super) enum AuthorityState {
 #[serde(rename_all = "snake_case")]
 pub(super) enum EffectState {
     NoUncertaintyReported,
+    /// A model dispatch has unsettled usage or billing, with no unknown workflow effect.
+    InferenceChargeUnknown,
     Unknown,
 }
 
@@ -164,6 +168,7 @@ impl Record {
 #[derive(Default)]
 struct Notices {
     unreported_effect: bool,
+    unreported_inference_charge: bool,
     run_notified: bool,
 }
 
@@ -175,16 +180,23 @@ pub(super) struct History {
     previous: String,
     bytes: usize,
     started: Option<(Operation, String)>,
+    presentation: presentation::Presentation,
     pub state: Saved,
     pub run: RunState,
     pub authority: AuthorityState,
     pub uncertain: bool,
+    /// Kept separately so an unknown API charge is not described as an unknown Run effect.
+    pub effects: EffectState,
     notices: Notices,
     pub restored: bool,
     pub monetary_seen: bool,
 }
 
 impl History {
+    pub(super) fn is_human(&self, index: usize) -> bool {
+        self.presentation.is_human(index)
+    }
+
     pub(super) fn open(home: &Path, project: &Path) -> io::Result<Self> {
         // Storage identity only: aliases of the same project share its lease.
         // Execution continues to use the runtime's separately observed root.
@@ -217,10 +229,12 @@ impl History {
             previous: GENESIS.to_owned(),
             bytes: 0,
             started: None,
+            presentation: presentation::Presentation::default(),
             state: Saved::default(),
             run: RunState::Idle,
             authority: AuthorityState::None,
             uncertain: false,
+            effects: EffectState::NoUncertaintyReported,
             notices: Notices::default(),
             restored: false,
             monetary_seen: false,
@@ -337,13 +351,25 @@ impl History {
                         "conversation projection exceeds its context window",
                     ));
                 }
+                self.presentation.completed(
+                    &self.state.recent,
+                    &state.recent,
+                    self.started.as_ref(),
+                );
                 self.state = *state;
                 self.notices.unreported_effect |= effect == EffectState::Unknown;
+                self.notices.unreported_inference_charge |=
+                    effect == EffectState::InferenceChargeUnknown;
+                if effect == EffectState::Unknown
+                    || self.effects == EffectState::NoUncertaintyReported
+                {
+                    self.effects = effect;
+                }
                 self.notices.run_notified &= run == self.run
                     && !matches!(outcome.as_str(), "run_requested" | "resume_requested");
                 self.run = run;
                 self.authority = authority;
-                self.uncertain |= effect == EffectState::Unknown;
+                self.uncertain |= effect != EffectState::NoUncertaintyReported;
                 self.started = None;
             }
             Event::Recovered if self.sequence > 0 => self.recover(),
@@ -362,20 +388,31 @@ impl History {
         let notify = self.notices.unreported_effect
             || self.started.is_some()
             || (self.run == RunState::AwaitingObservation && !self.notices.run_notified);
+        let inference_charge = self.notices.unreported_inference_charge;
+        self.notices.unreported_inference_charge = false;
         self.notices.unreported_effect = false;
         self.notices.run_notified = self.run == RunState::AwaitingObservation;
-        self.uncertain |= self.started.is_some() || self.run == RunState::AwaitingObservation;
-        if let Some((Operation::Turn | Operation::Run, input)) = self.started.take() {
-            self.recovery_line(input, recovery::INTERRUPTED_TURN);
+        if self.started.is_some() || self.run == RunState::AwaitingObservation {
+            self.effects = EffectState::Unknown;
         }
-        let note = recovery::conversation_note(notify, self.authority != AuthorityState::None);
+        self.uncertain |= self.effects == EffectState::Unknown;
+        if let Some((Operation::Turn | Operation::Run, input)) = self.started.take() {
+            self.recovery_line(input, recovery::INTERRUPTED_TURN, true);
+        }
+        let note = if inference_charge && !notify {
+            Some(
+                "[An earlier model request has unknown API usage or billing. This notice concerns inference, not an unobserved workflow effect. Your messages are kept; nothing was replayed.]",
+            )
+        } else {
+            recovery::conversation_note(notify, self.authority != AuthorityState::None)
+        };
         if let Some(note) = note {
-            self.recovery_line("(recovery)".to_owned(), note);
+            self.recovery_line("(recovery)".to_owned(), note, false);
         }
         self.authority = AuthorityState::None;
     }
 
-    fn recovery_line(&mut self, user: String, note: &str) {
+    fn recovery_line(&mut self, user: String, note: &str, human: bool) {
         if self
             .state
             .recent
@@ -383,6 +420,7 @@ impl History {
             .is_none_or(|(a, b)| a != &user || b != note)
         {
             self.state.recent.push((user, note.to_owned()));
+            self.presentation.push(human);
         }
         if self.state.recent.len() > super::RECENT_TURNS {
             self.state.recent.remove(0);

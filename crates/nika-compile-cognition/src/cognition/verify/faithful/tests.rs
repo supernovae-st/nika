@@ -56,6 +56,8 @@ mod observed;
 mod omittable;
 /// A clause a revision's change replaces, over a run of the revised bytes.
 mod superseded;
+/// A decision seat taken at its word holds only what it locates.
+mod taken_at_its_word;
 
 /// The model the authoring provider is seated as when it judges.
 const MODEL: &str = "mock/judge";

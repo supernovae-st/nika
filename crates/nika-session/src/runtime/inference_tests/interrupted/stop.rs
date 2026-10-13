@@ -36,7 +36,10 @@ fn stop_returns_the_conversation_with_history_and_no_new_proposal() {
         assert!(session.pending_proposal().is_none());
         assert!(!root.path().join("sortie.txt").exists());
         assert_eq!(peer.requests(), 1);
-        assert_eq!(last_history_event(home.path())["effect"], "unknown");
+        assert_eq!(
+            last_history_event(home.path())["effect"],
+            "inference_charge_unknown"
+        );
         let observations = session.cost_observations();
         let observed = observations
             .iter()

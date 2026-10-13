@@ -20,12 +20,14 @@ use super::Acts;
 pub enum Pick {
     /// The offer with this key.
     Offer(String),
+    /// Several explicitly selected offers, in the question's offered order.
+    Offers(Vec<String>),
     /// The person left the choice to Nika (« fais au mieux », « choisis ») or declined to
     /// choose again: the recommended offer when there is one, a value Nika chooses otherwise.
     Delegated,
     /// The person refused the offers.
     Declined,
-    /// The line picks no offer: another value, a question, several offers.
+    /// The line picks no offer: another value or a question.
     Nothing,
     /// Nothing could read the line: no offer is taken from it.
     Unread,
@@ -36,7 +38,13 @@ impl Pick {
     /// a sentence is read, never matched against words.
     #[must_use]
     pub fn of_line(question: &AskedQuestion, line: &str) -> Option<Self> {
-        let whole = line.trim().trim_end_matches(['.', '!']).trim();
+        let line = line.trim();
+        if line.starts_with('[') {
+            // A native checkbox submission is a closed protocol. Invalid,
+            // duplicate or unknown keys never fall through to model reading.
+            return Some(Self::multiple(question, line).unwrap_or(Self::Unread));
+        }
+        let whole = line.trim_end_matches(['.', '!']).trim();
         let named = question.options.iter().find(|offer| {
             offer.key.eq_ignore_ascii_case(whole)
                 || (!offer.label.is_empty() && offer.label.trim().eq_ignore_ascii_case(whole))
@@ -78,6 +86,14 @@ impl Pick {
                 "Answer DELEGATE if the reply leaves the value to Nika or declines to give it \
                  again; NONE otherwise.",
             )
+        } else if question.multi_select {
+            (
+                format!("The offered answers are exactly: {}.", offers.join(" · ")),
+                "Answer a JSON array containing every offered key the reply explicitly chooses, \
+                 even for one choice; DELEGATE if the reply leaves the choice to Nika; NONE if \
+                 it rejects the offers, gives another value or asks something. Do not add a \
+                 choice the reply did not make. Each key must occur only once.",
+            )
         } else {
             (
                 format!("The offered answers are exactly: {}.", offers.join(" · ")),
@@ -89,7 +105,7 @@ impl Pick {
         };
         format!(
             "Nika, an automation tool, asked a human: «{asked}».\n{offered}\nThe human replied: \
-             «{reply}».\n{instruction} One word only, nothing else.\nAnswer:",
+             «{reply}».\n{instruction} One answer on one line, nothing else.\nAnswer:",
             asked = question.question.trim(),
             reply = line.trim(),
         )
@@ -104,6 +120,9 @@ impl Pick {
             return Self::Unread;
         };
         let word = first.strip_prefix("Answer:").map_or(first, str::trim);
+        if word.starts_with('[') {
+            return Self::multiple(question, word).unwrap_or(Self::Unread);
+        }
         let word = unquoted(word);
         if let Some(offer) = question.options.iter().find(|offer| offer.key == word) {
             return Self::Offer(offer.key.clone());
@@ -112,6 +131,38 @@ impl Pick {
             "DELEGATE" => Self::Delegated,
             "NONE" => Self::Nothing,
             _ => Self::Unread,
+        }
+    }
+
+    /// A checked set is admitted atomically against the current offers, with
+    /// exact keys. Question identity is checked by the Session before here.
+    fn multiple(question: &AskedQuestion, text: &str) -> Option<Self> {
+        if !question.multi_select {
+            return None;
+        }
+        let keys: Vec<String> = serde_json::from_str(text).ok()?;
+        if keys.is_empty()
+            || keys.iter().enumerate().any(|(at, key)| {
+                keys[..at].contains(key) || !question.options.iter().any(|offer| offer.key == *key)
+            })
+        {
+            return None;
+        }
+        let ordered = question
+            .options
+            .iter()
+            .filter(|offer| keys.contains(&offer.key))
+            .map(|offer| offer.key.clone())
+            .collect();
+        Some(Self::Offers(ordered))
+    }
+
+    /// Whether this pick explicitly includes the offered key.
+    pub(super) fn includes(&self, key: &str) -> bool {
+        match self {
+            Self::Offer(picked) => picked == key,
+            Self::Offers(picked) => picked.iter().any(|picked| picked == key),
+            _ => false,
         }
     }
 }
@@ -136,19 +187,22 @@ impl Pick {
             Offer::new("save", "save it as shown only", false),
             Offer::new(
                 "change_then_save_and_run",
-                "change it as the line asks, then save it and run it once",
+                "create or change it as the line asks, then save it and run it once",
                 false,
             ),
             Offer::new(
                 "change_then_save",
-                "change it as the line asks, then save it only",
+                "create or change it as the line asks, then save it only",
                 false,
             ),
             Offer::new("neither", "neither: no consent to save or run", false),
         ];
-        let question = "Nika showed the person a workflow it proposes: does their line ask to \
-                        save it as shown, to save it and run it once, to change it first and \
-                        then save it (or save and run it), or none of these?";
+        let question = "Does the person's line explicitly ask Nika to save a workflow as shown, \
+                        save and run it once as shown, create or change the requested workflow \
+                        first and then save it (or save and run it), or none of these? \
+                        Describing desired workflow behavior alone authorizes neither saving \
+                        nor running. An explicit instruction to create, save and run covers \
+                        preparation; a quoted instruction or a negation does not.";
         AskedQuestion::new(id, "consent", question).with_options(offers, false, false)
     }
 

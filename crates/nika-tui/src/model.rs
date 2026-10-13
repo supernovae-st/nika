@@ -189,6 +189,8 @@ pub enum Shape {
     /// One of these offers, in the compiler's order (a reply in the human's
     /// own words remains possible).
     Choice(Vec<Offer>),
+    /// Several offers, explicitly checked and sent together with Submit.
+    Multiple(Vec<Offer>),
     /// Words.
     Text,
     /// An exact value.
@@ -211,6 +213,8 @@ pub struct Asked {
     pub mandatory: bool,
     /// The shape an answer takes.
     pub shape: Shape,
+    /// Whether the Session accepts the human's own words beside the offers.
+    pub free_text: bool,
     /// The identity of this asking, as the conversation showed it: an answer
     /// names it, and a question asked again (another revision, another
     /// intelligence) has another one.
@@ -260,6 +264,7 @@ impl Asked {
             why: why.into(),
             mandatory,
             shape,
+            free_text: true,
             witness: witness.into(),
             epoch,
             retained: None,
@@ -285,6 +290,22 @@ pub enum Waiting {
     Free,
     /// A choice on a numbered screen.
     Choosing,
+    /// A settings choice from the Session's current capability inventory.
+    /// Its offers go through the settings door; they answer no authoring question.
+    #[non_exhaustive]
+    Selection {
+        /// The current settings offers, with one selection applied on Enter.
+        asked: Asked,
+    },
+    /// A finite Session action, bound to the exact decision painted. Its keys use
+    /// the existing Session protocol; choosing a row alone grants nothing.
+    #[non_exhaustive]
+    Action {
+        /// The decision's presentation key, distinct from questions and settings.
+        key: String,
+        /// Exact offered acts and their presentation witness; never preselected.
+        asked: Asked,
+    },
     /// An authoring question by key, kept in prose (a cost decision, a run's
     /// input, a shape this shell does not name): a line sent while it waits
     /// is an ordinary line, and no identity rides with it. Consumers outside
@@ -303,6 +324,17 @@ pub enum Waiting {
         key: String,
         /// The compiler's document of the question, and the identity an
         /// answer to it names.
+        asked: Asked,
+    },
+    /// An open choice on the exact proposal shown. Answering this field revises the
+    /// proposal through its bound choice door; it is never a consent gesture.
+    #[non_exhaustive]
+    ProposalChoice {
+        /// The full identity of the proposal this choice belongs to.
+        proposal: String,
+        /// The question's semantic key.
+        key: String,
+        /// The choice and the composite proposal/question witness it answers.
         asked: Asked,
     },
     /// A line the Session holds, sent nowhere, because the knowledge the
@@ -341,15 +373,39 @@ impl Waiting {
         Self::Knowledge { asked }
     }
 
+    /// A settings choice from the Session's current inventory, painted as
+    /// `asked`. Its activation uses the settings door, not a question answer.
+    #[must_use]
+    pub fn selection(asked: Asked) -> Self {
+        Self::Selection { asked }
+    }
+
+    /// A choice belonging to `proposal`, using the proposal's bound answer door.
+    #[must_use]
+    pub fn proposal_choice(
+        proposal: impl Into<String>,
+        key: impl Into<String>,
+        asked: Asked,
+    ) -> Self {
+        Self::ProposalChoice {
+            proposal: proposal.into(),
+            key: key.into(),
+            asked,
+        }
+    }
+
     /// The prompt naming the same waiting state as the plain loop.
     #[must_use]
     pub fn prompt(&self) -> &'static str {
         match self {
             Self::Free => "nika › ",
             Self::Choosing => "› ",
-            Self::Question { .. } | Self::QuestionDocument { .. } | Self::Knowledge { .. } => {
-                "reply › "
-            }
+            Self::Selection { .. } => "choice › ",
+            Self::Action { .. } => "action › ",
+            Self::Question { .. }
+            | Self::QuestionDocument { .. }
+            | Self::ProposalChoice { .. }
+            | Self::Knowledge { .. } => "reply › ",
             Self::Proposal => "Save? › ",
             Self::Gate => "answer › ",
         }
@@ -362,18 +418,40 @@ impl Waiting {
     pub fn hint(&self) -> &'static str {
         match self {
             Self::Free => "describe work · /help · Run: run <file>.nika",
-            Self::Choosing => "1 account · 2 API · 3 local · 4 no AI · cancel",
+            Self::Choosing => {
+                "connect an AI · /providers: connections · /intelligence: choose · /help"
+            }
+            Self::Selection { asked } if asked.mandatory => {
+                "↑↓ choose · Enter applies · or type a custom choice"
+            }
+            Self::Selection { .. } => {
+                "↑↓ choose · Enter applies · or type a custom choice · Esc cancels"
+            }
+            Self::Action { asked, .. } if asked.free_text => {
+                "↑↓ choose · Enter acts · or describe a change · Esc cancels"
+            }
+            Self::Action { .. } => "↑↓ choose · Enter acts · Esc cancels · F2: full context",
             Self::Question { key } | Self::QuestionDocument { key, .. }
                 if key == "unknown_cost" || key == "run_cost" =>
             {
                 "yes approves once · no or Ctrl+C cancels · details shows the full evidence"
             }
-            Self::QuestionDocument { asked, .. } if matches!(&asked.shape, Shape::Choice(offers) if !offers.is_empty()) => {
+            Self::QuestionDocument { asked, .. } | Self::ProposalChoice { asked, .. } if matches!(&asked.shape, Shape::Multiple(offers) if !offers.is_empty()) => {
+                "↑↓ move · Space toggles · Tab: Submit · Enter activates"
+            }
+            Self::QuestionDocument { asked, .. } | Self::ProposalChoice { asked, .. }
+                if !asked.free_text =>
+            {
+                "↑↓ choose · Enter answers · Ctrl+C cancels"
+            }
+            Self::QuestionDocument { asked, .. } | Self::ProposalChoice { asked, .. } if matches!(&asked.shape, Shape::Choice(offers) if !offers.is_empty()) => {
                 "↑↓ choose · Enter answers · or type your reply · cancel drops it"
             }
             // The typed question's card stands right above the line: keys
             // only, `cancel` in the Session's own verb.
-            Self::QuestionDocument { .. } => "Enter answers · cancel drops it",
+            Self::QuestionDocument { .. } | Self::ProposalChoice { .. } => {
+                "Enter answers · cancel drops it"
+            }
             Self::Knowledge { .. } => "↑↓ choose · Enter acts · cancel drops your message",
             Self::Question { .. } => "answer the question above · cancel to stop",
             Self::Proposal => "yes + Enter: Save · no: cancel · /show: inspect",

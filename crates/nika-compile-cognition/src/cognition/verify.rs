@@ -10,6 +10,14 @@
 //! abstention or a failed judge keeps the request INCOMPLETE. Labels, task names, comments and
 //! generator confidence are claims, never evidence; nothing here grants READY by itself.
 //!
+//! The cooperative conversation-document branch supplies an independently audited reading
+//! from the permitted authoring provider. Its decision seat qualifies concrete program
+//! obligations with the full original context, then the same model-dataflow, extra-effect and
+//! trial laws. Its aggregate claim is program-only: it does not attest preparation acts,
+//! human selections or Save/Run authority. That branch does not ask the legacy global claim
+//! to conflate conversation work with runtime duties; the legacy route remains for other
+//! doors and document callers lending only one judge.
+//!
 //! Every question and the repair also carry one compiler-owned reference, apart from that state
 //! ([`grounding`](fn@grounding), E36): the engine's output conventions, the language in one page
 //! and the whole contract of each tool the candidate reaches by the checker's own capability
@@ -25,6 +33,7 @@ use nika_compile::surface::{Binding, Disposition, Judgment};
 use nika_kernel::ai::provider::{InferResponse, Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
+use super::conversation::interpretation;
 use super::knowledge;
 use super::rehearsal::{Refused, Rehearsals};
 use crate::decide::{
@@ -40,12 +49,14 @@ use crate::{
 mod faithful;
 mod grounding;
 mod held;
+/// The parts of a requested result a model must write, settled against the candidate's paths.
+mod model_parts;
 /// The removal claims a revision makes, asked of the judge before the whole request.
 pub(super) mod removals;
 use faithful::{Pointed, whole};
 use grounding::grounding;
-use held::held_text;
 pub(super) use held::{HELD_TARGET, held, kept, preserve_unjudged, withdrawn};
+use held::{blocked, held_text};
 use nika_compile_clauses::parts::{parts, restricts};
 use nika_compile_seats::judge::{
     CLAUSE, Construction, NO_OPERATION, RESTRICTING, WHOLE, judged_state, state, told,
@@ -148,6 +159,13 @@ pub(super) struct Verdict {
     /// What the engine's own facts settled with no call (the extra-operation question when they
     /// leave no task open), each as the verdict records it.
     pub(super) engine: Vec<Value>,
+    /// The parts of the requested result a model must write, as the judge stated them, each with
+    /// what the bytes do with it ([`model_parts`]): `None` when the law did not run.
+    pub(super) model_parts: Option<Vec<nika_compile::ModelPart>>,
+    /// Why the law did not run with this judge, said with the outcome.
+    pub(super) model_parts_unrun: Option<String>,
+    /// The author's candidate-free reading and separate audit, never human authority.
+    pub(super) request_interpretation: Option<Value>,
 }
 
 /// What the judge's admitted answers did to a candidate's bytes, by strength.
@@ -239,7 +257,10 @@ impl Verdict {
             earlier: (attempt["questions"].as_array().cloned()).unwrap_or_default(),
             same_bytes_as: Some(index),
             reference: attempt["reference"].clone(),
+            request_interpretation: attempt.get("request_interpretation").cloned(),
             usage: json!({"calls": 0, "input_tokens": 0, "output_tokens": 0, "complete": true}),
+            model_parts: model_parts::read(&attempt["model_parts"]),
+            model_parts_unrun: attempt["model_parts_unrun"].as_str().map(str::to_owned),
             ..Self::default()
         }
     }
@@ -338,7 +359,9 @@ async fn ask<P: ProviderInferDyn>(
             (answer.is_ok(), answer)
         }
         Judge::Provider(policy, provider) => {
-            let (messages, schema) = decide::closed_choice(question);
+            // Every question asked of the provider judge also keeps its reason (no extra call).
+            let asked = || question.clone().with_also(decide::reason());
+            let (messages, schema) = decide::closed_choice(&asked());
             let before = journal(out).len();
             let response =
                 super::call_with_schema(policy, *provider, role, messages, schema, out).await;
@@ -346,8 +369,11 @@ async fn ask<P: ProviderInferDyn>(
             match response {
                 Some(response) => (
                     true,
-                    decide::decoded(question, &response)
-                        .map(|choice| answered(policy, &response, choice)),
+                    decide::decoded(question, &response).map(|choice| {
+                        let mut answer = answered(policy, &response, choice);
+                        answer.also = decide::decoded_also(&asked(), &response);
+                        answer
+                    }),
                 ),
                 None => (
                     false,
@@ -835,6 +861,10 @@ fn record<P: ProviderInferDyn>(
     if let Some(said) = &verdict.stated {
         entry["stated_doubt"] = json!(said);
     }
+    if let Some(reading) = &verdict.request_interpretation {
+        entry["request_interpretation"] = reading.clone();
+    }
+    model_parts::recorded(verdict, &mut entry, out);
     if let Some(attempts) = decision["semantic_verification"].as_array_mut() {
         attempts.push(entry);
     } else {
@@ -980,79 +1010,6 @@ async fn repair<P: ProviderInferDyn>(
     }
     plan
 }
-
-/// The findings a blocked verification leaves: each duty the core named, as the core's (no judge
-/// was asked, B21 T3), each part the judge found missing (repaired from as the policy allowed)
-/// and each it could not settle, with the next action. No question asks the human for
-/// information the request already gives; a duty the core named keeps the clarification the
-/// core asks, its only next action.
-fn blocked(out: &mut CompileOutcome, verdict: &Verdict, repairs: usize) {
-    for (evidence, kind) in &verdict.named {
-        crate::finding(
-            out,
-            DiagnosticKind::Unknown,
-            "semantic_verification",
-            format!(
-                "The core named `{evidence}` ({kind}) and no element of the compiled workflow carries it; no judge was asked. {repairs} repair(s) from it did not settle it; nothing is READY. Next: the clarification the compiler asks, or a restatement of that part."
-            ),
-        );
-    }
-    for defect in &verdict.noted_defects() {
-        crate::finding(
-            out,
-            DiagnosticKind::Unknown,
-            "semantic_verification",
-            format!(
-                "The judge compared the whole request with the candidate's bytes: it does not carry « {defect} ». {repairs} repair(s) from that defect did not settle it; nothing is READY. Next: a stronger authoring model, or a restatement of that part."
-            ),
-        );
-    }
-    for unknown in &verdict.unknown {
-        let message = format!(
-            "The judge could not settle `{unknown}` against the candidate (it abstained, answered outside its options, or its call failed); nothing is READY on it. Next: a judge that answers, or a restatement the deterministic reader reads."
-        );
-        crate::finding(
-            out,
-            DiagnosticKind::Unknown,
-            "semantic_verification",
-            message,
-        );
-    }
-    for contested in &verdict.contested {
-        // The whole request is named apart from a part: each contested entry is said once.
-        let message = if verdict.request.as_deref() == Some(contested.as_str()) {
-            format!(
-                "The judge did not accept the request as carried ({}) and located no defect a repair could start from; the same judge asked again decides nothing ({}). Nothing is READY on it. Next: a correction of the request, or another verifier.",
-                verdict.doubt.join(", "),
-                verdict.unsettled.join("; ")
-            )
-        } else {
-            format!(
-                "The judge found « {contested} » missing but then named no task that fails it and no operation it lacks: nothing decided it, and nothing is READY on it."
-            )
-        };
-        crate::finding(
-            out,
-            DiagnosticKind::Unknown,
-            "semantic_verification",
-            message,
-        );
-    }
-    if verdict.stopped {
-        crate::finding(
-            out,
-            DiagnosticKind::Unknown,
-            "semantic_verification",
-            STOPPED,
-        );
-    }
-    if verdict.named.is_empty() {
-        out.questions.retain(|q| q.key != "intent.clarification");
-    }
-}
-
-/// Why a verification left part of its questions unasked.
-const STOPPED: &str = "The verification stopped at a judge call that got no answer (refused by the call bound, or failed: the receipt says which); nothing after it was asked of that judge. Next: another round, or a larger call bound.";
 
 /// A COLD candidate is judged before READY (R4 A11): a concrete defect (a part the judge finds
 /// missing, a stated duty the plan leaves uncarried) is repaired from within the policy's
@@ -1382,6 +1339,87 @@ pub(super) fn native_verdict<'a, P: ProviderInferDyn>(
     verdict_by(intent, reading, judge, request, out, attempt, observation)
 }
 
+/// Presentation is host-owned pending data. Interpretation is an audited model reading;
+/// neither replaces the original request or answers in the state or its binding.
+fn document_state(
+    intent: &str,
+    request: &CompileRequest,
+    out: &CompileOutcome,
+    candidate: &str,
+) -> Value {
+    let mut base = judged_state(intent, request, out, candidate);
+    if let Some(decision) = &out.provenance.decision {
+        if let Some(presentation) = decision.get("presentation") {
+            base["presentation"] = presentation.clone();
+        }
+        if let Some(reading) = decision.get("request_interpretation") {
+            base["request_interpretation"] = interpretation::context(reading);
+            base["request_interpretation"]["qualification_protocol"] =
+                json!(faithful::interpretation_protocol());
+        }
+    }
+    base
+}
+
+/// A terminal carried refusal can only refuse again. No caller-provided audit is used to
+/// create an acceptance, even when its input digest and protocol match.
+pub(super) fn repeat_document_rejection<P: ProviderInferDyn>(
+    intent: &str,
+    request: &CompileRequest,
+    judge: &Judge<'_, P>,
+    out: &CompileOutcome,
+    reading: &Value,
+) -> Option<CompileOutcome> {
+    let candidate = out.candidate.as_deref()?;
+    let mut replayed = out.clone();
+    replayed.provenance.decision.as_mut()?["request_interpretation"] = reading.clone();
+    let shown = context(&document_state(intent, request, &replayed, candidate));
+    let sha = knowledge::sha256(candidate);
+    let earlier = judged_before(&replayed, (request, intent, &shown), &sha, judge)?;
+    // An unfinished attempt must pass the current author audit before any new qualification.
+    if earlier.stopped || !earlier.unsettled.is_empty() {
+        return None;
+    }
+    route(&mut replayed, CARRIED);
+    record(&mut replayed, judge, &earlier, 0);
+    Some(if earlier.defects.is_empty() {
+        preserve_unjudged(replayed, &earlier)
+    } else {
+        kept(replayed, &earlier, 0)
+    })
+}
+
+/// No complete audited reading means no program judgment and no trial. Transport/parse
+/// failures do not become a semantic rejection: an explicit retry may call again.
+pub(super) fn uninterpreted<P: ProviderInferDyn>(
+    intent: &str,
+    judge: &Judge<'_, P>,
+    mut out: CompileOutcome,
+) -> CompileOutcome {
+    let reading = out
+        .provenance
+        .decision
+        .as_ref()
+        .and_then(|decision| decision.get("request_interpretation"))
+        .cloned();
+    let why = interpretation::failure_message(reading.as_ref());
+    let verdict = Verdict {
+        unknown: vec![intent.to_owned()],
+        request: Some(intent.to_owned()),
+        candidate_sha256: out.candidate.as_deref().map(knowledge::sha256),
+        request_interpretation: reading,
+        ..Verdict::default()
+    };
+    record(&mut out, judge, &verdict, 0);
+    crate::finding(
+        &mut out,
+        DiagnosticKind::Unknown,
+        "request_interpretation",
+        why,
+    );
+    preserve_unjudged(out, &verdict)
+}
+
 /// [`native_verdict`] under the `judge` the caller chose (a conversation's document is judged
 /// by the decision seat it permits, else its bounded authoring provider).
 pub(super) async fn verdict_by<P: ProviderInferDyn>(
@@ -1403,7 +1441,13 @@ pub(super) async fn verdict_by<P: ProviderInferDyn>(
     // An observation binds only to the bytes it ran: the judge never sees another's.
     let observation = observation.filter(|o| o["candidate_sha256"] == sha.as_str());
     let mut verdict = Verdict::default();
-    let base = judged_state(intent, request, &out, &candidate);
+    let base = document_state(intent, request, &out, &candidate);
+    verdict.request_interpretation = out
+        .provenance
+        .decision
+        .as_ref()
+        .and_then(|decision| decision.get("request_interpretation"))
+        .cloned();
     let shown = context(&base);
     if let Some(earlier) = judged_before(&out, (request, intent, &shown), &sha, &judge) {
         if !unfinished(&earlier, observation) {
@@ -1413,7 +1457,11 @@ pub(super) async fn verdict_by<P: ProviderInferDyn>(
         }
         // Its answers stand and are read back with no call; what it never got is asked.
         route(&mut out, RESUMED);
-        verdict.earlier = earlier.earlier;
+        // Host-carried data may repeat a refusal, never supply positive fulfillment answers.
+        // The independent author audit above only validates meaning, not program behavior.
+        if !earlier.carried || base.get("request_interpretation").is_none() {
+            verdict.earlier = earlier.earlier;
+        }
     }
     let journaled = journal(&out).len();
     let mut assembled = reading.plan.clone();

@@ -232,12 +232,22 @@ impl DecisionSeat for Judging {
             match script.iter().position(|(id, _)| *id == question.id) {
                 Some(at) => {
                     let (_, choice) = script.remove(at).unwrap();
-                    Ok(ChoiceAnswer::new(choice, JUDGE))
+                    Ok(weighs_rejection(question, ChoiceAnswer::new(choice, JUDGE)))
                 }
                 None => Err(DecisionError(format!("unscripted: {}", question.id))),
             }
         })
     }
+}
+
+/// A seat's rejection of the whole request, weighed at 0.9 (over the holding probability): a seat
+/// that weighs it holds what it cannot locate, where one taken at its word lets its parts decide.
+fn weighs_rejection(question: &ChoiceQuestion, mut answer: ChoiceAnswer) -> ChoiceAnswer {
+    if question.id == "verify-request" && answer.choice == "unfaithful" {
+        let weights = [("unfaithful".to_owned(), 0.9), ("none".to_owned(), 0.1)];
+        answer.probabilities.extend(weights);
+    }
+    answer
 }
 
 /// The doubt no part locates: the whole request unfaithful, its two parts carried (the read and
@@ -354,12 +364,14 @@ async fn a_trial_run_found_consistent_carries_a_doubted_request_ready() {
     assert_eq!(judge.left(), 0, "{out:#?}");
     let ids: Vec<&str> = over_the_run().iter().map(|(id, _)| *id).collect();
     assert_eq!(judge.ids(), ids);
-    // The judge read the run of exactly these bytes, and only over the question that asks it.
+    // The judge read the run of exactly these bytes over the whole request, from its first ask,
+    // and over the question that asks over it; never over a part asked alone.
     let asked = judge.asked();
     let shown = observation(&candidate, Kept::Whole);
     assert_eq!(asked[3].state["observation"], shown);
+    assert_eq!(asked[0].state["observation"], shown);
     assert_eq!(asked[3].keys(), OVER_THE_RUN);
-    assert_eq!(judge.shown_runs(), [false, false, false, true]);
+    assert_eq!(judge.shown_runs(), [true, false, false, true]);
     // One run, the one the judge read, reused by the final barrier.
     assert_eq!(room.shown(), std::slice::from_ref(&candidate));
     let decision = out.provenance.decision.as_ref().unwrap();
@@ -511,7 +523,8 @@ const RESTRICTS: &str = "This clause RESTRICTS (a prohibition, a condition, an e
 /// A restriction the bytes left contested (judged missing, then failed by no task) is judged
 /// again over a whole run of those bytes: the run shows it carried, which settles it; nothing is
 /// open, so the whole request is asked over the run, found consistent, and READY. The judge read
-/// the run only in the two questions that ask over it, and each of their records keeps the run's
+/// the run over the whole request, from its first ask, and in the two questions that ask over it,
+/// and each of their records keeps the run's
 /// receipts.
 #[tokio::test]
 async fn a_whole_run_settles_a_contested_restriction_then_carries_the_request_ready() {
@@ -530,7 +543,7 @@ async fn a_whole_run_settles_a_contested_restriction_then_carries_the_request_re
     assert_eq!(judge.left(), 0, "{out:#?}");
     let ids: Vec<&str> = script.iter().map(|(id, _)| *id).collect();
     assert_eq!(judge.ids(), ids);
-    let shown_runs = [false, false, false, false, true, true];
+    let shown_runs = [true, false, false, false, true, true];
     assert_eq!(judge.shown_runs(), shown_runs);
     let candidate = out.candidate.clone().unwrap();
     let shown = observation(&candidate, Kept::Whole);
@@ -577,10 +590,10 @@ async fn a_whole_run_settles_a_contested_restriction_then_carries_the_request_re
     let clause = json!({"text": OPEN_ONLY, "restricts": true});
     let expected = (&json!("verify-observed-part-1"), &json!("carried"), &clause);
     assert_eq!(settled, expected, "{over:#}");
-    for at in [4, 5] {
+    for at in [0, 4, 5] {
         assert_eq!(records[at]["observation"], receipts(&shown), "{at}");
     }
-    for at in [0, 1, 2, 3] {
+    for at in [1, 2, 3] {
         assert!(records[at].get("observation").is_none(), "{at}");
     }
     assert!(out.provenance.plan.is_some(), "the READY record: {out:#?}");
@@ -618,7 +631,7 @@ async fn a_run_shown_carrying_a_located_defect_keeps_the_defect() {
     assert_eq!(judge.left(), 0, "{out:#?}");
     let ids: Vec<&str> = AGAINST_A_DEFECT.iter().map(|(id, _)| *id).collect();
     assert_eq!(judge.ids(), ids, "no question over the whole run: {out:#?}");
-    let shown_runs = [false, false, false, false, true];
+    let shown_runs = [true, false, false, false, true];
     assert_eq!(judge.shown_runs(), shown_runs);
     let candidate = room.shown().first().cloned().unwrap_or_default();
     let shown = observation(&candidate, Kept::Whole);
@@ -653,7 +666,8 @@ async fn a_run_shown_carrying_a_located_defect_keeps_the_defect() {
     let expected = (&json!("verify-observed-part-1"), &json!("carried"), &clause);
     assert_eq!(judged, expected, "{over:#}");
     assert_eq!(over["observation"], receipts(&shown), "{over:#}");
-    for at in [0, 1, 2, 3] {
+    assert_eq!(records[0]["observation"], receipts(&shown));
+    for at in [1, 2, 3] {
         assert!(records[at].get("observation").is_none(), "{at}");
     }
     // The defect's finding names the part and both reasons; no part is told as failed by no task.

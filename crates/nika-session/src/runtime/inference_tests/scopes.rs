@@ -173,7 +173,12 @@ fn independent_run_default_keeps_zero_guard_and_saved_identity_separate() {
         TurnOutcome::Proposal { .. }
     ));
     assert!(matches!(s.consent("yes"), TurnOutcome::Facts(_)));
-    let saved = s.monetary_decision().unwrap().proposal.clone();
+    let saved = s
+        .monetary_decision()
+        .unwrap()
+        .proposal
+        .clone()
+        .expect("saved proposal");
     let guard = s.money.inference_guard.clone();
     std::fs::copy(
         dir.path().join("compiled-workflow.nika"),
@@ -197,7 +202,20 @@ fn independent_run_default_keeps_zero_guard_and_saved_identity_separate() {
     assert!(
         matches!(s.turn("run compiled-workflow.nika"), TurnOutcome::RunRequested { ref run, .. } if run.max_cost_usd.to_bits() == 0.0_f64.to_bits())
     );
-    assert_eq!(s.monetary_decision().unwrap().proposal, saved);
+    assert_eq!(
+        s.monetary_decision().unwrap().proposal,
+        None,
+        "the durable constraint restores no proposal authority"
+    );
+    assert_eq!(
+        crate::consent::ConsentRecord::read_all(dir.path())
+            .expect("consents")
+            .last()
+            .expect("saved consent")
+            .proposal,
+        saved.as_str(),
+        "the recorded Save keeps its own identity"
+    );
     assert_eq!(s.money.inference_guard, guard);
     assert!(peer.bodies().is_empty());
     assert!(!dir.path().join("sortie.txt").exists());

@@ -69,10 +69,24 @@ the request never states is a claim the judges read, as for a direction.
 
 The fidelity move preserves the existing onboarding facade entry points. Direct Rust
 imports of `nika_compile_reader::{candidate, fidelity, sketch}` must instead name
-`nika_compile_fidelity`; these reader paths are removed. Nothing of this crate is
-re-exported by core or reader. In the composed ADR-140 boundary, core reads `fidelity`
+`nika_compile_fidelity`; these reader paths are removed. The compiler facade re-exports
+`model_paths::ModelSink`; the reader does not re-export this crate. In the composed ADR-140 boundary, core reads `fidelity`
 and cognition reads `fidelity`, `sketch` and `candidate`. The reader cannot re-export
 the new member without introducing a production dependency cycle.
+
+## Model-written results
+
+`model_paths::model_steps_on_paths` walks a parsed candidate backward from each effect task
+and workflow output through `with:` data bindings, including group members. `after:` only
+orders tasks and cannot establish that a model result feeds an output. The walk returns the
+model steps reaching each `ModelSink`, unreachable model steps, literal destinations and
+child-workflow calls on those paths. An unparsed document returns `None`.
+
+This is a static data-path fact, not a verdict on a model's generated content. A model step
+whose output reaches no result cannot fulfill a requested model-written part. A child call
+records its target but does not expose its internal model steps; that part remains undecided
+without further evidence. Cognition qualifies the requested part and its sink, while Session
+can repeat the pure walk after a revision without another model call.
 
 ## Grounding observed source facts
 

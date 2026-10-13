@@ -13,8 +13,8 @@
 //!   same bytes, each absence still an absence) before the sources are judged as for every
 //!   proposal. Otherwise the proposal is withdrawn.
 //! - **Run.** A run of that saved workflow first judges its bytes and the world again. A drift
-//!   withdraws the rehearsal and its authority, and the run is refused, again at each later run
-//!   line; saying the request again rehearses the project as it is.
+//!   withdraws its authority and refuses the run. Each fresh run request observes the world
+//!   again: restoring the exact witnessed bytes permits a retry; changed bytes still refuse.
 //! - **Change.** The closed copy waits as rehearsed. A native proposal may enter a fresh EDIT;
 //!   its old proof waits aside, and only returns with unchanged bytes and world if the edit fails
 //!   or is cancelled. The revised candidate needs its own live decision.
@@ -57,20 +57,27 @@ const HELD: &str = "a change never carries a rehearsal: this proposal waits as i
 pub(super) type TestHost = dyn Fn(&Path) -> Box<dyn Rehearse> + Send + Sync;
 
 /// The rehearsals of the conversation: what this turn's rehearsals spent, the proof of the pending
-/// proposal by its identity, and that of the saved workflow by its path (or why it was withdrawn).
+/// proposal by its identity, and that of the saved workflow by its path.
 #[derive(Default)]
 pub(super) struct Rehearsals {
     turn: Usage,
     native: Option<(String, native::Preview)>,
     pending: Option<(ProposalId, Proof)>,
     revising: Option<SuspendedProof>,
-    saved: Option<(PathBuf, Result<Witness, String>)>,
+    saved: Option<(PathBuf, SavedRehearsal)>,
     /// The helper the host named to run `nika:jq` in the observed room.
     jq: Option<JqHelper>,
     /// How the host observes the pages a conversation's trial runs on, when it named a way.
     observer: Option<Observer>,
     #[cfg(test)]
     host: Option<std::sync::Arc<TestHost>>,
+}
+
+/// A withdrawn rehearsal retains its evidence for a fresh Run admission, never as authority
+/// for a late observation. Only a new request that matches every witnessed byte can retry.
+struct SavedRehearsal {
+    witness: Witness,
+    withdrawn: bool,
 }
 
 /// A pending proposal's proof: the witness its rehearsal is bound to, and the lines its preview
@@ -416,26 +423,32 @@ impl SessionRuntime {
             }
             return false;
         };
-        self.rehearsals.saved = Some((workflow.to_path_buf(), Ok(proof.witness)));
+        self.rehearsals.saved = Some((
+            workflow.to_path_buf(),
+            SavedRehearsal {
+                witness: proof.witness,
+                withdrawn: false,
+            },
+        ));
         true
     }
 
     /// Before a run of `workflow`: when a rehearsal proves it, its bytes and its world are judged
-    /// again. A drift withdraws the rehearsal and its authority, and the run is refused; a
-    /// withdrawn rehearsal keeps refusing. `None` when the run goes on.
+    /// again. A drift withdraws its authority for this request. A later request may retry only
+    /// after the exact witnessed world has been restored. `None` when the run goes on.
     pub(super) fn rehearsed_at_run(&mut self, workflow: &Path) -> Option<TurnOutcome> {
-        let (path, proof) = self.rehearsals.saved.as_ref()?;
+        let (path, proof) = self.rehearsals.saved.as_mut()?;
         if !same_file(&self.snapshot.root, path, workflow) {
             return None;
         }
-        let why = match proof {
-            Ok(witness) => witness.drift(&self.snapshot.root, Some(path.as_path()))?,
-            Err(why) => why.clone(),
-        };
+        let drift = proof
+            .witness
+            .drift(&self.snapshot.root, Some(path.as_path()));
+        proof.withdrawn = drift.is_some();
+        let why = drift?;
         let path = path.clone();
-        self.rehearsals.saved = Some((path.clone(), Err(why.clone())));
         let text = format!(
-            "{why} · the rehearsal of `{}` was withdrawn: it no longer describes a run · nothing was run · say the request again to rehearse it over the project as it is now",
+            "{why} · the rehearsal of `{}` was withdrawn for this attempt · nothing was run · restore the original file and ask to retry, or ask Nika to adapt the workflow to the changed files",
             path.display()
         );
         self.remember("(run)", &text);
@@ -454,16 +467,28 @@ impl SessionRuntime {
         ran_sha256: &str,
         written: &[String],
     ) -> Result<(), String> {
-        let Some((path, Ok(witness))) = &self.rehearsals.saved else {
+        let Some((path, proof)) = &self.rehearsals.saved else {
             return Err("no rehearsal proves a saved workflow".to_owned());
         };
+        if proof.withdrawn {
+            return Err(
+                "the rehearsal was withdrawn; a fresh Run request must revalidate it".to_owned(),
+            );
+        }
+        let witness = &proof.witness;
         if !same_file(&self.snapshot.root, path, workflow)
             || ran_sha256 != witness.candidate_sha256()
         {
             return Err("the run is not of the rehearsed workflow's bytes".to_owned());
         }
         let next = witness.advanced(&self.snapshot.root, written)?;
-        self.rehearsals.saved = Some((path.clone(), Ok(next)));
+        self.rehearsals.saved = Some((
+            path.clone(),
+            SavedRehearsal {
+                witness: next,
+                withdrawn: false,
+            },
+        ));
         Ok(())
     }
 

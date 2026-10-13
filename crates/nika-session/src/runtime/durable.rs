@@ -127,7 +127,9 @@ impl SessionRuntime {
         let notice = history.restored.then(|| {
             let mut text = "conversation restored · previous proposals and gates require fresh validation".to_owned();
             text.push_str(&expired);
-            if history.uncertain {
+            if history.uncertain && history.effects != EffectState::Unknown {
+                text.push_str("\nhistorical API charge remains unknown; later success does not settle it · your messages are kept · nothing was replayed");
+            } else if history.uncertain {
                 text.push_str("\nhistorical unresolved operation: an earlier result or charge remains uncertain; later success does not reconcile it · inspect its effects and receipts before retrying it · nothing was replayed");
             }
             if let Some(restored) = &self.restored_draft {
@@ -176,6 +178,11 @@ impl SessionRuntime {
         // The knowledge choice is recorded as the choice it is, whatever else waits beside it.
         if super::knowledge::is_choice(input) && !self.waiting_cost_choice() {
             return self.knowledge_turn(input.trim());
+        }
+        // The same choice owns the line through every entry point. Treating its answer as a
+        // new conversation would replace the request waiting for an intelligence.
+        if self.pending_choice && !self.waiting_cost_choice() {
+            return self.choose(input);
         }
         let operation = if self.local_run_line(input) {
             Operation::Run
@@ -610,7 +617,7 @@ impl SessionRuntime {
         });
         let record = ConsentRecord::of(set, id, decision, written, now_rfc3339());
         match record.append(&self.snapshot.root) {
-            Ok(()) => String::new(),
+            Ok(()) => self.save_money_evidence(&record),
             Err(error) => format!(
                 "\n  ⚠ the consent's evidence was not written (.nika/{CONSENTS_FILE}): {error}"
             ),
@@ -804,8 +811,8 @@ impl SessionRuntime {
             EffectState::Unknown
         } else if self.uncertain_charges() > charged_before {
             // This operation left a possibly billed request without usable
-            // settlement: the history says so, as the record's observation does.
-            EffectState::Unknown
+            // settlement: distinguish that charge from an unknown workflow effect.
+            EffectState::InferenceChargeUnknown
         } else {
             EffectState::NoUncertaintyReported
         };
@@ -914,6 +921,16 @@ impl SessionRuntime {
     pub fn kept_turns(&self) -> &[(String, String)] {
         &self.recent
     }
+
+    /// Whether a retained entry's input is attributable to a recorded human turn.
+    ///
+    /// Display provenance only: host observations, automatic consent and ambiguous
+    /// legacy alignment return false. This restores no authority or live request.
+    #[must_use]
+    pub fn kept_turn_is_human(&self, index: usize) -> bool {
+        matches!(&self.history, HistoryMode::Active(history)
+            if history.state.recent == self.recent && history.is_human(index))
+    }
 }
 
 // Persist no Debug representation of the payload. Debug escapes newlines
@@ -945,7 +962,7 @@ fn outcome_kind(outcome: &TurnOutcome) -> &'static str {
 /// The outcome with a warning line appended to whatever text it shows; an
 /// outcome without text (a quit · a resume the door runs) carries none —
 /// the observation that follows a resume keeps the record again.
-fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
+pub(super) fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
     let line = format!("\n  ⚠ {note}");
     match outcome {
         TurnOutcome::Reply(text) => TurnOutcome::Reply(text + &line),

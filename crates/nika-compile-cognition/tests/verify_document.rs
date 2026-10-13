@@ -22,7 +22,8 @@ use nika_compile_cognition::rehearse::{
     RehearsedOutput, RoomEvidence, Spent,
 };
 use nika_compile_cognition::{
-    Cognition, NoProvider, Removal, verify_document, verify_document_with,
+    Cognition, NoProvider, Removal, verify_document, verify_document_presented_with,
+    verify_document_with,
 };
 use nika_compile_fidelity::fidelity::resolution::Resolution;
 use nika_kernel::ai::provider::{
@@ -222,11 +223,12 @@ async fn a_document_its_judge_carries_is_ready_on_that_verdict() {
     );
 }
 
-/// The judge rejects the whole request, carries every part, names nothing extra and, asked where
-/// its doubt is, names nothing: held as the preview, never READY, typed unresolved.
+/// The judge weighs its rejection of the whole request at the holding probability, carries every
+/// part, names nothing extra and, asked where its doubt is, names nothing: held as the preview,
+/// never READY, typed unresolved.
 #[tokio::test]
 async fn a_doubt_nothing_located_is_held_never_ready() {
-    let judge = Judge::new("unfaithful", "unlocated");
+    let judge = Judge::new("unfaithful", "unlocated").weighing(0.9, 0.9);
     let out = verified(&CompileRequest::create(DELEGATING), Some(&judge)).await;
     assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
     assert!(out.candidate.is_some(), "shown, never offered");
@@ -267,7 +269,7 @@ async fn a_located_defect_keeps_the_document_as_the_preview() {
 /// the judge is asked nothing more, and the bytes stay held (R6).
 #[tokio::test]
 async fn a_verdict_the_conversation_kept_is_never_asked_again() {
-    let first = Judge::new("unfaithful", "unlocated");
+    let first = Judge::new("unfaithful", "unlocated").weighing(0.9, 0.9);
     let held = verified(&CompileRequest::create(DELEGATING), Some(&first)).await;
     let kept = decision(&held)["semantic_verification"]
         .as_array()
@@ -462,6 +464,61 @@ async fn a_removal_the_judge_does_not_confirm_holds_the_document() {
         "{held:?}"
     );
     assert_eq!(decision(&out)["removals"][0]["choice"], "kept");
+}
+
+/// Adding a pending proposal preserves the same removal gate, before either the author
+/// interprets the request or the decision seat qualifies the program.
+#[tokio::test]
+async fn a_presented_proposal_cannot_bypass_an_unconfirmed_removal() {
+    let judge = Judge::new("faithful", "unlocated").reading_removals("kept");
+    let request = CompileRequest::create(DELEGATING).with_authoring_policy(AuthoringPolicy::new(
+        "mock/judge",
+        1024,
+        Duration::from_secs(2),
+    ));
+    let presentation = json!({"kind":"proposal", "selected":null, "pending_choices":[{
+        "id":"output-current", "key":"output", "question":"Where should the digest go?",
+        "state":"open", "after":[], "free_text":true, "multi_select":false,
+        "options":[
+            {"key":"md", "label":"Markdown", "recommended":true,
+             "values":[{"role":"output_path", "value":DIGEST}]},
+            {"key":"html", "label":"HTML", "recommended":false,
+             "values":[{"role":"output_path", "value":"./news/digest.html"}]}]}]});
+    let claims = [Removal::new(
+        "https://techcrunch.com/feed",
+        "je voulais les articles d'aujourd'hui",
+    )];
+    let selections = authored();
+    let out = verify_document_presented_with(
+        &request,
+        &digest(),
+        (&selections, &[]),
+        &presentation,
+        &claims,
+        Cognition {
+            provider: Some(&Approving),
+            seat: Some(&judge),
+        },
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert_eq!(judge.ids(), ["verify-removed-0"]);
+    let held = findings(&out, "removal");
+    assert_eq!(held.len(), 1, "{held:?}");
+    assert!(held[0].contains("https://techcrunch.com/feed"), "{held:?}");
+    assert_eq!(decision(&out)["removals"][0]["choice"], "kept");
+    assert_eq!(decision(&out)["presentation"], presentation);
+    assert!(decision(&out).get("request_interpretation").is_none());
+    assert!(decision(&out).get("semantic_verification").is_none());
+    assert_eq!(
+        out.provenance
+            .authoring
+            .as_ref()
+            .map_or(0, |receipt| receipt.calls),
+        0
+    );
 }
 
 /// Words the judge reads as removing the feed let the verdict run: READY on the whole request.
