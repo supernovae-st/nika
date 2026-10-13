@@ -1891,7 +1891,9 @@ mod tests {
             public_from_files(&key_path, &pub_path).is_none(),
             "absent secret half → no announcement"
         );
+        // Each secret half is private, so these refusals judge its parse, never its mode.
         std::fs::write(&key_path, "not a minisign box").expect("write junk");
+        private(&key_path);
         assert!(
             public_from_files(&key_path, &pub_path).is_none(),
             "unparseable secret half → no announcement"
@@ -1899,6 +1901,7 @@ mod tests {
         // Shaped like a box (comment + valid base64) but structurally
         // truncated — the crate-parse arm of the probe rejects it too.
         std::fs::write(&key_path, "untrusted comment: stub\nAAAA\n").expect("write stub");
+        private(&key_path);
         assert!(
             public_from_files(&key_path, &pub_path).is_none(),
             "truncated secret half → no announcement"
