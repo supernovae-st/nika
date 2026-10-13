@@ -104,8 +104,10 @@ missing decision or gate answer.
 | `NIKA-AUTH-006` | No `permits:` block: review `nika check <file> --infer-permits` and grant the requested effects |
 | `NIKA-PARSE-005` on a `schedule:` key | A cadence is a beat in `nika.yaml`, never a workflow key |
 | `cadence.tz-missing` | Put the IANA zone inside the cadence: `TZ=Europe/Paris 0 8 * * *` |
-| `[UNREADY]` with a blocker in `nika arm --json` | Repair what the blocker names (a missing workflow, a required input with no value, a policy this firer does not support); never activate it as it is |
-| `[UNREADY]` with only « a nested workflow's routes are judged only at its own dispatch » | Not a defect: rehearse with `nika serve --once --dry`, then activate |
+| `[UNREADY]` with a blocker in `nika arm --json` | Repair what the blocker names (a missing workflow, a required input with no value, a policy this firer does not support); `nika arm --emit` refuses it until then |
+| `arm --emit · … UNREADY`, no unit printed | No unit arms a beat that cannot run: repair what `nika arm` names, or suspend the beat (`actif: false`, `raison:`, `jusqu_au:`) |
+| `[READY]` naming « a nested workflow's routes are judged only at its own dispatch » | Not a defect: an unknown alone leaves the beat READY and it fires; `nika serve --once --dry` shows what a firing would do |
+| `arm fire … unité périmée` | The unit was written for an earlier revision of the schedule: run the re-emit it names (`nika arm --emit launchd --write`, or `systemd`), then load the unit again |
 | `NIKA-COMP-001` | The child path resolves from the parent file's directory, and the child must exist when the parent is checked |
 | `NIKA-COMP-002` | The parent's `permits:` must contain every effect of the child |
 | A green check from one `nika`, a refusal from another | Two binaries: call the one the work targets by its path (`NIKA_BIN` for the check-on-edit hook, which names its oracle) |

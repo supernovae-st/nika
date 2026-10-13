@@ -89,12 +89,13 @@ fi
 # or without a ledger entry. The flag costs legitimate execs nothing.
 set +e
 if [ "$kind" = project ]; then
-  # Readiness is `nika arm`'s. A beat UNREADY with a blocker (its workflow
+  # Readiness is `nika arm`'s. A beat with a blocker (its workflow
   # unreadable, a required input with no value, a policy the firer
-  # refuses) exits 0 from `nika arm` and is a finding here; a beat UNREADY
-  # with only an unknown (a nested workflow's routes, judged at its own
-  # dispatch) is not a defect and stays silent. Without python3 to read the
-  # JSON, every UNREADY beat is reported. `nika arm` discovers nika.yaml
+  # refuses) exits 0 from `nika arm` and is a finding here. A beat whose
+  # only open question is an unknown (a nested workflow's routes, judged at
+  # its own dispatch) is not a defect and stays silent: current engines
+  # read it READY, earlier ones UNREADY with no blocker. Without python3 to
+  # read the JSON, every UNREADY beat is reported. `nika arm` discovers nika.yaml
   # from its working directory, so it runs from the edited file's own
   # directory.
   project_dir="$(cd "$(dirname "$file")" && pwd)"

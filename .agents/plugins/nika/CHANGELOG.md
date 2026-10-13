@@ -5,6 +5,16 @@ Versions move together across all manifests (the mirror gate pins it).
 
 ## Unreleased
 
+The arm teaching follows the engine. `nika arm --emit` refuses an
+UNREADY beat; an unknown alone leaves a beat READY, so a beat whose
+workflow calls a child is armed and names that unknown; a unit written
+for an earlier revision of the schedule refuses to fire until it is
+emitted again; a suspension ends at midnight after its `jusqu_au`; and
+`--emit --write` retires the unit of a beat removed from `nika.yaml`,
+printing its unload command. The operating and debugging skills, the
+project reference and the check-on-edit hook's comment said an UNREADY
+beat still got a unit and a beat calling a child read UNREADY.
+
 The consent teaching follows the product. One scoped instruction covers
 each effect it names, once: saving, running and, when it says so,
 activating a beat; the author carries it out without asking again.

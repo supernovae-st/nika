@@ -168,15 +168,20 @@ fsync durability or that a detached write has stopped.
   UNREADY with its `blockers`, or DORMANT, writing nothing. One scoped
   instruction can cover saving, running and, when it says so, activating,
   each once: carry out what it covers without asking again. Activate a
-  READY beat (`--emit` prints a unit for an UNREADY one too):
-  `nika arm --emit launchd|systemd --write`, then loading the unit, or a
-  resident `nika serve`. A beat whose workflow
-  calls a child reads UNREADY with no blocker, only the unknown « a
-  nested workflow's routes are judged only at its own dispatch »:
-  rehearse it with `nika serve --once --dry` before activating it. A
-  suspension is the triple `actif: false`, `raison:` and
-  `jusqu_au: YYYY-MM-DD`; deleting the line does not
-  disarm. Guide: https://docs.nika.sh/guides/projects-and-schedules
+  READY beat: `nika arm --emit launchd|systemd --write`, then loading the
+  unit, or a resident `nika serve`. `--emit` refuses an UNREADY beat: no
+  unit arms a run that cannot start. An unknown alone never makes a beat
+  UNREADY: a beat whose workflow calls a child reads READY and names the
+  unknown « a nested workflow's routes are judged only at its own
+  dispatch »; `nika serve --once --dry` says what a firing would do. A
+  unit carries the revision of the schedule it was written for: after a
+  cadence change, emit and load it again (the firer refuses a stale wake
+  and names that re-emit). A suspension is the triple `actif: false`,
+  `raison:` and `jusqu_au: YYYY-MM-DD`; it ends at midnight after that
+  date, in the cadence's zone. Deleting the line does not disarm on its
+  own: the next `--emit … --write` retires that beat's unit, removing its
+  file and printing the unload command to run.
+  Guide: https://docs.nika.sh/guides/projects-and-schedules
   (reference: https://docs.nika.sh/reference/arm)
 
 ## MCP servers and definition drift

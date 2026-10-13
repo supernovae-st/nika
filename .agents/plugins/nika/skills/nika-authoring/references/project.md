@@ -62,10 +62,11 @@ missed slot becomes (`manqué:`). Neither `plafond` nor `manqué` has a default.
   `nika arm --emit launchd|systemd --write`, then loaded, or a resident `nika serve`). A saved
   revision of a workflow never silently changes what an active beat fires.
 - `nika check nika.yaml` judges the file. `nika arm --json` reads every beat and reports READY,
-  UNREADY with its `blockers`, or DORMANT (suspended); it writes nothing. Activate a READY beat.
-  A beat whose workflow calls a child reads UNREADY with no blocker and the unknown « a nested
-  workflow's routes are judged only at its own dispatch »: rehearse it (`nika serve --once
-  --dry` says what would fire) before activating it.
+  UNREADY with its `blockers`, or DORMANT (suspended); it writes nothing. An unknown alone never
+  makes a beat UNREADY: a beat whose workflow calls a child reads READY and names the unknown
+  « a nested workflow's routes are judged only at its own dispatch » (`nika serve --once --dry`
+  says what would fire). Activate a READY beat; `nika arm --emit` refuses an UNREADY one, and a
+  unit written for an earlier revision of the schedule refuses to fire until it is emitted again.
 
 Every cadence form, the suspension triple and the activation commands are in the
 [Projects and schedules](https://docs.nika.sh/guides/projects-and-schedules) guide and the
@@ -134,4 +135,4 @@ outputs:
 ```
 
 With `prompts/report-style.txt` and `notes/week.txt` present, the three files check clean from
-the root, and `nika arm --json` reads the beat UNREADY with only that nested-workflow unknown.
+the root, and `nika arm --json` reads the beat READY, naming that nested-workflow unknown.
