@@ -44,6 +44,14 @@ pub use nika_display::front_door::doctor::{Finding, Level};
 /// local summary · the inference-readiness gate).
 #[must_use]
 pub fn diagnose(probe: &Probe) -> Vec<Finding> {
+    // Where the run-key comes from, observed once here and decided
+    // without opening the keychain (a custody question never costs a password).
+    diagnose_with(probe, &nika_dap::seal::custody())
+}
+
+/// [`diagnose`] judging a given run-key custody: the doctor's tests pass a
+/// fixed one, so no test reads the keys of the machine it runs on.
+pub(crate) fn diagnose_with(probe: &Probe, custody: &nika_dap::seal::Custody) -> Vec<Finding> {
     let mut out = vec![
         Finding {
             level: Level::Ok,
@@ -86,9 +94,7 @@ pub fn diagnose(probe: &Probe) -> Vec<Finding> {
     // #891 — the sandbox row rides the ONE selection's decision (#888),
     // observed once here (the sidecar precedent · diagnose stays pure).
     out.push(sandbox_finding(&crate::probe::sandbox_probe()));
-    // Where the run-key comes from, observed once here and decided
-    // without opening the keychain (a custody question never costs a password).
-    out.push(run_key_finding(&nika_dap::seal::custody()));
+    out.push(run_key_finding(custody));
     out.extend(sidecar_finding());
     out.extend(models_finding(&probe.models));
     if let Ok(cwd) = std::env::current_dir() {
@@ -1295,8 +1301,28 @@ pub fn run_with(
     theme: Theme,
     extra: Vec<Finding>,
 ) -> VerbOutput {
+    run_with_custody(
+        ping,
+        json,
+        verbose,
+        theme,
+        extra,
+        &nika_dap::seal::custody(),
+    )
+}
+
+/// [`run_with`] judging a given run-key custody, as [`diagnose_with`] does.
+#[must_use]
+pub(crate) fn run_with_custody(
+    ping: bool,
+    json: bool,
+    verbose: bool,
+    theme: Theme,
+    extra: Vec<Finding>,
+    custody: &nika_dap::seal::Custody,
+) -> VerbOutput {
     let probe = crate::probe::collect(ping);
-    let mut findings = diagnose(&probe);
+    let mut findings = diagnose_with(&probe, custody);
     findings.extend(extra);
     // P3 B6 · every shipped agentic CLI runtime (always listed · label
     // `runtime`, never the MCP-wire `agent` column).

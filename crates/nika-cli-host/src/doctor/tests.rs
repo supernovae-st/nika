@@ -10,6 +10,24 @@ use nika_providers::probe::{ExecutionLocus, ProviderReadiness, env_present, ping
 /// The sober register — the byte-frozen baseline every pipe reads.
 const PLAIN: Theme = Theme::new(false, false, false);
 
+/// The one run-key custody every diagnosis here judges, the one CI has: a cargo test binary with
+/// no explicit key pair and no key file. The rows other custodies earn are judged in
+/// `custody_tests`; the keys of the machine running the tests never reach these.
+fn ci_custody() -> nika_dap::seal::Custody {
+    nika_dap::seal::Custody::new(
+        None,
+        nika_dap::seal::KeychainUse::TestBinary,
+        Some((
+            PathBuf::from("/home/u/.nika/keys/run-signing.key"),
+            nika_dap::seal::KeyFile::Absent,
+        )),
+    )
+}
+
+fn diagnose(probe: &Probe) -> Vec<Finding> {
+    super::diagnose_with(probe, &ci_custody())
+}
+
 fn readiness(configured: bool, locus: ExecutionLocus) -> ProviderReadiness {
     ProviderReadiness::new(
         true,
@@ -834,8 +852,9 @@ fn env_present_reflects_the_real_environment() {
 fn the_real_catalog_has_no_fail_and_renders() {
     // The wired run() over the canonical catalog: local providers exist, so
     // there is never a hard Fail (exit 0) even with no keys in the test env.
-    // ping=false — the default run stays fully offline, in tests too.
-    let out = run(false, false, true, PLAIN);
+    // ping=false — the default run stays fully offline, in tests too. The
+    // run-key custody is CI's, never the machine's (`ci_custody`).
+    let out = super::run_with_custody(false, false, true, PLAIN, Vec::new(), &ci_custody());
     assert_eq!(out.code, exit::OK, "the catalog always offers a path");
     assert!(out.text.contains("binary"), "renders the binary line");
     // The LLM test backend stays hidden (no `mock — key` provider row);
