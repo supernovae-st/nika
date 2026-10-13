@@ -10,6 +10,7 @@ use std::path::{Component, Path, PathBuf};
 use nika_onboard::routing::run_options;
 
 use super::{SessionRuntime, TurnOutcome, ceiling_in};
+use crate::change::Witness;
 use crate::outcome::{Refusal, RefusalClass};
 use crate::turn::{SessionPhase, TurnAct};
 
@@ -35,7 +36,7 @@ impl SessionRuntime {
         }
         let options = run_options::parse(line);
         // Keep literal quoted paths exact: the options parser normalizes whitespace.
-        let (workflow, named) = self.natural_run_target(line)?;
+        let (workflow, named, observed) = self.natural_run_target(line)?;
         let phase = if self.agent_question_id().is_some() {
             SessionPhase::QuestionPending
         } else {
@@ -43,6 +44,8 @@ impl SessionRuntime {
         };
         let decision = if named {
             self.classify_named_run(phase, line, &workflow)
+        } else if observed.is_some() {
+            self.classify_observed_run(phase, line, &workflow)
         } else {
             self.classify(phase, line)
         };
@@ -51,7 +54,9 @@ impl SessionRuntime {
         }
         // Recheck after cognition; the classifier cannot replace the named target with an
         // outside, missing or linked file. Run still performs its own check and byte binding.
-        if named && !regular_project_workflow(&self.snapshot.root, &workflow) {
+        if (named || observed.is_some())
+            && !regular_project_workflow(&self.snapshot.root, &workflow)
+        {
             return None;
         }
         let Some((words, access_pin)) = options else {
@@ -67,9 +72,9 @@ impl SessionRuntime {
                 format!("the rerun request could not be recorded; nothing was run · {reason}"),
             )));
         }
-        Some(self.admit_run(
+        Some(self.admit_bound_run(
             line,
-            workflow,
+            (workflow, observed),
             ceiling,
             access_pin,
             run_options::inline_vars(&words),
@@ -78,19 +83,45 @@ impl SessionRuntime {
 
     /// A named target is an existing regular project file, never a guessed replacement for
     /// the current workflow. Repeated references to the same logical path stay unambiguous.
-    fn natural_run_target(&self, line: &str) -> Option<(PathBuf, bool)> {
+    fn natural_run_target(&self, line: &str) -> Option<(PathBuf, bool, Option<Witness>)> {
         let root = &self.snapshot.root;
         let mut names = named_workflows(line)?.into_iter();
         let Some(first) = names.next() else {
             // Save may keep an absolute path. Run uses the same project-relative identity.
-            return relative_workflow(root, self.last_workflow.as_deref()?)
-                .map(|workflow| (workflow, false));
+            return match self.last_workflow.as_deref() {
+                Some(saved) => relative_workflow(root, saved).map(|path| (path, false, None)),
+                None => self
+                    .observed_run_target()
+                    .map(|(path, witness)| (path, false, Some(witness))),
+            };
         };
         let workflow = relative_workflow(root, first)?;
         if names.any(|other| relative_workflow(root, other).as_ref() != Some(&workflow)) {
             return None;
         }
-        regular_project_workflow(root, &workflow).then_some((workflow, true))
+        regular_project_workflow(root, &workflow).then_some((workflow, true, None))
+    }
+
+    /// The last settled Run is context only: no target or consent is restored at open.
+    /// Its exact observed bytes must still exist as a regular workflow inside this project.
+    pub(super) fn observed_run_target(&self) -> Option<(PathBuf, Witness)> {
+        let kept = self.kept_run()?.ok()?;
+        if !matches!(kept.exit, Some(0 | 1)) {
+            return None;
+        }
+        let workflow =
+            relative_workflow(&self.snapshot.root, Path::new(kept.workflow.as_deref()?))?;
+        if !workflow
+            .file_name()?
+            .to_str()
+            .is_some_and(nika_source::is_canonical_program_file_name)
+            || !regular_project_workflow(&self.snapshot.root, &workflow)
+        {
+            return None;
+        }
+        let bytes = std::fs::read(self.snapshot.root.join(&workflow)).ok()?;
+        (nika_event::source_id::sha256_hex(&bytes) == kept.workflow_sha256?)
+            .then(|| (workflow, Witness::of(&bytes)))
     }
 }
 
@@ -185,6 +216,8 @@ fn named_workflows(line: &str) -> Option<Vec<&Path>> {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
+    mod observed;
+
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
 

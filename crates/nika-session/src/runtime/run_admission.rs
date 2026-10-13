@@ -60,8 +60,11 @@ impl SessionRuntime {
             if let Some(held) = self.hold_for_knowledge(input, self.routes_by_model()) {
                 return Some(held);
             }
-            return match self.classify(SessionPhase::Idle, input).act {
-                TurnAct::RequestRun => Some(self.run_plain(&line, ceiling, access_pin)),
+            let decision = self.classify(SessionPhase::Idle, input);
+            return match decision.act {
+                TurnAct::RequestRun if decision.secondary.is_empty() => {
+                    Some(self.run_plain(&line, ceiling, access_pin))
+                }
                 TurnAct::Modify | TurnAct::Mixed => Some(TurnOutcome::Refusal(Refusal::new(
                     RefusalClass::WrongState,
                     "a run with a change in it — say the change first (in a sentence), review the new workflow, then « run it »",
@@ -81,17 +84,28 @@ impl SessionRuntime {
         access_pin: Option<String>,
     ) -> TurnOutcome {
         let root = self.snapshot.root.clone();
-        let named = named_files(input)
-            .into_iter()
+        let references = named_files(input);
+        let named = references
+            .iter()
             .map(PathBuf::from)
             .find(|p| root.join(p).is_file());
-        let Some(workflow) = named.or_else(|| self.last_workflow.clone()) else {
+        let target = named
+            .or_else(|| self.last_workflow.clone())
+            .map(|path| (path, None))
+            .or_else(|| {
+                references
+                    .is_empty()
+                    .then(|| self.observed_run_target())
+                    .flatten()
+                    .map(|(path, witness)| (path, Some(witness)))
+            });
+        let Some(target) = target else {
             return TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::WrongState,
                 "nothing to run — name a workflow file (« run brief.nika »), or describe the work and Nika builds one first",
             ));
         };
-        self.admit_run(input, workflow, ceiling, access_pin, inline_vars(input))
+        self.admit_bound_run(input, target, ceiling, access_pin, inline_vars(input))
     }
 
     /// A run refused before any check: a paused gate waits, or a restored exposure has no stated
@@ -130,6 +144,19 @@ impl SessionRuntime {
         access_pin: Option<String>,
         given: Vec<String>,
     ) -> TurnOutcome {
+        self.admit_bound_run(said, (workflow, None), ceiling, access_pin, given)
+    }
+
+    /// The same admission, optionally restricted to the exact bytes a retained Run observed.
+    /// Compare against the check's witness before adopting a target or asking for its inputs.
+    pub(super) fn admit_bound_run(
+        &mut self,
+        said: &str,
+        (workflow, expected): (PathBuf, Option<Witness>),
+        ceiling: Option<f64>,
+        access_pin: Option<String>,
+        given: Vec<String>,
+    ) -> TurnOutcome {
         if let Some(refused) = self.run_refused(said, ceiling) {
             return refused;
         }
@@ -149,6 +176,15 @@ impl SessionRuntime {
                 text.push_str(f);
             }
             return TurnOutcome::Facts(text);
+        }
+        if expected
+            .as_ref()
+            .is_some_and(|seen| audit.bytes.as_ref() != Some(seen))
+        {
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::StaleRevision,
+                "the observed workflow changed since that run; name the current file explicitly before requesting another Run",
+            ));
         }
         let max_cost_usd = match self.run_money(said, &workflow, ceiling) {
             Ok(amount) => amount,

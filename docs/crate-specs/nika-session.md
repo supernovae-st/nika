@@ -1407,3 +1407,12 @@ match. It reads no model and changes no state. Unknown timing stays unknown; the
 runtime alone admits an answer. If resume reaches an expired ticket, it refreshes
 that ticket without binding the answer; the fresh question needs a separate answer.
 Earlier trust, content or admission failures can still refuse the resume.
+
+A natural rerun or closed `run it` request after reopening can use the last settled
+Run as context when no saved workflow is current. The retained path must name a regular project workflow and its
+SHA-256 must match the observed bytes. The natural route still requires a fresh semantic RequestRun with no secondary
+act; the closed Run grammar retains its existing door. Shared Run admission compares its checked byte witness
+before adopting the target, money or inputs. Opening restores neither last_workflow
+nor consent from that evidence, and never starts a Run. Unreadable/partial evidence,
+changed bytes, escaping paths and links do not supply this fallback. Explicitly named
+files and a current saved workflow retain their existing admission behavior.

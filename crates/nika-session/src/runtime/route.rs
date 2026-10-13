@@ -112,6 +112,25 @@ impl SessionRuntime {
         self.classify_context(&context, raw)
     }
 
+    /// A retained Run supplies context only; a new `RequestRun` reading remains necessary.
+    pub(super) fn classify_observed_run(
+        &mut self,
+        phase: SessionPhase,
+        raw: &str,
+        workflow: &std::path::Path,
+    ) -> TurnDecision {
+        let mut context = self.turn_context(phase);
+        let target = format!(
+            "The last observed run used the existing project workflow `{}`; its current bytes match that observation. This is historical context, not a saved proposal or permission to run. Only a fresh request to run that unchanged workflow may reach Run admission.",
+            workflow.display()
+        );
+        context.automation = Some(match context.automation {
+            Some(automation) => format!("{automation}\n{target}"),
+            None => target,
+        });
+        self.classify_context(&context, raw)
+    }
+
     fn classify_context(&mut self, context: &TurnContext, raw: &str) -> TurnDecision {
         let phase = context.phase;
         let blocked = self.money_blocks_cognition();

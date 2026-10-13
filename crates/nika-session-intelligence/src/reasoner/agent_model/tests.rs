@@ -322,3 +322,56 @@ fn conversation_auth_guidance_preserves_quota_diagnostics() {
     let error = ProviderError::HttpResponse { details };
     assert_eq!(conversation_error("deepseek", &error), error.to_string());
 }
+
+/// The adapter preserves the provider's window marker separately from its stop and usage.
+#[test]
+fn an_agent_reply_keeps_window_full_without_confusing_it_with_an_output_cap() {
+    const MODEL: &str = "deepseek/deepseek-flash";
+    let window = nika_catalog::find_provider("deepseek")
+        .expect("catalogued provider")
+        .models
+        .iter()
+        .find(|model| model.model == "deepseek-flash")
+        .map(|model| u64::from(model.context_window_tokens))
+        .expect("the adapter's exact model has a known window");
+    let cases = [
+        (window + 1, "stop", StopReason::EndTurn, true),
+        (window, "stop", StopReason::EndTurn, false),
+        (window, "length", StopReason::MaxTokens, false),
+    ];
+    let script = cases
+        .iter()
+        .map(|(input, finish, _, _)| {
+            let mut body = response("the adapter's answer");
+            body["choices"][0]["finish_reason"] = serde_json::json!(finish);
+            body["usage"]["prompt_tokens"] = serde_json::json!(input);
+            body["usage"]["prompt_cache_miss_tokens"] = serde_json::json!(input);
+            body["usage"]["total_tokens"] = serde_json::json!(input + 20);
+            (200, body)
+        })
+        .collect();
+    let peer = Peer::start(script);
+    let _http = test_transport::install(&peer.url);
+    let mut model = AgentModel::new(MODEL);
+    for (input, finish, stop, full) in cases {
+        let reply = model
+            .complete(&line(), &mut |_| {})
+            .expect("one reported response");
+        assert_eq!(reply.window_full, full, "input={input}, finish={finish}");
+        assert_eq!(reply.stop, stop, "the adapter preserves the wire stop");
+        assert_eq!(reply.model.as_deref(), Some(MODEL));
+        let usage = reply.usage.expect("reported usage remains reported");
+        assert_eq!((usage.input_tokens, usage.output_tokens), (input, 20));
+        assert!(matches!(
+            reply.content.as_slice(),
+            [ContentBlock::Text { text }] if text == "the adapter's answer"
+        ));
+    }
+    let requests = peer.bodies();
+    assert_eq!(requests.len(), 3, "no retry or extra model request");
+    assert!(
+        requests
+            .iter()
+            .all(|body| body["model"] == "deepseek-flash")
+    );
+}
